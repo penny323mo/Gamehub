@@ -46,60 +46,16 @@ const PennyCrush = {
         document.getElementById('pc-menu').classList.add('hidden');
         document.getElementById('pc-game').classList.remove('hidden');
 
-        // --- Dynamic Scaling ---
-        this.calculateTileSize();
-
-        // Add Resize Listener (Debounced)
-        if (!this.resizeListenerAdded) {
-            let resizeTimeout;
-            window.addEventListener('resize', () => {
-                clearTimeout(resizeTimeout);
-                resizeTimeout = setTimeout(() => {
-                    if (document.getElementById('pc-game').classList.contains('hidden')) return;
-                    this.calculateTileSize();
-                    // No need to re-render grid completely, just size update
-                    // But if we want to be safe we can re-render, though CSS var update is enough for size.
-                    // The CSS relies on --tile-size which is updated.
-                }, 100);
-            });
-            this.resizeListenerAdded = true;
-        }
+        // Step 1: Add CSS variable for dynamic board size
+        document.documentElement.style.setProperty('--board-size', this.gridSize);
 
         this.generateGrid();
         this.renderGrid();
     },
 
-    calculateTileSize: function () {
-        const wrapper = document.querySelector('.board-wrapper');
-        const board = document.getElementById('pc-grid');
-        if (!wrapper || !board) return;
+    // calculateTileSize removed as CSS now handles the layout with 1fr
+    // functionality is replaced by CSS Grid responsiveness
 
-        // Use the wrapper's width (max 480px or screen width)
-        const wrapperRect = wrapper.getBoundingClientRect();
-        const maxBoardWidth = wrapperRect.width - 10; // -10 for safety margin
-
-        // Reserve vertical space: header + controls take ~200px+
-        // Let's aim to use up to 60% of screen height for the board
-        const maxBoardHeight = window.innerHeight * 0.60;
-
-        const maxSize = Math.min(maxBoardWidth, maxBoardHeight);
-
-        // Calculate tile size
-        // Grid padding is 12px total (6px each side) + gaps
-        const gap = 2; 
-        const padding = 12;
-        const totalGap = (this.gridSize - 1) * gap;
-        
-        const availableSpace = maxSize - padding - totalGap;
-        let tileSize = Math.floor(availableSpace / this.gridSize);
-
-        // Clamp tile size
-        tileSize = Math.max(20, tileSize); // Min 20px
-        tileSize = Math.min(60, tileSize); // Max 60px
-
-        board.style.setProperty('--board-size', this.gridSize);
-        board.style.setProperty('--tile-size', `${tileSize}px`);
-    },
 
     stop: function () {
         this.isProcessing = false;
