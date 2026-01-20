@@ -57,8 +57,10 @@ const PennyCrush = {
                 resizeTimeout = setTimeout(() => {
                     if (document.getElementById('pc-game').classList.contains('hidden')) return;
                     this.calculateTileSize();
-                    this.renderGrid();
-                }, 200);
+                    // No need to re-render grid completely, just size update
+                    // But if we want to be safe we can re-render, though CSS var update is enough for size.
+                    // The CSS relies on --tile-size which is updated.
+                }, 100);
             });
             this.resizeListenerAdded = true;
         }
@@ -68,38 +70,35 @@ const PennyCrush = {
     },
 
     calculateTileSize: function () {
-        const container = document.querySelector('.penny-container');
-        const containerWidth = container ? container.clientWidth : window.innerWidth;
-        const screenHeight = window.innerHeight;
-        const isMobile = window.innerWidth <= 480;
+        const wrapper = document.querySelector('.board-wrapper');
+        const board = document.getElementById('pc-grid');
+        if (!wrapper || !board) return;
 
-        const gapSize = isMobile ? 1 : 1.5;
-        const gridPadding = isMobile ? 8 : 12;
+        // Use the wrapper's width (max 480px or screen width)
+        const wrapperRect = wrapper.getBoundingClientRect();
+        const maxBoardWidth = wrapperRect.width - 10; // -10 for safety margin
 
-        const totalGaps = (this.gridSize - 1) * gapSize;
-        const availableWidth = containerWidth - gridPadding - totalGaps;
-        const tileFromWidth = Math.floor(availableWidth / this.gridSize);
+        // Reserve vertical space: header + controls take ~200px+
+        // Let's aim to use up to 60% of screen height for the board
+        const maxBoardHeight = window.innerHeight * 0.60;
 
-        const maxGridHeight = screenHeight * (isMobile ? 0.6 : 0.65);
-        const availableHeight = maxGridHeight - gridPadding - totalGaps;
-        const tileFromHeight = Math.floor(availableHeight / this.gridSize);
+        const maxSize = Math.min(maxBoardWidth, maxBoardHeight);
 
-        let tileSize = Math.min(tileFromWidth, tileFromHeight);
-        const MAX_TILE = isMobile ? 55 : 70;
-        tileSize = Math.min(tileSize, MAX_TILE);
-        const finalTileSize = Math.max(tileSize, 20);
+        // Calculate tile size
+        // Grid padding is 12px total (6px each side) + gaps
+        const gap = 2; 
+        const padding = 12;
+        const totalGap = (this.gridSize - 1) * gap;
+        
+        const availableSpace = maxSize - padding - totalGap;
+        let tileSize = Math.floor(availableSpace / this.gridSize);
 
-        document.documentElement.style.setProperty('--tile-size', `${finalTileSize}px`);
-        document.documentElement.style.setProperty('--grid-size', this.gridSize);
+        // Clamp tile size
+        tileSize = Math.max(20, tileSize); // Min 20px
+        tileSize = Math.min(60, tileSize); // Max 60px
 
-        const gridEl = document.getElementById('pc-grid');
-        if (gridEl) {
-            gridEl.style.gridTemplateColumns = `repeat(${this.gridSize}, ${finalTileSize}px)`;
-            gridEl.style.gap = `${gapSize}px`;
-            gridEl.style.padding = `${gridPadding}px`;
-            gridEl.style.width = 'fit-content';
-            gridEl.style.margin = '0 auto';
-        }
+        board.style.setProperty('--board-size', this.gridSize);
+        board.style.setProperty('--tile-size', `${tileSize}px`);
     },
 
     stop: function () {

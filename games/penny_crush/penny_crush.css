@@ -208,17 +208,33 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: flex-start;
+    /* Changed to flex-start to keep header top, board below */
+    flex: 1;
+}
+
+.board-wrapper {
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    display: flex;
     justify-content: center;
-    /* Added optional enhancement from Step 3 */
+    align-items: center;
+    flex: 0 0 auto;
+    /* don't shrink */
 }
 
 .pc-grid {
     display: grid;
-    gap: 1.5px;
+    grid-template-columns: repeat(var(--board-size, 8), var(--tile-size, 32px));
+    grid-auto-rows: var(--tile-size, 32px);
+    justify-content: center;
+    gap: 2px;
     background: rgba(0, 0, 0, 0.4);
     padding: 6px;
     border-radius: 12px;
-    margin: 0 auto 20px auto;
+    margin: 0 auto;
+    /* removed bottom margin, handled by container or wrapper */
     width: fit-content;
     height: fit-content;
     box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
@@ -235,6 +251,14 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
+    box-sizing: border-box;
+}
+
+/* slightly smaller gaps on very small screens */
+@media (max-width: 480px) {
+    .pc-grid {
+        gap: 1px;
+    }
 }
 
 /* Animations */
