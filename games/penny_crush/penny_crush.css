@@ -208,6 +208,8 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
+    /* Added optional enhancement from Step 3 */
 }
 
 .pc-grid {
