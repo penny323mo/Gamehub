@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gomoku</title>
+    <link rel="stylesheet" href="gomoku.css">
+</head>
+
+<body>
+    <div class="switch-container">
+        <main class="switch-card">
+            <h1>五子棋</h1>
+
+            <!-- Landing Page / Game Selection -->
+            <div id="landing-page">
+                <div class="landing-actions">
+                    <button class="pill-btn mode-btn" onclick="selectMode('ai')">對 AI 對戰</button>
+                    <button class="pill-btn mode-btn" onclick="selectMode('online')">Online 對戰</button>
+                    <button class="pill-btn secondary" onclick="goToLauncher()">返回遊戲大廳</button>
+                </div>
+            </div>
+
+            <!-- Game Container (Hidden on Landing) -->
+            <div id="game-container" class="hidden">
+
+                <!-- VS AI Specific Controls -->
+                <div id="ai-controls" class="hidden">
+                    <div class="controls-card">
+                        <label for="difficulty">難度：</label>
+                        <select id="difficulty" class="pill-select">
+                            <option value="easy">Easy</option>
+                            <option value="medium">Medium</option>
+                            <option value="hard" selected>Hard</option>
+                        </select>
+                        <button class="pill-btn secondary" onclick="backToLanding()">返回選單</button>
+                    </div>
+                </div>
+
+                <!-- Online Lobby (Room List) -->
+                <div id="online-lobby" class="hidden">
+                    <h3>選擇房間</h3>
+                    <div class="room-grid">
+                        <div class="room-card" onclick="joinRoom('room1')">
+                            <div class="room-name">Room 1</div>
+                        </div>
+                        <div class="room-card" onclick="joinRoom('room2')">
+                            <div class="room-name">Room 2</div>
+                        </div>
+                        <div class="room-card" onclick="joinRoom('room3')">
+                            <div class="room-name">Room 3</div>
+                        </div>
+                    </div>
+                    <button class="pill-btn secondary" onclick="backToLanding()">返回選單</button>
+                </div>
+
+                <!-- Online Room View (Board + Details) -->
+                <div id="online-room" class="hidden">
+                    <div class="room-header-card">
+                        <div class="room-status">
+                            <span class="label">房間：</span><span id="current-room-id" class="value"></span>
+                            <span class="divider">|</span>
+                            <span class="label">身份：</span><span id="my-role" class="value">觀眾</span>
+                        </div>
+                    </div>
+
+                    <div id="role-selection">
+                        <button id="btn-claim-black" class="pill-btn role-btn"
+                            onclick="becomePlayer('black')">成為黑子玩家</button>
+                        <button id="btn-claim-white" class="pill-btn role-btn"
+                            onclick="becomePlayer('white')">成為白子玩家</button>
+                        <button id="btn-claim-spec" class="pill-btn role-btn secondary"
+                            onclick="becomeSpectator()">成為觀戰者</button>
+                    </div>
+
+                    <div class="room-actions">
+                        <button id="online-start-btn" class="pill-btn action-btn hidden"
+                            onclick="startOnlineGame()">開始遊戲</button>
+                        <button id="leave-room-btn" class="pill-btn danger-btn" onclick="leaveRoom()">退出房間</button>
+                    </div>
+                </div>
+
+                <!-- Common Game Elements (Board, Status) -->
+                <div id="game-board-area" class="hidden">
+                    <div class="board-frame">
+                        <div id="board"></div>
+                    </div>
+                    <div id="status-bar">
+                        <div id="status">當前回合：<span class="player-turn">黑子</span></div>
+                    </div>
+                    <button id="reset-btn" class="pill-btn action-btn" onclick="resetGame()">重新開始</button>
+                </div>
+
+            </div>
+        </main>
+    </div>
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="module" src="js/app.js"></script>
+</body>
+
+</html>

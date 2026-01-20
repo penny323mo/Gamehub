@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Penny Crush</title>
+    <link rel="stylesheet" href="penny_crush.css">
+</head>
+
+<body>
+    <div class="penny-center-wrapper">
+        <main class="switch-card penny-container">
+            <header class="penny-header">
+                <h1>Penny Crush</h1>
+                <div class="score-board">Score: <span id="pc-score">0</span></div>
+            </header>
+
+            <div id="pc-menu">
+                <p class="menu-label">Select Board Size:</p>
+                <button class="pill-btn pc-btn" onclick="PennyCrush.init(8)">8x8 (Normal)</button>
+                <button class="pill-btn pc-btn" onclick="PennyCrush.init(10)">10x10 (Hard)</button>
+                <button class="pill-btn pc-btn" onclick="PennyCrush.init(12)">12x12 (Extreme)</button>
+                <button class="pill-btn secondary" onclick="goToLauncher()">Back to Menu</button>
+            </div>
+
+            <div id="pc-game" class="hidden">
+                <div id="pc-grid" class="pc-grid"></div>
+                <div class="pc-controls">
+                    <div class="pc-tools">
+                        <button id="btn-clean-one" class="pill-btn tool-btn" onclick="PennyCrush.activateCleanOne()">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path
+                                    d="M19 3L14 8M14 8L5 17C4.4 17.6 4.4 18.5 5 19C5.6 19.6 6.5 19.5 7 19L16 10M14 8L16 10"
+                                    stroke-linecap="round" />
+                                <path d="M8 16L12 12" opacity="0.5" />
+                            </svg>
+                            Clean (3)
+                        </button>
+                        <button id="btn-forced-swap" class="pill-btn tool-btn"
+                            onclick="PennyCrush.activateForcedSwap()">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M7 16V4M7 4L3 8M7 4L11 8M17 8V20M17 20L21 16M17 20L13 16"
+                                    stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            Swap (3)
+                        </button>
+                    </div>
+                    <div class="pc-actions">
+                        <button id="btn-shuffle" class="pill-btn secondary" onclick="PennyCrush.shuffleBoard()">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M4 4L9 9M20 4L15 9M20 20L15 15M4 20L9 15" stroke-linecap="round" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                            Shuffle (3)
+                        </button>
+                        <button class="pill-btn secondary" onclick="PennyCrush.restart()">Restart</button>
+                        <button class="pill-btn secondary" onclick="PennyCrush.exit()">Back to Menu</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="penny_crush.js"></script>
+</body>
+
+</html>

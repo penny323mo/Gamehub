@@ -1,0 +1,110 @@
+:root {
+    --bg-color: #f4f4f9;
+    --board-color: #e3c485;
+    --line-color: #5d4037;
+    --black-stone: #1a1a1a;
+    --white-stone: #f2f2f2;
+    --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-color);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    color: #333;
+}
+
+main {
+    text-align: center;
+    background: white;
+    padding: 2rem;
+    border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+}
+
+h1 {
+    margin-bottom: 1rem;
+    font-weight: 700;
+    color: #2c3e50;
+}
+
+#status {
+    margin-bottom: 1.5rem;
+    font-size: 1.2rem;
+    font-weight: 500;
+}
+
+.player-turn {
+    font-weight: 700;
+}
+
+#board {
+    display: grid;
+    grid-template-columns: repeat(15, 30px);
+    grid-template-rows: repeat(15, 30px);
+    gap: 1px;
+    background-color: var(--line-color);
+    border: 5px solid var(--board-color);
+    margin: 0 auto;
+    width: fit-content;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+}
+
+.cell {
+    width: 30px;
+    height: 30px;
+    background-color: var(--board-color);
+    position: relative;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.cell:hover {
+    background-color: #eccd93;
+}
+
+.stone {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    box-shadow: inset 2px 2px 5px rgba(255,255,255,0.3), 
+                inset -2px -2px 5px rgba(0,0,0,0.3),
+                2px 2px 4px rgba(0,0,0,0.4);
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transform: scale(0);
+    animation: placeStone 0.3s forwards;
+}
+
+@keyframes placeStone {
+    to { transform: scale(1); }
+}
+
+.stone.black {
+    background: radial-gradient(circle at 30% 30%, #444, #000);
+}
+
+.stone.white {
+    background: radial-gradient(circle at 30% 30%, #fff, #ddd);
+}
+
+#reset-btn {
+    margin-top: 1.5rem;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    background-color: #3498db;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#reset-btn:hover {
+    background-color: #2980b9;
+}

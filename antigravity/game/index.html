@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Hub</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="switch-container">
+        <!-- Main Game Hub -->
+        <div id="app-hub">
+            <header class="hub-header">
+                <h1>Game Hub</h1>
+            </header>
+            <div class="carousel-container">
+                <button class="nav-btn prev-btn" onclick="prevGame()">&#10094;</button>
+                <div class="carousel-track-container">
+                    <ul class="carousel-track" id="game-carousel">
+                        <!-- Items injected by JS -->
+                    </ul>
+                </div>
+                <button class="nav-btn next-btn" onclick="nextGame()">&#10095;</button>
+            </div>
+        </div>
+    </div>
+    <script src="launcher.js"></script>
+</body>
+
+</html>
