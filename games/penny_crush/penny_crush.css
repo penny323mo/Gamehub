@@ -228,17 +228,18 @@ body {
     display: grid;
     grid-template-columns: repeat(var(--board-size, 8), 1fr);
     grid-template-rows: repeat(var(--board-size), 1fr);
-    width: min(calc(100vw - 40px), 480px);
-    /* Keep max width */
+    width: 100%;
+    max-width: min(540px, 100%);
     aspect-ratio: 1 / 1;
-    gap: 0;
-    /* Zero gap as requested */
+    gap: 2px;
+    /* User requested 2px gap */
     padding: 0;
-    margin: 0 auto;
+    margin: 0 auto 16px;
     background: transparent;
     border-radius: 6px;
     box-shadow: none;
     box-sizing: border-box;
+    grid-auto-rows: 1fr;
 }
 
 /* Ensure no manual height settings interfere */
