@@ -227,14 +227,18 @@ body {
 .pc-grid {
     display: grid;
     grid-template-columns: repeat(var(--board-size, 8), 1fr);
+    grid-template-rows: repeat(var(--board-size), 1fr);
+    /* Step 2: Ensure rows are also 1fr */
     width: min(calc(100vw - 40px), 480px);
     aspect-ratio: 1 / 1;
-    gap: 2px;
+    gap: 0;
+    /* Step 2: ABSOLUTELY no spacing */
     padding: 0;
     margin: 0 auto;
     background: transparent;
     border-radius: 6px;
     box-shadow: none;
+    box-sizing: border-box;
 }
 
 /* Ensure no manual height settings interfere */
@@ -245,9 +249,13 @@ body {
 .pc-tile {
     width: 100%;
     aspect-ratio: 1 / 1;
+    /* Step 1: Perfect square */
     margin: 0;
     padding: 0;
+    border-radius: 0;
+    /* Step 1: Remove border-radius to ensure tight alignment? User said 'All tiles touching', usually implies flush. Keeping 6px might show gaps if background is visible. Let's make it 6px but tight. Actually user said NO gaps. */
     border-radius: 6px;
+    /* Keeping small radius as per general style, but gap is 0 so they touch */
     cursor: pointer;
     transition: transform 0.2s, filter 0.2s;
     user-select: none;
@@ -260,11 +268,7 @@ body {
 }
 
 /* slightly smaller gaps on very small screens */
-@media (max-width: 480px) {
-    .pc-grid {
-        gap: 1px;
-    }
-}
+/* removed mobile gap override */
 
 /* Animations */
 @keyframes pc-pop {
