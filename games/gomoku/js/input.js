@@ -1,10 +1,6 @@
 
-import { board, currentPlayer, gameOver, isVsAI, switchTurn, checkWin } from './core.js';
-import { placeStoneUI, updateWinUI, updateStatusUI } from './renderer.js';
-import { makeAIMove } from './ai.js';
-import { mode, playerRole, broadcastMove, roomId } from './online.js';
 
-export function handleCellClick(row, col, difficulty) {
+function handleCellClick(row, col, difficulty) {
     if (gameOver) return;
 
     // --- Online Mode ---

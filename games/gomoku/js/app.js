@@ -1,8 +1,4 @@
 
-import { resetGameState, difficulty, setDifficulty, isVsAI, setIsVsAI } from './core.js';
-import { createBoardUI, resetBoardUI, updateStatusUI } from './renderer.js';
-import { handleCellClick } from './input.js';
-import { joinRoom, startOnlineGame, leaveRoom, setMode, mode } from './online.js';
 
 // --- Entry Point ---
 
@@ -16,6 +12,8 @@ function initApp() {
     window.showView = showView;
     window.resetGame = resetGame;
     window.toggleModeSelection = toggleModeSelection;
+    window.becomePlayer = becomePlayer;     // Added
+    window.becomeSpectator = becomeSpectator; // Added
     window.goToLauncher = () => window.location.href = "../../index.html";
 
     // Initialize UI
@@ -61,7 +59,8 @@ function showView(viewName) {
     document.getElementById('online-lobby').classList.add('hidden');
     document.getElementById('online-room').classList.add('hidden');
     document.getElementById('game-board-area').classList.add('hidden');
-    document.getElementById('mode-selection').classList.add('hidden');
+    document.getElementById('online-room').classList.add('hidden');
+    document.getElementById('game-board-area').classList.add('hidden');
 
     switch (viewName) {
         case 'landing':

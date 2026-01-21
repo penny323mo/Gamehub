@@ -228,11 +228,11 @@ body {
     display: grid;
     grid-template-columns: repeat(var(--board-size, 8), 1fr);
     grid-template-rows: repeat(var(--board-size), 1fr);
-    /* Step 2: Ensure rows are also 1fr */
     width: min(calc(100vw - 40px), 480px);
+    /* Keep max width */
     aspect-ratio: 1 / 1;
     gap: 0;
-    /* Step 2: ABSOLUTELY no spacing */
+    /* Zero gap as requested */
     padding: 0;
     margin: 0 auto;
     background: transparent;
@@ -249,13 +249,10 @@ body {
 .pc-tile {
     width: 100%;
     aspect-ratio: 1 / 1;
-    /* Step 1: Perfect square */
     margin: 0;
     padding: 0;
+    /* No border radius on individual tiles for zero-gap look unless explicitly desired (user said 'no black borders') */
     border-radius: 0;
-    /* Step 1: Remove border-radius to ensure tight alignment? User said 'All tiles touching', usually implies flush. Keeping 6px might show gaps if background is visible. Let's make it 6px but tight. Actually user said NO gaps. */
-    border-radius: 6px;
-    /* Keeping small radius as per general style, but gap is 0 so they touch */
     cursor: pointer;
     transition: transform 0.2s, filter 0.2s;
     user-select: none;
@@ -316,9 +313,11 @@ body {
 .candy-shape {
     width: 100%;
     height: 100%;
-    border-radius: 6px;
+    border-radius: 0;
+    /* Flush tiles */
     transition: transform 0.2s;
     background-size: cover;
+    /* Equivalent to object-fit: cover */
     background-position: center;
     background-repeat: no-repeat;
     display: block;

@@ -1,18 +1,18 @@
 
-export const BOARD_SIZE = 15;
-export let board = [];
-export let currentPlayer = 'black';
-export let gameOver = false;
-export let isVsAI = true;
-export let difficulty = 'hard';
+const BOARD_SIZE = 15;
+let board = [];
+let currentPlayer = 'black';
+let gameOver = false;
+let isVsAI = true;
+let difficulty = 'hard';
 
-export function setBoard(newBoard) { board = newBoard; }
-export function setCurrentPlayer(player) { currentPlayer = player; }
-export function setGameOver(state) { gameOver = state; }
-export function setIsVsAI(state) { isVsAI = state; }
-export function setDifficulty(diff) { difficulty = diff; }
+function setBoard(newBoard) { board = newBoard; }
+function setCurrentPlayer(player) { currentPlayer = player; }
+function setGameOver(state) { gameOver = state; }
+function setIsVsAI(state) { isVsAI = state; }
+function setDifficulty(diff) { difficulty = diff; }
 
-export function resetGameState() {
+function resetGameState() {
     board = [];
     for (let r = 0; r < BOARD_SIZE; r++) {
         const rowArray = [];
@@ -26,16 +26,16 @@ export function resetGameState() {
     isVsAI = true;
 }
 
-export function switchTurn() {
+function switchTurn() {
     currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
     return currentPlayer;
 }
 
-export function getPlayerName(player) {
+function getPlayerName(player) {
     return player === 'black' ? '黑子' : '白子';
 }
 
-export function checkWin(row, col, player, isSimulating = false, boardState = board) {
+function checkWin(row, col, player, isSimulating = false, boardState = board) {
     const directions = [
         [0, 1],   // horizontal
         [1, 0],   // vertical

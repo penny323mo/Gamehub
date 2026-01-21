@@ -1,8 +1,6 @@
 
-import { BOARD_SIZE, board, currentPlayer, checkWin, switchTurn, getPlayerName } from './core.js';
-import { placeStoneUI, updateStatusUI, updateWinUI } from './renderer.js';
 
-export function makeAIMove(difficulty) {
+function makeAIMove(difficulty) {
     let move;
     if (difficulty === 'easy') {
         move = findEasyMove();

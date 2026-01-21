@@ -1,20 +1,16 @@
 
-import { resetGameState, setBoard, setCurrentPlayer, setGameOver, setDifficulty, getPlayerName } from './core.js';
-import { resetBoardUI, updateStatusUI } from './renderer.js';
-import { board } from './core.js';
-import { BOARD_SIZE } from './core.js';
 
 // --- Supabase Config ---
 const SUPABASE_URL = "https://djbhipofzbonxfqriovi.supabase.co";
 const SUPABASE_ANON_KEY = "sb-publishable-DX7aNwHHI7tb6RUiWWe0qg_qPzuLcld";
 
-export let supabase = null;
-export let mode = 'ai'; // 'ai' or 'online'
-export let roomId = null;
-export let roomRecordId = null;
-export let playerRole = null;
-export let roomChannel = null;
-export let clientId = localStorage.getItem('gomoku_clientId');
+let supabase = null;
+let mode = 'ai'; // 'ai' or 'online'
+let roomId = null;
+let roomRecordId = null;
+let playerRole = null;
+let roomChannel = null;
+let clientId = localStorage.getItem('gomoku_clientId');
 
 if (!clientId) {
     clientId = Math.random().toString(36).substring(2, 15);
@@ -30,11 +26,12 @@ try {
     console.error("Supabase Init Failed:", e);
 }
 
-export function setMode(newMode) {
+function setMode(newMode) {
     mode = newMode;
 }
+window.setMode = setMode; // Expose explicitly
 
-export async function joinRoom(code) {
+async function joinRoom(code) {
     if (!code) { alert("請輸入房間代碼！"); return; }
     roomId = code;
 
@@ -107,7 +104,7 @@ export async function joinRoom(code) {
     updateStatusUI(null, `加入成功！身份: ${getRoleName(playerRole)}`);
 }
 
-export async function safeUpdateRoomDB(id, updates) {
+async function safeUpdateRoomDB(id, updates) {
     await supabase.from("Gomoku's rooms").update({
         ...updates,
         last_activity_at: new Date()
@@ -188,7 +185,7 @@ function handleRoomUpdate(room) {
     }
 }
 
-export function updateRoleUI() {
+function updateRoleUI() {
     const roleSpan = document.getElementById('my-role');
     const startBtn = document.getElementById('online-start-btn');
     if (roleSpan) roleSpan.innerText = getRoleName(playerRole);
@@ -203,7 +200,31 @@ export function updateRoleUI() {
     }
 }
 
-export async function leaveRoom() {
+async function becomePlayer(role) {
+    if (!roomRecordId) return;
+    const updates = {};
+    if (role === 'black') updates.black_player_id = clientId;
+    else if (role === 'white') updates.white_player_id = clientId;
+    await safeUpdateRoomDB(roomRecordId, updates);
+    playerRole = role;
+    updateRoleUI();
+}
+window.becomePlayer = becomePlayer;
+
+async function becomeSpectator() {
+    if (!roomRecordId) return;
+    if (playerRole === 'black' || playerRole === 'white') {
+        const updates = {};
+        if (playerRole === 'black') updates.black_player_id = null;
+        if (playerRole === 'white') updates.white_player_id = null;
+        await safeUpdateRoomDB(roomRecordId, updates);
+    }
+    playerRole = 'spectator';
+    updateRoleUI();
+}
+window.becomeSpectator = becomeSpectator;
+
+async function leaveRoom() {
     if (roomRecordId && playerRole && playerRole !== 'spectator') {
         const updates = {};
         if (playerRole === 'black') updates.black_player_id = null;
@@ -221,7 +242,7 @@ export async function leaveRoom() {
     document.getElementById('game-board-area').classList.add('hidden');
 }
 
-export async function broadcastMove(row, col, player) {
+async function broadcastMove(row, col, player) {
     if (roomChannel) {
         // We write the FULL board
         await safeUpdateRoomDB(roomRecordId, {
@@ -230,7 +251,7 @@ export async function broadcastMove(row, col, player) {
     }
 }
 
-export async function startOnlineGame() {
+async function startOnlineGame() {
     if (playerRole !== 'black' && playerRole !== 'white') return;
 
     // Reset DB
