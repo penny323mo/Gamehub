@@ -47,7 +47,11 @@ const PennyCrush = {
         document.getElementById('pc-game').classList.remove('hidden');
 
         // Step 1: Add CSS variable for dynamic board size
-        document.documentElement.style.setProperty('--board-size', this.gridSize);
+        // Step 1: Add CSS variable for dynamic board size
+        const boardElement = document.getElementById('pc-grid');
+        if (boardElement) {
+            boardElement.style.setProperty('--board-size', this.gridSize);
+        }
 
         this.generateGrid();
         this.renderGrid();
