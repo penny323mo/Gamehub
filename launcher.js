@@ -26,7 +26,7 @@ const games = [
     }
 ];
 
-let currentSlide = 0;
+let currentIndex = 0;
 
 function renderCarousel() {
     const track = document.getElementById('game-carousel');
@@ -34,9 +34,10 @@ function renderCarousel() {
 
     track.innerHTML = '';
 
-    games.forEach((game) => {
+    games.forEach((game, index) => {
         const li = document.createElement('li');
         li.className = `game-hub-card ${game.playable ? '' : 'disabled'}`;
+        li.dataset.index = index;
 
         li.onclick = function () {
             if (game.playable) {
@@ -60,99 +61,90 @@ function renderCarousel() {
 
 function updateCarousel() {
     const cards = document.querySelectorAll('.game-hub-card');
-    if (cards[currentSlide]) {
-        cards[currentSlide].scrollIntoView({
-            behavior: 'smooth',
-            inline: 'center',
-            block: 'nearest'
-        });
-    }
-    updateButtonStates();
-    highlightCard(currentSlide);
-}
+    const cardWidth = 280; // Match CSS width
+    const gap = 30; // Gap between cards
+    const cardStep = cardWidth + gap;
 
-function highlightCard(index) {
-    const cards = document.querySelectorAll('.game-hub-card');
+    // Update card positions using transform
     cards.forEach((card, i) => {
-        if (i === index) {
+        const offset = (i - currentIndex) * cardStep;
+        // Cards are positioned at left: 50%, so we need translateX(-50%) to center
+        // Then add the offset to move them left/right
+        card.style.transform = `translateX(calc(-50% + ${offset}px)) scale(${i === currentIndex ? 1.02 : 0.9})`;
+
+        // Update active state
+        if (i === currentIndex) {
             card.classList.add('active-card');
         } else {
             card.classList.remove('active-card');
         }
     });
+
+    updateArrowVisibility();
 }
 
-function updateButtonStates() {
+function updateArrowVisibility() {
     const prevBtn = document.querySelector('.prev-btn');
     const nextBtn = document.querySelector('.next-btn');
-    const maxSlide = games.length - 1;
 
     if (prevBtn) {
-        prevBtn.style.opacity = currentSlide === 0 ? '0.3' : '1';
-        prevBtn.style.pointerEvents = currentSlide === 0 ? 'none' : 'auto';
+        prevBtn.style.display = currentIndex === 0 ? 'none' : 'flex';
     }
 
     if (nextBtn) {
-        const atEnd = currentSlide >= maxSlide;
-        nextBtn.style.opacity = atEnd ? '0.3' : '1';
-        nextBtn.style.pointerEvents = atEnd ? 'none' : 'auto';
+        nextBtn.style.display = currentIndex === games.length - 1 ? 'none' : 'flex';
     }
 }
 
 function nextGame() {
-    if (currentSlide < games.length - 1) {
-        currentSlide++;
+    if (currentIndex < games.length - 1) {
+        currentIndex++;
         updateCarousel();
     }
 }
 
 function prevGame() {
-    if (currentSlide > 0) {
-        currentSlide--;
+    if (currentIndex > 0) {
+        currentIndex--;
         updateCarousel();
     }
 }
 
-function updateActiveStateOnScroll() {
-    const container = document.querySelector('.carousel-track-container');
-    if (!container) return;
+// Touch swipe support
+let touchStartX = 0;
+let touchEndX = 0;
 
-    const containerRect = container.getBoundingClientRect();
-    const containerCenter = containerRect.left + containerRect.width / 2;
-    const cards = document.querySelectorAll('.game-hub-card');
+function handleTouchStart(e) {
+    touchStartX = e.changedTouches[0].screenX;
+}
 
-    let closestIndex = -1;
-    let minDistance = Infinity;
+function handleTouchEnd(e) {
+    touchEndX = e.changedTouches[0].screenX;
+    handleSwipe();
+}
 
-    cards.forEach((card, index) => {
-        const cardRect = card.getBoundingClientRect();
-        const cardCenter = cardRect.left + cardRect.width / 2;
-        const dist = Math.abs(containerCenter - cardCenter);
+function handleSwipe() {
+    const swipeThreshold = 50;
+    const diff = touchStartX - touchEndX;
 
-        if (dist < minDistance) {
-            minDistance = dist;
-            closestIndex = index;
+    if (Math.abs(diff) > swipeThreshold) {
+        if (diff > 0) {
+            // Swipe left - go to next
+            nextGame();
+        } else {
+            // Swipe right - go to previous
+            prevGame();
         }
-    });
-
-    if (closestIndex >= 0 && minDistance < 150) {
-        if (closestIndex !== currentSlide) {
-            currentSlide = closestIndex;
-            updateButtonStates();
-        }
-        highlightCard(closestIndex);
     }
 }
 
 window.addEventListener('load', () => {
     renderCarousel();
+
+    // Add touch event listeners for swipe support
     const container = document.querySelector('.carousel-track-container');
     if (container) {
-        let scrollTimeout;
-        container.addEventListener('scroll', () => {
-            clearTimeout(scrollTimeout);
-            scrollTimeout = setTimeout(updateActiveStateOnScroll, 50);
-        }, { passive: true });
+        container.addEventListener('touchstart', handleTouchStart, { passive: true });
+        container.addEventListener('touchend', handleTouchEnd, { passive: true });
     }
-    setTimeout(updateActiveStateOnScroll, 100);
 });
