@@ -16,9 +16,12 @@
             <!-- Landing Page / Game Selection -->
             <div id="landing-page">
                 <div class="landing-actions">
-                    <button class="pill-btn mode-btn" onclick="selectMode('ai')">對 AI 對戰</button>
-                    <button class="pill-btn mode-btn" onclick="selectMode('online')">Online 對戰</button>
-                    <button class="pill-btn secondary" onclick="goToLauncher()">返回遊戲大廳</button>
+                    <button id="gomoku-ai-btn" class="pill-btn mode-btn" data-action="ai" onclick="selectMode('ai')">對
+                        AI 對戰</button>
+                    <button id="gomoku-online-btn" class="pill-btn mode-btn" data-action="online"
+                        onclick="selectMode('online')">ONLINE 對戰</button>
+                    <button id="gomoku-back-btn" class="pill-btn secondary" data-action="back"
+                        onclick="goToLauncher()">返回遊戲大廳</button>
                 </div>
             </div>
 

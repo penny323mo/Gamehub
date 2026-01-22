@@ -5,12 +5,14 @@ let currentPlayer = 'black';
 let gameOver = false;
 let isVsAI = true;
 let difficulty = 'hard';
+let mode = 'ai'; // 'ai' or 'online'
 
 function setBoard(newBoard) { board = newBoard; }
 function setCurrentPlayer(player) { currentPlayer = player; }
 function setGameOver(state) { gameOver = state; }
 function setIsVsAI(state) { isVsAI = state; }
 function setDifficulty(diff) { difficulty = diff; }
+function setMode(newMode) { mode = newMode; }
 
 function resetGameState() {
     board = [];

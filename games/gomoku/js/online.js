@@ -5,7 +5,7 @@ const SUPABASE_URL = "https://djbhipofzbonxfqriovi.supabase.co";
 const SUPABASE_ANON_KEY = "sb-publishable-DX7aNwHHI7tb6RUiWWe0qg_qPzuLcld";
 
 let supabase = null;
-let mode = 'ai'; // 'ai' or 'online'
+// mode is now in core.js
 let roomId = null;
 let roomRecordId = null;
 let playerRole = null;
@@ -26,10 +26,7 @@ try {
     console.error("Supabase Init Failed:", e);
 }
 
-function setMode(newMode) {
-    mode = newMode;
-}
-window.setMode = setMode; // Expose explicitly
+// setMode is now in core.js
 
 async function joinRoom(code) {
     if (!code) { alert("請輸入房間代碼！"); return; }

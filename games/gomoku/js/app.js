@@ -4,17 +4,47 @@
 
 function initApp() {
     // expose global helpers for HTML buttons (legacy support or ease of use)
-    window.joinRoom = joinRoom;
-    window.startOnlineGame = startOnlineGame;
-    window.leaveRoom = leaveRoom;
+    // Use typeof checks to avoid ReferenceError if functions aren't loaded yet
+    if (typeof joinRoom !== 'undefined') window.joinRoom = joinRoom;
+    if (typeof startOnlineGame !== 'undefined') window.startOnlineGame = startOnlineGame;
+    if (typeof leaveRoom !== 'undefined') window.leaveRoom = leaveRoom;
     window.selectMode = selectMode;
     window.backToLanding = backToLanding;
     window.showView = showView;
     window.resetGame = resetGame;
     window.toggleModeSelection = toggleModeSelection;
-    window.becomePlayer = becomePlayer;     // Added
-    window.becomeSpectator = becomeSpectator; // Added
+    if (typeof becomePlayer !== 'undefined') window.becomePlayer = becomePlayer;
+    if (typeof becomeSpectator !== 'undefined') window.becomeSpectator = becomeSpectator;
     window.goToLauncher = () => window.location.href = "../../index.html";
+
+    // Add explicit event listeners for menu buttons (backup to inline onclick)
+    const aiBtn = document.getElementById('gomoku-ai-btn');
+    const onlineBtn = document.getElementById('gomoku-online-btn');
+    const backBtn = document.getElementById('gomoku-back-btn');
+
+    if (aiBtn) {
+        aiBtn.addEventListener('click', () => {
+            console.log('AI button clicked');
+            selectMode('ai');
+        });
+    }
+
+    if (onlineBtn) {
+        onlineBtn.addEventListener('click', () => {
+            console.log('Online button clicked');
+            // Temporary placeholder for online mode
+            alert('Online mode is under development.');
+            // Still call selectMode to show the lobby if needed
+            // selectMode('online');
+        });
+    }
+
+    if (backBtn) {
+        backBtn.addEventListener('click', () => {
+            console.log('Back button clicked');
+            window.location.href = '../../index.html';
+        });
+    }
 
     // Initialize UI
     const diffSelect = document.getElementById('difficulty');
