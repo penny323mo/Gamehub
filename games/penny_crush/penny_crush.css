@@ -231,13 +231,12 @@ body {
     width: 100%;
     max-width: min(540px, 100%);
     aspect-ratio: 1 / 1;
-    gap: 1px;
-    /* User requested 1px gap */
+    gap: 0;
+    /* Zero gaps for tight tile layout */
     padding: 0;
     margin: 0 auto 16px;
     background: transparent;
     border-radius: 0;
-    /* Remove radius on wrapper */
     box-shadow: none;
     box-sizing: border-box;
     grid-auto-rows: 1fr;
@@ -249,21 +248,28 @@ body {
 }
 
 .pc-tile {
+    /* tile must be a perfect square */
     width: 100%;
     aspect-ratio: 1 / 1;
-    margin: 0;
+
+    /* no inner spacing */
     padding: 0;
-    /* No border radius on individual tiles for zero-gap look unless explicitly desired (user said 'no black borders') */
-    border-radius: 0;
+    margin: 0;
+    box-sizing: border-box;
+
+    /* simple flex container to host the image */
+    display: flex;
+    align-items: stretch;
+    justify-content: stretch;
+
+    /* keep the outer dark border for grid lines */
+    border: 1px solid #111;
+
     cursor: pointer;
     transition: transform 0.2s, filter 0.2s;
     user-select: none;
     -webkit-user-select: none;
     position: relative;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    box-sizing: border-box;
 }
 
 /* slightly smaller gaps on very small screens */
@@ -315,13 +321,17 @@ body {
 .candy-shape {
     width: 100%;
     height: 100%;
+    display: block;
+    object-fit: cover;
+    /* stretch to square without keeping original background edges */
+    padding: 0;
+    margin: 0;
+    border: 0;
     border-radius: 0;
-    /* STRICT FLUSH TILES */
     transition: transform 0.2s;
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    display: block;
 }
 
 .pc-tile:hover .candy-shape {
@@ -341,27 +351,22 @@ body {
 /* Character Images */
 .pc-char-1 .candy-shape {
     background-image: url('characters/1.jpg');
-    border: 2px solid rgba(255, 255, 255, 0.2);
 }
 
 .pc-char-2 .candy-shape {
     background-image: url('characters/2.jpg');
-    border: 2px solid rgba(255, 255, 255, 0.2);
 }
 
 .pc-char-3 .candy-shape {
     background-image: url('characters/3.jpg');
-    border: 2px solid rgba(255, 255, 255, 0.2);
 }
 
 .pc-char-4 .candy-shape {
     background-image: url('characters/4.jpg');
-    border: 2px solid rgba(255, 255, 255, 0.2);
 }
 
 .pc-char-5 .candy-shape {
     background-image: url('characters/5.jpg');
-    border: 2px solid rgba(255, 255, 255, 0.2);
 }
 
 /* Special Tiles */
