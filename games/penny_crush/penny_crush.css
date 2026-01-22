@@ -266,10 +266,19 @@ body {
     border: 1px solid #111;
 
     cursor: pointer;
-    transition: transform 0.2s, filter 0.2s;
+    position: relative;
     user-select: none;
     -webkit-user-select: none;
-    position: relative;
+
+    /* smooth hover animation */
+    transition: transform 0.18s ease-out, box-shadow 0.18s ease-out;
+}
+
+.pc-tile:hover {
+    transform: scale(1.06);
+    z-index: 10;
+    /* make hover pop above neighbors */
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
 }
 
 /* slightly smaller gaps on very small screens */
@@ -328,17 +337,11 @@ body {
     margin: 0;
     border: 0;
     border-radius: 0;
-    transition: transform 0.2s;
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
 }
 
-.pc-tile:hover .candy-shape {
-    transform: scale(1.05);
-    /* subtle zoom on hover, but handle z-index if needed */
-    z-index: 5;
-}
 
 .pc-tile.selected .candy-shape {
     transform: scale(0.9);
