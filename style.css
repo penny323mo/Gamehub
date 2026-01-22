@@ -84,6 +84,8 @@ body {
     position: relative;
     justify-content: center;
     align-items: center;
+    min-height: 400px;
+    /* Height to contain absolute positioned cards */
 }
 
 /* Game Cards */
