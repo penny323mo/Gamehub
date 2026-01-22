@@ -144,6 +144,7 @@ body {
     flex-direction: column;
     align-items: center;
     padding: 20px;
+    padding-bottom: 140px !important;
     box-sizing: border-box;
     background: rgba(255, 255, 255, 0.05);
     border-radius: 16px;
@@ -216,7 +217,8 @@ body {
 .board-wrapper {
     width: 100%;
     max-width: 480px;
-    margin: 0 auto;
+    margin: 16px auto 32px;
+    /* extra space above buttons */
     display: flex;
     justify-content: center;
     align-items: center;
@@ -505,6 +507,8 @@ body {
     justify-content: center;
     width: 100%;
     align-items: center;
+    margin-top: 20px;
+    /* ensure gap between board and controls */
 }
 
 .pc-tools {
