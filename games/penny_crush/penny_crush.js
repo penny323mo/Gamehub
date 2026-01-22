@@ -198,12 +198,25 @@ const PennyCrush = {
                 }
 
                 if (this.selectedTile && this.selectedTile.r === r && this.selectedTile.c === c) {
-                    cell.classList.add('selected');
+                    cell.classList.add('is-selected');
                 }
 
                 if (this.activeToolMode) {
                     cell.classList.add('tool-target');
                 }
+
+                // Add pointer event handlers for pressed state
+                cell.addEventListener('pointerdown', () => {
+                    cell.classList.add('is-pressed');
+                });
+
+                cell.addEventListener('pointerup', () => {
+                    cell.classList.remove('is-pressed');
+                });
+
+                cell.addEventListener('pointerleave', () => {
+                    cell.classList.remove('is-pressed');
+                });
 
                 cell.onclick = () => this.handleInteraction(r, c);
                 gridEl.appendChild(cell);
@@ -295,10 +308,10 @@ const PennyCrush = {
         toClear.forEach(str => {
             const [r, c] = str.split(',').map(Number);
             const tile = document.querySelector(`.pc-tile[data-r="${r}"][data-c="${c}"]`);
-            if (tile) tile.classList.add('pc-pop');
+            if (tile) tile.classList.add('is-clearing');
         });
 
-        await new Promise(r => setTimeout(r, 300));
+        await new Promise(r => setTimeout(r, 320));
 
         this.updateScore(toClear.size * 20);
         this.turnClearedCount += toClear.size;
@@ -339,12 +352,13 @@ const PennyCrush = {
             }
         }
 
+        // Add clearing animation to matched tiles
         matches.forEach(m => {
             const tile = document.querySelector(`.pc-tile[data-r="${m.r}"][data-c="${m.c}"]`);
-            if (tile) tile.classList.add('pc-pop');
+            if (tile) tile.classList.add('is-clearing');
         });
 
-        await new Promise(r => setTimeout(r, 300));
+        await new Promise(r => setTimeout(r, 320));
 
         const multiplier = allowSpecialSpawn ? this.getComboMultiplier() : 1;
         const points = matches.length * 10 * multiplier;
@@ -626,10 +640,10 @@ const PennyCrush = {
         tileSet.forEach(str => {
             const [r, c] = str.split(',').map(Number);
             const tile = document.querySelector(`.pc-tile[data-r="${r}"][data-c="${c}"]`);
-            if (tile) tile.classList.add('pc-pop');
+            if (tile) tile.classList.add('is-clearing');
         });
 
-        await new Promise(r => setTimeout(r, 300));
+        await new Promise(r => setTimeout(r, 320));
         const points = tileSet.size * pointsPerTile;
         this.updateScore(points);
         this.turnClearedCount += tileSet.size;
