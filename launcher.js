@@ -61,7 +61,10 @@ function renderCarousel() {
 
 function updateCarousel() {
     const cards = document.querySelectorAll('.game-hub-card');
-    const cardWidth = 280; // Match CSS width
+    if (cards.length === 0) return;
+
+    // Get actual width from the first card (they should be identical)
+    const cardWidth = cards[0].offsetWidth;
     const gap = 30; // Gap between cards
     const cardStep = cardWidth + gap;
 

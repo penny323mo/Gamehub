@@ -69,7 +69,8 @@ body {
 
 .carousel-track-container {
     width: 100%;
-    overflow: hidden;
+    overflow: visible;
+    /* Allow cards to show fully on mobile */
     position: relative;
     display: flex;
     justify-content: center;
@@ -93,7 +94,9 @@ body {
     position: absolute;
     left: 50%;
     flex-shrink: 0;
-    width: 280px;
+    width: min(280px, 85vw);
+    /* Responsive: never wider than viewport */
+    max-width: 280px;
     background: var(--card-bg);
     border: 1px solid var(--glass-border);
     border-radius: 24px;
@@ -213,17 +216,31 @@ body {
 
 @media (max-width: 480px) {
     .carousel-container {
-        padding: 0 50px;
+        padding: 0 40px;
     }
 
     .nav-btn {
-        width: 44px;
-        height: 44px;
-        font-size: 1.4rem;
+        width: 40px;
+        height: 40px;
+        font-size: 1.2rem;
     }
 
     .game-hub-card {
-        width: 100%;
-        max-width: 300px;
+        width: min(85vw, 280px);
+        max-width: 280px;
+        padding: 30px 20px;
+    }
+
+    .card-icon {
+        font-size: 3.5rem;
+    }
+
+    .game-hub-card h2 {
+        font-size: 1.4rem;
+    }
+
+    .game-hub-card p {
+        font-size: 0.85rem;
+        min-height: auto;
     }
 }

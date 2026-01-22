@@ -138,7 +138,7 @@ body {
 
 .penny-container {
     width: 100%;
-    max-width: 500px;
+    max-width: 600px;
     /* Constraint */
     display: flex;
     flex-direction: column;
@@ -216,8 +216,8 @@ body {
 
 .board-wrapper {
     width: 100%;
-    max-width: 480px;
-    margin: 16px auto 32px;
+    /* max-width removed to allow viewport units to control size */
+    margin: 10px auto 20px;
     /* extra space above buttons */
     display: flex;
     justify-content: center;
@@ -230,8 +230,8 @@ body {
     display: grid;
     grid-template-columns: repeat(var(--board-size, 8), 1fr);
     grid-template-rows: repeat(var(--board-size), 1fr);
-    width: 100%;
-    max-width: min(540px, 100%);
+    width: min(92vw, 92vh);
+    max-width: 540px;
     aspect-ratio: 1 / 1;
     gap: 0;
     /* Zero gaps for tight tile layout */
