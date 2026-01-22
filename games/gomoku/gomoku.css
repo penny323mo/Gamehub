@@ -393,3 +393,26 @@ h1 {
         width: 100%;
     }
 }
+/* FIVE-IN-A-ROW MENU — MOBILE CENTER FIX */
+.gomoku-menu-container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* MOBILE VIEW FIX — center panel vertically like Penny Crush */
+@media (max-width: 768px) {
+  .gomoku-menu-container {
+    min-height: calc(100vh - 5rem);   /* 讓整塊 Panel 高度佔大部分螢幕 */
+    padding-top: 3.5rem;              /* 避免貼到 iPhone NOTCH */
+    padding-bottom: 3rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;          /* 垂直置中整個 Panel */
+    align-items: center;
+    box-sizing: border-box;
+  }
+
+  .gomoku-menu-container > * {
+    width: 100%;
+  }
+}
