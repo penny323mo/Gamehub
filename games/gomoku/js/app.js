@@ -74,8 +74,8 @@ function selectMode(selectedMode) {
     if (selectedMode === 'ai') {
         setIsVsAI(true);
         showView('ai-game');
-        createBoardUI((r, c) => handleCellClick(r, c, difficulty));
-        updateStatusUI('black');
+        // Auto-start game logic
+        resetGame();
     } else if (selectedMode === 'online') {
         setIsVsAI(false);
         showView('online-lobby');
