@@ -1,11 +1,11 @@
 
-
 // --- Supabase Config ---
 const SUPABASE_URL = "https://djbhipofzbonxfqriovi.supabase.co";
 const SUPABASE_ANON_KEY = "sb-publishable-DX7aNwHHI7tb6RUiWWe0qg_qPzuLcld";
 
-let supabase = null;
-// mode is now in core.js
+// Global client instance
+let sbClient = null;
+
 let roomId = null;
 let roomRecordId = null;
 let playerRole = null;
@@ -13,255 +13,288 @@ let roomChannel = null;
 let clientId = localStorage.getItem('gomoku_clientId');
 
 if (!clientId) {
-    clientId = Math.random().toString(36).substring(2, 15);
+    clientId = crypto.randomUUID();
     localStorage.setItem('gomoku_clientId', clientId);
 }
 
 // Initialize Supabase
 try {
     if (window.supabase) {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // Expose for debugging
+        window.sbClient = sbClient;
+        console.log("Supabase Client Initialized");
+    } else {
+        console.error("Supabase SDK not loaded on window.supabase");
     }
-} catch (e) {
-    console.error("Supabase Init Failed:", e);
+} catch (err) {
+    console.error("Supabase Init Error:", err);
 }
 
-// setMode is now in core.js
+// --- Room Logic ---
 
-async function joinRoom(code) {
-    if (!code) { alert("請輸入房間代碼！"); return; }
-    roomId = code;
+function generateRoomCode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+}
 
-    if (!supabase) { alert("Online services unavailable."); return; }
+async function createRoom() {
+    if (!sbClient) return alert("無法連接伺服器 (SDK Unloaded)");
 
-    // 1. Fetch Room
-    let { data: room, error } = await supabase
+    const code = generateRoomCode();
+    console.log("Creating room:", code);
+
+    // Create room in DB
+    const { data, error } = await sbClient
         .from("Gomoku's rooms")
-        .select('*')
-        .eq('room_code', roomId)
+        .insert([{
+            room_code: code,
+            black_player_id: clientId,
+            white_player_id: null,
+            status: 'waiting',
+            last_activity_at: new Date(),
+            current_player: 'black',
+            board_state: JSON.stringify(createEmptyBoard())
+        }])
+        .select()
         .single();
 
-    if (error && error.code !== 'PGRST116') {
-        console.error(error);
-        alert("無法連接房間");
+    if (error) {
+        console.error("Create Room Error:", error);
+        alert("創建房間失敗: " + error.message);
         return;
     }
 
-    // 2. Create if new
-    if (!room) {
-        const { data: newRoom, error: createError } = await supabase
-            .from("Gomoku's rooms")
-            .insert([{
-                room_code: roomId,
-                black_player_id: clientId,
-                status: 'waiting',
-                last_activity_at: new Date()
-            }])
-            .select()
-            .single();
+    console.log("Room Created:", data);
+    enterRoom(data, 'black');
+}
 
-        if (createError) {
-            console.error(createError);
-            alert("創建房間失敗");
-            return;
-        }
-        room = newRoom;
-        playerRole = 'black';
-    } else {
-        // 3. Assign Role
-        if (room.black_player_id === clientId) playerRole = 'black';
-        else if (room.white_player_id === clientId) playerRole = 'white';
-        else if (!room.black_player_id) {
-            await safeUpdateRoomDB(room.id, { black_player_id: clientId, status: 'playing' });
-            playerRole = 'black';
-        } else if (!room.white_player_id) {
-            await safeUpdateRoomDB(room.id, { white_player_id: clientId, status: 'playing' });
-            playerRole = 'white';
-        } else {
-            playerRole = 'spectator';
-        }
+async function joinRoom(codeInput) {
+    if (!sbClient) return alert("無法連接伺服器");
+    if (!codeInput) return alert("請輸入房號");
+
+    const code = codeInput.toUpperCase().trim();
+
+    // 1. Fetch Room
+    let { data: room, error } = await sbClient
+        .from("Gomoku's rooms")
+        .select('*')
+        .eq('room_code', code)
+        .single();
+
+    if (error || !room) {
+        alert("找不到房間：" + code);
+        return;
     }
 
+    if (room.status === 'finished') {
+        const confirmView = confirm("該房間對局已結束，是否仍要加入觀戰？");
+        if (!confirmView) return;
+    }
+
+    // 2. Determine Role
+    let role = 'spectator';
+    let needsUpdate = false;
+    let updates = {};
+
+    if (room.black_player_id === clientId) {
+        role = 'black';
+    } else if (room.white_player_id === clientId) {
+        role = 'white';
+    } else if (!room.black_player_id) {
+        role = 'black';
+        updates.black_player_id = clientId;
+        if (room.white_player_id) updates.status = 'playing';
+        needsUpdate = true;
+    } else if (!room.white_player_id) {
+        role = 'white';
+        updates.white_player_id = clientId;
+        updates.status = 'playing';
+        needsUpdate = true;
+    }
+
+    // 3. Update DB if taking a seat
+    if (needsUpdate) {
+        const { error: updateError } = await sbClient
+            .from("Gomoku's rooms")
+            .update({ ...updates, last_activity_at: new Date() })
+            .eq('id', room.id);
+
+        if (updateError) {
+            console.error(updateError);
+            alert("加入失敗");
+            return;
+        }
+        Object.assign(room, updates);
+    }
+
+    enterRoom(room, role);
+}
+
+function enterRoom(room, role) {
+    roomId = room.room_code;
     roomRecordId = room.id;
-    updateRoleUI();
+    playerRole = role;
 
-    // Reset local
-    resetGameState();
-    resetBoardUI();
+    setMode('online');
+    setIsVsAI(false);
 
-    subscribeToRoom();
-
-    // Show room UI (handled by App router usually, but we expose event or callback?)
-    // For now we assume App will check 'mode' and 'roomId'
     document.getElementById('online-lobby').classList.add('hidden');
     document.getElementById('online-room').classList.remove('hidden');
     document.getElementById('game-board-area').classList.remove('hidden');
 
-    document.getElementById('current-room-id').innerText = roomId;
-    updateStatusUI(null, `加入成功！身份: ${getRoleName(playerRole)}`);
+    updateRoomUI_Header();
+
+    subscribeToRoom();
+
+    if (room.board_state) {
+        try {
+            const remoteBoard = JSON.parse(room.board_state);
+            setBoard(remoteBoard);
+            drawBoard();
+        } catch (e) {
+            console.error("Board parse error", e);
+            resetBoardUI();
+        }
+    } else {
+        resetGameState();
+        resetBoardUI();
+    }
+
+    setCurrentPlayer(room.current_player || 'black');
+    updateStatusUI();
+
+    if (room.status === 'finished' && room.last_result) {
+        setGameOver(true);
+        updateWinUI(room.last_result.replace('_win', ''));
+        showRestartButton(true);
+    } else {
+        setGameOver(false);
+        showRestartButton(false);
+    }
 }
 
-async function safeUpdateRoomDB(id, updates) {
-    await supabase.from("Gomoku's rooms").update({
-        ...updates,
+// --- Game Logic ---
+
+function createEmptyBoard() {
+    const b = [];
+    for (let i = 0; i < 15; i++) {
+        b.push(new Array(15).fill(null));
+    }
+    return b;
+}
+
+// Called by input.js
+async function handleOnlineMove(row, col, isWin, winner) {
+    if (!roomRecordId) return;
+
+    const nextPlayer = (playerRole === 'black') ? 'white' : 'black';
+
+    const updates = {
+        board_state: JSON.stringify(board),
+        current_player: nextPlayer,
         last_activity_at: new Date()
-    }).eq('id', id);
+    };
+
+    if (isWin) {
+        updates.status = 'finished';
+        updates.last_result = winner + '_win';
+    }
+
+    await sbClient
+        .from("Gomoku's rooms")
+        .update(updates)
+        .eq('id', roomRecordId);
 }
 
-function getRoleName(role) {
-    if (role === 'black') return '黑子';
-    if (role === 'white') return '白子';
-    return '觀眾';
+async function requestRestart() {
+    if (!roomRecordId) return;
+
+    await sbClient
+        .from("Gomoku's rooms")
+        .update({
+            board_state: JSON.stringify(createEmptyBoard()),
+            status: 'playing',
+            last_result: null,
+            current_player: 'black',  // Reset to black first
+            last_activity_at: new Date()
+        })
+        .eq('id', roomRecordId);
 }
+
+// --- Subscription ---
 
 function subscribeToRoom() {
-    if (roomChannel) supabase.removeChannel(roomChannel);
+    if (roomChannel) sbClient.removeChannel(roomChannel);
 
-    roomChannel = supabase.channel(`room-${roomId}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "Gomoku's rooms", filter: `room_code=eq.${roomId}` },
-            (payload) => { if (payload.new) handleRoomUpdate(payload.new); })
+    roomChannel = sbClient.channel(`room-${roomId}`)
+        .on("postgres_changes",
+            { event: "UPDATE", schema: "public", table: "Gomoku's rooms", filter: `id=eq.${roomRecordId}` },
+            (payload) => {
+                handleRoomUpdate(payload.new);
+            }
+        )
         .subscribe();
 }
 
 function handleRoomUpdate(room) {
-    // Role check
-    if (playerRole === 'black' && room.black_player_id !== clientId) {
-        playerRole = 'spectator';
-        alert("你已被移除黑子位置");
-    } else if (playerRole === 'white' && room.white_player_id !== clientId) {
-        playerRole = 'spectator';
-        alert("你已被移除白子位置");
-    }
-    updateRoleUI();
-
-    // Board Sync
     if (room.board_state) {
-        try {
-            const remoteBoard = JSON.parse(room.board_state);
-            // Diff logic? Or just overwrite?
-            // Overwriting is safer for sync
-            if (JSON.stringify(remoteBoard) !== JSON.stringify(board)) {
-                setBoard(remoteBoard);
-                // Re-render whole board (expensive but safe)
-                const stones = document.querySelectorAll('.stone');
-                stones.forEach(s => s.remove());
-                for (let r = 0; r < BOARD_SIZE; r++) {
-                    for (let c = 0; c < BOARD_SIZE; c++) {
-                        if (remoteBoard[r][c]) {
-                            const cell = document.querySelector(`.cell[data-row='${r}'][data-col='${c}']`);
-                            if (cell) {
-                                const s = document.createElement('div');
-                                s.classList.add('stone', remoteBoard[r][c]);
-                                cell.appendChild(s);
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (e) { console.error(e); }
-    }
-
-    // Turn Logic (simple inference from stone count)
-    let bCount = 0, wCount = 0;
-    for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-            if (board[r][c] === 'black') bCount++;
-            if (board[r][c] === 'white') wCount++;
+        const remoteBoard = JSON.parse(room.board_state);
+        if (JSON.stringify(remoteBoard) !== JSON.stringify(board)) {
+            setBoard(remoteBoard);
+            drawBoard();
         }
     }
-    const derivedPlayer = (bCount === wCount) ? 'black' : 'white';
-    setCurrentPlayer(derivedPlayer);
 
-    if (room.last_result) {
-        setGameOver(true);
-        if (room.last_result === 'black_win') updateStatusUI(null, "黑子獲勝！");
-        else if (room.last_result === 'white_win') updateStatusUI(null, "白子獲勝！");
-    } else {
-        setGameOver(false);
+    if (room.current_player && room.current_player !== currentPlayer) {
+        setCurrentPlayer(room.current_player);
         updateStatusUI();
     }
-}
 
-function updateRoleUI() {
-    const roleSpan = document.getElementById('my-role');
-    const startBtn = document.getElementById('online-start-btn');
-    if (roleSpan) roleSpan.innerText = getRoleName(playerRole);
+    if (room.status === 'finished' && room.last_result) {
+        setGameOver(true);
+        const winner = room.last_result.replace('_win', '');
+        updateWinUI(winner);
+        showRestartButton(true);
+    } else if (room.status === 'playing' && gameOver) {
+        setGameOver(false);
+        showRestartButton(false);
+        updateStatusUI();
+    }
 
-    const resetBtn = document.getElementById('reset-btn');
-    if (playerRole === 'black' || playerRole === 'white') {
-        if (startBtn) startBtn.classList.remove('hidden');
-        if (resetBtn) resetBtn.style.display = 'inline-block';
-    } else {
-        if (startBtn) startBtn.classList.add('hidden');
-        if (resetBtn) resetBtn.style.display = 'none';
+    if (room.status === 'playing' && document.getElementById('waiting-msg')) {
+        document.getElementById('waiting-msg').classList.add('hidden');
     }
 }
 
-async function becomePlayer(role) {
-    if (!roomRecordId) return;
-    const updates = {};
-    if (role === 'black') updates.black_player_id = clientId;
-    else if (role === 'white') updates.white_player_id = clientId;
-    await safeUpdateRoomDB(roomRecordId, updates);
-    playerRole = role;
-    updateRoleUI();
-}
-window.becomePlayer = becomePlayer;
 
-async function becomeSpectator() {
-    if (!roomRecordId) return;
-    if (playerRole === 'black' || playerRole === 'white') {
-        const updates = {};
-        if (playerRole === 'black') updates.black_player_id = null;
-        if (playerRole === 'white') updates.white_player_id = null;
-        await safeUpdateRoomDB(roomRecordId, updates);
-    }
-    playerRole = 'spectator';
-    updateRoleUI();
-}
-window.becomeSpectator = becomeSpectator;
+// --- UI Helpers ---
 
-async function leaveRoom() {
-    if (roomRecordId && playerRole && playerRole !== 'spectator') {
-        const updates = {};
-        if (playerRole === 'black') updates.black_player_id = null;
-        if (playerRole === 'white') updates.white_player_id = null;
-        await safeUpdateRoomDB(roomRecordId, updates);
-    }
-    if (roomChannel) supabase.removeChannel(roomChannel);
+function updateRoomUI_Header() {
+    const idEl = document.getElementById('current-room-id');
+    const roleEl = document.getElementById('my-role');
+    if (idEl) idEl.innerText = roomId;
+    if (roleEl) roleEl.innerText = (playerRole === 'black' ? '黑子 (先手)' : (playerRole === 'white' ? '白子' : '觀眾'));
 
-    roomId = null;
-    roomRecordId = null;
-    playerRole = null;
-
-    document.getElementById('online-room').classList.add('hidden');
-    document.getElementById('online-lobby').classList.remove('hidden');
-    document.getElementById('game-board-area').classList.add('hidden');
+    const lobby = document.getElementById('online-lobby');
+    const room = document.getElementById('online-room');
+    lobby.classList.add('hidden');
+    room.classList.remove('hidden');
 }
 
-async function broadcastMove(row, col, player) {
-    if (roomChannel) {
-        // We write the FULL board
-        await safeUpdateRoomDB(roomRecordId, {
-            board_state: JSON.stringify(board)
-        });
+function showRestartButton(show) {
+    const btn = document.getElementById('online-restart-btn');
+    if (btn) {
+        if (show) btn.classList.remove('hidden');
+        else btn.classList.add('hidden');
     }
 }
 
-async function startOnlineGame() {
-    if (playerRole !== 'black' && playerRole !== 'white') return;
-
-    // Reset DB
-    const empty = [];
-    for (let i = 0; i < 15; i++) {
-        const row = [];
-        for (let j = 0; j < 15; j++) row.push(null);
-        empty.push(row);
-    }
-
-    await safeUpdateRoomDB(roomRecordId, {
-        status: 'playing',
-        last_result: null,
-        board_state: JSON.stringify(empty)
-    });
-}
+// Expose to window for HTML access
+window.createRoom = createRoom;
+window.joinRoom = joinRoom;
+window.requestRestart = requestRestart;

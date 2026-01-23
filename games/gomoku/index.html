@@ -41,20 +41,22 @@
                     </div>
                 </div>
 
-                <!-- Online Lobby (Room List) -->
+                <!-- Online Lobby (New) -->
                 <div id="online-lobby" class="hidden">
-                    <h3>選擇房間</h3>
-                    <div class="room-grid">
-                        <div class="room-card" onclick="joinRoom('room1')">
-                            <div class="room-name">Room 1</div>
+                    <h3>線上對戰大廳</h3>
+                    <div class="lobby-actions">
+                        <div class="action-section">
+                            <button class="pill-btn" onclick="createRoom()">創建房間 (自動生成)</button>
                         </div>
-                        <div class="room-card" onclick="joinRoom('room2')">
-                            <div class="room-name">Room 2</div>
-                        </div>
-                        <div class="room-card" onclick="joinRoom('room3')">
-                            <div class="room-name">Room 3</div>
+                        <div class="divider-text">或</div>
+                        <div class="action-section">
+                            <input type="text" id="room-code-input" placeholder="輸入 6 位房號" class="pill-select"
+                                style="text-transform:uppercase; text-align:center; width: 140px;">
+                            <button class="pill-btn secondary"
+                                onclick="joinRoom(document.getElementById('room-code-input').value)">加入房間</button>
                         </div>
                     </div>
+                    <br>
                     <button class="pill-btn secondary" onclick="backToLanding()">返回選單</button>
                 </div>
 
@@ -62,24 +64,17 @@
                 <div id="online-room" class="hidden">
                     <div class="room-header-card">
                         <div class="room-status">
-                            <span class="label">房間：</span><span id="current-room-id" class="value"></span>
+                            <span class="label">房間：</span><span id="current-room-id" class="value">??????</span>
                             <span class="divider">|</span>
-                            <span class="label">身份：</span><span id="my-role" class="value">觀眾</span>
+                            <span class="label">身份：</span><span id="my-role" class="value">載入中...</span>
                         </div>
                     </div>
 
-                    <div id="role-selection">
-                        <button id="btn-claim-black" class="pill-btn role-btn"
-                            onclick="becomePlayer('black')">成為黑子玩家</button>
-                        <button id="btn-claim-white" class="pill-btn role-btn"
-                            onclick="becomePlayer('white')">成為白子玩家</button>
-                        <button id="btn-claim-spec" class="pill-btn role-btn secondary"
-                            onclick="becomeSpectator()">成為觀戰者</button>
-                    </div>
+                    <div id="waiting-msg" style="margin-bottom:10px; color:var(--neon-green);">等待對手加入...</div>
 
                     <div class="room-actions">
-                        <button id="online-start-btn" class="pill-btn action-btn hidden"
-                            onclick="startOnlineGame()">開始遊戲</button>
+                        <button id="online-restart-btn" class="pill-btn action-btn hidden"
+                            onclick="requestRestart()">再戰一局</button>
                         <button id="leave-room-btn" class="pill-btn danger-btn" onclick="leaveRoom()">退出房間</button>
                     </div>
                 </div>
@@ -92,6 +87,7 @@
                     <div id="status-bar">
                         <div id="status">當前回合：<span class="player-turn">黑子</span></div>
                     </div>
+                    <!-- Only for AI mode, Online has its own restart logic -->
                     <button id="reset-btn" class="pill-btn action-btn" onclick="resetGame()">重新開始</button>
                 </div>
 
