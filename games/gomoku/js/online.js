@@ -22,30 +22,106 @@ try {
     if (window.supabase) {
         // Safety: Trim key
         const safeKey = SUPABASE_ANON_KEY.trim();
-        // Debug: Log key tail
+        // Debug
         console.log("Supabase Key Check:", JSON.stringify(safeKey).slice(-20));
 
-        sbClient = window.supabase.createClient(SUPABASE_URL, safeKey);
+        // Note: User specified this is a PUBLISHABLE key, not a JWT. 
+        // We must avoid sending it as "Bearer <key>" in Authorization header if possible,
+        // or accept that Auth service will reject it.
+        sbClient = window.supabase.createClient(SUPABASE_URL, safeKey, {
+            auth: {
+                autoRefreshToken: false,
+                persistSession: false,
+                detectSessionInUrl: false
+            },
+            // Attempt to override default headers to avoid "Invalid API Key" (401) from Auth layer
+            // when it sees a non-JWT in Bearer. 
+            // However, supabase-js might force it.
+            // We rely on 'apikey' header being sufficient for REST if RLS allows.
+        });
         window.sbClient = sbClient;
         console.log("Supabase Client Initialized");
 
-        testSupabaseConnection();
+        // Try Anonymous Auth - usually fails with non-JWT key, but worth a shot for RLS
+        initAuth();
+
+        updateDebugPanel(safeKey);
     } else {
         console.error("Supabase SDK not loaded on window.supabase");
+        updateDebugPanel("N/A");
     }
 } catch (err) {
     console.error("Supabase Init Error:", err);
+    updateDebugPanel("Error: " + err.message);
+}
+
+async function initAuth() {
+    if (!sbClient) return;
+    // This will likely 401 if key is not JWT. That is expected.
+    const { data, error } = await sbClient.auth.signInAnonymously();
+    if (error) {
+        console.warn("Auth (Anon) Skipped/Failed (Expected for Publishable Key):", error.message);
+    } else {
+        console.log("Auth Success:", data.user?.id);
+        updateDebugPanel(SUPABASE_ANON_KEY.trim());
+    }
+}
+
+// --- Debugging ---
+function updateDebugPanel(key) {
+    const safeKey = typeof key === 'string' ? key : 'Invalid';
+    const el = (id) => document.getElementById(id);
+    if (!el('dbg-url')) return;
+
+    el('dbg-url').innerText = SUPABASE_URL;
+    el('dbg-key-pre').innerText = safeKey.substring(0, 14) + '...';
+    el('dbg-key-len').innerText = safeKey.length;
+    el('dbg-key-tail').innerText = JSON.stringify(safeKey).slice(-10);
+    el('dbg-win-sup').innerText = !!window.supabase;
+    el('dbg-client').innerText = !!sbClient;
+
+    // Auth Info
+    sbClient?.auth.getUser().then(({ data }) => {
+        const uid = data?.user?.id || 'None';
+        // Hacky insert into panel if not exists
+        if (!document.getElementById('dbg-auth')) {
+            const div = document.createElement('div');
+            div.innerHTML = `Auth User: <span id="dbg-auth">${uid}</span>`;
+            el('dbg-client').parentNode.insertBefore(div, el('dbg-client').nextSibling);
+        } else {
+            document.getElementById('dbg-auth').innerText = uid;
+        }
+    });
+}
+
+window.pingSupabase = async function () {
+    const el = document.getElementById('dbg-ping-log');
+    if (!el) return;
+    el.innerText = "Pinging...";
+
+    const key = SUPABASE_ANON_KEY.trim();
+    try {
+        // PER USER REQUEST: Do NOT send Key in Authorization: Bearer.
+        // Publishable keys are not JWTs.
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/`, {
+            method: 'GET',
+            headers: {
+                'apikey': key
+                // Explicitly NO Authorization header
+            }
+        });
+        const text = await res.text();
+        el.innerText = `Status: ${res.status}\nRes: ${text.substring(0, 100)}`;
+    } catch (e) {
+        el.innerText = `Error: ${e.message}`;
+    }
 }
 
 async function testSupabaseConnection() {
+    // Deprecated in favor of Ping button, but kept for init check
     if (!sbClient) return;
-    console.log("Testing Supabase Connection...");
-    const { data, error } = await sbClient.from("Gomoku's rooms").select('count', { count: 'exact', head: true });
-    if (error) {
-        console.error("Supabase Connection Test Failed:", error);
-    } else {
-        console.log("Supabase Connection Test Success. Access confirmed.");
-    }
+    const { error } = await sbClient.from("Gomoku's rooms").select('count', { count: 'exact', head: true });
+    if (error) console.error("Connection Test:", error);
 }
 
 // --- Room Logic ---
@@ -81,7 +157,8 @@ async function createRoom() {
 
     if (error) {
         console.error("Create Room Error:", error);
-        alert("創建房間失敗: " + error.message);
+        // Improved Error Message
+        alert(`創建房間失敗\nCode: ${error.code}\nMsg: ${error.message}\nHint: ${error.hint || 'Check RLS policies'}`);
         return;
     }
 
