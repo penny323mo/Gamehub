@@ -4,28 +4,36 @@ function handleCellClick(row, col, difficulty) {
 
     // --- Online Mode ---
     if (mode === 'online') {
-        if (!window.isGameReady) return; // Block input if waiting
-        if (!roomId || !playerRole || (playerRole !== 'black' && playerRole !== 'white')) return;
-        // Strict turn check
+        // Triple Guard
+        // 1. Ready? (Defined as players >= 2 && Room Status is playing/paused)
+        if (!window.isGameReady) return;
+
+        // 2. Locked? (Paused, Finished, or waiting) - online.js updates this global `boardLocked`?
+        // Note: online.js isn't exporting boardLocked directly to window, but we can check the element or just use status.
+        // Let's rely on window.currentRoom.status
+        const room = window.currentRoom;
+        if (!room) return;
+
+        // Check "Paused" or "Finished" via status
+        if (room.status !== 'playing') return;
+
+        // 3. My Turn?
+        if (!roomId || !playerRole) return;
         if (currentPlayer !== playerRole) return;
 
-        // Attempt local move (Optimistic)
+        // Attempt local move
         const result = tryPlaceStone(row, col, playerRole);
-        if (!result.success) return; // Invalid move or occupied
+        if (!result.success) return;
 
-        // Valid move: Update UI immediately
+        // Update UI
         placeStoneUI(row, col, playerRole);
 
         if (result.win) {
             updateWinUI(playerRole);
-            // handleOnlineMove will send status='finished'
             handleOnlineMove(row, col, true, playerRole);
         } else {
-            // Optimistic Turn Switch
             switchTurn();
             updateStatusUI();
-
-            // Sync with DB
             handleOnlineMove(row, col, false, null);
         }
         return;

@@ -207,6 +207,8 @@ async function joinRoom(codeInput) {
         role = 'white';
         updates.white_player_id = clientId;
         updates.status = 'playing';
+        updates.current_player = 'black'; // Explicitly set starting player
+        updates.turn_deadline_at = new Date(Date.now() + 30 * 1000); // 30s deadline
         needsUpdate = true;
     }
 
@@ -249,24 +251,191 @@ function enterRoom(room, role) {
 
 // --- Game Logic ---
 
-let isGameReady = false;
-window.isGameReady = false; // Exposed for input.js
+// --- Game State Machine & Timer ---
 
-function updateGameReadyState(status) {
-    // We are ready if status is playing. 
-    // If finished, we are also technically "active" (viewing board), 
-    // but input is blocked by gameOver check in input.js anyway.
-    // Explicitly:
-    isGameReady = (status === 'playing');
-    window.isGameReady = isGameReady;
+const GAME_STATUS = {
+    WAITING: 'waiting',
+    PLAYING: 'playing',
+    PAUSED: 'paused',
+    FINISHED: 'finished'
+};
 
-    // Update UI message
+let gameStatus = GAME_STATUS.WAITING;
+let boardLocked = true;
+let timerInterval = null;
+window.currentRoom = null; // Ensure this is global
+
+// Helper to calculate room readiness
+function computeReady(room) {
+    // Ready if we have a black player and a status that isn't 'waiting' (could be playing or paused)
+    // Actually, 'waiting' status means not ready. 
+    // And we need 2 players (implied if status is playing/paused usually, but check just in case)
+    const hasBlack = !!room.black_player_id;
+    const hasWhite = !!room.white_player_id;
+    return hasBlack && hasWhite && (room.status !== 'waiting');
+}
+
+function applyRoomState(room) {
+    if (!room) return;
+    window.currentRoom = room;
+
+    const ready = computeReady(room);
+
+    // Determine Status
+    // Map DB status to local Enum if needed, or just use DB status string directly if it matches.
+    // DB: 'waiting', 'playing', 'paused', 'finished'
+    gameStatus = room.status;
+
+    // Determine Lock
+    // Locked if: Not playing (e.g. waiting, paused, finished) OR Not my turn?
+    // The "boardLocked" flag specifically represents "Is the board interactive logically?"
+    // Input.js will also check turn. Here we check "Global Game State".
+    boardLocked = (gameStatus !== GAME_STATUS.PLAYING);
+
+    // UI: Board Lock Overlay
+    const lockEl = document.getElementById('boardLock');
+    if (lockEl) {
+        lockEl.style.display = boardLocked ? 'block' : 'none';
+        // Add specific visual cues for Pause
+        if (gameStatus === GAME_STATUS.PAUSED) {
+            lockEl.innerText = "GAME PAUSED";
+            lockEl.style.display = 'flex';
+            lockEl.style.justifyContent = 'center';
+            lockEl.style.alignItems = 'center';
+            lockEl.style.color = 'white';
+            lockEl.style.fontSize = '2rem';
+            lockEl.style.background = 'rgba(0,0,0,0.7)';
+        } else {
+            lockEl.innerText = "";
+            lockEl.style.background = 'rgba(0,0,0,0.1)';
+        }
+    }
+
+    // UI: Pause Button Text
+    const pauseBtn = document.getElementById('pause-btn');
+    if (pauseBtn) {
+        pauseBtn.innerText = (gameStatus === GAME_STATUS.PAUSED) ? "繼續" : "暫停";
+        // Disable pause button if game ended or waiting
+        pauseBtn.disabled = (gameStatus === GAME_STATUS.WAITING || gameStatus === GAME_STATUS.FINISHED);
+    }
+
+    // UI: Waiting Message
     const waitMsg = document.getElementById('waiting-msg');
     if (waitMsg) {
-        if (status === 'waiting') waitMsg.classList.remove('hidden');
+        if (!ready && gameStatus !== GAME_STATUS.FINISHED) waitMsg.classList.remove('hidden');
         else waitMsg.classList.add('hidden');
     }
+
+    // Timer Logic
+    if (timerInterval) clearInterval(timerInterval);
+    if (gameStatus === GAME_STATUS.PLAYING || gameStatus === GAME_STATUS.PAUSED) {
+        startTimerWatchdog(room);
+    } else {
+        updateTimerUI("--");
+    }
+
+    // Sync input.js global
+    window.isGameReady = ready;
 }
+
+function startTimerWatchdog(room) {
+    const timerDisplay = document.getElementById('game-timer');
+
+    timerInterval = setInterval(() => {
+        let remaining = 0;
+
+        if (room.status === 'paused') {
+            remaining = room.paused_remaining_s || 30;
+        } else if (room.status === 'playing' && room.turn_deadline_at) {
+            const deadline = new Date(room.turn_deadline_at).getTime();
+            const now = Date.now(); // Use Client time approximation, but DB is source
+            // Note: Client time drift is a risk. Ideally use server time offset. 
+            // For now, assume synced clock or close enough.
+            const diff = Math.ceil((deadline - now) / 1000);
+            remaining = diff > 0 ? diff : 0;
+
+            // Timeout Claim (Double Guard)
+            if (diff <= 0) {
+                claimTimeout(room);
+                clearInterval(timerInterval);
+                remaining = 0;
+            }
+        }
+
+        updateTimerUI(remaining);
+    }, 500);
+}
+
+function updateTimerUI(seconds) {
+    const el = document.getElementById('game-timer');
+    if (!el) return;
+    el.innerText = seconds;
+    if (typeof seconds === 'number' && seconds <= 10) el.classList.add('timer-warning');
+    else el.classList.remove('timer-warning');
+}
+
+async function claimTimeout(room) {
+    // Only claim if I am the one waiting for the OTHER to move? 
+    // Or just ANYONE claims it. 
+    // To avoid double writes, let the "Next Player" claim the win? 
+    // OR: Current player claims "I timed out"? No.
+    // Rule: The opponent of the current_turn player claims the win.
+    const myTurn = (room.current_player === playerRole);
+    if (myTurn) return; // I timed out, let opponent claim (or I could resign, but let's stick to opponent claim)
+
+    if (room.status !== 'playing') return;
+
+    console.log("Claiming Timeout via Client...");
+    // Strict DB Update with RPC-like conditions
+    const winner = (room.current_player === 'black') ? 'white' : 'black';
+
+    await sbClient
+        .from("Gomoku's rooms")
+        .update({
+            status: 'finished',
+            ended_reason: 'timeout',
+            last_result: winner + '_win',
+            winner: winner,
+            last_activity_at: new Date()
+        })
+        .eq('id', room.id)
+        .eq('status', 'playing')
+        .lt('turn_deadline_at', new Date().toISOString()); // Only if server time agrees (roughly)
+}
+
+async function togglePause() {
+    if (!window.currentRoom) return;
+    const room = window.currentRoom;
+    const isPaused = (room.status === 'paused');
+
+    if (isPaused) {
+        // Resume
+        const remaining = room.paused_remaining_s || 30;
+        const newDeadline = new Date(Date.now() + remaining * 1000);
+
+        await sbClient.from("Gomoku's rooms").update({
+            status: 'playing',
+            paused_at: null,
+            paused_remaining_s: null,
+            turn_deadline_at: newDeadline,
+            last_activity_at: new Date()
+        }).eq('id', room.id);
+    } else {
+        // Pause
+        // Calc remaining
+        const deadline = new Date(room.turn_deadline_at).getTime();
+        const now = Date.now();
+        const remain = Math.max(0, Math.ceil((deadline - now) / 1000));
+
+        await sbClient.from("Gomoku's rooms").update({
+            status: 'paused',
+            paused_at: new Date(),
+            paused_remaining_s: remain,
+            last_activity_at: new Date()
+        }).eq('id', room.id);
+    }
+}
+window.togglePause = togglePause; // Expose
 
 // --- Game Logic ---
 
@@ -293,15 +462,20 @@ async function handleOnlineMove(row, col, isWin, winner) {
         });
     }
 
-    // Update DB (Status Only)
+    // Update DB
     const updates = {
         current_player: nextPlayer,
-        last_activity_at: new Date()
+        last_activity_at: new Date(),
+        // New Deadline: 30 seconds from now
+        turn_deadline_at: new Date(Date.now() + 30 * 1000)
     };
 
     if (isWin) {
         updates.status = 'finished';
         updates.last_result = winner + '_win';
+        updates.winner = winner;
+        updates.ended_reason = 'win';
+        updates.turn_deadline_at = null; // Clear deadline
     }
 
     await sbClient
@@ -326,8 +500,13 @@ async function requestRestart() {
         .update({
             status: 'playing',
             last_result: null,
+            ended_reason: null,
+            winner: null,
+            paused_at: null,
+            paused_remaining_s: null,
             current_player: 'black',
-            last_activity_at: new Date()
+            last_activity_at: new Date(),
+            turn_deadline_at: new Date(Date.now() + 30 * 1000)
         })
         .eq('id', roomRecordId);
 }
@@ -375,10 +554,13 @@ function subscribeToRoom() {
         });
 }
 
+// --- UI Sync ---
+
 function handleRoomUpdate(room) {
     if (!room) return;
     console.log("Handle Room Update:", room);
-    renderRoomState(room);
+    applyRoomState(room); // Updates state vars
+    renderRoomState(room); // Updates DOM
 }
 
 function handleRemoteMove(row, col, player) {
@@ -450,18 +632,18 @@ function showRestartButton(show) {
 
 function renderRoomState(room) {
     if (!room) return;
-    window.currentRoom = room;
+    // ensure state variables are fresh if called directly
+    applyRoomState(room);
 
     const lobby = document.getElementById('online-lobby');
     const roomUI = document.getElementById('online-room');
     const boardArea = document.getElementById('game-board-area');
-    const waitingMsg = document.getElementById('waiting-msg');
 
-    // 1. Show Room UI, Hide Lobby
+    // 1. Show Room UI
     if (lobby) lobby.classList.add('hidden');
     if (roomUI) roomUI.classList.remove('hidden');
 
-    // 2. Update Header Info
+    // 2. Info Update
     const idEl = document.getElementById('current-room-id');
     const roleEl = document.getElementById('my-role');
     if (idEl) idEl.innerText = room.room_code;
@@ -470,16 +652,11 @@ function renderRoomState(room) {
     if (room.black_player_id === clientId) roleText = 'Black (First)';
     else if (room.white_player_id === clientId) roleText = 'White (Second)';
 
-    playerRole = (room.black_player_id === clientId) ? 'black' : (room.white_player_id === clientId ? 'white' : 'spectator');
     if (roleEl) roleEl.innerText = roleText;
 
-    // 3. Handle Game Status (Waiting vs Playing)
-    if (room.status === 'playing' || room.status === 'finished') {
-        if (waitingMsg) waitingMsg.classList.add('hidden');
+    // 3. Status handling using Global State (computed in applyRoomState)
+    if (gameStatus === GAME_STATUS.PLAYING || gameStatus === GAME_STATUS.FINISHED || gameStatus === GAME_STATUS.PAUSED) {
         if (boardArea) boardArea.classList.remove('hidden');
-
-        isGameReady = true;
-        window.isGameReady = true;
 
         if (!window.board) {
             createEmptyBoard();
@@ -492,24 +669,38 @@ function renderRoomState(room) {
 
         updateStatusUI();
     } else {
-        if (waitingMsg) {
-            waitingMsg.classList.remove('hidden');
-            waitingMsg.innerHTML = `<p>Waiting for opponent... <br> Share Code: <b>${room.room_code}</b></p>`;
-        }
+        // Waiting
         if (boardArea) boardArea.classList.add('hidden');
-        isGameReady = false;
-        window.isGameReady = false;
     }
 
-    // 4. Handle Game Over
-    if (room.status === 'finished' && room.last_result) {
+    // 4. Timer & Controls Visibility handled by applyRoomState's watchdog & ID checks
+    const onlineControls = document.getElementById('online-controls');
+    if (onlineControls) {
+        onlineControls.classList.remove('hidden');
+    }
+
+    // 5. Game Over
+    if (gameStatus === GAME_STATUS.FINISHED) {
         if (!gameOver) {
             setGameOver(true);
-            const winner = room.last_result.replace('_win', '');
+            const winner = room.winner || (room.last_result ? room.last_result.replace('_win', '') : 'black');
+            let method = room.ended_reason === 'timeout' ? '超時' : '';
+
+            // Custom UI update for timeout? "White Win (Timeout)"
+            // updateWinUI only accepts "black" or "white". We might need to hack the alert or status.
             updateWinUI(winner);
+
+            if (method) {
+                // Determine who won name
+                const wName = winner === 'black' ? "黑子" : "白子";
+                document.getElementById('status').innerHTML = `<span style="color:var(--neon-red)">${method}結束：${wName}勝</span>`;
+            }
         }
         showRestartButton(true);
-    } else if (room.status === 'playing' && gameOver) {
+    }
+    // Resume local game state if valid
+    else if (gameStatus === GAME_STATUS.PLAYING && gameOver && !room.last_result) {
+        // Room says playing, local says gameOver? Reset.
         handleRemoteRestart();
     }
 }

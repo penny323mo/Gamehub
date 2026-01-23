@@ -84,12 +84,25 @@
 
                 <!-- Common Game Elements (Board, Status) -->
                 <div id="game-board-area" class="hidden">
-                    <div class="board-frame">
-                        <canvas id="gomoku-board"></canvas>
+                    <div id="board-wrap">
+                        <div class="board-frame">
+                            <canvas id="gomoku-board"></canvas>
+                        </div>
+                        <div id="boardLock" aria-hidden="true" title="Board Locked"></div>
                     </div>
-                    <div id="status-bar">
+
+                    <div id="status-bar"
+                        style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                         <div id="status">當前回合：<span class="player-turn">黑子</span></div>
+
+                        <!-- Online Controls -->
+                        <div id="online-controls" class="hidden" style="display:flex; align-items:center;">
+                            <span id="game-timer" class="timer-display">30</span>
+                            <button id="pause-btn" class="pill-btn secondary"
+                                style="font-size:0.8rem; padding:5px 10px;" onclick="togglePause()">暫停</button>
+                        </div>
                     </div>
+
                     <!-- Only for AI mode, Online has its own restart logic -->
                     <button id="reset-btn" class="pill-btn action-btn" onclick="resetGame()">重新開始</button>
                 </div>
