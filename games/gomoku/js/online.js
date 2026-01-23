@@ -1,7 +1,7 @@
 
 // --- Supabase Config ---
 const SUPABASE_URL = "https://djbhipofzbonxfqriovi.supabase.co";
-const SUPABASE_ANON_KEY = "sb-publishable-DX7aNwHHI7tb6RUiWWe0qg_qPzuLcld";
+const SUPABASE_ANON_KEY = "sb_publishable_DX7aNwHHI7tb6RUiWWe0qg_qPzuLcld";
 
 // Global client instance
 let sbClient = null;
@@ -20,15 +20,32 @@ if (!clientId) {
 // Initialize Supabase
 try {
     if (window.supabase) {
-        sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        // Expose for debugging
+        // Safety: Trim key
+        const safeKey = SUPABASE_ANON_KEY.trim();
+        // Debug: Log key tail
+        console.log("Supabase Key Check:", JSON.stringify(safeKey).slice(-20));
+
+        sbClient = window.supabase.createClient(SUPABASE_URL, safeKey);
         window.sbClient = sbClient;
         console.log("Supabase Client Initialized");
+
+        testSupabaseConnection();
     } else {
         console.error("Supabase SDK not loaded on window.supabase");
     }
 } catch (err) {
     console.error("Supabase Init Error:", err);
+}
+
+async function testSupabaseConnection() {
+    if (!sbClient) return;
+    console.log("Testing Supabase Connection...");
+    const { data, error } = await sbClient.from("Gomoku's rooms").select('count', { count: 'exact', head: true });
+    if (error) {
+        console.error("Supabase Connection Test Failed:", error);
+    } else {
+        console.log("Supabase Connection Test Success. Access confirmed.");
+    }
 }
 
 // --- Room Logic ---
@@ -48,7 +65,7 @@ async function createRoom() {
     const code = generateRoomCode();
     console.log("Creating room:", code);
 
-    // Create room in DB
+    // Create room in DB (Removed board_state to match schema)
     const { data, error } = await sbClient
         .from("Gomoku's rooms")
         .insert([{
@@ -57,8 +74,7 @@ async function createRoom() {
             white_player_id: null,
             status: 'waiting',
             last_activity_at: new Date(),
-            current_player: 'black',
-            board_state: JSON.stringify(createEmptyBoard())
+            current_player: 'black'
         }])
         .select()
         .single();
@@ -149,21 +165,12 @@ function enterRoom(room, role) {
 
     updateRoomUI_Header();
 
+    // Subscribe
     subscribeToRoom();
 
-    if (room.board_state) {
-        try {
-            const remoteBoard = JSON.parse(room.board_state);
-            setBoard(remoteBoard);
-            drawBoard();
-        } catch (e) {
-            console.error("Board parse error", e);
-            resetBoardUI();
-        }
-    } else {
-        resetGameState();
-        resetBoardUI();
-    }
+    // Init Board (Local Reset, no persistence from DB)
+    resetGameState();
+    resetBoardUI();
 
     setCurrentPlayer(room.current_player || 'black');
     updateStatusUI();
@@ -194,8 +201,17 @@ async function handleOnlineMove(row, col, isWin, winner) {
 
     const nextPlayer = (playerRole === 'black') ? 'white' : 'black';
 
+    // Broadcast Move
+    if (roomChannel) {
+        roomChannel.send({
+            type: 'broadcast',
+            event: 'move',
+            payload: { row, col, player: playerRole }
+        });
+    }
+
+    // Update DB (Status Only)
     const updates = {
-        board_state: JSON.stringify(board),
         current_player: nextPlayer,
         last_activity_at: new Date()
     };
@@ -214,13 +230,20 @@ async function handleOnlineMove(row, col, isWin, winner) {
 async function requestRestart() {
     if (!roomRecordId) return;
 
+    if (roomChannel) {
+        roomChannel.send({
+            type: 'broadcast',
+            event: 'restart',
+            payload: {}
+        });
+    }
+
     await sbClient
         .from("Gomoku's rooms")
         .update({
-            board_state: JSON.stringify(createEmptyBoard()),
             status: 'playing',
             last_result: null,
-            current_player: 'black',  // Reset to black first
+            current_player: 'black',
             last_activity_at: new Date()
         })
         .eq('id', roomRecordId);
@@ -231,25 +254,27 @@ async function requestRestart() {
 function subscribeToRoom() {
     if (roomChannel) sbClient.removeChannel(roomChannel);
 
-    roomChannel = sbClient.channel(`room-${roomId}`)
+    roomChannel = sbClient.channel(`gomoku-${roomId}`) // Using specific channel name convention
         .on("postgres_changes",
             { event: "UPDATE", schema: "public", table: "Gomoku's rooms", filter: `id=eq.${roomRecordId}` },
             (payload) => {
                 handleRoomUpdate(payload.new);
             }
         )
-        .subscribe();
+        .on("broadcast", { event: "move" }, (payload) => {
+            const { row, col, player } = payload.payload;
+            handleRemoteMove(row, col, player);
+        })
+        .on("broadcast", { event: "restart" }, (payload) => {
+            handleRemoteRestart();
+        })
+        .subscribe((status) => {
+            console.log("Subscription Status:", status);
+        });
 }
 
 function handleRoomUpdate(room) {
-    if (room.board_state) {
-        const remoteBoard = JSON.parse(room.board_state);
-        if (JSON.stringify(remoteBoard) !== JSON.stringify(board)) {
-            setBoard(remoteBoard);
-            drawBoard();
-        }
-    }
-
+    // Sync Players / Turn / Meta
     if (room.current_player && room.current_player !== currentPlayer) {
         setCurrentPlayer(room.current_player);
         updateStatusUI();
@@ -261,6 +286,7 @@ function handleRoomUpdate(room) {
         updateWinUI(winner);
         showRestartButton(true);
     } else if (room.status === 'playing' && gameOver) {
+        // DB says playing, local says gameover -> restart likely happened
         setGameOver(false);
         showRestartButton(false);
         updateStatusUI();
@@ -271,6 +297,20 @@ function handleRoomUpdate(room) {
     }
 }
 
+function handleRemoteMove(row, col, player) {
+    if (board[row][col] === null) {
+        board[row][col] = player;
+        placeStoneUI(row, col, player);
+        // Do NOT switch turn here, rely on DB update or calculate local
+    }
+}
+
+function handleRemoteRestart() {
+    resetGameState();
+    resetBoardUI();
+    setGameOver(false);
+    showRestartButton(false);
+}
 
 // --- UI Helpers ---
 
