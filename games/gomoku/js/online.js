@@ -260,6 +260,30 @@ function enterRoom(room, role) {
         setGameOver(false);
         showRestartButton(false);
     }
+
+    // Set Ready State
+    updateGameReadyState(room.status);
+}
+
+// --- Game Logic ---
+
+let isGameReady = false;
+window.isGameReady = false; // Exposed for input.js
+
+function updateGameReadyState(status) {
+    // We are ready if status is playing. 
+    // If finished, we are also technically "active" (viewing board), 
+    // but input is blocked by gameOver check in input.js anyway.
+    // Explicitly:
+    isGameReady = (status === 'playing');
+    window.isGameReady = isGameReady;
+
+    // Update UI message
+    const waitMsg = document.getElementById('waiting-msg');
+    if (waitMsg) {
+        if (status === 'waiting') waitMsg.classList.remove('hidden');
+        else waitMsg.classList.add('hidden');
+    }
 }
 
 // --- Game Logic ---
@@ -331,54 +355,95 @@ async function requestRestart() {
 function subscribeToRoom() {
     if (roomChannel) sbClient.removeChannel(roomChannel);
 
-    roomChannel = sbClient.channel(`gomoku-${roomId}`) // Using specific channel name convention
+    const waitEl = document.getElementById('waiting-msg');
+    if (waitEl) waitEl.innerHTML += '<br><small id="sub-status">Connecting...</small>';
+
+    // Note: Table name has spaces/apostrophes. We explicitly quote it for Realtime.
+    roomChannel = sbClient.channel(`gomoku-${roomId}`)
         .on("postgres_changes",
-            { event: "UPDATE", schema: "public", table: "Gomoku's rooms", filter: `id=eq.${roomRecordId}` },
+            { event: "UPDATE", schema: "public", table: '"Gomoku\'s rooms"' },
             (payload) => {
+                console.log("Room Update Payload:", payload);
+                if (payload.new.id !== roomRecordId) return;
                 handleRoomUpdate(payload.new);
             }
         )
         .on("broadcast", { event: "move" }, (payload) => {
+            console.log("Broadcast Move:", payload);
             const { row, col, player } = payload.payload;
             handleRemoteMove(row, col, player);
         })
         .on("broadcast", { event: "restart" }, (payload) => {
             handleRemoteRestart();
         })
-        .subscribe((status) => {
-            console.log("Subscription Status:", status);
+        .subscribe((status, error) => {
+            console.log("Subscription Status:", status, error);
+            const subEl = document.getElementById('sub-status');
+            if (subEl) subEl.innerText = `Status: ${status} ${error ? error.message : ''}`;
         });
 }
 
 function handleRoomUpdate(room) {
-    // Sync Players / Turn / Meta
+    // 0. Update Ready State
+    updateGameReadyState(room.status);
+
+    // 1. Handle Game Start (Waiting -> Playing)
+    // Note: status change handled by updateGameReadyState UI update, 
+    // but we might want a toast or console log.
+    if (room.status === 'playing' && !window.hasStarted) {
+        // Prevent double init if we already knew? 
+        // Actually, if we just transitioned, maybe reset?
+        // For now, simple transition is handled by EnterRoom or realtime update.
+        // Let's ensure we don't reset mid-game if we just reconnected.
+        // Logic mainly relies on syncing the board if needed, but we rely on optimistic moves + init.
+    }
+
+    // 2. Sync Turn (if drifted)
     if (room.current_player && room.current_player !== currentPlayer) {
         setCurrentPlayer(room.current_player);
         updateStatusUI();
     }
 
+    // 3. Handle Game Over from DB (e.g. if broadcast missed)
     if (room.status === 'finished' && room.last_result) {
-        setGameOver(true);
-        const winner = room.last_result.replace('_win', '');
-        updateWinUI(winner);
-        showRestartButton(true);
+        if (!gameOver) {
+            setGameOver(true);
+            const winner = room.last_result.replace('_win', '');
+            updateWinUI(winner);
+            showRestartButton(true);
+        }
     } else if (room.status === 'playing' && gameOver) {
-        // DB says playing, local says gameover -> restart likely happened
-        setGameOver(false);
-        showRestartButton(false);
-        updateStatusUI();
-    }
-
-    if (room.status === 'playing' && document.getElementById('waiting-msg')) {
-        document.getElementById('waiting-msg').classList.add('hidden');
+        // Restart occurred
+        handleRemoteRestart();
     }
 }
 
 function handleRemoteMove(row, col, player) {
-    if (board[row][col] === null) {
-        board[row][col] = player;
+    // 1. Apply Move
+    const result = tryPlaceStone(row, col, player);
+
+    // 2. Update UI
+    if (result.success) {
         placeStoneUI(row, col, player);
-        // Do NOT switch turn here, rely on DB update or calculate local
+        // Turn switch logic handled by local input or DB sync usually, 
+        // but for smooth realtime we should switch locally too if it wasn't us.
+        if (!result.win) {
+            // If I am black, and received white move, it becomes black turn.
+            // switchTurn() toggles currentPlayer.
+            // Verify it matches expected next player
+            const next = player === 'black' ? 'white' : 'black';
+            if (currentPlayer === player) {
+                setCurrentPlayer(next);
+                updateStatusUI();
+            }
+        }
+    }
+
+    // 3. Check Win (Remote Win)
+    if (result.win) {
+        setGameOver(true);
+        updateWinUI(player);
+        showRestartButton(true);
     }
 }
 
@@ -387,6 +452,9 @@ function handleRemoteRestart() {
     resetBoardUI();
     setGameOver(false);
     showRestartButton(false);
+    // Ensure input is active
+    createBoardUI((r, c) => handleCellClick(r, c, 'hard'));
+    updateStatusUI('black');
 }
 
 // --- UI Helpers ---
@@ -401,6 +469,9 @@ function updateRoomUI_Header() {
     const room = document.getElementById('online-room');
     lobby.classList.add('hidden');
     room.classList.remove('hidden');
+
+    // If joining an existing game in progress, ensure board is visible
+    document.getElementById('game-board-area').classList.remove('hidden');
 }
 
 function showRestartButton(show) {

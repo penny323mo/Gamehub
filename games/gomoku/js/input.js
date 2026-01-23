@@ -4,19 +4,19 @@ function handleCellClick(row, col, difficulty) {
 
     // --- Online Mode ---
     if (mode === 'online') {
+        if (!window.isGameReady) return; // Block input if waiting
         if (!roomId || !playerRole || (playerRole !== 'black' && playerRole !== 'white')) return;
         // Strict turn check
         if (currentPlayer !== playerRole) return;
-        if (board[row][col] !== null) return;
 
-        // Optimistic Update
-        board[row][col] = playerRole; // Update State
-        placeStoneUI(row, col, playerRole); // Update UI
+        // Attempt local move (Optimistic)
+        const result = tryPlaceStone(row, col, playerRole);
+        if (!result.success) return; // Invalid move or occupied
 
-        // Check Win Locally
-        const won = checkWin(row, col, playerRole);
+        // Valid move: Update UI immediately
+        placeStoneUI(row, col, playerRole);
 
-        if (won) {
+        if (result.win) {
             updateWinUI(playerRole);
             // handleOnlineMove will send status='finished'
             handleOnlineMove(row, col, true, playerRole);
@@ -32,14 +32,15 @@ function handleCellClick(row, col, difficulty) {
     }
 
     // --- AI Mode ---
-    if (board[row][col] !== null) return;
     if (isVsAI && currentPlayer === 'white') return; // AI Turn
 
     // Player Move
-    board[row][col] = currentPlayer;
+    const result = tryPlaceStone(row, col, currentPlayer);
+    if (!result.success) return; // Occupied or invalid
+
     placeStoneUI(row, col, currentPlayer);
 
-    if (checkWin(row, col, currentPlayer)) {
+    if (result.win) {
         updateWinUI(currentPlayer);
         return;
     }

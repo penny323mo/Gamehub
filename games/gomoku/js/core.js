@@ -77,3 +77,26 @@ function countDirection(row, col, dx, dy, player, boardState) {
     }
     return count;
 }
+
+/**
+ * Attempts to place a stone on the board.
+ * @param {number} row 
+ * @param {number} col 
+ * @param {string} player 'black' or 'white'
+ * @returns {object} { success: boolean, win: boolean }
+ */
+function tryPlaceStone(row, col, player) {
+    if (gameOver) return { success: false, win: false };
+    if (row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE) return { success: false, win: false };
+    if (board[row][col] !== null) return { success: false, win: false };
+
+    board[row][col] = player;
+
+    // Check win using the existing Logic
+    const win = checkWin(row, col, player);
+    if (win) {
+        gameOver = true;
+    }
+
+    return { success: true, win };
+}
