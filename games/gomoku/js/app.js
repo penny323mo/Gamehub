@@ -24,12 +24,15 @@ function initApp() {
 
     // Default View
     showView('landing');
+
+    // Attempt to restore online session
+    if (window.initOnlineMode) {
+        window.initOnlineMode();
+    }
 }
 
 function resetGame() {
     if (mode === 'online') {
-        // Should not be called via the main button, as it's hidden
-        // But if mapped, treat as requestRestart
         requestRestart();
     } else {
         resetGameState();
@@ -54,6 +57,12 @@ function selectMode(selectedMode) {
         setIsVsAI(false);
         showView('online-lobby');
         if (aiResetBtn) aiResetBtn.style.display = 'none';
+
+        // If we have a current room (restored session), show it instead of lobby
+        if (window.currentRoom) {
+            document.getElementById('online-lobby').classList.add('hidden');
+            document.getElementById('online-room').classList.remove('hidden');
+        }
     }
 }
 
@@ -96,10 +105,7 @@ function showView(viewName) {
 function backToLanding() {
     if (mode === 'online') {
         // If in a room, leave it
-        if (window.leaveRoom) window.leaveRoom(); // Helper provided by online.js usually? 
-        // Note: online.js defines global leaveRoom. 
-        // But if we are just in Lobby, logic might differ.
-        // online.js `leaveRoom` handles partial state resets.
+        if (window.exitRoom) window.exitRoom();
     }
     showView('landing');
 }

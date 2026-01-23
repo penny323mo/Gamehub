@@ -233,36 +233,18 @@ function enterRoom(room, role) {
     roomRecordId = room.id;
     playerRole = role;
 
+    // Save Session for Reload
+    localStorage.setItem('gomoku_room_id', roomId);
+    localStorage.setItem('gomoku_player_role', role);
+
     setMode('online');
     setIsVsAI(false);
 
-    document.getElementById('online-lobby').classList.add('hidden');
-    document.getElementById('online-room').classList.remove('hidden');
-    document.getElementById('game-board-area').classList.remove('hidden');
+    // Initial Render
+    renderRoomState(room);
 
-    updateRoomUI_Header();
-
-    // Subscribe
+    // Subscribe for updates
     subscribeToRoom();
-
-    // Init Board (Local Reset, no persistence from DB)
-    resetGameState();
-    resetBoardUI();
-
-    setCurrentPlayer(room.current_player || 'black');
-    updateStatusUI();
-
-    if (room.status === 'finished' && room.last_result) {
-        setGameOver(true);
-        updateWinUI(room.last_result.replace('_win', ''));
-        showRestartButton(true);
-    } else {
-        setGameOver(false);
-        showRestartButton(false);
-    }
-
-    // Set Ready State
-    updateGameReadyState(room.status);
 }
 
 // --- Game Logic ---
@@ -356,15 +338,17 @@ function subscribeToRoom() {
     if (roomChannel) sbClient.removeChannel(roomChannel);
 
     const waitEl = document.getElementById('waiting-msg');
-    if (waitEl) waitEl.innerHTML += '<br><small id="sub-status">Connecting...</small>';
+    if (waitEl && !document.getElementById('sub-status')) {
+        waitEl.innerHTML += '<br><small id="sub-status">Connecting...</small>';
+    }
 
-    // Note: Table name has spaces/apostrophes. We explicitly quote it for Realtime.
     roomChannel = sbClient.channel(`gomoku-${roomId}`)
         .on("postgres_changes",
             { event: "UPDATE", schema: "public", table: '"Gomoku\'s rooms"' },
             (payload) => {
-                console.log("Room Update Payload:", payload);
+                // Client-side filter
                 if (payload.new.id !== roomRecordId) return;
+                console.log("Room Update Payload:", payload);
                 handleRoomUpdate(payload.new);
             }
         )
@@ -380,42 +364,21 @@ function subscribeToRoom() {
             console.log("Subscription Status:", status, error);
             const subEl = document.getElementById('sub-status');
             if (subEl) subEl.innerText = `Status: ${status} ${error ? error.message : ''}`;
+
+            // Initial Fetch to ensure state is fresh
+            if (status === 'SUBSCRIBED') {
+                sbClient.from("Gomoku's rooms").select("*").eq('id', roomRecordId).single()
+                    .then(({ data }) => {
+                        if (data) renderRoomState(data);
+                    });
+            }
         });
 }
 
 function handleRoomUpdate(room) {
-    // 0. Update Ready State
-    updateGameReadyState(room.status);
-
-    // 1. Handle Game Start (Waiting -> Playing)
-    // Note: status change handled by updateGameReadyState UI update, 
-    // but we might want a toast or console log.
-    if (room.status === 'playing' && !window.hasStarted) {
-        // Prevent double init if we already knew? 
-        // Actually, if we just transitioned, maybe reset?
-        // For now, simple transition is handled by EnterRoom or realtime update.
-        // Let's ensure we don't reset mid-game if we just reconnected.
-        // Logic mainly relies on syncing the board if needed, but we rely on optimistic moves + init.
-    }
-
-    // 2. Sync Turn (if drifted)
-    if (room.current_player && room.current_player !== currentPlayer) {
-        setCurrentPlayer(room.current_player);
-        updateStatusUI();
-    }
-
-    // 3. Handle Game Over from DB (e.g. if broadcast missed)
-    if (room.status === 'finished' && room.last_result) {
-        if (!gameOver) {
-            setGameOver(true);
-            const winner = room.last_result.replace('_win', '');
-            updateWinUI(winner);
-            showRestartButton(true);
-        }
-    } else if (room.status === 'playing' && gameOver) {
-        // Restart occurred
-        handleRemoteRestart();
-    }
+    if (!room) return;
+    console.log("Handle Room Update:", room);
+    renderRoomState(room);
 }
 
 function handleRemoteMove(row, col, player) {
@@ -483,6 +446,127 @@ function showRestartButton(show) {
 }
 
 // Expose to window for HTML access
+// --- New Core Logic (Safe Append) ---
+
+function renderRoomState(room) {
+    if (!room) return;
+    window.currentRoom = room;
+
+    const lobby = document.getElementById('online-lobby');
+    const roomUI = document.getElementById('online-room');
+    const boardArea = document.getElementById('game-board-area');
+    const waitingMsg = document.getElementById('waiting-msg');
+
+    // 1. Show Room UI, Hide Lobby
+    if (lobby) lobby.classList.add('hidden');
+    if (roomUI) roomUI.classList.remove('hidden');
+
+    // 2. Update Header Info
+    const idEl = document.getElementById('current-room-id');
+    const roleEl = document.getElementById('my-role');
+    if (idEl) idEl.innerText = room.room_code;
+
+    let roleText = 'Spectator';
+    if (room.black_player_id === clientId) roleText = 'Black (First)';
+    else if (room.white_player_id === clientId) roleText = 'White (Second)';
+
+    playerRole = (room.black_player_id === clientId) ? 'black' : (room.white_player_id === clientId ? 'white' : 'spectator');
+    if (roleEl) roleEl.innerText = roleText;
+
+    // 3. Handle Game Status (Waiting vs Playing)
+    if (room.status === 'playing' || room.status === 'finished') {
+        if (waitingMsg) waitingMsg.classList.add('hidden');
+        if (boardArea) boardArea.classList.remove('hidden');
+
+        isGameReady = true;
+        window.isGameReady = true;
+
+        if (!window.board) {
+            createEmptyBoard();
+            createBoardUI(handleCellClick);
+        }
+
+        if (room.current_player) {
+            setCurrentPlayer(room.current_player);
+        }
+
+        updateStatusUI();
+    } else {
+        if (waitingMsg) {
+            waitingMsg.classList.remove('hidden');
+            waitingMsg.innerHTML = `<p>Waiting for opponent... <br> Share Code: <b>${room.room_code}</b></p>`;
+        }
+        if (boardArea) boardArea.classList.add('hidden');
+        isGameReady = false;
+        window.isGameReady = false;
+    }
+
+    // 4. Handle Game Over
+    if (room.status === 'finished' && room.last_result) {
+        if (!gameOver) {
+            setGameOver(true);
+            const winner = room.last_result.replace('_win', '');
+            updateWinUI(winner);
+        }
+        showRestartButton(true);
+    } else if (room.status === 'playing' && gameOver) {
+        handleRemoteRestart();
+    }
+}
+
+async function initOnlineMode() {
+    const savedRoomId = localStorage.getItem('gomoku_room_id');
+
+    if (savedRoomId) {
+        console.log("Restoring session for room:", savedRoomId);
+        const { data, error } = await sbClient
+            .from("Gomoku's rooms")
+            .select("*")
+            .eq('room_code', savedRoomId)
+            .single();
+
+        if (data) {
+            roomId = savedRoomId;
+            roomRecordId = data.id;
+
+            if (data.black_player_id === clientId) playerRole = 'black';
+            else if (data.white_player_id === clientId) playerRole = 'white';
+            else playerRole = 'spectator';
+
+            subscribeToRoom();
+            renderRoomState(data);
+        } else {
+            console.log("Saved room not found, clearing session.");
+            exitRoom();
+        }
+    }
+}
+
+function exitRoom() {
+    if (roomChannel) sbClient.removeChannel(roomChannel);
+    localStorage.removeItem('gomoku_room_id');
+    localStorage.removeItem('gomoku_player_role');
+
+    roomId = null;
+    roomRecordId = null;
+    playerRole = null;
+    isGameReady = false;
+    window.isGameReady = false;
+    window.currentRoom = null;
+
+    const lobby = document.getElementById('online-lobby');
+    const roomUI = document.getElementById('online-room');
+    if (lobby) lobby.classList.remove('hidden');
+    if (roomUI) roomUI.classList.add('hidden');
+
+    // Close board if open
+    document.getElementById('game-board-area').classList.add('hidden');
+    resetGameState();
+}
+
+// Expose to window for HTML access
 window.createRoom = createRoom;
 window.joinRoom = joinRoom;
 window.requestRestart = requestRestart;
+window.exitRoom = exitRoom;
+window.initOnlineMode = initOnlineMode;
