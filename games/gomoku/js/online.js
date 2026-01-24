@@ -459,6 +459,9 @@ async function claimTimeout(room) {
                 ended_reason: 'timeout',
                 last_result: winner + '_win', // 'white_win'
                 winner: winner,
+                winner_color: winner,
+                finished_reason: 'timeout',
+                finished_at: new Date(),
                 last_activity_at: new Date()
             })
             .eq('id', room.id)
@@ -599,10 +602,35 @@ async function fetchRoom(code) {
 }
 
 function shouldStart(room) {
-    // Start if status is playing/paused/finished OR if white player (opponent) has joined
-    // But mainly we care about transitioning FROM waiting TO playing.
     if (!room) return false;
-    return room.status === 'playing' || !!room.white_player_id;
+
+    // 1. Standard Start
+    if (room.status === 'playing' || room.status === 'paused' || room.status === 'finished') return true;
+
+    // 2. Auto-Promote Safety Net (Host Only)
+    // If waiting but White is here, Host MUST promote state to 'playing'
+    if (room.status === 'waiting' && room.white_player_id) {
+        if (playerRole === 'black') {
+            console.log("[AutoPromote] Host detected waiting room with opponent. Promoting to playing...");
+            sbClient.from("Gomoku's rooms")
+                .update({
+                    status: 'playing',
+                    started_at: new Date(),
+                    turn_deadline_at: new Date(Date.now() + 30 * 1000),
+                    current_player: 'black',
+                    last_activity_at: new Date()
+                })
+                .eq('id', room.id)
+                .then(({ error }) => {
+                    if (error) logError(error);
+                    else console.log("[AutoPromote] Success");
+                });
+            // Return true to allow local start (optimistic)
+            return true;
+        }
+    }
+
+    return false;
 }
 
 function startGameFromRoom(room) {
