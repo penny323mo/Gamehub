@@ -158,12 +158,23 @@ async function createRoom() {
     if (error) {
         console.error("Create Room Error:", error);
         // Improved Error Message
+        logError(error);
         alert(`創建房間失敗\nCode: ${error.code}\nMsg: ${error.message}\nHint: ${error.hint || 'Check RLS policies'}`);
         return;
     }
 
     console.log("Room Created:", data);
     enterRoom(data, 'black');
+}
+
+function logError(error) {
+    if (!error) return;
+    console.error("[SupabaseError]", {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+    });
 }
 
 async function joinRoom(codeInput) {
@@ -220,13 +231,16 @@ async function joinRoom(codeInput) {
             .eq('id', room.id);
 
         if (updateError) {
-            console.error(updateError);
+            logError(updateError);
             alert("加入失敗");
             return;
         }
         Object.assign(room, updates);
     }
 
+    // Crucial: We rely on subscription to transition to 'playing' state to keep flow consistent.
+    // However, for Guest, we just updated it. 
+    // We enter room now. If status is playing, enterRoom->renderRoomState should handle it.
     enterRoom(room, role);
 }
 
@@ -348,11 +362,37 @@ function applyRoomState(room) {
     window.isGameReady = ready;
 }
 
+
 function startTimerWatchdog(room) {
     const timerDisplay = document.getElementById('game-timer');
+    let pollCounter = 0;
 
-    timerInterval = setInterval(() => {
+    // Strict Guard: Only run timer if game is actually playing and ready
+    if (!isGamePlaying(room)) {
+        updateTimerUI("--");
+        return;
+    }
+
+    timerInterval = setInterval(async () => {
         let remaining = 0;
+
+        // --- 1. Polling Sync (Every 5s) ---
+        // Helps iOS/Network issues where Realtime might be throttled
+        pollCounter++;
+        if (pollCounter % 10 === 0) { // 10 * 500ms = 5s
+            console.log("[Watchdog] Polling room state...");
+            const freshRoom = await fetchRoom(room.room_code);
+            if (freshRoom) {
+                // Check if status changed (e.g. finished remotely but missed event)
+                if (freshRoom.status !== room.status || freshRoom.current_player !== room.current_player) {
+                    console.log("[Watchdog] Sync mismatch detected, updating...", freshRoom);
+                    handleRoomUpdate(freshRoom);
+                    // Update local ref to avoid double-sync
+                    room = freshRoom;
+                    window.currentRoom = freshRoom;
+                }
+            }
+        }
 
         if (room.status === 'paused') {
             remaining = room.paused_remaining_s || 30;
@@ -366,14 +406,21 @@ function startTimerWatchdog(room) {
 
             // Timeout Claim (Double Guard)
             if (diff <= 0) {
-                claimTimeout(room);
-                clearInterval(timerInterval);
-                remaining = 0;
+                // Ensure we don't spam claims
+                if (room.status === 'playing') {
+                    claimTimeout(room);
+                    clearInterval(timerInterval);
+                    remaining = 0;
+                }
             }
         }
 
         updateTimerUI(remaining);
     }, 500);
+}
+
+function isGamePlaying(room) {
+    return room && room.status === 'playing' && window.isGameReady;
 }
 
 function updateTimerUI(seconds) {
@@ -391,7 +438,11 @@ async function claimTimeout(room) {
     // OR: Current player claims "I timed out"? No.
     // Rule: The opponent of the current_turn player claims the win.
     const myTurn = (room.current_player === playerRole);
-    if (myTurn) return; // I timed out, let opponent claim (or I could resign, but let's stick to opponent claim)
+
+    // Safety: If it's my turn, I shouldn't claim my own timeout win (I should resign or just let server/opponent handle).
+    // But to ensure game ends, if I am the host/local and time is up, maybe I should just submit it?
+    // Let's stick to "Opponent claims win".
+    if (myTurn) return;
 
     if (room.status !== 'playing') return;
 
@@ -399,18 +450,27 @@ async function claimTimeout(room) {
     // Strict DB Update with RPC-like conditions
     const winner = (room.current_player === 'black') ? 'white' : 'black';
 
-    await sbClient
-        .from("Gomoku's rooms")
-        .update({
-            status: 'finished',
-            ended_reason: 'timeout',
-            last_result: winner + '_win',
-            winner: winner,
-            last_activity_at: new Date()
-        })
-        .eq('id', room.id)
-        .eq('status', 'playing')
-        .lt('turn_deadline_at', new Date().toISOString()); // Only if server time agrees (roughly)
+    try {
+        const { error } = await sbClient
+            .from("Gomoku's rooms")
+            .update({
+                status: 'finished',
+                ended_reason: 'timeout',
+                last_result: winner + '_win', // 'white_win'
+                winner: winner,
+                last_activity_at: new Date()
+            })
+            .eq('id', room.id)
+            .eq('status', 'playing'); // optimistic lock
+
+        if (error) throw error;
+
+    } catch (err) {
+        logError(err);
+        if (err.code !== 'PGRST116') {
+            alert("無法結束遊戲 (網絡錯誤): " + err.message);
+        }
+    }
 }
 
 async function togglePause() {
@@ -603,18 +663,35 @@ function subscribeToRoom() {
 
             if (status === 'SUBSCRIBED') {
                 console.log("[DoubleCheck] Channel Subscribed. Fetching latest room state...");
-                // Double Insurance: Fetch immediately to catch any missed events or existing state
-                const room = await fetchRoom(roomId);
-                if (room) {
-                    console.log("[DoubleCheck] Room fetched:", room.status, "White:", room.white_player_id);
-                    if (shouldStart(room)) {
-                        startGameFromRoom(room);
-                    } else {
-                        renderRoomState(room);
+                // 1. Immediate Check
+                checkAndStart();
+
+                // 2. Polling Fallback (800ms for 12s)
+                // Guaranteed to catch "playing" status if white joined but realtime message was dropped
+                let attempts = 0;
+                const pollId = setInterval(async () => {
+                    attempts++;
+                    if (attempts > 15 || (window.currentRoom && shouldStart(window.currentRoom))) {
+                        clearInterval(pollId);
+                        return;
                     }
-                }
+                    console.log(`[PollingFallback] Attempt ${attempts}...`);
+                    await checkAndStart();
+                }, 800);
             }
         });
+
+    async function checkAndStart() {
+        const room = await fetchRoom(roomId);
+        if (room) {
+            console.log("[DoubleCheck/Poll] Room fetched:", room.status, "White:", room.white_player_id);
+            if (shouldStart(room)) {
+                startGameFromRoom(room);
+            } else {
+                renderRoomState(room);
+            }
+        }
+    }
 }
 
 // --- UI Sync ---
@@ -746,17 +823,21 @@ function renderRoomState(room) {
     if (gameStatus === GAME_STATUS.FINISHED) {
         if (!gameOver) {
             setGameOver(true);
-            const winner = room.winner || (room.last_result ? room.last_result.replace('_win', '') : 'black');
-            let method = room.ended_reason === 'timeout' ? '超時' : '';
+            // Try to find winner from various fields
+            const winner = room.winner_color || room.winner || (room.last_result ? room.last_result.replace('_win', '') : 'black');
+            const reason = room.finished_reason || room.ended_reason;
+            let method = (reason === 'timeout') ? '超時' : '';
 
-            // Custom UI update for timeout? "White Win (Timeout)"
-            // updateWinUI only accepts "black" or "white". We might need to hack the alert or status.
             updateWinUI(winner);
 
             if (method) {
-                // Determine who won name
-                const wName = winner === 'black' ? "黑子" : "白子";
+                const wName = (winner === 'black') ? "黑子" : "白子";
                 document.getElementById('status').innerHTML = `<span style="color:var(--neon-red)">${method}結束：${wName}勝</span>`;
+                // Alert for User Awareness
+                setTimeout(() => alert(`${method}！${wName}獲勝！`), 50);
+            } else {
+                const wName = (winner === 'black') ? "黑子" : "白子";
+                setTimeout(() => alert(`${wName}獲勝！`), 50);
             }
         }
         showRestartButton(true);
