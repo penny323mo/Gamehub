@@ -521,6 +521,42 @@ async function requestRestart() {
         .eq('id', roomRecordId);
 }
 
+// --- Helper Functions for Sync ---
+
+async function fetchRoom(code) {
+    if (!sbClient) return null;
+    const { data, error } = await sbClient
+        .from("Gomoku's rooms")
+        .select('*')
+        .eq('room_code', code)
+        .single();
+    if (error) {
+        console.warn("fetchRoom Error:", error);
+        return null;
+    }
+    return data;
+}
+
+function shouldStart(room) {
+    // Start if status is playing/paused/finished OR if white player (opponent) has joined
+    // But mainly we care about transitioning FROM waiting TO playing.
+    if (!room) return false;
+    return room.status === 'playing' || !!room.white_player_id;
+}
+
+function startGameFromRoom(room) {
+    console.log("startGameFromRoom Triggered:", room.status, room.white_player_id);
+
+    // Updates Game State & UI (board visibility)
+    handleRoomUpdate(room);
+
+    // Ensure we are in "online" mode showing the room
+    const currentMode = document.body.getAttribute('data-mode') || 'menu';
+    // Assuming setMode is globally available or we just rely on handleRoomUpdate->applyRoomState->rendering
+    // handleRoomUpdate calls applyRoomState then renderRoomState.
+    // renderRoomState removes hidden class from online-room and game-board-area if status is playing.
+}
+
 // --- Subscription ---
 
 function subscribeToRoom() {
@@ -531,14 +567,25 @@ function subscribeToRoom() {
         waitEl.innerHTML += '<br><small id="sub-status">Connecting...</small>';
     }
 
+    // Filter string must match Supabase/Postgres syntax exactly.
+    // 'room_code=eq.VALUE'
+    const filterStr = `room_code=eq.${roomId}`;
+
     roomChannel = sbClient.channel(`gomoku-${roomId}`)
         .on("postgres_changes",
-            { event: "UPDATE", schema: "public", table: '"Gomoku\'s rooms"' },
+            { event: "*", schema: "public", table: "Gomoku's rooms", filter: filterStr },
             (payload) => {
-                // Client-side filter
-                if (payload.new.id !== roomRecordId) return;
-                console.log("Room Update Payload:", payload);
-                handleRoomUpdate(payload.new);
+                const eventType = payload.eventType;
+                const newRoom = payload.new;
+                console.log(`[Realtime] ${eventType} received`, newRoom);
+
+                // Check if we should start game
+                if (newRoom && shouldStart(newRoom)) {
+                    startGameFromRoom(newRoom);
+                } else {
+                    // Just update state anyway (e.g. spectator join? or other updates)
+                    handleRoomUpdate(newRoom);
+                }
             }
         )
         .on("broadcast", { event: "move" }, (payload) => {
@@ -549,17 +596,23 @@ function subscribeToRoom() {
         .on("broadcast", { event: "restart" }, (payload) => {
             handleRemoteRestart();
         })
-        .subscribe((status, error) => {
+        .subscribe(async (status, error) => {
             console.log("Subscription Status:", status, error);
             const subEl = document.getElementById('sub-status');
             if (subEl) subEl.innerText = `Status: ${status} ${error ? error.message : ''}`;
 
-            // Initial Fetch to ensure state is fresh
             if (status === 'SUBSCRIBED') {
-                sbClient.from("Gomoku's rooms").select("*").eq('id', roomRecordId).single()
-                    .then(({ data }) => {
-                        if (data) renderRoomState(data);
-                    });
+                console.log("[DoubleCheck] Channel Subscribed. Fetching latest room state...");
+                // Double Insurance: Fetch immediately to catch any missed events or existing state
+                const room = await fetchRoom(roomId);
+                if (room) {
+                    console.log("[DoubleCheck] Room fetched:", room.status, "White:", room.white_player_id);
+                    if (shouldStart(room)) {
+                        startGameFromRoom(room);
+                    } else {
+                        renderRoomState(room);
+                    }
+                }
             }
         });
 }
