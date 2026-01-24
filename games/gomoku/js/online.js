@@ -150,6 +150,7 @@ async function createRoom() {
             white_player_id: null,
             status: 'waiting',
             last_activity_at: new Date(),
+            expires_at: new Date(Date.now() + 2 * 60 * 1000), // 2 minutes from now
             current_player: 'black'
         }])
         .select()
