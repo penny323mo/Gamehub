@@ -323,6 +323,59 @@ h1 {
     display: none !important;
 }
 
+/* Board Wrapper for Locking */
+#board-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 600px;
+    /* match max-canvas width */
+    margin: 0 auto;
+}
+
+#boardLock {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: rgba(0, 0, 0, 0.1);
+    /* Slight tint to indicate locked */
+    pointer-events: auto;
+    /* Catch all clicks */
+    display: none;
+    cursor: not-allowed;
+    border-radius: 8px;
+    /* Match typical board radius */
+}
+
+/* Exit Button - Always Top */
+#leave-room-btn {
+    position: relative;
+    z-index: 999;
+    pointer-events: auto;
+}
+
+/* Timer & Pause Controls */
+.timer-display {
+    font-family: monospace;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--neon-blue);
+    margin: 0 10px;
+    min-width: 60px;
+    display: inline-block;
+    text-align: center;
+}
+
+.timer-warning {
+    color: var(--neon-pink);
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    50% {
+        opacity: 0.5;
+    }
+}
+
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
     body {

@@ -23,24 +23,43 @@ function createBoardUI(handleCellClick) {
     window.removeEventListener('resize', resizeGomokuBoard);
     window.addEventListener('resize', resizeGomokuBoard);
 
-    canvas.onclick = null; // Clear previous
-    canvas.onclick = (e) => {
+    const clickHandler = (e) => {
         if (!onCellClick) return;
 
+        // Prevent default touch actions like scrolling if inside canvas
+        if (e.type === 'touchstart') e.preventDefault();
+
         const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
 
-        // Calculate cell size based on current canvas internal resolution
-        const cellSize = canvas.width / BOARD_SIZE;
+        // Handle touch or mouse
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-        const col = Math.floor(x / cellSize);
-        const row = Math.floor(y / cellSize);
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+
+        // Important: rect.width might not exactly match canvas.width due to DPR or sub-pixel rendering.
+        // We map coordinate (x/rect.width) to grid index (0..BOARD_SIZE).
+
+        const cellWidth = rect.width / BOARD_SIZE;
+        const cellHeight = rect.height / BOARD_SIZE;
+
+        const col = Math.floor(x / cellWidth);
+        const row = Math.floor(y / cellHeight);
 
         if (col >= 0 && col < BOARD_SIZE && row >= 0 && row < BOARD_SIZE) {
             onCellClick(row, col);
         }
     };
+
+    // Remove old listeners to prevent stacking
+    canvas.onclick = null;
+    canvas.ontouchstart = null;
+
+    canvas.addEventListener('click', clickHandler);
+    // Add touch handler for better mobile responsiveness (avoid 300ms delay)
+    // Use passive: false to allow preventDefault
+    canvas.addEventListener('touchstart', clickHandler, { passive: false });
 }
 
 function resizeGomokuBoard() {

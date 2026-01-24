@@ -4,42 +4,51 @@ function handleCellClick(row, col, difficulty) {
 
     // --- Online Mode ---
     if (mode === 'online') {
-        if (!roomId || !playerRole || (playerRole !== 'black' && playerRole !== 'white')) return;
-        // Strict turn check
+        // Triple Guard
+        // 1. Ready? (Defined as players >= 2 && Room Status is playing/paused)
+        if (!window.isGameReady) return;
+
+        // 2. Locked? (Paused, Finished, or waiting) - online.js updates this global `boardLocked`?
+        // Note: online.js isn't exporting boardLocked directly to window, but we can check the element or just use status.
+        // Let's rely on window.currentRoom.status
+        const room = window.currentRoom;
+        if (!room) return;
+
+        // Check "Paused" or "Finished" via status
+        if (room.status !== 'playing') return;
+
+        // 3. My Turn?
+        if (!roomId || !playerRole) return;
         if (currentPlayer !== playerRole) return;
-        if (board[row][col] !== null) return;
 
-        // Optimistic Update
-        board[row][col] = playerRole; // Update State
-        placeStoneUI(row, col, playerRole); // Update UI
+        // Attempt local move
+        const result = tryPlaceStone(row, col, playerRole);
+        if (!result.success) return;
 
-        // Check Win Locally
-        const won = checkWin(row, col, playerRole);
+        // Update UI
+        placeStoneUI(row, col, playerRole);
 
-        if (won) {
+        if (result.win) {
             updateWinUI(playerRole);
-            // handleOnlineMove will send status='finished'
             handleOnlineMove(row, col, true, playerRole);
         } else {
-            // Optimistic Turn Switch
             switchTurn();
             updateStatusUI();
-
-            // Sync with DB
             handleOnlineMove(row, col, false, null);
         }
         return;
     }
 
     // --- AI Mode ---
-    if (board[row][col] !== null) return;
     if (isVsAI && currentPlayer === 'white') return; // AI Turn
 
     // Player Move
-    board[row][col] = currentPlayer;
+    const result = tryPlaceStone(row, col, currentPlayer);
+    if (!result.success) return; // Occupied or invalid
+
     placeStoneUI(row, col, currentPlayer);
 
-    if (checkWin(row, col, currentPlayer)) {
+    if (result.win) {
         updateWinUI(currentPlayer);
         return;
     }
