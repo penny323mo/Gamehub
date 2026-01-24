@@ -242,6 +242,9 @@ function enterRoom(room, role) {
     setMode('online');
     setIsVsAI(false);
 
+    // Hotfix 1: Immediately lock board preventively
+    setBoardInteractivity(true);
+
     // Initial Render
     renderRoomState(room);
 
@@ -264,6 +267,13 @@ let gameStatus = GAME_STATUS.WAITING;
 let boardLocked = true;
 let timerInterval = null;
 window.currentRoom = null; // Ensure this is global
+
+function setBoardInteractivity(locked) {
+    const canvas = document.getElementById('gomoku-board');
+    if (canvas) {
+        canvas.style.pointerEvents = locked ? 'none' : 'auto';
+    }
+}
 
 // Helper to calculate room readiness
 function computeReady(room) {
