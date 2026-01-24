@@ -606,15 +606,55 @@ function shouldStart(room) {
 
 function startGameFromRoom(room) {
     console.log("startGameFromRoom Triggered:", room.status, room.white_player_id);
+    ensureGameStarted(room);
+}
 
-    // Updates Game State & UI (board visibility)
-    handleRoomUpdate(room);
+function ensureGameStarted(room) {
+    console.log("[Start] ensureGameStarted", {
+        roomCode: room.room_code,
+        status: room.status,
+        myRole: playerRole,
+        currentTurn: room.current_player,
+        isGameReady: window.isGameReady
+    });
 
-    // Ensure we are in "online" mode showing the room
-    const currentMode = document.body.getAttribute('data-mode') || 'menu';
-    // Assuming setMode is globally available or we just rely on handleRoomUpdate->applyRoomState->rendering
-    // handleRoomUpdate calls applyRoomState then renderRoomState.
-    // renderRoomState removes hidden class from online-room and game-board-area if status is playing.
+    // 1. apply state
+    applyRoomState(room);
+
+    // 2. Render Basic UI
+    renderRoomState(room);
+
+    // 3. Force Unlock if Playing
+    if (room.status === 'playing') {
+        window.isGameReady = true;
+        boardLocked = false;
+        setBoardInteractivity(true); // Helper acts as 'set locked', so true means locked? 
+        // Wait, setBoardInteractivity(locked) implicates pointerEvents = locked ? 'none' : 'auto';
+        // So we want unlocked -> false
+        setBoardInteractivity(false);
+
+        // 4. Ensure Board & Input exist
+        if (!window.board) {
+            createEmptyBoard();
+            createBoardUI(handleCellClick);
+        } else {
+            // Ensure click listener is bound (idempotent inside createBoardUI usually, but let's be safe if it was null)
+            // actually createBoardUI resets listeners. code is fine.
+            // maybe just ensure global onCellClick is set?
+            if (!onCellClick) createBoardUI(handleCellClick);
+        }
+
+        // 5. Sync Turn
+        if (room.current_player) {
+            setCurrentPlayer(room.current_player);
+            updateStatusUI();
+        }
+
+        // 6. Start Timer
+        // startTimerWatchdog checks isGamePlaying which checks isGameReady.
+        // We just set isGameReady = true.
+        startTimerWatchdog(room);
+    }
 }
 
 // --- Subscription ---
@@ -686,7 +726,7 @@ function subscribeToRoom() {
         if (room) {
             console.log("[DoubleCheck/Poll] Room fetched:", room.status, "White:", room.white_player_id);
             if (shouldStart(room)) {
-                startGameFromRoom(room);
+                ensureGameStarted(room); // Use new entry point
             } else {
                 renderRoomState(room);
             }
@@ -699,8 +739,14 @@ function subscribeToRoom() {
 function handleRoomUpdate(room) {
     if (!room) return;
     console.log("Handle Room Update:", room);
-    applyRoomState(room); // Updates state vars
-    renderRoomState(room); // Updates DOM
+
+    // If Playing, force ensureGameStarted to fix missing inputs/timer
+    if (shouldStart(room)) {
+        ensureGameStarted(room);
+    } else {
+        applyRoomState(room); // Updates state vars
+        renderRoomState(room); // Updates DOM
+    }
 }
 
 function handleRemoteMove(row, col, player) {
