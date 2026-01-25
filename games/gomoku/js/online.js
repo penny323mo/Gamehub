@@ -750,6 +750,13 @@ function ensureGameStarted(room) {
             updateStatusUI();
         }
 
+        // 6. CRITICAL: Force Timer Visibility
+        const onlineControls = document.getElementById('online-controls');
+        if (onlineControls) {
+            onlineControls.classList.remove('hidden');
+            console.log('[ensureGameStarted] Timer forced visible');
+        }
+
         // 6. Start Timer
         startTimerWatchdog(); // No argument - uses window.currentRoom
     }
