@@ -608,8 +608,19 @@ async function handleOnlineMove(row, col, isWin, winner) {
 async function requestRestart() {
     if (!roomRecordId) return;
 
+    // CRITICAL: Clear old timer BEFORE starting new round
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+    if (window.roomPollId) {
+        clearInterval(window.roomPollId);
+        window.roomPollId = null;
+    }
+    timeoutClaimInProgress = false;
+
+    // Broadcast visual reset
     if (roomChannel) {
-        // Broadcast visual reset (optional, but good for instant feedback)
         roomChannel.send({
             type: 'broadcast',
             event: 'restart',
@@ -617,12 +628,10 @@ async function requestRestart() {
         });
     }
 
-    // Get current round_id to increment safely?
-    // Actually, just reading currentRoom.round_id + 1 is risky if double click.
-    // Ideally use SQL increment. But here we just use what we have.
     const nextRound = (window.currentRoom?.round_id || 1) + 1;
+    console.log('[Rematch] Starting new round:', nextRound);
 
-    await sbClient
+    const { error } = await sbClient
         .from("Gomoku's rooms")
         .update({
             status: 'playing',
@@ -632,17 +641,19 @@ async function requestRestart() {
             winner_color: null,
             finished_reason: null,
             finished_at: null,
-
             paused_at: null,
             paused_remaining_s: null,
-
-            current_player: 'black', // Reset to black
-            round_id: nextRound,     // Increment Round
-
+            current_player: 'black',
+            round_id: nextRound,
             last_activity_at: new Date(),
             turn_deadline_at: new Date(Date.now() + 30 * 1000)
         })
         .eq('id', roomRecordId);
+
+    if (error) {
+        console.error('[Rematch] DB Error:', error);
+        alert('再戰失敗: ' + error.message);
+    }
 }
 
 // --- Helper Functions for Sync ---
@@ -881,10 +892,22 @@ function handleRemoteMove(row, col, player) {
 }
 
 function handleRemoteRestart() {
+    console.log('[Rematch] handleRemoteRestart triggered');
+
+    // CRITICAL: Clear old intervals to avoid stale countdowns
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+    timeoutClaimInProgress = false;
+
+    // Reset local game state
     resetGameState();
     resetBoardUI();
     setGameOver(false);
     showRestartButton(false);
+    setCurrentPlayer('black');
+
     // Ensure input is active
     createBoardUI((r, c) => handleCellClick(r, c, 'hard'));
     updateStatusUI('black');
