@@ -1,20 +1,34 @@
 
 function handleCellClick(row, col, difficulty) {
-    // --- DEBUG: Always log click attempts ---
+    // --- ENHANCED DEBUG: Always log click attempts with FULL state ---
     const room = window.currentRoom;
-    console.log('[ClickDebug]', {
+    const blockedReason = [];
+
+    // Collect all block reasons for diagnosis
+    if (gameOver) blockedReason.push('gameOver');
+    if (mode === 'online') {
+        if (!window.isGameReady) blockedReason.push('isGameReady=false');
+        if (!room) blockedReason.push('no_room');
+        else if (room.status !== 'playing') blockedReason.push('status=' + room.status);
+        if (!roomId) blockedReason.push('roomId_missing');
+        if (!playerRole) blockedReason.push('playerRole_missing');
+        if (currentPlayer !== playerRole) blockedReason.push('not_my_turn');
+    }
+
+    console.log('[CLICK]', {
         row, col,
+        myColor: playerRole,
         mode,
-        playerRole,
-        currentPlayer,
         roomStatus: room?.status,
+        current_turn: room?.current_player || currentPlayer,
+        turn_expires_at: room?.turn_deadline_at,
+        blocked_reason: blockedReason.length > 0 ? blockedReason.join(', ') : 'NONE',
         isGameReady: window.isGameReady,
-        roomId,
-        gameOver
+        round_id: room?.round_id
     });
 
     if (gameOver) {
-        console.log('[ClickDebug] Blocked: gameOver');
+        console.log('[CLICK] BLOCKED: gameOver');
         return;
     }
 
@@ -22,40 +36,41 @@ function handleCellClick(row, col, difficulty) {
     if (mode === 'online') {
         // Guard 1: Ready?
         if (!window.isGameReady) {
-            console.log('[ClickDebug] Blocked: isGameReady=false');
+            console.log('[CLICK] BLOCKED: isGameReady=false');
             return;
         }
 
         // Guard 2: Room exists?
         if (!room) {
-            console.log('[ClickDebug] Blocked: no room');
+            console.log('[CLICK] BLOCKED: no room');
             return;
         }
 
         // Guard 3: Status = playing?
         if (room.status !== 'playing') {
-            console.log('[ClickDebug] Blocked: status=' + room.status);
+            console.log('[CLICK] BLOCKED: status=' + room.status);
             return;
         }
 
-        // Guard 4: My Turn?
+        // Guard 4: My Turn? (Use DB's current_player as authority)
+        const dbCurrentTurn = room.current_player;
         if (!roomId || !playerRole) {
-            console.log('[ClickDebug] Blocked: roomId/playerRole missing');
+            console.log('[CLICK] BLOCKED: roomId/playerRole missing');
             return;
         }
-        if (currentPlayer !== playerRole) {
-            console.log('[ClickDebug] Blocked: not_my_turn (current=' + currentPlayer + ', me=' + playerRole + ')');
+        if (dbCurrentTurn !== playerRole) {
+            console.log('[CLICK] BLOCKED: not_my_turn (db_turn=' + dbCurrentTurn + ', me=' + playerRole + ')');
             return;
         }
 
         // Attempt local move
         const result = tryPlaceStone(row, col, playerRole);
         if (!result.success) {
-            console.log('[ClickDebug] Blocked: tryPlaceStone failed (occupied?)');
+            console.log('[CLICK] BLOCKED: tryPlaceStone failed (occupied?)');
             return;
         }
 
-        console.log('[ClickDebug] Move accepted, updating...');
+        console.log('[CLICK] ACCEPTED: Move at (' + row + ',' + col + ') by ' + playerRole);
 
         // Update UI
         placeStoneUI(row, col, playerRole);
