@@ -1,29 +1,61 @@
 
 function handleCellClick(row, col, difficulty) {
-    if (gameOver) return;
+    // --- DEBUG: Always log click attempts ---
+    const room = window.currentRoom;
+    console.log('[ClickDebug]', {
+        row, col,
+        mode,
+        playerRole,
+        currentPlayer,
+        roomStatus: room?.status,
+        isGameReady: window.isGameReady,
+        roomId,
+        gameOver
+    });
+
+    if (gameOver) {
+        console.log('[ClickDebug] Blocked: gameOver');
+        return;
+    }
 
     // --- Online Mode ---
     if (mode === 'online') {
-        // Triple Guard
-        // 1. Ready? (Defined as players >= 2 && Room Status is playing/paused)
-        if (!window.isGameReady) return;
+        // Guard 1: Ready?
+        if (!window.isGameReady) {
+            console.log('[ClickDebug] Blocked: isGameReady=false');
+            return;
+        }
 
-        // 2. Locked? (Paused, Finished, or waiting) - online.js updates this global `boardLocked`?
-        // Note: online.js isn't exporting boardLocked directly to window, but we can check the element or just use status.
-        // Let's rely on window.currentRoom.status
-        const room = window.currentRoom;
-        if (!room) return;
+        // Guard 2: Room exists?
+        if (!room) {
+            console.log('[ClickDebug] Blocked: no room');
+            return;
+        }
 
-        // Check "Paused" or "Finished" via status
-        if (room.status !== 'playing') return;
+        // Guard 3: Status = playing?
+        if (room.status !== 'playing') {
+            console.log('[ClickDebug] Blocked: status=' + room.status);
+            return;
+        }
 
-        // 3. My Turn?
-        if (!roomId || !playerRole) return;
-        if (currentPlayer !== playerRole) return;
+        // Guard 4: My Turn?
+        if (!roomId || !playerRole) {
+            console.log('[ClickDebug] Blocked: roomId/playerRole missing');
+            return;
+        }
+        if (currentPlayer !== playerRole) {
+            console.log('[ClickDebug] Blocked: not_my_turn (current=' + currentPlayer + ', me=' + playerRole + ')');
+            return;
+        }
 
         // Attempt local move
         const result = tryPlaceStone(row, col, playerRole);
-        if (!result.success) return;
+        if (!result.success) {
+            console.log('[ClickDebug] Blocked: tryPlaceStone failed (occupied?)');
+            return;
+        }
+
+        console.log('[ClickDebug] Move accepted, updating...');
 
         // Update UI
         placeStoneUI(row, col, playerRole);

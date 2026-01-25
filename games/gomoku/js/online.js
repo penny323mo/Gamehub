@@ -285,8 +285,10 @@ window.currentRoom = null; // Ensure this is global
 
 function setBoardInteractivity(locked) {
     const canvas = document.getElementById('gomoku-board');
+    console.log('[BoardLock] setBoardInteractivity called:', locked, 'canvas:', !!canvas);
     if (canvas) {
         canvas.style.pointerEvents = locked ? 'none' : 'auto';
+        console.log('[BoardLock] Canvas pointer-events set to:', canvas.style.pointerEvents);
     }
 }
 
@@ -312,10 +314,12 @@ function applyRoomState(room) {
     gameStatus = room.status;
 
     // Determine Lock
-    // Locked if: Not playing (e.g. waiting, paused, finished) OR Not my turn?
-    // The "boardLocked" flag specifically represents "Is the board interactive logically?"
-    // Input.js will also check turn. Here we check "Global Game State".
+    // Locked if: Not playing (e.g. waiting, paused, finished)
     boardLocked = (gameStatus !== GAME_STATUS.PLAYING);
+
+    // CRITICAL: Unlock board when playing
+    console.log('[ApplyRoomState] gameStatus:', gameStatus, 'boardLocked:', boardLocked);
+    setBoardInteractivity(boardLocked);
 
     // UI: Board Lock Overlay
     const lockEl = document.getElementById('boardLock');
@@ -354,7 +358,7 @@ function applyRoomState(room) {
     // Timer Logic
     if (timerInterval) clearInterval(timerInterval);
     if (gameStatus === GAME_STATUS.PLAYING || gameStatus === GAME_STATUS.PAUSED) {
-        startTimerWatchdog(room);
+        startTimerWatchdog(); // No argument - uses window.currentRoom
     } else {
         updateTimerUI("--");
     }
@@ -365,15 +369,27 @@ function applyRoomState(room) {
 
 
 // --- Timer (Visual Only) ---
+// FIXED: Use window.currentRoom for LIVE state, not a captured variable.
 
-function startTimerWatchdog(room) {
+function startTimerWatchdog() {
     // Clear old
     if (timerInterval) clearInterval(timerInterval);
 
+    console.log('[Timer] Starting watchdog (uses window.currentRoom)...');
+
     // VISUAL TICKER ONLY. Does NOT change state.
     timerInterval = setInterval(() => {
+        const room = window.currentRoom; // LIVE state
+
         if (!room || !room.turn_deadline_at) {
             updateTimerUI("--");
+            return;
+        }
+
+        // Don't tick if game ended
+        if (room.status === 'finished') {
+            updateTimerUI("--");
+            clearInterval(timerInterval);
             return;
         }
 
@@ -384,9 +400,9 @@ function startTimerWatchdog(room) {
 
         updateTimerUI(remaining);
 
-        // Periodic Logic Check (1s)
-        if (now % 1000 < 100) {
-            checkTimeout(window.currentRoom);
+        // Check timeout every second (when remaining <= 0)
+        if (remaining <= 0 && room.status === 'playing') {
+            checkTimeout(room);
         }
 
     }, 100); // UI updates fast (100ms)
@@ -406,27 +422,41 @@ function updateTimerUI(seconds) {
 
 // --- DB-Driven Logic ---
 
+// Debounce flag to prevent multiple timeout claims
+let timeoutClaimInProgress = false;
+
 async function checkTimeout(room) {
     if (!room || room.status !== 'playing') return;
+    if (timeoutClaimInProgress) return; // Already claiming
 
     // 1. Check Deadline
     if (!room.turn_deadline_at) return;
     const deadline = new Date(room.turn_deadline_at).getTime();
-    const now = Date.now(); // Client time (approx). Ideally use server function.
+    const now = Date.now();
 
     if (now > deadline) {
         // Timeout!
-        // Only ONE person should claim it to avoid race.
-        // "Opponent claims win" is safer? 
-        // Or "Anyone calls it". 
-        // Let's rely on "I am not the current player? Claim win."
-        // Actually, safely: "The player waiting for move claims win".
+        // Rule: The player waiting for move claims the win.
         const amIWaiting = (room.current_player !== playerRole);
 
-        // Guard: Don't Spam
         if (amIWaiting) {
-            console.log("[Timeout] Deadline passed. Claiming win...");
-            claimTimeout(room);
+            console.log('[Timeout] Deadline passed. Claiming win...');
+            timeoutClaimInProgress = true;
+            await claimTimeout(room);
+            timeoutClaimInProgress = false;
+        } else {
+            // I timed out. Wait for opponent to claim, or fallback.
+            console.log('[Timeout] Deadline passed but it was MY turn. Waiting for opponent to claim...');
+            // Safety: If after 2s no one claims, I will claim as a fallback.
+            setTimeout(async () => {
+                const freshRoom = window.currentRoom;
+                if (freshRoom && freshRoom.status === 'playing' && !timeoutClaimInProgress) {
+                    console.log('[Timeout Fallback] Still playing after 2s. Force claiming...');
+                    timeoutClaimInProgress = true;
+                    await claimTimeout(freshRoom);
+                    timeoutClaimInProgress = false;
+                }
+            }, 2000);
         }
     }
 }
@@ -434,9 +464,10 @@ async function checkTimeout(room) {
 async function claimTimeout(room) {
     if (room.status !== 'playing') return;
 
-    // Winner is the one NOT playing turned.
+    // Winner is the opponent of the current player.
     const winner = (room.current_player === 'black') ? 'white' : 'black';
-    const isWin = (winner === playerRole);
+
+    console.log('[claimTimeout] Attempting to write to DB: winner=' + winner);
 
     try {
         const { error } = await sbClient
@@ -451,17 +482,34 @@ async function claimTimeout(room) {
                 finished_at: new Date(),
                 last_activity_at: new Date()
             })
-            .eq('id', room.id) // Use primary key
+            .eq('id', room.id)
             .eq('status', 'playing'); // Optimistic lock
 
-        if (error) throw error;
+        if (error) {
+            throw error;
+        }
+
+        console.log('[claimTimeout] DB update success. Stopping timer...');
+
+        // IMMEDIATELY update local state to prevent re-claims
+        if (window.currentRoom) {
+            window.currentRoom.status = 'finished';
+            window.currentRoom.winner = winner;
+        }
+
+        // Stop timer
+        if (timerInterval) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+
+        // Force UI sync
+        renderRoomState(window.currentRoom);
 
     } catch (err) {
         logError(err);
-        // Silent fail if racing
-        if (err.code !== 'PGRST116') {
-            console.error("claimTimeout Failed:", err);
-        }
+        // Show error to user ALWAYS (per user request: no silent failures)
+        alert('寫入超時結果失敗: ' + (err.message || err));
     }
 }
 
@@ -692,9 +740,7 @@ function ensureGameStarted(room) {
         }
 
         // 6. Start Timer
-        // startTimerWatchdog checks isGamePlaying which checks isGameReady.
-        // We just set isGameReady = true.
-        startTimerWatchdog(room);
+        startTimerWatchdog(); // No argument - uses window.currentRoom
     }
 }
 
