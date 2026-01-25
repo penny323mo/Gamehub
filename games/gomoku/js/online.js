@@ -1003,7 +1003,12 @@ function renderRoomState(room) {
     // 4. Timer & Controls Visibility handled by applyRoomState's watchdog & ID checks
     const onlineControls = document.getElementById('online-controls');
     if (onlineControls) {
+        console.log('[renderRoomState] Before remove hidden, classes:', onlineControls.className);
         onlineControls.classList.remove('hidden');
+        console.log('[renderRoomState] After remove hidden, classes:', onlineControls.className);
+        console.log('[renderRoomState] Computed display:', getComputedStyle(onlineControls).display);
+    } else {
+        console.warn('[renderRoomState] onlineControls element NOT FOUND!');
     }
 
     // 5. Game Over
