@@ -270,6 +270,9 @@ function enterRoom(room, role) {
     if (room.status === 'playing' || room.status === 'paused') {
         console.log('[enterRoom] Game already active, calling ensureGameStarted');
         ensureGameStarted(room);
+
+        // === CRITICAL: Fetch moves from DB to rebuild board (for Joiner sync) ===
+        fetchAndApplyMoves(roomRecordId);
     }
 
     // Subscribe for updates
@@ -576,7 +579,90 @@ function createEmptyBoard() {
     return b;
 }
 
-// Called by input.js
+// --- DB Moves Sync (NEW) ---
+
+// Get current move count from local board
+function getMoveCount() {
+    if (!window.board) return 0;
+    let count = 0;
+    for (let r = 0; r < 15; r++) {
+        for (let c = 0; c < 15; c++) {
+            if (window.board[r][c]) count++;
+        }
+    }
+    return count;
+}
+
+// Insert a move into the moves table
+async function insertMove(roomId, moveNo, x, y, color) {
+    if (!sbClient || !roomId) return { error: { message: 'No client or roomId' } };
+
+    console.log('[insertMove] Writing to moves table:', { roomId, moveNo, x, y, color });
+
+    const { data, error, status } = await sbClient
+        .from('moves')
+        .insert([{
+            room_id: roomId,
+            move_no: moveNo,
+            x: x,
+            y: y,
+            color: color
+        }])
+        .select();
+
+    console.log('[insertMove] Response:', { status, error, dataLength: data?.length });
+    return { data, error, status };
+}
+
+// Fetch all moves for a room and rebuild board
+async function fetchAndApplyMoves(roomUuid) {
+    if (!sbClient || !roomUuid) {
+        console.warn('[fetchAndApplyMoves] No client or roomUuid');
+        return;
+    }
+
+    console.log('[fetchAndApplyMoves] Fetching moves for room:', roomUuid);
+
+    const { data: moves, error } = await sbClient
+        .from('moves')
+        .select('*')
+        .eq('room_id', roomUuid)
+        .order('move_no', { ascending: true });
+
+    if (error) {
+        console.error('[fetchAndApplyMoves] Error:', error);
+        return;
+    }
+
+    console.log('[fetchAndApplyMoves] Found', moves?.length || 0, 'moves');
+
+    if (!moves || moves.length === 0) return;
+
+    // Ensure board exists
+    if (!window.board) {
+        window.board = createEmptyBoard();
+        createBoardUI(handleCellClick);
+    }
+
+    // Apply each move
+    for (const move of moves) {
+        const { x, y, color } = move;
+        // x = row, y = col in our convention
+        if (window.board[x][y] === null) {
+            window.board[x][y] = color;
+            placeStoneUI(x, y, color);
+            console.log('[fetchAndApplyMoves] Applied move:', x, y, color);
+        }
+    }
+
+    // Set current player based on move count
+    const nextPlayer = (moves.length % 2 === 0) ? 'black' : 'white';
+    setCurrentPlayer(nextPlayer);
+    updateStatusUI();
+
+    console.log('[fetchAndApplyMoves] Board rebuilt. Next player:', nextPlayer);
+}
+
 // Called by input.js
 async function handleOnlineMove(row, col, isWin, winner) {
     if (!roomRecordId) {
@@ -585,6 +671,7 @@ async function handleOnlineMove(row, col, isWin, winner) {
     }
 
     const nextPlayer = (playerRole === 'black') ? 'white' : 'black';
+    const moveNo = getMoveCount(); // Current move number (0-indexed becomes 1-indexed after this move)
 
     // === DEBUG: Pre-write log ===
     console.log('[handleOnlineMove] START', {
@@ -592,10 +679,27 @@ async function handleOnlineMove(row, col, isWin, winner) {
         isWin, winner,
         playerRole,
         roomRecordId,
-        nextPlayer
+        nextPlayer,
+        moveNo
     });
 
-    // Broadcast Move (Visual Immediate)
+    // === STEP 1: INSERT into moves table (DB 權威) ===
+    const { error: moveError, status: moveStatus } = await insertMove(
+        roomRecordId,
+        moveNo + 1, // 1-indexed
+        row,
+        col,
+        playerRole
+    );
+
+    if (moveError) {
+        console.error('[handleOnlineMove] INSERT moves FAILED:', moveError);
+        alert('❌ 落子記錄失敗！\n錯誤: ' + moveError.message);
+        return;
+    }
+    console.log('[handleOnlineMove] INSERT moves SUCCESS. Status:', moveStatus);
+
+    // === STEP 2: Broadcast Move (Visual Immediate for opponent) ===
     if (roomChannel) {
         roomChannel.send({
             type: 'broadcast',
@@ -605,13 +709,13 @@ async function handleOnlineMove(row, col, isWin, winner) {
         console.log('[handleOnlineMove] Broadcast sent');
     }
 
-    // Atomic DB Update
+    // === STEP 3: PATCH rooms table (turn + timer) ===
+    const newDeadline = new Date(Date.now() + 30 * 1000);
     const updates = {
         current_player: nextPlayer,
         last_move_at: new Date(),
         last_activity_at: new Date(),
-        // New Deadline: 30 seconds from now
-        turn_deadline_at: new Date(Date.now() + 30 * 1000)
+        turn_deadline_at: newDeadline
     };
 
     if (isWin) {
@@ -622,29 +726,26 @@ async function handleOnlineMove(row, col, isWin, winner) {
         updates.ended_reason = 'win';
         updates.finished_reason = 'win';
         updates.finished_at = new Date();
-        updates.turn_deadline_at = null; // Clear deadline
+        updates.turn_deadline_at = null;
     }
 
-    // === DEBUG: Pre-DB write payload ===
-    console.log('[handleOnlineMove] PRE-WRITE payload:', JSON.stringify(updates, null, 2));
+    console.log('[handleOnlineMove] PRE-WRITE rooms payload:', JSON.stringify(updates, null, 2));
 
     const { data, error, status, statusText } = await sbClient
         .from("Gomoku's rooms")
         .update(updates)
         .eq('id', roomRecordId)
-        .select(); // Return updated row for verification
+        .select();
 
-    // === DEBUG: Post-DB write response ===
-    console.log('[handleOnlineMove] POST-WRITE response:', { status, statusText, error, dataLength: data?.length });
+    console.log('[handleOnlineMove] POST-WRITE rooms response:', { status, statusText, error, dataLength: data?.length });
 
     if (error) {
-        console.error('[handleOnlineMove] DB WRITE FAILED:', error);
-        // === RLS/Permission Error UI ===
-        alert('❌ 落子寫入被拒！\n錯誤: ' + error.message + '\nCode: ' + error.code);
+        console.error('[handleOnlineMove] PATCH rooms FAILED:', error);
+        alert('❌ 房間更新失敗！\n錯誤: ' + error.message + '\nCode: ' + error.code);
         return;
     }
 
-    // === DEBUG: DB Readback ===
+    // === STEP 4: FORCED DB Readback (確保 Timer 用 DB 權威值) ===
     const { data: readback, error: readbackError } = await sbClient
         .from("Gomoku's rooms")
         .select('id, room_code, current_player, turn_deadline_at, status, last_move_at')
@@ -656,17 +757,26 @@ async function handleOnlineMove(row, col, isWin, winner) {
     } else {
         console.log('[handleOnlineMove] READBACK SUCCESS:', JSON.stringify(readback, null, 2));
 
-        // === CRITICAL: Sync local state with DB to prevent stale Timer ===
+        // === CRITICAL: Sync local state with DB to ensure Timer uses DB authority ===
         if (window.currentRoom && readback) {
+            const oldDeadline = window.currentRoom.turn_deadline_at;
+
             window.currentRoom.current_player = readback.current_player;
             window.currentRoom.turn_deadline_at = readback.turn_deadline_at;
             window.currentRoom.status = readback.status;
             window.currentRoom.last_move_at = readback.last_move_at;
-            console.log('[handleOnlineMove] Local state synced with DB readback');
+
+            console.log('[handleOnlineMove] Local state synced. Old deadline:', oldDeadline, 'New:', readback.turn_deadline_at);
+
+            // === RESTART TIMER with new deadline ===
+            if (oldDeadline !== readback.turn_deadline_at) {
+                console.log('[handleOnlineMove] Deadline changed, restarting timer watchdog');
+                startTimerWatchdog();
+            }
         }
     }
 
-    console.log('[handleOnlineMove] COMPLETE');
+    console.log('[handleOnlineMove] COMPLETE (moves + rooms updated)');
 }
 
 async function requestRestart() {
@@ -898,7 +1008,10 @@ function subscribeToRoom() {
             if (subEl) subEl.innerText = `Status: ${status} ${error ? error.message : ''}`;
 
             if (status === 'SUBSCRIBED') {
-                console.log('[Subscribe] SUCCESS! Channel subscribed. Starting polling fallback...');
+                console.log('[Subscribe] SUCCESS! Channel subscribed.');
+
+                // === CRITICAL: Fetch moves from DB to rebuild board (DB 權威同步) ===
+                await fetchAndApplyMoves(roomRecordId);
 
                 // 1. Immediate Check
                 checkAndStart();
