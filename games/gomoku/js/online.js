@@ -278,6 +278,12 @@ function enterRoom(room, role) {
     setMode('online');
     setIsVsAI(false);
 
+    // === CRITICAL: 初始化 board 避免 renderer crash ===
+    if (!window.board) {
+        window.board = createEmptyBoard();
+        console.log('[enterRoom] Initialized empty board');
+    }
+
     // Hotfix 1: Immediately lock board preventively
     setBoardInteractivity(true);
 
