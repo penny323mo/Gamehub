@@ -434,3 +434,64 @@ h1 {
         margin-bottom: 20px;
     }
 }
+
+/* Room List (固定三房) */
+.room-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.room-card {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 15px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    transition: all 0.2s ease;
+}
+
+.room-card:hover {
+    border-color: var(--neon-blue);
+    box-shadow: 0 0 10px rgba(14, 165, 233, 0.2);
+}
+
+.room-name {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--text-main);
+}
+
+.room-info {
+    display: flex;
+    gap: 15px;
+    font-size: 0.85rem;
+}
+
+.room-status {
+    color: var(--neon-green);
+    font-weight: 600;
+}
+
+.room-status.playing { color: var(--neon-cyan); }
+.room-status.finished { color: var(--neon-red); }
+.room-status.waiting { color: var(--neon-green); }
+
+.room-players {
+    color: var(--text-muted);
+}
+
+.room-join-btn {
+    padding: 8px 20px;
+    font-size: 0.9rem;
+}
+
+.room-join-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
