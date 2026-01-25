@@ -31,6 +31,30 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for git log
+      - name: Generate Build Info
+        run: |
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          COMMIT_TIME=$(git log -1 --format=%cd --date=format:'%Y-%m-%d %H:%M:%S +0800')
+          BUILD_TIME=$(TZ='Asia/Hong_Kong' date +'%Y-%m-%d %H:%M:%S +0800')
+          
+          cat > games/gomoku/build_info.js << EOF
+          window.__BUILD__ = {
+            commit: "${COMMIT_SHA}",
+            commitTime: "${COMMIT_TIME}",
+            buildTime: "${BUILD_TIME}"
+          };
+          EOF
+          
+          echo "Generated build_info.js with commit ${COMMIT_SHA}"
+          cat games/gomoku/build_info.js
+          
+          # Update cache-busting parameters in index.html
+          sed -i "s/\?v=[a-z0-9]\{7\}/?v=${COMMIT_SHA}/g" games/gomoku/index.html
+          sed -i "s/\?v=[a-z0-9]\{7\}/?v=${COMMIT_SHA}/g" games/gomoku/gomoku.css || true
+          
+          echo "Updated cache-busting parameters to ${COMMIT_SHA}"
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact

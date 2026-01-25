@@ -13,18 +13,19 @@
         <main class="switch-card">
             <h1>五子棋</h1>
             <div id="build-info" style="font-size: 0.7rem; color: #666; margin-top: -10px; margin-bottom: 20px;">
-                <!-- Dynamic timestamp injected by JS -->
+                <!-- Build info injected by build_info.js -->
             </div>
+            <script src="build_info.js"></script>
             <script>
-                // Display dynamic load timestamp (方案 A: client-side)
-                const now = new Date();
-                const timestamp = now.getFullYear() + '-' +
-                    String(now.getMonth() + 1).padStart(2, '0') + '-' +
-                    String(now.getDate()).padStart(2, '0') + ' ' +
-                    String(now.getHours()).padStart(2, '0') + ':' +
-                    String(now.getMinutes()).padStart(2, '0') + ':' +
-                    String(now.getSeconds()).padStart(2, '0');
-                document.getElementById('build-info').textContent = 'Build: fixed-rooms-v1 | Loaded: ' + timestamp + ' (local)';
+                // Display build info from GitHub Actions
+                if (window.__BUILD__) {
+                    const commitShort = window.__BUILD__.commit;
+                    const commitTime = window.__BUILD__.commitTime.split(' +')[0];  // Remove timezone for brevity
+                    document.getElementById('build-info').textContent = `Build: ${commitShort} | Commit: ${commitTime} (HKT)`;
+                } else {
+                    // Fallback for local dev
+                    document.getElementById('build-info').textContent = 'Build: dev (local)';
+                }
             </script>
 
             <!-- Landing Page / Game Selection -->
