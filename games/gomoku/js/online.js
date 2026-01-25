@@ -364,60 +364,32 @@ function applyRoomState(room) {
 }
 
 
+// --- Timer (Visual Only) ---
+
 function startTimerWatchdog(room) {
-    const timerDisplay = document.getElementById('game-timer');
-    let pollCounter = 0;
+    // Clear old
+    if (timerInterval) clearInterval(timerInterval);
 
-    // Strict Guard: Only run timer if game is actually playing and ready
-    if (!isGamePlaying(room)) {
-        updateTimerUI("--");
-        return;
-    }
-
-    timerInterval = setInterval(async () => {
-        let remaining = 0;
-
-        // --- 1. Polling Sync (Every 5s) ---
-        // Helps iOS/Network issues where Realtime might be throttled
-        pollCounter++;
-        if (pollCounter % 10 === 0) { // 10 * 500ms = 5s
-            console.log("[Watchdog] Polling room state...");
-            const freshRoom = await fetchRoom(room.room_code);
-            if (freshRoom) {
-                // Check if status changed (e.g. finished remotely but missed event)
-                if (freshRoom.status !== room.status || freshRoom.current_player !== room.current_player) {
-                    console.log("[Watchdog] Sync mismatch detected, updating...", freshRoom);
-                    handleRoomUpdate(freshRoom);
-                    // Update local ref to avoid double-sync
-                    room = freshRoom;
-                    window.currentRoom = freshRoom;
-                }
-            }
+    // VISUAL TICKER ONLY. Does NOT change state.
+    timerInterval = setInterval(() => {
+        if (!room || !room.turn_deadline_at) {
+            updateTimerUI("--");
+            return;
         }
 
-        if (room.status === 'paused') {
-            remaining = room.paused_remaining_s || 30;
-        } else if (room.status === 'playing' && room.turn_deadline_at) {
-            const deadline = new Date(room.turn_deadline_at).getTime();
-            const now = Date.now(); // Use Client time approximation, but DB is source
-            // Note: Client time drift is a risk. Ideally use server time offset. 
-            // For now, assume synced clock or close enough.
-            const diff = Math.ceil((deadline - now) / 1000);
-            remaining = diff > 0 ? diff : 0;
-
-            // Timeout Claim (Double Guard)
-            if (diff <= 0) {
-                // Ensure we don't spam claims
-                if (room.status === 'playing') {
-                    claimTimeout(room);
-                    clearInterval(timerInterval);
-                    remaining = 0;
-                }
-            }
-        }
+        const deadline = new Date(room.turn_deadline_at).getTime();
+        const now = Date.now();
+        const diff = Math.ceil((deadline - now) / 1000);
+        const remaining = diff > 0 ? diff : 0;
 
         updateTimerUI(remaining);
-    }, 500);
+
+        // Periodic Logic Check (1s)
+        if (now % 1000 < 100) {
+            checkTimeout(window.currentRoom);
+        }
+
+    }, 100); // UI updates fast (100ms)
 }
 
 function isGamePlaying(room) {
@@ -432,24 +404,39 @@ function updateTimerUI(seconds) {
     else el.classList.remove('timer-warning');
 }
 
+// --- DB-Driven Logic ---
+
+async function checkTimeout(room) {
+    if (!room || room.status !== 'playing') return;
+
+    // 1. Check Deadline
+    if (!room.turn_deadline_at) return;
+    const deadline = new Date(room.turn_deadline_at).getTime();
+    const now = Date.now(); // Client time (approx). Ideally use server function.
+
+    if (now > deadline) {
+        // Timeout!
+        // Only ONE person should claim it to avoid race.
+        // "Opponent claims win" is safer? 
+        // Or "Anyone calls it". 
+        // Let's rely on "I am not the current player? Claim win."
+        // Actually, safely: "The player waiting for move claims win".
+        const amIWaiting = (room.current_player !== playerRole);
+
+        // Guard: Don't Spam
+        if (amIWaiting) {
+            console.log("[Timeout] Deadline passed. Claiming win...");
+            claimTimeout(room);
+        }
+    }
+}
+
 async function claimTimeout(room) {
-    // Only claim if I am the one waiting for the OTHER to move? 
-    // Or just ANYONE claims it. 
-    // To avoid double writes, let the "Next Player" claim the win? 
-    // OR: Current player claims "I timed out"? No.
-    // Rule: The opponent of the current_turn player claims the win.
-    const myTurn = (room.current_player === playerRole);
-
-    // Safety: If it's my turn, I shouldn't claim my own timeout win (I should resign or just let server/opponent handle).
-    // But to ensure game ends, if I am the host/local and time is up, maybe I should just submit it?
-    // Let's stick to "Opponent claims win".
-    if (myTurn) return;
-
     if (room.status !== 'playing') return;
 
-    console.log("Claiming Timeout via Client...");
-    // Strict DB Update with RPC-like conditions
+    // Winner is the one NOT playing turned.
     const winner = (room.current_player === 'black') ? 'white' : 'black';
+    const isWin = (winner === playerRole);
 
     try {
         const { error } = await sbClient
@@ -457,22 +444,23 @@ async function claimTimeout(room) {
             .update({
                 status: 'finished',
                 ended_reason: 'timeout',
-                last_result: winner + '_win', // 'white_win'
+                last_result: winner + '_win',
                 winner: winner,
                 winner_color: winner,
                 finished_reason: 'timeout',
                 finished_at: new Date(),
                 last_activity_at: new Date()
             })
-            .eq('id', room.id)
-            .eq('status', 'playing'); // optimistic lock
+            .eq('id', room.id) // Use primary key
+            .eq('status', 'playing'); // Optimistic lock
 
         if (error) throw error;
 
     } catch (err) {
         logError(err);
+        // Silent fail if racing
         if (err.code !== 'PGRST116') {
-            alert("無法結束遊戲 (網絡錯誤): " + err.message);
+            console.error("claimTimeout Failed:", err);
         }
     }
 }
@@ -522,12 +510,13 @@ function createEmptyBoard() {
 }
 
 // Called by input.js
+// Called by input.js
 async function handleOnlineMove(row, col, isWin, winner) {
     if (!roomRecordId) return;
 
     const nextPlayer = (playerRole === 'black') ? 'white' : 'black';
 
-    // Broadcast Move
+    // Broadcast Move (Visual Immediate)
     if (roomChannel) {
         roomChannel.send({
             type: 'broadcast',
@@ -536,9 +525,10 @@ async function handleOnlineMove(row, col, isWin, winner) {
         });
     }
 
-    // Update DB
+    // Atomic DB Update
     const updates = {
         current_player: nextPlayer,
+        last_move_at: new Date(),
         last_activity_at: new Date(),
         // New Deadline: 30 seconds from now
         turn_deadline_at: new Date(Date.now() + 30 * 1000)
@@ -548,26 +538,41 @@ async function handleOnlineMove(row, col, isWin, winner) {
         updates.status = 'finished';
         updates.last_result = winner + '_win';
         updates.winner = winner;
+        updates.winner_color = winner;
         updates.ended_reason = 'win';
+        updates.finished_reason = 'win';
+        updates.finished_at = new Date();
         updates.turn_deadline_at = null; // Clear deadline
     }
 
-    await sbClient
+    const { error } = await sbClient
         .from("Gomoku's rooms")
         .update(updates)
         .eq('id', roomRecordId);
+
+    if (error) {
+        console.error("Move Update Failed:", error);
+        alert("落子同步失敗: " + error.message);
+        // Should probably revert local UI?
+    }
 }
 
 async function requestRestart() {
     if (!roomRecordId) return;
 
     if (roomChannel) {
+        // Broadcast visual reset (optional, but good for instant feedback)
         roomChannel.send({
             type: 'broadcast',
             event: 'restart',
             payload: {}
         });
     }
+
+    // Get current round_id to increment safely?
+    // Actually, just reading currentRoom.round_id + 1 is risky if double click.
+    // Ideally use SQL increment. But here we just use what we have.
+    const nextRound = (window.currentRoom?.round_id || 1) + 1;
 
     await sbClient
         .from("Gomoku's rooms")
@@ -576,9 +581,16 @@ async function requestRestart() {
             last_result: null,
             ended_reason: null,
             winner: null,
+            winner_color: null,
+            finished_reason: null,
+            finished_at: null,
+
             paused_at: null,
             paused_remaining_s: null,
-            current_player: 'black',
+
+            current_player: 'black', // Reset to black
+            round_id: nextRound,     // Increment Round
+
             last_activity_at: new Date(),
             turn_deadline_at: new Date(Date.now() + 30 * 1000)
         })
