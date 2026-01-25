@@ -193,11 +193,26 @@ async function enterRoom(code, role) {
     document.getElementById('online-lobby').classList.add('hidden');
     document.getElementById('online-room').classList.remove('hidden');
     document.getElementById('game-board-area').classList.remove('hidden');
+    document.getElementById('online-controls').classList.remove('hidden');
 
     // Update Header info
     document.getElementById('current-room-id').innerText = code;
     const roleText = role === 'black' ? '黑子 (先手)' : (role === 'white' ? '白子' : '觀戰者');
     document.getElementById('my-role').innerText = roleText;
+
+    // CRITICAL: Initialize Board Canvas
+    if (typeof createBoardUI === 'function') {
+        createBoardUI(window.handleCellClick);
+    } else {
+        // Fallback: manually trigger draw
+        if (typeof resizeGomokuBoard === 'function') resizeGomokuBoard();
+    }
+
+    console.log('[enterRoom] Board canvas initialized');
+
+    // Export to global for debugging
+    window.roomRecord = null;
+    window.playerRole = role;
 
     // Start Processes
     startHeartbeat();
@@ -226,6 +241,7 @@ async function syncRoomState() {
 
     if (error || !room) return;
     roomRecord = room; // Source of Truth
+    window.roomRecord = room; // Export to global
 
     // B. Rebuild Board from Moves
     const { data: moves, error: movesError } = await sbClient
@@ -455,7 +471,7 @@ async function tryPlaceStone(row, col, role) {
     if (roomRecord.current_player !== role) return { success: false };
     if (board[row][col] !== 0) return { success: false };
 
-    // 1. Optimistic UI Update ? 
+    // 1. Optimistic UI Update ?
     // User requested "DB 真相", no optimistic for "Opponent must see update".
     // ACTUALLY: "對方必須即刻見到" implies speed.
     // Spec: "UI 必須完全由 rooms+moves 重建，唔可以依賴「本地曾經係咩狀態」"
@@ -511,7 +527,7 @@ async function tryPlaceStone(row, col, role) {
 }
 
 // Hook for Input.js
-// We replace the global logic. 
+// We replace the global logic.
 // input.js calls `tryPlaceStone` ? No, input.js calls `handleCellClick`.
 // We need to override handleCellClick for Online Mode.
 window.handleOnlineMove = async function (row, col) {
@@ -529,11 +545,20 @@ function startHeartbeat() {
     heartbeatInterval = setInterval(async () => {
         if (!roomRecord || !playerRole || playerRole === 'spectator') return;
 
+        // CRITICAL FIX: Only update last_activity if tab is visible (avoid quota abuse)
+        if (document.hidden) return;
+
         // Lightweight update
-        await sbClient
+        const { error } = await sbClient
             .from("Gomoku's rooms")
             .update({ last_activity_at: new Date() })
             .eq('id', roomRecord.id);
+
+        if (error) {
+            console.error('[Heartbeat] Update failed:', error.message);
+        } else {
+            console.log('[Heartbeat] Sent');
+        }
 
         checkStaleRoom();
 
@@ -543,13 +568,19 @@ function startHeartbeat() {
 async function checkStaleRoom() {
     if (!roomRecord) return;
 
+    // CRITICAL FIX: Only trigger stale check if status is 'finished' or 'paused'
+    // DO NOT kick during 'waiting' or 'playing'
+    if (roomRecord.status === 'waiting' || roomRecord.status === 'playing') {
+        console.log('[checkStaleRoom] Skipping stale check during', roomRecord.status);
+        return;
+    }
+
     // Check local inactivity (e.g. if I am observing a dead room)
     const lastActive = new Date(roomRecord.last_activity_at).getTime();
     const diff = Date.now() - lastActive;
 
     if (diff > STALE_THRESHOLD_MS) {
-        // Only one client needs to trigger reset, but race is fine (idempotent-ish)
-        console.log("Room Stale. Triggering Reset...");
+        console.log("[checkStaleRoom] Room Stale. Triggering Reset...");
         await resetRoomFunc();
     }
 }
