@@ -946,6 +946,12 @@ function ensureGameStarted(room) {
 // --- Subscription ---
 
 function subscribeToRoom() {
+    // === GUARD: Ensure roomId and roomRecordId are set before subscribing ===
+    if (!roomId || !roomRecordId) {
+        console.error('[Subscribe] BLOCKED: roomId or roomRecordId is undefined!', { roomId, roomRecordId });
+        return;
+    }
+
     if (roomChannel) sbClient.removeChannel(roomChannel);
 
     const waitEl = document.getElementById('waiting-msg');
@@ -954,7 +960,7 @@ function subscribeToRoom() {
     }
 
     // Filter string MUST match the detailed row. Using Primary Key (id) is best.
-    const filterStr = roomRecordId ? `id=eq.${roomRecordId}` : `room_code=eq.${roomId}`;
+    const filterStr = `id=eq.${roomRecordId}`;
     const channelName = `gomoku-${roomId}`;
 
     // === DEBUG: Subscription setup ===
