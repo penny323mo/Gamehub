@@ -759,14 +759,21 @@ function ensureGameStarted(room) {
             updateStatusUI();
         }
 
-        // 6. CRITICAL: Force Timer Visibility
-        const onlineControls = document.getElementById('online-controls');
-        if (onlineControls) {
-            onlineControls.classList.remove('hidden');
-            console.log('[ensureGameStarted] Timer forced visible');
-        }
+        // 6. CRITICAL: Force Timer Visibility with INLINE STYLE override
+        const forceShowTimer = () => {
+            const onlineControls = document.getElementById('online-controls');
+            if (onlineControls) {
+                onlineControls.classList.remove('hidden');
+                onlineControls.style.display = 'flex'; // Override CSS !important
+                console.log('[ensureGameStarted] Timer FORCE SHOWN. Classes:', onlineControls.className, 'Style:', onlineControls.style.display);
+            }
+        };
+        forceShowTimer();
+        // Delayed retry in case DOM not ready
+        setTimeout(forceShowTimer, 100);
+        setTimeout(forceShowTimer, 500);
 
-        // 6. Start Timer
+        // 7. Start Timer
         startTimerWatchdog(); // No argument - uses window.currentRoom
     }
 }
