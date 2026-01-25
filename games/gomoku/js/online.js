@@ -285,8 +285,10 @@ window.currentRoom = null; // Ensure this is global
 
 function setBoardInteractivity(locked) {
     const canvas = document.getElementById('gomoku-board');
+    console.log('[BoardLock] setBoardInteractivity called:', locked, 'canvas:', !!canvas);
     if (canvas) {
         canvas.style.pointerEvents = locked ? 'none' : 'auto';
+        console.log('[BoardLock] Canvas pointer-events set to:', canvas.style.pointerEvents);
     }
 }
 
@@ -312,10 +314,12 @@ function applyRoomState(room) {
     gameStatus = room.status;
 
     // Determine Lock
-    // Locked if: Not playing (e.g. waiting, paused, finished) OR Not my turn?
-    // The "boardLocked" flag specifically represents "Is the board interactive logically?"
-    // Input.js will also check turn. Here we check "Global Game State".
+    // Locked if: Not playing (e.g. waiting, paused, finished)
     boardLocked = (gameStatus !== GAME_STATUS.PLAYING);
+
+    // CRITICAL: Unlock board when playing
+    console.log('[ApplyRoomState] gameStatus:', gameStatus, 'boardLocked:', boardLocked);
+    setBoardInteractivity(boardLocked);
 
     // UI: Board Lock Overlay
     const lockEl = document.getElementById('boardLock');
