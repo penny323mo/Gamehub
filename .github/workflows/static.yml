@@ -36,8 +36,11 @@ jobs:
       - name: Generate Build Info
         run: |
           COMMIT_SHA=$(git rev-parse --short HEAD)
-          COMMIT_TIME=$(git log -1 --format=%cd --date=format:'%Y-%m-%d %H:%M:%S +0800')
-          BUILD_TIME=$(TZ='Asia/Hong_Kong' date +'%Y-%m-%d %H:%M:%S +0800')
+          # Get commit time in UTC ISO format, then convert to HKT manually
+          COMMIT_TIME_UTC=$(git log -1 --format=%cd --date=iso)
+          # Convert to HKT (+08:00) format: YYYY-MM-DD HH:MM:SS +0800
+          COMMIT_TIME=$(TZ='Asia/Hong_Kong' date -d "$COMMIT_TIME_UTC" +'%Y-%m-%d %H:%M:%S +0800' 2>/dev/null || date -r $(git log -1 --format=%ct) +'%Y-%m-%d %H:%M:%S +0800')
+          BUILD_TIME=$(TZ='Asia/Hong_Kong' date +'%Y-%m-%d %H:%M:%S +0800' 2>/dev/null || date +'%Y-%m-%d %H:%M:%S +0800')
           
           cat > games/gomoku/build_info.js << EOF
           window.__BUILD__ = {
