@@ -246,9 +246,30 @@ async function joinRoom(codeInput) {
 }
 
 function enterRoom(room, role) {
-    roomId = room.room_code;
-    roomRecordId = room.id;
+    // === STEP 1: Guard - 確保 room.id 存在（Critical for moves FK） ===
+    if (!room || !room.id) {
+        console.error('[enterRoom] CRITICAL: room.id is undefined!', room);
+        alert('❌ 入房失敗：房間 ID 無效\n\n請刷新頁面重試或聯繫管理員');
+        return;
+    }
+
+    if (!room.room_code) {
+        console.error('[enterRoom] CRITICAL: room.room_code is undefined!', room);
+        alert('❌ 入房失敗：房間號無效');
+        return;
+    }
+
+    // === STEP 2: Set Global Variables ===
+    roomId = room.room_code;           // e.g. "ROOM01"
+    roomRecordId = room.id;             // UUID for FK
     playerRole = role;
+
+    console.log('[enterRoom] ✅ Set variables:', {
+        roomId,
+        roomRecordId,
+        playerRole,
+        roomStatus: room.status
+    });
 
     // Save Session for Reload
     localStorage.setItem('gomoku_room_id', roomId);
@@ -665,8 +686,18 @@ async function fetchAndApplyMoves(roomUuid) {
 
 // Called by input.js
 async function handleOnlineMove(row, col, isWin, winner) {
+    // === GUARD: 確保 roomRecordId 已設置 ===
     if (!roomRecordId) {
-        console.error('[handleOnlineMove] BLOCKED: roomRecordId missing');
+        console.error('[handleOnlineMove] ❌ BLOCKED: roomRecordId is undefined!');
+        console.error('[handleOnlineMove] Current state:', {
+            roomId,
+            roomRecordId,
+            playerRole,
+            'window.currentRoom': window.currentRoom
+        });
+        alert('❌ 落子失敗：房間狀態未就緒\n\n請離開房間重新加入');
+        // Lock board to prevent further attempts
+        setBoardInteractivity(true);
         return;
     }
 
