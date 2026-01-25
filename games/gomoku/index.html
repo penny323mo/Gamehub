@@ -12,9 +12,20 @@
     <div class="switch-container gomoku-menu-container">
         <main class="switch-card">
             <h1>五子棋</h1>
-            <div style="font-size: 0.7rem; color: #666; margin-top: -10px; margin-bottom: 20px;">
-                Build: fixed-rooms-v1 2026-01-25 20:55
+            <div id="build-info" style="font-size: 0.7rem; color: #666; margin-top: -10px; margin-bottom: 20px;">
+                <!-- Dynamic timestamp injected by JS -->
             </div>
+            <script>
+                // Display dynamic load timestamp (方案 A: client-side)
+                const now = new Date();
+                const timestamp = now.getFullYear() + '-' +
+                    String(now.getMonth() + 1).padStart(2, '0') + '-' +
+                    String(now.getDate()).padStart(2, '0') + ' ' +
+                    String(now.getHours()).padStart(2, '0') + ':' +
+                    String(now.getMinutes()).padStart(2, '0') + ':' +
+                    String(now.getSeconds()).padStart(2, '0');
+                document.getElementById('build-info').textContent = 'Build: fixed-rooms-v1 | Loaded: ' + timestamp + ' (local)';
+            </script>
 
             <!-- Landing Page / Game Selection -->
             <div id="landing-page">
@@ -150,37 +161,14 @@
     </div>
     <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/core.js?v=6429cf9"></script>
-    <script src="js/renderer.js?v=6429cf9"></script>
-    <script src="js/ai.js?v=6429cf9"></script>
-    <script src="js/online.js?v=6429cf9"></script>
-    <script src="js/input.js?v=6429cf9"></script>
-    <script src="js/app.js?v=6429cf9"></script>
+    <script src="js/core.js?v=d889aec"></script>
+    <script src="js/renderer.js?v=d889aec"></script>
+    <script src="js/ai.js?v=d889aec"></script>
+    <script src="js/online.js?v=d889aec"></script>
+    <script src="js/input.js?v=d889aec"></script>
+    <script src="js/app.js?v=d889aec"></script>
 
-    <!-- Debug Panel (Added via Agent) -->
-    <div id="debug-toggle" style="position:fixed; bottom:10px; right:10px; z-index:9999;">
-        <button class="pill-btn secondary" onclick="toggleDebug()"
-            style="font-size:0.8rem; padding:5px 10px;">Debug</button>
-    </div>
-    <div id="debug-panel" class="hidden"
-        style="position:fixed; bottom:50px; right:10px; z-index:9999; background:rgba(0,0,0,0.9); padding:15px; border:1px solid red; color:lime; font-family:monospace; font-size:12px; max-width:90vw; border-radius:8px;">
-        <div><strong>Supabase Debug</strong></div>
-        <div>URL: <span id="dbg-url"></span></div>
-        <div>Key Prefix: <span id="dbg-key-pre"></span></div>
-        <div>Key Length: <span id="dbg-key-len"></span></div>
-        <div>Key Tail (JSON): <span id="dbg-key-tail"></span></div>
-        <div>Window.Supabase: <span id="dbg-win-sup"></span></div>
-        <div>Client Init: <span id="dbg-client"></span></div>
-        <hr style="border-color:#333; margin:5px 0;">
-        <button class="pill-btn" onclick="pingSupabase()" style="font-size:0.7rem; padding:3px 8px;">Ping REST</button>
-        <div id="dbg-ping-log" style="margin-top:5px; white-space:pre-wrap; word-break:break-all;"></div>
-    </div>
-    <script>
-        function toggleDebug() {
-            const p = document.getElementById('debug-panel');
-            p.classList.toggle('hidden');
-        }
-    </script>
+    <!-- Debug Panel Removed (Production cleanup) -->
 </body>
 
 </html>
