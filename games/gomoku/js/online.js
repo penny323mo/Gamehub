@@ -380,7 +380,7 @@ async function toggleReady() {
         // 兩邊都 ready → 開局
         updates.status = 'playing';
         updates.current_player = 'black';
-        updates.turn_started_at = new Date().toISOString();
+        updates.turn_deadline_at = new Date(Date.now() + 30 * 1000).toISOString();
         updates.round_id = (room.round_id || 0) + 1;
         console.log('[Online] Both ready! Starting game...');
     }
@@ -435,7 +435,7 @@ async function handleOnlineMove(row, col, isWin, winner) {
     const nextPlayer = color === 'black' ? 'white' : 'black';
     const updates = {
         current_player: nextPlayer,
-        turn_started_at: new Date().toISOString(),
+        turn_deadline_at: new Date(Date.now() + 30 * 1000).toISOString(),
         last_activity_at: new Date().toISOString()
     };
 
@@ -682,15 +682,19 @@ function cleanupAndReturnToLobby() {
 function startClientTimer(room) {
     stopClientTimer();
 
-    if (!room.turn_started_at) return;
-
-    const TURN_DURATION = 30; // seconds
+    if (!room.turn_deadline_at) return;
 
     OnlineState.timerInterval = setInterval(() => {
-        const startedAt = new Date(room.turn_started_at).getTime();
+        // 用最新嘅 room state
+        const currentRoom = window.currentRoom;
+        if (!currentRoom || !currentRoom.turn_deadline_at) {
+            updateTimerUI('--');
+            return;
+        }
+
+        const deadline = new Date(currentRoom.turn_deadline_at).getTime();
         const now = Date.now();
-        const elapsed = Math.floor((now - startedAt) / 1000);
-        const remaining = Math.max(0, TURN_DURATION - elapsed);
+        const remaining = Math.max(0, Math.ceil((deadline - now) / 1000));
 
         updateTimerUI(remaining);
 
