@@ -655,6 +655,15 @@ async function handleOnlineMove(row, col, isWin, winner) {
         console.error('[handleOnlineMove] READBACK FAILED:', readbackError);
     } else {
         console.log('[handleOnlineMove] READBACK SUCCESS:', JSON.stringify(readback, null, 2));
+
+        // === CRITICAL: Sync local state with DB to prevent stale Timer ===
+        if (window.currentRoom && readback) {
+            window.currentRoom.current_player = readback.current_player;
+            window.currentRoom.turn_deadline_at = readback.turn_deadline_at;
+            window.currentRoom.status = readback.status;
+            window.currentRoom.last_move_at = readback.last_move_at;
+            console.log('[handleOnlineMove] Local state synced with DB readback');
+        }
     }
 
     console.log('[handleOnlineMove] COMPLETE');
