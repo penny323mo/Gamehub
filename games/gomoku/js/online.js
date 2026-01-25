@@ -209,6 +209,11 @@ async function enterRoom(code, role) {
 // 3. Synchronization (The Core)
 // =============================================================================
 
+function createEmptyBoard() {
+    // Reset global board array (defined in core.js)
+    board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
+}
+
 async function syncRoomState() {
     if (!roomId || !sbClient) return;
 
