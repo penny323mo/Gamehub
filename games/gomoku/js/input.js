@@ -1,7 +1,8 @@
 
 function handleCellClick(row, col, difficulty) {
     // --- ENHANCED DEBUG: Always log click attempts with FULL state ---
-    const room = window.currentRoom;
+    const room = typeof window.currentRoom !== 'undefined' ? window.currentRoom : null;
+    const myRole = typeof playerRole !== 'undefined' ? playerRole : null;
     const blockedReason = [];
 
     // Collect all block reasons for diagnosis
@@ -11,13 +12,13 @@ function handleCellClick(row, col, difficulty) {
         if (!room) blockedReason.push('no_room');
         else if (room.status !== 'playing') blockedReason.push('status=' + room.status);
         if (!roomId) blockedReason.push('roomId_missing');
-        if (!playerRole) blockedReason.push('playerRole_missing');
-        if (currentPlayer !== playerRole) blockedReason.push('not_my_turn');
+        if (!myRole) blockedReason.push('playerRole_missing');
+        if (currentPlayer !== myRole) blockedReason.push('not_my_turn');
     }
 
     console.log('[CLICK]', {
         row, col,
-        myColor: playerRole,
+        myColor: myRole,
         mode,
         roomStatus: room?.status,
         current_turn: room?.current_player || currentPlayer,
@@ -54,30 +55,30 @@ function handleCellClick(row, col, difficulty) {
 
         // Guard 4: My Turn? (Use DB's current_player as authority)
         const dbCurrentTurn = room.current_player;
-        if (!roomId || !playerRole) {
+        if (!roomId || !myRole) {
             console.log('[CLICK] BLOCKED: roomId/playerRole missing');
             return;
         }
-        if (dbCurrentTurn !== playerRole) {
-            console.log('[CLICK] BLOCKED: not_my_turn (db_turn=' + dbCurrentTurn + ', me=' + playerRole + ')');
+        if (dbCurrentTurn !== myRole) {
+            console.log('[CLICK] BLOCKED: not_my_turn (db_turn=' + dbCurrentTurn + ', me=' + myRole + ')');
             return;
         }
 
         // Attempt local move
-        const result = tryPlaceStone(row, col, playerRole);
+        const result = tryPlaceStone(row, col, myRole);
         if (!result.success) {
             console.log('[CLICK] BLOCKED: tryPlaceStone failed (occupied?)');
             return;
         }
 
-        console.log('[CLICK] ACCEPTED: Move at (' + row + ',' + col + ') by ' + playerRole);
+        console.log('[CLICK] ACCEPTED: Move at (' + row + ',' + col + ') by ' + myRole);
 
         // Update UI
-        placeStoneUI(row, col, playerRole);
+        placeStoneUI(row, col, myRole);
 
         if (result.win) {
-            updateWinUI(playerRole);
-            handleOnlineMove(row, col, true, playerRole);
+            updateWinUI(myRole);
+            handleOnlineMove(row, col, true, myRole);
         } else {
             switchTurn();
             updateStatusUI();
