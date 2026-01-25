@@ -569,9 +569,21 @@ function createEmptyBoard() {
 // Called by input.js
 // Called by input.js
 async function handleOnlineMove(row, col, isWin, winner) {
-    if (!roomRecordId) return;
+    if (!roomRecordId) {
+        console.error('[handleOnlineMove] BLOCKED: roomRecordId missing');
+        return;
+    }
 
     const nextPlayer = (playerRole === 'black') ? 'white' : 'black';
+
+    // === DEBUG: Pre-write log ===
+    console.log('[handleOnlineMove] START', {
+        row, col,
+        isWin, winner,
+        playerRole,
+        roomRecordId,
+        nextPlayer
+    });
 
     // Broadcast Move (Visual Immediate)
     if (roomChannel) {
@@ -580,6 +592,7 @@ async function handleOnlineMove(row, col, isWin, winner) {
             event: 'move',
             payload: { row, col, player: playerRole }
         });
+        console.log('[handleOnlineMove] Broadcast sent');
     }
 
     // Atomic DB Update
@@ -602,16 +615,39 @@ async function handleOnlineMove(row, col, isWin, winner) {
         updates.turn_deadline_at = null; // Clear deadline
     }
 
-    const { error } = await sbClient
+    // === DEBUG: Pre-DB write payload ===
+    console.log('[handleOnlineMove] PRE-WRITE payload:', JSON.stringify(updates, null, 2));
+
+    const { data, error, status, statusText } = await sbClient
         .from("Gomoku's rooms")
         .update(updates)
-        .eq('id', roomRecordId);
+        .eq('id', roomRecordId)
+        .select(); // Return updated row for verification
+
+    // === DEBUG: Post-DB write response ===
+    console.log('[handleOnlineMove] POST-WRITE response:', { status, statusText, error, dataLength: data?.length });
 
     if (error) {
-        console.error("Move Update Failed:", error);
-        alert("落子同步失敗: " + error.message);
-        // Should probably revert local UI?
+        console.error('[handleOnlineMove] DB WRITE FAILED:', error);
+        // === RLS/Permission Error UI ===
+        alert('❌ 落子寫入被拒！\n錯誤: ' + error.message + '\nCode: ' + error.code);
+        return;
     }
+
+    // === DEBUG: DB Readback ===
+    const { data: readback, error: readbackError } = await sbClient
+        .from("Gomoku's rooms")
+        .select('id, room_code, current_player, turn_deadline_at, status, last_move_at')
+        .eq('id', roomRecordId)
+        .single();
+
+    if (readbackError) {
+        console.error('[handleOnlineMove] READBACK FAILED:', readbackError);
+    } else {
+        console.log('[handleOnlineMove] READBACK SUCCESS:', JSON.stringify(readback, null, 2));
+    }
+
+    console.log('[handleOnlineMove] COMPLETE');
 }
 
 async function requestRestart() {
