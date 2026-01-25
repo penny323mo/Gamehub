@@ -5,7 +5,7 @@
 
 -- 1. Add columns to "Gomoku's rooms" table
 ALTER TABLE "Gomoku's rooms"
-ADD COLUMN IF NOT EXISTS turn_started_at timestamptz,
+ADD COLUMN IF NOT EXISTS turn_expires_at timestamptz,
 ADD COLUMN IF NOT EXISTS black_ready boolean DEFAULT false,
 ADD COLUMN IF NOT EXISTS white_ready boolean DEFAULT false,
 ADD COLUMN IF NOT EXISTS round_no integer DEFAULT 0;
@@ -56,6 +56,6 @@ WHERE black_ready IS NULL OR white_ready IS NULL OR round_no IS NULL;
 -- ============================================================================
 -- Done! Your schema now supports:
 -- - Ready mechanism (black_ready, white_ready)
--- - Timer (turn_started_at)
+-- - Timer (turn_expires_at - absolute timeout timestamp)
 -- - Multiple rounds (round_no, managed via buttons)
 -- - Move history (moves table with uniqueness constraints)

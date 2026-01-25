@@ -305,8 +305,8 @@ function updateUIFromRoomData(room) {
             statusEl.innerHTML = `等待對手...`;
         }
 
-        if (room.turn_started_at) {
-            startDBDrivenTimer(new Date(room.turn_started_at).getTime());
+        if (room.turn_expires_at) {
+            startDBDrivenTimer(new Date(room.turn_expires_at).getTime());
         }
 
         checkAndHandleTimeout(room);
@@ -337,13 +337,12 @@ function updateUIFromRoomData(room) {
     }
 }
 
-function startDBDrivenTimer(turnStartedMs) {
+function startDBDrivenTimer(expiresAtMs) {
     if (timerInterval) clearInterval(timerInterval);
 
     const update = () => {
         const now = Date.now();
-        const elapsed = Math.floor((now - turnStartedMs) / 1000);
-        const remaining = TURN_LIMIT_SEC - elapsed;
+        const remaining = Math.floor((expiresAtMs - now) / 1000);
 
         const display = document.getElementById('game-timer');
         if (display) {
@@ -366,13 +365,12 @@ function stopTimer() {
 }
 
 async function checkAndHandleTimeout(room) {
-    if (room.status !== 'playing' || !room.turn_started_at) return;
+    if (room.status !== 'playing' || !room.turn_expires_at) return;
 
     const now = Date.now();
-    const turnStarted = new Date(room.turn_started_at).getTime();
-    const elapsed = (now - turnStarted) / 1000;
+    const expiresAt = new Date(room.turn_expires_at).getTime();
 
-    if (elapsed >= TURN_LIMIT_SEC + 2) {
+    if (now >= expiresAt + 2000) { // 2s grace period
         const winner = room.current_player === 'black' ? 'white' : 'black';
 
         await sbClient
@@ -500,7 +498,7 @@ async function attemptStartGame() {
         .update({
             status: 'playing',
             current_player: 'black',
-            turn_started_at: new Date(),
+            turn_expires_at: new Date(Date.now() + TURN_LIMIT_SEC * 1000),
             black_ready: false,
             white_ready: false
         })
@@ -615,7 +613,7 @@ async function placeMove(row, col) {
         .from("Gomoku's rooms")
         .update({
             current_player: nextPlayer,
-            turn_started_at: new Date()
+            turn_expires_at: new Date(Date.now() + TURN_LIMIT_SEC * 1000)
         })
         .eq('id', currentRoomData.id)
         .eq('current_player', myRole)
@@ -651,7 +649,7 @@ async function rematchGame() {
         .update({
             status: 'waiting',
             current_player: 'black',
-            turn_started_at: null,
+            turn_expires_at: null,
             winner: null,
             ended_reason: null,
             black_ready: false,
@@ -690,7 +688,7 @@ async function resetFixedRoom() {
             current_player: 'black',
             winner: null,
             ended_reason: null,
-            turn_started_at: null,
+            turn_expires_at: null,
             black_ready: false,
             white_ready: false,
             black_player_id: null,
