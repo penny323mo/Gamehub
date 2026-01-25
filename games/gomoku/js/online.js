@@ -1,28 +1,27 @@
 // =============================================================================
-// Gomoku Online Mode - Realtime Presence + Fixed Rooms
+// Gomoku Online Mode - Realtime Presence + Fixed Rooms + Ready Mechanism
 // =============================================================================
-// Strategy:
-// - 3 Fixed Rooms (ROOM01/02/03) stored in DB
-// - Realtime Presence for online detection (NO DB heartbeat every 10s)
-// - Moves table as source of truth
-// - Atomic move operations
-// - Timer driven by DB turn_started_at
 
 const SUPABASE_URL = "https://djbhipofzbonxfqriovi.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_DX7aNwHHI7tb6RUiWWe0qg_qPzuLcld";
 
 // Global State
 let sbClient = null;
-let roomKey = null;        // 'ROOM01', 'ROOM02', 'ROOM03'
-let myRole = null;          // 'black', 'white'
+let roomKey = null;
+let myRole = null;
 let myUserId = localStorage.getItem('gomoku_userId');
+let myReady = false;
 
 let roomChannel = null;
 let timerInterval = null;
 let currentRoomData = null;
 
 const TURN_LIMIT_SEC = 30;
-const MOVE_SYNC_TIMEOUT_MS = 1500; // If no realtime move in 1.5s, fallback SELECT
+const FALLBACK_POLL_INTERVAL_MS = 1800; // Fallback polling every 1.8s
+const SEAT_RECLAIM_GRACE_MS = 30000; // 30s grace period before reclaiming abandoned seat
+
+let fallbackPollTimer = null;
+let lastRealtimeActivity = Date.now();
 
 // Init User ID
 if (!myUserId) {
@@ -50,8 +49,10 @@ async function initOnlineMode() {
     window.joinFixedRoom = joinFixedRoom;
     window.resetFixedRoom = resetFixedRoom;
     window.exitFixedRoom = exitFixedRoom;
+    window.toggleReady = toggleReady;
+    window.rematchGame = rematchGame; // New: Rematch button
 
-    // Refresh Lobby periodically (Lightweight: only read room status/presence)
+    // Refresh Lobby periodically
     setInterval(updateLobbyUI, 3000);
     updateLobbyUI();
 }
@@ -74,13 +75,12 @@ async function updateLobbyUI() {
         if (statusEl) {
             const statusMap = { 'waiting': '閒置', 'playing': '對戰中', 'finished': '已結束' };
             statusEl.innerText = statusMap[room.status] || '未知';
-            statusEl.className = `room-status ${room.status}`;
         }
 
         if (playersEl) {
-            const b = room.black_player_id ? '有人' : '-';
-            const w = room.white_player_id ? '有人' : '-';
-            playersEl.innerText = `⚫ ${b} / ⚪ ${w}`;
+            const b = room.black_player_id ? '⚫' : '-';
+            const w = room.white_player_id ? '⚪' : '-';
+            playersEl.innerText = `${b} / ${w}`;
         }
 
         if (joinBtn) {
@@ -100,7 +100,6 @@ async function joinFixedRoom(targetRoomKey) {
     if (!sbClient) return;
     console.log(`[Online] Joining ${targetRoomKey}...`);
 
-    // 1. Fetch Room
     const { data: room, error } = await sbClient
         .from("Gomoku's rooms")
         .select('*')
@@ -112,7 +111,7 @@ async function joinFixedRoom(targetRoomKey) {
         return;
     }
 
-    // 2. Determine Role & Claim Seat (Atomic)
+    // Determine Role & Claim Seat
     let role = null;
     let updates = {};
 
@@ -121,7 +120,6 @@ async function joinFixedRoom(targetRoomKey) {
     } else if (room.white_player_id === myUserId) {
         role = 'white';
     } else {
-        // Claim a seat
         if (!room.black_player_id) {
             role = 'black';
             updates.black_player_id = myUserId;
@@ -133,12 +131,11 @@ async function joinFixedRoom(targetRoomKey) {
             return;
         }
 
-        // Update DB (Atomic seat claim)
         const { error: claimError } = await sbClient
             .from("Gomoku's rooms")
             .update(updates)
             .eq('id', room.id)
-            .eq(role === 'black' ? 'black_player_id' : 'white_player_id', null); // Guard: only if still null
+            .eq(role === 'black' ? 'black_player_id' : 'white_player_id', null);
 
         if (claimError) {
             console.error("[Join] Seat claim failed:", claimError);
@@ -147,13 +144,13 @@ async function joinFixedRoom(targetRoomKey) {
         }
     }
 
-    // 3. Enter Room
     enterFixedRoom(targetRoomKey, role);
 }
 
 async function enterFixedRoom(key, role) {
     roomKey = key;
     myRole = role;
+    myReady = false;
 
     // UI Switch
     setMode('online');
@@ -176,25 +173,76 @@ async function enterFixedRoom(key, role) {
     }
     console.log('[enterFixedRoom] Board canvas initialized');
 
+    // Show Ready UI
+    document.getElementById('ready-status')?.classList.remove('hidden');
+    updateReadyUI();
+
     // Export to global
     window.roomKey = key;
     window.myRole = role;
 
-    // Critical: Load Room State from DB
+    // Load Room State
     await syncRoomState();
 
-    // Subscribe to Realtime (Presence + Moves + Rooms)
+    // Subscribe to Realtime
     subscribeRoom(key);
+
+    // Start Fallback Polling (read-only, as backup)
+    startFallbackPolling();
 }
 
 // =============================================================================
-// 3. Synchronization (DB as Source of Truth)
+// 3. Ready Mechanism
+// =============================================================================
+
+async function toggleReady() {
+    if (!currentRoomData || !myRole) return;
+    if (currentRoomData.status === 'playing') return; // Already playing
+
+    myReady = !myReady;
+    const field = myRole === 'black' ? 'black_ready' : 'white_ready';
+
+    const { error } = await sbClient
+        .from("Gomoku's rooms")
+        .update({ [field]: myReady })
+        .eq('id', currentRoomData.id);
+
+    if (error) {
+        console.error("[Ready] Toggle failed:", error);
+        myReady = !myReady; // Rollback
+    } else {
+        console.log(`[Ready] ${myRole} ready=${myReady}`);
+        updateReadyUI();
+    }
+}
+
+function updateReadyUI() {
+    const readyBtn = document.getElementById('toggle-ready-btn');
+    const blackStatus = document.getElementById('black-ready-status');
+    const whiteStatus = document.getElementById('white-ready-status');
+
+    if (readyBtn) {
+        readyBtn.innerText = myReady ? "取消準備" : "準備";
+        readyBtn.className = myReady ? "btn-secondary" : "btn-primary";
+    }
+
+    if (currentRoomData) {
+        if (blackStatus) {
+            blackStatus.innerText = currentRoomData.black_ready ? "⚫ 黑：已準備" : "⚫ 黑：未準備";
+        }
+        if (whiteStatus) {
+            whiteStatus.innerText = currentRoomData.white_ready ? "⚪ 白：已準備" : "⚪ 白：未準備";
+        }
+    }
+}
+
+// =============================================================================
+// 4. Synchronization (DB as Source of Truth)
 // =============================================================================
 
 async function syncRoomState() {
     if (!roomKey || !sbClient) return;
 
-    // A. Fetch Room Data
     const { data: room, error } = await sbClient
         .from("Gomoku's rooms")
         .select('*')
@@ -209,33 +257,33 @@ async function syncRoomState() {
     currentRoomData = room;
     window.currentRoomData = room;
 
-    // B. Fetch Moves & Rebuild Board
+    // Fetch Moves & Rebuild Board
     const { data: moves, error: movesError } = await sbClient
         .from('moves')
         .select('*')
         .eq('room_key', roomKey)
+        .eq('round_no', room.round_no || 0)
         .order('move_no', { ascending: true });
 
     if (!movesError) {
         rebuildBoardFromMoves(moves || []);
+    } else {
+        console.warn("[Sync] Moves fetch failed:", movesError);
     }
 
-    // C. Update UI
     updateUIFromRoomData(room);
+    updateReadyUI();
 }
 
 function rebuildBoardFromMoves(moves) {
-    // Reset board
     createEmptyBoard();
     if (typeof resetBoardUI === 'function') resetBoardUI();
 
-    // Replay moves
     moves.forEach(m => {
-        const pieceType = m.color === 'black' ? 'black' : 'white';
-        board[m.x][m.y] = pieceType;
-        if (typeof drawBoard === 'function') drawBoard();
+        board[m.x][m.y] = m.color;
     });
 
+    if (typeof drawBoard === 'function') drawBoard();
     console.log(`[Sync] Rebuilt board from ${moves.length} moves`);
 }
 
@@ -245,10 +293,11 @@ function createEmptyBoard() {
 
 function updateUIFromRoomData(room) {
     const statusEl = document.getElementById('status');
-    const timerEl = document.getElementById('game-timer');
 
     if (room.status === 'playing') {
-        // Show turn info
+        // Hide Ready UI
+        document.getElementById('ready-status')?.classList.add('hidden');
+
         const isMyTurn = room.current_player === myRole;
         if (isMyTurn) {
             statusEl.innerHTML = `<span style="color:var(--neon-green)">輪到你了！</span>`;
@@ -256,23 +305,34 @@ function updateUIFromRoomData(room) {
             statusEl.innerHTML = `等待對手...`;
         }
 
-        // Start Timer (DB-driven)
         if (room.turn_started_at) {
             startDBDrivenTimer(new Date(room.turn_started_at).getTime());
         }
 
-        // Check Timeout
         checkAndHandleTimeout(room);
 
     } else if (room.status === 'finished') {
+        document.getElementById('ready-status')?.classList.add('hidden');
+
+        // Show Rematch + Reset buttons
+        document.getElementById('game-over-actions')?.classList.remove('hidden');
+
         const winnerText = room.winner === 'black' ? "黑子" : "白子";
         let reasonText = room.ended_reason === 'timeout' ? " (超時)" : "";
         statusEl.innerHTML = `<span style="color:var(--neon-red)">遊戲結束 - ${winnerText}勝${reasonText}</span>`;
         stopTimer();
-        document.getElementById('online-restart-btn')?.classList.remove('hidden');
     } else {
         // waiting
-        statusEl.innerHTML = `等待對手加入...`;
+        const hasBlack = room.black_player_id;
+        const hasWhite = room.white_player_id;
+
+        if (hasBlack && hasWhite) {
+            statusEl.innerHTML = `雙方已進房，按「準備」開始`;
+            document.getElementById('ready-status')?.classList.remove('hidden');
+        } else {
+            statusEl.innerHTML = `等待對手加入...`;
+            document.getElementById('ready-status')?.classList.add('hidden');
+        }
         stopTimer();
     }
 }
@@ -292,10 +352,7 @@ function startDBDrivenTimer(turnStartedMs) {
             else display.classList.remove('timer-warning');
         }
 
-        if (remaining <= 0) {
-            clearInterval(timerInterval);
-            // Timeout handled by checkAndHandleTimeout
-        }
+        if (remaining <= 0) clearInterval(timerInterval);
     };
 
     update();
@@ -316,7 +373,6 @@ async function checkAndHandleTimeout(room) {
     const elapsed = (now - turnStarted) / 1000;
 
     if (elapsed >= TURN_LIMIT_SEC + 2) {
-        // Grace period passed, trigger timeout
         const winner = room.current_player === 'black' ? 'white' : 'black';
 
         await sbClient
@@ -327,12 +383,39 @@ async function checkAndHandleTimeout(room) {
                 ended_reason: 'timeout'
             })
             .eq('id', room.id)
-            .eq('status', 'playing'); // Guard
+            .eq('status', 'playing');
     }
 }
 
 // =============================================================================
-// 4. Realtime Subscriptions (Presence + Moves + Rooms)
+// 5. Fallback Polling (Read-Only Backup)
+// =============================================================================
+
+function startFallbackPolling() {
+    if (fallbackPollTimer) clearInterval(fallbackPollTimer);
+
+    fallbackPollTimer = setInterval(async () => {
+        if (!roomKey || !sbClient) return;
+
+        // Only poll if realtime seems inactive (no activity in 2s)
+        const timeSinceLastRT = Date.now() - lastRealtimeActivity;
+        if (timeSinceLastRT < 2000) return; // Realtime is working, skip
+
+        console.log('[Fallback] Polling for updates...');
+        await syncRoomState(); // Read-only sync
+
+    }, FALLBACK_POLL_INTERVAL_MS);
+}
+
+function stopFallbackPolling() {
+    if (fallbackPollTimer) {
+        clearInterval(fallbackPollTimer);
+        fallbackPollTimer = null;
+    }
+}
+
+// =============================================================================
+// 6. Realtime Subscriptions + Error Handling
 // =============================================================================
 
 function subscribeRoom(key) {
@@ -341,39 +424,56 @@ function subscribeRoom(key) {
     const channelName = `realtime:room:${key}`;
 
     roomChannel = sbClient.channel(channelName)
-        // Presence Tracking
         .on('presence', { event: 'sync' }, () => {
             const state = roomChannel.presenceState();
             console.log('[Presence] Sync:', state);
-            checkStartGame(state);
+            lastRealtimeActivity = Date.now();
+            checkSeatReclaim(state);
         })
         .on('presence', { event: 'join' }, ({ newPresences }) => {
             console.log('[Presence] Join:', newPresences);
+            lastRealtimeActivity = Date.now();
         })
         .on('presence', { event: 'leave' }, ({ leftPresences }) => {
             console.log('[Presence] Leave:', leftPresences);
+            lastRealtimeActivity = Date.now();
         })
-        // Subscribe to Moves INSERT
         .on('postgres_changes',
             { event: 'INSERT', schema: 'public', table: 'moves', filter: `room_key=eq.${key}` },
             (payload) => {
                 console.log('[RT] New Move:', payload.new);
+                lastRealtimeActivity = Date.now();
                 applyMoveFromRealtime(payload.new);
             }
         )
-        // Subscribe to Rooms UPDATE
         .on('postgres_changes',
             { event: 'UPDATE', schema: 'public', table: "Gomoku's rooms", filter: `room_key=eq.${key}` },
             (payload) => {
                 console.log('[RT] Room Update:', payload.new);
+                lastRealtimeActivity = Date.now();
                 currentRoomData = payload.new;
+
+                // Check if both ready → start game
+                if (payload.new.black_ready && payload.new.white_ready && payload.new.status === 'waiting') {
+                    attemptStartGame();
+                }
+
                 updateUIFromRoomData(payload.new);
+                updateReadyUI();
             }
         )
+        .on('system', (payload) => {
+            console.log('[RT] System Event:', payload);
+            if (payload.type === 'error' || payload.type === 'closed') {
+                console.error('[RT] Channel error/closed, attempting reconnect...');
+                setTimeout(() => subscribeRoom(key), 2000);
+            }
+        })
         .subscribe(async (status) => {
             console.log('[RT] Subscription Status:', status);
+
             if (status === 'SUBSCRIBED') {
-                // Track Presence
+                lastRealtimeActivity = Date.now();
                 await roomChannel.track({
                     user_id: myUserId,
                     color: myRole,
@@ -381,54 +481,97 @@ function subscribeRoom(key) {
                     ts: Date.now()
                 });
                 console.log('[Presence] Tracked:', { user_id: myUserId, color: myRole });
+            } else if (status === 'CHANNEL_ERROR') {
+                console.error('[RT] Subscription failed');
+            } else if (status === 'TIMED_OUT') {
+                console.warn('[RT] Subscription timed out, retrying...');
+                setTimeout(() => subscribeRoom(key), 3000);
             }
         });
 }
 
-function checkStartGame(presenceState) {
-    // If both black and white are present, start game
-    const allUsers = Object.values(presenceState).flat();
-    const hasBlack = allUsers.some(u => u.color === 'black');
-    const hasWhite = allUsers.some(u => u.color === 'white');
-
-    if (hasBlack && hasWhite && currentRoomData?.status === 'waiting') {
-        console.log('[Presence] Both players present. Starting game...');
-        startGame();
-    }
-}
-
-async function startGame() {
+async function attemptStartGame() {
     if (!currentRoomData) return;
 
-    const { error } = await sbClient
+    console.log('[Ready] Attempting to start game...');
+
+    const { data, error } = await sbClient
         .from("Gomoku's rooms")
         .update({
             status: 'playing',
             current_player: 'black',
             turn_started_at: new Date(),
-            move_no: 0
+            black_ready: false,
+            white_ready: false
         })
         .eq('id', currentRoomData.id)
-        .eq('status', 'waiting'); // Guard: only if still waiting
+        .eq('status', 'waiting')
+        .eq('black_ready', true)
+        .eq('white_ready', true)
+        .select();
 
     if (error) {
-        console.error('[StartGame] Update failed:', error);
-    } else {
-        console.log('[StartGame] Game started!');
+        console.warn('[Ready] Start game failed (race condition):', error);
+    } else if (data && data.length > 0) {
+        console.log('[Ready] Game started!');
+        myReady = false;
     }
 }
 
 function applyMoveFromRealtime(move) {
-    // Update board
-    const pieceType = move.color === 'black' ? 'black' : 'white';
-    board[move.x][move.y] = pieceType;
+    if (!currentRoomData) return;
+    if (move.round_no !== currentRoomData.round_no) {
+        console.warn('[RT] Move from old round, ignoring');
+        return;
+    }
+
+    board[move.x][move.y] = move.color;
     if (typeof drawBoard === 'function') drawBoard();
 
     console.log(`[RT] Applied move: ${move.color} at (${move.x}, ${move.y})`);
 }
 
 // =============================================================================
-// 5. Place Move (Atomic)
+// 7. Presence-Based Seat Reclaim
+// =============================================================================
+
+let lastSeatReclaimCheck = 0;
+
+async function checkSeatReclaim(presenceState) {
+    if (!currentRoomData) return;
+
+    // Throttle: only check every 30s max
+    const now = Date.now();
+    if (now - lastSeatReclaimCheck < SEAT_RECLAIM_GRACE_MS) return;
+    lastSeatReclaimCheck = now;
+
+    const allPresent = Object.values(presenceState).flat();
+    const blackPresent = allPresent.some(u => u.color === 'black');
+    const whitePresent = allPresent.some(u => u.color === 'white');
+
+    // Reclaim black seat if not present
+    if (currentRoomData.black_player_id && !blackPresent) {
+        console.log('[Presence] Black player absent, reclaiming seat...');
+        await sbClient
+            .from("Gomoku's rooms")
+            .update({ black_player_id: null, black_ready: false })
+            .eq('id', currentRoomData.id)
+            .eq('black_player_id', currentRoomData.black_player_id); // Guard
+    }
+
+    // Reclaim white seat if not present
+    if (currentRoomData.white_player_id && !whitePresent) {
+        console.log('[Presence] White player absent, reclaiming seat...');
+        await sbClient
+            .from("Gomoku's rooms")
+            .update({ white_player_id: null, white_ready: false })
+            .eq('id', currentRoomData.id)
+            .eq('white_player_id', currentRoomData.white_player_id); // Guard
+    }
+}
+
+// =============================================================================
+// 8. Place Move (Atomic)
 // =============================================================================
 
 async function placeMove(row, col) {
@@ -437,15 +580,23 @@ async function placeMove(row, col) {
     if (currentRoomData.current_player !== myRole) return { success: false };
     if (board[row][col]) return { success: false };
 
-    // 1. Get next move_no
-    const currentMoveNo = currentRoomData.move_no || 0;
-    const nextMoveNo = currentMoveNo + 1;
+    // Get next move_no (from DB to ensure consistency)
+    const { data: existingMoves } = await sbClient
+        .from('moves')
+        .select('move_no')
+        .eq('room_key', roomKey)
+        .eq('round_no', currentRoomData.round_no || 0)
+        .order('move_no', { ascending: false })
+        .limit(1);
 
-    // 2. Insert Move (with unique constraint protection)
+    const nextMoveNo = existingMoves && existingMoves.length > 0 ? existingMoves[0].move_no + 1 : 1;
+
+    // 1. Insert Move
     const { error: moveError } = await sbClient
         .from('moves')
         .insert([{
             room_key: roomKey,
+            round_no: currentRoomData.round_no || 0,
             move_no: nextMoveNo,
             x: row,
             y: col,
@@ -454,22 +605,20 @@ async function placeMove(row, col) {
 
     if (moveError) {
         console.error("[Move] Insert failed:", moveError);
-        // Fallback: resync
         syncRoomState();
         return { success: false };
     }
 
-    // 3. Update Room (Switch Turn, Atomic)
+    // 2. Update Room
     const nextPlayer = myRole === 'black' ? 'white' : 'black';
     const { error: roomError, data: updated } = await sbClient
         .from("Gomoku's rooms")
         .update({
             current_player: nextPlayer,
-            turn_started_at: new Date(),
-            move_no: nextMoveNo
+            turn_started_at: new Date()
         })
         .eq('id', currentRoomData.id)
-        .eq('current_player', myRole) // Guard: only if still my turn
+        .eq('current_player', myRole)
         .select();
 
     if (roomError || !updated || updated.length === 0) {
@@ -482,24 +631,59 @@ async function placeMove(row, col) {
     return { success: true };
 }
 
-// Hook for input.js
 window.handleOnlineMove = async function (row, col) {
     if (mode !== 'online') return;
     await placeMove(row, col);
 };
 
 // =============================================================================
-// 6. Reset Room
+// 9. Rematch & Reset
+// =============================================================================
+
+async function rematchGame() {
+    if (!currentRoomData) return;
+
+    console.log('[Rematch] Starting new round...');
+
+    // Increment round_no, reset to waiting, keep seats
+    const { error } = await sbClient
+        .from("Gomoku's rooms")
+        .update({
+            status: 'waiting',
+            current_player: 'black',
+            turn_started_at: null,
+            winner: null,
+            ended_reason: null,
+            black_ready: false,
+            white_ready: false,
+            round_no: (currentRoomData.round_no || 0) + 1
+        })
+        .eq('id', currentRoomData.id)
+        .eq('status', 'finished'); // Guard
+
+    if (error) {
+        console.error('[Rematch] Failed:', error);
+        alert('再戰失敗，請重試');
+    } else {
+        console.log('[Rematch] New round started!');
+        myReady = false;
+        document.getElementById('game-over-actions')?.classList.add('hidden');
+    }
+}
+
+// =============================================================================
+// 7. Reset Room
 // =============================================================================
 
 async function resetFixedRoom() {
     if (!currentRoomData) return;
 
-    // 1. Delete Moves
-    await sbClient.from('moves').delete().eq('room_key', roomKey);
+    const confirmed = confirm('確定要重置房間？所有玩家將被踢出。');
+    if (!confirmed) return;
 
-    // 2. Reset Room
-    await sbClient
+    console.log('[Reset] Resetting room...');
+
+    const { error } = await sbClient
         .from("Gomoku's rooms")
         .update({
             status: 'waiting',
@@ -507,32 +691,42 @@ async function resetFixedRoom() {
             winner: null,
             ended_reason: null,
             turn_started_at: null,
-            move_no: 0,
+            black_ready: false,
+            white_ready: false,
             black_player_id: null,
-            white_player_id: null
+            white_player_id: null,
+            round_no: (currentRoomData.round_no || 0) + 1
         })
         .eq('id', currentRoomData.id);
 
-    console.log("[Reset] Room reset complete");
-    alert("房間已重置");
-    exitFixedRoom();
+    if (error) {
+        console.error("[Reset] Failed:", error);
+        alert('重置失敗');
+    } else {
+        console.log("[Reset] Room reset complete");
+        exitFixedRoom();
+    }
 }
 
 function exitFixedRoom() {
     if (timerInterval) clearInterval(timerInterval);
+    stopFallbackPolling();
+
     if (roomChannel) {
-        roomChannel.untrack(); // Stop presence tracking
+        roomChannel.untrack();
         sbClient.removeChannel(roomChannel);
     }
 
     roomKey = null;
     myRole = null;
+    myReady = false;
     currentRoomData = null;
 
-    // UI Reset
     document.getElementById('online-room').classList.add('hidden');
     document.getElementById('online-lobby').classList.remove('hidden');
     document.getElementById('game-board-area').classList.add('hidden');
+    document.getElementById('ready-status')?.classList.add('hidden');
+    document.getElementById('game-over-actions')?.classList.add('hidden');
 
     updateLobbyUI();
 }
@@ -542,13 +736,12 @@ function exitFixedRoom() {
 // =============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Override handleCellClick for online mode
     const originalHandleClick = window.handleCellClick;
-    window.handleCellClick = function (row, col, diff) {
+    window.handleCellClick = function (row, col) {
         if (mode === 'online') {
             window.handleOnlineMove(row, col);
         } else if (originalHandleClick) {
-            originalHandleClick(row, col, diff);
+            originalHandleClick(row, col);
         }
     };
 

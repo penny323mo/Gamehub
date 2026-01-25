@@ -95,14 +95,28 @@
                         </div>
                     </div>
 
+                    <!-- Ready Status UI (Hidden until both players join) -->
+                    <div id="ready-status" class="hidden"
+                        style="margin:15px 0; padding:15px; background:rgba(0,255,136,0.1); border:1px solid rgba(0,255,136,0.3); border-radius:8px;">
+                        <div class="ready-info"
+                            style="display:flex; justify-content:space-around; margin-bottom:10px; font-size:0.9rem;">
+                            <span id="black-ready-status">⚫ 黑：未準備</span>
+                            <span id="white-ready-status">⚪ 白：未準備</span>
+                        </div>
+                        <button id="toggle-ready-btn" class="pill-btn" onclick="toggleReady()"
+                            style="width:100%;">準備</button>
+                    </div>
+
+                    <!-- Game Over Actions (Rematch + Reset) -->
+                    <div id="game-over-actions" class="hidden" style="margin:15px 0; display:flex; gap:10px;">
+                        <button class="pill-btn" onclick="rematchGame()" style="flex:1;">🔄 再戰一局</button>
+                        <button class="pill-btn danger-btn" onclick="resetFixedRoom()" style="flex:1;">🗑️ 重置房間</button>
+                    </div>
+
                     <div id="waiting-msg" style="margin-bottom:10px; color:var(--neon-green);">等待對手加入...</div>
 
-                    <div class="room-actions">
-                        <button id="online-restart-btn" class="pill-btn action-btn hidden"
-                            onclick="requestRestart()">再戰一局</button>
-                        <button id="reset-room-btn" class="pill-btn danger-btn hidden" onclick="resetDebugRoom()">🗑️
-                            Reset Room</button>
-                        <button id="leave-room-btn" class="pill-btn danger-btn" onclick="exitRoom()">退出房間</button>
+                    <div class="room-actions" style="margin-top:10px;">
+                        <button id="leave-room-btn" class="pill-btn danger-btn" onclick="exitFixedRoom()">退出房間</button>
                     </div>
                 </div>
 
