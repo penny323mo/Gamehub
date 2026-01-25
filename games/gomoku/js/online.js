@@ -696,24 +696,27 @@ function subscribeToRoom() {
         waitEl.innerHTML += '<br><small id="sub-status">Connecting...</small>';
     }
 
-    // Filter string must match Supabase/Postgres syntax exactly.
-    // 'room_code=eq.VALUE'
-    const filterStr = `room_code=eq.${roomId}`;
+    // Filter string MUST match the detailed row. Using Primary Key (id) is best.
+    // However, if we only have room_code initially, we use that. 
+    // But we DO have roomRecordId after createRoom/joinRoom.
+    const filterStr = roomRecordId ? `id=eq.${roomRecordId}` : `room_code=eq.${roomId}`;
+
+    console.log(`[Subscribe] Subscribing to ${filterStr}`);
 
     roomChannel = sbClient.channel(`gomoku-${roomId}`)
         .on("postgres_changes",
             { event: "*", schema: "public", table: "Gomoku's rooms", filter: filterStr },
-            (payload) => {
-                const eventType = payload.eventType;
-                const newRoom = payload.new;
-                console.log(`[Realtime] ${eventType} received`, newRoom);
-
-                // Check if we should start game
-                if (newRoom && shouldStart(newRoom)) {
-                    startGameFromRoom(newRoom);
-                } else {
-                    // Just update state anyway (e.g. spectator join? or other updates)
-                    handleRoomUpdate(newRoom);
+            async (payload) => {
+                console.log(`[Realtime] ${payload.eventType} received. Forcing fetch...`);
+                // IGNORE payload.new. It might be partial or stale.
+                // ALWAYS fetch fresh state.
+                const freshRoom = await fetchRoom(roomId);
+                if (freshRoom) {
+                    if (shouldStart(freshRoom)) {
+                        startGameFromRoom(freshRoom);
+                    } else {
+                        handleRoomUpdate(freshRoom);
+                    }
                 }
             }
         )
@@ -731,31 +734,43 @@ function subscribeToRoom() {
             if (subEl) subEl.innerText = `Status: ${status} ${error ? error.message : ''}`;
 
             if (status === 'SUBSCRIBED') {
-                console.log("[DoubleCheck] Channel Subscribed. Fetching latest room state...");
+                console.log("[DoubleCheck] Channel Subscribed. Starting 1s Polling Fallback...");
                 // 1. Immediate Check
                 checkAndStart();
 
-                // 2. Polling Fallback (800ms for 12s)
-                // Guaranteed to catch "playing" status if white joined but realtime message was dropped
+                // 2. High-Frequency Polling Fallback (1s interval, max 60s)
                 let attempts = 0;
-                const pollId = setInterval(async () => {
+                // Clear any existing poll to be safe
+                if (window.roomPollId) clearInterval(window.roomPollId);
+
+                window.roomPollId = setInterval(async () => {
                     attempts++;
-                    if (attempts > 15 || (window.currentRoom && shouldStart(window.currentRoom))) {
-                        clearInterval(pollId);
+                    // Stop if game already started
+                    if (window.isGameReady || (window.currentRoom && window.currentRoom.status === 'playing')) {
+                        clearInterval(window.roomPollId);
                         return;
                     }
-                    console.log(`[PollingFallback] Attempt ${attempts}...`);
+
+                    // Stop after 60s (avoid infinite poll)
+                    if (attempts > 60) {
+                        clearInterval(window.roomPollId);
+                        return;
+                    }
+
+                    console.log(`[PollingFallback] Tick ${attempts}...`);
                     await checkAndStart();
-                }, 800);
+                }, 1000);
             }
         });
 
     async function checkAndStart() {
         const room = await fetchRoom(roomId);
         if (room) {
-            console.log("[DoubleCheck/Poll] Room fetched:", room.status, "White:", room.white_player_id);
+            // Apply State immediately so UI updates (e.g. White joined but waiting)
+            applyRoomState(room);
+
             if (shouldStart(room)) {
-                ensureGameStarted(room); // Use new entry point
+                startGameFromRoom(room);
             } else {
                 renderRoomState(room);
             }
