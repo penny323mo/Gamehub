@@ -1311,9 +1311,336 @@ function exitRoom() {
     resetGameState();
 }
 
+// =====================================================
+// === DEBUG MODE: Fixed Rooms + Heartbeat + Cleanup ===
+// =====================================================
+
+window.DEBUG_MODE = false;
+let heartbeatInterval = null;
+const HEARTBEAT_INTERVAL_MS = 10000;  // 10 seconds
+const TIMEOUT_THRESHOLD_MS = 25000;   // 25 seconds
+
+// --- Join Debug Room (Fixed room1/2/3) ---
+async function joinDebugRoom(roomKey) {
+    if (!sbClient) return alert("無法連接伺服器 (SDK Unloaded)");
+
+    window.DEBUG_MODE = true;
+    console.log('[Debug] Joining fixed room:', roomKey);
+
+    // 1. Fetch room by room_key
+    let { data: room, error } = await sbClient
+        .from("Gomoku's rooms")
+        .select('*')
+        .eq('room_key', roomKey)
+        .single();
+
+    if (error || !room) {
+        console.error('[Debug] Room not found:', roomKey, error);
+        alert('找不到 Debug 房間: ' + roomKey + '\n請確認已執行 DB migration');
+        return;
+    }
+
+    console.log('[Debug] Room fetched:', room);
+
+    // 2. Cleanup timeout players BEFORE joining
+    room = await cleanupTimeoutPlayers(room);
+
+    // 3. Determine slot and join
+    let role = 'spectator';
+    let updates = { last_activity_at: new Date() };
+
+    if (room.black_client_id === clientId) {
+        role = 'black';
+        updates.black_last_seen_at = new Date();
+    } else if (room.white_client_id === clientId) {
+        role = 'white';
+        updates.white_last_seen_at = new Date();
+    } else if (!room.black_client_id) {
+        role = 'black';
+        updates.black_client_id = clientId;
+        updates.black_player_id = clientId;
+        updates.black_last_seen_at = new Date();
+        if (room.white_client_id) {
+            updates.status = 'playing';
+            updates.current_player = 'black';
+            updates.turn_deadline_at = new Date(Date.now() + 30000);
+        }
+    } else if (!room.white_client_id) {
+        role = 'white';
+        updates.white_client_id = clientId;
+        updates.white_player_id = clientId;
+        updates.white_last_seen_at = new Date();
+        updates.status = 'playing';
+        updates.current_player = 'black';
+        updates.turn_deadline_at = new Date(Date.now() + 30000);
+    }
+
+    console.log('[Debug] Taking role:', role, 'Updates:', updates);
+
+    // 4. Update DB
+    const { error: updateError } = await sbClient
+        .from("Gomoku's rooms")
+        .update(updates)
+        .eq('id', room.id);
+
+    if (updateError) {
+        console.error('[Debug] Join update failed:', updateError);
+        alert('加入失敗: ' + updateError.message);
+        return;
+    }
+
+    // 5. Re-fetch and enter
+    const { data: freshRoom } = await sbClient
+        .from("Gomoku's rooms")
+        .select('*')
+        .eq('id', room.id)
+        .single();
+
+    roomId = freshRoom.room_code;
+    roomRecordId = freshRoom.id;
+    playerRole = role;
+
+    // Save Session
+    localStorage.setItem('gomoku_room_id', roomId);
+    localStorage.setItem('gomoku_player_role', role);
+    localStorage.setItem('gomoku_debug_room_key', roomKey);
+
+    setMode('online');
+    setIsVsAI(false);
+
+    // 6. Apply + Render
+    applyRoomState(freshRoom);
+    renderRoomState(freshRoom);
+
+    // 7. Show Reset Room button (Debug only)
+    const resetBtn = document.getElementById('reset-room-btn');
+    if (resetBtn) resetBtn.classList.remove('hidden');
+
+    // 8. Fetch moves + Subscribe
+    await fetchAndApplyMoves(roomRecordId);
+    subscribeToRoom();
+
+    // 9. Start Heartbeat
+    startHeartbeat();
+
+    // 10. If playing, start game
+    if (freshRoom.status === 'playing' || freshRoom.status === 'paused') {
+        ensureGameStarted(freshRoom);
+    }
+
+    console.log('[Debug] Joined as', role, 'in room', roomKey);
+}
+
+// --- Heartbeat (every 10 seconds) ---
+function startHeartbeat() {
+    stopHeartbeat();
+    console.log('[Heartbeat] Starting (interval=' + HEARTBEAT_INTERVAL_MS + 'ms)...');
+
+    heartbeatInterval = setInterval(async () => {
+        if (!roomRecordId || !playerRole || playerRole === 'spectator') return;
+
+        const updates = { last_activity_at: new Date() };
+        if (playerRole === 'black') {
+            updates.black_last_seen_at = new Date();
+        } else if (playerRole === 'white') {
+            updates.white_last_seen_at = new Date();
+        }
+
+        const { error } = await sbClient
+            .from("Gomoku's rooms")
+            .update(updates)
+            .eq('id', roomRecordId);
+
+        if (error) {
+            console.warn('[Heartbeat] Update failed:', error.message);
+        } else {
+            console.log('[Heartbeat] Sent:', playerRole);
+        }
+    }, HEARTBEAT_INTERVAL_MS);
+}
+
+function stopHeartbeat() {
+    if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+        console.log('[Heartbeat] Stopped');
+    }
+}
+
+// --- Cleanup Timeout Players (threshold: 25s) ---
+async function cleanupTimeoutPlayers(room) {
+    if (!room) return room;
+
+    const now = Date.now();
+    const updates = {};
+    let needsReset = false;
+
+    // Check black player timeout
+    if (room.black_client_id && room.black_last_seen_at) {
+        const elapsed = now - new Date(room.black_last_seen_at).getTime();
+        if (elapsed > TIMEOUT_THRESHOLD_MS) {
+            console.log('[Cleanup] Black player timeout (' + Math.round(elapsed / 1000) + 's). Clearing...');
+            updates.black_client_id = null;
+            updates.black_player_id = null;
+            updates.black_last_seen_at = null;
+        }
+    }
+
+    // Check white player timeout
+    if (room.white_client_id && room.white_last_seen_at) {
+        const elapsed = now - new Date(room.white_last_seen_at).getTime();
+        if (elapsed > TIMEOUT_THRESHOLD_MS) {
+            console.log('[Cleanup] White player timeout (' + Math.round(elapsed / 1000) + 's). Clearing...');
+            updates.white_client_id = null;
+            updates.white_player_id = null;
+            updates.white_last_seen_at = null;
+        }
+    }
+
+    // Check if room needs reset
+    const blackWillBeEmpty = updates.black_client_id === null || (!room.black_client_id && updates.black_client_id === undefined);
+    const whiteWillBeEmpty = updates.white_client_id === null || (!room.white_client_id && updates.white_client_id === undefined);
+
+    // After applying updates, will both be empty?
+    const blackEmpty = updates.hasOwnProperty('black_client_id') ? updates.black_client_id === null : !room.black_client_id;
+    const whiteEmpty = updates.hasOwnProperty('white_client_id') ? updates.white_client_id === null : !room.white_client_id;
+
+    if (blackEmpty && whiteEmpty) {
+        console.log('[Cleanup] Both players gone. Resetting room...');
+        updates.status = 'waiting';
+        updates.current_player = 'black';
+        updates.turn_deadline_at = null;
+        updates.last_result = null;
+        updates.winner = null;
+        updates.winner_color = null;
+        updates.finished_reason = null;
+        updates.ended_reason = null;
+        needsReset = true;
+    } else if (room.status === 'playing' && (updates.black_client_id === null || updates.white_client_id === null)) {
+        // One player left mid-game
+        console.log('[Cleanup] One player left during game. Resetting...');
+        updates.status = 'waiting';
+        updates.current_player = 'black';
+        updates.turn_deadline_at = null;
+        updates.last_result = null;
+        updates.winner = null;
+        needsReset = true;
+    }
+
+    // Apply cleanup updates
+    if (Object.keys(updates).length > 0) {
+        updates.last_activity_at = new Date();
+
+        const { error } = await sbClient
+            .from("Gomoku's rooms")
+            .update(updates)
+            .eq('id', room.id);
+
+        if (error) {
+            console.error('[Cleanup] Update failed:', error);
+        } else {
+            console.log('[Cleanup] Applied updates:', updates);
+        }
+
+        // Clear moves if resetting
+        if (needsReset) {
+            await sbClient.from('moves').delete().eq('room_id', room.id);
+            console.log('[Cleanup] Moves cleared');
+        }
+
+        // Re-fetch fresh room
+        const { data: freshRoom } = await sbClient
+            .from("Gomoku's rooms")
+            .select('*')
+            .eq('id', room.id)
+            .single();
+
+        return freshRoom || room;
+    }
+
+    return room;
+}
+
+// --- Reset Debug Room (Button handler) ---
+async function resetDebugRoom() {
+    if (!roomRecordId) {
+        alert('無房間可 Reset');
+        return;
+    }
+
+    const confirmReset = confirm('確定要重置此房間？所有對局資料將被清空。');
+    if (!confirmReset) return;
+
+    console.log('[Reset] Resetting room:', roomRecordId);
+
+    // 1. Clear moves
+    await sbClient.from('moves').delete().eq('room_id', roomRecordId);
+
+    // 2. Reset room state
+    const { error } = await sbClient
+        .from("Gomoku's rooms")
+        .update({
+            status: 'waiting',
+            current_player: 'black',
+            turn_deadline_at: null,
+            black_client_id: null,
+            white_client_id: null,
+            black_player_id: null,
+            white_player_id: null,
+            black_last_seen_at: null,
+            white_last_seen_at: null,
+            last_result: null,
+            winner: null,
+            winner_color: null,
+            finished_reason: null,
+            ended_reason: null,
+            finished_at: null,
+            paused_at: null,
+            paused_remaining_s: null,
+            last_activity_at: new Date()
+        })
+        .eq('id', roomRecordId);
+
+    if (error) {
+        console.error('[Reset] Failed:', error);
+        alert('Reset 失敗: ' + error.message);
+        return;
+    }
+
+    console.log('[Reset] Room reset complete');
+
+    // 3. Stop heartbeat
+    stopHeartbeat();
+
+    // 4. Clear local state
+    resetGameState();
+    resetBoardUI();
+
+    // 5. Exit to debug lobby
+    exitRoom();
+    selectMode('debug');
+}
+
+// --- Override exitRoom for Debug Mode ---
+const originalExitRoom = exitRoom;
+exitRoom = function () {
+    stopHeartbeat();
+    localStorage.removeItem('gomoku_debug_room_key');
+    window.DEBUG_MODE = false;
+
+    // Hide reset button
+    const resetBtn = document.getElementById('reset-room-btn');
+    if (resetBtn) resetBtn.classList.add('hidden');
+
+    originalExitRoom();
+};
+
 // Expose to window for HTML access
 window.createRoom = createRoom;
 window.joinRoom = joinRoom;
+window.joinDebugRoom = joinDebugRoom;
+window.resetDebugRoom = resetDebugRoom;
 window.requestRestart = requestRestart;
 window.exitRoom = exitRoom;
 window.initOnlineMode = initOnlineMode;
+

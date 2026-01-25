@@ -23,6 +23,9 @@
                         AI 對戰</button>
                     <button id="gomoku-online-btn" class="pill-btn mode-btn" data-action="online"
                         onclick="selectMode('online')">ONLINE 對戰</button>
+                    <button id="gomoku-debug-btn" class="pill-btn mode-btn" data-action="debug"
+                        onclick="selectMode('debug')" style="background:linear-gradient(135deg,#ff6b6b,#feca57);">🔧
+                        DEBUG</button>
                     <button id="gomoku-back-btn" class="pill-btn secondary" data-action="back"
                         onclick="goToLauncher()">返回遊戲大廳</button>
                 </div>
@@ -63,6 +66,19 @@
                     <button class="pill-btn secondary" onclick="backToLanding()">返回選單</button>
                 </div>
 
+                <!-- Debug Lobby (固定房間選擇) -->
+                <div id="debug-lobby" class="hidden">
+                    <h3>🔧 Debug 模式</h3>
+                    <p style="font-size:0.8rem; color:#888; margin-bottom:15px;">固定房間，方便測試同步 + 心跳機制</p>
+                    <div class="lobby-actions" style="gap:10px;">
+                        <button class="pill-btn" onclick="joinDebugRoom('room1')">Room 1</button>
+                        <button class="pill-btn" onclick="joinDebugRoom('room2')">Room 2</button>
+                        <button class="pill-btn" onclick="joinDebugRoom('room3')">Room 3</button>
+                    </div>
+                    <br>
+                    <button class="pill-btn secondary" onclick="backToLanding()">返回選單</button>
+                </div>
+
                 <!-- Online Room View (Board + Details) -->
                 <div id="online-room" class="hidden">
                     <div class="room-header-card">
@@ -78,6 +94,8 @@
                     <div class="room-actions">
                         <button id="online-restart-btn" class="pill-btn action-btn hidden"
                             onclick="requestRestart()">再戰一局</button>
+                        <button id="reset-room-btn" class="pill-btn danger-btn hidden" onclick="resetDebugRoom()">🗑️
+                            Reset Room</button>
                         <button id="leave-room-btn" class="pill-btn danger-btn" onclick="exitRoom()">退出房間</button>
                     </div>
                 </div>

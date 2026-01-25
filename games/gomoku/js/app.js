@@ -63,6 +63,11 @@ function selectMode(selectedMode) {
             document.getElementById('online-lobby').classList.add('hidden');
             document.getElementById('online-room').classList.remove('hidden');
         }
+    } else if (selectedMode === 'debug') {
+        setIsVsAI(false);
+        window.DEBUG_MODE = true;
+        showView('debug-lobby');
+        if (aiResetBtn) aiResetBtn.style.display = 'none';
     }
 }
 
@@ -72,6 +77,7 @@ function showView(viewName) {
         'game-container',
         'ai-controls',
         'online-lobby',
+        'debug-lobby',
         'online-room',
         'game-board-area'
     ];
@@ -93,6 +99,10 @@ function showView(viewName) {
         case 'online-lobby':
             document.getElementById('game-container').classList.remove('hidden');
             document.getElementById('online-lobby').classList.remove('hidden');
+            break;
+        case 'debug-lobby':
+            document.getElementById('game-container').classList.remove('hidden');
+            document.getElementById('debug-lobby').classList.remove('hidden');
             break;
         case 'online-room':
             document.getElementById('game-container').classList.remove('hidden');
