@@ -844,21 +844,36 @@ function subscribeToRoom() {
     }
 
     // Filter string MUST match the detailed row. Using Primary Key (id) is best.
-    // However, if we only have room_code initially, we use that. 
-    // But we DO have roomRecordId after createRoom/joinRoom.
     const filterStr = roomRecordId ? `id=eq.${roomRecordId}` : `room_code=eq.${roomId}`;
+    const channelName = `gomoku-${roomId}`;
 
-    console.log(`[Subscribe] Subscribing to ${filterStr}`);
+    // === DEBUG: Subscription setup ===
+    console.log('[Subscribe] === SUBSCRIPTION DEBUG ===');
+    console.log('[Subscribe] Channel Name:', channelName);
+    console.log('[Subscribe] Filter:', filterStr);
+    console.log('[Subscribe] roomRecordId:', roomRecordId);
+    console.log('[Subscribe] roomId:', roomId);
+    console.log('[Subscribe] playerRole:', playerRole);
 
-    roomChannel = sbClient.channel(`gomoku-${roomId}`)
+    // Event counter for debugging
+    window.realtimeEventCount = 0;
+    window.broadcastMoveCount = 0;
+
+    roomChannel = sbClient.channel(channelName)
         .on("postgres_changes",
             { event: "*", schema: "public", table: "Gomoku's rooms", filter: filterStr },
             async (payload) => {
-                console.log(`[Realtime] ${payload.eventType} received. Forcing fetch...`);
-                // IGNORE payload.new. It might be partial or stale.
-                // ALWAYS fetch fresh state.
+                window.realtimeEventCount++;
+                console.log(`[Realtime] EVENT #${window.realtimeEventCount}: ${payload.eventType} received`);
+                console.log('[Realtime] Payload:', JSON.stringify(payload.new, null, 2));
+
+                // ALWAYS fetch fresh state
                 const freshRoom = await fetchRoom(roomId);
                 if (freshRoom) {
+                    // === CRITICAL: Apply room state to sync Joiner ===
+                    applyRoomState(freshRoom);
+                    renderRoomState(freshRoom);
+
                     if (shouldStart(freshRoom)) {
                         startGameFromRoom(freshRoom);
                     } else {
@@ -868,45 +883,69 @@ function subscribeToRoom() {
             }
         )
         .on("broadcast", { event: "move" }, (payload) => {
-            console.log("Broadcast Move:", payload);
+            window.broadcastMoveCount++;
+            console.log(`[Broadcast] MOVE #${window.broadcastMoveCount}:`, payload);
             const { row, col, player } = payload.payload;
             handleRemoteMove(row, col, player);
         })
         .on("broadcast", { event: "restart" }, (payload) => {
+            console.log('[Broadcast] RESTART received');
             handleRemoteRestart();
         })
         .subscribe(async (status, error) => {
-            console.log("Subscription Status:", status, error);
+            console.log('[Subscribe] STATUS:', status, error ? 'Error: ' + error.message : '');
             const subEl = document.getElementById('sub-status');
             if (subEl) subEl.innerText = `Status: ${status} ${error ? error.message : ''}`;
 
             if (status === 'SUBSCRIBED') {
-                console.log("[DoubleCheck] Channel Subscribed. Starting 1s Polling Fallback...");
+                console.log('[Subscribe] SUCCESS! Channel subscribed. Starting polling fallback...');
+
                 // 1. Immediate Check
                 checkAndStart();
 
-                // 2. High-Frequency Polling Fallback (1s interval, max 60s)
-                let attempts = 0;
-                // Clear any existing poll to be safe
+                // 2. High-Frequency Polling Fallback (1s interval)
+                // This catches BOTH pre-game wait AND in-game missed moves
+                let pollAttempts = 0;
                 if (window.roomPollId) clearInterval(window.roomPollId);
 
                 window.roomPollId = setInterval(async () => {
-                    attempts++;
-                    // Stop if game already started
-                    if (window.isGameReady || (window.currentRoom && window.currentRoom.status === 'playing')) {
+                    pollAttempts++;
+
+                    // === IN-GAME POLLING: Always sync if playing ===
+                    if (window.currentRoom && window.currentRoom.status === 'playing') {
+                        // Only log every 5th poll to reduce spam
+                        if (pollAttempts % 5 === 0) {
+                            console.log(`[Poll] Tick ${pollAttempts}. Syncing room state...`);
+                        }
+                        const freshRoom = await fetchRoom(roomId);
+                        if (freshRoom) {
+                            // Detect if state changed
+                            const oldPlayer = window.currentRoom.current_player;
+                            const oldDeadline = window.currentRoom.turn_deadline_at;
+
+                            applyRoomState(freshRoom);
+
+                            if (oldPlayer !== freshRoom.current_player || oldDeadline !== freshRoom.turn_deadline_at) {
+                                console.log('[Poll] State change detected! Refreshing UI...');
+                                renderRoomState(freshRoom);
+                            }
+                        }
+                    }
+
+                    // Stop after 5 minutes (300 polls at 1s each)
+                    if (pollAttempts > 300) {
+                        console.log('[Poll] Max attempts reached. Stopping poll.');
                         clearInterval(window.roomPollId);
                         return;
                     }
 
-                    // Stop after 60s (avoid infinite poll)
-                    if (attempts > 60) {
-                        clearInterval(window.roomPollId);
-                        return;
+                    // Pre-game: check if should start
+                    if (!window.isGameReady) {
+                        await checkAndStart();
                     }
-
-                    console.log(`[PollingFallback] Tick ${attempts}...`);
-                    await checkAndStart();
                 }, 1000);
+            } else if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+                console.error('[Subscribe] FAILED! Status:', status, 'Error:', error);
             }
         });
 
