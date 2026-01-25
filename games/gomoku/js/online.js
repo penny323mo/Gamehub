@@ -551,26 +551,38 @@ function subscribeToRoom() {
         OnlineState.sbClient.removeChannel(OnlineState.roomChannel);
     }
 
-    const channelName = `room-${OnlineState.roomUuid}`;
-    console.log('[Online] Subscribing to room:', channelName);
+    // 用 room_code 做 channel name，更穩定
+    const channelName = `gomoku-room-${OnlineState.roomKey}`;
+    console.log('[Online] Subscribing to room channel:', channelName);
 
     OnlineState.roomChannel = OnlineState.sbClient
         .channel(channelName)
         .on(
             'postgres_changes',
             {
-                event: 'UPDATE',
+                event: '*',  // 監聽所有事件 (INSERT/UPDATE/DELETE)
                 schema: 'public',
-                table: "Gomoku's rooms",
-                filter: `id=eq.${OnlineState.roomUuid}`
+                table: "Gomoku's rooms"
+                // 移除 filter，改用 client-side 過濾
             },
             (payload) => {
-                console.log('[Online] Realtime room update received:', payload.new);
-                renderRoomState(payload.new);
+                console.log('[Online] Realtime room event:', payload.eventType, payload.new?.room_code);
+
+                // Client-side 過濾：只處理我嘅房間
+                const newRoom = payload.new;
+                if (newRoom && newRoom.id === OnlineState.roomUuid) {
+                    console.log('[Online] Room update received:', newRoom);
+                    renderRoomState(newRoom);
+                }
             }
         )
         .subscribe((status) => {
             console.log('[Online] Room subscription status:', status);
+            if (status === 'SUBSCRIBED') {
+                console.log('[Online] ✅ Room subscription active');
+            } else if (status === 'CHANNEL_ERROR') {
+                console.error('[Online] ❌ Room subscription error');
+            }
         });
 }
 
@@ -584,8 +596,8 @@ function subscribeToMoves() {
         OnlineState.sbClient.removeChannel(OnlineState.movesChannel);
     }
 
-    const channelName = `moves-${OnlineState.roomUuid}`;
-    console.log('[Online] Subscribing to moves:', channelName);
+    const channelName = `gomoku-moves-${OnlineState.roomKey}`;
+    console.log('[Online] Subscribing to moves channel:', channelName);
 
     OnlineState.movesChannel = OnlineState.sbClient
         .channel(channelName)
@@ -594,21 +606,29 @@ function subscribeToMoves() {
             {
                 event: 'INSERT',
                 schema: 'public',
-                table: 'moves',
-                filter: `room_id=eq.${OnlineState.roomUuid}`
+                table: 'moves'
+                // 移除 filter，改用 client-side 過濾
             },
             (payload) => {
                 const move = payload.new;
-                console.log('[Online] Realtime move received:', move);
+                console.log('[Online] Realtime move event:', move);
 
-                // 只處理對手嘅落子 (自己嘅已經喺 input.js 處理咗)
-                if (move.color !== OnlineState.playerRole) {
-                    applyMoveToBoard(move.x, move.y, move.color);
+                // Client-side 過濾：只處理我嘅房間嘅落子
+                if (move && move.room_id === OnlineState.roomUuid) {
+                    console.log('[Online] Move received for my room:', move);
+
+                    // 只處理對手嘅落子 (自己嘅已經喺 input.js 處理咧)
+                    if (move.color !== OnlineState.playerRole) {
+                        applyMoveToBoard(move.x, move.y, move.color);
+                    }
                 }
             }
         )
         .subscribe((status) => {
             console.log('[Online] Moves subscription status:', status);
+            if (status === 'SUBSCRIBED') {
+                console.log('[Online] ✅ Moves subscription active');
+            }
         });
 }
 
