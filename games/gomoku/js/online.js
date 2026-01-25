@@ -443,6 +443,16 @@ async function checkTimeout(room) {
     const deadline = new Date(room.turn_deadline_at).getTime();
     const now = Date.now();
 
+    // === GRACE PERIOD: Prevent immediate timeout on game start ===
+    // If deadline was set less than 5 seconds ago, don't claim timeout yet
+    // This protects against Realtime sync delays
+    const deadlineSetAt = deadline - 30 * 1000; // Assume 30s timer was set
+    const timeSinceDeadlineSet = now - deadlineSetAt;
+    if (timeSinceDeadlineSet < 5000) {
+        console.log('[checkTimeout] GRACE PERIOD: Only', Math.round(timeSinceDeadlineSet / 1000), 's since timer set. Skipping timeout check.');
+        return;
+    }
+
     if (now > deadline) {
         // Timeout!
         // Rule: The player waiting for move claims the win.
