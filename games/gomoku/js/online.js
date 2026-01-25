@@ -735,11 +735,13 @@ function exitFixedRoom() {
 
 document.addEventListener('DOMContentLoaded', () => {
     const originalHandleClick = window.handleCellClick;
-    window.handleCellClick = function (row, col) {
+    window.handleCellClick = function (row, col, difficulty) {
+        // CRITICAL: Only route to online logic if mode === 'online'
+        // Otherwise use original logic (AI/offline mode)
         if (mode === 'online') {
             window.handleOnlineMove(row, col);
         } else if (originalHandleClick) {
-            originalHandleClick(row, col);
+            originalHandleClick(row, col, difficulty);
         }
     };
 
