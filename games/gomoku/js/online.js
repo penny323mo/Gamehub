@@ -260,8 +260,17 @@ function enterRoom(room, role) {
     // Hotfix 1: Immediately lock board preventively
     setBoardInteractivity(true);
 
+    // CRITICAL: Apply state BEFORE render to update gameStatus global
+    applyRoomState(room);
+
     // Initial Render
     renderRoomState(room);
+
+    // If already playing, ensure full game setup (Timer, board input, etc)
+    if (room.status === 'playing' || room.status === 'paused') {
+        console.log('[enterRoom] Game already active, calling ensureGameStarted');
+        ensureGameStarted(room);
+    }
 
     // Subscribe for updates
     subscribeToRoom();
