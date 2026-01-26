@@ -453,14 +453,18 @@ function getMoveCount() {
 // === Realtime 訂閱 ===
 
 function subscribeToRoom() {
-    if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+    if (!OnlineState.sbClient || !OnlineState.roomUuid) {
+        console.error('[RT-ROOM] Cannot subscribe - missing client or roomUuid');
+        return;
+    }
 
     if (OnlineState.roomChannel) {
+        console.log('[RT-ROOM] Removing old channel');
         OnlineState.sbClient.removeChannel(OnlineState.roomChannel);
     }
 
-    const channelName = `gomoku-room-${OnlineState.roomUuid}`;
-    console.log('[Online] Subscribing to room:', channelName);
+    const channelName = `room-${OnlineState.roomUuid}`;
+    console.log('[RT-ROOM] Subscribing to:', channelName, 'roomUuid:', OnlineState.roomUuid);
 
     OnlineState.roomChannel = OnlineState.sbClient
         .channel(channelName)
@@ -469,31 +473,50 @@ function subscribeToRoom() {
             {
                 event: '*',
                 schema: 'public',
-                table: 'gomoku_rooms'
+                table: 'gomoku_rooms',
+                filter: `id=eq.${OnlineState.roomUuid}`
             },
             (payload) => {
-                console.log('[Online] Realtime room event:', payload.eventType);
+                console.log('[RT-ROOM] ★ EVENT RECEIVED ★', payload.eventType);
+                console.log('[RT-ROOM] Payload:', JSON.stringify({
+                    id: payload.new?.id,
+                    status: payload.new?.status,
+                    current_player: payload.new?.current_player,
+                    black_ready: payload.new?.black_ready,
+                    white_ready: payload.new?.white_ready,
+                    black_player_id: payload.new?.black_player_id ? 'set' : null,
+                    white_player_id: payload.new?.white_player_id ? 'set' : null
+                }));
+
                 const newRoom = payload.new;
-                if (newRoom && newRoom.id === OnlineState.roomUuid) {
-                    console.log('[Online] Room update from Realtime:', newRoom.status, newRoom.current_player);
+                if (newRoom) {
+                    console.log('[RT-ROOM] Calling renderRoomState...');
                     renderRoomState(newRoom);
                 }
             }
         )
-        .subscribe((status) => {
-            console.log('[Online] Room subscription:', status);
+        .subscribe((status, err) => {
+            console.log('[RT-ROOM] Subscription status:', status);
+            if (err) console.error('[RT-ROOM] Subscription error:', err);
+            if (status === 'SUBSCRIBED') {
+                console.log('[RT-ROOM] ✅ Successfully subscribed to room updates');
+            }
         });
 }
 
 function subscribeToMoves() {
-    if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+    if (!OnlineState.sbClient || !OnlineState.roomUuid) {
+        console.error('[RT-MOVES] Cannot subscribe - missing client or roomUuid');
+        return;
+    }
 
     if (OnlineState.movesChannel) {
+        console.log('[RT-MOVES] Removing old channel');
         OnlineState.sbClient.removeChannel(OnlineState.movesChannel);
     }
 
-    const channelName = `gomoku-moves-${OnlineState.roomUuid}`;
-    console.log('[Online] Subscribing to moves:', channelName);
+    const channelName = `moves-${OnlineState.roomUuid}`;
+    console.log('[RT-MOVES] Subscribing to:', channelName, 'roomUuid:', OnlineState.roomUuid);
 
     OnlineState.movesChannel = OnlineState.sbClient
         .channel(channelName)
@@ -502,44 +525,67 @@ function subscribeToMoves() {
             {
                 event: 'INSERT',
                 schema: 'public',
-                table: 'moves'
+                table: 'moves',
+                filter: `room_id=eq.${OnlineState.roomUuid}`
             },
             (payload) => {
                 const move = payload.new;
-                console.log('[Online] Realtime move:', move);
+                console.log('[RT-MOVES] ★ MOVE RECEIVED ★', JSON.stringify({
+                    room_id: move?.room_id,
+                    x: move?.x,
+                    y: move?.y,
+                    color: move?.color,
+                    move_no: move?.move_no
+                }));
 
-                // 只處理我房間嘅 + 對手嘅落子
-                if (move && move.room_id === OnlineState.roomUuid && move.color !== OnlineState.playerRole) {
-                    console.log('[Online] Applying opponent move:', move.x, move.y, move.color);
+                if (move && move.color !== OnlineState.playerRole) {
+                    console.log('[RT-MOVES] Applying opponent move:', move.x, move.y, move.color);
                     applyMoveToBoard(move.x, move.y, move.color);
+                } else {
+                    console.log('[RT-MOVES] Skipping own move');
                 }
             }
         )
-        .subscribe((status) => {
-            console.log('[Online] Moves subscription:', status);
+        .subscribe((status, err) => {
+            console.log('[RT-MOVES] Subscription status:', status);
+            if (err) console.error('[RT-MOVES] Subscription error:', err);
+            if (status === 'SUBSCRIBED') {
+                console.log('[RT-MOVES] ✅ Successfully subscribed to move updates');
+            }
         });
 }
 
 // === 應用落子到棋盤 ===
 
 function applyMoveToBoard(row, col, color) {
+    console.log('[BOARD] applyMoveToBoard called:', row, col, color);
+
+    // 確保 board 存在
     if (!window.board) {
+        console.log('[BOARD] Initializing board...');
         window.board = [];
         for (let i = 0; i < 15; i++) {
             window.board.push(new Array(15).fill(null));
         }
     }
 
-    if (window.board[row][col] === null) {
+    // 檢查 cell 值 (用 == null 兼容 null 和 undefined)
+    const currentCell = window.board[row]?.[col];
+    console.log('[BOARD] Current cell value:', currentCell, '(type:', typeof currentCell, ')');
+
+    if (currentCell == null || currentCell === '' || currentCell === 0) {
         window.board[row][col] = color;
         placeStoneUI(row, col, color);
-        console.log('[Online] Applied move to board:', row, col, color);
+        console.log('[BOARD] ✅ Stone placed at', row, col, 'color:', color);
 
         const win = checkWin(row, col, color);
         if (win) {
+            console.log('[BOARD] Winner detected:', color);
             setGameOver(true);
             updateWinUI(color);
         }
+    } else {
+        console.log('[BOARD] ⚠️ Cell NOT empty, skipping. Value:', currentCell);
     }
 }
 
@@ -548,7 +594,7 @@ function applyMoveToBoard(row, col, color) {
 async function fetchAndApplyMoves() {
     if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
 
-    console.log('[Online] Fetching existing moves...');
+    console.log('[FETCH] Fetching existing moves for room:', OnlineState.roomUuid);
 
     const { data: moves, error } = await OnlineState.sbClient
         .from('moves')
@@ -557,20 +603,23 @@ async function fetchAndApplyMoves() {
         .order('move_no', { ascending: true });
 
     if (error) {
-        console.error('[Online] fetchAndApplyMoves error:', error);
+        console.error('[FETCH] Error:', error);
         return;
     }
 
-    console.log('[Online] Found', moves?.length || 0, 'moves');
+    console.log('[FETCH] Found', moves?.length || 0, 'moves');
 
     resetGameState();
     createBoardUI((r, c) => handleCellClick(r, c));
 
     if (moves && moves.length > 0) {
         for (const move of moves) {
-            if (window.board[move.x][move.y] === null) {
+            const currentCell = window.board[move.x]?.[move.y];
+            // 用 == null 兼容 null 和 undefined
+            if (currentCell == null || currentCell === '' || currentCell === 0) {
                 window.board[move.x][move.y] = move.color;
                 placeStoneUI(move.x, move.y, move.color);
+                console.log('[FETCH] Applied move:', move.x, move.y, move.color);
             }
         }
     }
