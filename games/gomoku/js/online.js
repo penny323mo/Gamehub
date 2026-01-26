@@ -148,9 +148,10 @@ async function joinFixedRoom(roomKey) {
         return;
     }
 
-    // 2. 決定角色
+    // 2. 決定角色 + 設置超時計時欄位
     let role = null;
     let updateData = { last_activity_at: new Date().toISOString() };
+    const now = new Date().toISOString();
 
     if (room.black_player_id === OnlineState.clientId) {
         role = 'black';
@@ -159,9 +160,20 @@ async function joinFixedRoom(roomKey) {
     } else if (!room.black_player_id) {
         role = 'black';
         updateData.black_player_id = OnlineState.clientId;
+        // 第一個人入房：設置 waiting_since
+        if (!room.white_player_id) {
+            updateData.waiting_since = now;
+        } else {
+            // 第二個人入房：設置 both_present_since，清空 waiting_since
+            updateData.both_present_since = now;
+            updateData.waiting_since = null;
+        }
     } else if (!room.white_player_id) {
         role = 'white';
         updateData.white_player_id = OnlineState.clientId;
+        // 第二個人入房：設置 both_present_since，清空 waiting_since
+        updateData.both_present_since = now;
+        updateData.waiting_since = null;
     } else {
         alert('房間已滿');
         return;
@@ -350,7 +362,10 @@ async function toggleReady() {
 
     const { error } = await OnlineState.sbClient
         .from('gomoku_rooms')
-        .update({ [myReadyField]: newReady })
+        .update({
+            [myReadyField]: newReady,
+            both_present_since: null  // 有人 ready 就取消 5 分鐘清場計時
+        })
         .eq('id', OnlineState.roomUuid);
 
     if (error) {
@@ -587,9 +602,20 @@ async function exitFixedRoom() {
         updateData.winner_color = OnlineState.playerRole === 'black' ? 'white' : 'black';
         updateData.finished_reason = 'opponent_left';
         updateData.finished_at = new Date().toISOString();
+        updateData.waiting_since = null;
+        updateData.both_present_since = null;
     } else if (room?.status === 'waiting') {
         // waiting 狀態離開 → 確保復位
         updateData.current_player = null;
+        updateData.both_present_since = null;
+        // 如果另一邊仲有人，重新設置 waiting_since
+        const otherStillHere = (OnlineState.playerRole === 'black' && room.white_player_id) ||
+            (OnlineState.playerRole === 'white' && room.black_player_id);
+        if (otherStillHere) {
+            updateData.waiting_since = new Date().toISOString();
+        } else {
+            updateData.waiting_since = null;
+        }
     }
 
     await OnlineState.sbClient
