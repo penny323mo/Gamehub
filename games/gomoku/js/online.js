@@ -1,11 +1,11 @@
 /**
- * Gomoku Online Mode - DB-Driven 架構
+ * Gomoku Online Mode - DB-Driven V2
  * 
- * 核心原則：
- * 1. Client 只做輸入器：join/leave/ready/move
- * 2. Client 禁止 UPDATE game 狀態 (current_player/status/deadline)
- * 3. DB Trigger 處理所有狀態轉換
- * 4. UI 完全由 Realtime payload 驅動
+ * 核心修正：
+ * 1. 統一用 core.js 嘅 board（透過 setBoard/board）
+ * 2. 自己落子也經 Realtime pipeline（避免各玩各）
+ * 3. Heartbeat + Stale 清理（避免幽靈玩家）
+ * 4. 詳細 console log
  */
 
 // === Supabase Config ===
@@ -24,13 +24,14 @@ const OnlineState = {
     roomChannel: null,
     movesChannel: null,
     clientId: null,
-    timerInterval: null
+    timerInterval: null,
+    heartbeatInterval: null,
+    appliedMoveIds: new Set()  // 已應用嘅 move IDs（避免重複）
 };
 
 // === 初始化 ===
 
 function initOnlineMode() {
-    // 生成/讀取 clientId
     OnlineState.clientId = localStorage.getItem('gomoku_clientId');
     if (!OnlineState.clientId) {
         OnlineState.clientId = crypto.randomUUID();
@@ -38,7 +39,6 @@ function initOnlineMode() {
     }
     console.log('[Online] ClientId:', OnlineState.clientId);
 
-    // 初始化 Supabase
     if (window.supabase) {
         OnlineState.sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY.trim(), {
             auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }
@@ -57,17 +57,25 @@ function initOnlineMode() {
     window.resetFixedRoom = resetFixedRoom;
     window.handleOnlineMove = handleOnlineMove;
 
+    // 頁面關閉時嘗試退出
+    window.addEventListener('beforeunload', () => {
+        if (OnlineState.roomUuid) exitFixedRoom();
+    });
+
     fetchLobbyRooms();
 }
 
-// === Lobby: 讀取房間狀態 ===
+// === Lobby ===
 
 async function fetchLobbyRooms() {
     if (!OnlineState.sbClient) return;
 
+    // 先清理 stale rooms (超過 2 分鐘無活動)
+    await cleanStaleRooms();
+
     const { data: rooms, error } = await OnlineState.sbClient
         .from('gomoku_rooms')
-        .select('room_code, black_player_id, white_player_id, status')
+        .select('room_code, black_player_id, white_player_id, status, last_activity_at')
         .in('room_code', FIXED_ROOMS);
 
     if (error) {
@@ -79,6 +87,28 @@ async function fetchLobbyRooms() {
         const room = rooms?.find(r => r.room_code === key);
         updateRoomCardUI(key, room);
     });
+}
+
+async function cleanStaleRooms() {
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+
+    const { data, error } = await OnlineState.sbClient
+        .from('gomoku_rooms')
+        .update({
+            black_player_id: null,
+            white_player_id: null,
+            black_ready: false,
+            white_ready: false,
+            status: 'waiting',
+            current_player: null
+        })
+        .eq('status', 'waiting')
+        .lt('last_activity_at', twoMinutesAgo)
+        .select();
+
+    if (data?.length > 0) {
+        console.log('[Stale] Cleaned', data.length, 'stale rooms');
+    }
 }
 
 function updateRoomCardUI(roomKey, room) {
@@ -104,7 +134,7 @@ function updateRoomCardUI(roomKey, room) {
     joinBtn.textContent = amIIn ? '返回' : isFull ? '已滿' : '加入';
 }
 
-// === 加入房間 (只 UPDATE player_id) ===
+// === 加入房間 ===
 
 async function joinFixedRoom(roomKey) {
     if (!OnlineState.sbClient) return;
@@ -122,7 +152,7 @@ async function joinFixedRoom(roomKey) {
         return;
     }
 
-    // 2. 決定角色 + UPDATE player_id (只更新座位，唔更新其他狀態)
+    // 2. 決定角色
     let role = null;
     let updateData = { last_activity_at: new Date().toISOString() };
 
@@ -141,7 +171,7 @@ async function joinFixedRoom(roomKey) {
         return;
     }
 
-    // 3. 寫入 DB (只更新 player_id)
+    // 3. 寫入 DB
     if (updateData.black_player_id || updateData.white_player_id) {
         const { data: updated, error: updateErr } = await OnlineState.sbClient
             .from('gomoku_rooms')
@@ -157,38 +187,64 @@ async function joinFixedRoom(roomKey) {
         Object.assign(room, updated);
     }
 
-    // 4. 設置本地狀態
+    // 4. 設置狀態
     OnlineState.roomKey = roomKey;
     OnlineState.roomUuid = room.id;
     OnlineState.playerRole = role;
+    OnlineState.appliedMoveIds.clear();
     console.log('[Join] Joined as:', role, 'UUID:', room.id);
 
-    // 5. 訂閱 Realtime
+    // 5. 進入房間 UI
+    enterRoomView(room);
+
+    // 6. 訂閱 Realtime（先訂閱，再 fetch）
     subscribeToRoom();
     subscribeToMoves();
-
-    // 6. 進入房間 UI
-    enterRoomView(room);
 
     // 7. 如果已在 playing，拉取現有棋子
     if (room.status === 'playing') {
         await fetchAndApplyMoves();
     }
-}
 
-// === 進入房間視圖 ===
+    // 8. 啟動 heartbeat
+    startHeartbeat();
+}
 
 function enterRoomView(room) {
     setMode('online');
     setIsVsAI(false);
     showView('online-room');
 
+    // 重置棋盤（用 core.js 嘅 resetGameState）
     resetGameState();
     createBoardUI((r, c) => handleCellClick(r, c));
     renderRoomState(room);
 }
 
-// === 渲染房間狀態 (由 Realtime 驅動) ===
+// === Heartbeat（每 10 秒更新 last_activity_at）===
+
+function startHeartbeat() {
+    stopHeartbeat();
+    OnlineState.heartbeatInterval = setInterval(async () => {
+        if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+
+        await OnlineState.sbClient
+            .from('gomoku_rooms')
+            .update({ last_activity_at: new Date().toISOString() })
+            .eq('id', OnlineState.roomUuid);
+
+        console.log('[Heartbeat] Updated');
+    }, 10000);
+}
+
+function stopHeartbeat() {
+    if (OnlineState.heartbeatInterval) {
+        clearInterval(OnlineState.heartbeatInterval);
+        OnlineState.heartbeatInterval = null;
+    }
+}
+
+// === 渲染房間狀態 ===
 
 function renderRoomState(room) {
     if (!room) return;
@@ -197,13 +253,11 @@ function renderRoomState(room) {
     window.currentRoom = room;
     window.isGameReady = room.status === 'playing';
 
-    // 房間號 + 身份
     const roomIdEl = document.getElementById('current-room-id');
     const roleEl = document.getElementById('my-role');
     if (roomIdEl) roomIdEl.textContent = OnlineState.roomKey;
     if (roleEl) roleEl.textContent = OnlineState.playerRole === 'black' ? '⚫黑' : '⚪白';
 
-    // 等待對手
     const waitingEl = document.getElementById('waiting-msg');
     const hasOpponent = room.black_player_id && room.white_player_id;
     if (waitingEl) {
@@ -231,18 +285,15 @@ function renderRoomState(room) {
         if (readyArea) readyArea.classList.add('hidden');
     }
 
-    // 棋盤鎖定
     const canvas = document.getElementById('gomoku-board');
     if (canvas) canvas.style.pointerEvents = room.status === 'playing' ? 'auto' : 'none';
 
-    // 控制區
     const controls = document.getElementById('online-controls');
     if (controls) controls.classList.toggle('hidden', room.status !== 'playing');
 
     const gameOverActions = document.getElementById('game-over-actions');
     if (gameOverActions) gameOverActions.classList.toggle('hidden', room.status !== 'finished');
 
-    // 回合顯示
     if (room.status === 'playing') {
         setCurrentPlayer(room.current_player || 'black');
         updateStatusUI(room.current_player);
@@ -253,13 +304,12 @@ function renderRoomState(room) {
     }
 }
 
-// === Ready (只 UPDATE ready flag，DB trigger 處理開始) ===
+// === Ready ===
 
 async function toggleReady() {
     if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
     console.log('[Ready] Toggle ready');
 
-    // 1. 讀取 current state
     const { data: room } = await OnlineState.sbClient
         .from('gomoku_rooms')
         .select('*')
@@ -271,7 +321,6 @@ async function toggleReady() {
         return;
     }
 
-    // 2. 只 UPDATE ready flag (DB trigger 會處理開始)
     const myReadyField = OnlineState.playerRole === 'black' ? 'black_ready' : 'white_ready';
     const newReady = !room[myReadyField];
 
@@ -286,25 +335,43 @@ async function toggleReady() {
         console.error('[Ready] Error:', error);
         alert('更新失敗');
     }
-    // 唔再本地更新 UI，等 Realtime 推
 }
 
-// === 落子 (只 INSERT moves，DB trigger 處理回合切換) ===
+// === 落子（只 INSERT moves，唔直接畫棋）===
 
 async function handleOnlineMove(row, col, isWin, winner) {
     if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
-    console.log('[Move] Insert:', row, col, OnlineState.playerRole);
 
-    // 只 INSERT moves，DB trigger 會處理 current_player 切換
-    const { error } = await OnlineState.sbClient
+    const room = window.currentRoom;
+    if (!room || room.status !== 'playing') {
+        console.log('[Move] Not in playing state');
+        return;
+    }
+
+    if (room.current_player !== OnlineState.playerRole) {
+        console.log('[Move] Not my turn');
+        alert('唔係你嘅回合！');
+        return;
+    }
+
+    console.log('[Move] INSERT:', row, col, OnlineState.playerRole);
+
+    // 計算 move_no
+    const moveNo = OnlineState.appliedMoveIds.size + 1;
+
+    // 只 INSERT moves，DB trigger 處理回合切換
+    // UI 更新由 Realtime 推動（包括自己嘅棋）
+    const { data, error } = await OnlineState.sbClient
         .from('moves')
         .insert([{
             room_id: OnlineState.roomUuid,
             x: row,
             y: col,
             color: OnlineState.playerRole,
-            move_no: getMoveCount()
-        }]);
+            move_no: moveNo
+        }])
+        .select()
+        .single();
 
     if (error) {
         console.error('[Move] Error:', error);
@@ -316,7 +383,9 @@ async function handleOnlineMove(row, col, isWin, winner) {
         return;
     }
 
-    // 如果贏咗，UPDATE status=finished (這個由前端判斷)
+    console.log('[Move] Inserted successfully, move_id:', data?.id);
+
+    // 如果贏咗，UPDATE rooms
     if (isWin) {
         await OnlineState.sbClient
             .from('gomoku_rooms')
@@ -330,17 +399,6 @@ async function handleOnlineMove(row, col, isWin, winner) {
     }
 }
 
-function getMoveCount() {
-    if (!window.board) return 0;
-    let count = 0;
-    for (let r = 0; r < 15; r++) {
-        for (let c = 0; c < 15; c++) {
-            if (window.board[r]?.[c]) count++;
-        }
-    }
-    return count;
-}
-
 // === Realtime 訂閱 ===
 
 function subscribeToRoom() {
@@ -351,7 +409,7 @@ function subscribeToRoom() {
     }
 
     const channelName = `room-${OnlineState.roomUuid}`;
-    console.log('[RT] Subscribing room:', channelName);
+    console.log('[RT-ROOM] Subscribing:', channelName);
 
     OnlineState.roomChannel = OnlineState.sbClient
         .channel(channelName)
@@ -361,12 +419,20 @@ function subscribeToRoom() {
             table: 'gomoku_rooms',
             filter: `id=eq.${OnlineState.roomUuid}`
         }, (payload) => {
-            console.log('[RT] Room event:', payload.eventType, payload.new?.status);
+            console.log('[RT-ROOM] Event:', payload.eventType, JSON.stringify({
+                status: payload.new?.status,
+                current: payload.new?.current_player,
+                br: payload.new?.black_ready,
+                wr: payload.new?.white_ready
+            }));
             if (payload.new) renderRoomState(payload.new);
         })
         .subscribe((status, err) => {
-            console.log('[RT] Room subscription:', status);
-            if (err) console.error('[RT] Error:', err);
+            console.log('[RT-ROOM] Status:', status);
+            if (err) console.error('[RT-ROOM] Error:', err);
+            if (status === 'SUBSCRIBED') {
+                console.log('[RT-ROOM] ✓ Subscribed');
+            }
         });
 }
 
@@ -378,7 +444,7 @@ function subscribeToMoves() {
     }
 
     const channelName = `moves-${OnlineState.roomUuid}`;
-    console.log('[RT] Subscribing moves:', channelName);
+    console.log('[RT-MOVES] Subscribing:', channelName);
 
     OnlineState.movesChannel = OnlineState.sbClient
         .channel(channelName)
@@ -389,34 +455,58 @@ function subscribeToMoves() {
             filter: `room_id=eq.${OnlineState.roomUuid}`
         }, (payload) => {
             const move = payload.new;
-            console.log('[RT] Move:', move?.x, move?.y, move?.color);
-            if (move && move.color !== OnlineState.playerRole) {
-                applyMoveToBoard(move.x, move.y, move.color);
+            console.log('[RT-MOVES] Event:', JSON.stringify({ id: move?.id, x: move?.x, y: move?.y, color: move?.color, move_no: move?.move_no }));
+
+            if (move && move.id) {
+                // 用 move.id 去重，避免重複落子
+                if (!OnlineState.appliedMoveIds.has(move.id)) {
+                    console.log('[RT-MOVES] Applying move:', move.x, move.y, move.color);
+                    applyMoveToBoard(move.x, move.y, move.color, move.id);
+                } else {
+                    console.log('[RT-MOVES] Skipping duplicate:', move.id);
+                }
             }
         })
         .subscribe((status, err) => {
-            console.log('[RT] Moves subscription:', status);
-            if (err) console.error('[RT] Error:', err);
+            console.log('[RT-MOVES] Status:', status);
+            if (err) console.error('[RT-MOVES] Error:', err);
+            if (status === 'SUBSCRIBED') {
+                console.log('[RT-MOVES] ✓ Subscribed');
+            }
         });
 }
 
-// === 應用落子到棋盤 ===
+// === 應用落子到棋盤（統一入口）===
 
-function applyMoveToBoard(row, col, color) {
-    if (!window.board) {
-        window.board = [];
-        for (let i = 0; i < 15; i++) window.board.push(new Array(15).fill(null));
+function applyMoveToBoard(row, col, color, moveId) {
+    // 記錄已應用嘅 move
+    if (moveId) {
+        OnlineState.appliedMoveIds.add(moveId);
     }
 
-    if (window.board[row]?.[col] == null) {
-        window.board[row][col] = color;
+    // 確保 board 已初始化（用 core.js 嘅 board）
+    // resetGameState() 會初始化 board
+    if (!board || board.length === 0) {
+        console.warn('[Board] Board not initialized, initializing...');
+        resetGameState();
+    }
+
+    // 檢查格子是否為空
+    const currentValue = board[row]?.[col];
+    console.log('[Board] Cell [', row, ',', col, '] current:', currentValue, 'placing:', color);
+
+    if (currentValue == null) {
+        board[row][col] = color;
         placeStoneUI(row, col, color);
-        console.log('[Board] Applied:', row, col, color);
+        console.log('[Board] ✓ Placed:', row, col, color);
 
         if (checkWin(row, col, color)) {
+            console.log('[Board] Winner:', color);
             setGameOver(true);
             updateWinUI(color);
         }
+    } else {
+        console.log('[Board] ✗ Cell not empty, skipping');
     }
 }
 
@@ -425,25 +515,30 @@ function applyMoveToBoard(row, col, color) {
 async function fetchAndApplyMoves() {
     if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
 
-    const { data: moves } = await OnlineState.sbClient
+    const { data: moves, error } = await OnlineState.sbClient
         .from('moves')
         .select('*')
         .eq('room_id', OnlineState.roomUuid)
         .order('move_no', { ascending: true });
 
-    console.log('[Fetch] Moves:', moves?.length || 0);
+    console.log('[Fetch] Moves count:', moves?.length || 0);
+
+    if (error) {
+        console.error('[Fetch] Error:', error);
+        return;
+    }
 
     if (moves) {
         for (const m of moves) {
-            if (window.board[m.x]?.[m.y] == null) {
-                window.board[m.x][m.y] = m.color;
-                placeStoneUI(m.x, m.y, m.color);
+            if (!OnlineState.appliedMoveIds.has(m.id)) {
+                console.log('[Fetch] Applying:', m.x, m.y, m.color, 'id:', m.id);
+                applyMoveToBoard(m.x, m.y, m.color, m.id);
             }
         }
     }
 }
 
-// === 退出房間 (只 UPDATE player_id = null) ===
+// === 退出房間 ===
 
 async function exitFixedRoom() {
     if (!OnlineState.sbClient || !OnlineState.roomUuid) {
@@ -452,8 +547,8 @@ async function exitFixedRoom() {
     }
 
     console.log('[Leave] Exiting...');
+    stopHeartbeat();
 
-    // 只清除自己嘅 player_id
     const updateData = { last_activity_at: new Date().toISOString() };
     if (OnlineState.playerRole === 'black') {
         updateData.black_player_id = null;
@@ -463,7 +558,6 @@ async function exitFixedRoom() {
         updateData.white_ready = false;
     }
 
-    // 如果喺 playing，對手獲勝
     const room = window.currentRoom;
     if (room?.status === 'playing') {
         updateData.status = 'finished';
@@ -480,15 +574,18 @@ async function exitFixedRoom() {
 }
 
 function cleanupAndReturnToLobby() {
+    stopHeartbeat();
+    stopClientTimer();
+
     if (OnlineState.roomChannel) OnlineState.sbClient?.removeChannel(OnlineState.roomChannel);
     if (OnlineState.movesChannel) OnlineState.sbClient?.removeChannel(OnlineState.movesChannel);
 
-    stopClientTimer();
     OnlineState.roomKey = null;
     OnlineState.roomUuid = null;
     OnlineState.playerRole = null;
     OnlineState.roomChannel = null;
     OnlineState.movesChannel = null;
+    OnlineState.appliedMoveIds.clear();
     window.currentRoom = null;
     window.isGameReady = false;
 
@@ -531,9 +628,8 @@ function updateTimerUI(sec) {
 async function handleTimeout() {
     const room = window.currentRoom;
     if (!room || room.status !== 'playing') return;
-    if (room.current_player === OnlineState.playerRole) return; // 我超時，唔做野
+    if (room.current_player === OnlineState.playerRole) return;
 
-    // 對手超時，我獲勝
     await OnlineState.sbClient
         .from('gomoku_rooms')
         .update({
@@ -550,6 +646,12 @@ async function handleTimeout() {
 async function rematchGame() {
     if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
 
+    // 清空 moves
+    await OnlineState.sbClient
+        .from('moves')
+        .delete()
+        .eq('room_id', OnlineState.roomUuid);
+
     await OnlineState.sbClient
         .from('gomoku_rooms')
         .update({
@@ -563,6 +665,7 @@ async function rematchGame() {
         })
         .eq('id', OnlineState.roomUuid);
 
+    OnlineState.appliedMoveIds.clear();
     resetGameState();
     createBoardUI((r, c) => handleCellClick(r, c));
     setGameOver(false);
@@ -571,6 +674,11 @@ async function rematchGame() {
 async function resetFixedRoom() {
     if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
     if (!confirm('確定重置房間？')) return;
+
+    await OnlineState.sbClient
+        .from('moves')
+        .delete()
+        .eq('room_id', OnlineState.roomUuid);
 
     await OnlineState.sbClient
         .from('gomoku_rooms')
@@ -586,11 +694,6 @@ async function resetFixedRoom() {
             finished_reason: null
         })
         .eq('id', OnlineState.roomUuid);
-
-    await OnlineState.sbClient
-        .from('moves')
-        .delete()
-        .eq('room_id', OnlineState.roomUuid);
 
     cleanupAndReturnToLobby();
 }
