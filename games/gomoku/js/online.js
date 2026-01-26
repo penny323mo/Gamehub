@@ -172,6 +172,7 @@ async function joinFixedRoom(roomKey) {
     if (room.black_player_id === OnlineState.clientId) {
         // Rejoin：已經係黑方
         role = 'black';
+        updateData.black_last_seen_at = now;  // Per-seat heartbeat
         // 補寫 timestamp（如果係 null）
         if (hasWhite && !room.both_present_since) {
             updateData.both_present_since = now;
@@ -182,6 +183,7 @@ async function joinFixedRoom(roomKey) {
     } else if (room.white_player_id === OnlineState.clientId) {
         // Rejoin：已經係白方
         role = 'white';
+        updateData.white_last_seen_at = now;  // Per-seat heartbeat
         // 補寫 timestamp（如果係 null）
         if (hasBlack && !room.both_present_since) {
             updateData.both_present_since = now;
@@ -192,6 +194,7 @@ async function joinFixedRoom(roomKey) {
     } else if (!room.black_player_id) {
         role = 'black';
         updateData.black_player_id = OnlineState.clientId;
+        updateData.black_last_seen_at = now;  // Per-seat heartbeat
         conditionField = 'black_player_id';  // 條件 update：確保仍然係 null
         // 第一個人入房：設置 waiting_since
         if (!room.white_player_id) {
@@ -204,6 +207,7 @@ async function joinFixedRoom(roomKey) {
     } else if (!room.white_player_id) {
         role = 'white';
         updateData.white_player_id = OnlineState.clientId;
+        updateData.white_last_seen_at = now;  // Per-seat heartbeat
         conditionField = 'white_player_id';  // 條件 update：確保仍然係 null
         // 第二個人入房：設置 both_present_since，清空 waiting_since
         updateData.both_present_since = now;
@@ -291,20 +295,25 @@ function hardResetBoard() {
     console.log('[Board] Hard reset complete');
 }
 
-// === Heartbeat（每 10 秒更新 last_activity_at）===
+// === Heartbeat（每 10 秒更新 per-seat seen_at）===
 
 function startHeartbeat() {
     stopHeartbeat();
     OnlineState.heartbeatInterval = setInterval(async () => {
-        if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+        if (!OnlineState.sbClient || !OnlineState.roomUuid || !OnlineState.playerRole) return;
+
+        // Per-seat heartbeat：只更新自己嘅 seen_at 欄位
+        const updateField = OnlineState.playerRole === 'black'
+            ? 'black_last_seen_at'
+            : 'white_last_seen_at';
 
         await OnlineState.sbClient
             .from('gomoku_rooms')
-            .update({ last_activity_at: new Date().toISOString() })
+            .update({ [updateField]: new Date().toISOString() })
             .eq('id', OnlineState.roomUuid);
 
-        console.log('[Heartbeat] Updated');
-    }, 10000);
+        console.log('[Heartbeat] Updated', updateField);
+    }, 30000);  // 30 秒一次，減少 DB writes
 }
 
 function stopHeartbeat() {
