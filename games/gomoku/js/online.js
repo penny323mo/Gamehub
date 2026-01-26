@@ -70,8 +70,8 @@ function initOnlineMode() {
 async function fetchLobbyRooms() {
     if (!OnlineState.sbClient) return;
 
-    // 先清理 stale rooms (超過 2 分鐘無活動)
-    await cleanStaleRooms();
+    // 呼叫 RPC 清理過期房間（server-side）
+    await cleanStaleRoomsRPC();
 
     const { data: rooms, error } = await OnlineState.sbClient
         .from('gomoku_rooms')
@@ -89,25 +89,17 @@ async function fetchLobbyRooms() {
     });
 }
 
-async function cleanStaleRooms() {
-    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+// 呼叫 server-side RPC 清理過期房間
+async function cleanStaleRoomsRPC() {
+    if (!OnlineState.sbClient) return;
 
-    const { data, error } = await OnlineState.sbClient
-        .from('gomoku_rooms')
-        .update({
-            black_player_id: null,
-            white_player_id: null,
-            black_ready: false,
-            white_ready: false,
-            status: 'waiting',
-            current_player: null
-        })
-        .eq('status', 'waiting')
-        .lt('last_activity_at', twoMinutesAgo)
-        .select();
-
-    if (data?.length > 0) {
-        console.log('[Stale] Cleaned', data.length, 'stale rooms');
+    try {
+        const { data, error } = await OnlineState.sbClient.rpc('clean_stale_gomoku_rooms');
+        if (data?.cleaned > 0) {
+            console.log('[Stale] RPC cleaned', data.cleaned, 'rooms');
+        }
+    } catch (e) {
+        console.log('[Stale] RPC error (non-fatal):', e.message);
     }
 }
 
@@ -139,6 +131,9 @@ function updateRoomCardUI(roomKey, room) {
 async function joinFixedRoom(roomKey) {
     if (!OnlineState.sbClient) return;
     console.log('[Join] Joining:', roomKey);
+
+    // 0. 先清理過期房間
+    await cleanStaleRoomsRPC();
 
     // 1. 讀取房間
     const { data: room, error } = await OnlineState.sbClient
@@ -560,9 +555,14 @@ async function exitFixedRoom() {
 
     const room = window.currentRoom;
     if (room?.status === 'playing') {
+        // 對局中離開 = 認輸
         updateData.status = 'finished';
         updateData.winner_color = OnlineState.playerRole === 'black' ? 'white' : 'black';
         updateData.finished_reason = 'opponent_left';
+        updateData.finished_at = new Date().toISOString();
+    } else if (room?.status === 'waiting') {
+        // waiting 狀態離開 → 確保復位
+        updateData.current_player = null;
     }
 
     await OnlineState.sbClient
@@ -673,29 +673,48 @@ async function rematchGame() {
 
 async function resetFixedRoom() {
     if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
-    if (!confirm('確定重置房間？')) return;
 
-    await OnlineState.sbClient
-        .from('moves')
-        .delete()
-        .eq('room_id', OnlineState.roomUuid);
+    // 防止連續狂點
+    const resetBtn = document.getElementById('reset-room-btn');
+    if (resetBtn) {
+        if (resetBtn.disabled) return;
+        resetBtn.disabled = true;
+        resetBtn.textContent = '重置中…';
+    }
 
-    await OnlineState.sbClient
-        .from('gomoku_rooms')
-        .update({
-            status: 'waiting',
-            black_player_id: null,
-            white_player_id: null,
-            black_ready: false,
-            white_ready: false,
-            current_player: null,
-            turn_deadline_at: null,
-            winner_color: null,
-            finished_reason: null
-        })
-        .eq('id', OnlineState.roomUuid);
+    console.log('[Reset] Resetting room...');
 
-    cleanupAndReturnToLobby();
+    try {
+        await OnlineState.sbClient
+            .from('moves')
+            .delete()
+            .eq('room_id', OnlineState.roomUuid);
+
+        await OnlineState.sbClient
+            .from('gomoku_rooms')
+            .update({
+                status: 'waiting',
+                black_player_id: null,
+                white_player_id: null,
+                black_ready: false,
+                white_ready: false,
+                current_player: null,
+                turn_deadline_at: null,
+                winner_color: null,
+                finished_reason: null,
+                finished_at: null
+            })
+            .eq('id', OnlineState.roomUuid);
+
+        console.log('[Reset] Room reset complete');
+        cleanupAndReturnToLobby();
+    } catch (err) {
+        console.error('[Reset] Error:', err);
+        if (resetBtn) {
+            resetBtn.disabled = false;
+            resetBtn.textContent = '重置房間';
+        }
+    }
 }
 
 // === Expose ===
