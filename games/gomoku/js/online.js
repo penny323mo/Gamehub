@@ -362,11 +362,9 @@ async function toggleReady() {
 
     const { error } = await OnlineState.sbClient
         .from('gomoku_rooms')
-        .update({
-            [myReadyField]: newReady,
-            both_present_since: null  // 有人 ready 就取消 5 分鐘清場計時
-        })
+        .update({ [myReadyField]: newReady })
         .eq('id', OnlineState.roomUuid);
+    // 注意：唔清 both_present_since，由 RPC 用 ready/status 判斷是否踢人
 
     if (error) {
         console.error('[Ready] Error:', error);
@@ -720,7 +718,9 @@ async function rematchGame() {
             winner_color: null,
             finished_reason: null,
             finished_at: null,
-            round_id: newRoundId
+            round_id: newRoundId,
+            waiting_since: null,
+            both_present_since: null
         })
         .eq('id', OnlineState.roomUuid);
 
@@ -760,7 +760,9 @@ async function resetFixedRoom() {
                 winner_color: null,
                 finished_reason: null,
                 finished_at: null,
-                round_id: (window.currentRoom?.round_id || 0) + 1  // 觸發其他 client hardResetBoard
+                round_id: (window.currentRoom?.round_id || 0) + 1,
+                waiting_since: null,
+                both_present_since: null
             })
             .eq('id', OnlineState.roomUuid);
 
