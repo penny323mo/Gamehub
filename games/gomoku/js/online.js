@@ -26,7 +26,8 @@ const OnlineState = {
     clientId: null,
     timerInterval: null,
     heartbeatInterval: null,
-    appliedMoveIds: new Set()  // 已應用嘅 move IDs（避免重複）
+    appliedMoveIds: new Set(),  // 已應用嘅 move IDs（避免重複）
+    currentRoundId: null  // 追蹤 round_id 偵測新局
 };
 
 // === 初始化 ===
@@ -187,7 +188,8 @@ async function joinFixedRoom(roomKey) {
     OnlineState.roomUuid = room.id;
     OnlineState.playerRole = role;
     OnlineState.appliedMoveIds.clear();
-    console.log('[Join] Joined as:', role, 'UUID:', room.id);
+    OnlineState.currentRoundId = room.round_id || 0;  // 初始化 round_id
+    console.log('[Join] Joined as:', role, 'UUID:', room.id, 'round_id:', OnlineState.currentRoundId);
 
     // 5. 進入房間 UI
     enterRoomView(room);
@@ -214,6 +216,22 @@ function enterRoomView(room) {
     resetGameState();
     createBoardUI((r, c) => handleCellClick(r, c));
     renderRoomState(room);
+}
+
+// === 硬重置棋盤（round_id 變化時觸發）===
+
+function hardResetBoard() {
+    console.log('[Board] === HARD RESET ===');
+
+    // 清空已應用嘅 move IDs
+    OnlineState.appliedMoveIds.clear();
+
+    // 重置棋盤狀態
+    resetGameState();
+    createBoardUI((r, c) => handleCellClick(r, c));
+    setGameOver(false);
+
+    console.log('[Board] Hard reset complete');
 }
 
 // === Heartbeat（每 10 秒更新 last_activity_at）===
@@ -244,7 +262,16 @@ function stopHeartbeat() {
 function renderRoomState(room) {
     if (!room) return;
 
-    console.log('[Render]', { status: room.status, current: room.current_player, br: room.black_ready, wr: room.white_ready });
+    console.log('[Render]', { status: room.status, current: room.current_player, round_id: room.round_id, br: room.black_ready, wr: room.white_ready });
+
+    // 偵測 round_id 變化 = 新局開始，需要清棋盤
+    const newRoundId = room.round_id || 0;
+    if (OnlineState.currentRoundId !== null && newRoundId !== OnlineState.currentRoundId) {
+        console.log('[Render] ★ NEW ROUND DETECTED ★', OnlineState.currentRoundId, '->', newRoundId);
+        hardResetBoard();
+    }
+    OnlineState.currentRoundId = newRoundId;
+
     window.currentRoom = room;
     window.isGameReady = room.status === 'playing';
 
@@ -652,6 +679,10 @@ async function rematchGame() {
         .delete()
         .eq('room_id', OnlineState.roomUuid);
 
+    // 更新房間狀態 + round_id+1（會觸發兩邊 hardResetBoard）
+    const newRoundId = (window.currentRoom?.round_id || 0) + 1;
+    console.log('[Rematch] New round_id:', newRoundId);
+
     await OnlineState.sbClient
         .from('gomoku_rooms')
         .update({
@@ -661,14 +692,14 @@ async function rematchGame() {
             current_player: null,
             turn_deadline_at: null,
             winner_color: null,
-            finished_reason: null
+            finished_reason: null,
+            finished_at: null,
+            round_id: newRoundId
         })
         .eq('id', OnlineState.roomUuid);
 
-    OnlineState.appliedMoveIds.clear();
-    resetGameState();
-    createBoardUI((r, c) => handleCellClick(r, c));
-    setGameOver(false);
+    // 本地會由 Realtime 收到 round_id 變更後自動 hardResetBoard
+    console.log('[Rematch] Waiting for Realtime to trigger hardResetBoard');
 }
 
 async function resetFixedRoom() {
@@ -702,7 +733,8 @@ async function resetFixedRoom() {
                 turn_deadline_at: null,
                 winner_color: null,
                 finished_reason: null,
-                finished_at: null
+                finished_at: null,
+                round_id: (window.currentRoom?.round_id || 0) + 1  // 觸發其他 client hardResetBoard
             })
             .eq('id', OnlineState.roomUuid);
 
