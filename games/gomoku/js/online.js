@@ -152,11 +152,29 @@ async function joinFixedRoom(roomKey) {
     let role = null;
     let updateData = { last_activity_at: new Date().toISOString() };
     const now = new Date().toISOString();
+    const hasBlack = room.black_player_id != null;
+    const hasWhite = room.white_player_id != null;
 
     if (room.black_player_id === OnlineState.clientId) {
+        // Rejoin：已經係黑方
         role = 'black';
+        // 補寫 timestamp（如果係 null）
+        if (hasWhite && !room.both_present_since) {
+            updateData.both_present_since = now;
+            updateData.waiting_since = null;
+        } else if (!hasWhite && !room.waiting_since) {
+            updateData.waiting_since = now;
+        }
     } else if (room.white_player_id === OnlineState.clientId) {
+        // Rejoin：已經係白方
         role = 'white';
+        // 補寫 timestamp（如果係 null）
+        if (hasBlack && !room.both_present_since) {
+            updateData.both_present_since = now;
+            updateData.waiting_since = null;
+        } else if (!hasBlack && !room.waiting_since) {
+            updateData.waiting_since = now;
+        }
     } else if (!room.black_player_id) {
         role = 'black';
         updateData.black_player_id = OnlineState.clientId;
@@ -179,8 +197,10 @@ async function joinFixedRoom(roomKey) {
         return;
     }
 
-    // 3. 寫入 DB
-    if (updateData.black_player_id || updateData.white_player_id) {
+    // 3. 寫入 DB（rejoin 時也可能需要補寫 timestamp）
+    const needsUpdate = updateData.black_player_id || updateData.white_player_id ||
+        updateData.waiting_since || updateData.both_present_since;
+    if (needsUpdate) {
         const { data: updated, error: updateErr } = await OnlineState.sbClient
             .from('gomoku_rooms')
             .update(updateData)
