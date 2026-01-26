@@ -76,13 +76,25 @@ async function fetchLobbyRooms() {
 
     const { data: rooms, error } = await OnlineState.sbClient
         .from('gomoku_rooms')
-        .select('room_code, black_player_id, white_player_id, status, last_activity_at')
+        .select('room_code, black_player_id, white_player_id, status, last_activity_at, waiting_since, both_present_since, black_ready, white_ready')
         .in('room_code', FIXED_ROOMS);
 
     if (error) {
         console.error('[Lobby] Error:', error);
         return;
     }
+
+    // Debug log：顯示超時計時欄位
+    console.log('[Lobby] Rooms:', rooms?.map(r => ({
+        code: r.room_code,
+        status: r.status,
+        black: r.black_player_id ? '有' : '空',
+        white: r.white_player_id ? '有' : '空',
+        black_ready: r.black_ready,
+        white_ready: r.white_ready,
+        waiting_since: r.waiting_since,
+        both_present_since: r.both_present_since
+    })));
 
     FIXED_ROOMS.forEach(key => {
         const room = rooms?.find(r => r.room_code === key);
@@ -296,7 +308,18 @@ function renderRoomState(room) {
 
     console.log('[Render]', { status: room.status, current: room.current_player, round_id: room.round_id, br: room.black_ready, wr: room.white_ready });
 
-    // 偵測 round_id 變化 = 新局開始，需要清棋盤
+    // 1. 偵測被踢 / 席位被清空
+    if (OnlineState.playerRole && OnlineState.roomUuid) {
+        const myIdInRoom = OnlineState.playerRole === 'black' ? room.black_player_id : room.white_player_id;
+        if (myIdInRoom !== OnlineState.clientId) {
+            console.log('[Render] ⚠️ KICKED: my seat is no longer mine!');
+            alert('你已被系統移出房間');
+            cleanupAndReturnToLobby();
+            return;
+        }
+    }
+
+    // 2. 偵測 round_id 變化 = 新局開始，需要清棋盤
     const newRoundId = room.round_id || 0;
     if (OnlineState.currentRoundId !== null && newRoundId !== OnlineState.currentRoundId) {
         console.log('[Render] ★ NEW ROUND DETECTED ★', OnlineState.currentRoundId, '->', newRoundId);
