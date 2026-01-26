@@ -71,7 +71,7 @@ async function fetchLobbyRooms() {
     console.log('[Online] Fetching lobby rooms...');
 
     const { data: rooms, error } = await OnlineState.sbClient
-        .from("Gomoku's rooms")
+        .from('gomoku_rooms')
         .select('room_code, black_player_id, white_player_id, status, black_ready, white_ready')
         .in('room_code', FIXED_ROOMS);
 
@@ -129,7 +129,7 @@ async function joinFixedRoom(roomKey) {
     console.log('[Online] Joining room:', roomKey);
 
     const { data: room, error } = await OnlineState.sbClient
-        .from("Gomoku's rooms")
+        .from('gomoku_rooms')
         .select('*')
         .eq('room_code', roomKey)
         .single();
@@ -161,7 +161,7 @@ async function joinFixedRoom(roomKey) {
     if (Object.keys(updates).length > 0) {
         updates.last_activity_at = new Date().toISOString();
         const { data: updatedRoom, error: updateError } = await OnlineState.sbClient
-            .from("Gomoku's rooms")
+            .from('gomoku_rooms')
             .update(updates)
             .eq('id', room.id)
             .select()
@@ -302,7 +302,7 @@ async function toggleReady() {
     }
 
     const { data: room, error } = await OnlineState.sbClient
-        .from("Gomoku's rooms")
+        .from('gomoku_rooms')
         .select('*')
         .eq('id', OnlineState.roomUuid)
         .single();
@@ -341,7 +341,7 @@ async function toggleReady() {
     }
 
     const { data: updatedRoom, error: updateError } = await OnlineState.sbClient
-        .from("Gomoku's rooms")
+        .from('gomoku_rooms')
         .update(updates)
         .eq('id', OnlineState.roomUuid)
         .select()
@@ -419,7 +419,7 @@ async function handleOnlineMove(row, col, isWin, winner) {
         }
 
         const { data: updatedRoom, error: roomError } = await OnlineState.sbClient
-            .from("Gomoku's rooms")
+            .from('gomoku_rooms')
             .update(updates)
             .eq('id', OnlineState.roomUuid)
             .select()
@@ -469,7 +469,7 @@ function subscribeToRoom() {
             {
                 event: '*',
                 schema: 'public',
-                table: "Gomoku's rooms"
+                table: 'gomoku_rooms'
             },
             (payload) => {
                 console.log('[Online] Realtime room event:', payload.eventType);
@@ -607,7 +607,7 @@ async function exitFixedRoom() {
     }
 
     await OnlineState.sbClient
-        .from("Gomoku's rooms")
+        .from('gomoku_rooms')
         .update(updates)
         .eq('id', OnlineState.roomUuid);
 
@@ -691,7 +691,7 @@ async function handleTimeout() {
     console.log('[Online] Claiming timeout win...');
 
     await OnlineState.sbClient
-        .from("Gomoku's rooms")
+        .from('gomoku_rooms')
         .update({
             status: 'finished',
             winner: OnlineState.playerRole,
@@ -713,7 +713,7 @@ async function rematchGame() {
     console.log('[Online] Rematch...');
 
     const { data: updatedRoom, error } = await OnlineState.sbClient
-        .from("Gomoku's rooms")
+        .from('gomoku_rooms')
         .update({
             status: 'waiting',
             black_ready: false,
@@ -750,7 +750,7 @@ async function resetFixedRoom() {
     if (!confirm('確定要重置房間？')) return;
 
     await OnlineState.sbClient
-        .from("Gomoku's rooms")
+        .from('gomoku_rooms')
         .update({
             status: 'waiting',
             black_player_id: null,
