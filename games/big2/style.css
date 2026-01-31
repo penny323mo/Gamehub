@@ -661,7 +661,7 @@ body {
   }
 
   .topbar h1 {
-    font-size: 14px;
+    font-size: 48px;
     white-space: nowrap;
   }
 
@@ -903,12 +903,12 @@ body {
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Hand Cards - TIGHTER overlap to fit all 13 cards */
+  /* Hand Cards - EVEN TIGHTER overlap to fit all 13 cards on iPhone */
   /* ALL cards must be position:relative so DOM order determines stacking */
   .hand .cardBtn,
   .hand>.cardBtn {
-    margin-left: -38px !important;
-    /* Tighter overlap to show all 13 cards */
+    margin-left: -45px !important;
+    /* Much tighter overlap for iPhone */
     flex-shrink: 0 !important;
     transition: transform 0.1s ease, filter 0.1s ease;
     position: relative !important;
