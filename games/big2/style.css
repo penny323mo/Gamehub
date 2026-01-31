@@ -623,16 +623,16 @@ body {
 
   /* Played cards */
 
-  /* Seat - LARGER for CPU cards (+50%) */
+  /* Seat - MUCH LARGER for CPU cards (+100% from original) */
   .seat {
     flex: 1 1 auto !important;
-    min-height: 56px !important;
-    max-height: 75px !important;
+    min-height: 84px !important;
+    max-height: 113px !important;
     flex-direction: row !important;
     align-items: center !important;
     justify-content: space-between !important;
-    padding: 4px 8px !important;
-    gap: 6px !important;
+    padding: 6px 10px !important;
+    gap: 8px !important;
     overflow: visible !important;
   }
 
@@ -714,12 +714,12 @@ body {
     margin-left: 0 !important;
   }
 
-  /* Player panel - LARGER for hand cards (+50%) */
+  /* Player panel - EVEN LARGER for hand cards (+70% from original) */
   .panel:last-child {
     flex: 0 0 auto !important;
-    min-height: 140px !important;
-    max-height: 180px !important;
-    padding: 6px !important;
+    min-height: 168px !important;
+    max-height: 216px !important;
+    padding: 8px !important;
     overflow: visible !important;
     display: flex !important;
     flex-direction: column !important;
