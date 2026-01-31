@@ -756,8 +756,8 @@ body {
 
   .hand .cardBtn--selected,
   .hand>.cardBtn--selected {
-    transform: translateY(-20px) !important;
-    /* Pop up more */
+    transform: translateY(-8px) !important;
+    /* Subtle pop - keep tight overlap */
     z-index: 10;
   }
 
