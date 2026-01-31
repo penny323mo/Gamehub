@@ -546,6 +546,7 @@
   };
 
   function setHint(text, isError = false) {
+    if (!els.hint) return; // Guard against missing element
     els.hint.textContent = text || '';
     els.hint.style.color = isError ? 'var(--danger)' : 'var(--muted)';
   }
