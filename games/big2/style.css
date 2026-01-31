@@ -555,10 +555,11 @@ body {
     margin: 0 !important;
   }
 
-  /* Game panel - reduced to 48% to give more space for player cards */
+  /* Game panel - 60% for table, rest for player hand */
   .panel:first-child {
-    flex: 0 0 48% !important;
-    max-height: 48% !important;
+    flex: 1 1 60% !important;
+    min-height: 55% !important;
+    max-height: 65% !important;
     padding: 4px !important;
     overflow: hidden !important;
   }
@@ -693,15 +694,13 @@ body {
     margin-left: 0 !important;
   }
 
-  /* Player panel - remaining space with visible overflow for cards */
+  /* Player panel - compact, just enough for cards */
   .panel:last-child {
-    flex: 1 1 auto !important;
-    min-height: 130px !important;
-    /* Minimum height for cards + buttons */
-    max-height: none !important;
+    flex: 0 0 auto !important;
+    min-height: 100px !important;
+    max-height: 130px !important;
     padding: 4px !important;
     overflow: visible !important;
-    /* Allow cards to extend above panel */
     display: flex !important;
     flex-direction: column !important;
   }
@@ -730,20 +729,17 @@ body {
     /* Hide hint on mobile to save space */
   }
 
-  /* Hand area - fills remaining space, visible overflow for selection */
+  /* Hand area - compact, cards aligned at bottom */
   .hand {
     flex: 1 1 auto !important;
-    min-height: 75px !important;
-    /* Card height 60px + padding */
+    min-height: 65px !important;
     display: flex !important;
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     gap: 0 !important;
-    padding: 14px 4px 6px 4px !important;
-    /* Top padding for selected card pop-up */
-    justify-content: flex-start !important;
+    padding: 4px 6px !important;
+    justify-content: center !important;
     align-items: flex-end !important;
-    /* Align cards to bottom */
     overflow-x: auto !important;
     overflow-y: visible !important;
     -webkit-overflow-scrolling: touch;
@@ -752,10 +748,10 @@ body {
   /* Hand Cards - overlapping fan layout */
   .hand .cardBtn,
   .hand>.cardBtn {
-    margin-left: -40px !important;
-    /* Overlap for 60px cards */
+    margin-left: -28px !important;
+    /* Less overlap (was -40px) - cards easier to see */
     flex-shrink: 0 !important;
-    transition: transform 0.1s ease;
+    transition: transform 0.1s ease, filter 0.1s ease;
   }
 
   .hand .cardBtn:first-child,
@@ -763,19 +759,21 @@ body {
     margin-left: 0 !important;
   }
 
-  /* Selected cards - pop up but KEEP original stacking order (no z-index change) */
+  /* Selected cards - glow effect ONLY, no position change, stays behind right cards */
   .hand .cardBtn--selected,
   .hand>.cardBtn--selected {
-    transform: translateY(-10px) !important;
-    /* Subtle pop up */
-    /* NO z-index change - selected card stays behind cards to its right */
+    /* NO transform - card stays in place so it doesn't cover cards to its right */
+    filter: brightness(1.15) drop-shadow(0 0 6px rgba(255, 214, 106, 0.8)) !important;
+    outline: 3px solid rgba(255, 214, 106, 0.9) !important;
+    outline-offset: -3px !important;
+    border-radius: 4px !important;
   }
 
   .cardImg--hand {
-    width: 60px !important;
-    max-width: 60px !important;
-    border-radius: 5px !important;
-    /* Compact for mobile viewport */
+    width: 55px !important;
+    max-width: 55px !important;
+    border-radius: 4px !important;
+    /* Slightly smaller to reduce total width */
   }
 
   /* Hide footer */
