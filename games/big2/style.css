@@ -153,23 +153,24 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px 16px;
-  border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(10, 16, 30, .9) 0%, rgba(10, 16, 30, .7) 100%);
-  backdrop-filter: blur(8px);
+  padding: 28px 16px;
+  border-bottom: 2px solid var(--gold);
+  background: linear-gradient(180deg, rgba(10, 16, 30, .95) 0%, rgba(15, 25, 45, .85) 100%);
+  backdrop-filter: blur(10px);
 }
 
 .topbar h1 {
-  font-size: 32px;
+  font-size: 56px;
   margin: 0;
-  font-weight: 800;
-  background: linear-gradient(90deg, var(--gold) 0%, #fff 50%, var(--gold) 100%);
-  background-size: 200% auto;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  background: linear-gradient(90deg, var(--gold) 0%, #fff 40%, var(--gold) 60%, #fff 100%);
+  background-size: 300% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: shimmer 2.5s ease-in-out infinite;
-  text-shadow: 0 0 20px rgba(255, 214, 106, 0.3);
+  animation: shimmer 3s ease-in-out infinite;
+  filter: drop-shadow(0 4px 15px rgba(255, 214, 106, 0.5));
 }
 
 @keyframes shimmer {
@@ -773,14 +774,15 @@ body {
 
   .seat__hdr {
     flex-shrink: 0;
-    flex-direction: row;
-    align-items: center;
-    gap: 4px;
-    width: 25%;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 70px;
   }
 
   .seat__name {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     white-space: nowrap;
     overflow: hidden;
@@ -789,7 +791,7 @@ body {
 
   .seat__meta {
     font-size: 10px !important;
-    min-width: 50px !important;
+    margin-left: 0 !important;
   }
 
   .seat__body {
