@@ -555,11 +555,11 @@ body {
     margin: 0 !important;
   }
 
-  /* Game panel - fills available space, let content determine size */
+  /* Game panel - REDUCED by 30% (flex: 0.7 instead of 1) */
   .panel:first-child {
-    flex: 1 1 auto !important;
+    flex: 0.7 1 auto !important;
     min-height: 0 !important;
-    max-height: none !important;
+    max-height: 50% !important;
     padding: 4px !important;
     overflow: hidden !important;
   }
