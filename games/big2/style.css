@@ -666,23 +666,24 @@ body {
     overflow: hidden !important;
   }
 
-  /* Deck stack - fits in seat */
+  /* Deck stack - DOUBLED size for visibility */
   .deckStack {
-    width: 28px !important;
-    height: 36px !important;
-    transform: scale(0.8);
+    width: 56px !important;
+    height: 72px !important;
+    transform: scale(1);
   }
 
   .cardBack {
-    width: 28px !important;
+    width: 56px !important;
   }
 
   .countPill {
-    right: -6px;
-    top: -4px;
-    font-size: 10px;
-    padding: 2px 5px;
+    right: -8px;
+    top: -6px;
+    font-size: 16px;
+    padding: 4px 8px;
     font-weight: 700;
+    min-width: 24px;
   }
 
   /* Table center - played cards area at bottom of table */
@@ -697,15 +698,15 @@ body {
     align-items: center !important;
   }
 
-  /* Cards displayed in table center - bigger */
+  /* Cards displayed in table center - +20% bigger */
   .seat .cardImg--table,
   .tableCenter .cardImg--table,
   .cardImg--table {
-    width: 44px !important;
-    max-width: 44px !important;
+    width: 53px !important;
+    max-width: 53px !important;
     height: auto !important;
     border-radius: 3px !important;
-    margin-left: -24px !important;
+    margin-left: -30px !important;
     flex-shrink: 0 !important;
   }
 
@@ -789,9 +790,9 @@ body {
   }
 
   .cardImg--hand {
-    width: 58px !important;
-    max-width: 58px !important;
-    border-radius: 4px !important;
+    width: 70px !important;
+    max-width: 70px !important;
+    border-radius: 5px !important;
   }
 
   /* Hide footer */
