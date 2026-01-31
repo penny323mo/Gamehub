@@ -17,6 +17,64 @@
   --gold: #ffd66a;
 }
 
+/* Start screen overlay */
+.startScreen {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(135deg, #0b1220 0%, #1a2b45 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.startScreen--hidden {
+  display: none !important;
+}
+
+.startScreen__content {
+  text-align: center;
+  padding: 40px;
+}
+
+.startScreen__title {
+  font-size: 48px;
+  margin: 0 0 10px;
+  color: var(--gold);
+  text-shadow: 0 4px 20px rgba(255, 214, 106, 0.4);
+}
+
+.startScreen__subtitle {
+  font-size: 18px;
+  color: var(--muted);
+  margin: 0 0 30px;
+}
+
+.btn--large {
+  font-size: 20px;
+  padding: 16px 40px;
+  display: block;
+  margin: 0 auto 15px;
+}
+
+/* Bottom controls */
+.bottomControls {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 0;
+  flex-wrap: wrap;
+}
+
+.bottomControls--hidden {
+  display: none !important;
+}
+
+/* Hide topbar actions initially */
+.topbar__actions--hidden {
+  display: none !important;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -767,12 +825,15 @@ body {
   }
 
   /* Hand Cards - TIGHTER overlap to fit all 13 cards */
+  /* ALL cards must be position:relative so DOM order determines stacking */
   .hand .cardBtn,
   .hand>.cardBtn {
     margin-left: -38px !important;
     /* Tighter overlap to show all 13 cards */
     flex-shrink: 0 !important;
     transition: transform 0.1s ease, filter 0.1s ease;
+    position: relative !important;
+    /* RIGHT cards always on top of LEFT cards */
   }
 
   .hand .cardBtn:first-child,

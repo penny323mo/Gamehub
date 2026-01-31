@@ -5,14 +5,14 @@
   <meta charset="utf-8" />
   <meta name="viewport"
     content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>Big Two (鋤大D) — v0.3</title>
+  <title>鋤大D</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
   <header class="topbar">
-    <h1>Big Two (鋤大D) — v0.3</h1>
-    <div class="topbar__actions">
+    <h1>鋤大D</h1>
+    <div class="topbar__actions topbar__actions--hidden" id="topbarActions">
       <a href="../../index.html" class="btn btn--back">← Menu</a>
       <button id="restartBtn" class="btn">Restart</button>
     </div>
@@ -77,8 +77,25 @@
       </div>
 
       <div id="hand" class="hand" aria-label="Your hand"></div>
+
+      <!-- Bottom control buttons -->
+      <div class="bottomControls" id="bottomControls">
+        <a href="../../index.html" class="btn btn--back">← 返回 Menu</a>
+        <button id="startGameBtn" class="btn btn--primary btn--start">開始遊戲</button>
+        <button id="restartBtn2" class="btn">重新開始</button>
+      </div>
     </section>
   </main>
+
+  <!-- Start screen overlay -->
+  <div class="startScreen" id="startScreen">
+    <div class="startScreen__content">
+      <h1 class="startScreen__title">鋤大D</h1>
+      <p class="startScreen__subtitle">Big Two Card Game</p>
+      <button id="startBtn" class="btn btn--primary btn--large">開始遊戲</button>
+      <a href="../../index.html" class="btn btn--back">← 返回 Menu</a>
+    </div>
+  </div>
 
   <footer class="footer">
     <details>
@@ -88,7 +105,8 @@
           directly or host it.</p>
         <ol>
           <li>Create a GitHub repo and commit these files: <code>index.html</code>, <code>style.css</code>,
-            <code>app.js</code> (and <code>assets/</code> if you add any).</li>
+            <code>app.js</code> (and <code>assets/</code> if you add any).
+          </li>
           <li>On GitHub: <em>Settings → Pages</em>.</li>
           <li>Under <em>Build and deployment</em>: choose <em>Deploy from a branch</em>.</li>
           <li>Select branch <code>main</code> and folder <code>/ (root)</code>, then Save.</li>
