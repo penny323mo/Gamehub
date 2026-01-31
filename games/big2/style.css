@@ -570,11 +570,10 @@ body {
     flex-direction: row !important;
     align-items: center !important;
     justify-content: space-between !important;
-    min-height: 40px !important;
-    max-height: 50px !important;
+    min-height: 48px !important;
     padding: 4px 6px !important;
     gap: 4px !important;
-    overflow: hidden !important;
+    overflow: visible !important;
   }
 
   .seat__hdr {
@@ -596,10 +595,9 @@ body {
   .seat__body {
     flex: 1;
     justify-content: flex-end !important;
-    min-height: 32px !important;
-    max-height: 42px !important;
+    min-height: 38px !important;
     gap: 2px !important;
-    overflow: hidden !important;
+    overflow: visible !important;
   }
 
   /* Compact deck stack - proportional to hand cards */
@@ -621,18 +619,17 @@ body {
     padding: 2px 5px;
   }
 
-  /* Table center - proportional sizing */
+  /* Table center - good sizing */
   .tableCenter {
-    min-height: 50px !important;
-    max-height: 65px !important;
-    padding: 4px !important;
-    font-size: 11px !important;
+    min-height: 60px !important;
+    padding: 6px !important;
+    font-size: 12px !important;
   }
 
-  /* Table cards - proportional to hand cards (hand=40px, table=34px) */
+  /* Table cards - same size as hand for consistency */
   .cardImg--table {
-    width: 34px !important;
-    max-width: 34px !important;
+    width: 40px !important;
+    max-width: 40px !important;
     border-radius: 4px !important;
   }
 
@@ -676,7 +673,7 @@ body {
 
   .hand .cardBtn,
   .hand>.cardBtn {
-    margin-left: -28px !important;
+    margin-left: -22px !important;
     flex-shrink: 0 !important;
     transition: transform 0.08s ease, margin 0.08s ease;
   }
@@ -688,9 +685,9 @@ body {
 
   .hand .cardBtn--selected,
   .hand>.cardBtn--selected {
-    transform: translateY(-12px) !important;
-    margin-left: -20px !important;
-    margin-right: 4px !important;
+    transform: translateY(-14px) !important;
+    margin-left: -16px !important;
+    margin-right: 6px !important;
     z-index: 10;
   }
 
@@ -700,9 +697,9 @@ body {
   }
 
   .cardImg--hand {
-    width: 40px !important;
-    max-width: 40px !important;
-    border-radius: 4px !important;
+    width: 48px !important;
+    max-width: 48px !important;
+    border-radius: 5px !important;
   }
 
   /* Hide footer completely */
