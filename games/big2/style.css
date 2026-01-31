@@ -621,16 +621,16 @@ body {
 
   /* Table center - good sizing */
   .tableCenter {
-    min-height: 60px !important;
-    padding: 6px !important;
+    min-height: 80px !important;
+    padding: 8px !important;
     font-size: 12px !important;
   }
 
-  /* Table cards - same size as hand for consistency */
+  /* Table cards - 50% larger */
   .cardImg--table {
-    width: 40px !important;
-    max-width: 40px !important;
-    border-radius: 4px !important;
+    width: 60px !important;
+    max-width: 60px !important;
+    border-radius: 6px !important;
   }
 
   /* CRITICAL: Compact action buttons - single row */
@@ -660,20 +660,20 @@ body {
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     gap: 0 !important;
-    padding: 4px 2px !important;
+    padding: 6px 4px !important;
     justify-content: flex-start !important;
     align-items: flex-end !important;
     overflow-x: auto !important;
     overflow-y: visible !important;
     -webkit-overflow-scrolling: touch;
     max-width: 100% !important;
-    min-height: 60px !important;
-    max-height: 75px !important;
+    min-height: 90px !important;
+    max-height: 110px !important;
   }
 
   .hand .cardBtn,
   .hand>.cardBtn {
-    margin-left: -22px !important;
+    margin-left: -36px !important;
     flex-shrink: 0 !important;
     transition: transform 0.08s ease, margin 0.08s ease;
   }
@@ -685,9 +685,9 @@ body {
 
   .hand .cardBtn--selected,
   .hand>.cardBtn--selected {
-    transform: translateY(-14px) !important;
-    margin-left: -16px !important;
-    margin-right: 6px !important;
+    transform: translateY(-18px) !important;
+    margin-left: -28px !important;
+    margin-right: 8px !important;
     z-index: 10;
   }
 
@@ -697,9 +697,9 @@ body {
   }
 
   .cardImg--hand {
-    width: 48px !important;
-    max-width: 48px !important;
-    border-radius: 5px !important;
+    width: 72px !important;
+    max-width: 72px !important;
+    border-radius: 6px !important;
   }
 
   /* Hide footer completely */
