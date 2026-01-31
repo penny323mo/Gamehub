@@ -731,7 +731,8 @@ body {
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     gap: 0 !important;
-    padding: 8px 4px 4px 4px !important;
+    padding: 24px 4px 4px 4px !important;
+    /* More top padding for selected cards pop-up */
     justify-content: flex-start !important;
     align-items: flex-start !important;
     overflow-x: auto !important;
@@ -742,7 +743,8 @@ body {
   /* Hand Cards - overlapping fan layout */
   .hand .cardBtn,
   .hand>.cardBtn {
-    margin-left: -36px !important;
+    margin-left: -48px !important;
+    /* Tighter overlap for larger cards */
     flex-shrink: 0 !important;
     transition: transform 0.1s ease;
   }
@@ -754,15 +756,17 @@ body {
 
   .hand .cardBtn--selected,
   .hand>.cardBtn--selected {
-    transform: translateY(-16px) !important;
+    transform: translateY(-20px) !important;
+    /* Pop up more */
     z-index: 10;
   }
 
   .cardImg--hand {
-    width: 56px !important;
-    max-width: 56px !important;
+    width: 72px !important;
+    /* Larger cards */
+    max-width: 72px !important;
     border-radius: 6px !important;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    /* No box-shadow - looks cleaner when overlapping */
   }
 
   /* Hide footer */
