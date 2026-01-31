@@ -490,99 +490,115 @@ body {
   }
 }
 
-/* Mobile-optimized layout for iPhone - ULTRA COMPACT */
+/* Mobile-optimized layout for iPhone - PROPORTIONAL DESIGN */
 @media (max-width: 480px) {
 
   html,
   body {
-    overflow-x: hidden;
-    height: 100%;
+    overflow: hidden !important;
+    height: 100vh !important;
     margin: 0;
     padding: 0;
   }
 
-  /* Minimal topbar */
+  /* Fixed topbar - 5vh */
   .topbar {
-    padding: 4px 8px;
-    position: sticky;
+    height: 5vh !important;
+    min-height: 5vh !important;
+    padding: 0 2vw !important;
+    position: fixed !important;
     top: 0;
+    left: 0;
+    right: 0;
     z-index: 100;
+    display: flex;
+    align-items: center;
   }
 
   .topbar h1 {
-    font-size: 12px;
+    font-size: 3.5vw;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 50%;
   }
 
   .topbar__actions {
-    gap: 4px;
+    gap: 2vw;
   }
 
   .topbar__actions .btn {
-    padding: 4px 8px;
-    font-size: 10px;
+    padding: 1vw 2vw;
+    font-size: 3vw;
   }
 
-  /* Ultra-compact main layout */
+  /* Main layout - fills remaining 95vh */
   .layout {
-    padding: 2px;
-    gap: 2px;
-    max-height: calc(100vh - 36px);
-    overflow-y: auto;
+    margin-top: 5vh !important;
+    height: 95vh !important;
+    max-height: 95vh !important;
+    padding: 1vw !important;
+    gap: 1vw !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 
-  .panel {
-    padding: 4px;
-    border-radius: 6px;
+  /* Game panel - 60vh for table area */
+  .panel:first-child {
+    flex: 0 0 55vh !important;
+    max-height: 55vh !important;
+    padding: 1vw !important;
+    overflow: hidden !important;
   }
 
   .panel h2 {
     display: none !important;
   }
 
-  /* Tiny status bar */
+  /* Status bar - compact */
   .status {
-    padding: 3px 6px;
-    font-size: 11px;
-    margin-bottom: 2px;
+    padding: 0.5vw 2vw !important;
+    font-size: 3vw !important;
+    margin-bottom: 0.5vw !important;
   }
 
-  /* Minimal table frame */
+  /* Table frame fills panel */
   .tableFrame {
-    padding: 4px;
-    border-radius: 8px;
+    padding: 1vw !important;
+    height: 100% !important;
   }
 
   .tableFelt {
-    padding: 4px;
-    border-radius: 6px;
+    padding: 1vw !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 
-  /* CRITICAL: Super compact seats - minimal height */
+  /* Table grid - 3 seats + center */
   .tableGrid {
-    gap: 2px !important;
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.5vw !important;
   }
 
+  /* Each seat - fixed 8vh height */
   .seat {
+    flex: 0 0 8vh !important;
+    height: 8vh !important;
+    max-height: 8vh !important;
     flex-direction: row !important;
     align-items: center !important;
     justify-content: space-between !important;
-    height: 12vw !important;
-    min-height: 12vw !important;
-    max-height: 12vw !important;
-    padding: 1vw 1.5vw !important;
-    gap: 1vw !important;
-    overflow: visible !important;
+    padding: 0 2vw !important;
+    gap: 2vw !important;
+    overflow: hidden !important;
   }
 
   .seat__hdr {
     flex-shrink: 0;
-    gap: 1vw;
     flex-direction: row;
     align-items: center;
+    gap: 1vw;
   }
 
   .seat__name {
@@ -590,116 +606,117 @@ body {
     font-weight: 700;
   }
 
-  .seat__meta {
-    min-width: auto;
-  }
-
   .seat__body {
     flex: 1;
     display: flex !important;
     justify-content: flex-end !important;
     align-items: center !important;
-    height: 10vw !important;
-    gap: 0 !important;
-    overflow: visible !important;
+    height: 7vh !important;
+    overflow: hidden !important;
   }
 
-  /* Compact deck stack - proportional to hand cards */
+  /* Deck stack - fits in seat */
   .deckStack {
-    width: 38px !important;
-    height: 52px !important;
-    transform: scale(0.9);
-    transform-origin: right center;
+    width: 8vw !important;
+    height: 6vh !important;
+    transform: scale(0.8);
   }
 
   .cardBack {
-    width: 38px !important;
+    width: 8vw !important;
   }
 
   .countPill {
-    right: -8px;
-    top: -6px;
-    font-size: 16px;
-    padding: 3px 7px;
+    right: -1.5vw;
+    top: -1vw;
+    font-size: 3.5vw;
+    padding: 0.5vw 1.5vw;
     font-weight: 700;
   }
 
-  /* Table center - fixed height */
+  /* Table center - 12vh, cards overlap heavily */
   .tableCenter {
-    height: 20vw !important;
-    min-height: 20vw !important;
-    max-height: 20vw !important;
-    padding: 2vw !important;
-    font-size: 3.5vw !important;
+    flex: 0 0 12vh !important;
+    height: 12vh !important;
+    max-height: 12vh !important;
+    padding: 1vw !important;
+    font-size: 3vw !important;
     display: flex !important;
     flex-wrap: nowrap !important;
     justify-content: center !important;
     align-items: center !important;
     gap: 0 !important;
+    overflow: hidden !important;
   }
 
-  /* Table cards - overlap to fit 5 cards */
-  .tableCenter .cardImg--table {
-    width: 14vw !important;
-    max-width: 14vw !important;
+  /* Table cards - heavy overlap for 5 cards */
+  .tableCenter .cardImg--table,
+  .cardImg--table {
+    width: 12vw !important;
+    max-width: 12vw !important;
+    height: auto !important;
     border-radius: 1vw !important;
-    margin-left: -4vw !important;
+    margin-left: -5vw !important;
+    flex-shrink: 0 !important;
   }
 
   .tableCenter .cardImg--table:first-child {
     margin-left: 0 !important;
   }
 
-  .cardImg--table {
-    width: 14vw !important;
-    max-width: 14vw !important;
-    border-radius: 1vw !important;
+  /* Player panel - 35vh */
+  .panel:last-child {
+    flex: 0 0 35vh !important;
+    max-height: 35vh !important;
+    padding: 1vw !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 
-  /* CRITICAL: Compact action buttons - single row */
+  /* Action buttons - single row, 5vh */
   .actions {
-    gap: 4px !important;
-    margin-bottom: 4px !important;
+    flex: 0 0 5vh !important;
+    height: 5vh !important;
+    gap: 2vw !important;
+    margin-bottom: 1vw !important;
     flex-wrap: nowrap !important;
     justify-content: center !important;
+    align-items: center !important;
   }
 
   .actions .btn {
-    padding: 6px 10px !important;
-    font-size: 14px !important;
-    flex: 0 1 auto !important;
+    padding: 1vw 3vw !important;
+    font-size: 3.5vw !important;
   }
 
   .hint {
-    font-size: 14px !important;
-    width: 100%;
+    font-size: 3vw !important;
     text-align: center;
-    margin-top: 4px;
+    margin: 0.5vw 0;
   }
 
-  /* CRITICAL: Overlapping hand cards - 13 cards fit on screen */
+  /* Hand area - remaining ~28vh, horizontal scroll */
   .hand {
+    flex: 1 !important;
     display: flex !important;
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     gap: 0 !important;
-    padding: 6vw 1vw 2vw 1vw !important;
+    padding: 2vw 1vw 1vw 1vw !important;
     justify-content: flex-start !important;
     align-items: flex-end !important;
     overflow-x: auto !important;
     overflow-y: visible !important;
     -webkit-overflow-scrolling: touch;
-    max-width: 100% !important;
-    min-height: 28vw !important;
   }
 
-  /* 13 cards: each card 20vw wide, overlap so total = 100vw */
-  /* 20vw + (12 * (20vw - overlap)) = ~100vw → overlap ≈ 12vw */
+  /* 13 cards fit: card=18vw, overlap=13vw → total = 18 + 12*5 = 78vw ✓ */
   .hand .cardBtn,
   .hand>.cardBtn {
-    margin-left: -12vw !important;
+    margin-left: -13vw !important;
     flex-shrink: 0 !important;
-    transition: transform 0.08s ease, margin 0.08s ease;
+    transition: transform 0.1s ease;
   }
 
   .hand .cardBtn:first-child,
@@ -709,34 +726,27 @@ body {
 
   .hand .cardBtn--selected,
   .hand>.cardBtn--selected {
-    transform: translateY(-5vw) !important;
-    margin-left: -10vw !important;
-    margin-right: 1vw !important;
+    transform: translateY(-4vw) !important;
     z-index: 10;
   }
 
-  .hand .cardBtn--selected:first-child,
-  .hand>.cardBtn--selected:first-child {
-    margin-left: 0 !important;
-  }
-
   .cardImg--hand {
-    width: 20vw !important;
-    max-width: 20vw !important;
+    width: 18vw !important;
+    max-width: 18vw !important;
     border-radius: 1.5vw !important;
   }
 
-  /* Hide footer completely */
+  /* Hide footer */
   .footer {
     display: none !important;
   }
 
-  /* Larger pass text */
+  /* PASS text */
   .seat__pass {
-    font-size: 16px !important;
+    font-size: 3.5vw !important;
   }
 
-  /* Hide "You" seat from table grid on mobile - you see your cards below anyway */
+  /* Hide You seat from table */
   .seat--bottom {
     display: none !important;
   }
