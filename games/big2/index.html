@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-HK">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Big Two (鋤大D) — v0.3</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Big Two (鋤大D) — v0.3</h1>
+    <div class="topbar__actions">
+      <a href="../../index.html" class="btn btn--back">← Menu</a>
+      <button id="restartBtn" class="btn">Restart</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <h2>Game</h2>
+      <div id="status" class="status" aria-live="polite">Loading…</div>
+
+      <div class="tableFrame" aria-label="Table">
+        <div class="tableFelt">
+          <div class="tableGrid" aria-label="Table seats">
+        <div class="seat seat--top" id="seat2">
+          <div class="seat__hdr">
+            <div class="seat__name" id="p2Name">CPU 2</div>
+            <div class="seat__meta" id="p2Meta"></div>
+          </div>
+          <div class="seat__body" id="p2Body"></div>
+        </div>
+
+        <div class="seat seat--left" id="seat1">
+          <div class="seat__hdr">
+            <div class="seat__name" id="p1Name">CPU 1</div>
+            <div class="seat__meta" id="p1Meta"></div>
+          </div>
+          <div class="seat__body" id="p1Body"></div>
+        </div>
+
+        <div class="tableCenter">
+          <div class="muted" id="tableInfo"></div>
+        </div>
+
+        <div class="seat seat--right" id="seat3">
+          <div class="seat__hdr">
+            <div class="seat__name" id="p3Name">CPU 3</div>
+            <div class="seat__meta" id="p3Meta"></div>
+          </div>
+          <div class="seat__body" id="p3Body"></div>
+        </div>
+
+        <div class="seat seat--bottom" id="seat0">
+          <div class="seat__hdr">
+            <div class="seat__name" id="p0Name">You</div>
+            <div class="seat__meta" id="p0Meta"></div>
+          </div>
+          <div class="seat__body" id="p0Body"></div>
+        </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>You</h2>
+      <div class="actions">
+        <button id="playBtn" class="btn btn--primary">Play Selected</button>
+        <button id="suggestBtn" class="btn">Suggest</button>
+        <button id="cancelSuggestBtn" class="btn">Cancel</button>
+        <button id="passBtn" class="btn">Pass</button>
+        <div id="hint" class="hint"></div>
+      </div>
+
+      <div id="hand" class="hand" aria-label="Your hand"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <details>
+      <summary>README (GitHub Pages deploy)</summary>
+      <div class="readme">
+        <p><strong>Offline-friendly:</strong> This game is pure HTML/CSS/JS (no CDN). Open <code>index.html</code> directly or host it.</p>
+        <ol>
+          <li>Create a GitHub repo and commit these files: <code>index.html</code>, <code>style.css</code>, <code>app.js</code> (and <code>assets/</code> if you add any).</li>
+          <li>On GitHub: <em>Settings → Pages</em>.</li>
+          <li>Under <em>Build and deployment</em>: choose <em>Deploy from a branch</em>.</li>
+          <li>Select branch <code>main</code> and folder <code>/ (root)</code>, then Save.</li>
+          <li>Wait a minute; your site will appear at the URL shown in GitHub Pages.</li>
+        </ol>
+      </div>
+    </details>
+  </footer>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

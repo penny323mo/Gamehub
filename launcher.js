@@ -17,6 +17,14 @@ const games = [
         playable: true
     },
     {
+        id: 'big2',
+        title: 'Big Two',
+        subtitle: '鋤大D! Play against 3 AI opponents.',
+        icon: '🃏',
+        link: 'games/big2/index.html',
+        playable: true
+    },
+    {
         id: 'coming1',
         title: 'Coming Soon',
         subtitle: 'Under development',
