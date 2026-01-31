@@ -73,11 +73,11 @@
   display: none !important;
 }
 
-/* Navigation buttons */
+/* Navigation buttons - LARGER for better touch */
 .btn--nav {
-  padding: 10px 18px;
-  font-size: 14px;
-  border-radius: 8px;
+  padding: 14px 24px;
+  font-size: 16px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: var(--text);
@@ -160,17 +160,17 @@ body {
 }
 
 .topbar h1 {
-  font-size: 56px;
+  font-size: 72px;
   margin: 0;
   font-weight: 900;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   background: linear-gradient(90deg, var(--gold) 0%, #fff 40%, var(--gold) 60%, #fff 100%);
   background-size: 300% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   animation: shimmer 3s ease-in-out infinite;
-  filter: drop-shadow(0 4px 15px rgba(255, 214, 106, 0.5));
+  filter: drop-shadow(0 6px 20px rgba(255, 214, 106, 0.6));
 }
 
 @keyframes shimmer {
@@ -852,11 +852,11 @@ body {
     margin-left: 0 !important;
   }
 
-  /* Player panel - +20% HIGHER for hand cards */
+  /* Player panel - +30% HIGHER for hand cards (10% increase from 202/259) */
   .panel:last-child {
     flex: 0 0 auto !important;
-    min-height: 202px !important;
-    max-height: 259px !important;
+    min-height: 222px !important;
+    max-height: 285px !important;
     padding: 8px !important;
     overflow: visible !important;
     display: flex !important;
