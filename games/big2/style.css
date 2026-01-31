@@ -541,10 +541,10 @@ body {
     flex-direction: column !important;
   }
 
-  /* Game panel - 60vh for table area */
+  /* Game panel - Reduced to 45vh to give more space to hand */
   .panel:first-child {
-    flex: 0 0 55vh !important;
-    max-height: 55vh !important;
+    flex: 0 0 45vh !important;
+    max-height: 45vh !important;
     padding: 1vw !important;
     overflow: hidden !important;
   }
@@ -578,10 +578,11 @@ body {
     flex: 1 !important;
     display: flex !important;
     flex-direction: column !important;
-    gap: 0.5vw !important;
+    justify-content: space-between !important;
+    gap: 0.5vh !important;
   }
 
-  /* Each seat - fixed 8vh height */
+  /* Seat - Fixed height, prevent stretching */
   .seat {
     flex: 0 0 8vh !important;
     height: 8vh !important;
@@ -590,7 +591,7 @@ body {
     align-items: center !important;
     justify-content: space-between !important;
     padding: 0 2vw !important;
-    gap: 2vw !important;
+    gap: 1vw !important;
     overflow: hidden !important;
   }
 
@@ -599,11 +600,15 @@ body {
     flex-direction: row;
     align-items: center;
     gap: 1vw;
+    width: 25%;
   }
 
   .seat__name {
-    font-size: 4vw;
+    font-size: 3.5vw;
     font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .seat__body {
@@ -611,15 +616,15 @@ body {
     display: flex !important;
     justify-content: flex-end !important;
     align-items: center !important;
-    height: 7vh !important;
+    height: 100% !important;
     overflow: hidden !important;
   }
 
   /* Deck stack - fits in seat */
   .deckStack {
-    width: 8vw !important;
-    height: 6vh !important;
-    transform: scale(0.8);
+    width: 7vw !important;
+    height: 5vh !important;
+    transform: scale(0.9);
   }
 
   .cardBack {
@@ -634,29 +639,27 @@ body {
     font-weight: 700;
   }
 
-  /* Table center - 12vh, cards overlap heavily */
+  /* Table center - 10vh */
   .tableCenter {
-    flex: 0 0 12vh !important;
-    height: 12vh !important;
-    max-height: 12vh !important;
+    flex: 0 0 10vh !important;
+    height: 10vh !important;
+    max-height: 10vh !important;
     padding: 1vw !important;
     font-size: 3vw !important;
     display: flex !important;
-    flex-wrap: nowrap !important;
     justify-content: center !important;
     align-items: center !important;
-    gap: 0 !important;
-    overflow: hidden !important;
   }
 
-  /* Table cards - heavy overlap for 5 cards */
+  /* Cards displayed in seats (played cards) - 10vw width */
+  .seat .cardImg--table,
   .tableCenter .cardImg--table,
   .cardImg--table {
-    width: 12vw !important;
-    max-width: 12vw !important;
+    width: 10vw !important;
+    max-width: 10vw !important;
     height: auto !important;
     border-radius: 1vw !important;
-    margin-left: -5vw !important;
+    margin-left: -6vw !important;
     flex-shrink: 0 !important;
   }
 
@@ -664,10 +667,10 @@ body {
     margin-left: 0 !important;
   }
 
-  /* Player panel - 35vh */
+  /* Player panel - 48vh for more hand space */
   .panel:last-child {
-    flex: 0 0 35vh !important;
-    max-height: 35vh !important;
+    flex: 1 !important;
+    max-height: none !important;
     padding: 1vw !important;
     overflow: hidden !important;
     display: flex !important;
@@ -696,25 +699,25 @@ body {
     margin: 0.5vw 0;
   }
 
-  /* Hand area - remaining ~28vh, horizontal scroll */
+  /* Hand area - Massive space now */
   .hand {
     flex: 1 !important;
     display: flex !important;
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     gap: 0 !important;
-    padding: 2vw 1vw 1vw 1vw !important;
+    padding: 4vh 1vw 1vw 1vw !important;
     justify-content: flex-start !important;
-    align-items: flex-end !important;
+    align-items: flex-start !important;
     overflow-x: auto !important;
     overflow-y: visible !important;
     -webkit-overflow-scrolling: touch;
   }
 
-  /* 13 cards fit: card=18vw, overlap=13vw → total = 18 + 12*5 = 78vw ✓ */
+  /* Hand Cards - 22vw width (larger!) */
   .hand .cardBtn,
   .hand>.cardBtn {
-    margin-left: -13vw !important;
+    margin-left: -14vw !important;
     flex-shrink: 0 !important;
     transition: transform 0.1s ease;
   }
@@ -726,14 +729,15 @@ body {
 
   .hand .cardBtn--selected,
   .hand>.cardBtn--selected {
-    transform: translateY(-4vw) !important;
+    transform: translateY(-4vh) !important;
     z-index: 10;
   }
 
   .cardImg--hand {
-    width: 18vw !important;
-    max-width: 18vw !important;
-    border-radius: 1.5vw !important;
+    width: 22vw !important;
+    max-width: 22vw !important;
+    border-radius: 2vw !important;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
   }
 
   /* Hide footer */
