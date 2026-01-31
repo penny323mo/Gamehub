@@ -570,21 +570,23 @@ body {
     flex-direction: row !important;
     align-items: center !important;
     justify-content: space-between !important;
-    min-height: 48px !important;
-    padding: 4px 6px !important;
-    gap: 4px !important;
+    height: 12vw !important;
+    min-height: 12vw !important;
+    max-height: 12vw !important;
+    padding: 1vw 1.5vw !important;
+    gap: 1vw !important;
     overflow: visible !important;
   }
 
   .seat__hdr {
     flex-shrink: 0;
-    gap: 4px;
+    gap: 1vw;
     flex-direction: row;
     align-items: center;
   }
 
   .seat__name {
-    font-size: 18px;
+    font-size: 4vw;
     font-weight: 700;
   }
 
@@ -594,9 +596,11 @@ body {
 
   .seat__body {
     flex: 1;
+    display: flex !important;
     justify-content: flex-end !important;
-    min-height: 44px !important;
-    gap: 2px !important;
+    align-items: center !important;
+    height: 10vw !important;
+    gap: 0 !important;
     overflow: visible !important;
   }
 
@@ -620,18 +624,36 @@ body {
     font-weight: 700;
   }
 
-  /* Table center - good sizing */
+  /* Table center - fixed height */
   .tableCenter {
-    min-height: 18vw !important;
+    height: 20vw !important;
+    min-height: 20vw !important;
+    max-height: 20vw !important;
     padding: 2vw !important;
-    font-size: 4vw !important;
+    font-size: 3.5vw !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 0 !important;
   }
 
-  /* Table cards - responsive to screen width */
+  /* Table cards - overlap to fit 5 cards */
+  .tableCenter .cardImg--table {
+    width: 14vw !important;
+    max-width: 14vw !important;
+    border-radius: 1vw !important;
+    margin-left: -4vw !important;
+  }
+
+  .tableCenter .cardImg--table:first-child {
+    margin-left: 0 !important;
+  }
+
   .cardImg--table {
-    width: 16vw !important;
-    max-width: 16vw !important;
-    border-radius: 1.5vw !important;
+    width: 14vw !important;
+    max-width: 14vw !important;
+    border-radius: 1vw !important;
   }
 
   /* CRITICAL: Compact action buttons - single row */
@@ -655,26 +677,27 @@ body {
     margin-top: 4px;
   }
 
-  /* CRITICAL: Overlapping hand cards - horizontal scroll */
+  /* CRITICAL: Overlapping hand cards - 13 cards fit on screen */
   .hand {
     display: flex !important;
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     gap: 0 !important;
-    padding: 1.5vw 1vw !important;
+    padding: 6vw 1vw 2vw 1vw !important;
     justify-content: flex-start !important;
     align-items: flex-end !important;
     overflow-x: auto !important;
     overflow-y: visible !important;
     -webkit-overflow-scrolling: touch;
     max-width: 100% !important;
-    min-height: 24vw !important;
-    max-height: 30vw !important;
+    min-height: 28vw !important;
   }
 
+  /* 13 cards: each card 20vw wide, overlap so total = 100vw */
+  /* 20vw + (12 * (20vw - overlap)) = ~100vw → overlap ≈ 12vw */
   .hand .cardBtn,
   .hand>.cardBtn {
-    margin-left: -10vw !important;
+    margin-left: -12vw !important;
     flex-shrink: 0 !important;
     transition: transform 0.08s ease, margin 0.08s ease;
   }
@@ -687,8 +710,8 @@ body {
   .hand .cardBtn--selected,
   .hand>.cardBtn--selected {
     transform: translateY(-5vw) !important;
-    margin-left: -8vw !important;
-    margin-right: 2vw !important;
+    margin-left: -10vw !important;
+    margin-right: 1vw !important;
     z-index: 10;
   }
 
