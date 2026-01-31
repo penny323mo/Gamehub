@@ -496,18 +496,27 @@ body {
   html,
   body {
     overflow: hidden !important;
+    /* Use dvh for iOS Safari compatibility, fallback to vh */
+    height: 100dvh !important;
     height: 100vh !important;
-    margin: 0;
-    padding: 0;
+    margin: 0 !important;
+    padding: 0 !important;
+    /* Prevent pull-to-refresh and bounce */
+    overscroll-behavior: none !important;
+    touch-action: manipulation !important;
+    /* iOS safe area padding */
+    padding-top: env(safe-area-inset-top) !important;
+    padding-bottom: env(safe-area-inset-bottom) !important;
   }
 
-  /* Fixed topbar - 5vh */
+  /* Fixed topbar - 44px (iOS standard) */
   .topbar {
-    height: 5vh !important;
-    min-height: 5vh !important;
-    padding: 0 2vw !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+    padding: 0 12px !important;
     position: fixed !important;
-    top: 0;
+    top: env(safe-area-inset-top, 0) !important;
     left: 0;
     right: 0;
     z-index: 100;
@@ -516,36 +525,41 @@ body {
   }
 
   .topbar h1 {
-    font-size: 3.5vw;
+    font-size: 14px;
     white-space: nowrap;
   }
 
   .topbar__actions {
-    gap: 2vw;
+    gap: 8px;
   }
 
   .topbar__actions .btn {
-    padding: 1vw 2vw;
-    font-size: 3vw;
+    padding: 6px 10px;
+    font-size: 12px;
   }
 
-  /* Main layout - fills remaining 95vh */
+  /* Main layout - use calc to fill remaining space */
   .layout {
-    margin-top: 5vh !important;
-    height: 95vh !important;
-    max-height: 95vh !important;
-    padding: 1vw !important;
-    gap: 1vw !important;
+    position: fixed !important;
+    top: calc(44px + env(safe-area-inset-top, 0)) !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: env(safe-area-inset-bottom, 0) !important;
+    height: auto !important;
+    max-height: none !important;
+    padding: 4px !important;
+    gap: 4px !important;
     overflow: hidden !important;
     display: flex !important;
     flex-direction: column !important;
+    margin: 0 !important;
   }
 
-  /* Game panel - Reduced to 45vh to give more space to hand */
+  /* Game panel - 55% of available space */
   .panel:first-child {
-    flex: 0 0 45vh !important;
-    max-height: 45vh !important;
-    padding: 1vw !important;
+    flex: 0 0 55% !important;
+    max-height: 55% !important;
+    padding: 4px !important;
     overflow: hidden !important;
   }
 
@@ -555,19 +569,19 @@ body {
 
   /* Status bar - compact */
   .status {
-    padding: 0.5vw 2vw !important;
-    font-size: 3vw !important;
-    margin-bottom: 0.5vw !important;
+    padding: 2px 8px !important;
+    font-size: 11px !important;
+    margin-bottom: 2px !important;
   }
 
   /* Table frame fills panel */
   .tableFrame {
-    padding: 1vw !important;
-    height: 100% !important;
+    padding: 4px !important;
+    height: calc(100% - 22px) !important;
   }
 
   .tableFelt {
-    padding: 1vw !important;
+    padding: 4px !important;
     height: 100% !important;
     display: flex !important;
     flex-direction: column !important;
@@ -579,24 +593,23 @@ body {
     flex-direction: column !important;
     flex: 1 !important;
     justify-content: space-between !important;
-    gap: 0.5vh !important;
+    gap: 2px !important;
     width: 100% !important;
     height: 100% !important;
-    /* Reset grid properties just in case */
     grid-template-columns: none !important;
     grid-template-rows: none !important;
   }
 
-  /* Seat - Fixed height, prevent stretching */
+  /* Seat - Use flex-grow and percentage for proportional sizing */
   .seat {
-    flex: 0 0 8vh !important;
-    height: 8vh !important;
-    max-height: 8vh !important;
+    flex: 1 1 auto !important;
+    min-height: 36px !important;
+    max-height: 50px !important;
     flex-direction: row !important;
     align-items: center !important;
     justify-content: space-between !important;
-    padding: 0 2vw !important;
-    gap: 1vw !important;
+    padding: 0 8px !important;
+    gap: 4px !important;
     overflow: hidden !important;
   }
 
@@ -604,16 +617,21 @@ body {
     flex-shrink: 0;
     flex-direction: row;
     align-items: center;
-    gap: 1vw;
+    gap: 4px;
     width: 25%;
   }
 
   .seat__name {
-    font-size: 3.5vw;
+    font-size: 12px;
     font-weight: 700;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .seat__meta {
+    font-size: 10px !important;
+    min-width: 50px !important;
   }
 
   .seat__body {
@@ -627,44 +645,44 @@ body {
 
   /* Deck stack - fits in seat */
   .deckStack {
-    width: 7vw !important;
-    height: 5vh !important;
-    transform: scale(0.9);
+    width: 28px !important;
+    height: 36px !important;
+    transform: scale(0.8);
   }
 
   .cardBack {
-    width: 8vw !important;
+    width: 28px !important;
   }
 
   .countPill {
-    right: -1.5vw;
-    top: -1vw;
-    font-size: 3.5vw;
-    padding: 0.5vw 1.5vw;
+    right: -6px;
+    top: -4px;
+    font-size: 10px;
+    padding: 2px 5px;
     font-weight: 700;
   }
 
-  /* Table center - 10vh */
+  /* Table center - center area for played cards */
   .tableCenter {
-    flex: 0 0 10vh !important;
-    height: 10vh !important;
-    max-height: 10vh !important;
-    padding: 1vw !important;
-    font-size: 3vw !important;
+    flex: 2 1 auto !important;
+    min-height: 50px !important;
+    max-height: 70px !important;
+    padding: 4px !important;
+    font-size: 11px !important;
     display: flex !important;
     justify-content: center !important;
     align-items: center !important;
   }
 
-  /* Cards displayed in seats (played cards) - 10vw width */
+  /* Cards displayed in table center */
   .seat .cardImg--table,
   .tableCenter .cardImg--table,
   .cardImg--table {
-    width: 10vw !important;
-    max-width: 10vw !important;
+    width: 36px !important;
+    max-width: 36px !important;
     height: auto !important;
-    border-radius: 1vw !important;
-    margin-left: -6vw !important;
+    border-radius: 4px !important;
+    margin-left: -20px !important;
     flex-shrink: 0 !important;
   }
 
@@ -672,46 +690,48 @@ body {
     margin-left: 0 !important;
   }
 
-  /* Player panel - 48vh for more hand space */
+  /* Player panel - remaining 45% */
   .panel:last-child {
-    flex: 1 !important;
-    max-height: none !important;
-    padding: 1vw !important;
+    flex: 1 1 45% !important;
+    max-height: 45% !important;
+    padding: 4px !important;
     overflow: hidden !important;
     display: flex !important;
     flex-direction: column !important;
   }
 
-  /* Action buttons - single row, 5vh */
+  /* Action buttons - single row, fixed height */
   .actions {
-    flex: 0 0 5vh !important;
-    height: 5vh !important;
-    gap: 2vw !important;
-    margin-bottom: 1vw !important;
+    flex: 0 0 36px !important;
+    height: 36px !important;
+    gap: 6px !important;
+    margin-bottom: 4px !important;
     flex-wrap: nowrap !important;
     justify-content: center !important;
     align-items: center !important;
   }
 
   .actions .btn {
-    padding: 1vw 3vw !important;
-    font-size: 3.5vw !important;
+    padding: 6px 10px !important;
+    font-size: 12px !important;
   }
 
   .hint {
-    font-size: 3vw !important;
+    font-size: 10px !important;
     text-align: center;
-    margin: 0.5vw 0;
+    margin: 2px 0;
+    display: none !important;
+    /* Hide hint on mobile to save space */
   }
 
-  /* Hand area - Massive space now */
+  /* Hand area - fills remaining space */
   .hand {
     flex: 1 !important;
     display: flex !important;
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     gap: 0 !important;
-    padding: 4vh 1vw 1vw 1vw !important;
+    padding: 8px 4px 4px 4px !important;
     justify-content: flex-start !important;
     align-items: flex-start !important;
     overflow-x: auto !important;
@@ -719,10 +739,10 @@ body {
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Hand Cards - 22vw width (larger!) */
+  /* Hand Cards - overlapping fan layout */
   .hand .cardBtn,
   .hand>.cardBtn {
-    margin-left: -14vw !important;
+    margin-left: -36px !important;
     flex-shrink: 0 !important;
     transition: transform 0.1s ease;
   }
@@ -734,15 +754,15 @@ body {
 
   .hand .cardBtn--selected,
   .hand>.cardBtn--selected {
-    transform: translateY(-4vh) !important;
+    transform: translateY(-16px) !important;
     z-index: 10;
   }
 
   .cardImg--hand {
-    width: 22vw !important;
-    max-width: 22vw !important;
-    border-radius: 2vw !important;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    width: 56px !important;
+    max-width: 56px !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   }
 
   /* Hide footer */
@@ -752,10 +772,10 @@ body {
 
   /* PASS text */
   .seat__pass {
-    font-size: 3.5vw !important;
+    font-size: 11px !important;
   }
 
-  /* Hide You seat from table */
+  /* Hide You seat from table (shown in hand panel instead) */
   .seat--bottom {
     display: none !important;
   }
