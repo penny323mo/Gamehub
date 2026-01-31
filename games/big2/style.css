@@ -555,11 +555,11 @@ body {
     margin: 0 !important;
   }
 
-  /* Game panel - 60% for table, rest for player hand */
+  /* Game panel - fills available space, let content determine size */
   .panel:first-child {
-    flex: 1 1 60% !important;
-    min-height: 55% !important;
-    max-height: 65% !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
     padding: 4px !important;
     overflow: hidden !important;
   }
@@ -623,11 +623,11 @@ body {
 
   /* Played cards */
 
-  /* Seat - larger with less padding */
+  /* Seat - LARGER for CPU cards (+50%) */
   .seat {
     flex: 1 1 auto !important;
-    min-height: 48px !important;
-    max-height: 65px !important;
+    min-height: 56px !important;
+    max-height: 75px !important;
     flex-direction: row !important;
     align-items: center !important;
     justify-content: space-between !important;
@@ -714,12 +714,12 @@ body {
     margin-left: 0 !important;
   }
 
-  /* Player panel - compact, just enough for cards */
+  /* Player panel - LARGER for hand cards (+50%) */
   .panel:last-child {
     flex: 0 0 auto !important;
-    min-height: 100px !important;
-    max-height: 130px !important;
-    padding: 4px !important;
+    min-height: 140px !important;
+    max-height: 180px !important;
+    padding: 6px !important;
     overflow: visible !important;
     display: flex !important;
     flex-direction: column !important;
@@ -749,15 +749,15 @@ body {
     /* Hide hint on mobile to save space */
   }
 
-  /* Hand area - compact, cards aligned at bottom */
+  /* Hand area - LARGER with room for card popup */
   .hand {
     flex: 1 1 auto !important;
-    min-height: 65px !important;
+    min-height: 90px !important;
     display: flex !important;
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     gap: 0 !important;
-    padding: 4px 6px !important;
+    padding: 12px 8px 6px 8px !important;
     justify-content: center !important;
     align-items: flex-end !important;
     overflow-x: auto !important;
@@ -779,11 +779,13 @@ body {
     margin-left: 0 !important;
   }
 
-  /* Selected cards - pop up with glow, subtle lift */
+  /* Selected cards - lift up but KEEP stacking (use position not transform) */
   .hand .cardBtn--selected,
   .hand>.cardBtn--selected {
-    transform: translateY(-8px) !important;
-    filter: brightness(1.1) drop-shadow(0 0 5px rgba(255, 214, 106, 0.7)) !important;
+    position: relative !important;
+    bottom: 12px !important;
+    /* Lifts card up while keeping margin overlap intact */
+    filter: brightness(1.15) drop-shadow(0 0 6px rgba(255, 214, 106, 0.8)) !important;
   }
 
   .cardImg--hand {
