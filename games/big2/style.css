@@ -490,8 +490,8 @@ body {
   }
 }
 
-/* Mobile-optimized layout for iPhone - PROPORTIONAL DESIGN */
-@media (max-width: 480px) {
+/* Mobile-optimized layout for Smartphone & Small Tablets */
+@media (max-width: 768px) {
 
   html,
   body {
