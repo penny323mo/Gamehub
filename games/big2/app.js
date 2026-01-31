@@ -1067,7 +1067,13 @@
     clearSuggest();
     dealNewGame();
     render();
-    if (state.currentPlayer !== 0) queueCpuTurns();
+
+    // CRITICAL: trigger CPU turns if it's not human's turn
+    console.log('Game started, currentPlayer:', state.currentPlayer);
+    if (state.currentPlayer !== 0) {
+      console.log('Triggering CPU turns...');
+      queueCpuTurns();
+    }
   }
 
   // ---------- Boot ----------
