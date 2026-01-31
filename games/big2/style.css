@@ -715,11 +715,11 @@ body {
     margin-left: 0 !important;
   }
 
-  /* Player panel - EVEN LARGER for hand cards (+70% from original) */
+  /* Player panel - +20% HIGHER for hand cards */
   .panel:last-child {
     flex: 0 0 auto !important;
-    min-height: 168px !important;
-    max-height: 216px !important;
+    min-height: 202px !important;
+    max-height: 259px !important;
     padding: 8px !important;
     overflow: visible !important;
     display: flex !important;
@@ -766,11 +766,11 @@ body {
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Hand Cards - overlapping fan layout */
+  /* Hand Cards - TIGHTER overlap to fit all 13 cards */
   .hand .cardBtn,
   .hand>.cardBtn {
-    margin-left: -28px !important;
-    /* Less overlap (was -40px) - cards easier to see */
+    margin-left: -38px !important;
+    /* Tighter overlap to show all 13 cards */
     flex-shrink: 0 !important;
     transition: transform 0.1s ease, filter 0.1s ease;
   }
