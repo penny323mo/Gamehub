@@ -593,25 +593,47 @@ body {
     display: flex !important;
     flex-direction: column !important;
     flex: 1 !important;
-    justify-content: space-between !important;
-    gap: 2px !important;
+    justify-content: flex-start !important;
+    gap: 3px !important;
     width: 100% !important;
     height: 100% !important;
     grid-template-columns: none !important;
     grid-template-rows: none !important;
   }
 
-  /* Seat - compact for mobile */
+  /* Reorder seats: CPU1, CPU2, CPU3, then tableCenter */
+  .seat--left {
+    order: 1 !important;
+  }
+
+  /* CPU1 */
+  .seat--top {
+    order: 2 !important;
+  }
+
+  /* CPU2 */
+  .seat--right {
+    order: 3 !important;
+  }
+
+  /* CPU3 */
+  .tableCenter {
+    order: 4 !important;
+  }
+
+  /* Played cards */
+
+  /* Seat - larger with less padding */
   .seat {
     flex: 1 1 auto !important;
-    min-height: 42px !important;
-    max-height: 56px !important;
+    min-height: 48px !important;
+    max-height: 65px !important;
     flex-direction: row !important;
     align-items: center !important;
     justify-content: space-between !important;
-    padding: 0 6px !important;
-    gap: 4px !important;
-    overflow: hidden !important;
+    padding: 4px 8px !important;
+    gap: 6px !important;
+    overflow: visible !important;
   }
 
   .seat__hdr {
@@ -663,33 +685,31 @@ body {
     font-weight: 700;
   }
 
-  /* Table center - center area for played cards */
+  /* Table center - played cards area at bottom of table */
   .tableCenter {
-    flex: 2 1 auto !important;
-    min-height: 60px !important;
-    max-height: 80px !important;
-    /* Bigger for larger cards */
-    padding: 4px !important;
+    flex: 0 0 auto !important;
+    min-height: 38px !important;
+    max-height: 48px !important;
+    padding: 2px 4px !important;
     font-size: 11px !important;
     display: flex !important;
     justify-content: center !important;
     align-items: center !important;
   }
 
-  /* Cards displayed in table center - BIGGER for visibility */
+  /* Cards displayed in table center - bigger */
   .seat .cardImg--table,
   .tableCenter .cardImg--table,
   .cardImg--table {
-    width: 48px !important;
-    /* Larger played cards */
-    max-width: 48px !important;
+    width: 44px !important;
+    max-width: 44px !important;
     height: auto !important;
-    border-radius: 4px !important;
-    margin-left: -28px !important;
-    /* Adjusted overlap */
+    border-radius: 3px !important;
+    margin-left: -24px !important;
     flex-shrink: 0 !important;
   }
 
+  .seat .cardImg--table:first-child,
   .tableCenter .cardImg--table:first-child {
     margin-left: 0 !important;
   }
@@ -759,21 +779,17 @@ body {
     margin-left: 0 !important;
   }
 
-  /* Selected cards - glow effect ONLY, no position change, stays behind right cards */
+  /* Selected cards - pop up with glow, subtle lift */
   .hand .cardBtn--selected,
   .hand>.cardBtn--selected {
-    /* NO transform - card stays in place so it doesn't cover cards to its right */
-    filter: brightness(1.15) drop-shadow(0 0 6px rgba(255, 214, 106, 0.8)) !important;
-    outline: 3px solid rgba(255, 214, 106, 0.9) !important;
-    outline-offset: -3px !important;
-    border-radius: 4px !important;
+    transform: translateY(-8px) !important;
+    filter: brightness(1.1) drop-shadow(0 0 5px rgba(255, 214, 106, 0.7)) !important;
   }
 
   .cardImg--hand {
-    width: 55px !important;
-    max-width: 55px !important;
+    width: 58px !important;
+    max-width: 58px !important;
     border-radius: 4px !important;
-    /* Slightly smaller to reduce total width */
   }
 
   /* Hide footer */
