@@ -555,10 +555,10 @@ body {
     margin: 0 !important;
   }
 
-  /* Game panel - 55% of available space */
+  /* Game panel - reduced to 48% to give more space for player cards */
   .panel:first-child {
-    flex: 0 0 55% !important;
-    max-height: 55% !important;
+    flex: 0 0 48% !important;
+    max-height: 48% !important;
     padding: 4px !important;
     overflow: hidden !important;
   }
@@ -600,16 +600,15 @@ body {
     grid-template-rows: none !important;
   }
 
-  /* Seat - Use flex-grow and percentage for proportional sizing */
+  /* Seat - compact for mobile */
   .seat {
     flex: 1 1 auto !important;
-    min-height: 52px !important;
-    /* Taller for larger cards */
-    max-height: 72px !important;
+    min-height: 42px !important;
+    max-height: 56px !important;
     flex-direction: row !important;
     align-items: center !important;
     justify-content: space-between !important;
-    padding: 0 8px !important;
+    padding: 0 6px !important;
     gap: 4px !important;
     overflow: hidden !important;
   }
@@ -694,12 +693,15 @@ body {
     margin-left: 0 !important;
   }
 
-  /* Player panel - remaining 45% */
+  /* Player panel - remaining space with visible overflow for cards */
   .panel:last-child {
-    flex: 1 1 45% !important;
-    max-height: 45% !important;
+    flex: 1 1 auto !important;
+    min-height: 130px !important;
+    /* Minimum height for cards + buttons */
+    max-height: none !important;
     padding: 4px !important;
-    overflow: hidden !important;
+    overflow: visible !important;
+    /* Allow cards to extend above panel */
     display: flex !important;
     flex-direction: column !important;
   }
@@ -728,17 +730,20 @@ body {
     /* Hide hint on mobile to save space */
   }
 
-  /* Hand area - fills remaining space */
+  /* Hand area - fills remaining space, visible overflow for selection */
   .hand {
-    flex: 1 !important;
+    flex: 1 1 auto !important;
+    min-height: 75px !important;
+    /* Card height 60px + padding */
     display: flex !important;
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     gap: 0 !important;
-    padding: 24px 4px 4px 4px !important;
-    /* More top padding for selected cards pop-up */
+    padding: 14px 4px 6px 4px !important;
+    /* Top padding for selected card pop-up */
     justify-content: flex-start !important;
-    align-items: flex-start !important;
+    align-items: flex-end !important;
+    /* Align cards to bottom */
     overflow-x: auto !important;
     overflow-y: visible !important;
     -webkit-overflow-scrolling: touch;
@@ -747,8 +752,8 @@ body {
   /* Hand Cards - overlapping fan layout */
   .hand .cardBtn,
   .hand>.cardBtn {
-    margin-left: -48px !important;
-    /* Tighter overlap for larger cards */
+    margin-left: -40px !important;
+    /* Overlap for 60px cards */
     flex-shrink: 0 !important;
     transition: transform 0.1s ease;
   }
@@ -767,11 +772,10 @@ body {
   }
 
   .cardImg--hand {
-    width: 72px !important;
-    /* Larger cards */
-    max-width: 72px !important;
-    border-radius: 6px !important;
-    /* No box-shadow - looks cleaner when overlapping */
+    width: 60px !important;
+    max-width: 60px !important;
+    border-radius: 5px !important;
+    /* Compact for mobile viewport */
   }
 
   /* Hide footer */
