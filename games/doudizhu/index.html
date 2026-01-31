@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-HK">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>鬥地主 (Dou Dizhu) — v0.9</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>鬥地主 (Dou Dizhu) — v0.9</h1>
+    <div class="topbar__actions">
+      <button id="restartBtn" class="btn">Restart</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <h2>Game</h2>
+      <div id="status" class="status" aria-live="polite">Loading…</div>
+      <div id="log" class="log" aria-live="polite"></div>
+
+      <div class="tableFrame" aria-label="Table">
+        <div class="tableFelt">
+          <div class="tableGrid" aria-label="Table seats">
+            <div class="seat seat--topRight" id="seat2">
+              <div class="seat__hdr">
+                <div class="seat__name" id="p2Name">CPU 2</div>
+                <div class="seat__meta" id="p2Meta"></div>
+              </div>
+              <div class="seat__body" id="p2Body"></div>
+            </div>
+
+            <div class="seat seat--topLeft" id="seat1">
+              <div class="seat__hdr">
+                <div class="seat__name" id="p1Name">CPU 1</div>
+                <div class="seat__meta" id="p1Meta"></div>
+              </div>
+              <div class="seat__body" id="p1Body"></div>
+            </div>
+
+            <div class="tableCenter">
+              <div class="centerCol">
+                <div class="muted" id="tableInfo"></div>
+                <div class="centerRow">
+                  <div class="pile">
+                    <div class="muted">Bottom (3)</div>
+                    <div id="bottom" class="pile__cards" aria-label="Bottom cards"></div>
+                  </div>
+                  <div class="pile">
+                    <div class="muted">Last play</div>
+                    <div id="lastPlay" class="pile__cards" aria-label="Last play"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="seat seat--bottom" id="seat0">
+              <div class="seat__hdr">
+                <div class="seat__name" id="p0Name">You</div>
+                <div class="seat__meta" id="p0Meta"></div>
+              </div>
+              <div class="seat__body" id="p0Body"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>You</h2>
+      <div class="actions">
+        <button id="bidCallBtn" class="btn btn--primary">Call Landlord</button>
+        <button id="bidRobBtn" class="btn">Rob</button>
+        <button id="bidPassBtn" class="btn">Pass</button>
+        <span class="sep"></span>
+        <button id="playBtn" class="btn btn--primary">Play Selected</button>
+        <button id="hintBtn" class="btn">Hint</button>
+        <button id="cancelBtn" class="btn">Cancel</button>
+        <button id="passBtn" class="btn">Pass</button>
+        <div id="hint" class="hint"></div>
+        <div class="hotkeys">快捷鍵：Enter 出牌｜Space Pass｜H 提示｜C 取消</div>
+      </div>
+
+      <div id="hand" class="hand" aria-label="Your hand"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <details>
+      <summary>Notes (v0.9)</summary>
+      <div class="readme">
+        <ul>
+          <li>Offline-friendly: pure HTML/CSS/JS, no CDN.</li>
+          <li>Bid flow: You first. If all pass → redeal. Continuous rob (倍數疊加).</li>
+          <li>v0.9: 手牌堆疊更緊湊；出牌區固定高度避免版面跳動。</li>
+        </ul>
+      </div>
+    </details>
+
+    <details>
+      <summary>README (GitHub Pages deploy)</summary>
+      <div class="readme">
+        <p><strong>Offline-friendly:</strong> This game is pure HTML/CSS/JS (no CDN). Open <code>index.html</code> directly or host it.</p>
+        <ol>
+          <li>Create a GitHub repo and commit these files: <code>index.html</code>, <code>style.css</code>, <code>main.js</code>, <code>src/</code>, <code>assets/</code>.</li>
+          <li>On GitHub: <em>Settings → Pages</em>.</li>
+          <li>Under <em>Build and deployment</em>: choose <em>Deploy from a branch</em>.</li>
+          <li>Select branch <code>main</code> and folder <code>/ (root)</code>, then Save.</li>
+          <li>Wait a minute; your site will appear at the URL shown in GitHub Pages.</li>
+        </ol>
+      </div>
+    </details>
+  </footer>
+
+  <script src="./src/cards.js" defer></script>
+  <script src="./src/rules.js" defer></script>
+  <script src="./src/moves.js" defer></script>
+  <script src="./src/ai.js" defer></script>
+  <script src="./src/game.js" defer></script>
+  <script src="./src/ui.js" defer></script>
+  <script src="./main.js" defer></script>
+</body>
+</html>

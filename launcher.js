@@ -25,6 +25,14 @@ const games = [
         playable: true
     },
     {
+        id: 'doudizhu',
+        title: 'Dou Dizhu',
+        subtitle: '鬥地主! Fight the Landlord vs 2 AI.',
+        icon: '🀄',
+        link: 'games/doudizhu/index.html',
+        playable: true
+    },
+    {
         id: 'coming1',
         title: 'Coming Soon',
         subtitle: 'Under development',
