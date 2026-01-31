@@ -780,12 +780,13 @@ body {
     margin-left: 0 !important;
   }
 
-  /* Selected cards - lift up but KEEP stacking (use position not transform) */
+  /* Selected cards - lift up but STAY BEHIND right cards (z-index unchanged) */
   .hand .cardBtn--selected,
   .hand>.cardBtn--selected {
     position: relative !important;
     bottom: 12px !important;
-    /* Lifts card up while keeping margin overlap intact */
+    z-index: auto !important;
+    /* CRITICAL: z-index stays auto so right cards always cover left cards */
     filter: brightness(1.15) drop-shadow(0 0 6px rgba(255, 214, 106, 0.8)) !important;
   }
 
