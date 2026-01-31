@@ -622,16 +622,16 @@ body {
 
   /* Table center - good sizing */
   .tableCenter {
-    min-height: 90px !important;
-    padding: 8px !important;
-    font-size: 18px !important;
+    min-height: 18vw !important;
+    padding: 2vw !important;
+    font-size: 4vw !important;
   }
 
-  /* Table cards - 20% larger than before */
+  /* Table cards - responsive to screen width */
   .cardImg--table {
-    width: 72px !important;
-    max-width: 72px !important;
-    border-radius: 6px !important;
+    width: 16vw !important;
+    max-width: 16vw !important;
+    border-radius: 1.5vw !important;
   }
 
   /* CRITICAL: Compact action buttons - single row */
@@ -661,20 +661,20 @@ body {
     flex-direction: row !important;
     flex-wrap: nowrap !important;
     gap: 0 !important;
-    padding: 6px 4px !important;
+    padding: 1.5vw 1vw !important;
     justify-content: flex-start !important;
     align-items: flex-end !important;
     overflow-x: auto !important;
     overflow-y: visible !important;
     -webkit-overflow-scrolling: touch;
     max-width: 100% !important;
-    min-height: 100px !important;
-    max-height: 130px !important;
+    min-height: 24vw !important;
+    max-height: 30vw !important;
   }
 
   .hand .cardBtn,
   .hand>.cardBtn {
-    margin-left: -42px !important;
+    margin-left: -10vw !important;
     flex-shrink: 0 !important;
     transition: transform 0.08s ease, margin 0.08s ease;
   }
@@ -686,9 +686,9 @@ body {
 
   .hand .cardBtn--selected,
   .hand>.cardBtn--selected {
-    transform: translateY(-20px) !important;
-    margin-left: -34px !important;
-    margin-right: 10px !important;
+    transform: translateY(-5vw) !important;
+    margin-left: -8vw !important;
+    margin-right: 2vw !important;
     z-index: 10;
   }
 
@@ -698,9 +698,9 @@ body {
   }
 
   .cardImg--hand {
-    width: 86px !important;
-    max-width: 86px !important;
-    border-radius: 7px !important;
+    width: 20vw !important;
+    max-width: 20vw !important;
+    border-radius: 1.5vw !important;
   }
 
   /* Hide footer completely */
