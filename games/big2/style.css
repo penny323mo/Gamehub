@@ -573,13 +573,18 @@ body {
     flex-direction: column !important;
   }
 
-  /* Table grid - 3 seats + center */
+  /* Table grid - CRITICAL FIX: Override CSS Grid */
   .tableGrid {
-    flex: 1 !important;
     display: flex !important;
     flex-direction: column !important;
+    flex: 1 !important;
     justify-content: space-between !important;
     gap: 0.5vh !important;
+    width: 100% !important;
+    height: 100% !important;
+    /* Reset grid properties just in case */
+    grid-template-columns: none !important;
+    grid-template-rows: none !important;
   }
 
   /* Seat - Fixed height, prevent stretching */
