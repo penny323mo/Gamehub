@@ -490,22 +490,31 @@ body {
   }
 }
 
-/* Mobile-optimized layout for iPhone */
+/* Mobile-optimized layout for iPhone - ULTRA COMPACT */
 @media (max-width: 480px) {
 
   html,
   body {
     overflow-x: hidden;
     height: 100%;
+    margin: 0;
+    padding: 0;
   }
 
-  /* Compact topbar */
+  /* Minimal topbar */
   .topbar {
-    padding: 6px 10px;
+    padding: 4px 8px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
   }
 
   .topbar h1 {
-    font-size: 13px;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 50%;
   }
 
   .topbar__actions {
@@ -513,64 +522,70 @@ body {
   }
 
   .topbar__actions .btn {
-    padding: 5px 8px;
-    font-size: 11px;
+    padding: 4px 8px;
+    font-size: 10px;
   }
 
-  /* Ultra-compact layout */
+  /* Ultra-compact main layout */
   .layout {
-    padding: 4px;
-    gap: 4px;
+    padding: 2px;
+    gap: 2px;
+    max-height: calc(100vh - 36px);
+    overflow-y: auto;
   }
 
   .panel {
-    padding: 6px;
-    border-radius: 8px;
-  }
-
-  .panel h2 {
-    display: none;
-  }
-
-  /* Compact status bar */
-  .status {
-    padding: 4px 8px;
-    font-size: 12px;
-    margin-bottom: 4px;
-  }
-
-  /* Smaller table frame */
-  .tableFrame {
-    padding: 6px;
-    border-radius: 10px;
-  }
-
-  .tableFelt {
-    padding: 6px;
+    padding: 4px;
     border-radius: 6px;
   }
 
-  /* Ultra-compact seats */
+  .panel h2 {
+    display: none !important;
+  }
+
+  /* Tiny status bar */
+  .status {
+    padding: 3px 6px;
+    font-size: 11px;
+    margin-bottom: 2px;
+  }
+
+  /* Minimal table frame */
+  .tableFrame {
+    padding: 4px;
+    border-radius: 8px;
+  }
+
+  .tableFelt {
+    padding: 4px;
+    border-radius: 6px;
+  }
+
+  /* CRITICAL: Super compact seats - minimal height */
   .tableGrid {
-    gap: 4px;
+    gap: 2px !important;
   }
 
   .seat {
     flex-direction: row !important;
     align-items: center !important;
     justify-content: space-between !important;
-    min-height: 36px !important;
-    padding: 4px 6px !important;
-    gap: 4px;
+    min-height: 28px !important;
+    max-height: 32px !important;
+    padding: 2px 4px !important;
+    gap: 2px !important;
+    overflow: hidden !important;
   }
 
   .seat__hdr {
     flex-shrink: 0;
-    gap: 4px;
+    gap: 2px;
+    flex-direction: row;
+    align-items: center;
   }
 
   .seat__name {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
   }
 
@@ -581,117 +596,127 @@ body {
   .seat__body {
     flex: 1;
     justify-content: flex-end !important;
-    min-height: 28px !important;
-    gap: 2px !important;
+    min-height: 22px !important;
+    max-height: 26px !important;
+    gap: 1px !important;
+    overflow: hidden !important;
   }
 
-  /* Tiny deck stack for CPU */
+  /* Tiny deck stack */
   .deckStack {
-    width: 28px;
-    height: 38px;
+    width: 20px !important;
+    height: 28px !important;
+    transform: scale(0.7);
+    transform-origin: right center;
   }
 
   .cardBack {
-    width: 28px;
-  }
-
-  .cardBack--1 {
-    transform: translate(0, 0) rotate(-1deg);
-  }
-
-  .cardBack--2 {
-    transform: translate(1px, -1px) rotate(0.5deg);
-  }
-
-  .cardBack--3 {
-    transform: translate(2px, -2px) rotate(1deg);
+    width: 20px !important;
   }
 
   .countPill {
-    right: -6px;
-    top: -4px;
-    font-size: 9px;
-    padding: 1px 4px;
+    right: -4px;
+    top: -2px;
+    font-size: 8px;
+    padding: 1px 3px;
   }
 
-  /* Smaller table center */
+  /* Compact table center */
   .tableCenter {
-    min-height: 40px !important;
-    padding: 4px;
-    font-size: 11px;
+    min-height: 30px !important;
+    max-height: 40px !important;
+    padding: 2px !important;
+    font-size: 10px !important;
   }
 
   /* Tiny table cards */
   .cardImg--table {
-    width: 30px !important;
-    border-radius: 4px;
+    width: 24px !important;
+    max-width: 24px !important;
+    border-radius: 3px !important;
   }
 
-  /* Compact action buttons - single row */
+  /* CRITICAL: Compact action buttons - single row */
   .actions {
-    gap: 4px;
-    margin-bottom: 4px;
+    gap: 3px !important;
+    margin-bottom: 2px !important;
     flex-wrap: nowrap !important;
+    justify-content: center !important;
   }
 
   .actions .btn {
-    padding: 5px 8px;
-    font-size: 11px;
-    flex: 1;
-    text-align: center;
+    padding: 4px 6px !important;
+    font-size: 10px !important;
+    flex: 0 1 auto !important;
   }
 
   .hint {
-    font-size: 10px;
+    font-size: 9px !important;
     width: 100%;
     text-align: center;
+    margin-top: 2px;
   }
 
-  /* CRITICAL: Overlapping hand cards */
+  /* CRITICAL: Overlapping hand cards - horizontal scroll */
   .hand {
-    gap: 0 !important;
-    padding: 4px 8px !important;
-    justify-content: flex-start !important;
+    display: flex !important;
+    flex-direction: row !important;
     flex-wrap: nowrap !important;
+    gap: 0 !important;
+    padding: 4px 2px !important;
+    justify-content: flex-start !important;
+    align-items: flex-end !important;
     overflow-x: auto !important;
-    overflow-y: hidden !important;
+    overflow-y: visible !important;
     -webkit-overflow-scrolling: touch;
-    max-width: 100%;
+    max-width: 100% !important;
+    min-height: 60px !important;
+    max-height: 75px !important;
   }
 
-  .hand .cardBtn {
-    margin-left: -24px !important;
+  .hand .cardBtn,
+  .hand>.cardBtn {
+    margin-left: -28px !important;
     flex-shrink: 0 !important;
     transition: transform 0.08s ease, margin 0.08s ease;
   }
 
-  .hand .cardBtn:first-child {
+  .hand .cardBtn:first-child,
+  .hand>.cardBtn:first-child {
     margin-left: 0 !important;
   }
 
-  .hand .cardBtn--selected {
-    transform: translateY(-10px) !important;
-    margin-left: -16px !important;
+  .hand .cardBtn--selected,
+  .hand>.cardBtn--selected {
+    transform: translateY(-12px) !important;
+    margin-left: -20px !important;
     margin-right: 4px !important;
     z-index: 10;
   }
 
-  .hand .cardBtn--selected:first-child {
+  .hand .cardBtn--selected:first-child,
+  .hand>.cardBtn--selected:first-child {
     margin-left: 0 !important;
   }
 
   .cardImg--hand {
-    width: 44px !important;
-    border-radius: 5px;
+    width: 40px !important;
+    max-width: 40px !important;
+    border-radius: 4px !important;
   }
 
-  /* Hide footer on mobile */
+  /* Hide footer completely */
   .footer {
     display: none !important;
   }
 
-  /* PASS text smaller */
+  /* Smaller pass text */
   .seat__pass {
-    font-size: 10px;
+    font-size: 9px !important;
+  }
+
+  /* Hide "You" seat from table grid on mobile - you see your cards below anyway */
+  .seat--bottom {
+    display: none !important;
   }
 }
