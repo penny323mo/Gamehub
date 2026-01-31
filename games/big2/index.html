@@ -66,25 +66,23 @@
       </div>
     </section>
 
-    <section class="panel">
-      <h2>You</h2>
+    <section class="panel panel--player">
       <div class="actions">
-        <button id="playBtn" class="btn btn--primary">Play Selected</button>
-        <button id="suggestBtn" class="btn">Suggest</button>
-        <button id="cancelSuggestBtn" class="btn">Cancel</button>
-        <button id="passBtn" class="btn">Pass</button>
-        <div id="hint" class="hint"></div>
+        <button id="playBtn" class="btn btn--action btn--primary">出牌</button>
+        <button id="suggestBtn" class="btn btn--action">提議</button>
+        <button id="cancelSuggestBtn" class="btn btn--action">取消</button>
+        <button id="passBtn" class="btn btn--action btn--pass">Pass</button>
       </div>
 
       <div id="hand" class="hand" aria-label="Your hand"></div>
-
-      <!-- Bottom control buttons -->
-      <div class="bottomControls" id="bottomControls">
-        <a href="../../index.html" class="btn btn--back">← 返回 Menu</a>
-        <button id="startGameBtn" class="btn btn--primary btn--start">開始遊戲</button>
-        <button id="restartBtn2" class="btn">重新開始</button>
-      </div>
     </section>
+
+    <!-- Bottom control buttons - OUTSIDE panel -->
+    <div class="bottomControls" id="bottomControls">
+      <a href="../../index.html" class="btn btn--nav">← 返回 Menu</a>
+      <button id="startGameBtn" class="btn btn--nav btn--start">開始遊戲</button>
+      <button id="restartBtn2" class="btn btn--nav">重新開始</button>
+    </div>
   </main>
 
   <footer class="footer">
