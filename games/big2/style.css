@@ -570,22 +570,22 @@ body {
     flex-direction: row !important;
     align-items: center !important;
     justify-content: space-between !important;
-    min-height: 28px !important;
-    max-height: 32px !important;
-    padding: 2px 4px !important;
-    gap: 2px !important;
+    min-height: 40px !important;
+    max-height: 50px !important;
+    padding: 4px 6px !important;
+    gap: 4px !important;
     overflow: hidden !important;
   }
 
   .seat__hdr {
     flex-shrink: 0;
-    gap: 2px;
+    gap: 4px;
     flex-direction: row;
     align-items: center;
   }
 
   .seat__name {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
   }
 
@@ -596,44 +596,44 @@ body {
   .seat__body {
     flex: 1;
     justify-content: flex-end !important;
-    min-height: 22px !important;
-    max-height: 26px !important;
-    gap: 1px !important;
+    min-height: 32px !important;
+    max-height: 42px !important;
+    gap: 2px !important;
     overflow: hidden !important;
   }
 
-  /* Tiny deck stack */
+  /* Compact deck stack - proportional to hand cards */
   .deckStack {
-    width: 20px !important;
-    height: 28px !important;
-    transform: scale(0.7);
+    width: 32px !important;
+    height: 44px !important;
+    transform: scale(0.85);
     transform-origin: right center;
   }
 
   .cardBack {
-    width: 20px !important;
+    width: 32px !important;
   }
 
   .countPill {
-    right: -4px;
-    top: -2px;
-    font-size: 8px;
-    padding: 1px 3px;
+    right: -6px;
+    top: -4px;
+    font-size: 9px;
+    padding: 2px 5px;
   }
 
-  /* Compact table center */
+  /* Table center - proportional sizing */
   .tableCenter {
-    min-height: 30px !important;
-    max-height: 40px !important;
-    padding: 2px !important;
-    font-size: 10px !important;
+    min-height: 50px !important;
+    max-height: 65px !important;
+    padding: 4px !important;
+    font-size: 11px !important;
   }
 
-  /* Tiny table cards */
+  /* Table cards - proportional to hand cards (hand=40px, table=34px) */
   .cardImg--table {
-    width: 24px !important;
-    max-width: 24px !important;
-    border-radius: 3px !important;
+    width: 34px !important;
+    max-width: 34px !important;
+    border-radius: 4px !important;
   }
 
   /* CRITICAL: Compact action buttons - single row */
