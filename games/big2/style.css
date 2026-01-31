@@ -603,9 +603,9 @@ body {
   /* Seat - Use flex-grow and percentage for proportional sizing */
   .seat {
     flex: 1 1 auto !important;
-    min-height: 44px !important;
-    max-height: 60px !important;
-    /* Taller for better card visibility */
+    min-height: 52px !important;
+    /* Taller for larger cards */
+    max-height: 72px !important;
     flex-direction: row !important;
     align-items: center !important;
     justify-content: space-between !important;
@@ -758,17 +758,12 @@ body {
     margin-left: 0 !important;
   }
 
-  /* Selected cards - use outline + brightness instead of translateY to avoid obscuring other cards */
+  /* Selected cards - pop up but KEEP original stacking order (no z-index change) */
   .hand .cardBtn--selected,
   .hand>.cardBtn--selected {
-    transform: none !important;
-    /* NO vertical movement */
-    filter: brightness(1.15) !important;
-    /* Slight brightening */
-    outline: 3px solid #ffd700 !important;
-    /* Gold highlight border */
-    outline-offset: -2px !important;
-    z-index: 10;
+    transform: translateY(-10px) !important;
+    /* Subtle pop up */
+    /* NO z-index change - selected card stays behind cards to its right */
   }
 
   .cardImg--hand {
