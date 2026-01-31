@@ -73,30 +73,38 @@
   display: none !important;
 }
 
-/* Navigation buttons - LARGER for better touch */
+/* Navigation buttons - DYNAMIC with animations */
 .btn--nav {
   padding: 14px 24px;
   font-size: 16px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: var(--text);
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .btn--nav:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.1) 100%);
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.btn--nav:active {
+  transform: translateY(-1px) scale(0.98);
 }
 
 .btn--nav.btn--start {
   background: linear-gradient(135deg, var(--accent) 0%, #4a8af0 100%);
   border: none;
-  font-weight: 600;
+  font-weight: 700;
+  box-shadow: 0 4px 20px rgba(93, 169, 255, 0.4);
 }
 
 .btn--nav.btn--start:hover {
   background: linear-gradient(135deg, #7ab8ff 0%, var(--accent) 100%);
+  box-shadow: 0 8px 30px rgba(93, 169, 255, 0.6);
 }
 
 /* Action buttons (出牌/提議/取消/Pass) */
@@ -852,11 +860,11 @@ body {
     margin-left: 0 !important;
   }
 
-  /* Player panel - +30% HIGHER for hand cards (10% increase from 202/259) */
+  /* Player panel - EVEN HIGHER for hand cards */
   .panel:last-child {
     flex: 0 0 auto !important;
-    min-height: 222px !important;
-    max-height: 285px !important;
+    min-height: 245px !important;
+    max-height: 310px !important;
     padding: 8px !important;
     overflow: visible !important;
     display: flex !important;
@@ -931,8 +939,8 @@ body {
   }
 
   .cardImg--hand {
-    width: 69px !important;
-    max-width: 69px !important;
+    width: 71px !important;
+    max-width: 71px !important;
     border-radius: 5px !important;
   }
 
