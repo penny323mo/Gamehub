@@ -18,20 +18,62 @@
     return m;
   }
 
-  function countSingles(cards){
+  function groupStats(cards){
     const cnt = rankCounts(cards);
-    let singles = 0;
-    for (const n of cnt.values()) if (n === 1) singles++;
-    return singles;
+    let singles = 0, pairs = 0, trips = 0, quads = 0;
+    for (const n of cnt.values()){
+      if (n === 1) singles++;
+      else if (n === 2) pairs++;
+      else if (n === 3) trips++;
+      else if (n >= 4) quads++;
+    }
+    return { singles, pairs, trips, quads };
+  }
+
+  function straightPotential(cards){
+    const cnt = rankCounts(cards);
+    const ORDER = ['3','4','5','6','7','8','9','10','J','Q','K','A'];
+    const set = new Set([...cnt.keys()].filter(r => !['2','BJ','RJ'].includes(r)));
+    let best = 0, cur = 0;
+    for (const r of ORDER){
+      if (set.has(r)){ cur++; best = Math.max(best, cur); }
+      else cur = 0;
+    }
+    return best >= 5 ? best : 0;
+  }
+
+  function pairStraightPotential(cards){
+    const cnt = rankCounts(cards);
+    const ORDER = ['3','4','5','6','7','8','9','10','J','Q','K','A'];
+    const set = new Set([...cnt.keys()].filter(r => (cnt.get(r) || 0) >= 2 && !['2','BJ','RJ'].includes(r)));
+    let best = 0, cur = 0;
+    for (const r of ORDER){
+      if (set.has(r)){ cur++; best = Math.max(best, cur); }
+      else cur = 0;
+    }
+    return best >= 3 ? best : 0;
   }
 
   function scoreHintMove(hand, move, lastPlay){
     const rm = new Set(move.cards.map(cardId));
     const remaining = hand.filter(c => !rm.has(cardId(c)));
-    const singles = countSingles(remaining);
-    const typePenalty = (move.ev.type === TYPE.BOMB || move.ev.type === TYPE.ROCKET) ? 50 : 0;
-    const followPenalty = lastPlay ? 0 : 0;
-    return remaining.length * 10 + singles * 2 + typePenalty + followPenalty;
+    const before = groupStats(hand);
+    const after = groupStats(remaining);
+
+    const singlePenalty = Math.max(0, after.singles - before.singles) * 3;
+    const breakPairPenalty = Math.max(0, before.pairs - after.pairs) * 4;
+    const breakTripPenalty = Math.max(0, before.trips - after.trips) * 6;
+    const bombPenalty = (move.ev.type === TYPE.BOMB || move.ev.type === TYPE.ROCKET) ? 50 : 0;
+    
+    const sBefore = straightPotential(hand);
+    const sAfter = straightPotential(remaining);
+    const breakStraightPenalty = (sBefore >= 5 && sAfter < sBefore) ? 8 : 0;
+
+    const psBefore = pairStraightPotential(hand);
+    const psAfter = pairStraightPotential(remaining);
+    const breakPairStraightPenalty = (psBefore >= 3 && psAfter < psBefore) ? 8 : 0;
+
+    return remaining.length * 10 + singlePenalty + breakPairPenalty + breakTripPenalty + bombPenalty + breakStraightPenalty + breakPairStraightPenalty;
   }
 
   function bindUI(game){
@@ -79,6 +121,22 @@
       const id = btn.dataset.id;
       if (state.ui.selected.has(id)) state.ui.selected.delete(id);
       else state.ui.selected.add(id);
+      render(game);
+    });
+
+    // Double-click: select all same-rank cards (quick pair/trips)
+    els.hand.addEventListener('dblclick', (e) => {
+      const btn = e.target.closest('button.cardBtn');
+      if (!btn) return;
+      if (state.phase !== 'play') return;
+      if (state.current !== 0) return;
+
+      const rank = btn.dataset.rank;
+      state.ui.selected.clear();
+      for (const c of state.players[0].hand){
+        const cid = cardId(c);
+        if (c.rank === rank) state.ui.selected.add(cid);
+      }
       render(game);
     });
 
@@ -143,6 +201,15 @@
 
     // Play
     els.playBtn.addEventListener('click', () => {
+      if (state.phase === 'play' && state.current === 0 && state.lastPlay){
+        const legal = getLegalMoves(state.players[0].hand, state.lastPlay);
+        if (!legal.length){
+          actions.pass();
+          render(game);
+          playCpuLoop();
+          return;
+        }
+      }
       actions.playSelected();
       render(game);
       playCpuLoop();
@@ -204,6 +271,8 @@
         els.hintBtn.click();
       } else if (key === 'c'){
         els.cancelBtn.click();
+      } else if (key === 'r'){
+        if (state.phase === 'over') els.restartBtn.click();
       } else if (key === ' '){
         if (inPlay && isHumanTurn && !els.passBtn.disabled) els.passBtn.click();
       } else if (key === 'enter'){
@@ -218,6 +287,16 @@
     const { state } = game;
     const { els, setHint } = game._ui || {};
     if (!els) return;
+
+    const isHumanTurn = state.current === 0;
+    const inPlay = state.phase === 'play';
+    const legalMovesHuman = (inPlay && isHumanTurn)
+      ? getLegalMoves(state.players[0].hand, state.lastPlay)
+      : null;
+
+    if (inPlay && isHumanTurn && legalMovesHuman && legalMovesHuman.length === 0){
+      state.ui.selected.clear();
+    }
 
     // seats
     for (let i=0;i<3;i++){
@@ -289,7 +368,12 @@
     } else if (state.phase === 'play'){
       const who = state.players[state.current].name;
       const landlord = state.landlord != null ? `｜地主：${state.players[state.landlord].name}` : '';
-      els.status.textContent = `Play phase — Turn: ${who} ${landlord}`.trim();
+      let extra = '';
+      if (state.current === 0){
+        const legal = legalMovesHuman || [];
+        extra = legal.length ? `｜可出 ${legal.length} 手` : '｜無牌可跟';
+      }
+      els.status.textContent = `Play phase — Turn: ${who} ${landlord} ${extra}`.trim();
     } else if (state.phase === 'over'){
       const winner = state.players[state.current].name;
       const role = state.players[state.current].role === 'landlord' ? '地主勝' : '農民勝';
@@ -308,6 +392,7 @@
       const selected = state.ui.selected.has(cardId(c));
       btn.className = 'cardBtn' + (selected ? ' cardBtn--selected' : '');
       btn.dataset.id = cardId(c);
+      btn.dataset.rank = c.rank;
       // keep right-side cards always on top; selection only lifts vertically
       btn.style.zIndex = idx;
 
@@ -335,9 +420,7 @@
     }
 
     // controls
-    const isHumanTurn = state.current === 0;
     const inBid = state.phase === 'bid';
-    const inPlay = state.phase === 'play';
 
     els.bidCallBtn.disabled = !(inBid && isHumanTurn);
     const canRob = inBid && isHumanTurn && state.bid?.calledBy != null && state.bid?.calledBy !== 0;
@@ -364,7 +447,10 @@
     } else if (!inPlay){
       setHint('');
     } else if (inPlay && isHumanTurn){
-      if (!state.ui.selected.size){
+      const legal = legalMovesHuman || [];
+      if (!legal.length){
+        setHint('無牌可跟，請 Pass。', true);
+      } else if (!state.ui.selected.size){
         setHint(state.lastPlay ? '揀牌去跟（或 Pass）。' : '你先出牌：揀一手合法牌型。');
       } else if (!selEval){
         setHint('揀嘅牌唔係合法牌型。', true);

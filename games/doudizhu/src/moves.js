@@ -88,7 +88,7 @@
       [TYPE.BOMB]: 98,
       [TYPE.ROCKET]: 99,
     };
-    return [typeOrder[ev.type] ?? 50, ev.n, ev.keyRank];
+    return [typeOrder[ev.type] ?? 50, ev.n, (DDZ.RANK_INDEX?.[ev.keyRank] ?? 0)];
   }
 
   function cmpScore(a,b){
@@ -98,8 +98,6 @@
       const av = A[i] ?? 0;
       const bv = B[i] ?? 0;
       if (av === bv) continue;
-      // keyRank uses lexicographic by RANK_INDEX via evalHand/canBeat, but for sort we can just string compare fallback.
-      if (i === 2) return (av).localeCompare(bv);
       return av - bv;
     }
     return 0;

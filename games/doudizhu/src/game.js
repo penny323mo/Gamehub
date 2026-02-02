@@ -196,7 +196,16 @@
 
       const idx = state.current;
       const hand = state.players[idx].hand;
-      const move = cpuChooseMove(hand, state.lastPlay);
+      
+      const context = {
+        idx,
+        role: state.players[idx].role,
+        landlordIdx: state.landlord,
+        landlordHandSize: state.players[state.landlord].hand.length,
+        nextPlayerHandSize: state.players[(idx + 1) % 3].hand.length,
+      };
+
+      const move = cpuChooseMove(hand, state.lastPlay, context);
 
       if (!move){
         if (state.lastPlay) applyPass(idx);

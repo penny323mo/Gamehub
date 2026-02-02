@@ -2,7 +2,7 @@
 // 目標：支援常見香港/主流鬥地主牌型 + 炸彈/火箭 + 四帶二。
 (() => {
   const DDZ = window.DDZ = window.DDZ || {};
-  const { RANK_INDEX, sortCards, cardToText } = DDZ;
+  const { RANK_INDEX, RANKS, sortCards, cardToText } = DDZ;
 
   const TYPE = {
     SINGLE: 'single',
@@ -46,6 +46,10 @@
     const idx = ranks.map(r => RANK_INDEX[r]).sort((a,b)=>a-b);
     for (let i=1;i<idx.length;i++) if (idx[i] !== idx[i-1] + 1) return false;
     return true;
+  }
+
+  function rankByIndex(i){
+    return RANKS?.[i] || Object.keys(RANK_INDEX).find(k => RANK_INDEX[k] === i);
   }
 
   function maxRank(ranks){
@@ -152,11 +156,11 @@
         for (let len=2; len<=block.length; len++){
           for (let start=0; start+len<=block.length; start++){
             const seqIdx = block.slice(start, start+len);
-            const seqRanks = seqIdx.map(i => Object.keys(RANK_INDEX).find(k => RANK_INDEX[k] === i));
+            const seqRanks = seqIdx.map(i => rankByIndex(i));
             // filter out 2/BJ/RJ for plane sequence (standard)
             if (seqRanks.some(r => STRAIGHT_BANNED.has(r))) continue;
 
-            const top = Object.keys(RANK_INDEX).find(k => RANK_INDEX[k] === seqIdx[seqIdx.length-1]);
+            const top = rankByIndex(seqIdx[seqIdx.length-1]);
             const coreCards = len * 3;
 
             if (n === coreCards){
