@@ -99,6 +99,9 @@
       hint: document.getElementById('hint'),
       log: document.getElementById('log'),
 
+      // 底部控制按鈕
+      startGameBtn: document.getElementById('startGameBtn'),
+
       seats: [
         { name: document.getElementById('p0Name'), meta: document.getElementById('p0Meta'), body: document.getElementById('p0Body'), wrap: document.getElementById('seat0') },
         { name: document.getElementById('p1Name'), meta: document.getElementById('p1Meta'), body: document.getElementById('p1Body'), wrap: document.getElementById('seat1') },
@@ -140,12 +143,27 @@
       render(game);
     });
 
-    els.restartBtn.addEventListener('click', () => {
+    // 開始遊戲按鈕
+    function startNewGame() {
       actions.restart();
       render(game);
       bidCpuLoop();
       if (state.phase === 'play' && state.current !== 0) playCpuLoop();
-    });
+    }
+
+    if (els.startGameBtn) {
+      els.startGameBtn.addEventListener('click', startNewGame);
+    }
+
+    // 重新開始按鈕
+    if (els.restartBtn) {
+      els.restartBtn.addEventListener('click', () => {
+        actions.restart();
+        render(game);
+        bidCpuLoop();
+        if (state.phase === 'play' && state.current !== 0) playCpuLoop();
+      });
+    }
 
     function bidCpuLoop() {
       const step = () => {
@@ -387,8 +405,8 @@
       els.status.textContent = `Play phase — Turn: ${who} ${landlord} ${extra}`.trim();
     } else if (state.phase === 'over') {
       const winner = state.players[state.current].name;
-      const role = state.players[state.current].role === 'landlord' ? '地主勝' : '農民勝';
-      els.status.textContent = `Game Over — Winner: ${winner} (${role})`;
+      const role = state.players[state.current].role;
+      els.status.textContent = `遊戲結束 — 勝出：${winner} (${role === 'landlord' ? '地主勝' : '農民勝'})`;
     } else {
       els.status.textContent = 'Loading…';
     }

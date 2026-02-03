@@ -14,6 +14,48 @@
   --gold: #ffd66a;
 }
 
+/* 底部控制按鈕 */
+.bottomControls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 10px;
+  flex-wrap: wrap;
+  background: rgba(16, 26, 48, .4);
+  border-radius: 12px;
+  margin-top: 8px;
+}
+
+.btn--nav {
+  padding: 14px 24px;
+  font-size: 16px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: var(--text);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  text-decoration: none;
+}
+
+.btn--nav:hover {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.1) 100%);
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.btn--nav.btn--start {
+  background: linear-gradient(135deg, var(--accent) 0%, #4a8af0 100%);
+  border: none;
+  font-weight: 700;
+  box-shadow: 0 4px 20px rgba(93, 169, 255, 0.4);
+}
+
+.btn--nav.btn--start:hover {
+  background: linear-gradient(135deg, #7ab8ff 0%, var(--accent) 100%);
+  box-shadow: 0 8px 30px rgba(93, 169, 255, 0.6);
+}
+
 * {
   box-sizing: border-box;
 }

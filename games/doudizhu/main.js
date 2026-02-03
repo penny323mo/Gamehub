@@ -4,6 +4,6 @@
   const game = makeGame();
   bindUI(game);
   window.__ddz = game;
-  game.actions.restart();
+  // 唔自動開始，等用戶撳開始按鈕
   render(game);
 })();

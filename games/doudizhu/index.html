@@ -1,17 +1,17 @@
 <!doctype html>
 <html lang="zh-HK">
+
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>鬥地主 (Dou Dizhu) — v0.9</title>
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>鬥地主</title>
   <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
   <header class="topbar">
     <h1>鬥地主</h1>
-    <div class="topbar__actions">
-      <button id="restartBtn" class="btn">Restart</button>
-    </div>
   </header>
 
   <main class="layout">
@@ -84,6 +84,13 @@
 
       <div id="hand" class="hand" aria-label="Your hand"></div>
     </section>
+
+    <!-- 底部控制按鈕 -->
+    <div class="bottomControls" id="bottomControls">
+      <a href="../../index.html" class="btn btn--nav">← 返回 Menu</a>
+      <button id="startGameBtn" class="btn btn--nav btn--start">開始遊戲</button>
+      <button id="restartBtn" class="btn btn--nav">重新開始</button>
+    </div>
   </main>
 
   <footer class="footer">
@@ -101,9 +108,12 @@
     <details>
       <summary>README (GitHub Pages deploy)</summary>
       <div class="readme">
-        <p><strong>Offline-friendly:</strong> This game is pure HTML/CSS/JS (no CDN). Open <code>index.html</code> directly or host it.</p>
+        <p><strong>Offline-friendly:</strong> This game is pure HTML/CSS/JS (no CDN). Open <code>index.html</code>
+          directly or host it.</p>
         <ol>
-          <li>Create a GitHub repo and commit these files: <code>index.html</code>, <code>style.css</code>, <code>main.js</code>, <code>src/</code>, <code>assets/</code>.</li>
+          <li>Create a GitHub repo and commit these files: <code>index.html</code>, <code>style.css</code>,
+            <code>main.js</code>, <code>src/</code>, <code>assets/</code>.
+          </li>
           <li>On GitHub: <em>Settings → Pages</em>.</li>
           <li>Under <em>Build and deployment</em>: choose <em>Deploy from a branch</em>.</li>
           <li>Select branch <code>main</code> and folder <code>/ (root)</code>, then Save.</li>
@@ -121,4 +131,5 @@
   <script src="./src/ui.js" defer></script>
   <script src="./main.js" defer></script>
 </body>
+
 </html>
