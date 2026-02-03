@@ -331,10 +331,23 @@
         const count = state.players[i].hand.length;
         const wrap = document.createElement('div');
         wrap.className = 'stack';
-        for (let k = 0; k < count; k++) {
-          const back = document.createElement('div');
-          back.className = 'cardBack stackItem';
-          wrap.appendChild(back);
+
+        // 牌局結束後公開所有手牌
+        if (state.phase === 'over') {
+          for (const c of state.players[i].hand) {
+            const img = document.createElement('img');
+            img.className = 'cardImg cardImg--table stackItem';
+            img.src = cardAssetFile(c);
+            img.alt = cardToText(c);
+            img.loading = 'lazy';
+            wrap.appendChild(img);
+          }
+        } else {
+          for (let k = 0; k < count; k++) {
+            const back = document.createElement('div');
+            back.className = 'cardBack stackItem';
+            wrap.appendChild(back);
+          }
         }
         els.seats[i].body.appendChild(wrap);
       }
