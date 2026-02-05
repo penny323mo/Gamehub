@@ -71,7 +71,7 @@ function renderCarousel() {
         };
 
         const iconHtml = game.isImage
-            ? `<img src="${game.icon}" alt="${game.title}" class="card-icon-img">`
+            ? `<img src="${game.icon}" alt="${game.title}" class="card-icon-img" onerror="this.style.display='none';this.parentElement.innerHTML='🀄';">`
             : game.icon;
 
         li.innerHTML = `
