@@ -1034,26 +1034,18 @@
       return;
     }
 
-    // Zone-based input logic
-    if (state.phase !== 'aim') return; 
+    if (state.inputState !== 'aiming') return;
 
-    const dx = x - state.cue.x;
-    const dy = y - state.cue.y;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-
-    if (dist < 80) {
-      // Near zone: Power/Shoot
-      if (!state.positionsConfirmed) confirmPlacement();
-      state.inputState = 'powering';
-      state.dragging = true;
-      state.pullStart = {x, y};
-      state.pullPower = 0;
-    } else {
-      // Far zone: Aim/Rotate
-      state.inputState = 'aiming';
-      state.dragging = true;
-      setAimFromPointer(x, y);
+    // first pull confirms placement
+    if (!state.positionsConfirmed){
+      confirmPlacement();
     }
+
+    // enter powering (direction locked)
+    state.inputState = 'powering';
+    state.dragging = true;
+    state.pullStart = {x,y};
+    state.pullPower = 0;
   });
   canvas.addEventListener('pointermove', (e) => {
     if (state.turn === 'ai' || state.aiThinking) return;
@@ -1083,36 +1075,38 @@
       return;
     }
 
-    if (state.inputState === 'powering' && state.dragging) {
-      // pull back to build power (direction locked)
-      const dx = x - state.pullStart.x;
-      const dy = y - state.pullStart.y;
-      const proj = -(dx * Math.cos(state.aimAngle) + dy * Math.sin(state.aimAngle));
-      state.pullPower = Math.min(90, Math.max(0, proj) * 1.4);
+    if (state.inputState !== 'powering' || !state.dragging) {
+      if (state.inputState === 'powering') state.inputState = 'aiming';
+      return;
     }
+
+    // pull back to build power (direction locked)
+    const dx = x - state.pullStart.x;
+    const dy = y - state.pullStart.y;
+    const proj = -(dx * Math.cos(state.aimAngle) + dy * Math.sin(state.aimAngle));
+    state.pullPower = Math.min(90, Math.max(0, proj) * 1.4);
   });
   window.addEventListener('pointerup', () => {
     if (state.turn === 'ai' || state.aiThinking) return;
     if (state.placingDrag){
       state.placingDrag = false;
     }
-    
+    if (!state.dragging) return;
     state.dragging = false;
-
-    if (state.inputState === 'powering') {
-      if (state.pullPower > 2){
-        state.placingCue = false;
-        shoot(state.pullPower);
-        state.inputState = 'idle';
-      } else {
-        // Cancel shot
-        state.pullPower = 0;
-        state.inputState = 'aiming';
-        state.aiming = true;
-        state.phase = 'aim';
-      }
+    if (!state.positionsConfirmed || state.inputState !== 'powering'){
       state.pullPower = 0;
+      return;
     }
+    if (state.pullPower > 2){
+      state.placingCue = false;
+      shoot(state.pullPower);
+      state.inputState = 'idle';
+    } else {
+      state.aiming = true;
+      state.inputState = 'aiming';
+      state.phase = 'aim';
+    }
+    state.pullPower = 0;
   });
 
 
