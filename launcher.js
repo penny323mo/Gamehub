@@ -26,8 +26,8 @@ const games = [
     },
     {
         id: 'doudizhu',
-        title: 'Dou Dizhu',
-        subtitle: '鬥地主! Fight the Landlord vs 2 AI.',
+        title: 'Fight the Landlord',
+        subtitle: '鬥地主! vs 2 AI.',
         icon: 'assets/doudizhu_logo.png',
         isImage: true,
         link: 'games/doudizhu/index.html',
