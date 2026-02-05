@@ -1039,19 +1039,17 @@
 
     const dx = x - state.cue.x;
     const dy = y - state.cue.y;
-    
-    // Distance check logic (Reverted)
-    const dist = Math.hypot(dx, dy);
+    const dist = Math.sqrt(dx*dx + dy*dy);
 
-    if (dist < 120) {
-      // Near ball: Powering
+    if (dist < 80) {
+      // Near zone: Power/Shoot
       if (!state.positionsConfirmed) confirmPlacement();
       state.inputState = 'powering';
       state.dragging = true;
       state.pullStart = {x, y};
       state.pullPower = 0;
     } else {
-      // Far from ball: Aiming
+      // Far zone: Aim/Rotate
       state.inputState = 'aiming';
       state.dragging = true;
       setAimFromPointer(x, y);
