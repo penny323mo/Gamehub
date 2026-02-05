@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-HK">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Snooker (簡化版)</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Snooker</h1>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <div id="status" class="status">Loading…</div>
+      <div class="tableWrap">
+        <canvas id="table" width="900" height="450" aria-label="Snooker table"></canvas>
+      </div>
+    </section>
+
+    <section class="panel panel--controls">
+      <div class="controls">      <div class="btnRow">
+          <button id="startBtn" class="btn btn--primary">開始遊戲</button>
+          <button id="aimBtn" class="btn">瞄準</button>
+          <button id="restartBtn2" class="btn">重新開始</button>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="autoConfirm" />
+          <span>自動確認白球位置（點桌即開始瞄準）</span>
+        </label>
+        <div class="hint" id="hint">拖動白球瞄準，向後拉桿儲力，放手出桿</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

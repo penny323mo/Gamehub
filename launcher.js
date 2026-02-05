@@ -33,6 +33,14 @@ const games = [
         playable: true
     },
     {
+        id: 'snooker',
+        title: 'Snooker',
+        subtitle: '桌球! Physics-based pool game.',
+        icon: '🎱',
+        link: 'games/snooker/index.html',
+        playable: true
+    },
+    {
         id: 'coming1',
         title: 'Coming Soon',
         subtitle: 'Under development',

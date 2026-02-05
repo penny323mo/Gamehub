@@ -1,0 +1,129 @@
+*** app.js.orig	2026-02-03
+--- app.js	2026-02-03
+***************
+*** 1,5 ****
+--- 1,13 ----
++ const RESTITUTION = 0.95;
++ const CUSHION_RESTITUTION = 0.90;
++ const CUSHION_MU = 0.05;
++ const POS_CORRECT = 0.8;
++ const ITERATIONS = 10;
++ const MAX_STEP = 1/120;
++ const FRICTION_K = 1.2;
++ const STOP_EPS = 0.8;
++ const HOLE_R = 16;
+***************
+*** 1,5 ****
+--- 1,74 ----
++ function resolvePair(a,b){
++   const dx = b.x - a.x, dy = b.y - a.y;
++   let dist = Math.hypot(dx,dy);
++   if (dist === 0) dist = 0.0001;
++   const nx = dx/dist, ny = dy/dist;
++ 
++   if (!firstContact && (a.isCue || b.isCue)){
++     const other = a.isCue ? b : a;
++     firstContact = other.type || 'none';
++   }
++ 
++   const rvx = b.vx - a.vx;
++   const rvy = b.vy - a.vy;
++   const vn = rvx*nx + rvy*ny;
++   if (vn > 0) return;
++ 
++   const m1 = a.mass || BALL_MASS;
++   const m2 = b.mass || BALL_MASS;
++   const inv1 = 1/m1, inv2 = 1/m2;
++   const j = -(1 + RESTITUTION) * vn / (inv1 + inv2);
++   a.vx -= j*inv1*nx; a.vy -= j*inv1*ny;
++   b.vx += j*inv2*nx; b.vy += j*inv2*ny;
++ 
++   const penetration = 2*R - dist;
++   if (penetration > 0){
++     const corr = penetration * POS_CORRECT / (inv1 + inv2);
++     a.x -= corr*inv1*nx; a.y -= corr*inv1*ny;
++     b.x += corr*inv2*nx; b.y += corr*inv2*ny;
++   }
++ }
++ 
++ function resolveCushion(b){
++   if (b.x < R){
++     b.x = R;
++     const vn = b.vx;
++     b.vx = -vn * CUSHION_RESTITUTION;
++     b.vy *= (1 - CUSHION_MU);
++   }
++   if (b.x > W-R){
++     b.x = W-R;
++     const vn = b.vx;
++     b.vx = -vn * CUSHION_RESTITUTION;
++     b.vy *= (1 - CUSHION_MU);
++   }
++   if (b.y < R){
++     b.y = R;
++     const vn = b.vy;
++     b.vy = -vn * CUSHION_RESTITUTION;
++     b.vx *= (1 - CUSHION_MU);
++   }
++   if (b.y > H-R){
++     b.y = H-R;
++     const vn = b.vy;
++     b.vy = -vn * CUSHION_RESTITUTION;
++     b.vx *= (1 - CUSHION_MU);
++   }
++ }
++ 
++ function pocketCheck(b){
++   for (const p of pockets){
++     const dx = b.x - p.x, dy = b.y - p.y;
++     if (dx*dx + dy*dy < (HOLE_R - R*0.2)**2){
++       // ... (pocket logic)
++     }
++   }
++ }
+***************
+*** 1,5 ****
+--- 1,80 ----
++ function step(dt){
++   let moving = false;
++   const steps = Math.max(1, Math.ceil(dt / MAX_STEP));
++   const subDt = dt / steps;
++ 
++   for (let s=0; s<steps; s++){
++     for (const b of balls){
++       if (!b.alive) continue;
++       b.x += b.vx * subDt; b.y += b.vy * subDt;
++     }
++ 
++     // detect collision pairs
++     const pairs = [];
++     for (let i=0;i<balls.length;i++){
++       const a = balls[i];
++       if (!a.alive) continue;
++       for (let j=i+1;j<balls.length;j++){
++         const b = balls[j];
++         if (!b.alive) continue;
++         const dx = b.x - a.x, dy = b.y - a.y;
++         if (dx*dx + dy*dy < (2*R)*(2*R)) pairs.push([a,b])
++       }
++     }
++ 
++     // iterative solver
++     for (let it=0; it<ITERATIONS; it++){
++       for (const pair of pairs){
++         resolvePair(pair[0], pair[1]);
++       }
++     }
++ 
++     for (const b of balls){
++       if (!b.alive) continue;
++       resolveCushion(b);
++       pocketCheck(b);
++       b.vx *= Math.exp(-FRICTION_K * subDt);
++       b.vy *= Math.exp(-FRICTION_K * subDt);
++       if (Math.abs(b.vx) < STOP_EPS) b.vx = 0;
++       if (Math.abs(b.vy) < STOP_EPS) b.vy = 0;
++       if (b.vx || b.vy) moving = true;
++     }
++   }
++ }
