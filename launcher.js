@@ -28,7 +28,8 @@ const games = [
         id: 'doudizhu',
         title: 'Dou Dizhu',
         subtitle: '鬥地主! Fight the Landlord vs 2 AI.',
-        icon: '🀄',
+        icon: 'assets/doudizhu_logo.png',
+        isImage: true,
         link: 'games/doudizhu/index.html',
         playable: true
     },
@@ -69,8 +70,12 @@ function renderCarousel() {
             }
         };
 
+        const iconHtml = game.isImage
+            ? `<img src="${game.icon}" alt="${game.title}" class="card-icon-img">`
+            : game.icon;
+
         li.innerHTML = `
-            <div class="card-icon">${game.icon}</div>
+            <div class="card-icon">${iconHtml}</div>
             <h2>${game.title}</h2>
             <p>${game.subtitle}</p>
             <button class="pill-btn ${game.playable ? 'primary' : 'disabled'}" ${game.playable ? '' : 'disabled'}>

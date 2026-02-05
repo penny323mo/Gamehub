@@ -139,6 +139,13 @@ body {
     transform: scale(1.1);
 }
 
+.card-icon-img {
+    width: 100px;
+    height: 100px;
+    object-fit: contain;
+    border-radius: 12px;
+}
+
 .game-hub-card h2 {
     font-size: 1.8rem;
     margin-bottom: 12px;
