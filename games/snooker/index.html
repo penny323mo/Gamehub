@@ -1,11 +1,14 @@
 <!doctype html>
 <html lang="zh-HK">
+
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Snooker (簡化版)</title>
   <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
   <header class="topbar">
     <h1>Snooker</h1>
@@ -24,8 +27,10 @@
     </section>
 
     <section class="panel panel--controls">
-      <div class="controls">      <div class="btnRow">
-          <select id="modeSelect" class="btn" style="background:#222; color:#eee; border:1px solid #444; margin-right:8px;">
+      <div class="controls">
+        <div class="btnRow">
+          <select id="modeSelect" class="btn"
+            style="background:#222; color:#eee; border:1px solid #444; margin-right:8px;">
             <option value="practice">單人練習</option>
             <option value="easy">AI (簡單)</option>
             <option value="normal">AI (普通)</option>
@@ -35,12 +40,16 @@
           <button id="aimBtn" class="btn">確認白球</button>
           <button id="restartBtn2" class="btn">重新開始</button>
         </div>
-        
+
         <div class="control-group" style="display:flex; align-items:center; gap:12px; margin-top:8px;">
-           <div id="spinControl" class="spin-ball" title="Click to set spin">
-             <div id="spinMarker" class="spin-marker"></div>
-           </div>
-           <button id="resetSpinBtn" class="btn" style="font-size:12px; padding:4px 8px;">Reset Spin</button>
+          <div id="spinControl" class="spin-ball" title="Click to set spin">
+            <div id="spinMarker" class="spin-marker"></div>
+          </div>
+          <button id="resetSpinBtn" class="btn" style="font-size:12px; padding:4px 8px;">Reset Spin</button>
+          <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:13px; color:#ccc;">
+            <input type="checkbox" id="extendGuideChk" checked style="width:16px; height:16px;">
+            延長輔助線
+          </label>
         </div>
 
         <div class="hint" id="hint">拖動白球瞄準，向後拉桿儲力，放手出桿</div>
@@ -50,4 +59,5 @@
 
   <script src="app.js" defer></script>
 </body>
+
 </html>

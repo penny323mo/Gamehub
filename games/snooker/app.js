@@ -11,6 +11,7 @@
   const spinControl = document.getElementById('spinControl');
   const spinMarker = document.getElementById('spinMarker');
   const resetSpinBtn = document.getElementById('resetSpinBtn');
+  const extendGuideChk = document.getElementById('extendGuideChk');
   const W = canvas.width;
   const H = canvas.height;
   const R = 10; // ball radius
@@ -61,6 +62,7 @@
     isComplete: false,
     aiTimer: null,
     shotTimer: null,
+    showExtendedGuide: true,
   };
 
   // config removed
@@ -376,17 +378,72 @@
         ctx.stroke();
         ctx.restore();
 
-        // predicted object ball path (approx)
-        const objLen = 80;
-        ctx.save();
-        ctx.strokeStyle = 'rgba(255,255,255,.35)';
-        ctx.setLineDash([2, 6]);
+        // Show spin hit point on ghost ball (synced with spin control)
+        const spinDotX = hit.x + state.spin.x * R * 0.7;
+        const spinDotY = hit.y + state.spin.y * R * 0.7;
+        ctx.fillStyle = 'rgba(255,80,80,.9)';
         ctx.beginPath();
-        ctx.moveTo(hit.x, hit.y);
-        ctx.lineTo(hit.x + Math.cos(state.aimAngle) * objLen, hit.y + Math.sin(state.aimAngle) * objLen);
-        ctx.stroke();
-        ctx.restore();
+        ctx.arc(spinDotX, spinDotY, 2.8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Find the target ball that will be hit
+        let targetBall = null;
+        for (const b of state.balls) {
+          if (!b.alive || b.isCue) continue;
+          const dx = b.x - hit.x;
+          const dy = b.y - hit.y;
+          if (dx * dx + dy * dy < (2 * R + 2) * (2 * R + 2)) {
+            targetBall = b;
+            break;
+          }
+        }
+
+        // Predicted object ball path (calculated from actual collision physics)
+        if (targetBall) {
+          // Calculate the direction the object ball will travel
+          const contactDx = targetBall.x - hit.x;
+          const contactDy = targetBall.y - hit.y;
+          const contactDist = Math.hypot(contactDx, contactDy);
+          const objDirX = contactDx / contactDist;
+          const objDirY = contactDy / contactDist;
+
+          // Draw object ball trajectory
+          const objLen = state.showExtendedGuide ? 300 : 80;
+          ctx.save();
+          ctx.strokeStyle = 'rgba(255,200,100,.55)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.moveTo(targetBall.x, targetBall.y);
+          ctx.lineTo(targetBall.x + objDirX * objLen, targetBall.y + objDirY * objLen);
+          ctx.stroke();
+
+          // Arrow head on object ball trajectory
+          const arrLen = 6;
+          const arrX = targetBall.x + objDirX * Math.min(objLen, 50);
+          const arrY = targetBall.y + objDirY * Math.min(objLen, 50);
+          ctx.beginPath();
+          ctx.moveTo(arrX, arrY);
+          ctx.lineTo(arrX - objDirX * arrLen + objDirY * arrLen * 0.5, arrY - objDirY * arrLen - objDirX * arrLen * 0.5);
+          ctx.moveTo(arrX, arrY);
+          ctx.lineTo(arrX - objDirX * arrLen - objDirY * arrLen * 0.5, arrY - objDirY * arrLen + objDirX * arrLen * 0.5);
+          ctx.stroke();
+          ctx.restore();
+        }
       }
+    }
+
+    // Extended guide line (optional, controlled by checkbox)
+    if (state.showExtendedGuide) {
+      const extendLen = 600;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,.2)';
+      ctx.setLineDash([2, 8]);
+      ctx.beginPath();
+      ctx.moveTo(state.cue.x, state.cue.y);
+      ctx.lineTo(state.cue.x + Math.cos(state.aimAngle) * extendLen, state.cue.y + Math.sin(state.aimAngle) * extendLen);
+      ctx.stroke();
+      ctx.restore();
     }
 
     // pocket highlight if straight line is clear
@@ -415,7 +472,7 @@
       }
     }
 
-    // cue stick (pull back animation)
+    // Cue stick (pull back animation)
     const pullOffset = Math.min(60, state.pullPower * 0.7);
     const stickLen = 90;
     const sx = state.cue.x - Math.cos(state.aimAngle) * (8 + pullOffset);
@@ -1173,6 +1230,11 @@
     state.spin.x = 0;
     state.spin.y = 0;
     updateSpinMarker();
+  });
+
+  // Extended guide toggle
+  extendGuideChk.addEventListener('change', () => {
+    state.showExtendedGuide = extendGuideChk.checked;
   });
 
 
