@@ -198,76 +198,77 @@ const woodMaterial = new THREE.MeshStandardMaterial({
 });
 
 // Rails with cutouts for pockets
-// CORRECT LAYOUT: Middle pockets on LONG rails (z = ±halfL, x = 0)
+// CORRECT LAYOUT: Middle pockets on LONG rails (x = ±halfW, z = 0)
 //                 Corner pockets at all 4 corners
 const pocketCutoutRadius = 0.08;
 const cornerCutout = pocketCutoutRadius + 0.03;
 const middleCutout = pocketCutoutRadius + 0.04;
 
-// LONG RAILS (z = ±halfL): 3 segments each (left, center-gap for middle pocket, right)
-const longRailTotalLen = TABLE_WIDTH + RAIL_THICK * 2;
+// LONG RAILS (x = ±halfW): run along Z axis, need middle pocket cutout at z = 0
+// Split into top and bottom segments with middle pocket gap
+const longRailTotalLen = TABLE_LENGTH;
 const longSegmentLen = (longRailTotalLen - 2 * cornerCutout - middleCutout) / 2;
 
-// Top long rail (z = +halfL): split into left and right segments with middle pocket gap
-const railTopLeft = new THREE.Mesh(
-  new THREE.BoxGeometry(longSegmentLen, RAIL_HEIGHT, RAIL_THICK),
+// Right long rail (x = +halfW): split into top and bottom segments
+const railRightTop = new THREE.Mesh(
+  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, longSegmentLen),
   woodMaterial
 );
-railTopLeft.position.set(
-  -longRailTotalLen / 2 + cornerCutout + longSegmentLen / 2,
+railRightTop.position.set(
+  halfW + RAIL_THICK / 2,
   RAIL_HEIGHT / 2,
-  halfL + RAIL_THICK / 2
+  halfL - cornerCutout - longSegmentLen / 2
 );
 
-const railTopRight = new THREE.Mesh(
-  new THREE.BoxGeometry(longSegmentLen, RAIL_HEIGHT, RAIL_THICK),
+const railRightBottom = new THREE.Mesh(
+  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, longSegmentLen),
   woodMaterial
 );
-railTopRight.position.set(
-  longRailTotalLen / 2 - cornerCutout - longSegmentLen / 2,
+railRightBottom.position.set(
+  halfW + RAIL_THICK / 2,
   RAIL_HEIGHT / 2,
-  halfL + RAIL_THICK / 2
+  -halfL + cornerCutout + longSegmentLen / 2
 );
 
-// Bottom long rail (z = -halfL): same as top
-const railBottomLeft = new THREE.Mesh(
-  new THREE.BoxGeometry(longSegmentLen, RAIL_HEIGHT, RAIL_THICK),
+// Left long rail (x = -halfW): same as right
+const railLeftTop = new THREE.Mesh(
+  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, longSegmentLen),
   woodMaterial
 );
-railBottomLeft.position.set(
-  -longRailTotalLen / 2 + cornerCutout + longSegmentLen / 2,
+railLeftTop.position.set(
+  -halfW - RAIL_THICK / 2,
   RAIL_HEIGHT / 2,
-  -halfL - RAIL_THICK / 2
+  halfL - cornerCutout - longSegmentLen / 2
 );
 
-const railBottomRight = new THREE.Mesh(
-  new THREE.BoxGeometry(longSegmentLen, RAIL_HEIGHT, RAIL_THICK),
+const railLeftBottom = new THREE.Mesh(
+  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, longSegmentLen),
   woodMaterial
 );
-railBottomRight.position.set(
-  longRailTotalLen / 2 - cornerCutout - longSegmentLen / 2,
+railLeftBottom.position.set(
+  -halfW - RAIL_THICK / 2,
   RAIL_HEIGHT / 2,
-  -halfL - RAIL_THICK / 2
+  -halfL + cornerCutout + longSegmentLen / 2
 );
 
-// SHORT RAILS (x = ±halfW): 1 continuous segment with corner cutouts only (NO middle pocket)
-const shortRailLen = TABLE_LENGTH - 2 * cornerCutout;
+// SHORT RAILS (z = ±halfL): run along X axis, only corner cutouts (NO middle pocket)
+const shortRailLen = TABLE_WIDTH - 2 * cornerCutout;
 
-const railRight = new THREE.Mesh(
-  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, shortRailLen),
+const railTop = new THREE.Mesh(
+  new THREE.BoxGeometry(shortRailLen, RAIL_HEIGHT, RAIL_THICK),
   woodMaterial
 );
-railRight.position.set(halfW + RAIL_THICK / 2, RAIL_HEIGHT / 2, 0);
+railTop.position.set(0, RAIL_HEIGHT / 2, halfL + RAIL_THICK / 2);
 
-const railLeft = new THREE.Mesh(
-  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, shortRailLen),
+const railBottom = new THREE.Mesh(
+  new THREE.BoxGeometry(shortRailLen, RAIL_HEIGHT, RAIL_THICK),
   woodMaterial
 );
-railLeft.position.set(-halfW - RAIL_THICK / 2, RAIL_HEIGHT / 2, 0);
+railBottom.position.set(0, RAIL_HEIGHT / 2, -halfL - RAIL_THICK / 2);
 
 tableGroup.add(
-  railTopLeft, railTopRight, railBottomLeft, railBottomRight,
-  railRight, railLeft
+  railRightTop, railRightBottom, railLeftTop, railLeftBottom,
+  railTop, railBottom
 );
 
 const tableBody = new THREE.Mesh(
@@ -294,16 +295,16 @@ const pocketRadiusSide = 0.068;    // Middle pockets (larger, easier to pot)
 const pocketInset = 0.01;          // Small inset from actual corner
 const pocketDepth = 0.08;
 
-// Middle pockets at z = ±halfL (LONG edges), x = 0
+// Middle pockets on LONG rails (x = ±halfW, z = 0) - long rails run along Z axis
 const pocketDefs = [
   // 4 corner pockets
   { kind: 'corner', x: -halfW + pocketInset, z: -halfL + pocketInset, r: pocketRadiusCorner, corner: 'bl' },
   { kind: 'corner', x: halfW - pocketInset, z: -halfL + pocketInset, r: pocketRadiusCorner, corner: 'br' },
   { kind: 'corner', x: -halfW + pocketInset, z: halfL - pocketInset, r: pocketRadiusCorner, corner: 'tl' },
   { kind: 'corner', x: halfW - pocketInset, z: halfL - pocketInset, r: pocketRadiusCorner, corner: 'tr' },
-  // 2 middle pockets on LONG rails
-  { kind: 'side', x: 0, z: halfL, r: pocketRadiusSide },   // Top middle
-  { kind: 'side', x: 0, z: -halfL, r: pocketRadiusSide },  // Bottom middle
+  // 2 middle pockets on LONG rails (x = ±halfW, z = 0)
+  { kind: 'side', x: -halfW, z: 0, r: pocketRadiusSide },  // Left middle
+  { kind: 'side', x: halfW, z: 0, r: pocketRadiusSide },   // Right middle
 ];
 
 const pockets = pocketDefs.map((p) => {
