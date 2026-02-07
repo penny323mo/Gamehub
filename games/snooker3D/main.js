@@ -197,81 +197,58 @@ const woodMaterial = new THREE.MeshStandardMaterial({
   metalness: 0.1,
 });
 
-// Rails with circular cutouts for pockets (using ExtrudeGeometry with holes)
-// Rails stay COMPLETE, only have circular holes at pocket positions
-const pocketHoleRadius = 0.07;  // Radius of circular cutout
+// Rails with cutouts for pockets (using split BoxGeometry segments)
+// Pocket cutout sizes
+const pocketGap = 0.12;  // Gap size at pocket positions
 
-// Helper to create rail with circular holes
-function createRailWithHoles(length, thickness, height, holes, isLongRail) {
-  // Create base shape for the rail (rectangle)
-  const shape = new THREE.Shape();
-  if (isLongRail) {
-    // Long rail: length along Z, thickness along X
-    shape.moveTo(-thickness / 2, -length / 2);
-    shape.lineTo(thickness / 2, -length / 2);
-    shape.lineTo(thickness / 2, length / 2);
-    shape.lineTo(-thickness / 2, length / 2);
-    shape.closePath();
-  } else {
-    // Short rail: length along X, thickness along Z
-    shape.moveTo(-length / 2, -thickness / 2);
-    shape.lineTo(length / 2, -thickness / 2);
-    shape.lineTo(length / 2, thickness / 2);
-    shape.lineTo(-length / 2, thickness / 2);
-    shape.closePath();
-  }
+// LONG RAILS (x = ±halfW): run along Z axis
+// Split into 2 segments with gap at middle (z = 0) for middle pocket
+// Also need gaps at corners (z = ±halfL)
+const longSegmentLen = (TABLE_LENGTH - pocketGap) / 2 - pocketGap / 2;
 
-  // Add circular holes at specified positions
-  holes.forEach(hole => {
-    const holePath = new THREE.Path();
-    holePath.absarc(hole.x, hole.y, hole.r, 0, Math.PI * 2, false);
-    shape.holes.push(holePath);
-  });
+// Right long rail (x = +halfW): top and bottom segments
+const railRightTop = new THREE.Mesh(
+  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, longSegmentLen),
+  woodMaterial
+);
+railRightTop.position.set(halfW + RAIL_THICK / 2, RAIL_HEIGHT / 2, (halfL + pocketGap / 2) / 2);
 
-  // Extrude the shape to create 3D rail
-  const extrudeSettings = { depth: height, bevelEnabled: false };
-  const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-  return geometry;
-}
+const railRightBottom = new THREE.Mesh(
+  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, longSegmentLen),
+  woodMaterial
+);
+railRightBottom.position.set(halfW + RAIL_THICK / 2, RAIL_HEIGHT / 2, -(halfL + pocketGap / 2) / 2);
 
-// Long rails (x = ±halfW): run along Z axis
-// Need circular holes at: corners (z = ±halfL) and middle (z = 0)
-const longRailLength = TABLE_LENGTH + RAIL_THICK * 0.5;
-const longRailHoles = [
-  { x: 0, y: -halfL, r: pocketHoleRadius },   // Bottom corner
-  { x: 0, y: 0, r: pocketHoleRadius },         // Middle pocket
-  { x: 0, y: halfL, r: pocketHoleRadius },     // Top corner
-];
+// Left long rail (x = -halfW): same as right
+const railLeftTop = new THREE.Mesh(
+  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, longSegmentLen),
+  woodMaterial
+);
+railLeftTop.position.set(-halfW - RAIL_THICK / 2, RAIL_HEIGHT / 2, (halfL + pocketGap / 2) / 2);
 
-const railRightGeom = createRailWithHoles(longRailLength, RAIL_THICK, RAIL_HEIGHT, longRailHoles, true);
-const railRight = new THREE.Mesh(railRightGeom, woodMaterial);
-railRight.rotation.x = -Math.PI / 2;
-railRight.position.set(halfW + RAIL_THICK / 2, RAIL_HEIGHT, 0);
+const railLeftBottom = new THREE.Mesh(
+  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, longSegmentLen),
+  woodMaterial
+);
+railLeftBottom.position.set(-halfW - RAIL_THICK / 2, RAIL_HEIGHT / 2, -(halfL + pocketGap / 2) / 2);
 
-const railLeftGeom = createRailWithHoles(longRailLength, RAIL_THICK, RAIL_HEIGHT, longRailHoles, true);
-const railLeft = new THREE.Mesh(railLeftGeom, woodMaterial);
-railLeft.rotation.x = -Math.PI / 2;
-railLeft.position.set(-halfW - RAIL_THICK / 2, RAIL_HEIGHT, 0);
+// SHORT RAILS (z = ±halfL): run along X axis
+// Only need gaps at corners (x = ±halfW), no middle pocket
+const shortRailLen = TABLE_WIDTH - pocketGap;
 
-// Short rails (z = ±halfL): run along X axis
-// Need circular holes at corners only (x = ±halfW)
-const shortRailLength = TABLE_WIDTH + RAIL_THICK * 0.5;
-const shortRailHoles = [
-  { x: -halfW, y: 0, r: pocketHoleRadius },   // Left corner
-  { x: halfW, y: 0, r: pocketHoleRadius },    // Right corner
-];
+const railTop = new THREE.Mesh(
+  new THREE.BoxGeometry(shortRailLen, RAIL_HEIGHT, RAIL_THICK),
+  woodMaterial
+);
+railTop.position.set(0, RAIL_HEIGHT / 2, halfL + RAIL_THICK / 2);
 
-const railTopGeom = createRailWithHoles(shortRailLength, RAIL_THICK, RAIL_HEIGHT, shortRailHoles, false);
-const railTop = new THREE.Mesh(railTopGeom, woodMaterial);
-railTop.rotation.x = -Math.PI / 2;
-railTop.position.set(0, RAIL_HEIGHT, halfL + RAIL_THICK / 2);
+const railBottom = new THREE.Mesh(
+  new THREE.BoxGeometry(shortRailLen, RAIL_HEIGHT, RAIL_THICK),
+  woodMaterial
+);
+railBottom.position.set(0, RAIL_HEIGHT / 2, -halfL - RAIL_THICK / 2);
 
-const railBottomGeom = createRailWithHoles(shortRailLength, RAIL_THICK, RAIL_HEIGHT, shortRailHoles, false);
-const railBottom = new THREE.Mesh(railBottomGeom, woodMaterial);
-railBottom.rotation.x = -Math.PI / 2;
-railBottom.position.set(0, RAIL_HEIGHT, -halfL - RAIL_THICK / 2);
-
-tableGroup.add(railRight, railLeft, railTop, railBottom);
+tableGroup.add(railRightTop, railRightBottom, railLeftTop, railLeftBottom, railTop, railBottom);
 
 const tableBody = new THREE.Mesh(
   new THREE.BoxGeometry(TABLE_WIDTH + RAIL_THICK * 2.4, TABLE_HEIGHT, TABLE_LENGTH + RAIL_THICK * 2.4),
