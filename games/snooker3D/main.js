@@ -15,7 +15,8 @@ const spinResetBtn = document.getElementById('spin-reset');
 const confirmCueBtn = document.getElementById('confirm-cue-btn');
 
 // 手機控制面板
-const mobilePowerBtn = document.getElementById('mobile-power-btn');
+const mobileControlsEl = document.getElementById('mobile-controls');
+const mobileChargeBtn = document.getElementById('mobile-charge-btn');
 
 // 檢測觸控設備
 // 允許通過 URL 參數 ?mobile=1 強制啟用手機模式
@@ -1764,7 +1765,30 @@ function handlePrimaryPointerDown(e) {
 
   updatePointer(e);
   const reason = canTakeShotReason();
+  // 檢查是否點擊了 UI 元素 (雖然有 stopPropagation，但為了保險)
+  // 這裡假設 e.target 可能是 canvas，如果有點擊穿透問題可以在這裡加
+
   if (canTakeShot() && (!aiEnabled || currentPlayer === 0)) {
+    // 判斷點擊位置是否在白球「前方」 (僅限手機單點瞄準)
+    if (isTouchDevice && raycaster.ray.intersectPlane(tablePlane, aimHit)) {
+      // 計算相機前向向量 (投影到水平面)
+      const camDir = new THREE.Vector3();
+      camera.getWorldDirection(camDir);
+      camDir.y = 0;
+      camDir.normalize();
+
+      // 計算白球到點擊點的向量
+      const touchDir = new THREE.Vector3().subVectors(aimHit, cueBall.position);
+      touchDir.y = 0;
+      touchDir.normalize();
+
+      // 如果點擊點在白球後方 (dot < 0)，忽略該操作，防止誤觸導致視角 180 度翻轉
+      // 用戶要求：「定義返喺球桿同球嘅前面方向先至做瞄準」
+      if (touchDir.dot(camDir) < 0) {
+        return;
+      }
+    }
+
     if (isTouchDevice) {
       // 手機模式：只瞄準，唔儲力
       if (raycaster.ray.intersectPlane(tablePlane, aimHit)) {
@@ -2704,4 +2728,68 @@ window.__snookerDebug = {
 onResize();
 resetGame();
 updatePointer({ clientX: window.innerWidth / 2, clientY: window.innerHeight / 2 });
+// 手機控制事件
+if (mobileChargeBtn) {
+  let chargeInterval = null;
+  let chargeDirection = 1;
+
+  const startCharging = (e) => {
+    e.preventDefault();
+    e.stopPropagation(); // 防止觸發背景點擊
+    if (!canTakeShot() || (aiEnabled && currentPlayer === 1)) return;
+
+    isCharging = true;
+    power = 0;
+    chargeDirection = 1;
+    mobileChargeBtn.classList.add('charging');
+
+    if (chargeInterval) clearInterval(chargeInterval);
+    chargeInterval = setInterval(() => {
+      power += 0.02 * chargeDirection;
+      if (power >= 1) {
+        power = 1;
+        chargeDirection = -1;
+      } else if (power <= 0) {
+        power = 0;
+        chargeDirection = 1;
+      }
+      updateUi(); // 更新 Power Bar
+    }, 20);
+  };
+
+  const stopChargingAndShoot = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isCharging) return;
+
+    if (chargeInterval) clearInterval(chargeInterval);
+    chargeInterval = null;
+    mobileChargeBtn.classList.remove('charging');
+
+    // Shoot
+    shootCueBall();
+  };
+
+  mobileChargeBtn.addEventListener('touchstart', startCharging, { passive: false });
+  mobileChargeBtn.addEventListener('touchend', stopChargingAndShoot, { passive: false });
+  mobileChargeBtn.addEventListener('mousedown', startCharging);
+  mobileChargeBtn.addEventListener('mouseup', stopChargingAndShoot);
+  mobileChargeBtn.addEventListener('mouseleave', (e) => {
+    if (isCharging) {
+      stopChargingAndShoot(e);
+    }
+  });
+}
+
+// 防止手機控制面板誤觸
+if (mobileControlsEl) {
+  const stopProp = (e) => e.stopPropagation();
+  mobileControlsEl.addEventListener('touchstart', stopProp, { passive: false });
+  mobileControlsEl.addEventListener('touchmove', stopProp, { passive: false });
+  mobileControlsEl.addEventListener('touchend', stopProp, { passive: false });
+  mobileControlsEl.addEventListener('mousedown', stopProp);
+  mobileControlsEl.addEventListener('mousemove', stopProp);
+  mobileControlsEl.addEventListener('mouseup', stopProp);
+}
+
 animate();

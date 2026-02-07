@@ -44,12 +44,9 @@
     </div>
     <!-- 手機專用儲力按鈕 (已移除，改用面板) -->
     <div id="mobile-controls" hidden>
-      <div id="mobile-power-container">
-        <span style="color:white; font-size:12px;">Power: </span>
-        <span id="mobile-power-value" style="color:#00ff00; width:30px; display:inline-block;">0%</span>
-        <input type="range" id="mobile-power-slider" min="0" max="100" value="0">
-      </div>
-      <button id="mobile-shoot-btn">SHOOT</button>
+      <!-- 左側：現有 Power Bar (使用 CSS 調整位置) -->
+      <!-- 右側：蓄力鍵 -->
+      <button id="mobile-charge-btn">HOLD<br>POWER</button>
     </div>
     <div id="debug-panel"></div>
   </div>
