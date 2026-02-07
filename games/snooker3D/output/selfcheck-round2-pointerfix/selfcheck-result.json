@@ -1,0 +1,92 @@
+{
+  "version": "v0.6.2-pointer-input-fix",
+  "functional": {
+    "pass": true,
+    "details": {
+      "startCue": {
+        "x": 0,
+        "z": -1.1480000000000001
+      },
+      "afterCueDragCue": {
+        "x": -0.32775355572245185,
+        "z": -1.0080000000000002
+      },
+      "afterConfirmMode": "NONE",
+      "afterShootSpeed": 1.8918,
+      "afterSettledSpeed": 0,
+      "inputDebug": {
+        "lastMouseDown": "btn=0 x=760 y=520 state=AIMING",
+        "lastMouseUp": "btn=0 x=700 y=430 state=AIMING_DRAG charging=true",
+        "lastMouseMove": "x=700 y=430 dragCue=false cueInHand=false",
+        "lastBlockReason": ""
+      }
+    }
+  },
+  "boundary": {
+    "pass": true,
+    "details": {
+      "firedMax": true,
+      "inBounds": true,
+      "displacedReds": 12,
+      "scratchScores": [
+        0,
+        4
+      ],
+      "scratchState": "FOUL_DECISION"
+    }
+  },
+  "consistency": {
+    "pass": true,
+    "details": {
+      "sidePocketAligned": true,
+      "scoreConsistent": true,
+      "stateConsistent": true,
+      "pockets": [
+        {
+          "id": 0,
+          "x": -0.882,
+          "z": -1.782,
+          "r": 0.09
+        },
+        {
+          "id": 1,
+          "x": 0.882,
+          "z": -1.782,
+          "r": 0.09
+        },
+        {
+          "id": 2,
+          "x": -0.882,
+          "z": 1.782,
+          "r": 0.09
+        },
+        {
+          "id": 3,
+          "x": 0.882,
+          "z": 1.782,
+          "r": 0.09
+        },
+        {
+          "id": 4,
+          "x": -0.882,
+          "z": 0,
+          "r": 0.085
+        },
+        {
+          "id": 5,
+          "x": 0.882,
+          "z": 0,
+          "r": 0.085
+        }
+      ]
+    }
+  },
+  "console": {
+    "pass": true,
+    "details": {
+      "totalIssues": 0,
+      "issues": []
+    }
+  },
+  "allPass": true
+}

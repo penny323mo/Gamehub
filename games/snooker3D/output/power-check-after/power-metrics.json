@@ -1,0 +1,41 @@
+{
+  "result": {
+    "placed": {
+      "ok": true,
+      "x": 0.084,
+      "z": -1.008
+    },
+    "confirmed": true,
+    "shotOk": true,
+    "maxSpeed": 7.3046,
+    "finalState": {
+      "turnState": "FOUL_DECISION",
+      "cueBallSpeed": 0,
+      "foulDecisionPending": true
+    }
+  },
+  "counts": {
+    "errors": 0,
+    "warnings": 4,
+    "total": 33
+  },
+  "errors": [],
+  "warnings": [
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x1040019f600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x1040019f600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x1040019f600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x1040019f600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+    }
+  ]
+}

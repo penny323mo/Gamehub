@@ -1,0 +1,16 @@
+{
+  "aiShotSeen": true,
+  "returnedToPlayer": true,
+  "beforeChargeAction": "CAN_SHOOT",
+  "midChargePower": 0.411,
+  "secondShotSpeed": 1.819,
+  "secondShotWorked": true,
+  "inputDebug": {
+    "lastMouseDown": "btn=0 x=710 y=520 state=AIMING",
+    "lastMouseUp": "btn=0 x=680 y=430 state=AIMING_DRAG charging=true",
+    "lastMouseMove": "x=680 y=430 dragCue=false cueInHand=false",
+    "lastBlockReason": ""
+  },
+  "issues": [],
+  "pass": true
+}

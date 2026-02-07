@@ -1,0 +1,118 @@
+{
+  "version": "v0.6-selfcheck-cycle-break-ai",
+  "functional": {
+    "pass": true,
+    "details": {
+      "startState": "PLACE_CUE",
+      "place1": {
+        "ok": true,
+        "x": 0,
+        "z": -1.1
+      },
+      "confirm1": true,
+      "shot1": true,
+      "after1State": "FOUL_DECISION",
+      "after1CueSpeed": 0,
+      "resolved": true,
+      "place2": {
+        "ok": true,
+        "x": 0.15,
+        "z": -1.08
+      },
+      "confirm2": true,
+      "shot2": true,
+      "after2State": "FOUL_DECISION",
+      "after2CueSpeed": 0,
+      "redMoved": true,
+      "pass": true
+    }
+  },
+  "boundary": {
+    "pass": true,
+    "details": {
+      "firedMax": true,
+      "inBounds": true,
+      "blast": true,
+      "displacedReds": 12,
+      "scratchShot": true,
+      "scratchFoulDecision": true,
+      "scratchCuePlacement": "D",
+      "scratchScores": [
+        0,
+        4
+      ],
+      "pass": true
+    }
+  },
+  "consistency": {
+    "pass": true,
+    "details": {
+      "pockets": [
+        {
+          "id": 0,
+          "x": -0.882,
+          "z": -1.782,
+          "r": 0.09
+        },
+        {
+          "id": 1,
+          "x": 0.882,
+          "z": -1.782,
+          "r": 0.09
+        },
+        {
+          "id": 2,
+          "x": -0.882,
+          "z": 1.782,
+          "r": 0.09
+        },
+        {
+          "id": 3,
+          "x": 0.882,
+          "z": 1.782,
+          "r": 0.09
+        },
+        {
+          "id": 4,
+          "x": -0.882,
+          "z": 0,
+          "r": 0.085
+        },
+        {
+          "id": 5,
+          "x": 0.882,
+          "z": 0,
+          "r": 0.085
+        }
+      ],
+      "sidePocketAligned": true,
+      "scoreConsistent": true,
+      "eventStateConsistent": true,
+      "pass": true
+    }
+  },
+  "console": {
+    "pass": false,
+    "details": {
+      "totalIssues": 4,
+      "issues": [
+        {
+          "type": "warning",
+          "text": "[.WebGL-0x104001a1a00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+        },
+        {
+          "type": "warning",
+          "text": "[.WebGL-0x104001a1a00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+        },
+        {
+          "type": "warning",
+          "text": "[.WebGL-0x104001a1a00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+        },
+        {
+          "type": "warning",
+          "text": "[.WebGL-0x104001a1a00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+        }
+      ]
+    }
+  }
+}

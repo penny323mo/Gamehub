@@ -1,0 +1,14 @@
+{
+  "version": "v0.6-selfcheck-ai-flow-rerun2",
+  "pass": true,
+  "details": {
+    "fired": true,
+    "foulDecisionSeen": false,
+    "aiPlacementObserved": true,
+    "aiShotObserved": true,
+    "finalPlayer": 1,
+    "finalState": "FOUL_DECISION",
+    "finalCueSpeed": 0
+  },
+  "consoleIssues": []
+}

@@ -1,0 +1,112 @@
+{
+  "version": "v0.6.6-pocket-ux-polish",
+  "functional": {
+    "pass": true,
+    "details": {
+      "cueMoved": {
+        "start": {
+          "x": 0,
+          "z": -1.1480000000000001
+        },
+        "drag": {
+          "x": -0.247052133433471,
+          "z": -1.0080000000000002
+        }
+      },
+      "cueVisible": {
+        "start": false,
+        "afterConfirm": true
+      },
+      "lockedAimDiffs": {
+        "ab": 0,
+        "bc": 0
+      },
+      "shotSpeeds": {
+        "first": 2.3477,
+        "second": 1.5387
+      },
+      "aiShotSeen": true,
+      "playerReadyAgain": true,
+      "preShot2Action": "CAN_SHOOT",
+      "decisionShown": true,
+      "decisionResolved": true
+    }
+  },
+  "boundary": {
+    "pass": true,
+    "details": {
+      "firedMax": true,
+      "inBounds": true,
+      "foulState": "FOUL_DECISION",
+      "foulScores": [
+        0,
+        4
+      ],
+      "cuePlacementMode": "D"
+    }
+  },
+  "consistency": {
+    "pass": true,
+    "details": {
+      "centersOutsideCloth": true,
+      "sideAtMiddle": true,
+      "differentShapeData": true,
+      "pockets": [
+        {
+          "id": 0,
+          "kind": "corner",
+          "x": -0.95,
+          "z": -1.85,
+          "r": 0.116
+        },
+        {
+          "id": 1,
+          "kind": "corner",
+          "x": 0.95,
+          "z": -1.85,
+          "r": 0.116
+        },
+        {
+          "id": 2,
+          "kind": "corner",
+          "x": -0.95,
+          "z": 1.85,
+          "r": 0.116
+        },
+        {
+          "id": 3,
+          "kind": "corner",
+          "x": 0.95,
+          "z": 1.85,
+          "r": 0.116
+        },
+        {
+          "id": 4,
+          "kind": "side",
+          "x": -0.958,
+          "z": 0,
+          "r": 0.1
+        },
+        {
+          "id": 5,
+          "kind": "side",
+          "x": 0.958,
+          "z": 0,
+          "r": 0.1
+        }
+      ]
+    }
+  },
+  "panelVisibility": {
+    "hiddenAttr": true,
+    "hasShow": false
+  },
+  "console": {
+    "pass": true,
+    "details": {
+      "totalIssues": 0,
+      "issues": []
+    }
+  },
+  "allPass": true
+}

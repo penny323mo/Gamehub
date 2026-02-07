@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-Hant">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Snooker 3D MVP</title>
+  <link rel="icon" href="./assets/ui/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+
+<body>
+  <canvas id="game" aria-label="Snooker 3D Canvas"></canvas>
+
+  <div id="ui">
+    <div id="hud">
+      <div id="score">Score: 0</div>
+      <div id="turn">Turn: 1</div>
+      <div id="hint">
+        P1 vs AI｜開球：LMB 拖放白球到 D 區 + 雙擊確認｜擊球：LMB 拖拽瞄準/力度，放開出桿｜犯規決策：Y 接手 / N 要求犯規方續打｜G 輔助線長度｜RMB 旋轉・滾輪縮放・C 重置鏡頭・R 重置・D
+        Debug・F 全螢幕
+      </div>
+      <div id="status"></div>
+      <div id="state-note"></div>
+      <div id="decision-panel" aria-live="polite" hidden>
+        <div id="decision-text"></div>
+        <div id="decision-actions">
+          <button id="decision-take" type="button">接手 (Y)</button>
+          <button id="decision-force" type="button">要求對手續打 (N)</button>
+        </div>
+      </div>
+    </div>
+    <div id="power">
+      <div id="power-label">Power</div>
+      <div id="power-bar">
+        <div id="power-fill"></div>
+      </div>
+    </div>
+    <div id="spin-control" title="Drag to set spin">
+      <div id="spin-marker"></div>
+      <button id="spin-reset" type="button">Reset</button>
+    </div>
+    <div id="debug-panel"></div>
+  </div>
+
+  <script src="./assets/three/three.min.js?v=20260207b"></script>
+  <script src="./assets/three/OrbitControls.legacy.js?v=20260207b"></script>
+  <script src="./main.js?v=20260207b"></script>
+</body>
+
+</html>

@@ -1,0 +1,79 @@
+{
+  "version": "v0.6-selfcheck-cycle-break-ai-rerun",
+  "functional": {
+    "pass": true,
+    "details": {
+      "startState": "PLACE_CUE",
+      "redMoved": true,
+      "after1State": "FOUL_DECISION",
+      "after2State": "FOUL_DECISION"
+    }
+  },
+  "boundary": {
+    "pass": true,
+    "details": {
+      "firedMax": true,
+      "inBounds": true,
+      "displacedReds": 12,
+      "scratchScores": [
+        0,
+        4
+      ],
+      "scratchState": "FOUL_DECISION"
+    }
+  },
+  "consistency": {
+    "pass": true,
+    "details": {
+      "sidePocketAligned": true,
+      "scoreConsistent": true,
+      "eventStateConsistent": true,
+      "pockets": [
+        {
+          "id": 0,
+          "x": -0.882,
+          "z": -1.782,
+          "r": 0.09
+        },
+        {
+          "id": 1,
+          "x": 0.882,
+          "z": -1.782,
+          "r": 0.09
+        },
+        {
+          "id": 2,
+          "x": -0.882,
+          "z": 1.782,
+          "r": 0.09
+        },
+        {
+          "id": 3,
+          "x": 0.882,
+          "z": 1.782,
+          "r": 0.09
+        },
+        {
+          "id": 4,
+          "x": -0.882,
+          "z": 0,
+          "r": 0.085
+        },
+        {
+          "id": 5,
+          "x": 0.882,
+          "z": 0,
+          "r": 0.085
+        }
+      ]
+    }
+  },
+  "console": {
+    "pass": true,
+    "details": {
+      "totalIssues": 0,
+      "issues": []
+    }
+  },
+  "allPass": true
+}

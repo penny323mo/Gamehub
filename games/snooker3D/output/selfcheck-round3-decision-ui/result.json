@@ -1,0 +1,18 @@
+{
+  "version": "v0.6.4-decision-ui-and-dzone",
+  "checks": {
+    "cueDragged": true,
+    "aiShotObserved": true,
+    "decisionShownWhenNeeded": true,
+    "decisionResolvedByClick": true,
+    "secondShotSpeed": 1.8265,
+    "secondShotWorked": true,
+    "secondActionRequired": "WAIT",
+    "finalTurnState": "BALLS_MOVING"
+  },
+  "console": {
+    "pass": true,
+    "issues": []
+  },
+  "pass": true
+}
