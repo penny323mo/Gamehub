@@ -36,9 +36,9 @@ const games = [
     {
         id: 'snooker',
         title: 'Snooker',
-        subtitle: '桌球! Physics-based pool game.',
+        subtitle: '桌球! 2D 經典版 / 3D 立體版',
         icon: '🎱',
-        link: 'games/snooker/index.html',
+        link: 'games/snooker_selector.html',
         playable: true
     },
     {
