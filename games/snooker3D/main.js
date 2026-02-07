@@ -571,6 +571,12 @@ const railReflectGuide = createGuideLine({
   dashSize: 0.045,
   gapSize: 0.08,
 });
+const cueBallPathGuide = createGuideLine({
+  color: 0x88ddff,
+  opacity: 0.68,
+  dashSize: 0.04,
+  gapSize: 0.06,
+});
 
 const ghostBallGuide = new THREE.Mesh(
   new THREE.SphereGeometry(BALL_RADIUS * 0.98, 28, 20),
@@ -936,6 +942,7 @@ function hideAimGuides() {
   aimExtendedGuide.line.visible = false;
   objectPathGuide.line.visible = false;
   railReflectGuide.line.visible = false;
+  cueBallPathGuide.line.visible = false;
   ghostBallGuide.visible = false;
 }
 
@@ -1056,6 +1063,7 @@ function updateAimLine() {
 
   objectPathGuide.line.visible = false;
   railReflectGuide.line.visible = false;
+  cueBallPathGuide.line.visible = false;
   ghostBallGuide.visible = false;
 
   if (firstHit && firstHit.kind === 'ball' && firstHit.targetBall) {
@@ -1065,12 +1073,68 @@ function updateAimLine() {
 
     const targetPos = firstHit.targetBall.position.clone();
     targetPos.y = guideY;
-    const contactDir = firstHit.targetBall.position.clone().sub(firstHit.point).setY(0);
-    if (contactDir.lengthSq() > 1e-8) {
-      contactDir.normalize();
-      const objLen = showExtendedGuide ? 1.45 : 0.72;
-      const objEnd = targetPos.clone().add(contactDir.multiplyScalar(objLen));
+
+    // === 使用同 resolveBallCollisions 完全一致嘅碰撞公式 ===
+    // 碰撞法線 = 物件球中心 - 白球碰撞時中心 (ghost ball 位置)
+    const ghostPos = firstHit.point.clone().setY(0);
+    const targetCenter = firstHit.targetBall.position.clone().setY(0);
+    const normal = targetCenter.clone().sub(ghostPos);
+    if (normal.lengthSq() < 1e-8) return;
+    normal.normalize();
+    const nx = normal.x;
+    const nz = normal.z;
+
+    // 白球入射方向 (dir 已經係單位向量，代表單位速度)
+    // 假設白球速度 = dir，目標球靜止
+    const cueVelX = dir.x;
+    const cueVelZ = dir.z;
+    const objVelX_before = 0;  // 目標球靜止
+    const objVelZ_before = 0;
+
+    // 相對速度 (同 resolveBallCollisions 一樣：b.velocity - a.velocity)
+    const relVx = objVelX_before - cueVelX;
+    const relVz = objVelZ_before - cueVelZ;
+    const velAlongNormal = relVx * nx + relVz * nz;
+
+    // 使用同實際物理完全一樣嘅 impulse 公式
+    const impulse = (-(1 + ballRestitution) * velAlongNormal) / 2;
+
+    // 白球碰撞後速度 (a.velocity -= n * impulse)
+    const cueVelAfterX = cueVelX - nx * impulse;
+    const cueVelAfterZ = cueVelZ - nz * impulse;
+
+    // 物件球碰撞後速度 (b.velocity += n * impulse)
+    const objVelAfterX = objVelX_before + nx * impulse;
+    const objVelAfterZ = objVelZ_before + nz * impulse;
+
+    // 考慮 spin.y 高低桿效果 (同 resolveBallCollisions 一樣)
+    let cueFinalX = cueVelAfterX;
+    let cueFinalZ = cueVelAfterZ;
+    const spinMag = Math.abs(spin.y);
+    if (spinMag > 0.05) {
+      const spinForce = -spin.y * Math.abs(velAlongNormal) * 0.45;
+      cueFinalX += nx * spinForce;
+      cueFinalZ += nz * spinForce;
+    }
+
+    // 繪製物件球軌跡（橙色）
+    const objSpeed = Math.hypot(objVelAfterX, objVelAfterZ);
+    if (objSpeed > 0.05) {
+      const objDirX = objVelAfterX / objSpeed;
+      const objDirZ = objVelAfterZ / objSpeed;
+      const objLen = (showExtendedGuide ? 1.45 : 0.72) * objSpeed;
+      const objEnd = targetPos.clone().add(new THREE.Vector3(objDirX * objLen, 0, objDirZ * objLen));
       setGuideLinePoints(objectPathGuide, targetPos, objEnd);
+    }
+
+    // 繪製白球碰撞後軌跡（淺藍色）
+    const cueFinalSpeed = Math.hypot(cueFinalX, cueFinalZ);
+    if (cueFinalSpeed > 0.05) {
+      const cueAfterDir = new THREE.Vector3(cueFinalX / cueFinalSpeed, 0, cueFinalZ / cueFinalSpeed);
+      const cueAfterLen = (showExtendedGuide ? 0.9 : 0.45) * cueFinalSpeed;
+      const cueAfterStart = firstHit.point.clone().setY(guideY);
+      const cueAfterEnd = cueAfterStart.clone().add(cueAfterDir.multiplyScalar(cueAfterLen));
+      setGuideLinePoints(cueBallPathGuide, cueAfterStart, cueAfterEnd);
     }
   } else if (firstHit && firstHit.kind === 'rail' && firstHit.normal) {
     const incoming = dir.clone();
