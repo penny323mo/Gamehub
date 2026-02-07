@@ -2043,7 +2043,7 @@ if (confirmCueBtn) {
 }
 
 // 手機儲力按鈕事件
-if (mobilePowerBtn) {
+if (mobileChargeBtn) {
   let powerInterval = null;
   let powerDirection = 1; // 1: increasing, -1: decreasing
 
@@ -2055,8 +2055,8 @@ if (mobilePowerBtn) {
     isCharging = true;
     power = 0;
     powerDirection = 1;
-    mobilePowerBtn.classList.add('charging');
-    mobilePowerBtn.textContent = '放手出桿';
+    mobileChargeBtn.classList.add('charging');
+    mobileChargeBtn.textContent = '放手出桿';
 
     // 鎖定瞄準方向
     chargeLockedAimDirection.copy(aimDirection);
@@ -2085,20 +2085,20 @@ if (mobilePowerBtn) {
       powerInterval = null;
     }
 
-    mobilePowerBtn.classList.remove('charging');
-    mobilePowerBtn.textContent = '撳住儲力';
+    mobileChargeBtn.classList.remove('charging');
+    mobileChargeBtn.textContent = '撳住儲力';
 
     shootCueBall();
     isCharging = false;
     power = 0;
   };
 
-  mobilePowerBtn.addEventListener('pointerdown', startCharging);
-  mobilePowerBtn.addEventListener('touchstart', startCharging);
+  mobileChargeBtn.addEventListener('pointerdown', startCharging);
+  mobileChargeBtn.addEventListener('touchstart', startCharging);
 
-  mobilePowerBtn.addEventListener('pointerup', stopChargingAndShoot);
-  mobilePowerBtn.addEventListener('touchend', stopChargingAndShoot);
-  mobilePowerBtn.addEventListener('pointerleave', stopChargingAndShoot);
+  mobileChargeBtn.addEventListener('pointerup', stopChargingAndShoot);
+  mobileChargeBtn.addEventListener('touchend', stopChargingAndShoot);
+  mobileChargeBtn.addEventListener('pointerleave', stopChargingAndShoot);
 }
 
 // Spin control UI handlers
