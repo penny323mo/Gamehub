@@ -14,6 +14,15 @@ const spinMarkerEl = document.getElementById('spin-marker');
 const spinResetBtn = document.getElementById('spin-reset');
 const confirmCueBtn = document.getElementById('confirm-cue-btn');
 
+// 手機控制面板
+const mobileControlsEl = document.getElementById('mobile-controls');
+const mobilePowerSlider = document.getElementById('mobile-power-slider');
+const mobilePowerValue = document.getElementById('mobile-power-value');
+const mobileShootBtn = document.getElementById('mobile-shoot-btn');
+
+// 檢測觸控設備
+const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x20242a);
 
@@ -849,6 +858,18 @@ function updateUi() {
       confirmCueBtn.classList.add('show');
     } else {
       confirmCueBtn.classList.remove('show');
+    }
+  }
+
+  // 手機控制面板：手機 + 可出桿時顯示
+  if (mobileControlsEl) {
+    const shouldShowMobile = isTouchDevice && canTakeShot() && (!aiEnabled || currentPlayer === 0);
+    if (shouldShowMobile) {
+      mobileControlsEl.classList.add('show');
+      mobileControlsEl.hidden = false;
+    } else {
+      mobileControlsEl.classList.remove('show');
+      mobileControlsEl.hidden = true;
     }
   }
 
@@ -1690,7 +1711,6 @@ function isTouchOnTable(e) {
 
 // 手機模式：枱外觸控啟用視角旋轉
 let isRotatingCamera = false;
-const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
 // 手機瞄準/儲力狀態（類似 2D 版）
 let mobileInputState = 'idle';  // 'idle' | 'aiming' | 'powering'
@@ -1952,6 +1972,37 @@ if (confirmCueBtn) {
     });
     updateUi();
     updateAimLine();
+  });
+}
+
+// 手機控制面板事件
+if (mobilePowerSlider && mobilePowerValue) {
+  mobilePowerSlider.addEventListener('input', () => {
+    const val = parseInt(mobilePowerSlider.value, 10);
+    mobilePowerValue.textContent = `${val}%`;
+    // 更新 power 值 (0-1)
+    power = val / 100;
+  });
+}
+
+if (mobileShootBtn) {
+  mobileShootBtn.addEventListener('click', () => {
+    if (!canTakeShot()) {
+      setStatus('現時無法出桿', 1.0);
+      return;
+    }
+    if (aiEnabled && currentPlayer !== 0) {
+      setStatus('等待 AI 出桿...', 1.0);
+      return;
+    }
+    // 用滑桿嘅 power 值出桿
+    const sliderPower = parseInt(mobilePowerSlider.value, 10) / 100;
+    power = sliderPower;
+    isCharging = true;  // 確保 shootCueBall 可以執行
+    shootCueBall();
+    // 重置滑桿
+    mobilePowerSlider.value = 50;
+    mobilePowerValue.textContent = '50%';
   });
 }
 
