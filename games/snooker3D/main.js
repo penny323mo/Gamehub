@@ -1118,11 +1118,18 @@ function updateAimLine() {
     }
 
 
+    // 考慮 collisionEnergyRetention (同實際碰撞一致)
+    const retention = collisionEnergyRetention;
+    const objFinalX = objVelAfterX * retention;
+    const objFinalZ = objVelAfterZ * retention;
+    cueFinalX *= retention;
+    cueFinalZ *= retention;
+
     // 繪製物件球軌跡（橙色）
-    const objSpeed = Math.hypot(objVelAfterX, objVelAfterZ);
+    const objSpeed = Math.hypot(objFinalX, objFinalZ);
     if (objSpeed > 0.05) {
-      const objDirX = objVelAfterX / objSpeed;
-      const objDirZ = objVelAfterZ / objSpeed;
+      const objDirX = objFinalX / objSpeed;
+      const objDirZ = objFinalZ / objSpeed;
       const objLen = (showExtendedGuide ? 1.45 : 0.72) * objSpeed;
       const objEnd = targetPos.clone().add(new THREE.Vector3(objDirX * objLen, 0, objDirZ * objLen));
       setGuideLinePoints(objectPathGuide, targetPos, objEnd);
@@ -1138,11 +1145,39 @@ function updateAimLine() {
       setGuideLinePoints(cueBallPathGuide, cueAfterStart, cueAfterEnd);
     }
   } else if (firstHit && firstHit.kind === 'rail' && firstHit.normal) {
+    // 使用同 resolveCushion 一致嘅反彈公式
     const incoming = dir.clone();
-    const reflected = incoming
-      .clone()
-      .sub(firstHit.normal.clone().multiplyScalar(2 * incoming.dot(firstHit.normal)))
-      .normalize();
+    const n = firstHit.normal.clone();
+
+    // 分解法線同切向分量
+    const normalDot = incoming.dot(n);
+    const normalComponent = n.clone().multiplyScalar(normalDot);
+    const tangentComponent = incoming.clone().sub(normalComponent);
+
+    // 應用 cushionRestitution 同 cushionTangentialFriction
+    const reflectedNormal = normalComponent.multiplyScalar(-cushionRestitution);
+    const reflectedTangent = tangentComponent.multiplyScalar(1 - cushionTangentialFriction);
+
+    // 考慮側旋效果 (spin.x)
+    const spinSideEffect = spin.x * 0.35;
+    const vn = Math.abs(normalDot);
+
+    // 計算反彈方向
+    let reflected = reflectedNormal.add(reflectedTangent);
+
+    // 側旋影響切向速度 (同 resolveCushion 一致)
+    if (Math.abs(n.x) > 0.5) {
+      // 撞左右邊
+      reflected.z += (n.x > 0 ? 1 : -1) * spinSideEffect * vn;
+    } else {
+      // 撞上下邊
+      reflected.x += (n.z > 0 ? -1 : 1) * spinSideEffect * vn;
+    }
+
+    if (reflected.lengthSq() > 1e-8) {
+      reflected.normalize();
+    }
+
     const reflLen = showExtendedGuide ? 1.2 : 0.62;
     const reflStart = firstHit.point.clone().setY(guideY);
     const reflEnd = reflStart.clone().add(reflected.multiplyScalar(reflLen));
