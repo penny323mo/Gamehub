@@ -198,74 +198,76 @@ const woodMaterial = new THREE.MeshStandardMaterial({
 });
 
 // Rails with cutouts for pockets
-// Pocket dimensions for rail cutouts
-const pocketCutoutRadius = 0.08;  // Slightly larger than pocket visual radius
+// CORRECT LAYOUT: Middle pockets on LONG rails (z = ±halfL, x = 0)
+//                 Corner pockets at all 4 corners
+const pocketCutoutRadius = 0.08;
+const cornerCutout = pocketCutoutRadius + 0.03;
+const middleCutout = pocketCutoutRadius + 0.04;
 
-// Long rails (z = ±halfL): need cutouts at corners only (x = ±halfW)
-// Each long rail is split into segments with corner cutouts
-const longRailHalfLen = (TABLE_WIDTH + RAIL_THICK * 2) / 2;
-const cornerCutout = pocketCutoutRadius + 0.02;
+// LONG RAILS (z = ±halfL): 3 segments each (left, center-gap for middle pocket, right)
+const longRailTotalLen = TABLE_WIDTH + RAIL_THICK * 2;
+const longSegmentLen = (longRailTotalLen - 2 * cornerCutout - middleCutout) / 2;
 
-// Rail segments for z = +halfL (top rail)
+// Top long rail (z = +halfL): split into left and right segments with middle pocket gap
 const railTopLeft = new THREE.Mesh(
-  new THREE.BoxGeometry(longRailHalfLen - cornerCutout, RAIL_HEIGHT, RAIL_THICK),
+  new THREE.BoxGeometry(longSegmentLen, RAIL_HEIGHT, RAIL_THICK),
   woodMaterial
 );
-railTopLeft.position.set(-longRailHalfLen / 2 - cornerCutout / 2, RAIL_HEIGHT / 2, halfL + RAIL_THICK / 2);
+railTopLeft.position.set(
+  -longRailTotalLen / 2 + cornerCutout + longSegmentLen / 2,
+  RAIL_HEIGHT / 2,
+  halfL + RAIL_THICK / 2
+);
 
 const railTopRight = new THREE.Mesh(
-  new THREE.BoxGeometry(longRailHalfLen - cornerCutout, RAIL_HEIGHT, RAIL_THICK),
+  new THREE.BoxGeometry(longSegmentLen, RAIL_HEIGHT, RAIL_THICK),
   woodMaterial
 );
-railTopRight.position.set(longRailHalfLen / 2 + cornerCutout / 2, RAIL_HEIGHT / 2, halfL + RAIL_THICK / 2);
+railTopRight.position.set(
+  longRailTotalLen / 2 - cornerCutout - longSegmentLen / 2,
+  RAIL_HEIGHT / 2,
+  halfL + RAIL_THICK / 2
+);
 
-// Rail segments for z = -halfL (bottom rail)
+// Bottom long rail (z = -halfL): same as top
 const railBottomLeft = new THREE.Mesh(
-  new THREE.BoxGeometry(longRailHalfLen - cornerCutout, RAIL_HEIGHT, RAIL_THICK),
+  new THREE.BoxGeometry(longSegmentLen, RAIL_HEIGHT, RAIL_THICK),
   woodMaterial
 );
-railBottomLeft.position.set(-longRailHalfLen / 2 - cornerCutout / 2, RAIL_HEIGHT / 2, -halfL - RAIL_THICK / 2);
+railBottomLeft.position.set(
+  -longRailTotalLen / 2 + cornerCutout + longSegmentLen / 2,
+  RAIL_HEIGHT / 2,
+  -halfL - RAIL_THICK / 2
+);
 
 const railBottomRight = new THREE.Mesh(
-  new THREE.BoxGeometry(longRailHalfLen - cornerCutout, RAIL_HEIGHT, RAIL_THICK),
+  new THREE.BoxGeometry(longSegmentLen, RAIL_HEIGHT, RAIL_THICK),
   woodMaterial
 );
-railBottomRight.position.set(longRailHalfLen / 2 + cornerCutout / 2, RAIL_HEIGHT / 2, -halfL - RAIL_THICK / 2);
+railBottomRight.position.set(
+  longRailTotalLen / 2 - cornerCutout - longSegmentLen / 2,
+  RAIL_HEIGHT / 2,
+  -halfL - RAIL_THICK / 2
+);
 
-// Short rails (x = ±halfW): need cutouts at corners AND middle pocket
-const shortRailTotalLen = TABLE_LENGTH;
-const middleCutout = pocketCutoutRadius + 0.02;
-const shortSegmentLen = (shortRailTotalLen / 2) - cornerCutout - middleCutout / 2;
+// SHORT RAILS (x = ±halfW): 1 continuous segment with corner cutouts only (NO middle pocket)
+const shortRailLen = TABLE_LENGTH - 2 * cornerCutout;
 
-// Rail segments for x = +halfW (right rail): top segment, bottom segment
-const railRightTop = new THREE.Mesh(
-  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, shortSegmentLen),
+const railRight = new THREE.Mesh(
+  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, shortRailLen),
   woodMaterial
 );
-railRightTop.position.set(halfW + RAIL_THICK / 2, RAIL_HEIGHT / 2, halfL / 2 + middleCutout / 4);
+railRight.position.set(halfW + RAIL_THICK / 2, RAIL_HEIGHT / 2, 0);
 
-const railRightBottom = new THREE.Mesh(
-  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, shortSegmentLen),
+const railLeft = new THREE.Mesh(
+  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, shortRailLen),
   woodMaterial
 );
-railRightBottom.position.set(halfW + RAIL_THICK / 2, RAIL_HEIGHT / 2, -halfL / 2 - middleCutout / 4);
-
-// Rail segments for x = -halfW (left rail): top segment, bottom segment
-const railLeftTop = new THREE.Mesh(
-  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, shortSegmentLen),
-  woodMaterial
-);
-railLeftTop.position.set(-halfW - RAIL_THICK / 2, RAIL_HEIGHT / 2, halfL / 2 + middleCutout / 4);
-
-const railLeftBottom = new THREE.Mesh(
-  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, shortSegmentLen),
-  woodMaterial
-);
-railLeftBottom.position.set(-halfW - RAIL_THICK / 2, RAIL_HEIGHT / 2, -halfL / 2 - middleCutout / 4);
+railLeft.position.set(-halfW - RAIL_THICK / 2, RAIL_HEIGHT / 2, 0);
 
 tableGroup.add(
   railTopLeft, railTopRight, railBottomLeft, railBottomRight,
-  railRightTop, railRightBottom, railLeftTop, railLeftBottom
+  railRight, railLeft
 );
 
 const tableBody = new THREE.Mesh(
@@ -283,25 +285,24 @@ const pocketWallMaterial = new THREE.MeshStandardMaterial({ color: 0x06080b, rou
 const pocketMouthMaterial = new THREE.MeshStandardMaterial({ color: 0x050607, roughness: 1, metalness: 0, depthWrite: true });
 
 // Pocket design following 2D version layout:
-// - 4 corner pockets at table corners
-// - 2 middle pockets on the LONG sides (z = 0), not short sides
+// - 4 corner pockets at table corners (FULL CIRCLES on cloth)
+// - 2 middle pockets on LONG rails (z = ±halfL, x = 0) (HALF CIRCLES, opening outward)
 // Middle pockets are larger than corner pockets (realistic snooker)
 const pocketRadiusCorner = 0.055;  // Corner pockets (smaller, harder to pot)
-const pocketRadiusSide = 0.072;    // Middle pockets (larger, easier to pot)
-const pocketInset = 0.02;          // Small inset from actual corner/edge
+const pocketRadiusSide = 0.075;    // Middle pockets (larger, easier to pot)
+const pocketInset = 0.01;          // Small inset from actual corner
 const pocketDepth = 0.08;
 
-// 2D ref: corners at (INSET, INSET), middles at (W/2, INSET) on long edges
-// In 3D: X is width, Z is length. Long edges are at x = ±halfW
+// CORRECT: Middle pockets at z = ±halfL (LONG edges), x = 0
 const pocketDefs = [
-  // 4 corner pockets
+  // 4 corner pockets (full circles)
   { kind: 'corner', x: -halfW + pocketInset, z: -halfL + pocketInset, r: pocketRadiusCorner },
   { kind: 'corner', x: halfW - pocketInset, z: -halfL + pocketInset, r: pocketRadiusCorner },
   { kind: 'corner', x: -halfW + pocketInset, z: halfL - pocketInset, r: pocketRadiusCorner },
   { kind: 'corner', x: halfW - pocketInset, z: halfL - pocketInset, r: pocketRadiusCorner },
-  // 2 middle pockets on LONG sides (at z = 0, x = edge)
-  { kind: 'side', x: -halfW + pocketInset * 0.5, z: 0, r: pocketRadiusSide },
-  { kind: 'side', x: halfW - pocketInset * 0.5, z: 0, r: pocketRadiusSide },
+  // 2 middle pockets on LONG rails at z = ±halfL, x = 0 (half circles)
+  { kind: 'side', x: 0, z: halfL, r: pocketRadiusSide },   // Top middle
+  { kind: 'side', x: 0, z: -halfL, r: pocketRadiusSide },  // Bottom middle
 ];
 
 const pockets = pocketDefs.map((p) => {
@@ -310,33 +311,46 @@ const pockets = pocketDefs.map((p) => {
   root.position.set(p.x, 0, p.z);
   pocketGroup.add(root);
 
-  const mouth = new THREE.Mesh(
-    new THREE.CircleGeometry(p.r * (isSide ? 0.93 : 0.9), 40),
-    pocketMouthMaterial
-  );
-  mouth.position.set(p.x, 0, p.z);
-  stickToCloth(mouth, cloth, 0.0015);
-  if (isSide) mouth.scale.set(1.16, 1, 0.84);
-  pocketGroup.add(mouth);
+  if (isSide) {
+    // MIDDLE POCKET: Half circle (semicircle) opening outward, NO hole on cloth
+    const semicircleShape = new THREE.Shape();
+    semicircleShape.absarc(0, 0, p.r, 0, Math.PI, false);
+    const semicircleGeom = new THREE.ShapeGeometry(semicircleShape, 32);
+    const mouth = new THREE.Mesh(semicircleGeom, pocketMouthMaterial);
+    mouth.position.set(p.x, CLOTH_Y + 0.002, p.z);
+    mouth.rotation.x = -Math.PI / 2;
+    // Rotate to face outward: +halfL faces +Z, -halfL faces -Z
+    mouth.rotation.z = p.z > 0 ? Math.PI : 0;
+    pocketGroup.add(mouth);
+  } else {
+    // CORNER POCKET: Full circle on cloth
+    const mouth = new THREE.Mesh(
+      new THREE.CircleGeometry(p.r * 0.95, 40),
+      pocketMouthMaterial
+    );
+    mouth.position.set(p.x, 0, p.z);
+    stickToCloth(mouth, cloth, 0.002);
+    pocketGroup.add(mouth);
 
-  const rim = new THREE.Mesh(
-    new THREE.RingGeometry(p.r * (isSide ? 0.95 : 0.92), p.r * (isSide ? 1.2 : 1.14), 48),
-    pocketRimMaterial
-  );
-  rim.position.set(p.x, 0, p.z);
-  stickToCloth(rim, cloth, 0.003);
-  if (isSide) rim.scale.set(1.18, 1, 0.84);
-  pocketGroup.add(rim);
+    // Rim around corner pocket
+    const rim = new THREE.Mesh(
+      new THREE.RingGeometry(p.r * 0.92, p.r * 1.12, 48),
+      pocketRimMaterial
+    );
+    rim.position.set(p.x, 0, p.z);
+    stickToCloth(rim, cloth, 0.003);
+    pocketGroup.add(rim);
+  }
 
+  // Pocket wall (cylinder going down)
   const wall = new THREE.Mesh(
     new THREE.CylinderGeometry(p.r * 0.92, p.r * 1.04, pocketDepth, 28, 1, true),
     pocketWallMaterial
   );
   wall.position.set(p.x, CLOTH_Y - pocketDepth / 2, p.z);
-  if (isSide) wall.scale.set(1.18, 1, 0.84);
   pocketGroup.add(wall);
 
-  return { kind: p.kind, position: new THREE.Vector3(p.x, CLOTH_Y, p.z), radius: p.r * 0.93 };
+  return { kind: p.kind, position: new THREE.Vector3(p.x, CLOTH_Y, p.z), radius: p.r };
 });
 
 // Add pockets to scene (not tableGroup) so they render on top of rails
