@@ -1454,9 +1454,16 @@ function endShot() {
   const pottedColors = scored.filter((type) => type !== 'red' && type !== 'cue');
 
   if (foulThisShot) {
-    if (pottedColors.length > 0 && reds > 0) {
-      respotColors(pottedColors);
+    // 修正：在 Red/Color 循環中（含最後紅波後），入彩波必須 Respot
+    if (pottedColors.length > 0) {
+      // 只要未進入清台階段（或者清台階段打錯波），都需要 Respot
+      // 簡單嚟講：只有在清台階段打入目標彩波時才不需要 Respot
+      // 為了安全，如果 reds > 0 或 expectingColor 為真，則肯定 Respot
+      if (reds > 0 || expectingColor) {
+        respotColors(pottedColors);
+      }
     }
+    expectingColor = false; // 犯規導致 Break 結束，重置目標為紅波（或 Yellow）
     const foulPoints = foulPointValue();
     const foulerIndex = currentPlayer;
     const awardedIndex = 1 - foulerIndex;
@@ -1496,7 +1503,8 @@ function endShot() {
     return;
   }
 
-  if (reds > 0) {
+  // 修正：打入最後紅波後 (reds=0, pottedReds>0) 或打最後彩波 (reds=0, expectingColor=true) 仍應進入此邏輯
+  if (reds > 0 || expectingColor || pottedReds > 0) {
     if (!expectingColor) {
       if (pottedReds > 0) {
         scores[currentPlayer] += pottedReds;
@@ -1514,9 +1522,8 @@ function endShot() {
       if (pottedColors.length > 0) {
         const colorScore = pottedColors.reduce((acc, type) => acc + ballValues[type], 0);
         scores[currentPlayer] += colorScore;
-        if (reds > 0) {
-          respotColors(pottedColors);
-        }
+        // 在 Red/Color 循環階段（包括最後一粒紅波後的彩波），彩波都要執返起來
+        respotColors(pottedColors);
         expectingColor = false;
         snookered = false;
         setStatus(`Color +${colorScore}`, 1.2);
