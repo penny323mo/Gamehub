@@ -1692,6 +1692,11 @@ function isTouchOnTable(e) {
 let isRotatingCamera = false;
 const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
+// 手機瞄準/儲力狀態（類似 2D 版）
+let mobileInputState = 'idle';  // 'idle' | 'aiming' | 'powering'
+let mobilePullStart = new THREE.Vector3();  // 開始儲力嘅位置
+let mobileAimLocked = false;  // 瞄準方向已鎖定
+
 function handlePrimaryPointerDown(e) {
   inputDebug.lastMouseDown = `btn=${e.button} x=${e.clientX} y=${e.clientY} state=${turnState}`;
   if (e.button !== 0) return;
@@ -1701,7 +1706,6 @@ function handlePrimaryPointerDown(e) {
   if (isTouchDevice && !isTouchOnTable(e)) {
     isRotatingCamera = true;
     controls.enabled = true;
-    // 唔阻止事件傳播，讓 OrbitControls 處理
     return;
   }
 
@@ -1724,22 +1728,39 @@ function handlePrimaryPointerDown(e) {
   updatePointer(e);
   const reason = canTakeShotReason();
   if (canTakeShot() && (!aiEnabled || currentPlayer === 0)) {
-    // 手機模式：唔即刻開始儲力，只記錄起點用嚟瞄準
-    // 儲力會喺 pointermove 時當檢測到向後拉先開始
     if (isTouchDevice) {
-      isCharging = false;  // 手機唔即刻儲力
-      power = 0;
+      // 手機模式：參考 2D 版邏輯
+      // 第一下撳住 = 設定瞄準方向（手指指向嘅位置）
+      if (raycaster.ray.intersectPlane(tablePlane, aimHit)) {
+        // 瞄準方向 = 白球 → 觸控點
+        aimDirection.set(
+          aimHit.x - cueBall.position.x,
+          0,
+          aimHit.z - cueBall.position.z
+        ).normalize();
+        chargeLockedAimDirection.copy(aimDirection);
+
+        // 記錄起點，之後用嚟計算向後拉
+        mobilePullStart.copy(aimHit);
+        mobileInputState = 'aiming';
+        mobileAimLocked = false;
+        isCharging = false;
+        power = 0;
+        turnState = 'AIMING_DRAG';
+        updateAimLine();
+      }
     } else {
-      isCharging = true;  // 電腦版保持原本行為
+      // 電腦版保持原本行為
+      isCharging = true;
       power = 0;
+      chargeLockedAimDirection.copy(aimDirection);
+      if (raycaster.ray.intersectPlane(tablePlane, aimHit)) {
+        dragStartPoint.copy(aimHit);
+      } else {
+        dragStartPoint.copy(cueBall.position);
+      }
+      turnState = 'AIMING_DRAG';
     }
-    chargeLockedAimDirection.copy(aimDirection);
-    if (raycaster.ray.intersectPlane(tablePlane, aimHit)) {
-      dragStartPoint.copy(aimHit);
-    } else {
-      dragStartPoint.copy(cueBall.position);
-    }
-    turnState = 'AIMING_DRAG';
   } else {
     inputDebug.lastBlockReason = `pointerDownBlocked reason=${reason} aiEnabled=${aiEnabled} player=${currentPlayer + 1}`;
   }
@@ -1755,27 +1776,59 @@ function handlePrimaryPointerMove(e) {
     return;
   }
 
-  // 手機模式：檢測向後拉開始儲力
-  if (isTouchDevice && turnState === 'AIMING_DRAG' && !isCharging) {
+  // 手機模式：動態瞄準 + 向後拉儲力
+  if (isTouchDevice && turnState === 'AIMING_DRAG') {
     updatePointer(e);
     if (raycaster.ray.intersectPlane(tablePlane, aimHit)) {
-      // 計算拖動方向
-      const dragVec = new THREE.Vector2(
-        aimHit.x - dragStartPoint.x,
-        aimHit.z - dragStartPoint.z
-      );
-      // 瞄準方向（白球到點擊位置）
-      const aimVec = new THREE.Vector2(
-        dragStartPoint.x - cueBall.position.x,
-        dragStartPoint.z - cueBall.position.z
-      ).normalize();
-      // 向後拉 = 拖動方向同瞄準方向相反
-      const pullBack = -(dragVec.x * aimVec.x + dragVec.y * aimVec.y);
-      if (pullBack > 0.02) {  // 向後拉超過 2cm 先開始儲力
-        isCharging = true;
-        setStatus('儲力中...放手出桿', 0.5);
+      if (!mobileAimLocked) {
+        // 瞄準階段：手指指向邊就瞄準邊
+        // 計算拖動方向同距離
+        const dragVec = new THREE.Vector2(
+          aimHit.x - mobilePullStart.x,
+          aimHit.z - mobilePullStart.z
+        );
+        const dragDist = dragVec.length();
+
+        // 計算向後拉嘅距離（沿瞄準方向相反）
+        const aimVec2D = new THREE.Vector2(
+          chargeLockedAimDirection.x,
+          chargeLockedAimDirection.z
+        );
+        const pullBack = -(dragVec.x * aimVec2D.x + dragVec.y * aimVec2D.y);
+
+        if (pullBack > 0.03) {  // 向後拉超過 3cm = 開始儲力
+          mobileAimLocked = true;
+          mobileInputState = 'powering';
+          isCharging = true;
+          setStatus('儲力中...放手出桿', 0.5);
+        } else if (dragDist > 0.02) {
+          // 向前/側面拖動 = 微調瞄準方向
+          aimDirection.set(
+            aimHit.x - cueBall.position.x,
+            0,
+            aimHit.z - cueBall.position.z
+          ).normalize();
+          chargeLockedAimDirection.copy(aimDirection);
+          updateAimLine();
+        }
+      }
+
+      if (mobileAimLocked && isCharging) {
+        // 儲力階段：計算 power（沿瞄準線向後拉嘅距離）
+        const dragVec = new THREE.Vector2(
+          aimHit.x - mobilePullStart.x,
+          aimHit.z - mobilePullStart.z
+        );
+        const aimVec2D = new THREE.Vector2(
+          chargeLockedAimDirection.x,
+          chargeLockedAimDirection.z
+        );
+        const pullBack = -(dragVec.x * aimVec2D.x + dragVec.y * aimVec2D.y);
+        // 將拉動距離轉換成 power (0-1)
+        power = Math.min(1, Math.max(0, pullBack * 4));  // 0.25m = 全力
       }
     }
+    return;
   }
 
   updatePointer(e);
@@ -1788,7 +1841,6 @@ function handlePrimaryPointerUp(e) {
   // 重置視角旋轉模式
   if (isRotatingCamera) {
     isRotatingCamera = false;
-    // 保持 controls.enabled = true 讓雙指操作繼續有效
     return;
   }
 
@@ -1806,10 +1858,21 @@ function handlePrimaryPointerUp(e) {
     return;
   }
 
-  // 手機模式：冇儲力就唔出桿，只重置狀態
-  if (isTouchDevice && !isCharging && turnState === 'AIMING_DRAG') {
-    turnState = 'AIMING';
-    setStatus('瞄準後向後拉儲力', 1.0);
+  // 手機模式：根據儲力狀態決定出桿
+  if (isTouchDevice) {
+    if (isCharging && power > 0.02) {
+      // 有儲力 = 出桿
+      shootCueBall();
+    } else {
+      // 冇儲力 = 取消，重置狀態
+      turnState = 'AIMING';
+      setStatus('撳住枱面瞄準，向後拉儲力', 1.5);
+    }
+    // 重置手機狀態
+    mobileInputState = 'idle';
+    mobileAimLocked = false;
+    isCharging = false;
+    power = 0;
     return;
   }
 
