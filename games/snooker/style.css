@@ -37,6 +37,23 @@ body {
   position: relative;
 }
 
+.topbar .back-btn {
+  position: absolute;
+  left: 16px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+.topbar .back-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
 .topbar h1 {
   font-size: 20px;
   margin: 0;
