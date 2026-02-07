@@ -231,8 +231,9 @@ const pocketMouthMaterial = new THREE.MeshStandardMaterial({ color: 0x050607, ro
 // Pocket sizes: middle pockets larger than corner pockets (realistic snooker)
 const pocketRadiusCorner = 0.065;  // Corner pockets (smaller)
 const pocketRadiusSide = 0.082;    // Middle/side pockets (larger, easier to pot)
-const pocketCornerOffset = -0.02;  // Negative = outside corner (fully visible)
-const pocketSideOffset = -0.025;   // Negative = outside edge (fully visible)
+// Move pockets outside the rail frame so they are fully visible as black circles
+const pocketCornerOffset = -(RAIL_THICK * 0.4);  // Outside corner, past rail
+const pocketSideOffset = -(RAIL_THICK * 0.5);    // Outside edge, past rail
 const pocketDepth = 0.08;
 
 const pocketDefs = [
@@ -365,15 +366,16 @@ const tableMarkMaterial = new THREE.MeshStandardMaterial({
 });
 
 const baulkLine = new THREE.Mesh(
-  new THREE.PlaneGeometry(playW * 0.94, 0.006),
+  new THREE.PlaneGeometry(playW, 0.006),  // Full width to table edge
   tableMarkMaterial
 );
 baulkLine.position.set(0, CLOTH_Y, baulkLineZ);
 stickToCloth(baulkLine, cloth, 0.003);
 tableGroup.add(baulkLine);
 
+// D arc: semicircle opening towards center of table (positive Z direction)
 const dArc = new THREE.Mesh(
-  new THREE.RingGeometry(dRadius - 0.0045, dRadius + 0.0045, 72, 1, Math.PI, Math.PI),
+  new THREE.RingGeometry(dRadius - 0.0045, dRadius + 0.0045, 72, 1, 0, Math.PI),
   tableMarkMaterial
 );
 dArc.position.set(0, CLOTH_Y, baulkLineZ);
