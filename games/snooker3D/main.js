@@ -709,10 +709,10 @@ let spinDragging = false;
 
 const maxCharge = 1.25;
 const minCharge = 0.2;
-const powerMultiplier = 6.12;  // -15% from 7.2 (user request)
+const powerMultiplier = 5.81;  // -20% from 7.2 (further reduced for accuracy)
 const dragFullPowerDistance = 0.3;
 const chargeRate = 0.9;
-const cueSpeedCap = 7.14;      // -15% from 8.4 (user request)
+const cueSpeedCap = 6.78;      // -20% from 8.4 (further reduced for accuracy)
 const rollingDragK = 0.609;    // +5% from 0.58 (less icy)
 const linearDrag = 0.0168;     // +5% from 0.016
 const cushionRestitution = 0.88;  // Increased from 0.86
