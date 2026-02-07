@@ -1724,8 +1724,15 @@ function handlePrimaryPointerDown(e) {
   updatePointer(e);
   const reason = canTakeShotReason();
   if (canTakeShot() && (!aiEnabled || currentPlayer === 0)) {
-    isCharging = true;
-    power = 0;
+    // 手機模式：唔即刻開始儲力，只記錄起點用嚟瞄準
+    // 儲力會喺 pointermove 時當檢測到向後拉先開始
+    if (isTouchDevice) {
+      isCharging = false;  // 手機唔即刻儲力
+      power = 0;
+    } else {
+      isCharging = true;  // 電腦版保持原本行為
+      power = 0;
+    }
     chargeLockedAimDirection.copy(aimDirection);
     if (raycaster.ray.intersectPlane(tablePlane, aimHit)) {
       dragStartPoint.copy(aimHit);
@@ -1747,6 +1754,30 @@ function handlePrimaryPointerMove(e) {
     updateCueBallPlacementFromPointer(e);
     return;
   }
+
+  // 手機模式：檢測向後拉開始儲力
+  if (isTouchDevice && turnState === 'AIMING_DRAG' && !isCharging) {
+    updatePointer(e);
+    if (raycaster.ray.intersectPlane(tablePlane, aimHit)) {
+      // 計算拖動方向
+      const dragVec = new THREE.Vector2(
+        aimHit.x - dragStartPoint.x,
+        aimHit.z - dragStartPoint.z
+      );
+      // 瞄準方向（白球到點擊位置）
+      const aimVec = new THREE.Vector2(
+        dragStartPoint.x - cueBall.position.x,
+        dragStartPoint.z - cueBall.position.z
+      ).normalize();
+      // 向後拉 = 拖動方向同瞄準方向相反
+      const pullBack = -(dragVec.x * aimVec.x + dragVec.y * aimVec.y);
+      if (pullBack > 0.02) {  // 向後拉超過 2cm 先開始儲力
+        isCharging = true;
+        setStatus('儲力中...放手出桿', 0.5);
+      }
+    }
+  }
+
   updatePointer(e);
 }
 
@@ -1774,6 +1805,14 @@ function handlePrimaryPointerUp(e) {
     setStatus('撳「確認白球位置」按鈕完成', 1.2);
     return;
   }
+
+  // 手機模式：冇儲力就唔出桿，只重置狀態
+  if (isTouchDevice && !isCharging && turnState === 'AIMING_DRAG') {
+    turnState = 'AIMING';
+    setStatus('瞄準後向後拉儲力', 1.0);
+    return;
+  }
+
   if (isCharging) {
     shootCueBall();
   }
