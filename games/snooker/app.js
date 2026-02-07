@@ -327,6 +327,8 @@
   function drawAim() {
     if (!state.aiming) return;
     const len = 120 + Math.min(80, state.pullPower);
+    // Dynamic collision search range based on power (max ~800px at full power)
+    const collisionSearchLen = 200 + state.pullPower * 7;
     ctx.strokeStyle = 'rgba(255,255,255,.6)';
     ctx.setLineDash([6, 6]);
     ctx.beginPath();
@@ -347,8 +349,8 @@
     ctx.lineTo(ax, ay);
     ctx.stroke();
 
-    // ghost collision line (approx)
-    const hit = getFirstCollision(state.cue.x, state.cue.y, state.aimAngle, len);
+    // ghost collision line (approx) - use extended search range
+    const hit = getFirstCollision(state.cue.x, state.cue.y, state.aimAngle, collisionSearchLen);
     if (hit) {
       ctx.strokeStyle = 'rgba(106,166,255,.45)';
       ctx.setLineDash([4, 6]);
