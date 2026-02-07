@@ -73,9 +73,10 @@ controls.mouseButtons = {
   MIDDLE: THREE.MOUSE.DOLLY,
   RIGHT: THREE.MOUSE.ROTATE,
 };
+// 手機觸控設定：單指留俾遊戲瞄準，雙指控制視角
 controls.touches = {
-  ONE: THREE.TOUCH.ROTATE,
-  TWO: THREE.TOUCH.DOLLY_PAN,
+  ONE: null,  // 禁用單指控制（避免同瞄準衝突）
+  TWO: THREE.TOUCH.DOLLY_ROTATE,  // 雙指：縮放+旋轉
 };
 controls.update();
 
