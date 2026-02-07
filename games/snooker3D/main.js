@@ -1673,10 +1673,39 @@ function toggleFullscreen() {
 
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
+// 檢測觸控位置係枱面內定枱外（包括少少邊緣範圍）
+function isTouchOnTable(e) {
+  const rect = canvas.getBoundingClientRect();
+  const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  const tempPointer = new THREE.Vector2(x, y);
+  const tempRaycaster = new THREE.Raycaster();
+  tempRaycaster.setFromCamera(tempPointer, camera);
+  const hitPoint = new THREE.Vector3();
+  if (!tempRaycaster.ray.intersectPlane(tablePlane, hitPoint)) return false;
+  // 枱面邊界（加少少緩衝）
+  const margin = 0.15;
+  return Math.abs(hitPoint.x) <= halfW + margin && Math.abs(hitPoint.z) <= halfL + margin;
+}
+
+// 手機模式：枱外觸控啟用視角旋轉
+let isRotatingCamera = false;
+const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
 function handlePrimaryPointerDown(e) {
   inputDebug.lastMouseDown = `btn=${e.button} x=${e.clientX} y=${e.clientY} state=${turnState}`;
   if (e.button !== 0) return;
   if (foulDecisionPending) return;
+
+  // 手機模式：枱外觸控啟用視角旋轉
+  if (isTouchDevice && !isTouchOnTable(e)) {
+    isRotatingCamera = true;
+    controls.enabled = true;
+    // 唔阻止事件傳播，讓 OrbitControls 處理
+    return;
+  }
+
+  // 枱面內操作
   activePointerId = e.pointerId ?? 0;
   if (typeof canvas.setPointerCapture === 'function' && e.pointerId !== undefined) {
     try {
@@ -1688,7 +1717,7 @@ function handlePrimaryPointerDown(e) {
     isDraggingCueBall = true;
     turnState = 'PLACE_CUE_DRAG';
     updateCueBallPlacementFromPointer(e);
-    setStatus('Dragging cue ball in D...', 0.6);
+    setStatus('拖動白球到 D 區...', 0.6);
     return;
   }
 
@@ -1725,6 +1754,13 @@ function handlePrimaryPointerUp(e) {
   inputDebug.lastMouseUp = `btn=${e.button} x=${e.clientX} y=${e.clientY} state=${turnState} charging=${isCharging}`;
   if (e.button !== 0) return;
 
+  // 重置視角旋轉模式
+  if (isRotatingCamera) {
+    isRotatingCamera = false;
+    // 保持 controls.enabled = true 讓雙指操作繼續有效
+    return;
+  }
+
   if (typeof canvas.releasePointerCapture === 'function' && e.pointerId !== undefined) {
     try {
       canvas.releasePointerCapture(e.pointerId);
@@ -1735,7 +1771,7 @@ function handlePrimaryPointerUp(e) {
   if (cueBallInHand && isDraggingCueBall) {
     isDraggingCueBall = false;
     turnState = 'PLACE_CUE';
-    setStatus('Double-click to confirm cue ball position', 1.2);
+    setStatus('撳「確認白球位置」按鈕完成', 1.2);
     return;
   }
   if (isCharging) {
