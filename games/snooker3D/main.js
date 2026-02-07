@@ -1117,6 +1117,7 @@ function updateAimLine() {
       cueFinalZ += nz * spinForce;
     }
 
+
     // 繪製物件球軌跡（橙色）
     const objSpeed = Math.hypot(objVelAfterX, objVelAfterZ);
     if (objSpeed > 0.05) {
@@ -1979,10 +1980,12 @@ function resolveBallCollisions() {
 
           // Equal-mass 2D impulse resolution.
           const impulse = (-(1 + ballRestitution) * velAlongNormal) / 2;
+
           a.velocity.x -= nx * impulse;
           a.velocity.z -= nz * impulse;
           b.velocity.x += nx * impulse;
           b.velocity.z += nz * impulse;
+
           a.velocity.multiplyScalar(collisionEnergyRetention);
           b.velocity.multiplyScalar(collisionEnergyRetention);
 
@@ -2105,7 +2108,17 @@ function evaluateShotIfStopped() {
 }
 
 function stepSimulation(dt) {
-  updatePhysics(dt);
+  // Sub-stepping: 當球速快時，將 dt 拆分成更細嘅步長
+  // 確保每步移動距離 < 球直徑嘅一半，避免穿透
+  const maxSpeed = Math.max(...balls.map(b => b.pocketed ? 0 : b.velocity.length()));
+  const maxStepDist = BALL_RADIUS; // 每步最多移動一個半徑
+  const minSubstepDt = maxSpeed > 0.01 ? maxStepDist / maxSpeed : dt;
+  const substeps = Math.max(1, Math.min(8, Math.ceil(dt / minSubstepDt)));
+  const subDt = dt / substeps;
+
+  for (let i = 0; i < substeps; i++) {
+    updatePhysics(subDt);
+  }
 
   if (allStopped()) {
     stationaryTime = Math.min(2, stationaryTime + dt);
