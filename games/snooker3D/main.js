@@ -228,12 +228,12 @@ const pocketGroup = new THREE.Group();
 const pocketRimMaterial = new THREE.MeshStandardMaterial({ color: 0x12161b, roughness: 0.92, metalness: 0.06 });
 const pocketWallMaterial = new THREE.MeshStandardMaterial({ color: 0x06080b, roughness: 1, metalness: 0 });
 const pocketMouthMaterial = new THREE.MeshStandardMaterial({ color: 0x050607, roughness: 1, metalness: 0 });
-// Adjusted pocket sizes: smaller visual footprint, positions closer to edges (ref 2D version)
-const pocketRadiusCorner = 0.078;  // Reduced from 0.108
-const pocketRadiusSide = 0.065;    // Reduced from 0.092
-const pocketCornerOffset = 0.015;  // Reduced from 0.04 - closer to corner
-const pocketSideOffset = 0.018;    // Reduced from 0.045 - closer to edge
-const pocketDepth = 0.08;          // Reduced from 0.11
+// Pocket sizes: visible & outside rails (user feedback: fully visible circles)
+const pocketRadiusCorner = 0.075;  // Slightly smaller for clean look
+const pocketRadiusSide = 0.062;
+const pocketCornerOffset = -0.02;  // Negative = outside corner (fully visible)
+const pocketSideOffset = -0.025;   // Negative = outside edge (fully visible)
+const pocketDepth = 0.08;
 
 const pocketDefs = [
   { kind: 'corner', x: -halfW + pocketCornerOffset, z: -halfL + pocketCornerOffset, r: pocketRadiusCorner },
@@ -632,12 +632,12 @@ let spinDragging = false;
 
 const maxCharge = 1.25;
 const minCharge = 0.2;
-const powerMultiplier = 6.0;
+const powerMultiplier = 7.2;  // +20% from 6.0
 const dragFullPowerDistance = 0.3;
 const chargeRate = 0.9;
-const cueSpeedCap = 7.0;
-const rollingDragK = 0.45;  // Reduced from 0.72 for less deviation
-const linearDrag = 0.012;   // Reduced from 0.018
+const cueSpeedCap = 8.4;      // +20% from 7.0
+const rollingDragK = 0.58;    // Increased from 0.45 (less icy feel)
+const linearDrag = 0.016;     // Increased from 0.012
 const cushionRestitution = 0.88;  // Increased from 0.86
 const cushionTangentialFriction = 0.045;
 const ballRestitution = 0.92;
