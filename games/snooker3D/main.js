@@ -283,24 +283,25 @@ pocketGroup.renderOrder = 10;  // Render on top of rails
 const pocketRimMaterial = new THREE.MeshStandardMaterial({ color: 0x12161b, roughness: 0.92, metalness: 0.06 });
 const pocketWallMaterial = new THREE.MeshStandardMaterial({ color: 0x06080b, roughness: 1, metalness: 0 });
 const pocketMouthMaterial = new THREE.MeshStandardMaterial({ color: 0x050607, roughness: 1, metalness: 0, depthWrite: true });
+const cornerPieceMaterial = new THREE.MeshStandardMaterial({ color: 0xc9a84c, roughness: 0.4, metalness: 0.3 }); // Gold color
 
-// Pocket design following 2D version layout:
-// - 4 corner pockets at table corners (FULL CIRCLES on cloth)
-// - 2 middle pockets on LONG rails (z = ±halfL, x = 0) (HALF CIRCLES, opening outward)
-// Middle pockets are larger than corner pockets (realistic snooker)
+// Pocket design following reference image:
+// - ALL pockets are FULL CIRCLES (including middle pockets)
+// - Corner pockets have gold triangle decorations
+// - Middle pockets are on LONG rails (z = ±halfL, x = 0)
 const pocketRadiusCorner = 0.055;  // Corner pockets (smaller, harder to pot)
-const pocketRadiusSide = 0.075;    // Middle pockets (larger, easier to pot)
+const pocketRadiusSide = 0.068;    // Middle pockets (larger, easier to pot)
 const pocketInset = 0.01;          // Small inset from actual corner
 const pocketDepth = 0.08;
 
-// CORRECT: Middle pockets at z = ±halfL (LONG edges), x = 0
+// Middle pockets at z = ±halfL (LONG edges), x = 0
 const pocketDefs = [
-  // 4 corner pockets (full circles)
-  { kind: 'corner', x: -halfW + pocketInset, z: -halfL + pocketInset, r: pocketRadiusCorner },
-  { kind: 'corner', x: halfW - pocketInset, z: -halfL + pocketInset, r: pocketRadiusCorner },
-  { kind: 'corner', x: -halfW + pocketInset, z: halfL - pocketInset, r: pocketRadiusCorner },
-  { kind: 'corner', x: halfW - pocketInset, z: halfL - pocketInset, r: pocketRadiusCorner },
-  // 2 middle pockets on LONG rails at z = ±halfL, x = 0 (half circles)
+  // 4 corner pockets
+  { kind: 'corner', x: -halfW + pocketInset, z: -halfL + pocketInset, r: pocketRadiusCorner, corner: 'bl' },
+  { kind: 'corner', x: halfW - pocketInset, z: -halfL + pocketInset, r: pocketRadiusCorner, corner: 'br' },
+  { kind: 'corner', x: -halfW + pocketInset, z: halfL - pocketInset, r: pocketRadiusCorner, corner: 'tl' },
+  { kind: 'corner', x: halfW - pocketInset, z: halfL - pocketInset, r: pocketRadiusCorner, corner: 'tr' },
+  // 2 middle pockets on LONG rails
   { kind: 'side', x: 0, z: halfL, r: pocketRadiusSide },   // Top middle
   { kind: 'side', x: 0, z: -halfL, r: pocketRadiusSide },  // Bottom middle
 ];
@@ -311,35 +312,46 @@ const pockets = pocketDefs.map((p) => {
   root.position.set(p.x, 0, p.z);
   pocketGroup.add(root);
 
-  if (isSide) {
-    // MIDDLE POCKET: Half circle (semicircle) opening outward, NO hole on cloth
-    const semicircleShape = new THREE.Shape();
-    semicircleShape.absarc(0, 0, p.r, 0, Math.PI, false);
-    const semicircleGeom = new THREE.ShapeGeometry(semicircleShape, 32);
-    const mouth = new THREE.Mesh(semicircleGeom, pocketMouthMaterial);
-    mouth.position.set(p.x, CLOTH_Y + 0.002, p.z);
-    mouth.rotation.x = -Math.PI / 2;
-    // Rotate to face outward: +halfL faces +Z, -halfL faces -Z
-    mouth.rotation.z = p.z > 0 ? Math.PI : 0;
-    pocketGroup.add(mouth);
-  } else {
-    // CORNER POCKET: Full circle on cloth
-    const mouth = new THREE.Mesh(
-      new THREE.CircleGeometry(p.r * 0.95, 40),
-      pocketMouthMaterial
-    );
-    mouth.position.set(p.x, 0, p.z);
-    stickToCloth(mouth, cloth, 0.002);
-    pocketGroup.add(mouth);
+  // ALL POCKETS: Full circle on cloth (based on reference image)
+  const mouth = new THREE.Mesh(
+    new THREE.CircleGeometry(p.r, 40),
+    pocketMouthMaterial
+  );
+  mouth.position.set(p.x, 0, p.z);
+  stickToCloth(mouth, cloth, 0.002);
+  pocketGroup.add(mouth);
 
-    // Rim around corner pocket
-    const rim = new THREE.Mesh(
-      new THREE.RingGeometry(p.r * 0.92, p.r * 1.12, 48),
-      pocketRimMaterial
-    );
-    rim.position.set(p.x, 0, p.z);
-    stickToCloth(rim, cloth, 0.003);
-    pocketGroup.add(rim);
+  // Rim around all pockets
+  const rim = new THREE.Mesh(
+    new THREE.RingGeometry(p.r * 0.95, p.r * 1.1, 48),
+    pocketRimMaterial
+  );
+  rim.position.set(p.x, 0, p.z);
+  stickToCloth(rim, cloth, 0.003);
+  pocketGroup.add(rim);
+
+  // CORNER POCKETS: Add gold triangle decoration
+  if (!isSide && p.corner) {
+    const triSize = 0.12;
+    const triShape = new THREE.Shape();
+    triShape.moveTo(0, 0);
+    triShape.lineTo(triSize, 0);
+    triShape.lineTo(0, triSize);
+    triShape.closePath();
+    const triGeom = new THREE.ShapeGeometry(triShape);
+    const tri = new THREE.Mesh(triGeom, cornerPieceMaterial);
+    tri.rotation.x = -Math.PI / 2;
+
+    // Position based on which corner
+    let tx = p.x, tz = p.z, rot = 0;
+    if (p.corner === 'bl') { tx = -halfW - RAIL_THICK * 0.3; tz = -halfL - RAIL_THICK * 0.3; rot = Math.PI / 2; }
+    if (p.corner === 'br') { tx = halfW + RAIL_THICK * 0.3; tz = -halfL - RAIL_THICK * 0.3; rot = Math.PI; }
+    if (p.corner === 'tl') { tx = -halfW - RAIL_THICK * 0.3; tz = halfL + RAIL_THICK * 0.3; rot = 0; }
+    if (p.corner === 'tr') { tx = halfW + RAIL_THICK * 0.3; tz = halfL + RAIL_THICK * 0.3; rot = -Math.PI / 2; }
+
+    tri.position.set(tx, CLOTH_Y + 0.005, tz);
+    tri.rotation.z = rot;
+    pocketGroup.add(tri);
   }
 
   // Pocket wall (cylinder going down)
