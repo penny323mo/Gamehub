@@ -197,25 +197,76 @@ const woodMaterial = new THREE.MeshStandardMaterial({
   metalness: 0.1,
 });
 
-const railLong = new THREE.Mesh(
-  new THREE.BoxGeometry(TABLE_WIDTH + RAIL_THICK * 2, RAIL_HEIGHT, RAIL_THICK),
+// Rails with cutouts for pockets
+// Pocket dimensions for rail cutouts
+const pocketCutoutRadius = 0.08;  // Slightly larger than pocket visual radius
+
+// Long rails (z = ±halfL): need cutouts at corners only (x = ±halfW)
+// Each long rail is split into segments with corner cutouts
+const longRailHalfLen = (TABLE_WIDTH + RAIL_THICK * 2) / 2;
+const cornerCutout = pocketCutoutRadius + 0.02;
+
+// Rail segments for z = +halfL (top rail)
+const railTopLeft = new THREE.Mesh(
+  new THREE.BoxGeometry(longRailHalfLen - cornerCutout, RAIL_HEIGHT, RAIL_THICK),
   woodMaterial
 );
-railLong.position.set(0, RAIL_HEIGHT / 2, halfL + RAIL_THICK / 2);
+railTopLeft.position.set(-longRailHalfLen / 2 - cornerCutout / 2, RAIL_HEIGHT / 2, halfL + RAIL_THICK / 2);
 
-const railLong2 = railLong.clone();
-railLong2.position.set(0, RAIL_HEIGHT / 2, -halfL - RAIL_THICK / 2);
-
-const railShort = new THREE.Mesh(
-  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, TABLE_LENGTH),
+const railTopRight = new THREE.Mesh(
+  new THREE.BoxGeometry(longRailHalfLen - cornerCutout, RAIL_HEIGHT, RAIL_THICK),
   woodMaterial
 );
-railShort.position.set(halfW + RAIL_THICK / 2, RAIL_HEIGHT / 2, 0);
+railTopRight.position.set(longRailHalfLen / 2 + cornerCutout / 2, RAIL_HEIGHT / 2, halfL + RAIL_THICK / 2);
 
-const railShort2 = railShort.clone();
-railShort2.position.set(-halfW - RAIL_THICK / 2, RAIL_HEIGHT / 2, 0);
+// Rail segments for z = -halfL (bottom rail)
+const railBottomLeft = new THREE.Mesh(
+  new THREE.BoxGeometry(longRailHalfLen - cornerCutout, RAIL_HEIGHT, RAIL_THICK),
+  woodMaterial
+);
+railBottomLeft.position.set(-longRailHalfLen / 2 - cornerCutout / 2, RAIL_HEIGHT / 2, -halfL - RAIL_THICK / 2);
 
-tableGroup.add(railLong, railLong2, railShort, railShort2);
+const railBottomRight = new THREE.Mesh(
+  new THREE.BoxGeometry(longRailHalfLen - cornerCutout, RAIL_HEIGHT, RAIL_THICK),
+  woodMaterial
+);
+railBottomRight.position.set(longRailHalfLen / 2 + cornerCutout / 2, RAIL_HEIGHT / 2, -halfL - RAIL_THICK / 2);
+
+// Short rails (x = ±halfW): need cutouts at corners AND middle pocket
+const shortRailTotalLen = TABLE_LENGTH;
+const middleCutout = pocketCutoutRadius + 0.02;
+const shortSegmentLen = (shortRailTotalLen / 2) - cornerCutout - middleCutout / 2;
+
+// Rail segments for x = +halfW (right rail): top segment, bottom segment
+const railRightTop = new THREE.Mesh(
+  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, shortSegmentLen),
+  woodMaterial
+);
+railRightTop.position.set(halfW + RAIL_THICK / 2, RAIL_HEIGHT / 2, halfL / 2 + middleCutout / 4);
+
+const railRightBottom = new THREE.Mesh(
+  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, shortSegmentLen),
+  woodMaterial
+);
+railRightBottom.position.set(halfW + RAIL_THICK / 2, RAIL_HEIGHT / 2, -halfL / 2 - middleCutout / 4);
+
+// Rail segments for x = -halfW (left rail): top segment, bottom segment
+const railLeftTop = new THREE.Mesh(
+  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, shortSegmentLen),
+  woodMaterial
+);
+railLeftTop.position.set(-halfW - RAIL_THICK / 2, RAIL_HEIGHT / 2, halfL / 2 + middleCutout / 4);
+
+const railLeftBottom = new THREE.Mesh(
+  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, shortSegmentLen),
+  woodMaterial
+);
+railLeftBottom.position.set(-halfW - RAIL_THICK / 2, RAIL_HEIGHT / 2, -halfL / 2 - middleCutout / 4);
+
+tableGroup.add(
+  railTopLeft, railTopRight, railBottomLeft, railBottomRight,
+  railRightTop, railRightBottom, railLeftTop, railLeftBottom
+);
 
 const tableBody = new THREE.Mesh(
   new THREE.BoxGeometry(TABLE_WIDTH + RAIL_THICK * 2.4, TABLE_HEIGHT, TABLE_LENGTH + RAIL_THICK * 2.4),
@@ -1202,6 +1253,10 @@ function beginFoulDecision({
 function applyFoulDecision(forceFoulerContinue) {
   if (!foulDecisionPending || !foulDecisionContext) return;
   const ctx = foulDecisionContext;
+
+  // IMPORTANT: Reset expectingColor on foul - next player always starts on red (if reds remain)
+  expectingColor = false;
+
   if (forceFoulerContinue) {
     currentPlayer = ctx.fouler;
     freeBallAvailable = false;
