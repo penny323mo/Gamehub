@@ -15,10 +15,7 @@ const spinResetBtn = document.getElementById('spin-reset');
 const confirmCueBtn = document.getElementById('confirm-cue-btn');
 
 // 手機控制面板
-const mobileControlsEl = document.getElementById('mobile-controls');
-const mobilePowerSlider = document.getElementById('mobile-power-slider');
-const mobilePowerValue = document.getElementById('mobile-power-value');
-const mobileShootBtn = document.getElementById('mobile-shoot-btn');
+const mobilePowerBtn = document.getElementById('mobile-power-btn');
 
 // 檢測觸控設備
 const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -861,19 +858,34 @@ function updateUi() {
     }
   }
 
-  // 手機控制面板：手機 + 可出桿時顯示
-  if (mobileControlsEl) {
-    const shouldShowMobile = isTouchDevice && canTakeShot() && (!aiEnabled || currentPlayer === 0);
-    if (shouldShowMobile) {
-      mobileControlsEl.classList.add('show');
-      mobileControlsEl.hidden = false;
+  // 手機儲力按鈕：手機 + 可出桿時顯示
+  if (mobilePowerBtn) {
+    const shouldShow = isTouchDevice && canTakeShot() && (!aiEnabled || currentPlayer === 0);
+    if (shouldShow) {
+      mobilePowerBtn.classList.add('show');
+      mobilePowerBtn.hidden = false;
+      // 更新按鈕狀態
+      if (isCharging) {
+        mobilePowerBtn.classList.add('charging');
+        mobilePowerBtn.textContent = '放手出桿';
+      } else {
+        mobilePowerBtn.classList.remove('charging');
+        mobilePowerBtn.textContent = '撳住儲力';
+      }
     } else {
-      mobileControlsEl.classList.remove('show');
-      mobileControlsEl.hidden = true;
+      mobilePowerBtn.classList.remove('show');
+      mobilePowerBtn.hidden = true;
     }
   }
 
   updateDecisionPanel();
+  if (mobileControlsEl) {
+    if (isTouchDevice && (turnState === 'AIMING' || turnState === 'AIMING_DRAG')) {
+      mobileControlsEl.classList.add('show');
+    } else {
+      mobileControlsEl.classList.remove('show');
+    }
+  }
 }
 
 function updateDecisionPanel() {
@@ -1717,16 +1729,28 @@ let mobileInputState = 'idle';  // 'idle' | 'aiming' | 'powering'
 let mobilePullStart = new THREE.Vector3();  // 開始儲力嘅位置
 let mobileAimLocked = false;  // 瞄準方向已鎖定
 
+// 手機模式：預防誤觸控制區（下半部）
+function isTouchInControlArea(e) {
+  return e.clientY > window.innerHeight * 0.75;
+}
+
 function handlePrimaryPointerDown(e) {
   inputDebug.lastMouseDown = `btn=${e.button} x=${e.clientX} y=${e.clientY} state=${turnState}`;
   if (e.button !== 0) return;
   if (foulDecisionPending) return;
 
-  // 手機模式：枱外觸控啟用視角旋轉
-  if (isTouchDevice && !isTouchOnTable(e)) {
-    isRotatingCamera = true;
-    controls.enabled = true;
-    return;
+  // 手機模式處理
+  if (isTouchDevice) {
+    // 1. 如果觸控點在下半部控制區 -> 唔處理（讓 HTML 元素接收事件）
+    // 或者如果在上半部但係枱外 -> 旋轉視角
+    const onTable = isTouchOnTable(e);
+    const inControlArea = isTouchInControlArea(e);
+
+    if (inControlArea || !onTable) {
+      isRotatingCamera = true;
+      controls.enabled = true;
+      return;
+    }
   }
 
   // 枱面內操作
@@ -1749,8 +1773,7 @@ function handlePrimaryPointerDown(e) {
   const reason = canTakeShotReason();
   if (canTakeShot() && (!aiEnabled || currentPlayer === 0)) {
     if (isTouchDevice) {
-      // 手機模式：參考 2D 版邏輯
-      // 第一下撳住 = 設定瞄準方向（手指指向嘅位置）
+      // 手機模式：只瞄準，唔儲力
       if (raycaster.ray.intersectPlane(tablePlane, aimHit)) {
         // 瞄準方向 = 白球 → 觸控點
         aimDirection.set(
@@ -1760,15 +1783,14 @@ function handlePrimaryPointerDown(e) {
         ).normalize();
         chargeLockedAimDirection.copy(aimDirection);
 
-        // 記錄起點，之後用嚟計算向後拉
-        mobilePullStart.copy(aimHit);
         mobileInputState = 'aiming';
-        mobileAimLocked = false;
         isCharging = false;
         power = 0;
         turnState = 'AIMING_DRAG';
         updateAimLine();
       }
+
+
     } else {
       // 電腦版保持原本行為
       isCharging = true;
@@ -1786,7 +1808,46 @@ function handlePrimaryPointerDown(e) {
   }
 }
 
+// 新的手機 Move 邏輯：只瞄準，不儲力
 function handlePrimaryPointerMove(e) {
+  inputDebug.lastMouseMove = `x=${e.clientX} y=${e.clientY} dragCue=${isDraggingCueBall} cueInHand=${cueBallInHand}`;
+  if (activePointerId !== null && e.pointerId !== undefined && e.pointerId !== activePointerId) {
+    return;
+  }
+  if (cueBallInHand && isDraggingCueBall) {
+    updateCueBallPlacementFromPointer(e);
+    return;
+  }
+
+  // 手機模式：只動態瞄準，完全移除儲力邏輯
+  if (isTouchDevice && turnState === 'AIMING_DRAG') {
+    updatePointer(e);
+    if (raycaster.ray.intersectPlane(tablePlane, aimHit)) {
+      // 瞄準方向 = 白球 → 觸控點
+      aimDirection.set(
+        aimHit.x - cueBall.position.x,
+        0,
+        aimHit.z - cueBall.position.z
+      ).normalize();
+      chargeLockedAimDirection.copy(aimDirection);
+      updateAimLine();
+    }
+    return;
+  }
+
+  updatePointer(e);
+  if (turnState === 'AIMING_DRAG' && !isTouchDevice) {
+    // 電腦版儲力邏輯保持不變
+    if (raycaster.ray.intersectPlane(tablePlane, aimHit)) {
+      const dragVec = new THREE.Vector2(aimHit.x - dragStartPoint.x, aimHit.z - dragStartPoint.z);
+      const aimVec2D = new THREE.Vector2(chargeLockedAimDirection.x, chargeLockedAimDirection.z);
+      const pullBack = -(dragVec.x * aimVec2D.x + dragVec.y * aimVec2D.y);
+      power = Math.min(1, Math.max(0, pullBack * 4));
+    }
+  }
+}
+
+function handlePrimaryPointerMove_OLD(e) {
   inputDebug.lastMouseMove = `x=${e.clientX} y=${e.clientY} dragCue=${isDraggingCueBall} cueInHand=${cueBallInHand}`;
   if (activePointerId !== null && e.pointerId !== undefined && e.pointerId !== activePointerId) {
     return;
@@ -1878,21 +1939,10 @@ function handlePrimaryPointerUp(e) {
     return;
   }
 
-  // 手機模式：根據儲力狀態決定出桿
-  if (isTouchDevice) {
-    if (isCharging && power > 0.02) {
-      // 有儲力 = 出桿
-      shootCueBall();
-    } else {
-      // 冇儲力 = 取消，重置狀態
-      turnState = 'AIMING';
-      setStatus('撳住枱面瞄準，向後拉儲力', 1.5);
-    }
-    // 重置手機狀態
+  // 手機模式：放手只重置狀態，唔出桿（出桿由按鈕負責）
+  if (isTouchDevice && turnState === 'AIMING_DRAG') {
+    turnState = 'AIMING';
     mobileInputState = 'idle';
-    mobileAimLocked = false;
-    isCharging = false;
-    power = 0;
     return;
   }
 
@@ -1975,35 +2025,63 @@ if (confirmCueBtn) {
   });
 }
 
-// 手機控制面板事件
-if (mobilePowerSlider && mobilePowerValue) {
-  mobilePowerSlider.addEventListener('input', () => {
-    const val = parseInt(mobilePowerSlider.value, 10);
-    mobilePowerValue.textContent = `${val}%`;
-    // 更新 power 值 (0-1)
-    power = val / 100;
-  });
-}
+// 手機儲力按鈕事件
+if (mobilePowerBtn) {
+  let powerInterval = null;
+  let powerDirection = 1; // 1: increasing, -1: decreasing
 
-if (mobileShootBtn) {
-  mobileShootBtn.addEventListener('click', () => {
-    if (!canTakeShot()) {
-      setStatus('現時無法出桿', 1.0);
-      return;
+  const startCharging = (e) => {
+    e.preventDefault();
+    if (!canTakeShot()) return;
+    if (aiEnabled && currentPlayer !== 0) return;
+
+    isCharging = true;
+    power = 0;
+    powerDirection = 1;
+    mobilePowerBtn.classList.add('charging');
+    mobilePowerBtn.textContent = '放手出桿';
+
+    // 鎖定瞄準方向
+    chargeLockedAimDirection.copy(aimDirection);
+
+    if (powerInterval) clearInterval(powerInterval);
+    powerInterval = setInterval(() => {
+      power += 0.02 * powerDirection;
+      if (power >= 1) {
+        power = 1;
+        powerDirection = -1;
+      } else if (power <= 0) {
+        power = 0;
+        powerDirection = 1;
+      }
+      // 更新 UI (powerFillEl 會喺 updateUi 更新，呢度主要更新按鈕視覺)
+      updateUi();
+    }, 16);
+  };
+
+  const stopChargingAndShoot = (e) => {
+    e.preventDefault();
+    if (!isCharging) return;
+
+    if (powerInterval) {
+      clearInterval(powerInterval);
+      powerInterval = null;
     }
-    if (aiEnabled && currentPlayer !== 0) {
-      setStatus('等待 AI 出桿...', 1.0);
-      return;
-    }
-    // 用滑桿嘅 power 值出桿
-    const sliderPower = parseInt(mobilePowerSlider.value, 10) / 100;
-    power = sliderPower;
-    isCharging = true;  // 確保 shootCueBall 可以執行
+
+    mobilePowerBtn.classList.remove('charging');
+    mobilePowerBtn.textContent = '撳住儲力';
+
     shootCueBall();
-    // 重置滑桿
-    mobilePowerSlider.value = 50;
-    mobilePowerValue.textContent = '50%';
-  });
+    isCharging = false;
+    power = 0;
+  };
+
+  mobilePowerBtn.addEventListener('pointerdown', startCharging);
+  mobilePowerBtn.addEventListener('touchstart', startCharging);
+
+  mobilePowerBtn.addEventListener('pointerup', stopChargingAndShoot);
+  mobilePowerBtn.addEventListener('touchend', stopChargingAndShoot);
+  mobilePowerBtn.addEventListener('pointerleave', stopChargingAndShoot);
 }
 
 // Spin control UI handlers
