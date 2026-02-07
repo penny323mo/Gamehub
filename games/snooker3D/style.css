@@ -105,6 +105,29 @@ body {
   border-color: rgba(255, 206, 86, 0.7);
 }
 
+#confirm-cue-btn {
+  display: none;
+  margin-top: 8px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #4bd37f 0%, #32a861 100%);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 2px 8px rgba(75, 211, 127, 0.4);
+}
+
+#confirm-cue-btn.show {
+  display: block;
+}
+
+#confirm-cue-btn:active {
+  transform: scale(0.96);
+}
+
 #power {
   position: absolute;
   left: 12px;

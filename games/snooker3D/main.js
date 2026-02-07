@@ -12,6 +12,7 @@ const decisionForceBtn = document.getElementById('decision-force');
 const spinControlEl = document.getElementById('spin-control');
 const spinMarkerEl = document.getElementById('spin-marker');
 const spinResetBtn = document.getElementById('spin-reset');
+const confirmCueBtn = document.getElementById('confirm-cue-btn');
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x20242a);
@@ -269,7 +270,7 @@ const cornerPieceMaterial = new THREE.MeshStandardMaterial({ color: 0xc9a84c, ro
 // - ALL pockets are FULL CIRCLES (including middle pockets)
 // - Corner pockets have gold triangle decorations
 // - Middle pockets are on LONG rails (z = ±halfL, x = 0)
-const pocketRadiusCorner = 0.055;  // Corner pockets (smaller, harder to pot)
+const pocketRadiusCorner = 0.062;  // Corner pockets (slightly larger for easier potting)
 const pocketRadiusSide = 0.068;    // Middle pockets (larger, easier to pot)
 const pocketInset = 0.01;          // Small inset from actual corner
 const pocketDepth = 0.08;
@@ -831,13 +832,22 @@ function updateUi() {
     if (foulDecisionPending) {
       stateNoteEl.textContent = '犯規決策中：請按 Y/N 或點下面按鈕。';
     } else if (cueBallInHand) {
-      stateNoteEl.textContent = '你有白球在手：請拖放到 D 區後雙擊確認。';
+      stateNoteEl.textContent = '你有白球在手：拖放到 D 區，再按「確認白球位置」。';
     } else if (shotInProgress || stationaryTime < settledDuration || !allStopped()) {
       stateNoteEl.textContent = '球仍在移動中，請等待停球。';
     } else if (aiEnabled && currentPlayer === 1) {
       stateNoteEl.textContent = 'AI 回合中...';
     } else {
       stateNoteEl.textContent = '可出桿：LMB 拖拽儲力，放開擊球。';
+    }
+  }
+
+  // 確認白球按鈕：只喺 cueBallInHand 時顯示
+  if (confirmCueBtn) {
+    if (cueBallInHand && !foulDecisionPending && currentPlayer === 0) {
+      confirmCueBtn.classList.add('show');
+    } else {
+      confirmCueBtn.classList.remove('show');
     }
   }
 
@@ -1780,6 +1790,29 @@ if (decisionTakeBtn) {
 if (decisionForceBtn) {
   decisionForceBtn.addEventListener('click', () => {
     applyFoulDecision(true);
+  });
+}
+
+// 確認白球位置按鈕 (方便手機操作)
+if (confirmCueBtn) {
+  confirmCueBtn.addEventListener('click', () => {
+    if (!cueBallInHand) return;
+    if (!isValidCuePlacement(cueBall.position)) {
+      setStatus('Invalid cue placement. Keep cue ball inside D.', 1.6);
+      return;
+    }
+    cueBallInHand = false;
+    isDraggingCueBall = false;
+    stationaryTime = settledDuration;
+    turnState = 'AIMING';
+    setStatus('白球位置已確認，可以出桿。', 1.2);
+    logRule('cue_placed_confirmed', {
+      x: Number(cueBall.position.x.toFixed(3)),
+      z: Number(cueBall.position.z.toFixed(3)),
+      mode: 'D',
+    });
+    updateUi();
+    updateAimLine();
   });
 }
 
