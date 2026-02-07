@@ -224,25 +224,33 @@ const tableBody = new THREE.Mesh(
 tableBody.position.y = -TABLE_HEIGHT / 2;
 tableGroup.add(tableBody);
 
+// Pocket group and materials
 const pocketGroup = new THREE.Group();
+pocketGroup.renderOrder = 10;  // Render on top of rails
 const pocketRimMaterial = new THREE.MeshStandardMaterial({ color: 0x12161b, roughness: 0.92, metalness: 0.06 });
 const pocketWallMaterial = new THREE.MeshStandardMaterial({ color: 0x06080b, roughness: 1, metalness: 0 });
-const pocketMouthMaterial = new THREE.MeshStandardMaterial({ color: 0x050607, roughness: 1, metalness: 0 });
-// Pocket sizes: middle pockets larger than corner pockets (realistic snooker)
-const pocketRadiusCorner = 0.065;  // Corner pockets (smaller)
-const pocketRadiusSide = 0.082;    // Middle/side pockets (larger, easier to pot)
-// Move pockets outside the rail frame so they are fully visible as black circles
-const pocketCornerOffset = -(RAIL_THICK * 0.4);  // Outside corner, past rail
-const pocketSideOffset = -(RAIL_THICK * 0.5);    // Outside edge, past rail
+const pocketMouthMaterial = new THREE.MeshStandardMaterial({ color: 0x050607, roughness: 1, metalness: 0, depthWrite: true });
+
+// Pocket design following 2D version layout:
+// - 4 corner pockets at table corners
+// - 2 middle pockets on the LONG sides (z = 0), not short sides
+// Middle pockets are larger than corner pockets (realistic snooker)
+const pocketRadiusCorner = 0.055;  // Corner pockets (smaller, harder to pot)
+const pocketRadiusSide = 0.072;    // Middle pockets (larger, easier to pot)
+const pocketInset = 0.02;          // Small inset from actual corner/edge
 const pocketDepth = 0.08;
 
+// 2D ref: corners at (INSET, INSET), middles at (W/2, INSET) on long edges
+// In 3D: X is width, Z is length. Long edges are at x = ±halfW
 const pocketDefs = [
-  { kind: 'corner', x: -halfW + pocketCornerOffset, z: -halfL + pocketCornerOffset, r: pocketRadiusCorner },
-  { kind: 'corner', x: halfW - pocketCornerOffset, z: -halfL + pocketCornerOffset, r: pocketRadiusCorner },
-  { kind: 'corner', x: -halfW + pocketCornerOffset, z: halfL - pocketCornerOffset, r: pocketRadiusCorner },
-  { kind: 'corner', x: halfW - pocketCornerOffset, z: halfL - pocketCornerOffset, r: pocketRadiusCorner },
-  { kind: 'side', x: -halfW + pocketSideOffset, z: 0, r: pocketRadiusSide },
-  { kind: 'side', x: halfW - pocketSideOffset, z: 0, r: pocketRadiusSide },
+  // 4 corner pockets
+  { kind: 'corner', x: -halfW + pocketInset, z: -halfL + pocketInset, r: pocketRadiusCorner },
+  { kind: 'corner', x: halfW - pocketInset, z: -halfL + pocketInset, r: pocketRadiusCorner },
+  { kind: 'corner', x: -halfW + pocketInset, z: halfL - pocketInset, r: pocketRadiusCorner },
+  { kind: 'corner', x: halfW - pocketInset, z: halfL - pocketInset, r: pocketRadiusCorner },
+  // 2 middle pockets on LONG sides (at z = 0, x = edge)
+  { kind: 'side', x: -halfW + pocketInset * 0.5, z: 0, r: pocketRadiusSide },
+  { kind: 'side', x: halfW - pocketInset * 0.5, z: 0, r: pocketRadiusSide },
 ];
 
 const pockets = pocketDefs.map((p) => {
@@ -280,7 +288,8 @@ const pockets = pocketDefs.map((p) => {
   return { kind: p.kind, position: new THREE.Vector3(p.x, CLOTH_Y, p.z), radius: p.r * 0.93 };
 });
 
-tableGroup.add(pocketGroup);
+// Add pockets to scene (not tableGroup) so they render on top of rails
+scene.add(pocketGroup);
 
 console.log(
   '[POCKETS]',
