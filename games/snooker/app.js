@@ -848,9 +848,13 @@
         for (let i = 0; i < state.balls.length; i++) {
           const a = state.balls[i];
           if (!a.alive) continue;
+          // Skip cue ball collisions when placing
+          if (state.placingCue && a.isCue) continue;
           for (let j = i + 1; j < state.balls.length; j++) {
             const b = state.balls[j];
             if (!b.alive) continue;
+            // Skip cue ball collisions when placing
+            if (state.placingCue && b.isCue) continue;
             const dx = b.x - a.x, dy = b.y - a.y;
             if (dx * dx + dy * dy < (2 * R) * (2 * R)) { pairs.push([a, b]); }
           }
