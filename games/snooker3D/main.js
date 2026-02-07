@@ -1711,6 +1711,17 @@ document.addEventListener('fullscreenchange', () => {
 
 function resolveCushion(ball) {
   const spinSideEffect = ball.type === 'cue' ? spin.x * 0.35 : 0;
+  const bx = ball.position.x;
+  const bz = ball.position.z;
+
+  // Check if ball is near any pocket (skip cushion collision if so)
+  const isNearPocket = pockets.some((p) => {
+    const dx = bx - p.position.x;
+    const dz = bz - p.position.z;
+    return Math.hypot(dx, dz) < p.radius + BALL_RADIUS * 0.5;
+  });
+
+  if (isNearPocket) return;  // Let ball fall into pocket instead of bouncing
 
   if (ball.position.x < -halfW + BALL_RADIUS) {
     ball.position.x = -halfW + BALL_RADIUS;
@@ -1718,7 +1729,6 @@ function resolveCushion(ball) {
       const vn = Math.abs(ball.velocity.x);
       ball.velocity.x *= -cushionRestitution;
       ball.velocity.z *= 1 - cushionTangentialFriction;
-      // Side spin: left rail deflects z based on spin
       ball.velocity.z -= spinSideEffect * vn;
     }
   }
@@ -1728,7 +1738,6 @@ function resolveCushion(ball) {
       const vn = Math.abs(ball.velocity.x);
       ball.velocity.x *= -cushionRestitution;
       ball.velocity.z *= 1 - cushionTangentialFriction;
-      // Side spin: right rail deflects z based on spin (opposite direction)
       ball.velocity.z += spinSideEffect * vn;
     }
   }
@@ -1738,7 +1747,6 @@ function resolveCushion(ball) {
       const vn = Math.abs(ball.velocity.z);
       ball.velocity.z *= -cushionRestitution;
       ball.velocity.x *= 1 - cushionTangentialFriction;
-      // Side spin: bottom rail deflects x based on spin
       ball.velocity.x += spinSideEffect * vn;
     }
   }
@@ -1748,7 +1756,6 @@ function resolveCushion(ball) {
       const vn = Math.abs(ball.velocity.z);
       ball.velocity.z *= -cushionRestitution;
       ball.velocity.x *= 1 - cushionTangentialFriction;
-      // Side spin: top rail deflects x based on spin (opposite direction)
       ball.velocity.x -= spinSideEffect * vn;
     }
   }
