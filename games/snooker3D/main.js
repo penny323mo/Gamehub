@@ -18,7 +18,11 @@ const confirmCueBtn = document.getElementById('confirm-cue-btn');
 const mobilePowerBtn = document.getElementById('mobile-power-btn');
 
 // 檢測觸控設備
-const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+// 允許通過 URL 參數 ?mobile=1 強制啟用手機模式
+const urlParams = new URLSearchParams(window.location.search);
+const forceMobile = urlParams.get('mobile') === '1' || urlParams.get('forceMobile') === '1';
+const isTouchDevice = forceMobile || 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+console.log('[Device] isTouchDevice:', isTouchDevice, 'forceMobile:', forceMobile);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x20242a);
@@ -858,32 +862,14 @@ function updateUi() {
     }
   }
 
-  // 手機儲力按鈕：手機 + 可出桿時顯示
-  if (mobilePowerBtn) {
-    const shouldShow = isTouchDevice && canTakeShot() && (!aiEnabled || currentPlayer === 0);
-    if (shouldShow) {
-      mobilePowerBtn.classList.add('show');
-      mobilePowerBtn.hidden = false;
-      // 更新按鈕狀態
-      if (isCharging) {
-        mobilePowerBtn.classList.add('charging');
-        mobilePowerBtn.textContent = '放手出桿';
-      } else {
-        mobilePowerBtn.classList.remove('charging');
-        mobilePowerBtn.textContent = '撳住儲力';
-      }
-    } else {
-      mobilePowerBtn.classList.remove('show');
-      mobilePowerBtn.hidden = true;
-    }
-  }
-
   updateDecisionPanel();
   if (mobileControlsEl) {
     if (isTouchDevice && (turnState === 'AIMING' || turnState === 'AIMING_DRAG')) {
       mobileControlsEl.classList.add('show');
+      mobileControlsEl.hidden = false;
     } else {
       mobileControlsEl.classList.remove('show');
+      mobileControlsEl.hidden = true;
     }
   }
 }

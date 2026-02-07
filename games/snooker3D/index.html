@@ -42,8 +42,15 @@
       <div id="spin-marker"></div>
       <button id="spin-reset" type="button">Reset</button>
     </div>
-    <!-- 手機專用儲力按鈕 -->
-    <button id="mobile-power-btn" type="button" hidden>撳住儲力</button>
+    <!-- 手機專用儲力按鈕 (已移除，改用面板) -->
+    <div id="mobile-controls" hidden>
+      <div id="mobile-power-container">
+        <span style="color:white; font-size:12px;">Power: </span>
+        <span id="mobile-power-value" style="color:#00ff00; width:30px; display:inline-block;">0%</span>
+        <input type="range" id="mobile-power-slider" min="0" max="100" value="0">
+      </div>
+      <button id="mobile-shoot-btn">SHOOT</button>
+    </div>
     <div id="debug-panel"></div>
   </div>
 
