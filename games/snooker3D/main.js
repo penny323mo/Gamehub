@@ -228,9 +228,9 @@ const pocketGroup = new THREE.Group();
 const pocketRimMaterial = new THREE.MeshStandardMaterial({ color: 0x12161b, roughness: 0.92, metalness: 0.06 });
 const pocketWallMaterial = new THREE.MeshStandardMaterial({ color: 0x06080b, roughness: 1, metalness: 0 });
 const pocketMouthMaterial = new THREE.MeshStandardMaterial({ color: 0x050607, roughness: 1, metalness: 0 });
-// Pocket sizes: visible & outside rails (user feedback: fully visible circles)
-const pocketRadiusCorner = 0.075;  // Slightly smaller for clean look
-const pocketRadiusSide = 0.062;
+// Pocket sizes: middle pockets larger than corner pockets (realistic snooker)
+const pocketRadiusCorner = 0.065;  // Corner pockets (smaller)
+const pocketRadiusSide = 0.082;    // Middle/side pockets (larger, easier to pot)
 const pocketCornerOffset = -0.02;  // Negative = outside corner (fully visible)
 const pocketSideOffset = -0.025;   // Negative = outside edge (fully visible)
 const pocketDepth = 0.08;
