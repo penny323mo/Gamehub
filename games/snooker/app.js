@@ -729,8 +729,8 @@
       if (colorPots.length > 1) foul = true;
       if (redPots.length > 0) foul = true;
     } else if (requiredClear) {
-      // clear phase requires pot
-      if (colorPots.filter(b => b.type === requiredClear).length !== 1) foul = true;
+      // clear phase: NOT potting is NOT a foul (just no points)
+      // Foul only if: potted wrong ball, or potted red, or multiple pots
       if (redPots.length > 0) foul = true;
       if (colorPots.length > 1) foul = true;
       if (colorPots.length === 1 && colorPots[0].type !== requiredClear) foul = true;
