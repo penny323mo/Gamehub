@@ -1187,13 +1187,46 @@ function createClothTexture() {
   return texture;
 }
 
+function createClothNormalMap() {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'rgb(128, 128, 255)';
+  ctx.fillRect(0, 0, size, size);
+
+  // 模擬草絲方向的凹凸
+  for (let i = 0; i < 240; i += 1) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const len = 10 + Math.random() * 26;
+    const tilt = (Math.random() - 0.5) * 6;
+    ctx.strokeStyle = 'rgba(110, 130, 255, 0.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + len, y + tilt);
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(2.5, 4.5);
+  return texture;
+}
+
 const clothTexture = createClothTexture();
+const clothNormal = createClothNormalMap();
 
 const cloth = new THREE.Mesh(
   new THREE.PlaneGeometry(TABLE_WIDTH, TABLE_LENGTH),
   new THREE.MeshStandardMaterial({
     map: clothTexture,
-    roughness: 0.95,
+    normalMap: clothNormal,
+    normalScale: new THREE.Vector2(0.7, 0.7),
+    roughness: 0.8,
     metalness: 0.0,
     dithering: true,
     polygonOffset: true,
@@ -1222,10 +1255,54 @@ clothOverlay.position.set(0, CLOTH_Y + 0.001, 0);
 
 tableGroup.add(cloth, clothOverlay);
 
+function createWoodTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#3a2618';
+  ctx.fillRect(0, 0, 512, 512);
+
+  // 木紋條紋
+  for (let i = 0; i < 60; i++) {
+    const y = i * 8 + Math.random() * 4;
+    const alpha = 0.08 + Math.random() * 0.12;
+    ctx.strokeStyle = `rgba(120, 85, 55, ${alpha})`;
+    ctx.lineWidth = 2 + Math.random() * 2;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(512, y + (Math.random() - 0.5) * 6);
+    ctx.stroke();
+  }
+
+  // 細小木結
+  for (let i = 0; i < 12; i++) {
+    const x = Math.random() * 512;
+    const y = Math.random() * 512;
+    const r = 6 + Math.random() * 10;
+    ctx.strokeStyle = 'rgba(70, 45, 25, 0.25)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(x, y, r, r * 0.6, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(2.2, 2.2);
+  texture.encoding = THREE.sRGBEncoding;
+  texture.anisotropy = 4;
+  return texture;
+}
+
 const woodMaterial = new THREE.MeshStandardMaterial({
-  color: 0x3a2514,
-  roughness: 0.6,
-  metalness: 0.1,
+  color: 0x4a2f1f,
+  map: createWoodTexture(),
+  roughness: 0.25,
+  metalness: 0.25,
+  clearcoat: 0.6,
+  clearcoatRoughness: 0.15,
 });
 
 // Rails with cutouts for pockets (using split BoxGeometry segments)
@@ -1283,10 +1360,22 @@ tableGroup.add(railRightTop, railRightBottom, railLeftTop, railLeftBottom, railT
 
 const tableBody = new THREE.Mesh(
   new THREE.BoxGeometry(TABLE_WIDTH + RAIL_THICK * 2.4, TABLE_HEIGHT, TABLE_LENGTH + RAIL_THICK * 2.4),
-  new THREE.MeshStandardMaterial({ color: 0x21160d, roughness: 0.7, metalness: 0.05 })
+  woodMaterial
 );
 tableBody.position.y = -TABLE_HEIGHT / 2;
 tableGroup.add(tableBody);
+
+// 前方木紋面板（加強木紋視覺）
+const frontPanel = new THREE.Mesh(
+  new THREE.PlaneGeometry(TABLE_WIDTH + RAIL_THICK * 2.4, TABLE_HEIGHT * 0.55),
+  woodMaterial
+);
+frontPanel.position.set(0, -TABLE_HEIGHT * 0.55, -(TABLE_LENGTH + RAIL_THICK * 2.4) / 2 - 0.001);
+frontPanel.rotation.y = Math.PI; // 面向鏡頭
+frontPanel.rotation.x = 0;
+frontPanel.castShadow = false;
+frontPanel.receiveShadow = true;
+tableGroup.add(frontPanel);
 
 // Table legs
 function createTableLeg(x, z) {
