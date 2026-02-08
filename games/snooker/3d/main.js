@@ -656,7 +656,40 @@ function createScoreboard(position) {
 }
 
 // 觀眾座椅（簡化版）
-function createAudienceSeats(position, count = 5, scale = 1, rotationY = 0, addToArena = true, seatSpacing = 0.7) {
+let audienceSilhouetteTexture;
+function getAudienceSilhouetteTexture() {
+  if (audienceSilhouetteTexture) return audienceSilhouetteTexture;
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 身體
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.ellipse(128, 340, 70, 110, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // 頭
+  ctx.beginPath();
+  ctx.ellipse(128, 180, 50, 55, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // 肩膀
+  ctx.fillRect(58, 250, 140, 70);
+  // 手臂
+  ctx.fillRect(30, 270, 40, 120);
+  ctx.fillRect(186, 270, 40, 120);
+  // 腿
+  ctx.fillRect(80, 420, 35, 80);
+  ctx.fillRect(141, 420, 35, 80);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.encoding = THREE.sRGBEncoding;
+  audienceSilhouetteTexture = tex;
+  return tex;
+}
+
+function createAudienceSeats(position, count = 5, scale = 1, rotationY = 0, addToArena = true, seatSpacing = 0.7, addPeople = true) {
   const group = new THREE.Group();
   const seatMat = new THREE.MeshStandardMaterial({ color: 0x2a2a3a, roughness: 0.8 });
   
@@ -690,6 +723,25 @@ function createAudienceSeats(position, count = 5, scale = 1, rotationY = 0, addT
     const leg4 = new THREE.Mesh(legGeom, legMat);
     leg4.position.set(0.15, 0.15, -0.12);
     seatGroup.add(leg4);
+
+    // 觀眾（紙板剪影）
+    if (addPeople) {
+      const tex = getAudienceSilhouetteTexture();
+      const colors = [0xff5f6d, 0x6a8dff, 0x5fd38b, 0xf6c945, 0xc77dff, 0xff8fab];
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        transparent: true,
+        opacity: 0.95,
+        side: THREE.DoubleSide,
+      });
+      const width = 0.45 + Math.random() * 0.1;
+      const height = 0.9 + Math.random() * 0.15;
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(width, height), mat);
+      plane.position.set(0, 0.75, -0.08);
+      plane.rotation.y = (Math.random() - 0.5) * 0.2; // 少少角度
+      seatGroup.add(plane);
+    }
     
     seatGroup.position.x = (i - (count - 1) / 2) * seatSpacing;
     group.add(seatGroup);
@@ -702,10 +754,10 @@ function createAudienceSeats(position, count = 5, scale = 1, rotationY = 0, addT
   return group;
 }
 
-function createAudienceBlock(position, rows = 2, perRow = 5, rowGap = 0.8, scale = 1, rotationY = 0, seatSpacing = 0.7) {
+function createAudienceBlock(position, rows = 2, perRow = 5, rowGap = 0.8, scale = 1, rotationY = 0, seatSpacing = 0.7, addPeople = true) {
   const block = new THREE.Group();
   for (let r = 0; r < rows; r++) {
-    const row = createAudienceSeats(new THREE.Vector3(0, 0, 0), perRow, 1, 0, false, seatSpacing);
+    const row = createAudienceSeats(new THREE.Vector3(0, 0, 0), perRow, 1, 0, false, seatSpacing, addPeople);
     row.position.z = r * rowGap; // 向枱方向排
     row.position.y = 0; // 全部同一高度
     block.add(row);
@@ -1463,10 +1515,11 @@ const tvRight = createTVScoreboard(new THREE.Vector3(8.5, 2.8, 0));
 tvRight.rotation.y = -Math.PI / 2;
 
 // 觀眾區（後方 + 左右牆）
-createAudienceBlock(new THREE.Vector3(0, -0.82, 7.2), 2, 5, 0.8, 2, Math.PI, 0.8);
+// 觀眾席（只保留凳，無假人）
+createAudienceBlock(new THREE.Vector3(0, -0.82, 7.2), 2, 5, 0.8, 2, Math.PI, 0.8, false);
 // 前方（飲品枱位置）不設觀眾席
-createAudienceBlock(new THREE.Vector3(-7.2, -0.82, 0), 2, 5, 0.8, 2, Math.PI / 2, 0.8);
-createAudienceBlock(new THREE.Vector3(7.2, -0.82, 0), 2, 5, 0.8, 2, -Math.PI / 2, 0.8);
+createAudienceBlock(new THREE.Vector3(-7.2, -0.82, 0), 2, 5, 0.8, 2, Math.PI / 2, 0.8, false);
+createAudienceBlock(new THREE.Vector3(7.2, -0.82, 0), 2, 5, 0.8, 2, -Math.PI / 2, 0.8, false);
 createSideTable(new THREE.Vector3(-3, -0.82, -6.5), 2);
 createSideTable(new THREE.Vector3(3, -0.82, -6.5), 2);
 // 飲品枱各放 1 張比賽者椅
@@ -2304,8 +2357,8 @@ function isValidCuePlacement(pos) {
   if (!isCuePlacementClearOfBalls(pos)) return false;
   const dx = pos.x - 0;
   const dz = pos.z - baulkLineZ;
-  const towardCamera = (pos.z - baulkLineZ) * (camera.position.z - baulkLineZ) >= 0;
-  const inD = dx * dx + dz * dz <= dRadius * dRadius && towardCamera;
+  const towardTable = dz <= 0; // D 區開口向枱內（負 Z）
+  const inD = dx * dx + dz * dz <= dRadius * dRadius && towardTable;
   return inD;
 }
 
@@ -2330,8 +2383,8 @@ function clampCuePlacementToD(pos, ignoreCamera = false) {
   clamped.x = local.x;
   clamped.z = local.z + baulkLineZ;
 
-  // keep only the half-circle that opens toward camera (skip for AI)
-  if (!ignoreCamera && (clamped.z - baulkLineZ) * (camera.position.z - baulkLineZ) < 0) {
+  // keep only the half-circle that opens toward table (negative Z)
+  if ((clamped.z - baulkLineZ) > 0) {
     clamped.z = baulkLineZ;
   }
 
