@@ -91,25 +91,152 @@ controls.touches = {
 };
 controls.update();
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.16);
+const ambientLight = new THREE.AmbientLight(0x9fb6a5, 0.22);
 scene.add(ambientLight);
 
-const hemiLight = new THREE.HemisphereLight(0xc9d8f0, 0x172116, 0.24);
+const hemiLight = new THREE.HemisphereLight(0xc9d8f0, 0x172116, 0.18);
 hemiLight.position.set(0, 3, 0);
 scene.add(hemiLight);
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.72);
-dirLight.position.set(-3.2, 4.8, -1.5);
-scene.add(dirLight);
+const mainLight1 = new THREE.SpotLight(0xffffff, 1.25);
+mainLight1.position.set(0, 2.7, -0.9);
+mainLight1.angle = Math.PI / 4;
+mainLight1.penumbra = 0.45;
+mainLight1.decay = 1.6;
+mainLight1.distance = 7;
+scene.add(mainLight1);
+
+const mainLight2 = new THREE.SpotLight(0xffffff, 1.25);
+mainLight2.position.set(0, 2.7, 0.9);
+mainLight2.angle = Math.PI / 4;
+mainLight2.penumbra = 0.45;
+mainLight2.decay = 1.6;
+mainLight2.distance = 7;
+scene.add(mainLight2);
+
+const fillLight = new THREE.PointLight(0xffffff, 0.28);
+fillLight.position.set(2.2, 1.6, 0.2);
+scene.add(fillLight);
+
+function createFloorTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#1a1612';
+  ctx.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 16; i++) {
+    const y = i * 32;
+    ctx.fillStyle = i % 2 === 0 ? '#1e1914' : '#161210';
+    ctx.fillRect(0, y, 512, 32);
+    for (let j = 0; j < 5; j++) {
+      ctx.strokeStyle = `rgba(40, 30, 20, ${0.2 + Math.random() * 0.3})`;
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(0, y + Math.random() * 32);
+      ctx.lineTo(512, y + Math.random() * 32);
+      ctx.stroke();
+    }
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(3.2, 3.2);
+  texture.encoding = THREE.sRGBEncoding;
+  texture.anisotropy = 4;
+  return texture;
+}
 
 const floor = new THREE.Mesh(
-  new THREE.PlaneGeometry(20, 20),
-  new THREE.MeshStandardMaterial({ color: 0x1b1f24, roughness: 1, metalness: 0 })
+  new THREE.PlaneGeometry(28, 28),
+  new THREE.MeshStandardMaterial({ map: createFloorTexture(), roughness: 0.85, metalness: 0.05 })
 );
 floor.rotation.x = -Math.PI / 2;
-floor.position.y = -0.26;
+floor.position.y = -0.82;
 floor.position.z = -0.05;
 scene.add(floor);
+
+// Arena walls + backdrop
+const arenaGroup = new THREE.Group();
+scene.add(arenaGroup);
+function createAudienceTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#0b0f13';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  for (let i = 0; i < 1200; i++) {
+    const x = Math.random() * canvas.width;
+    const y = Math.random() * canvas.height;
+    const size = Math.random() * 2 + 0.5;
+    const alpha = 0.15 + Math.random() * 0.35;
+    const hue = 200 + Math.random() * 40;
+    ctx.fillStyle = `hsla(${hue}, 30%, 70%, ${alpha})`;
+    ctx.fillRect(x, y, size, size);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.encoding = THREE.sRGBEncoding;
+  return texture;
+}
+const audienceTex = createAudienceTexture();
+const wallMat = new THREE.MeshStandardMaterial({
+  map: audienceTex,
+  color: 0x0f141a,
+  roughness: 0.95,
+  metalness: 0.02,
+  emissive: 0x0b0f13,
+  emissiveIntensity: 0.6,
+});
+const backWall = new THREE.Mesh(new THREE.PlaneGeometry(28, 8), wallMat);
+backWall.position.set(0, 3.2, -9);
+arenaGroup.add(backWall);
+const frontWall = new THREE.Mesh(new THREE.PlaneGeometry(28, 8), wallMat);
+frontWall.position.set(0, 3.2, 9);
+frontWall.rotation.y = Math.PI;
+arenaGroup.add(frontWall);
+const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(18, 8), wallMat);
+leftWall.position.set(-9, 3.2, 0);
+leftWall.rotation.y = Math.PI / 2;
+arenaGroup.add(leftWall);
+const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(18, 8), wallMat);
+rightWall.position.set(9, 3.2, 0);
+rightWall.rotation.y = -Math.PI / 2;
+arenaGroup.add(rightWall);
+
+// Overhead lamp (classic green shade)
+const lampGroup = new THREE.Group();
+scene.add(lampGroup);
+const lampShadeGeom = new THREE.CylinderGeometry(0.6, 0.8, 0.15, 32, 1, true);
+const lampShadeMat = new THREE.MeshStandardMaterial({
+  color: 0x1a5c3a,
+  roughness: 0.7,
+  metalness: 0.2,
+  side: THREE.DoubleSide
+});
+const lampShade = new THREE.Mesh(lampShadeGeom, lampShadeMat);
+lampShade.position.set(0, 2.2, 0);
+lampGroup.add(lampShade);
+const lampTop = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.58, 0.6, 0.02, 32),
+  new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.5, metalness: 0.5 })
+);
+lampTop.position.set(0, 2.28, 0);
+lampGroup.add(lampTop);
+const lampRim = new THREE.Mesh(
+  new THREE.TorusGeometry(0.8, 0.015, 8, 32),
+  new THREE.MeshStandardMaterial({ color: 0xc9a84c, roughness: 0.3, metalness: 0.7 })
+);
+lampRim.rotation.x = Math.PI / 2;
+lampRim.position.set(0, 2.12, 0);
+lampGroup.add(lampRim);
+const ropeGeom = new THREE.CylinderGeometry(0.008, 0.008, 1.5, 8);
+const ropeMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9 });
+const rope = new THREE.Mesh(ropeGeom, ropeMat);
+rope.position.set(0, 3.0, 0);
+lampGroup.add(rope);
 
 const TABLE_LENGTH = 3.6;
 const TABLE_WIDTH = 1.8;
@@ -269,6 +396,23 @@ const tableBody = new THREE.Mesh(
 );
 tableBody.position.y = -TABLE_HEIGHT / 2;
 tableGroup.add(tableBody);
+
+// Table legs
+function createTableLeg(x, z) {
+  const tableBodyBottom = tableBody.position.y - TABLE_HEIGHT / 2;
+  const floorY = floor.position.y;
+  const legHeight = Math.max(0.35, tableBodyBottom - floorY);
+  const legGeom = new THREE.CylinderGeometry(0.07, 0.085, legHeight, 18);
+  const leg = new THREE.Mesh(legGeom, woodMaterial.clone());
+  leg.position.set(x, floorY + legHeight / 2, z);
+  return leg;
+}
+const legInsetX = halfW + RAIL_THICK * 0.62;
+const legInsetZ = halfL + RAIL_THICK * 0.62;
+tableGroup.add(createTableLeg(-legInsetX, -legInsetZ));
+tableGroup.add(createTableLeg(legInsetX, -legInsetZ));
+tableGroup.add(createTableLeg(-legInsetX, legInsetZ));
+tableGroup.add(createTableLeg(legInsetX, legInsetZ));
 
 // Pocket group and materials
 const pocketGroup = new THREE.Group();
@@ -725,7 +869,7 @@ const minCharge = 0.2;
 const powerMultiplier = 5.81;  // -20% from 7.2 (further reduced for accuracy)
 const dragFullPowerDistance = 0.3;
 const chargeRate = 0.9;
-const cueSpeedCap = 6.78;      // -20% from 8.4 (further reduced for accuracy)
+const cueSpeedCap = 7.46;      // +10%
 const rollingDragK = 0.609;    // +5% from 0.58 (less icy)
 const linearDrag = 0.0168;     // +5% from 0.016
 const cushionRestitution = 0.88;  // Increased from 0.86
@@ -1069,8 +1213,8 @@ function updateAimLine() {
   const start = cueBall.position.clone();
   start.y = guideY;
   const dir = aimDirection.clone().setY(0).normalize();
-  const searchLen = 2.2 + power * 2.8;
   const extendLen = 5.8;
+  const searchLen = extendLen; // always search full range for collision
   const firstHit = getFirstCollision(searchLen);
   lastAimCollision = firstHit
     ? {
@@ -1116,10 +1260,14 @@ function updateAimLine() {
     const nx = normal.x;
     const nz = normal.z;
 
-    // 白球入射方向 (dir 已經係單位向量，代表單位速度)
-    // 假設白球速度 = dir，目標球靜止
-    const cueVelX = dir.x;
-    const cueVelZ = dir.z;
+    // 白球入射方向 + 實際速度（含 powerMultiplier 與速度上限）
+    const actualPower = minCharge + power * (maxCharge - minCharge);
+    const rawSpeed = actualPower * powerMultiplier;
+    const cueSpeed = Math.min(rawSpeed, cueSpeedCap);
+
+    // 假設白球速度 = dir * cueSpeed，目標球靜止
+    const cueVelX = dir.x * cueSpeed;
+    const cueVelZ = dir.z * cueSpeed;
     const objVelX_before = 0;  // 目標球靜止
     const objVelZ_before = 0;
 
@@ -1176,28 +1324,22 @@ function updateAimLine() {
       return totalDist;
     }
 
-    // 繪製物件球軌跡（橙色）— 使用模擬摩擦力後嘅距離
+    // 繪製物件球軌跡（橙色）— 使用實際初速 + 摩擦模擬距離
     const objSpeed = Math.hypot(objFinalX, objFinalZ);
     if (objSpeed > 0.05) {
       const objDirX = objFinalX / objSpeed;
       const objDirZ = objFinalZ / objSpeed;
-      // 根據實際力度縮放初速
-      const actualPower = minCharge + power * (maxCharge - minCharge);
-      const scaledObjSpeed = objSpeed * actualPower * powerMultiplier;
-      const objLen = simulateTrajectoryLength(objDirX * scaledObjSpeed, objDirZ * scaledObjSpeed, showExtendedGuide ? 2.5 : 1.2);
+      const objLen = simulateTrajectoryLength(objFinalX, objFinalZ, showExtendedGuide ? 2.5 : 1.2);
       const objEnd = targetPos.clone().add(new THREE.Vector3(objDirX * objLen, 0, objDirZ * objLen));
       setGuideLinePoints(objectPathGuide, targetPos, objEnd);
     }
 
-    // 繪製白球碰撞後軌跡（淺藍色）— 使用模擬摩擦力後嘅距離
+    // 繪製白球碰撞後軌跡（淺藍色）— 使用實際初速 + 摩擦模擬距離
     const cueFinalSpeed = Math.hypot(cueFinalX, cueFinalZ);
     if (cueFinalSpeed > 0.05) {
       const cueAfterDirX = cueFinalX / cueFinalSpeed;
       const cueAfterDirZ = cueFinalZ / cueFinalSpeed;
-      // 根據實際力度縮放初速
-      const actualPower = minCharge + power * (maxCharge - minCharge);
-      const scaledCueSpeed = cueFinalSpeed * actualPower * powerMultiplier;
-      const cueAfterLen = simulateTrajectoryLength(cueAfterDirX * scaledCueSpeed, cueAfterDirZ * scaledCueSpeed, showExtendedGuide ? 1.8 : 0.9);
+      const cueAfterLen = simulateTrajectoryLength(cueFinalX, cueFinalZ, showExtendedGuide ? 1.8 : 0.9);
       const cueAfterStart = firstHit.point.clone().setY(guideY);
       const cueAfterEnd = cueAfterStart.clone().add(new THREE.Vector3(cueAfterDirX * cueAfterLen, 0, cueAfterDirZ * cueAfterLen));
       setGuideLinePoints(cueBallPathGuide, cueAfterStart, cueAfterEnd);
