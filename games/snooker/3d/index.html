@@ -15,16 +15,22 @@
 
   <div id="ui">
     <div id="hud">
-      <button id="hud-toggle" type="button" title="展開/縮細提示">▼</button>
-      <div id="hud-content">
+      <div id="hud-essential">
+        <div id="player-names">
+          <label>P1: <input id="player1-name" type="text" placeholder="Player 1" value="P1" /></label>
+          <label>P2: <input id="player2-name" type="text" placeholder="Player 2" value="AI" /></label>
+        </div>
         <div id="score">Score: 0</div>
         <div id="turn">Turn: 1</div>
+        <div id="status"></div>
+        <div id="state-note"></div>
+      </div>
+      <div id="hud-hint-wrapper">
+        <button id="hud-toggle" type="button" title="展開/縮細提示">▲</button>
         <div id="hint">
           P1 vs AI｜開球：LMB 拖放白球到 D 區 + 雙擊確認｜擊球：LMB 拖拽瞄準/力度，放開出桿｜犯規決策：Y 接手 / N 要求犯規方續打｜G 輔助線長度｜RMB 旋轉・滾輪縮放・C 重置鏡頭・R 重置・D
           Debug・F 全螢幕
         </div>
-        <div id="status"></div>
-        <div id="state-note"></div>
       </div>
       <div id="decision-panel" aria-live="polite" hidden>
         <div id="decision-text"></div>

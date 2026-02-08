@@ -3,6 +3,8 @@ const scoreEl = document.getElementById('score');
 const turnEl = document.getElementById('turn');
 const statusEl = document.getElementById('status');
 const stateNoteEl = document.getElementById('state-note');
+const player1NameInput = document.getElementById('player1-name');
+const player2NameInput = document.getElementById('player2-name');
 const powerFillEl = document.getElementById('power-fill');
 const debugPanelEl = document.getElementById('debug-panel');
 const decisionPanelEl = document.getElementById('decision-panel');
@@ -118,30 +120,46 @@ const fillLight = new THREE.PointLight(0xffffff, 0.28);
 fillLight.position.set(2.2, 1.6, 0.2);
 scene.add(fillLight);
 
-function createFloorTexture() {
+// === CYBERPUNK 環境 ===
+function createCyberpunkFloorTexture() {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
   canvas.height = 512;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#1a1612';
+  
+  // 深色基底
+  ctx.fillStyle = '#0a0a12';
   ctx.fillRect(0, 0, 512, 512);
-  for (let i = 0; i < 16; i++) {
-    const y = i * 32;
-    ctx.fillStyle = i % 2 === 0 ? '#1e1914' : '#161210';
-    ctx.fillRect(0, y, 512, 32);
-    for (let j = 0; j < 5; j++) {
-      ctx.strokeStyle = `rgba(40, 30, 20, ${0.2 + Math.random() * 0.3})`;
-      ctx.lineWidth = 0.5;
-      ctx.beginPath();
-      ctx.moveTo(0, y + Math.random() * 32);
-      ctx.lineTo(512, y + Math.random() * 32);
-      ctx.stroke();
-    }
+  
+  // 網格線
+  ctx.strokeStyle = 'rgba(0, 255, 255, 0.15)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 16; i++) {
+    const pos = i * 32;
+    ctx.beginPath();
+    ctx.moveTo(pos, 0);
+    ctx.lineTo(pos, 512);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, pos);
+    ctx.lineTo(512, pos);
+    ctx.stroke();
   }
+  
+  // 隨機發光點
+  for (let i = 0; i < 80; i++) {
+    const x = Math.random() * 512;
+    const y = Math.random() * 512;
+    const hue = Math.random() > 0.5 ? 180 : 300; // cyan or magenta
+    const alpha = 0.3 + Math.random() * 0.4;
+    ctx.fillStyle = `hsla(${hue}, 100%, 60%, ${alpha})`;
+    ctx.fillRect(x, y, 2, 2);
+  }
+  
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(3.2, 3.2);
+  texture.repeat.set(4, 4);
   texture.encoding = THREE.sRGBEncoding;
   texture.anisotropy = 4;
   return texture;
@@ -149,47 +167,83 @@ function createFloorTexture() {
 
 const floor = new THREE.Mesh(
   new THREE.PlaneGeometry(28, 28),
-  new THREE.MeshStandardMaterial({ map: createFloorTexture(), roughness: 0.85, metalness: 0.05 })
+  new THREE.MeshStandardMaterial({ 
+    map: createCyberpunkFloorTexture(), 
+    roughness: 0.3, 
+    metalness: 0.6,
+    emissive: 0x001515,
+    emissiveIntensity: 0.3,
+  })
 );
 floor.rotation.x = -Math.PI / 2;
 floor.position.y = -0.82;
 floor.position.z = -0.05;
 scene.add(floor);
 
-// Arena walls + backdrop
+// Cyberpunk 牆壁
 const arenaGroup = new THREE.Group();
 scene.add(arenaGroup);
-function createAudienceTexture() {
+
+function createCyberpunkWallTexture() {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
   canvas.height = 256;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#0b0f13';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  for (let i = 0; i < 1200; i++) {
-    const x = Math.random() * canvas.width;
-    const y = Math.random() * canvas.height;
-    const size = Math.random() * 2 + 0.5;
-    const alpha = 0.15 + Math.random() * 0.35;
-    const hue = 200 + Math.random() * 40;
-    ctx.fillStyle = `hsla(${hue}, 30%, 70%, ${alpha})`;
-    ctx.fillRect(x, y, size, size);
+  
+  // 深色背景
+  const gradient = ctx.createLinearGradient(0, 0, 0, 256);
+  gradient.addColorStop(0, '#0a0015');
+  gradient.addColorStop(1, '#050510');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 512, 256);
+  
+  // 霓虹水平線
+  const neonColors = ['#ff00ff', '#00ffff', '#ff0080', '#00ff80'];
+  for (let i = 0; i < 8; i++) {
+    const y = 20 + i * 30 + Math.random() * 10;
+    const color = neonColors[i % neonColors.length];
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1 + Math.random() * 2;
+    ctx.globalAlpha = 0.3 + Math.random() * 0.4;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(512, y);
+    ctx.stroke();
+    
+    // 發光效果
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 10;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
   }
+  ctx.globalAlpha = 1;
+  
+  // 隨機方塊（窗戶/廣告牌效果）
+  for (let i = 0; i < 40; i++) {
+    const x = Math.random() * 480;
+    const y = Math.random() * 220;
+    const w = 10 + Math.random() * 30;
+    const h = 8 + Math.random() * 20;
+    const hue = Math.random() > 0.5 ? 280 : 180;
+    ctx.fillStyle = `hsla(${hue}, 100%, 50%, ${0.1 + Math.random() * 0.3})`;
+    ctx.fillRect(x, y, w, h);
+  }
+  
   const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = THREE.ClampToEdgeWrapping;
-  texture.wrapT = THREE.ClampToEdgeWrapping;
   texture.encoding = THREE.sRGBEncoding;
   return texture;
 }
-const audienceTex = createAudienceTexture();
+
+const cyberpunkWallTex = createCyberpunkWallTexture();
 const wallMat = new THREE.MeshStandardMaterial({
-  map: audienceTex,
-  color: 0x0f141a,
-  roughness: 0.95,
-  metalness: 0.02,
-  emissive: 0x0b0f13,
-  emissiveIntensity: 0.6,
+  map: cyberpunkWallTex,
+  color: 0x1a1a2e,
+  roughness: 0.8,
+  metalness: 0.1,
+  emissive: 0x0a0a15,
+  emissiveIntensity: 0.8,
 });
+
 const backWall = new THREE.Mesh(new THREE.PlaneGeometry(28, 8), wallMat);
 backWall.position.set(0, 3.2, -9);
 arenaGroup.add(backWall);
@@ -205,6 +259,718 @@ const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(18, 8), wallMat);
 rightWall.position.set(9, 3.2, 0);
 rightWall.rotation.y = -Math.PI / 2;
 arenaGroup.add(rightWall);
+
+// 霓虹燈條裝飾
+function createNeonStrip(color, length, position, rotation) {
+  const geometry = new THREE.BoxGeometry(length, 0.02, 0.02);
+  const material = new THREE.MeshBasicMaterial({ 
+    color: color,
+    transparent: true,
+    opacity: 0.9,
+  });
+  const strip = new THREE.Mesh(geometry, material);
+  strip.position.copy(position);
+  if (rotation) strip.rotation.copy(rotation);
+  
+  // 發光效果
+  const glowMat = new THREE.MeshBasicMaterial({
+    color: color,
+    transparent: true,
+    opacity: 0.3,
+  });
+  const glow = new THREE.Mesh(new THREE.BoxGeometry(length, 0.08, 0.08), glowMat);
+  glow.position.copy(position);
+  if (rotation) glow.rotation.copy(rotation);
+  
+  arenaGroup.add(strip);
+  arenaGroup.add(glow);
+}
+
+// 創建霓虹招牌文字
+function createNeonSign(text, color, position, scale = 1) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  
+  ctx.fillStyle = 'transparent';
+  ctx.clearRect(0, 0, 512, 128);
+  
+  ctx.font = 'bold 80px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  
+  // 發光效果
+  ctx.shadowColor = `#${color.toString(16).padStart(6, '0')}`;
+  ctx.shadowBlur = 20;
+  ctx.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
+  ctx.fillText(text, 256, 64);
+  ctx.fillText(text, 256, 64); // 重複增強發光
+  
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.encoding = THREE.sRGBEncoding;
+  
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    side: THREE.DoubleSide,
+  });
+  
+  const geometry = new THREE.PlaneGeometry(4 * scale, 1 * scale);
+  const sign = new THREE.Mesh(geometry, material);
+  sign.position.copy(position);
+  arenaGroup.add(sign);
+  return sign;
+}
+
+// 創建霓虹幾何圖案
+function createNeonRing(color, radius, position, rotation) {
+  const geometry = new THREE.TorusGeometry(radius, 0.015, 8, 32);
+  const material = new THREE.MeshBasicMaterial({ color: color });
+  const ring = new THREE.Mesh(geometry, material);
+  ring.position.copy(position);
+  if (rotation) ring.rotation.copy(rotation);
+  
+  // 發光
+  const glowGeom = new THREE.TorusGeometry(radius, 0.05, 8, 32);
+  const glowMat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.25 });
+  const glow = new THREE.Mesh(glowGeom, glowMat);
+  glow.position.copy(position);
+  if (rotation) glow.rotation.copy(rotation);
+  
+  arenaGroup.add(ring);
+  arenaGroup.add(glow);
+}
+
+// 創建霓虹三角形
+function createNeonTriangle(color, size, position, rotation) {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, size);
+  shape.lineTo(-size * 0.866, -size * 0.5);
+  shape.lineTo(size * 0.866, -size * 0.5);
+  shape.lineTo(0, size);
+  
+  const points = shape.getPoints();
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  const material = new THREE.LineBasicMaterial({ color: color, linewidth: 2 });
+  const triangle = new THREE.LineLoop(geometry, material);
+  triangle.position.copy(position);
+  if (rotation) triangle.rotation.copy(rotation);
+  arenaGroup.add(triangle);
+}
+
+// === 霓虹裝飾 ===
+
+// 底部霓虹燈條
+createNeonStrip(0x00ffff, 20, new THREE.Vector3(0, -0.5, -8.9));
+createNeonStrip(0xff00ff, 20, new THREE.Vector3(0, -0.5, 8.9));
+createNeonStrip(0x00ff80, 14, new THREE.Vector3(-8.9, -0.5, 0), new THREE.Euler(0, Math.PI / 2, 0));
+createNeonStrip(0xff0080, 14, new THREE.Vector3(8.9, -0.5, 0), new THREE.Euler(0, Math.PI / 2, 0));
+
+// 頂部霓虹燈條
+createNeonStrip(0x00ffff, 20, new THREE.Vector3(0, 6.5, -8.9));
+createNeonStrip(0xff00ff, 20, new THREE.Vector3(0, 6.5, 8.9));
+createNeonStrip(0x00ff80, 14, new THREE.Vector3(-8.9, 6.5, 0), new THREE.Euler(0, Math.PI / 2, 0));
+createNeonStrip(0xff0080, 14, new THREE.Vector3(8.9, 6.5, 0), new THREE.Euler(0, Math.PI / 2, 0));
+
+// 垂直霓虹燈條（四角）
+createNeonStrip(0xff00ff, 7, new THREE.Vector3(-8.9, 3, -8.9), new THREE.Euler(0, 0, Math.PI / 2));
+createNeonStrip(0x00ffff, 7, new THREE.Vector3(8.9, 3, -8.9), new THREE.Euler(0, 0, Math.PI / 2));
+createNeonStrip(0x00ff80, 7, new THREE.Vector3(-8.9, 3, 8.9), new THREE.Euler(0, 0, Math.PI / 2));
+createNeonStrip(0xff0080, 7, new THREE.Vector3(8.9, 3, 8.9), new THREE.Euler(0, 0, Math.PI / 2));
+
+// 斜向裝飾燈條
+createNeonStrip(0xffff00, 3, new THREE.Vector3(-7, 5.5, -8.85), new THREE.Euler(0, 0, Math.PI / 6));
+createNeonStrip(0xffff00, 3, new THREE.Vector3(7, 5.5, -8.85), new THREE.Euler(0, 0, -Math.PI / 6));
+
+// 霓虹招牌
+createNeonSign('SNOOKER', 0x00ffff, new THREE.Vector3(0, 5.5, -8.85), 1.2);
+createNeonSign('🎱 CLUB', 0xff00ff, new THREE.Vector3(0, 4.2, -8.85), 0.8);
+createNeonSign('CYBER', 0x00ff80, new THREE.Vector3(-6, 4.5, -8.85), 0.6);
+createNeonSign('ARENA', 0xff0080, new THREE.Vector3(6, 4.5, -8.85), 0.6);
+
+// 側牆招牌
+const leftSign = createNeonSign('147', 0xffff00, new THREE.Vector3(-8.85, 4.5, 0), 0.8);
+leftSign.rotation.y = Math.PI / 2;
+const rightSign = createNeonSign('BREAK', 0x00ffff, new THREE.Vector3(8.85, 4.5, 0), 0.7);
+rightSign.rotation.y = -Math.PI / 2;
+
+// 霓虹環形裝飾
+createNeonRing(0xff00ff, 0.8, new THREE.Vector3(-5, 3, -8.85), new THREE.Euler(0, 0, 0));
+createNeonRing(0x00ffff, 0.8, new THREE.Vector3(5, 3, -8.85), new THREE.Euler(0, 0, 0));
+createNeonRing(0x00ff80, 0.5, new THREE.Vector3(-3, 2, -8.85), new THREE.Euler(0, 0, 0));
+createNeonRing(0xff0080, 0.5, new THREE.Vector3(3, 2, -8.85), new THREE.Euler(0, 0, 0));
+
+// 霓虹三角形裝飾
+createNeonTriangle(0xffff00, 0.6, new THREE.Vector3(-7, 2.5, -8.84), new THREE.Euler(0, 0, 0));
+createNeonTriangle(0xff00ff, 0.6, new THREE.Vector3(7, 2.5, -8.84), new THREE.Euler(0, 0, Math.PI));
+createNeonTriangle(0x00ffff, 0.4, new THREE.Vector3(0, 2.5, -8.84), new THREE.Euler(0, 0, 0));
+
+// 環境彩色補光（不影響桌面）
+const purpleLight = new THREE.PointLight(0xff00ff, 0.15);
+purpleLight.position.set(-8, 2, -6);
+scene.add(purpleLight);
+
+const cyanLight = new THREE.PointLight(0x00ffff, 0.15);
+cyanLight.position.set(8, 2, 6);
+scene.add(cyanLight);
+
+const yellowLight = new THREE.PointLight(0xffff00, 0.08);
+yellowLight.position.set(0, 5, -8);
+scene.add(yellowLight);
+
+// === 盆栽植物裝飾 ===
+function createPottedPlant(position, scale = 1) {
+  const plantGroup = new THREE.Group();
+  
+  // 花盆
+  const potGeom = new THREE.CylinderGeometry(0.12 * scale, 0.09 * scale, 0.18 * scale, 16);
+  const potMat = new THREE.MeshStandardMaterial({ 
+    color: 0x2a2a2a, 
+    roughness: 0.8, 
+    metalness: 0.3,
+    emissive: 0x050505,
+    emissiveIntensity: 0.2,
+  });
+  const pot = new THREE.Mesh(potGeom, potMat);
+  pot.position.y = 0.09 * scale;
+  plantGroup.add(pot);
+  
+  // 泥土
+  const soilGeom = new THREE.CylinderGeometry(0.1 * scale, 0.1 * scale, 0.02 * scale, 16);
+  const soilMat = new THREE.MeshStandardMaterial({ color: 0x3d2817, roughness: 1 });
+  const soil = new THREE.Mesh(soilGeom, soilMat);
+  soil.position.y = 0.17 * scale;
+  plantGroup.add(soil);
+  
+  // 葉子（多層）
+  const leafMat = new THREE.MeshStandardMaterial({ 
+    color: 0x1a5c2a, 
+    roughness: 0.6,
+    emissive: 0x0a2010,
+    emissiveIntensity: 0.3,
+  });
+  
+  for (let i = 0; i < 8; i++) {
+    const leafGeom = new THREE.ConeGeometry(0.06 * scale, 0.25 * scale, 4);
+    const leaf = new THREE.Mesh(leafGeom, leafMat);
+    const angle = (i / 8) * Math.PI * 2;
+    const radius = 0.05 * scale;
+    leaf.position.set(
+      Math.cos(angle) * radius,
+      0.28 * scale + Math.random() * 0.08 * scale,
+      Math.sin(angle) * radius
+    );
+    leaf.rotation.x = (Math.random() - 0.5) * 0.4;
+    leaf.rotation.z = (Math.random() - 0.5) * 0.4;
+    plantGroup.add(leaf);
+  }
+  
+  // 中心高葉
+  for (let i = 0; i < 5; i++) {
+    const tallLeafGeom = new THREE.ConeGeometry(0.04 * scale, 0.35 * scale, 4);
+    const tallLeaf = new THREE.Mesh(tallLeafGeom, leafMat);
+    const angle = (i / 5) * Math.PI * 2 + 0.3;
+    tallLeaf.position.set(
+      Math.cos(angle) * 0.02 * scale,
+      0.35 * scale,
+      Math.sin(angle) * 0.02 * scale
+    );
+    tallLeaf.rotation.x = (Math.random() - 0.5) * 0.2;
+    tallLeaf.rotation.z = (Math.random() - 0.5) * 0.2;
+    plantGroup.add(tallLeaf);
+  }
+  
+  // 霓虹光環效果（Cyberpunk 風格）
+  const ringGeom = new THREE.TorusGeometry(0.15 * scale, 0.008, 8, 24);
+  const ringMat = new THREE.MeshBasicMaterial({ 
+    color: 0x00ff80, 
+    transparent: true, 
+    opacity: 0.4 
+  });
+  const ring = new THREE.Mesh(ringGeom, ringMat);
+  ring.position.y = 0.02 * scale;
+  ring.rotation.x = Math.PI / 2;
+  plantGroup.add(ring);
+  
+  plantGroup.position.copy(position);
+  arenaGroup.add(plantGroup);
+  return plantGroup;
+}
+
+// 四角盆栽
+createPottedPlant(new THREE.Vector3(-7.5, -0.82, -7.5), 1.2);
+createPottedPlant(new THREE.Vector3(7.5, -0.82, -7.5), 1.2);
+createPottedPlant(new THREE.Vector3(-7.5, -0.82, 7.5), 1.0);
+createPottedPlant(new THREE.Vector3(7.5, -0.82, 7.5), 1.0);
+
+// 中間兩側
+createPottedPlant(new THREE.Vector3(-7.8, -0.82, 0), 0.9);
+createPottedPlant(new THREE.Vector3(7.8, -0.82, 0), 0.9);
+
+// === 真實桌球場地元素 ===
+
+// 球杆架
+function createCueRack(position, rotation = 0, scale = 1) {
+  const rackGroup = new THREE.Group();
+  
+  // 架子主體
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x4a3728, roughness: 0.7, metalness: 0.1 });
+  
+  // 底座
+  const baseGeom = new THREE.BoxGeometry(0.4, 0.05, 0.15);
+  const base = new THREE.Mesh(baseGeom, frameMat);
+  base.position.y = 0.025;
+  rackGroup.add(base);
+  
+  // 支架
+  const postGeom = new THREE.CylinderGeometry(0.02, 0.02, 1.2, 8);
+  const post1 = new THREE.Mesh(postGeom, frameMat);
+  post1.position.set(-0.15, 0.6, 0);
+  rackGroup.add(post1);
+  const post2 = new THREE.Mesh(postGeom, frameMat);
+  post2.position.set(0.15, 0.6, 0);
+  rackGroup.add(post2);
+  
+  // 橫樑
+  const barGeom = new THREE.BoxGeometry(0.35, 0.03, 0.03);
+  const bar1 = new THREE.Mesh(barGeom, frameMat);
+  bar1.position.y = 1.0;
+  rackGroup.add(bar1);
+  const bar2 = new THREE.Mesh(barGeom, frameMat);
+  bar2.position.y = 0.5;
+  rackGroup.add(bar2);
+  
+  // 模擬球杆
+  const cueMat = new THREE.MeshStandardMaterial({ color: 0x8b7355, roughness: 0.5 });
+  for (let i = 0; i < 3; i++) {
+    const cueGeom = new THREE.CylinderGeometry(0.008, 0.012, 1.3, 8);
+    const cue = new THREE.Mesh(cueGeom, cueMat);
+    cue.position.set(-0.1 + i * 0.1, 0.75, 0);
+    cue.rotation.z = 0.1;
+    rackGroup.add(cue);
+  }
+  
+  rackGroup.position.copy(position);
+  rackGroup.rotation.y = rotation;
+  rackGroup.scale.setScalar(scale);
+  arenaGroup.add(rackGroup);
+  return rackGroup;
+}
+
+// 粉筆座
+function createChalkHolder(position, scale = 1) {
+  const group = new THREE.Group();
+  
+  // 小碟
+  const dishGeom = new THREE.CylinderGeometry(0.04, 0.035, 0.015, 16);
+  const dishMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.3, metalness: 0.5 });
+  const dish = new THREE.Mesh(dishGeom, dishMat);
+  group.add(dish);
+  
+  // 粉筆
+  const chalkGeom = new THREE.BoxGeometry(0.025, 0.025, 0.025);
+  const chalkMat = new THREE.MeshStandardMaterial({ color: 0x4169e1, roughness: 0.9 });
+  const chalk = new THREE.Mesh(chalkGeom, chalkMat);
+  chalk.position.y = 0.02;
+  group.add(chalk);
+  
+  group.position.copy(position);
+  group.scale.setScalar(scale);
+  arenaGroup.add(group);
+  return group;
+}
+
+// 三角架（用嚟擺紅波）
+function createTriangleRack(position, scale = 1) {
+  const group = new THREE.Group();
+  
+  const rackMat = new THREE.MeshStandardMaterial({ color: 0x2a1a0a, roughness: 0.6 });
+  const shape = new THREE.Shape();
+  const size = 0.22;
+  shape.moveTo(0, size);
+  shape.lineTo(-size * 0.866, -size * 0.5);
+  shape.lineTo(size * 0.866, -size * 0.5);
+  shape.lineTo(0, size);
+  
+  const extrudeSettings = { depth: 0.015, bevelEnabled: false };
+  const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+  const rack = new THREE.Mesh(geometry, rackMat);
+  rack.rotation.x = -Math.PI / 2;
+  rack.position.y = 0.01;
+  group.add(rack);
+  
+  group.position.copy(position);
+  group.scale.setScalar(scale);
+  arenaGroup.add(group);
+  return group;
+}
+
+// 記分板
+function createScoreboard(position) {
+  const group = new THREE.Group();
+  
+  // 背板
+  const boardGeom = new THREE.BoxGeometry(1.5, 0.8, 0.05);
+  const boardMat = new THREE.MeshStandardMaterial({ 
+    color: 0x1a1a1a, 
+    roughness: 0.5, 
+    metalness: 0.3,
+    emissive: 0x050505,
+    emissiveIntensity: 0.3,
+  });
+  const board = new THREE.Mesh(boardGeom, boardMat);
+  group.add(board);
+  
+  // 霓虹邊框
+  const edgeMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.8 });
+  const topEdge = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.02, 0.02), edgeMat);
+  topEdge.position.y = 0.41;
+  group.add(topEdge);
+  const bottomEdge = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.02, 0.02), edgeMat);
+  bottomEdge.position.y = -0.41;
+  group.add(bottomEdge);
+  
+  // 文字標籤
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, 512, 256);
+  ctx.font = 'bold 36px Arial';
+  ctx.fillStyle = '#00ffff';
+  ctx.textAlign = 'center';
+  ctx.fillText('PLAYER 1', 130, 80);
+  ctx.fillText('PLAYER 2', 382, 80);
+  ctx.font = 'bold 60px Arial';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('0', 130, 160);
+  ctx.fillText('0', 382, 160);
+  ctx.fillStyle = '#ff00ff';
+  ctx.font = 'bold 24px Arial';
+  ctx.fillText('VS', 256, 120);
+  
+  const texture = new THREE.CanvasTexture(canvas);
+  const labelMat = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+  const label = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.7), labelMat);
+  label.position.z = 0.03;
+  group.add(label);
+  
+  group.position.copy(position);
+  arenaGroup.add(group);
+  return group;
+}
+
+// 觀眾座椅（簡化版）
+function createAudienceSeats(position, count = 5, scale = 1, rotationY = 0, addToArena = true, seatSpacing = 0.7) {
+  const group = new THREE.Group();
+  const seatMat = new THREE.MeshStandardMaterial({ color: 0x2a2a3a, roughness: 0.8 });
+  
+  for (let i = 0; i < count; i++) {
+    const seatGroup = new THREE.Group();
+    
+    // 座位
+    const seatGeom = new THREE.BoxGeometry(0.4, 0.08, 0.35);
+    const seat = new THREE.Mesh(seatGeom, seatMat);
+    seat.position.y = 0.35;
+    seatGroup.add(seat);
+    
+    // 靠背
+    const backGeom = new THREE.BoxGeometry(0.4, 0.5, 0.05);
+    const back = new THREE.Mesh(backGeom, seatMat);
+    back.position.set(0, 0.6, -0.15);
+    seatGroup.add(back);
+    
+    // 腳
+    const legGeom = new THREE.CylinderGeometry(0.02, 0.02, 0.3, 6);
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.5 });
+    const leg1 = new THREE.Mesh(legGeom, legMat);
+    leg1.position.set(-0.15, 0.15, 0.12);
+    seatGroup.add(leg1);
+    const leg2 = new THREE.Mesh(legGeom, legMat);
+    leg2.position.set(0.15, 0.15, 0.12);
+    seatGroup.add(leg2);
+    const leg3 = new THREE.Mesh(legGeom, legMat);
+    leg3.position.set(-0.15, 0.15, -0.12);
+    seatGroup.add(leg3);
+    const leg4 = new THREE.Mesh(legGeom, legMat);
+    leg4.position.set(0.15, 0.15, -0.12);
+    seatGroup.add(leg4);
+    
+    seatGroup.position.x = (i - (count - 1) / 2) * seatSpacing;
+    group.add(seatGroup);
+  }
+  
+  group.position.copy(position);
+  group.scale.setScalar(scale);
+  group.rotation.y = rotationY;
+  if (addToArena) arenaGroup.add(group);
+  return group;
+}
+
+function createAudienceBlock(position, rows = 2, perRow = 5, rowGap = 0.8, scale = 1, rotationY = 0, seatSpacing = 0.7) {
+  const block = new THREE.Group();
+  for (let r = 0; r < rows; r++) {
+    const row = createAudienceSeats(new THREE.Vector3(0, 0, -r * rowGap), perRow, 1, 0, false, seatSpacing);
+    block.add(row);
+  }
+  block.position.copy(position);
+  block.scale.setScalar(scale);
+  block.rotation.y = rotationY;
+  arenaGroup.add(block);
+  return block;
+}
+
+// 飲品桌
+function createSideTable(position, scale = 1) {
+  const group = new THREE.Group();
+  
+  // 桌面
+  const topGeom = new THREE.CylinderGeometry(0.2, 0.2, 0.02, 16);
+  const topMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.3, metalness: 0.6 });
+  const top = new THREE.Mesh(topGeom, topMat);
+  top.position.y = 0.6;
+  group.add(top);
+  
+  // 桌腳
+  const legGeom = new THREE.CylinderGeometry(0.02, 0.03, 0.6, 8);
+  const leg = new THREE.Mesh(legGeom, topMat);
+  leg.position.y = 0.3;
+  group.add(leg);
+  
+  // 水杯
+  const glassGeom = new THREE.CylinderGeometry(0.03, 0.025, 0.08, 12);
+  const glassMat = new THREE.MeshStandardMaterial({ 
+    color: 0xaaddff, 
+    transparent: true, 
+    opacity: 0.4, 
+    roughness: 0.1 
+  });
+  const glass = new THREE.Mesh(glassGeom, glassMat);
+  glass.position.set(0.08, 0.65, 0);
+  group.add(glass);
+  
+  // 水
+  const waterGeom = new THREE.CylinderGeometry(0.025, 0.022, 0.05, 12);
+  const waterMat = new THREE.MeshStandardMaterial({ color: 0x4488cc, transparent: true, opacity: 0.6 });
+  const water = new THREE.Mesh(waterGeom, waterMat);
+  water.position.set(0.08, 0.635, 0);
+  group.add(water);
+  
+  group.position.copy(position);
+  group.scale.setScalar(scale);
+  arenaGroup.add(group);
+  return group;
+}
+
+// 比賽者椅子
+function createPlayerChair(position, scale = 1, rotationY = 0) {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.7, metalness: 0.2 });
+
+  // 座面
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.06, 0.35), mat);
+  seat.position.y = 0.32;
+  group.add(seat);
+
+  // 靠背
+  const back = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.4, 0.06), mat);
+  back.position.set(0, 0.55, -0.15);
+  group.add(back);
+
+  // 四腳
+  const legGeom = new THREE.CylinderGeometry(0.02, 0.02, 0.32, 6);
+  const legMat = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.5 });
+  const legPos = [
+    [-0.14, 0.16, 0.14],
+    [0.14, 0.16, 0.14],
+    [-0.14, 0.16, -0.14],
+    [0.14, 0.16, -0.14],
+  ];
+  legPos.forEach(([x, y, z]) => {
+    const leg = new THREE.Mesh(legGeom, legMat);
+    leg.position.set(x, y, z);
+    group.add(leg);
+  });
+
+  group.position.copy(position);
+  group.scale.setScalar(scale);
+  group.rotation.y = rotationY;
+  arenaGroup.add(group);
+  return group;
+}
+
+// === 大電視計分牌 ===
+let tvScoreCanvas, tvScoreCtx, tvScoreTexture;
+
+function getTVScoreTexture() {
+  if (tvScoreTexture) return tvScoreTexture;
+  tvScoreCanvas = document.createElement('canvas');
+  tvScoreCanvas.width = 1024;
+  tvScoreCanvas.height = 512;
+  tvScoreCtx = tvScoreCanvas.getContext('2d');
+  tvScoreTexture = new THREE.CanvasTexture(tvScoreCanvas);
+  tvScoreTexture.encoding = THREE.sRGBEncoding;
+  return tvScoreTexture;
+}
+
+function createTVScoreboard(position) {
+  const group = new THREE.Group();
+  
+  // 電視外框
+  const frameGeom = new THREE.BoxGeometry(4.2, 2.4, 0.15);
+  const frameMat = new THREE.MeshStandardMaterial({ 
+    color: 0x0a0a0a, 
+    roughness: 0.3, 
+    metalness: 0.8 
+  });
+  const frame = new THREE.Mesh(frameGeom, frameMat);
+  group.add(frame);
+  
+  // 霓虹邊框
+  const neonColors = [0x00ffff, 0xff00ff];
+  const edgePositions = [
+    { size: [4.3, 0.03, 0.03], pos: [0, 1.22, 0.08], color: neonColors[0] },
+    { size: [4.3, 0.03, 0.03], pos: [0, -1.22, 0.08], color: neonColors[0] },
+    { size: [0.03, 2.5, 0.03], pos: [-2.12, 0, 0.08], color: neonColors[1] },
+    { size: [0.03, 2.5, 0.03], pos: [2.12, 0, 0.08], color: neonColors[1] },
+  ];
+  
+  edgePositions.forEach(({ size, pos, color }) => {
+    const edgeMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 });
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(...size), edgeMat);
+    edge.position.set(...pos);
+    group.add(edge);
+    
+    // 發光
+    const glowMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3 });
+    const glow = new THREE.Mesh(new THREE.BoxGeometry(size[0] * 1.5, size[1] * 1.5, size[2]), glowMat);
+    glow.position.set(...pos);
+    group.add(glow);
+  });
+  
+  // 電視屏幕（共用同一個 Canvas）
+  const screenMat = new THREE.MeshBasicMaterial({ map: getTVScoreTexture() });
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(3.9, 2.1), screenMat);
+  screen.position.z = 0.08;
+  group.add(screen);
+  
+  // 電視底座
+  const standGeom = new THREE.BoxGeometry(0.8, 0.1, 0.3);
+  const stand = new THREE.Mesh(standGeom, frameMat);
+  stand.position.y = -1.3;
+  group.add(stand);
+  
+  const poleGeom = new THREE.CylinderGeometry(0.05, 0.06, 0.5, 12);
+  const pole = new THREE.Mesh(poleGeom, frameMat);
+  pole.position.y = -1.0;
+  group.add(pole);
+  
+  group.position.copy(position);
+  arenaGroup.add(group);
+  
+  return group;
+}
+
+function updateTVScoreboard() {
+  if (typeof scores === 'undefined' || typeof balls === 'undefined') return;
+  if (typeof currentTargetLabel !== 'function') return;
+  if (!tvScoreCtx) {
+    getTVScoreTexture();
+  }
+  if (!tvScoreCtx) return;
+  
+  const ctx = tvScoreCtx;
+  const w = 1024, h = 512;
+  
+  // 背景漸變
+  const gradient = ctx.createLinearGradient(0, 0, 0, h);
+  gradient.addColorStop(0, '#0a0020');
+  gradient.addColorStop(0.5, '#100030');
+  gradient.addColorStop(1, '#0a0020');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, w, h);
+  
+  // 網格線效果
+  ctx.strokeStyle = 'rgba(0, 255, 255, 0.1)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 20; i++) {
+    ctx.beginPath();
+    ctx.moveTo(0, i * 26);
+    ctx.lineTo(w, i * 26);
+    ctx.stroke();
+  }
+  
+  // 標題
+  ctx.font = 'bold 48px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#00ffff';
+  ctx.shadowColor = '#00ffff';
+  ctx.shadowBlur = 15;
+  ctx.fillText('SNOOKER CHAMPIONSHIP', w / 2, 60);
+  ctx.shadowBlur = 0;
+  
+  // 分隔線
+  ctx.strokeStyle = '#ff00ff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(100, 90);
+  ctx.lineTo(w - 100, 90);
+  ctx.stroke();
+  
+  // Player 1
+  ctx.font = 'bold 36px Arial';
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'left';
+  ctx.fillText(playerNames[0] || 'PLAYER 1', 80, 160);
+  
+  ctx.font = 'bold 120px Arial';
+  ctx.fillStyle = '#00ff80';
+  ctx.shadowColor = '#00ff80';
+  ctx.shadowBlur = 20;
+  ctx.fillText(String(scores[0]), 120, 300);
+  ctx.shadowBlur = 0;
+  
+  // VS
+  ctx.font = 'bold 60px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ff00ff';
+  ctx.shadowColor = '#ff00ff';
+  ctx.shadowBlur = 10;
+  ctx.fillText('VS', w / 2, 240);
+  ctx.shadowBlur = 0;
+  
+  // Player 2 (AI)
+  ctx.font = 'bold 36px Arial';
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'right';
+  ctx.fillText(playerNames[1] || 'PLAYER 2', w - 80, 160);
+  
+  ctx.font = 'bold 120px Arial';
+  ctx.fillStyle = '#ff0080';
+  ctx.shadowColor = '#ff0080';
+  ctx.shadowBlur = 20;
+  ctx.fillText(String(scores[1]), w - 200, 300);
+  ctx.shadowBlur = 0;
+  
+  // Frame / Turn 資訊
+  ctx.font = '28px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#aaaaaa';
+  const targetLabel = currentTargetLabel();
+  ctx.fillText(`Turn ${turn}  |  Target: ${targetLabel}  |  ${currentPlayer === 0 ? playerNames[0] : playerNames[1]} to play`, w / 2, 400);
+  
+  // 剩餘紅球
+  const redsLeft = balls.filter(b => b.type === 'red' && !b.pocketed).length;
+  ctx.fillStyle = '#ff4444';
+  ctx.fillText(`Reds: ${redsLeft}`, w / 2, 450);
+  
+  // 更新 texture
+  if (tvScoreTexture) {
+    tvScoreTexture.needsUpdate = true;
+  }
+}
 
 // Overhead lamp (classic green shade)
 const lampGroup = new THREE.Group();
@@ -686,6 +1452,33 @@ const tablePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -CLOTH_Y);
 const aimDirection = new THREE.Vector3(0, 0, 1);
 const aimHit = new THREE.Vector3();
 
+// 放置場地元素（必須喺 CLOTH_Y, halfL 定義之後）
+createCueRack(new THREE.Vector3(-6.5, -0.82, -7), Math.PI / 4, 2);
+createCueRack(new THREE.Vector3(6.5, -0.82, -7), -Math.PI / 4, 2);
+createChalkHolder(new THREE.Vector3(-1.2, CLOTH_Y + 0.02, halfL + 0.15), 2);
+createChalkHolder(new THREE.Vector3(1.2, CLOTH_Y + 0.02, halfL + 0.15), 2);
+createTriangleRack(new THREE.Vector3(-5, -0.82, 0), 2);
+
+// 四面電視計分牌
+const tvBack = createTVScoreboard(new THREE.Vector3(0, 2.8, -8.5));
+const tvFront = createTVScoreboard(new THREE.Vector3(0, 2.8, 8.5));
+tvFront.rotation.y = Math.PI;
+const tvLeft = createTVScoreboard(new THREE.Vector3(-8.5, 2.8, 0));
+tvLeft.rotation.y = Math.PI / 2;
+const tvRight = createTVScoreboard(new THREE.Vector3(8.5, 2.8, 0));
+tvRight.rotation.y = -Math.PI / 2;
+
+// 四邊觀眾區（每區兩行，每行五張）
+createAudienceBlock(new THREE.Vector3(0, -0.82, 7.7), 2, 5, 0.8, 2, Math.PI, 0.8);
+createAudienceBlock(new THREE.Vector3(0, -0.82, -7.7), 2, 5, 0.8, 2, 0, 0.8);
+createAudienceBlock(new THREE.Vector3(-7.7, -0.82, 0), 2, 5, 0.8, 2, Math.PI / 2, 0.8);
+createAudienceBlock(new THREE.Vector3(7.7, -0.82, 0), 2, 5, 0.8, 2, -Math.PI / 2, 0.8);
+createSideTable(new THREE.Vector3(-3, -0.82, -6.5), 2);
+createSideTable(new THREE.Vector3(3, -0.82, -6.5), 2);
+// 飲品枱各放 1 張比賽者椅
+createPlayerChair(new THREE.Vector3(-3.0, -0.82, -6.9), 2, 0);
+createPlayerChair(new THREE.Vector3(3.0, -0.82, -6.9), 2, 0);
+
 function createGuideLine({ color, opacity, dashSize, gapSize }) {
   const positions = new Float32Array(6);
   const geometry = new THREE.BufferGeometry();
@@ -907,6 +1700,10 @@ function redsRemaining() {
   return balls.filter((ball) => ball.type === 'red' && !ball.pocketed).length;
 }
 
+function colorsRemaining() {
+  return balls.filter((ball) => ball.type !== 'red' && ball.type !== 'cue' && !ball.pocketed).length;
+}
+
 function legalTargetTypes() {
   if (freeBallAvailable) return ['red'];
   const reds = redsRemaining();
@@ -988,9 +1785,18 @@ function currentTargetLabel() {
 }
 
 function updateUi() {
-  scoreEl.textContent = `P1: ${scores[0]}  |  P2: ${scores[1]}  |  Mode: P1 vs AI`;
-  turnEl.textContent = `Turn: ${turn}  |  Player: ${currentPlayer + 1}  |  Target: ${currentTargetLabel()}${snookered ? ' (Snookered)' : ''}  |  State: ${turnState}`;
+  // 最終保險：全部清晒就完場
+  if (!gameOver && redsRemaining() === 0 && colorsRemaining() === 0) {
+    endGame();
+    return;
+  }
+
+  scoreEl.textContent = `${playerNames[0]}: ${scores[0]}  |  ${playerNames[1]}: ${scores[1]}  |  Mode: ${playerNames[0]} vs ${playerNames[1]}`;
+  turnEl.textContent = `Turn: ${turn}  |  Player: ${currentPlayer === 0 ? playerNames[0] : playerNames[1]}  |  Target: ${currentTargetLabel()}${snookered ? ' (Snookered)' : ''}  |  State: ${turnState}`;
   powerFillEl.style.width = `${Math.round(power * 100)}%`;
+
+  // 更新大電視計分牌
+  updateTVScoreboard();
 
   if (stateNoteEl) {
     if (foulDecisionPending) {
@@ -1683,14 +2489,9 @@ function endShot() {
   const pottedColors = scored.filter((type) => type !== 'red' && type !== 'cue');
 
   if (foulThisShot) {
-    // 修正：在 Red/Color 循環中（含最後紅波後），入彩波必須 Respot
+    // 犯規：任何入袋的彩波都應該放返出嚟（包括清台階段打錯波）
     if (pottedColors.length > 0) {
-      // 只要未進入清台階段（或者清台階段打錯波），都需要 Respot
-      // 簡單嚟講：只有在清台階段打入目標彩波時才不需要 Respot
-      // 為了安全，如果 reds > 0 或 expectingColor 為真，則肯定 Respot
-      if (reds > 0 || expectingColor) {
-        respotColors(pottedColors);
-      }
+      respotColors(pottedColors);
     }
     expectingColor = false; // 犯規導致 Break 結束，重置目標為紅波（或 Yellow）
     const foulPoints = foulPointValue();
@@ -1776,8 +2577,8 @@ function endShot() {
       setStatus(`${targetColor} cleared`, 1.2);
       logRule('clear_color', { player: currentPlayer + 1, color: targetColor, points: ballValues[targetColor] });
 
-      // 檢查遊戲是否結束（黑球已入）
-      if (colorClearIndex >= 6) {
+      // 檢查遊戲是否結束（黑球已入 或 已清晒）
+      if (colorClearIndex >= 6 || targetColor === 'black' || colorsRemaining() === 0) {
         endGame();
         return;
       }
@@ -1797,6 +2598,7 @@ function endShot() {
 
 // 遊戲結束處理
 let gameOver = false;
+let playerNames = ['P1', 'AI'];
 function endGame() {
   console.log('[GAME] endGame() called, scores:', scores);
   gameOver = true;
@@ -3303,6 +4105,31 @@ window.__snookerDebug = {
 onResize();
 resetGame();
 updatePointer({ clientX: window.innerWidth / 2, clientY: window.innerHeight / 2 });
+
+// 玩家名稱輸入
+if (player1NameInput) {
+  player1NameInput.addEventListener('input', () => {
+    playerNames[0] = player1NameInput.value.trim() || 'P1';
+    updateUi();
+  });
+}
+if (player2NameInput) {
+  player2NameInput.addEventListener('input', () => {
+    playerNames[1] = player2NameInput.value.trim() || 'AI';
+    updateUi();
+  });
+}
+
+// HUD 展開/縮細按鈕（只收埋操作說明）
+const hudHintWrapper = document.getElementById('hud-hint-wrapper');
+const hudToggleBtn = document.getElementById('hud-toggle');
+if (hudHintWrapper && hudToggleBtn) {
+  hudToggleBtn.addEventListener('click', () => {
+    hudHintWrapper.classList.toggle('collapsed');
+    hudToggleBtn.textContent = hudHintWrapper.classList.contains('collapsed') ? '▼' : '▲';
+  });
+}
+
 // 防止手機控制面板誤觸
 if (mobileControlsEl) {
   const stopProp = (e) => e.stopPropagation();
