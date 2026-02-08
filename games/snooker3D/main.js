@@ -1156,23 +1156,49 @@ function updateAimLine() {
     cueFinalX *= retention;
     cueFinalZ *= retention;
 
-    // 繪製物件球軌跡（橙色）
+    // === 修正：模擬摩擦力計算實際軌跡長度 ===
+    // 使用同 applyFriction 一致嘅減速公式：decel = linearDrag + rollingDragK * speed
+    // 積分計算球會滾多遠直到停止
+    function simulateTrajectoryLength(vx, vz, maxLen = 3.0) {
+      let x = 0, z = 0;
+      let speed = Math.hypot(vx, vz);
+      if (speed < 0.01) return 0;
+      let dirX = vx / speed, dirZ = vz / speed;
+      const dt = 0.016; // 模擬步長
+      let totalDist = 0;
+      for (let i = 0; i < 200 && speed > stopThreshold && totalDist < maxLen; i++) {
+        const step = speed * dt;
+        totalDist += step;
+        const decel = linearDrag + rollingDragK * speed;
+        speed = Math.max(0, speed - decel * dt);
+      }
+      return totalDist;
+    }
+
+    // 繪製物件球軌跡（橙色）— 使用模擬摩擦力後嘅距離
     const objSpeed = Math.hypot(objFinalX, objFinalZ);
     if (objSpeed > 0.05) {
       const objDirX = objFinalX / objSpeed;
       const objDirZ = objFinalZ / objSpeed;
-      const objLen = (showExtendedGuide ? 1.45 : 0.72) * objSpeed;
+      // 根據實際力度縮放初速
+      const actualPower = minCharge + power * (maxCharge - minCharge);
+      const scaledObjSpeed = objSpeed * actualPower * powerMultiplier;
+      const objLen = simulateTrajectoryLength(objDirX * scaledObjSpeed, objDirZ * scaledObjSpeed, showExtendedGuide ? 2.5 : 1.2);
       const objEnd = targetPos.clone().add(new THREE.Vector3(objDirX * objLen, 0, objDirZ * objLen));
       setGuideLinePoints(objectPathGuide, targetPos, objEnd);
     }
 
-    // 繪製白球碰撞後軌跡（淺藍色）
+    // 繪製白球碰撞後軌跡（淺藍色）— 使用模擬摩擦力後嘅距離
     const cueFinalSpeed = Math.hypot(cueFinalX, cueFinalZ);
     if (cueFinalSpeed > 0.05) {
-      const cueAfterDir = new THREE.Vector3(cueFinalX / cueFinalSpeed, 0, cueFinalZ / cueFinalSpeed);
-      const cueAfterLen = (showExtendedGuide ? 0.9 : 0.45) * cueFinalSpeed;
+      const cueAfterDirX = cueFinalX / cueFinalSpeed;
+      const cueAfterDirZ = cueFinalZ / cueFinalSpeed;
+      // 根據實際力度縮放初速
+      const actualPower = minCharge + power * (maxCharge - minCharge);
+      const scaledCueSpeed = cueFinalSpeed * actualPower * powerMultiplier;
+      const cueAfterLen = simulateTrajectoryLength(cueAfterDirX * scaledCueSpeed, cueAfterDirZ * scaledCueSpeed, showExtendedGuide ? 1.8 : 0.9);
       const cueAfterStart = firstHit.point.clone().setY(guideY);
-      const cueAfterEnd = cueAfterStart.clone().add(cueAfterDir.multiplyScalar(cueAfterLen));
+      const cueAfterEnd = cueAfterStart.clone().add(new THREE.Vector3(cueAfterDirX * cueAfterLen, 0, cueAfterDirZ * cueAfterLen));
       setGuideLinePoints(cueBallPathGuide, cueAfterStart, cueAfterEnd);
     }
   } else if (firstHit && firstHit.kind === 'rail' && firstHit.normal) {
@@ -1582,6 +1608,10 @@ function isLegalFirstHit(type) {
   const reds = redsRemaining();
   if (reds > 0) {
     return expectingColor ? type !== 'red' && type !== 'cue' : type === 'red';
+  }
+  // 修正：最後紅波後仲有一次打任意彩波機會
+  if (expectingColor) {
+    return type !== 'red' && type !== 'cue';
   }
   const order = ['yellow', 'green', 'brown', 'blue', 'pink', 'black'];
   return type === order[colorClearIndex];
@@ -2447,7 +2477,15 @@ function evaluateShotIfStopped() {
         foulThisShot = true;
         foulReason = 'Potted red on color';
       }
+    } else if (expectingColor) {
+      // 修正：最後紅波後打彩波階段，任意彩波都合法
+      // 只有同時入紅波先算犯規
+      if (pottedReds > 0) {
+        foulThisShot = true;
+        foulReason = 'Potted red on color';
+      }
     } else {
+      // 清台階段：必須按順序打
       const order = ['yellow', 'green', 'brown', 'blue', 'pink', 'black'];
       const targetColor = order[colorClearIndex];
       if (pottedColors.length > 0 && pottedColors.some((type) => type !== targetColor)) {
