@@ -80,6 +80,8 @@ controls.minDistance = 1.8;
 controls.maxDistance = 6.5;
 controls.minPolarAngle = Math.PI * 0.18;
 controls.maxPolarAngle = Math.PI * 0.52;
+controls.rotateSpeed = 0.75; // 降低 25% 靈敏度
+controls.zoomSpeed = 0.75;   // 降低 25% 靈敏度
 controls.target.copy(cameraHome.target);
 controls.mouseButtons = {
   LEFT: null,
@@ -848,6 +850,67 @@ function createPlayerChair(position, scale = 1, rotationY = 0) {
   return group;
 }
 
+// 長枱 + 獎杯
+function createTrophyTable(position, scale = 1) {
+  const group = new THREE.Group();
+  const tableMat = new THREE.MeshStandardMaterial({ color: 0x1b1b1b, roughness: 0.4, metalness: 0.3 });
+
+  const topHeight = 0.06;
+  const topY = 0.6;
+  const top = new THREE.Mesh(new THREE.BoxGeometry(1.8, topHeight, 0.5), tableMat);
+  top.position.y = topY;
+  group.add(top);
+
+  const legGeom = new THREE.BoxGeometry(0.08, 0.6, 0.08);
+  const legOffsets = [
+    [-0.8, 0.3, -0.18],
+    [0.8, 0.3, -0.18],
+    [-0.8, 0.3, 0.18],
+    [0.8, 0.3, 0.18],
+  ];
+  legOffsets.forEach(([x, y, z]) => {
+    const leg = new THREE.Mesh(legGeom, tableMat);
+    leg.position.set(x, y, z);
+    group.add(leg);
+  });
+
+  // 獎杯（精準貼枱面）
+  const surfaceY = topY + topHeight / 2;
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3, metalness: 0.9 });
+
+  const baseH = 0.08;
+  const stemH = 0.12;
+  const cupH = 0.2;
+
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, baseH, 16), goldMat);
+  base.position.y = surfaceY + baseH / 2;
+  group.add(base);
+
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, stemH, 12), goldMat);
+  stem.position.y = surfaceY + baseH + stemH / 2;
+  group.add(stem);
+
+  const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, cupH, 16), goldMat);
+  cup.position.y = surfaceY + baseH + stemH + cupH / 2;
+  group.add(cup);
+
+  // 小耳
+  const handleGeom = new THREE.TorusGeometry(0.08, 0.02, 8, 16);
+  const handleL = new THREE.Mesh(handleGeom, goldMat);
+  handleL.position.set(-0.17, cup.position.y + 0.01, 0);
+  handleL.rotation.y = Math.PI / 2;
+  group.add(handleL);
+  const handleR = new THREE.Mesh(handleGeom, goldMat);
+  handleR.position.set(0.17, cup.position.y + 0.01, 0);
+  handleR.rotation.y = Math.PI / 2;
+  group.add(handleR);
+
+  group.position.copy(position);
+  group.scale.setScalar(scale);
+  arenaGroup.add(group);
+  return group;
+}
+
 // === 大電視計分牌 ===
 let tvScoreCanvas, tvScoreCtx, tvScoreTexture;
 
@@ -1088,14 +1151,29 @@ function createClothTexture() {
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#1a6a3f';
+  ctx.fillStyle = '#0e5a35';
   ctx.fillRect(0, 0, size, size);
-  for (let i = 0; i < 6000; i += 1) {
+
+  // 細碎纖維噪點
+  for (let i = 0; i < 8000; i += 1) {
     const x = Math.random() * size;
     const y = Math.random() * size;
-    const v = 90 + Math.random() * 30;
-    ctx.fillStyle = `rgba(20, ${v}, 55, 0.18)`;
+    const v = 70 + Math.random() * 30;
+    ctx.fillStyle = `rgba(15, ${v}, 45, 0.22)`;
     ctx.fillRect(x, y, 1, 1);
+  }
+
+  // 長條纖維（模擬草絲方向）
+  ctx.strokeStyle = 'rgba(20, 90, 50, 0.25)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 220; i += 1) {
+    const y = Math.random() * size;
+    const x = Math.random() * size;
+    const len = 8 + Math.random() * 24;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + len, y + (Math.random() - 0.5) * 2);
+    ctx.stroke();
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
@@ -1459,7 +1537,7 @@ for (let row = 0; row < 5; row += 1) {
   for (let col = 0; col <= row; col += 1) {
     const x = (col - row / 2) * spacing;
     const z = redStartZ + row * spacing * 0.92;
-    createBall({ color: 0xb61f25, type: 'red', position: new THREE.Vector3(x, BALL_RADIUS, z) });
+    createBall({ color: 0xae1e23, type: 'red', position: new THREE.Vector3(x, BALL_RADIUS, z) });
     redIndex += 1;
     if (redIndex >= 15) break;
   }
@@ -1476,12 +1554,12 @@ const colorSpots = {
 };
 
 const coloredBalls = [
-  { type: 'yellow', color: 0xf0d76a },
-  { type: 'green', color: 0x3fc56b },
-  { type: 'brown', color: 0x7a4b2b },
-  { type: 'blue', color: 0x3a76d0 },
-  { type: 'pink', color: 0xf2a0b8 },
-  { type: 'black', color: 0x0f0f0f },
+  { type: 'yellow', color: 0xd8ae1d },
+  { type: 'green', color: 0x3cbf66 },
+  { type: 'brown', color: 0x744728 },
+  { type: 'blue', color: 0x376fc6 },
+  { type: 'pink', color: 0xd94f84 },
+  { type: 'black', color: 0x0e0e0e },
 ];
 
 coloredBalls.forEach((ball) => {
@@ -1503,7 +1581,7 @@ const aimHit = new THREE.Vector3();
 createCueRack(new THREE.Vector3(-6.5, -0.82, -7), Math.PI / 4, 2);
 createCueRack(new THREE.Vector3(6.5, -0.82, -7), -Math.PI / 4, 2);
 // 粉筆 item 已移除（避免放位突兀）
-createTriangleRack(new THREE.Vector3(-5, -0.82, 0), 2);
+// 三角架已移除（避免出現地面三角形殘影）
 
 // 四面電視計分牌
 const tvBack = createTVScoreboard(new THREE.Vector3(0, 2.8, -8.5));
@@ -1525,6 +1603,8 @@ createSideTable(new THREE.Vector3(3, -0.82, -6.5), 2);
 // 飲品枱各放 1 張比賽者椅
 createPlayerChair(new THREE.Vector3(-3.0, -0.82, -6.9), 2, 0);
 createPlayerChair(new THREE.Vector3(3.0, -0.82, -6.9), 2, 0);
+// 中間長枱 + 獎杯
+createTrophyTable(new THREE.Vector3(0, -0.82, -6.9), 1.6);
 
 function createGuideLine({ color, opacity, dashSize, gapSize }) {
   const positions = new Float32Array(6);
