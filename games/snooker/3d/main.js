@@ -705,32 +705,32 @@ function createGuideLine({ color, opacity, dashSize, gapSize }) {
 }
 
 const aimPrimaryGuide = createGuideLine({
-  color: 0xf6fbff,
-  opacity: 0.82,
+  color: 0xffffff,
+  opacity: 0.95,
   dashSize: 0.065,
   gapSize: 0.05,
 });
 const aimExtendedGuide = createGuideLine({
-  color: 0xdbe6f4,
-  opacity: 0.32,
+  color: 0xc0d0e8,
+  opacity: 0.5,
   dashSize: 0.03,
   gapSize: 0.11,
 });
 const objectPathGuide = createGuideLine({
-  color: 0xf8be63,
-  opacity: 0.74,
+  color: 0xffaa00,
+  opacity: 0.92,
   dashSize: 0.055,
   gapSize: 0.05,
 });
 const railReflectGuide = createGuideLine({
-  color: 0xb8e0ff,
-  opacity: 0.58,
+  color: 0x66ccff,
+  opacity: 0.85,
   dashSize: 0.045,
   gapSize: 0.08,
 });
 const cueBallPathGuide = createGuideLine({
-  color: 0x88ddff,
-  opacity: 0.68,
+  color: 0x44ddff,
+  opacity: 0.88,
   dashSize: 0.04,
   gapSize: 0.06,
 });
@@ -915,6 +915,10 @@ function legalTargetTypes() {
       ? ['yellow', 'green', 'brown', 'blue', 'pink', 'black']
       : ['red'];
   }
+  // 最後紅波後仲有一次打任意彩波
+  if (expectingColor) {
+    return ['yellow', 'green', 'brown', 'blue', 'pink', 'black'];
+  }
   const order = ['yellow', 'green', 'brown', 'blue', 'pink', 'black'];
   const target = order[colorClearIndex];
   return target ? [target] : [];
@@ -974,6 +978,10 @@ function currentTargetLabel() {
   const reds = redsRemaining();
   if (reds > 0) {
     return expectingColor ? 'Color' : 'Red';
+  }
+  // 最後紅波後仲有一次打任意彩波
+  if (expectingColor) {
+    return 'Color';
   }
   const order = ['yellow', 'green', 'brown', 'blue', 'pink', 'black'];
   return order[colorClearIndex] || 'Finish';
@@ -1040,10 +1048,11 @@ function allStopped() {
 }
 
 function canTakeShot() {
-  return !shotInProgress && !cueBallInHand && !foulDecisionPending && stationaryTime >= settledDuration;
+  return !gameOver && !shotInProgress && !cueBallInHand && !foulDecisionPending && stationaryTime >= settledDuration;
 }
 
 function canTakeShotReason() {
+  if (gameOver) return 'GAME_OVER';
   if (shotInProgress) return 'SHOT_IN_PROGRESS';
   if (cueBallInHand) return 'CUE_IN_HAND';
   if (foulDecisionPending) return 'FOUL_DECISION';
@@ -1058,6 +1067,7 @@ function resetCamera() {
 }
 
 function resetGame() {
+  gameOver = false;
   scores = [0, 0];
   currentPlayer = 0;
   turn = 1;
@@ -1250,76 +1260,132 @@ function updateAimLine() {
     const targetPos = firstHit.targetBall.position.clone();
     targetPos.y = guideY;
 
-    // === 使用同 resolveBallCollisions 完全一致嘅碰撞公式 ===
-    // 碰撞法線 = 物件球中心 - 白球碰撞時中心 (ghost ball 位置)
-    const ghostPos = firstHit.point.clone().setY(0);
-    const targetCenter = firstHit.targetBall.position.clone().setY(0);
-    const normal = targetCenter.clone().sub(ghostPos);
-    if (normal.lengthSq() < 1e-8) return;
-    normal.normalize();
-    const nx = normal.x;
-    const nz = normal.z;
+    // === 使用與 resolveBallCollisions 相同流程嘅迷你模擬，取得碰撞後速度 ===
+    // 保持公式不變，只令預測線跟足實際 solver
 
     // 白球入射方向 + 實際速度（含 powerMultiplier 與速度上限）
     const actualPower = minCharge + power * (maxCharge - minCharge);
     const rawSpeed = actualPower * powerMultiplier;
     const cueSpeed = Math.min(rawSpeed, cueSpeedCap);
 
-    // 假設白球速度 = dir * cueSpeed，目標球靜止
-    const cueVelX = dir.x * cueSpeed;
-    const cueVelZ = dir.z * cueSpeed;
-    const objVelX_before = 0;  // 目標球靜止
-    const objVelZ_before = 0;
+    const simulateCollisionVelocities = () => {
+      const cuePos = cueBall.position.clone().setY(0);
+      const objPos = firstHit.targetBall.position.clone().setY(0);
+      const cueVel = new THREE.Vector3(dir.x * cueSpeed, 0, dir.z * cueSpeed);
+      const objVel = new THREE.Vector3(0, 0, 0);
+      const baseDt = 1 / 60;
 
-    // 相對速度 (同 resolveBallCollisions 一樣：b.velocity - a.velocity)
-    const relVx = objVelX_before - cueVelX;
-    const relVz = objVelZ_before - cueVelZ;
-    const velAlongNormal = relVx * nx + relVz * nz;
+      const applyFrictionLocal = (vel, dt) => {
+        const speed = vel.length();
+        if (speed <= 0) return;
+        const decel = linearDrag + rollingDragK * speed;
+        const newSpeed = Math.max(0, speed - decel * dt);
+        if (newSpeed === 0) {
+          vel.set(0, 0, 0);
+        } else {
+          vel.multiplyScalar(newSpeed / speed);
+        }
+      };
 
-    // 使用同實際物理完全一樣嘅 impulse 公式
-    const impulse = (-(1 + ballRestitution) * velAlongNormal) / 2;
+      for (let i = 0; i < 240; i++) {
+        const maxSpeed = Math.max(cueVel.length(), objVel.length());
+        if (maxSpeed <= stopThreshold) break;
+        const maxStepDist = BALL_RADIUS;
+        const minSubstepDt = maxSpeed > 0.01 ? maxStepDist / maxSpeed : baseDt;
+        const substeps = Math.max(1, Math.min(8, Math.ceil(baseDt / minSubstepDt)));
+        const subDt = baseDt / substeps;
 
-    // 白球碰撞後速度 (a.velocity -= n * impulse)
-    const cueVelAfterX = cueVelX - nx * impulse;
-    const cueVelAfterZ = cueVelZ - nz * impulse;
+        for (let s = 0; s < substeps; s++) {
+          cuePos.addScaledVector(cueVel, subDt);
+          objPos.addScaledVector(objVel, subDt);
 
-    // 物件球碰撞後速度 (b.velocity += n * impulse)
-    const objVelAfterX = objVelX_before + nx * impulse;
-    const objVelAfterZ = objVelZ_before + nz * impulse;
+          applyFrictionLocal(cueVel, subDt);
+          applyFrictionLocal(objVel, subDt);
 
-    // 考慮 spin.y 高低桿效果 (同 resolveBallCollisions 一樣)
-    let cueFinalX = cueVelAfterX;
-    let cueFinalZ = cueVelAfterZ;
-    const spinMag = Math.abs(spin.y);
-    if (spinMag > 0.05) {
-      const spinForce = -spin.y * Math.abs(velAlongNormal) * 0.45;
-      cueFinalX += nx * spinForce;
-      cueFinalZ += nz * spinForce;
-    }
+          const dx = objPos.x - cuePos.x;
+          const dz = objPos.z - cuePos.z;
+          const distSq = dx * dx + dz * dz;
+          const minDist = BALL_RADIUS * 2;
+          if (distSq <= minDist * minDist) {
+            const dist = Math.sqrt(distSq) || 0.0001;
+            const nx = dx / dist;
+            const nz = dz / dist;
+            const overlap = minDist - dist;
 
+            cuePos.x -= nx * (overlap / 2);
+            cuePos.z -= nz * (overlap / 2);
+            objPos.x += nx * (overlap / 2);
+            objPos.z += nz * (overlap / 2);
 
-    // 考慮 collisionEnergyRetention (同實際碰撞一致)
-    const retention = collisionEnergyRetention;
-    const objFinalX = objVelAfterX * retention;
-    const objFinalZ = objVelAfterZ * retention;
-    cueFinalX *= retention;
-    cueFinalZ *= retention;
+            const relVx = objVel.x - cueVel.x;
+            const relVz = objVel.z - cueVel.z;
+            const velAlongNormal = relVx * nx + relVz * nz;
+            if (velAlongNormal < 0) {
+              const impulse = (-(1 + ballRestitution) * velAlongNormal) / 2;
+              cueVel.x -= nx * impulse;
+              cueVel.z -= nz * impulse;
+              objVel.x += nx * impulse;
+              objVel.z += nz * impulse;
 
-    // === 修正：模擬摩擦力計算實際軌跡長度 ===
-    // 使用同 applyFriction 一致嘅減速公式：decel = linearDrag + rollingDragK * speed
-    // 積分計算球會滾多遠直到停止
+              cueVel.multiplyScalar(collisionEnergyRetention);
+              objVel.multiplyScalar(collisionEnergyRetention);
+
+              const spinMag = Math.abs(spin.y);
+              if (spinMag > 0.05) {
+                const spinForce = -spin.y * Math.abs(velAlongNormal) * 0.45;
+                cueVel.x += nx * spinForce;
+                cueVel.z += nz * spinForce;
+              }
+            }
+
+            return {
+              cueVel: cueVel.clone(),
+              objVel: objVel.clone(),
+              collisionPoint: cuePos.clone(),
+            };
+          }
+        }
+      }
+
+      return {
+        cueVel: new THREE.Vector3(0, 0, 0),
+        objVel: new THREE.Vector3(0, 0, 0),
+        collisionPoint: firstHit.point.clone().setY(0),
+      };
+    };
+
+    const sim = simulateCollisionVelocities();
+    const cueFinalX = sim.cueVel.x;
+    const cueFinalZ = sim.cueVel.z;
+    const objFinalX = sim.objVel.x;
+    const objFinalZ = sim.objVel.z;
+    const collisionPoint = sim.collisionPoint.clone().setY(guideY);
+
+    // 更新 ghost ball 位置，與實際微型模擬碰撞點一致
+    ghostBallGuide.position.copy(collisionPoint);
+    updateGhostBallSpinMarker();
+
+    // === 修正：用與 stepSimulation 同步嘅 substep 模式計算軌跡長度 ===
+    // 保持公式不變，只調整步進方式，減少高速時誤差
     function simulateTrajectoryLength(vx, vz, maxLen = 3.0) {
-      let x = 0, z = 0;
       let speed = Math.hypot(vx, vz);
       if (speed < 0.01) return 0;
-      let dirX = vx / speed, dirZ = vz / speed;
-      const dt = 0.016; // 模擬步長
       let totalDist = 0;
-      for (let i = 0; i < 200 && speed > stopThreshold && totalDist < maxLen; i++) {
-        const step = speed * dt;
-        totalDist += step;
-        const decel = linearDrag + rollingDragK * speed;
-        speed = Math.max(0, speed - decel * dt);
+      const baseDt = 1 / 60; // 與主迴圈一致嘅時間步
+
+      for (let i = 0; i < 240 && speed > stopThreshold && totalDist < maxLen; i++) {
+        // 模擬 stepSimulation 的 substep
+        const maxStepDist = BALL_RADIUS;
+        const minSubstepDt = speed > 0.01 ? maxStepDist / speed : baseDt;
+        const substeps = Math.max(1, Math.min(8, Math.ceil(baseDt / minSubstepDt)));
+        const subDt = baseDt / substeps;
+
+        for (let s = 0; s < substeps && speed > stopThreshold && totalDist < maxLen; s++) {
+          const step = speed * subDt;
+          totalDist += step;
+          const decel = linearDrag + rollingDragK * speed;
+          speed = Math.max(0, speed - decel * subDt);
+        }
       }
       return totalDist;
     }
@@ -1340,7 +1406,7 @@ function updateAimLine() {
       const cueAfterDirX = cueFinalX / cueFinalSpeed;
       const cueAfterDirZ = cueFinalZ / cueFinalSpeed;
       const cueAfterLen = simulateTrajectoryLength(cueFinalX, cueFinalZ, showExtendedGuide ? 1.8 : 0.9);
-      const cueAfterStart = firstHit.point.clone().setY(guideY);
+      const cueAfterStart = collisionPoint.clone();
       const cueAfterEnd = cueAfterStart.clone().add(new THREE.Vector3(cueAfterDirX * cueAfterLen, 0, cueAfterDirZ * cueAfterLen));
       setGuideLinePoints(cueBallPathGuide, cueAfterStart, cueAfterEnd);
     }
@@ -1443,7 +1509,7 @@ function isValidCuePlacement(pos) {
   return inD;
 }
 
-function clampCuePlacementToD(pos) {
+function clampCuePlacementToD(pos, ignoreCamera = false) {
   const clamped = pos.clone();
   const minX = -halfW + BALL_RADIUS;
   const maxX = halfW - BALL_RADIUS;
@@ -1464,8 +1530,8 @@ function clampCuePlacementToD(pos) {
   clamped.x = local.x;
   clamped.z = local.z + baulkLineZ;
 
-  // keep only the half-circle that opens toward camera
-  if ((clamped.z - baulkLineZ) * (camera.position.z - baulkLineZ) < 0) {
+  // keep only the half-circle that opens toward camera (skip for AI)
+  if (!ignoreCamera && (clamped.z - baulkLineZ) * (camera.position.z - baulkLineZ) < 0) {
     clamped.z = baulkLineZ;
   }
 
@@ -1473,8 +1539,8 @@ function clampCuePlacementToD(pos) {
   return clamped;
 }
 
-function findNearestValidCuePlacement(pos) {
-  const base = clampCuePlacementToD(pos);
+function findNearestValidCuePlacement(pos, ignoreCamera = false) {
+  const base = clampCuePlacementToD(pos, ignoreCamera);
   if (isValidCuePlacement(base)) return base;
   const maxRadius = 0.4;
   const step = BALL_RADIUS * 0.8;
@@ -1482,7 +1548,7 @@ function findNearestValidCuePlacement(pos) {
     for (let i = 0; i < 18; i += 1) {
       const a = (i / 18) * Math.PI * 2;
       const probe = base.clone().add(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r));
-      const clamped = clampCuePlacementToD(probe);
+      const clamped = clampCuePlacementToD(probe, ignoreCamera);
       if (isValidCuePlacement(clamped)) return clamped;
     }
   }
@@ -1709,6 +1775,12 @@ function endShot() {
       snookered = false;
       setStatus(`${targetColor} cleared`, 1.2);
       logRule('clear_color', { player: currentPlayer + 1, color: targetColor, points: ballValues[targetColor] });
+
+      // 檢查遊戲是否結束（黑球已入）
+      if (colorClearIndex >= 6) {
+        endGame();
+        return;
+      }
     } else {
       currentPlayer = 1 - currentPlayer;
       turn += 1;
@@ -1721,6 +1793,69 @@ function endShot() {
   if (aiEnabled && currentPlayer === 1) {
     aiQueued = true;
   }
+}
+
+// 遊戲結束處理
+let gameOver = false;
+function endGame() {
+  console.log('[GAME] endGame() called, scores:', scores);
+  gameOver = true;
+  const winner = scores[0] > scores[1] ? 1 : (scores[1] > scores[0] ? 2 : 0);
+  const winnerText = winner === 0 ? '平手！' : `Player ${winner} 勝出！`;
+  const finalScore = `最終比分：P1 ${scores[0]} - ${scores[1]} P2`;
+
+  logRule('game_over', { winner, scores: [...scores] });
+
+  // 顯示結果
+  setStatus(`${winnerText} ${finalScore}`, 999);
+
+  // 顯示重新開始按鈕
+  showGameOverPanel(winnerText, finalScore);
+}
+
+function showGameOverPanel(winnerText, finalScore) {
+  console.log('[GAME] showGameOverPanel called');
+  // 建立遊戲結束面板
+  let panel = document.getElementById('game-over-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'game-over-panel';
+    panel.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.9);
+      color: #fff;
+      padding: 40px 60px;
+      border-radius: 16px;
+      text-align: center;
+      z-index: 1000;
+      font-family: system-ui, sans-serif;
+    `;
+    document.body.appendChild(panel);
+  }
+
+  panel.innerHTML = `
+    <h1 style="margin: 0 0 10px 0; font-size: 32px; color: #ffd700;">${winnerText}</h1>
+    <p style="margin: 0 0 30px 0; font-size: 20px; opacity: 0.8;">${finalScore}</p>
+    <button id="restart-btn" style="
+      padding: 14px 40px;
+      font-size: 18px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    ">重新開始</button>
+  `;
+  panel.style.display = 'block';
+
+  document.getElementById('restart-btn').addEventListener('click', () => {
+    panel.style.display = 'none';
+    gameOver = false;
+    resetGame();
+  });
 }
 
 function respotColors(types) {
@@ -1763,6 +1898,10 @@ function isLegalFirstHit(type) {
   if (expectingColor) {
     return type !== 'red' && type !== 'cue';
   }
+  // 修正：如果 reds=0 但打中 red（即打緊最後一粒紅），都係合法
+  if (type === 'red') {
+    return true;
+  }
   const order = ['yellow', 'green', 'brown', 'blue', 'pink', 'black'];
   return type === order[colorClearIndex];
 }
@@ -1790,6 +1929,7 @@ function queueAiShot() {
   if (!aiQueued || !allStopped()) return;
   if (shotInProgress) return;
   if (cueBallInHand) return;
+  if (gameOver) return;
   aiQueued = false;
   const targets = legalTargetTypes();
   const targetBalls = balls.filter(
@@ -1797,6 +1937,8 @@ function queueAiShot() {
   );
 
   let bestShot = null;
+
+  // 1) 嘗試直接入袋
   for (const ball of targetBalls) {
     for (const pocket of pockets) {
       const toPocket = pocket.position.clone().sub(ball.position).setY(0);
@@ -1804,67 +1946,214 @@ function queueAiShot() {
       if (distPocket < 0.01) continue;
       const pocketDir = toPocket.clone().normalize();
       const contactPoint = ball.position.clone().sub(pocketDir.multiplyScalar(BALL_RADIUS * 2));
+
+      // 檢查目標球到袋口有冇被擋
       if (!isLineClear(ball.position, pocket.position, ball)) continue;
+      // 檢查白球到接觸點有冇被擋
       if (!isLineClear(cueBall.position, contactPoint, ball)) continue;
 
       const distCue = cueBall.position.distanceTo(contactPoint);
       const base = ball.type === 'red' ? 60 : (ballValues[ball.type] || 1) * 12;
-      const score = base - distCue * 3.5 - distPocket * 1.5;
+
+      // 計算擊球角度（越直越好）
+      const cueToBall = contactPoint.clone().sub(cueBall.position).setY(0).normalize();
+      const ballToPocket = pocketDir;
+      const angleCos = Math.abs(cueToBall.dot(ballToPocket));
+      const angleBonus = angleCos * 20;
+
+      const score = base - distCue * 3.5 - distPocket * 1.5 + angleBonus;
       if (!bestShot || score > bestShot.score) {
-        bestShot = { ball, pocket, contactPoint, score };
+        bestShot = { ball, pocket, contactPoint, score, kind: 'direct' };
+      }
+    }
+  }
+
+  // 2) 如果冇直接路線，嘗試經枱邊反彈打到目標球
+  if (!bestShot) {
+    const cushions = [
+      { normal: new THREE.Vector3(1, 0, 0), x: -halfW + BALL_RADIUS, axis: 'x' },   // 左邊
+      { normal: new THREE.Vector3(-1, 0, 0), x: halfW - BALL_RADIUS, axis: 'x' },   // 右邊
+      { normal: new THREE.Vector3(0, 0, 1), z: -halfL + BALL_RADIUS, axis: 'z' },   // 底邊
+      { normal: new THREE.Vector3(0, 0, -1), z: halfL - BALL_RADIUS, axis: 'z' },   // 頂邊
+    ];
+
+    for (const ball of targetBalls) {
+      for (const cushion of cushions) {
+        // 計算反彈點：入射角 = 反射角
+        // 鏡像目標球位置
+        let mirrorBall;
+        if (cushion.axis === 'x') {
+          mirrorBall = new THREE.Vector3(
+            2 * cushion.x - ball.position.x,
+            ball.position.y,
+            ball.position.z
+          );
+        } else {
+          mirrorBall = new THREE.Vector3(
+            ball.position.x,
+            ball.position.y,
+            2 * cushion.z - ball.position.z
+          );
+        }
+
+        // 白球到鏡像球嘅直線
+        const toMirror = mirrorBall.clone().sub(cueBall.position).setY(0);
+        const distTotal = toMirror.length();
+        if (distTotal < 0.1) continue;
+        const dirToMirror = toMirror.normalize();
+
+        // 計算反彈點
+        let bouncePoint;
+        if (cushion.axis === 'x') {
+          const t = (cushion.x - cueBall.position.x) / dirToMirror.x;
+          if (t < 0.1) continue;
+          bouncePoint = new THREE.Vector3(
+            cushion.x,
+            BALL_RADIUS,
+            cueBall.position.z + dirToMirror.z * t
+          );
+        } else {
+          const t = (cushion.z - cueBall.position.z) / dirToMirror.z;
+          if (t < 0.1) continue;
+          bouncePoint = new THREE.Vector3(
+            cueBall.position.x + dirToMirror.x * t,
+            BALL_RADIUS,
+            cushion.z
+          );
+        }
+
+        // 檢查反彈點係咪喺枱內
+        if (Math.abs(bouncePoint.x) > halfW - BALL_RADIUS * 1.5 ||
+            Math.abs(bouncePoint.z) > halfL - BALL_RADIUS * 1.5) continue;
+
+        // 檢查白球到反彈點有冇被擋
+        if (!isLineClear(cueBall.position, bouncePoint, null)) continue;
+        // 檢查反彈點到目標球有冇被擋
+        if (!isLineClear(bouncePoint, ball.position, ball)) continue;
+
+        const distCue = cueBall.position.distanceTo(bouncePoint);
+        const distBounce = bouncePoint.distanceTo(ball.position);
+        const base = ball.type === 'red' ? 40 : (ballValues[ball.type] || 1) * 8;  // 反彈球分數較低
+        const score = base - distCue * 2 - distBounce * 2;
+
+        if (!bestShot || score > bestShot.score) {
+          bestShot = {
+            ball,
+            contactPoint: bouncePoint,
+            score,
+            kind: 'cushion',
+            aimDir: dirToMirror.clone(),
+          };
+        }
       }
     }
   }
 
   if (bestShot) {
-    const dir = bestShot.contactPoint.clone().sub(cueBall.position).setY(0).normalize();
-    aimDirection.copy(dir);
-    power = Math.min(0.85, Math.max(0.45, 0.5 + bestShot.score * 0.002));
+    if (bestShot.kind === 'cushion' && bestShot.aimDir) {
+      aimDirection.copy(bestShot.aimDir);
+    } else {
+      const dir = bestShot.contactPoint.clone().sub(cueBall.position).setY(0).normalize();
+      aimDirection.copy(dir);
+    }
+    power = Math.min(0.85, Math.max(0.5, 0.55 + bestShot.score * 0.002));
     shootCueBall();
     return;
   }
 
+  // 3) 冇任何路線：打安全球（輕輕打向目標球方向）
   const fallback = targetBalls[0] || balls.find((ball) => ball.type !== 'cue' && !ball.pocketed);
   if (!fallback) return;
-  const dir = fallback.position.clone().sub(cueBall.position).setY(0).normalize();
+
+  // 搵一個唔會俾其他球擋住嘅目標
+  let safeTarget = null;
+  for (const ball of targetBalls) {
+    if (isLineClear(cueBall.position, ball.position, ball)) {
+      safeTarget = ball;
+      break;
+    }
+  }
+  if (!safeTarget) safeTarget = fallback;
+
+  const dir = safeTarget.position.clone().sub(cueBall.position).setY(0).normalize();
   aimDirection.copy(dir);
-  power = 0.35;
+  power = 0.25;  // 安全球用細力
   shootCueBall();
 }
 
 function queueAiCuePlacement() {
   if (!aiEnabled || currentPlayer !== 1) return;
   if (!cueBallInHand || shotInProgress || foulDecisionPending) return;
+  if (gameOver) return;
 
-  const candidates = [
-    new THREE.Vector3(0, BALL_RADIUS, baulkLineZ - dRadius * 0.55),
-    new THREE.Vector3(-dRadius * 0.45, BALL_RADIUS, baulkLineZ - dRadius * 0.45),
-    new THREE.Vector3(dRadius * 0.45, BALL_RADIUS, baulkLineZ - dRadius * 0.45),
-    new THREE.Vector3(0, BALL_RADIUS, baulkLineZ - dRadius * 0.2),
+  console.log('[AI] queueAiCuePlacement triggered');
+
+  const targets = legalTargetTypes();
+  const targetBalls = balls.filter(
+    (ball) => targets.includes(ball.type) && !ball.pocketed
+  );
+
+  // 評估每個候選位置：邊個對目標球最有利
+  const baseCandidates = [
+    new THREE.Vector3(-dRadius * 0.6, BALL_RADIUS, baulkLineZ - dRadius * 0.3),
+    new THREE.Vector3(dRadius * 0.6, BALL_RADIUS, baulkLineZ - dRadius * 0.3),
+    new THREE.Vector3(0, BALL_RADIUS, baulkLineZ - dRadius * 0.7),
+    new THREE.Vector3(-dRadius * 0.3, BALL_RADIUS, baulkLineZ - dRadius * 0.5),
+    new THREE.Vector3(dRadius * 0.3, BALL_RADIUS, baulkLineZ - dRadius * 0.5),
+    new THREE.Vector3(0, BALL_RADIUS, baulkLineZ - dRadius * 0.3),
+    new THREE.Vector3(-dRadius * 0.8, BALL_RADIUS, baulkLineZ),
+    new THREE.Vector3(dRadius * 0.8, BALL_RADIUS, baulkLineZ),
   ];
 
-  let placed = null;
-  for (let i = 0; i < candidates.length; i += 1) {
-    const probe = findNearestValidCuePlacement(candidates[i]);
-    if (isValidCuePlacement(probe)) {
-      placed = probe;
-      break;
+  let bestPlacement = null;
+  let bestScore = -Infinity;
+
+  for (const candidate of baseCandidates) {
+    const probe = findNearestValidCuePlacement(candidate, true);
+    if (!isValidCuePlacement(probe)) continue;
+
+    // 評估呢個位置對打波有幾好
+    let placeScore = 0;
+    for (const ball of targetBalls) {
+      // 檢查有冇清晰路線
+      if (isLineClear(probe, ball.position, ball)) {
+        const dist = probe.distanceTo(ball.position);
+        placeScore += 50 - dist * 10;  // 越近越好
+
+        // 檢查有冇直接入袋機會
+        for (const pocket of pockets) {
+          const toPocket = pocket.position.clone().sub(ball.position).setY(0);
+          const pocketDir = toPocket.clone().normalize();
+          const contactPoint = ball.position.clone().sub(pocketDir.multiplyScalar(BALL_RADIUS * 2));
+          if (isLineClear(ball.position, pocket.position, ball) &&
+              isLineClear(probe, contactPoint, ball)) {
+            placeScore += 30;  // 有入袋機會加分
+          }
+        }
+      }
+    }
+
+    if (placeScore > bestScore) {
+      bestScore = placeScore;
+      bestPlacement = probe;
     }
   }
-  if (!placed) {
-    placed = findNearestValidCuePlacement(cueStart.clone());
+
+  if (!bestPlacement) {
+    bestPlacement = findNearestValidCuePlacement(cueStart.clone(), true);
   }
 
-  cueBall.position.copy(placed);
-  cueBall.group.position.copy(placed);
+  cueBall.position.copy(bestPlacement);
+  cueBall.group.position.copy(bestPlacement);
   cueBall.velocity.set(0, 0, 0);
   cueBallInHand = false;
   stationaryTime = settledDuration;
   turnState = 'AIMING';
   setStatus('AI placed cue ball in D', 0.8);
   logRule('ai_cue_placement', {
-    x: Number(placed.x.toFixed(3)),
-    z: Number(placed.z.toFixed(3)),
+    x: Number(bestPlacement.x.toFixed(3)),
+    z: Number(bestPlacement.z.toFixed(3)),
+    score: bestScore,
   });
   updateAimLine();
   updateUi();
@@ -2044,13 +2333,25 @@ function handlePrimaryPointerMove(e) {
   }
 
   updatePointer(e);
-  if (turnState === 'AIMING_DRAG' && !isTouchDevice) {
+  if (turnState === 'AIMING_DRAG' && !isTouchDevice && isCharging) {
     // 電腦版儲力邏輯保持不變
     if (raycaster.ray.intersectPlane(tablePlane, aimHit)) {
       const dragVec = new THREE.Vector2(aimHit.x - dragStartPoint.x, aimHit.z - dragStartPoint.z);
       const aimVec2D = new THREE.Vector2(chargeLockedAimDirection.x, chargeLockedAimDirection.z);
       const pullBack = -(dragVec.x * aimVec2D.x + dragVec.y * aimVec2D.y);
-      power = Math.min(1, Math.max(0, pullBack * 4));
+
+      // 只有向後拉先更新 power；向前或停留唔改
+      if (pullBack > 0.02) {
+        power = Math.min(1, Math.max(0, pullBack * 4));
+      } else if (pullBack < -0.03) {
+        // 向前拉超過閾值：取消拉桿
+        power = 0;
+        isCharging = false;
+        turnState = 'AIMING';
+        if (powerFillEl) powerFillEl.style.width = '0%';
+        updateAimLine();
+      }
+      // pullBack 在 [-0.03, 0.02] 之間：維持現狀，唔變
     }
   }
 }
@@ -2504,9 +2805,28 @@ function checkPockets(ball) {
     const pocket = pockets[i];
     const dx = ball.position.x - pocket.position.x;
     const dz = ball.position.z - pocket.position.z;
-    if (dx * dx + dz * dz < pocket.radius * pocket.radius) {
-      handlePocket(ball);
-      return true;
+    const distSq = dx * dx + dz * dz;
+
+    // 中袋（side pocket）：只有球喺枱邊內側先算入袋
+    if (pocket.kind === 'side') {
+      // 中袋係半圓形，開口向枱內
+      // 左中袋 (x = -halfW)：球要喺 x > pocket.x 先算入袋範圍
+      // 右中袋 (x = +halfW)：球要喺 x < pocket.x 先算入袋範圍
+      const isLeftPocket = pocket.position.x < 0;
+      const inPocketZone = isLeftPocket ? (ball.position.x > pocket.position.x - pocket.radius * 0.3) 
+                                         : (ball.position.x < pocket.position.x + pocket.radius * 0.3);
+      if (!inPocketZone) continue;
+      // 縮細中袋檢測半徑，避免擦邊誤判
+      if (distSq < (pocket.radius * 0.75) * (pocket.radius * 0.75)) {
+        handlePocket(ball);
+        return true;
+      }
+    } else {
+      // 角袋：保持原本邏輯
+      if (distSq < pocket.radius * pocket.radius) {
+        handlePocket(ball);
+        return true;
+      }
     }
   }
   return false;
@@ -2681,12 +3001,24 @@ function evaluateShotIfStopped() {
         foulThisShot = true;
         foulReason = 'Potted red on color';
       }
+      // 新增：紅球後打彩球階段，入嘅彩球必須同 firstHit 一致
+      if (expectingColor && pottedColors.length > 0 && firstHitType) {
+        if (pottedColors.some((type) => type !== firstHitType)) {
+          foulThisShot = true;
+          foulReason = `Potted ${pottedColors.find(t => t !== firstHitType)} but hit ${firstHitType} first`;
+        }
+      }
     } else if (expectingColor) {
-      // 修正：最後紅波後打彩波階段，任意彩波都合法
-      // 只有同時入紅波先算犯規
+      // 最後紅波後打彩波階段，任意彩波都合法，但入波必須同 firstHit 一致
       if (pottedReds > 0) {
         foulThisShot = true;
         foulReason = 'Potted red on color';
+      }
+      if (pottedColors.length > 0 && firstHitType && firstHitType !== 'red') {
+        if (pottedColors.some((type) => type !== firstHitType)) {
+          foulThisShot = true;
+          foulReason = `Potted ${pottedColors.find(t => t !== firstHitType)} but hit ${firstHitType} first`;
+        }
       }
     } else {
       // 清台階段：必須按順序打
@@ -2734,6 +3066,7 @@ function stepSimulation(dt) {
   }
 
   if (!foulDecisionPending && !shotInProgress && aiEnabled && currentPlayer === 1 && cueBallInHand) {
+    console.log('[AI] About to call queueAiCuePlacement, cueBallInHand=', cueBallInHand);
     queueAiCuePlacement();
   }
 
