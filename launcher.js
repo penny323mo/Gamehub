@@ -38,7 +38,7 @@ const games = [
         title: 'Snooker',
         subtitle: '桌球! 2D 經典版 / 3D 立體版',
         icon: '🎱',
-        link: 'games/snooker_selector.html',
+        link: 'games/snooker/index.html',
         playable: true
     },
     {

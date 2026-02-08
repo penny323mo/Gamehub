@@ -49,9 +49,17 @@ body {
     color: var(--neon-cyan);
     font-size: 3rem;
     text-shadow: 0 0 15px rgba(34, 211, 238, 0.4);
-    margin-bottom: 2rem;
+    margin-bottom: 0.5rem;
     text-transform: uppercase;
     letter-spacing: 2px;
+}
+
+.hub-subnote {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    letter-spacing: 0.12em;
+    text-transform: lowercase;
+    margin-bottom: 1.6rem;
 }
 
 /* Carousel Container */

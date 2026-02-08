@@ -1,64 +1,166 @@
 <!doctype html>
-<html lang="zh-HK">
+<html lang="zh-Hant">
 
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport"
-    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <title>Snooker (簡化版)</title>
-  <link rel="stylesheet" href="style.css" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Snooker - 選擇版本</title>
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%);
+            font-family: "Helvetica Neue", "Noto Sans TC", Arial, sans-serif;
+            color: #e6f3ea;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(90deg, #4bd37f, #6ee7b7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: rgba(230, 243, 234, 0.7);
+            margin-bottom: 2.5rem;
+            font-size: 1rem;
+        }
+
+        .version-container {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            justify-content: center;
+            padding: 0 20px;
+        }
+
+        .version-card {
+            width: 260px;
+            padding: 28px 24px;
+            background: rgba(20, 28, 36, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .version-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+            border-color: rgba(75, 211, 127, 0.5);
+        }
+
+        .version-card:active {
+            transform: translateY(-2px);
+        }
+
+        .version-icon {
+            font-size: 3.5rem;
+            margin-bottom: 16px;
+        }
+
+        .version-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .version-desc {
+            font-size: 0.9rem;
+            color: rgba(230, 243, 234, 0.65);
+            line-height: 1.5;
+        }
+
+        .back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            padding: 10px 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #e6f3ea;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .card-2d {
+            border-color: rgba(100, 180, 255, 0.3);
+        }
+
+        .card-2d:hover {
+            border-color: rgba(100, 180, 255, 0.6);
+            box-shadow: 0 12px 32px rgba(100, 180, 255, 0.15);
+        }
+
+        .card-3d {
+            border-color: rgba(255, 180, 100, 0.3);
+        }
+
+        .card-3d:hover {
+            border-color: rgba(255, 180, 100, 0.6);
+            box-shadow: 0 12px 32px rgba(255, 180, 100, 0.15);
+        }
+
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .version-card {
+                width: 100%;
+                max-width: 300px;
+            }
+        }
+    </style>
 </head>
 
 <body>
-  <header class="topbar">
-    <a href="../snooker_selector.html" class="back-btn">← 返回</a>
-    <h1>Snooker</h1>
-  </header>
+    <a href="../../index.html" class="back-btn">← 返回 GameHub</a>
 
-  <main class="layout">
-    <section class="panel">
-      <div class="scoreboard">
-        <div id="score-left" class="score-box left"></div>
-        <div id="status-msg" class="status-msg">Loading...</div>
-        <div id="score-right" class="score-box right"></div>
-      </div>
-      <div class="tableWrap">
-        <canvas id="table" width="900" height="450" aria-label="Snooker table"></canvas>
-      </div>
-    </section>
+    <h1>🎱 Snooker 桌球</h1>
+    <p class="subtitle">選擇遊戲版本</p>
 
-    <section class="panel panel--controls">
-      <div class="controls">
-        <div class="btnRow">
-          <select id="modeSelect" class="btn"
-            style="background:#222; color:#eee; border:1px solid #444; margin-right:8px;">
-            <option value="practice">單人練習</option>
-            <option value="easy">AI (簡單)</option>
-            <option value="normal">AI (普通)</option>
-            <option value="hard">AI (困難)</option>
-          </select>
-          <button id="startBtn" class="btn btn--primary">開始遊戲</button>
-          <button id="aimBtn" class="btn">確認白球</button>
-          <button id="restartBtn2" class="btn">重新開始</button>
-        </div>
+    <div class="version-container">
+        <a href="./2d/index.html" class="version-card card-2d">
+            <div class="version-icon">🎯</div>
+            <div class="version-title">2D 經典版</div>
+            <div class="version-desc">簡潔俯視角度<br>快速載入、輕量級<br>適合手機遊玩</div>
+        </a>
 
-        <div class="control-group" style="display:flex; align-items:center; gap:12px; margin-top:8px;">
-          <div id="spinControl" class="spin-ball" title="Click to set spin">
-            <div id="spinMarker" class="spin-marker"></div>
-          </div>
-          <button id="resetSpinBtn" class="btn" style="font-size:12px; padding:4px 8px;">Reset Spin</button>
-          <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-size:13px; color:#ccc;">
-            <input type="checkbox" id="extendGuideChk" checked style="width:16px; height:16px;">
-            延長輔助線
-          </label>
-        </div>
-
-        <div class="hint" id="hint">拖動白球瞄準，向後拉桿儲力，放手出桿</div>
-      </div>
-    </section>
-  </main>
-
-  <script src="app.js" defer></script>
+        <a href="./3d/index.html" class="version-card card-3d">
+            <div class="version-icon">🌐</div>
+            <div class="version-title">3D 立體版</div>
+            <div class="version-desc">真實 3D 視角<br>自由旋轉鏡頭<br>沉浸式體驗</div>
+        </a>
+    </div>
 </body>
 
 </html>

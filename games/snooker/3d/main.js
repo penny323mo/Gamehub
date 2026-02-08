@@ -864,6 +864,7 @@ function updateUi() {
   }
 
   updateDecisionPanel();
+  document.body.classList.toggle('cue-placement', cueBallInHand);
   if (mobileControlsEl) {
     if (isTouchDevice && (turnState === 'AIMING' || turnState === 'AIMING_DRAG')) {
       mobileControlsEl.classList.add('show');
@@ -1295,7 +1296,8 @@ function isValidCuePlacement(pos) {
   if (!isCuePlacementClearOfBalls(pos)) return false;
   const dx = pos.x - 0;
   const dz = pos.z - baulkLineZ;
-  const inD = dx * dx + dz * dz <= dRadius * dRadius && pos.z <= baulkLineZ;
+  const towardCamera = (pos.z - baulkLineZ) * (camera.position.z - baulkLineZ) >= 0;
+  const inD = dx * dx + dz * dz <= dRadius * dRadius && towardCamera;
   return inD;
 }
 
@@ -1304,7 +1306,7 @@ function clampCuePlacementToD(pos) {
   const minX = -halfW + BALL_RADIUS;
   const maxX = halfW - BALL_RADIUS;
   const minZ = -halfL + BALL_RADIUS;
-  const maxZ = baulkLineZ;
+  const maxZ = halfL - BALL_RADIUS;
   clamped.x = THREE.MathUtils.clamp(clamped.x, minX, maxX);
   clamped.z = THREE.MathUtils.clamp(clamped.z, minZ, maxZ);
 
@@ -1319,6 +1321,12 @@ function clampCuePlacementToD(pos) {
   }
   clamped.x = local.x;
   clamped.z = local.z + baulkLineZ;
+
+  // keep only the half-circle that opens toward camera
+  if ((clamped.z - baulkLineZ) * (camera.position.z - baulkLineZ) < 0) {
+    clamped.z = baulkLineZ;
+  }
+
   clamped.y = BALL_RADIUS;
   return clamped;
 }
@@ -1752,9 +1760,11 @@ let isRotatingCamera = false;
 let mobileInputState = 'idle';  // 'idle' | 'aiming' | 'powering'
 let mobilePullStart = new THREE.Vector3();  // 開始儲力嘅位置
 let mobileAimLocked = false;  // 瞄準方向已鎖定
+let mobileChargeActive = false;  // 手機儲力按鈕中
 
 // 手機模式：預防誤觸控制區（下半部）
 function isTouchInControlArea(e) {
+  if (cueBallInHand) return false;
   return e.clientY > window.innerHeight * 0.75;
 }
 
@@ -1762,18 +1772,24 @@ function handlePrimaryPointerDown(e) {
   inputDebug.lastMouseDown = `btn=${e.button} x=${e.clientX} y=${e.clientY} state=${turnState}`;
   if (e.button !== 0) return;
   if (foulDecisionPending) return;
+  if (isTouchDevice && mobileChargeActive) return;
 
   // 手機模式處理
   if (isTouchDevice) {
-    // 1. 如果觸控點在下半部控制區 -> 唔處理（讓 HTML 元素接收事件）
-    // 或者如果在上半部但係枱外 -> 旋轉視角
-    const onTable = isTouchOnTable(e);
-    const inControlArea = isTouchInControlArea(e);
+    // 白球在手：任何觸控優先當成放球，禁止進入旋轉視角
+    if (cueBallInHand) {
+      // continue to placement flow
+    } else {
+      // 1. 如果觸控點在下半部控制區 -> 唔處理（讓 HTML 元素接收事件）
+      // 或者如果在上半部但係枱外 -> 旋轉視角
+      const onTable = isTouchOnTable(e);
+      const inControlArea = isTouchInControlArea(e);
 
-    if (inControlArea || !onTable) {
-      isRotatingCamera = true;
-      controls.enabled = true;
-      return;
+      if (inControlArea || !onTable) {
+        isRotatingCamera = true;
+        controls.enabled = true;
+        return;
+      }
     }
   }
 
@@ -1788,7 +1804,7 @@ function handlePrimaryPointerDown(e) {
   if (cueBallInHand) {
     isDraggingCueBall = true;
     turnState = 'PLACE_CUE_DRAG';
-    updateCueBallPlacementFromPointer(e);
+    updateCueBallPlacementFromPointer(e); // 若 raycast miss 會返回 false，但仍保持拖放狀態
     setStatus('拖動白球到 D 區...', 0.6);
     return;
   }
@@ -1859,6 +1875,9 @@ function handlePrimaryPointerDown(e) {
 function handlePrimaryPointerMove(e) {
   inputDebug.lastMouseMove = `x=${e.clientX} y=${e.clientY} dragCue=${isDraggingCueBall} cueInHand=${cueBallInHand}`;
   if (activePointerId !== null && e.pointerId !== undefined && e.pointerId !== activePointerId) {
+    return;
+  }
+  if (isTouchDevice && mobileChargeActive) {
     return;
   }
   if (cueBallInHand && isDraggingCueBall) {
@@ -2074,61 +2093,104 @@ if (confirmCueBtn) {
 
 // 手機儲力按鈕事件
 if (mobileChargeBtn) {
-  let powerInterval = null;
-  let powerDirection = 1; // 1: increasing, -1: decreasing
+  let rafId = null;
+  let lastTick = 0;
+
+  const tickCharge = () => {
+    if (!isCharging) return;
+    const now = performance.now();
+    const dt = Math.min(0.05, (now - lastTick) / 1000);
+    lastTick = now;
+    const rate = 1.2; // 線性上升
+    power = Math.min(1, power + dt * rate);
+    // 只更新 power bar，避免重排
+    if (powerFillEl) powerFillEl.style.width = `${Math.round(power * 100)}%`;
+    rafId = requestAnimationFrame(tickCharge);
+  };
 
   const startCharging = (e) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!canTakeShot()) return;
     if (aiEnabled && currentPlayer !== 0) return;
 
     isCharging = true;
+    mobileChargeActive = true;
     power = 0;
-    powerDirection = 1;
     mobileChargeBtn.classList.add('charging');
     mobileChargeBtn.textContent = '放手出桿';
 
     // 鎖定瞄準方向
     chargeLockedAimDirection.copy(aimDirection);
 
-    if (powerInterval) clearInterval(powerInterval);
-    powerInterval = setInterval(() => {
-      power += 0.02 * powerDirection;
-      if (power >= 1) {
-        power = 1;
-        powerDirection = -1;
-      } else if (power <= 0) {
-        power = 0;
-        powerDirection = 1;
-      }
-      // 更新 UI (powerFillEl 會喺 updateUi 更新，呢度主要更新按鈕視覺)
-      updateUi();
-    }, 16);
+    if (rafId) cancelAnimationFrame(rafId);
+    lastTick = performance.now();
+    rafId = requestAnimationFrame(tickCharge);
+  };
+
+  const cancelCharging = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!isCharging) return;
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    mobileChargeActive = false;
+    mobileChargeBtn.classList.remove('charging');
+    mobileChargeBtn.textContent = '撳住儲力';
+    isCharging = false;
+    power = 0;
+    if (powerFillEl) powerFillEl.style.width = '0%';
   };
 
   const stopChargingAndShoot = (e) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!isCharging) return;
 
-    if (powerInterval) {
-      clearInterval(powerInterval);
-      powerInterval = null;
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
     }
 
+    mobileChargeActive = false;
     mobileChargeBtn.classList.remove('charging');
     mobileChargeBtn.textContent = '撳住儲力';
 
     shootCueBall();
     isCharging = false;
     power = 0;
+    if (powerFillEl) powerFillEl.style.width = '0%';
   };
 
   mobileChargeBtn.addEventListener('pointerdown', startCharging);
   mobileChargeBtn.addEventListener('touchstart', startCharging);
 
+  const withinButton = (e) => {
+    const rect = mobileChargeBtn.getBoundingClientRect();
+    const x = e.clientX ?? (e.touches && e.touches[0] && e.touches[0].clientX);
+    const y = e.clientY ?? (e.touches && e.touches[0] && e.touches[0].clientY);
+    if (x == null || y == null) return true;
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+  };
+
   mobileChargeBtn.addEventListener('pointerup', stopChargingAndShoot);
   mobileChargeBtn.addEventListener('touchend', stopChargingAndShoot);
-  mobileChargeBtn.addEventListener('pointerleave', stopChargingAndShoot);
+  mobileChargeBtn.addEventListener('touchcancel', cancelCharging);
+
+  mobileChargeBtn.addEventListener('pointermove', (e) => {
+    if (isCharging && !withinButton(e)) {
+      cancelCharging(e);
+    }
+  });
+  mobileChargeBtn.addEventListener('touchmove', (e) => {
+    if (isCharging && !withinButton(e)) {
+      cancelCharging(e);
+    }
+  }, { passive: false });
 }
 
 // Spin control UI handlers
@@ -2766,59 +2828,6 @@ window.__snookerDebug = {
 onResize();
 resetGame();
 updatePointer({ clientX: window.innerWidth / 2, clientY: window.innerHeight / 2 });
-// 手機控制事件
-if (mobileChargeBtn) {
-  let chargeInterval = null;
-  let chargeDirection = 1;
-
-  const startCharging = (e) => {
-    e.preventDefault();
-    e.stopPropagation(); // 防止觸發背景點擊
-    if (!canTakeShot() || (aiEnabled && currentPlayer === 1)) return;
-
-    isCharging = true;
-    power = 0;
-    chargeDirection = 1;
-    mobileChargeBtn.classList.add('charging');
-
-    if (chargeInterval) clearInterval(chargeInterval);
-    chargeInterval = setInterval(() => {
-      power += 0.02 * chargeDirection;
-      if (power >= 1) {
-        power = 1;
-        chargeDirection = -1;
-      } else if (power <= 0) {
-        power = 0;
-        chargeDirection = 1;
-      }
-      updateUi(); // 更新 Power Bar
-    }, 20);
-  };
-
-  const stopChargingAndShoot = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!isCharging) return;
-
-    if (chargeInterval) clearInterval(chargeInterval);
-    chargeInterval = null;
-    mobileChargeBtn.classList.remove('charging');
-
-    // Shoot
-    shootCueBall();
-  };
-
-  mobileChargeBtn.addEventListener('touchstart', startCharging, { passive: false });
-  mobileChargeBtn.addEventListener('touchend', stopChargingAndShoot, { passive: false });
-  mobileChargeBtn.addEventListener('mousedown', startCharging);
-  mobileChargeBtn.addEventListener('mouseup', stopChargingAndShoot);
-  mobileChargeBtn.addEventListener('mouseleave', (e) => {
-    if (isCharging) {
-      stopChargingAndShoot(e);
-    }
-  });
-}
-
 // 防止手機控制面板誤觸
 if (mobileControlsEl) {
   const stopProp = (e) => e.stopPropagation();
