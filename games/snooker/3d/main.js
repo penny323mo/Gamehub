@@ -498,15 +498,7 @@ function createPottedPlant(position, scale = 1) {
   return plantGroup;
 }
 
-// 四角盆栽
-createPottedPlant(new THREE.Vector3(-7.5, -0.82, -7.5), 1.2);
-createPottedPlant(new THREE.Vector3(7.5, -0.82, -7.5), 1.2);
-createPottedPlant(new THREE.Vector3(-7.5, -0.82, 7.5), 1.0);
-createPottedPlant(new THREE.Vector3(7.5, -0.82, 7.5), 1.0);
-
-// 中間兩側
-createPottedPlant(new THREE.Vector3(-7.8, -0.82, 0), 0.9);
-createPottedPlant(new THREE.Vector3(7.8, -0.82, 0), 0.9);
+// 盆栽已移除（避免同觀眾席衝突）
 
 // === 真實桌球場地元素 ===
 
@@ -561,20 +553,21 @@ function createCueRack(position, rotation = 0, scale = 1) {
 // 粉筆座
 function createChalkHolder(position, scale = 1) {
   const group = new THREE.Group();
-  
-  // 小碟
-  const dishGeom = new THREE.CylinderGeometry(0.04, 0.035, 0.015, 16);
-  const dishMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.3, metalness: 0.5 });
-  const dish = new THREE.Mesh(dishGeom, dishMat);
-  group.add(dish);
-  
+
+  // 小木盒（枱邊粉筆盒）
+  const boxGeom = new THREE.BoxGeometry(0.08, 0.03, 0.06);
+  const boxMat = new THREE.MeshStandardMaterial({ color: 0x2b2118, roughness: 0.7, metalness: 0.1 });
+  const box = new THREE.Mesh(boxGeom, boxMat);
+  box.position.y = 0.015;
+  group.add(box);
+
   // 粉筆
   const chalkGeom = new THREE.BoxGeometry(0.025, 0.025, 0.025);
   const chalkMat = new THREE.MeshStandardMaterial({ color: 0x4169e1, roughness: 0.9 });
   const chalk = new THREE.Mesh(chalkGeom, chalkMat);
-  chalk.position.y = 0.02;
+  chalk.position.y = 0.04;
   group.add(chalk);
-  
+
   group.position.copy(position);
   group.scale.setScalar(scale);
   arenaGroup.add(group);
@@ -712,7 +705,9 @@ function createAudienceSeats(position, count = 5, scale = 1, rotationY = 0, addT
 function createAudienceBlock(position, rows = 2, perRow = 5, rowGap = 0.8, scale = 1, rotationY = 0, seatSpacing = 0.7) {
   const block = new THREE.Group();
   for (let r = 0; r < rows; r++) {
-    const row = createAudienceSeats(new THREE.Vector3(0, 0, -r * rowGap), perRow, 1, 0, false, seatSpacing);
+    const row = createAudienceSeats(new THREE.Vector3(0, 0, 0), perRow, 1, 0, false, seatSpacing);
+    row.position.z = r * rowGap; // 向枱方向排
+    row.position.y = 0; // 全部同一高度
     block.add(row);
   }
   block.position.copy(position);
@@ -1455,8 +1450,7 @@ const aimHit = new THREE.Vector3();
 // 放置場地元素（必須喺 CLOTH_Y, halfL 定義之後）
 createCueRack(new THREE.Vector3(-6.5, -0.82, -7), Math.PI / 4, 2);
 createCueRack(new THREE.Vector3(6.5, -0.82, -7), -Math.PI / 4, 2);
-createChalkHolder(new THREE.Vector3(-1.2, CLOTH_Y + 0.02, halfL + 0.15), 2);
-createChalkHolder(new THREE.Vector3(1.2, CLOTH_Y + 0.02, halfL + 0.15), 2);
+// 粉筆 item 已移除（避免放位突兀）
 createTriangleRack(new THREE.Vector3(-5, -0.82, 0), 2);
 
 // 四面電視計分牌
@@ -1468,11 +1462,11 @@ tvLeft.rotation.y = Math.PI / 2;
 const tvRight = createTVScoreboard(new THREE.Vector3(8.5, 2.8, 0));
 tvRight.rotation.y = -Math.PI / 2;
 
-// 四邊觀眾區（每區兩行，每行五張）
-createAudienceBlock(new THREE.Vector3(0, -0.82, 7.7), 2, 5, 0.8, 2, Math.PI, 0.8);
-createAudienceBlock(new THREE.Vector3(0, -0.82, -7.7), 2, 5, 0.8, 2, 0, 0.8);
-createAudienceBlock(new THREE.Vector3(-7.7, -0.82, 0), 2, 5, 0.8, 2, Math.PI / 2, 0.8);
-createAudienceBlock(new THREE.Vector3(7.7, -0.82, 0), 2, 5, 0.8, 2, -Math.PI / 2, 0.8);
+// 觀眾區（後方 + 左右牆）
+createAudienceBlock(new THREE.Vector3(0, -0.82, 7.2), 2, 5, 0.8, 2, Math.PI, 0.8);
+// 前方（飲品枱位置）不設觀眾席
+createAudienceBlock(new THREE.Vector3(-7.2, -0.82, 0), 2, 5, 0.8, 2, Math.PI / 2, 0.8);
+createAudienceBlock(new THREE.Vector3(7.2, -0.82, 0), 2, 5, 0.8, 2, -Math.PI / 2, 0.8);
 createSideTable(new THREE.Vector3(-3, -0.82, -6.5), 2);
 createSideTable(new THREE.Vector3(3, -0.82, -6.5), 2);
 // 飲品枱各放 1 張比賽者椅
