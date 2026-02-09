@@ -1120,7 +1120,7 @@ const TABLE_HEIGHT = 0.22;
 const RAIL_THICK = 0.12;
 const RAIL_HEIGHT = 0.08;
 const BALL_RADIUS = 0.035;
-const CLOTH_Y = 0;
+const CLOTH_Y = 0.005;
 
 const halfL = TABLE_LENGTH / 2;
 const halfW = TABLE_WIDTH / 2;
@@ -1253,7 +1253,7 @@ const clothOverlay = new THREE.Mesh(
 clothOverlay.rotation.x = -Math.PI / 2;
 clothOverlay.position.set(0, CLOTH_Y + 0.001, 0);
 
-tableGroup.add(cloth, clothOverlay);
+tableGroup.add(cloth);
 
 function createWoodTexture() {
   const canvas = document.createElement('canvas');
