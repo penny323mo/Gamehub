@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Tower Defense</title>
+  <script defer src="./assets/index-DixwqroV.js"></script>
+</head>
+
+<body>
+  <canvas id="game-canvas"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div id="hud-gold">💰 <span id="gold-val">400</span></div>
+    <div id="hud-lives">❤️ <span id="lives-val">20</span></div>
+    <div id="hud-wave">Wave <span id="wave-val">0</span>/20</div>
+    <button id="speed-btn">1×</button>
+  </div>
+
+  <!-- Wave Banner -->
+  <div id="wave-banner" class="hidden">
+    <div id="wave-banner-text"></div>
+  </div>
+
+  <!-- Build Menu -->
+  <div id="build-menu">
+    <div class="build-title">BUILD</div>
+    <div class="build-grid">
+      <button class="build-btn" data-tower="arrow">
+        <span class="build-icon">🏹</span>
+        <span class="build-name">Arrow</span>
+        <span class="build-cost">80g</span>
+      </button>
+      <button class="build-btn" data-tower="cannon">
+        <span class="build-icon">💣</span>
+        <span class="build-name">Cannon</span>
+        <span class="build-cost">120g</span>
+      </button>
+      <button class="build-btn" data-tower="ice">
+        <span class="build-icon">❄️</span>
+        <span class="build-name">Ice</span>
+        <span class="build-cost">80g</span>
+      </button>
+      <button class="build-btn" data-tower="fire">
+        <span class="build-icon">🔥</span>
+        <span class="build-name">Fire</span>
+        <span class="build-cost">100g</span>
+      </button>
+      <button class="build-btn" data-tower="lightning">
+        <span class="build-icon">⚡</span>
+        <span class="build-name">Lightning</span>
+        <span class="build-cost">110g</span>
+      </button>
+      <button class="build-btn" data-tower="poison">
+        <span class="build-icon">☠️</span>
+        <span class="build-name">Poison</span>
+        <span class="build-cost">100g</span>
+      </button>
+      <button class="build-btn" data-tower="sniper">
+        <span class="build-icon">🎯</span>
+        <span class="build-name">Sniper</span>
+        <span class="build-cost">150g</span>
+      </button>
+    </div>
+    <button class="build-btn cancel-btn" id="cancel-build-btn" style="display:none;">
+      <span class="build-icon">✖</span>
+      <span class="build-name">Cancel</span>
+    </button>
+  </div>
+
+  <!-- Tower Panel (inspect/upgrade/sell) -->
+  <div id="tower-panel" class="hidden">
+    <div class="panel-header">
+      <span id="panel-tower-name">Arrow Tower</span>
+      <span id="panel-tower-level">Lv.1</span>
+      <button id="panel-close-btn">✕</button>
+    </div>
+    <div class="panel-stats">
+      <div>DMG: <span id="panel-dmg">15</span></div>
+      <div>SPD: <span id="panel-spd">1.0s</span></div>
+      <div>RNG: <span id="panel-rng">3.0</span></div>
+      <div id="panel-special-row">Special: <span id="panel-special">—</span></div>
+    </div>
+    <div class="panel-actions">
+      <button id="upgrade-btn" class="action-btn upgrade">⬆ Upgrade (<span id="upgrade-cost">80</span>g)</button>
+      <button id="sell-btn" class="action-btn sell">💰 Sell (<span id="sell-value">70</span>g)</button>
+    </div>
+  </div>
+
+  <!-- Start Screen -->
+  <div id="start-screen">
+    <div class="start-content">
+      <h1 class="game-title">⚔️ Tower Defense</h1>
+      <p class="game-subtitle">Defend your base through 20 waves!</p>
+      <button id="start-btn" class="big-btn">▶ START</button>
+    </div>
+  </div>
+
+  <!-- End Screen -->
+  <div id="end-screen" class="hidden">
+    <div class="end-content">
+      <h1 id="end-title">Victory!</h1>
+      <div id="end-score">Score: 0</div>
+      <div id="end-rank" class="rank">S</div>
+      <div class="end-actions">
+        <button id="restart-btn" class="big-btn">🔄 Restart</button>
+        <button id="home-btn" class="big-btn secondary">🏠 Home</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+
+</html>
