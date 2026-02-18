@@ -2454,6 +2454,8 @@ function resetCamera() {
 }
 
 function resetGame() {
+  // This project defaults to P1 vs AI on every fresh/reset game.
+  aiEnabled = true;
   gameOver = false;
   scores = [0, 0];
   currentPlayer = 0;
@@ -4126,12 +4128,21 @@ function resolveCushion(ball) {
   const bx = ball.position.x;
   const bz = ball.position.z;
 
+  const sidePocketSinkRadius = (p) => Math.max(0.001, p.radius - BALL_RADIUS);
+  const inSidePocketHalfCircle = (x, z, p, r) => {
+    const dx = x - p.position.x;
+    const dz = z - p.position.z;
+    const inwardSign = p.position.x < 0 ? 1 : -1;
+    const inward = dx * inwardSign;
+    return inward >= 0 && dx * dx + dz * dz <= r * r;
+  };
+
   // Check if ball is near any pocket (skip cushion collision if so)
   const isNearPocket = pockets.some((p) => {
     if (p.kind === 'side') {
-      // Side pockets are semicircles opening toward table center only.
-      const insideHalf = p.position.x < 0 ? bx >= p.position.x : bx <= p.position.x;
-      if (!insideHalf) return false;
+      // Side pocket physical gate: half-circle with center-radius reduced by ball radius.
+      const nearR = sidePocketSinkRadius(p) + BALL_RADIUS * 0.4;
+      return inSidePocketHalfCircle(bx, bz, p, nearR);
     }
     const dx = bx - p.position.x;
     const dz = bz - p.position.z;
@@ -4201,6 +4212,7 @@ function handlePocket(ball) {
 }
 
 function checkPockets(ball) {
+  const sidePocketSinkRadius = (p) => Math.max(0.001, p.radius - BALL_RADIUS);
   for (let i = 0; i < pockets.length; i += 1) {
     const pocket = pockets[i];
     const dx = ball.position.x - pocket.position.x;
@@ -4208,20 +4220,16 @@ function checkPockets(ball) {
     const distSq = dx * dx + dz * dz;
 
     if (pocket.kind === 'side') {
-      const u = pocket.position.x;
-      const v = pocket.position.z;
-      const len = Math.hypot(u, v) || 1;
-      const nx = -u / len;
-      const nz = -v / len;
-      const dot = dx * nx + dz * nz;
+      const sinkR = sidePocketSinkRadius(pocket);
+      const inwardSign = pocket.position.x < 0 ? 1 : -1;
+      const inward = dx * inwardSign;
       const dist = Math.sqrt(distSq);
-      const allowed = distSq <= pocket.radius * pocket.radius && dot >= 0;
-      if (debugVisible && dist <= pocket.radius + BALL_RADIUS * 0.5) {
+      const allowed = inward >= 0 && distSq <= sinkR * sinkR;
+      if (debugVisible && dist <= sinkR + BALL_RADIUS * 0.5) {
         console.log('[POCKET_GATE]', {
           kind: pocket.kind,
-          pocketCenter: { u, v },
-          n: { u: nx, v: nz },
-          dot,
+          sinkR,
+          inward,
           dist,
           allowed,
         });
@@ -4594,6 +4602,8 @@ window.render_game_to_text = () => {
     power: Number(power.toFixed(3)),
     cueBallSpeed: Number(cueBall.velocity.length().toFixed(4)),
     cueVisible: cueGroup.visible,
+    aiEnabled,
+    aiQueued,
     aimDir: { x: Number(aimDirection.x.toFixed(4)), z: Number(aimDirection.z.toFixed(4)) },
     guide: {
       extended: showExtendedGuide,
