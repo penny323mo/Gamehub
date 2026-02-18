@@ -1,106 +1,310 @@
 {
     "arrow": {
-        "name": "Arrow Tower",
+        "name": "Arrow",
+        "damageType": "physical",
         "levels": [
             {
-                "buildCost": 100,
+                "buildCost": 80,
                 "upgradeCost": 0,
-                "damage": 15,
-                "cooldownSec": 1.0,
-                "range": 3.0,
-                "slow": null,
-                "aoeRadius": 0
-            },
-            {
-                "buildCost": 0,
-                "upgradeCost": 80,
-                "damage": 25,
-                "cooldownSec": 0.9,
-                "range": 3.0,
-                "slow": null,
-                "aoeRadius": 0
-            },
-            {
-                "buildCost": 0,
-                "upgradeCost": 120,
-                "damage": 40,
-                "cooldownSec": 0.8,
+                "damage": 18,
+                "cooldownSec": 0.6,
                 "range": 3.5,
                 "slow": null,
-                "aoeRadius": 0
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 70,
+                "damage": 30,
+                "cooldownSec": 0.5,
+                "range": 4.0,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 130,
+                "damage": 50,
+                "cooldownSec": 0.4,
+                "range": 4.5,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": null
             }
         ]
     },
     "cannon": {
-        "name": "Cannon Tower",
-        "levels": [
-            {
-                "buildCost": 140,
-                "upgradeCost": 0,
-                "damage": 40,
-                "cooldownSec": 2.2,
-                "range": 3.0,
-                "slow": null,
-                "aoeRadius": 1.2
-            },
-            {
-                "buildCost": 0,
-                "upgradeCost": 110,
-                "damage": 65,
-                "cooldownSec": 2.0,
-                "range": 3.2,
-                "slow": null,
-                "aoeRadius": 1.3
-            },
-            {
-                "buildCost": 0,
-                "upgradeCost": 160,
-                "damage": 95,
-                "cooldownSec": 1.8,
-                "range": 3.5,
-                "slow": null,
-                "aoeRadius": 1.4
-            }
-        ]
-    },
-    "ice": {
-        "name": "Ice Tower",
+        "name": "Cannon",
+        "damageType": "physical",
         "levels": [
             {
                 "buildCost": 120,
                 "upgradeCost": 0,
+                "damage": 40,
+                "cooldownSec": 2.0,
+                "range": 3.0,
+                "slow": null,
+                "aoeRadius": 1.2,
+                "dot": null,
+                "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 100,
+                "damage": 65,
+                "cooldownSec": 1.8,
+                "range": 3.5,
+                "slow": null,
+                "aoeRadius": 1.5,
+                "dot": null,
+                "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 180,
+                "damage": 100,
+                "cooldownSec": 1.5,
+                "range": 4.0,
+                "slow": null,
+                "aoeRadius": 1.8,
+                "dot": null,
+                "chain": null
+            }
+        ]
+    },
+    "ice": {
+        "name": "Ice",
+        "damageType": "ice",
+        "levels": [
+            {
+                "buildCost": 80,
+                "upgradeCost": 0,
                 "damage": 8,
-                "cooldownSec": 0.8,
+                "cooldownSec": 1.2,
                 "range": 3.0,
                 "slow": {
-                    "pct": 0.30,
+                    "pct": 0.3,
                     "durationSec": 2.0
                 },
-                "aoeRadius": 0
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 70,
+                "damage": 14,
+                "cooldownSec": 1.0,
+                "range": 3.5,
+                "slow": {
+                    "pct": 0.4,
+                    "durationSec": 2.5
+                },
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 130,
+                "damage": 22,
+                "cooldownSec": 0.8,
+                "range": 4.0,
+                "slow": {
+                    "pct": 0.5,
+                    "durationSec": 3.0
+                },
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": null
+            }
+        ]
+    },
+    "fire": {
+        "name": "Fire",
+        "damageType": "fire",
+        "levels": [
+            {
+                "buildCost": 100,
+                "upgradeCost": 0,
+                "damage": 12,
+                "cooldownSec": 1.0,
+                "range": 3.0,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": {
+                    "dps": 10,
+                    "durationSec": 3.0
+                },
+                "chain": null
             },
             {
                 "buildCost": 0,
                 "upgradeCost": 90,
-                "damage": 12,
-                "cooldownSec": 0.75,
-                "range": 3.2,
-                "slow": {
-                    "pct": 0.35,
-                    "durationSec": 2.2
+                "damage": 20,
+                "cooldownSec": 0.9,
+                "range": 3.5,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": {
+                    "dps": 16,
+                    "durationSec": 3.0
                 },
-                "aoeRadius": 0
+                "chain": null
             },
             {
                 "buildCost": 0,
-                "upgradeCost": 140,
-                "damage": 18,
-                "cooldownSec": 0.70,
-                "range": 3.5,
-                "slow": {
-                    "pct": 0.40,
-                    "durationSec": 2.4
+                "upgradeCost": 160,
+                "damage": 32,
+                "cooldownSec": 0.8,
+                "range": 4.0,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": {
+                    "dps": 24,
+                    "durationSec": 3.5
                 },
-                "aoeRadius": 0
+                "chain": null
+            }
+        ]
+    },
+    "lightning": {
+        "name": "Lightning",
+        "damageType": "lightning",
+        "levels": [
+            {
+                "buildCost": 110,
+                "upgradeCost": 0,
+                "damage": 15,
+                "cooldownSec": 1.2,
+                "range": 3.5,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": {
+                    "targets": 2,
+                    "rangeFalloff": 2.0
+                }
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 100,
+                "damage": 25,
+                "cooldownSec": 1.0,
+                "range": 4.0,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": {
+                    "targets": 3,
+                    "rangeFalloff": 2.5
+                }
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 170,
+                "damage": 40,
+                "cooldownSec": 0.8,
+                "range": 4.5,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": {
+                    "targets": 4,
+                    "rangeFalloff": 3.0
+                }
+            }
+        ]
+    },
+    "poison": {
+        "name": "Poison",
+        "damageType": "poison",
+        "levels": [
+            {
+                "buildCost": 100,
+                "upgradeCost": 0,
+                "damage": 5,
+                "cooldownSec": 1.5,
+                "range": 3.0,
+                "slow": null,
+                "aoeRadius": 1.5,
+                "dot": {
+                    "dps": 8,
+                    "durationSec": 4.0
+                },
+                "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 90,
+                "damage": 8,
+                "cooldownSec": 1.3,
+                "range": 3.5,
+                "slow": null,
+                "aoeRadius": 1.8,
+                "dot": {
+                    "dps": 12,
+                    "durationSec": 4.0
+                },
+                "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 160,
+                "damage": 14,
+                "cooldownSec": 1.0,
+                "range": 4.0,
+                "slow": null,
+                "aoeRadius": 2.0,
+                "dot": {
+                    "dps": 18,
+                    "durationSec": 5.0
+                },
+                "chain": null
+            }
+        ]
+    },
+    "sniper": {
+        "name": "Sniper",
+        "damageType": "sniper",
+        "levels": [
+            {
+                "buildCost": 150,
+                "upgradeCost": 0,
+                "damage": 80,
+                "cooldownSec": 3.0,
+                "range": 6.0,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 130,
+                "damage": 140,
+                "cooldownSec": 2.5,
+                "range": 7.0,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 220,
+                "damage": 220,
+                "cooldownSec": 2.0,
+                "range": 8.0,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": null
             }
         ]
     }

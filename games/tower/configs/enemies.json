@@ -3,18 +3,106 @@
         "name": "Grunt",
         "hp": 60,
         "speed": 1.0,
-        "bounty": 8
+        "bounty": 8,
+        "weakness": [
+            "physical"
+        ],
+        "resistance": [],
+        "armor": 0,
+        "shield": 0,
+        "special": "none"
     },
     "tank": {
         "name": "Tank",
-        "hp": 220,
-        "speed": 0.55,
-        "bounty": 14
+        "hp": 280,
+        "speed": 0.5,
+        "bounty": 18,
+        "weakness": [
+            "fire"
+        ],
+        "resistance": [
+            "physical"
+        ],
+        "armor": 8,
+        "shield": 0,
+        "special": "none"
     },
     "runner": {
         "name": "Runner",
+        "hp": 80,
+        "speed": 1.6,
+        "bounty": 10,
+        "weakness": [
+            "ice"
+        ],
+        "resistance": [
+            "physical"
+        ],
+        "armor": 0,
+        "shield": 0,
+        "special": "none"
+    },
+    "swarm": {
+        "name": "Swarm",
+        "hp": 25,
+        "speed": 1.2,
+        "bounty": 3,
+        "weakness": [
+            "lightning"
+        ],
+        "resistance": [
+            "sniper"
+        ],
+        "armor": 0,
+        "shield": 0,
+        "special": "none"
+    },
+    "shield": {
+        "name": "Shield",
+        "hp": 100,
+        "speed": 0.8,
+        "bounty": 14,
+        "weakness": [
+            "fire"
+        ],
+        "resistance": [
+            "ice"
+        ],
+        "armor": 0,
+        "shield": 80,
+        "special": "none"
+    },
+    "healer": {
+        "name": "Healer",
         "hp": 90,
-        "speed": 1.4,
-        "bounty": 10
+        "speed": 0.7,
+        "bounty": 16,
+        "weakness": [
+            "poison"
+        ],
+        "resistance": [],
+        "armor": 0,
+        "shield": 0,
+        "special": "heal",
+        "healRadius": 2.5,
+        "healAmount": 15,
+        "healIntervalSec": 2.0
+    },
+    "boss": {
+        "name": "Boss",
+        "hp": 1200,
+        "speed": 0.4,
+        "bounty": 80,
+        "weakness": [
+            "sniper"
+        ],
+        "resistance": [
+            "physical",
+            "ice",
+            "poison"
+        ],
+        "armor": 12,
+        "shield": 0,
+        "special": "none"
     }
 }

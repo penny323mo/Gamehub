@@ -15,7 +15,7 @@
   <div id="hud">
     <div id="hud-gold">💰 <span id="gold-val">400</span></div>
     <div id="hud-lives">❤️ <span id="lives-val">20</span></div>
-    <div id="hud-wave">Wave <span id="wave-val">0</span>/10</div>
+    <div id="hud-wave">Wave <span id="wave-val">0</span>/20</div>
     <button id="speed-btn">1×</button>
   </div>
 
@@ -27,21 +27,43 @@
   <!-- Build Menu -->
   <div id="build-menu">
     <div class="build-title">BUILD</div>
-    <button class="build-btn" data-tower="arrow">
-      <span class="build-icon">🏹</span>
-      <span class="build-name">Arrow</span>
-      <span class="build-cost">100g</span>
-    </button>
-    <button class="build-btn" data-tower="cannon">
-      <span class="build-icon">💣</span>
-      <span class="build-name">Cannon</span>
-      <span class="build-cost">140g</span>
-    </button>
-    <button class="build-btn" data-tower="ice">
-      <span class="build-icon">❄️</span>
-      <span class="build-name">Ice</span>
-      <span class="build-cost">120g</span>
-    </button>
+    <div class="build-grid">
+      <button class="build-btn" data-tower="arrow">
+        <span class="build-icon">🏹</span>
+        <span class="build-name">Arrow</span>
+        <span class="build-cost">80g</span>
+      </button>
+      <button class="build-btn" data-tower="cannon">
+        <span class="build-icon">💣</span>
+        <span class="build-name">Cannon</span>
+        <span class="build-cost">120g</span>
+      </button>
+      <button class="build-btn" data-tower="ice">
+        <span class="build-icon">❄️</span>
+        <span class="build-name">Ice</span>
+        <span class="build-cost">80g</span>
+      </button>
+      <button class="build-btn" data-tower="fire">
+        <span class="build-icon">🔥</span>
+        <span class="build-name">Fire</span>
+        <span class="build-cost">100g</span>
+      </button>
+      <button class="build-btn" data-tower="lightning">
+        <span class="build-icon">⚡</span>
+        <span class="build-name">Lightning</span>
+        <span class="build-cost">110g</span>
+      </button>
+      <button class="build-btn" data-tower="poison">
+        <span class="build-icon">☠️</span>
+        <span class="build-name">Poison</span>
+        <span class="build-cost">100g</span>
+      </button>
+      <button class="build-btn" data-tower="sniper">
+        <span class="build-icon">🎯</span>
+        <span class="build-name">Sniper</span>
+        <span class="build-cost">150g</span>
+      </button>
+    </div>
     <button class="build-btn cancel-btn" id="cancel-build-btn" style="display:none;">
       <span class="build-icon">✖</span>
       <span class="build-name">Cancel</span>
@@ -71,7 +93,7 @@
   <div id="start-screen">
     <div class="start-content">
       <h1 class="game-title">⚔️ Tower Defense</h1>
-      <p class="game-subtitle">Defend your base through 10 waves!</p>
+      <p class="game-subtitle">Defend your base through 20 waves!</p>
       <button id="start-btn" class="big-btn">▶ START</button>
     </div>
   </div>

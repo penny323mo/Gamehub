@@ -1,4 +1,4 @@
-import type { GameState, Enemy, EnemyType } from '../types';
+import type { GameState, Enemy, EnemyType, DamageType } from '../types';
 import { WAVES, ENEMIES } from '../config';
 import { cellToWorld } from '../path';
 import { MAP } from '../config';
@@ -52,9 +52,9 @@ export function tickWave(state: GameState, dt: number): void {
 
     if (allSpawned && allDead) {
         // Score this wave
-        state.score += state.currentWave < WAVES.waves.length ? 100 : 0; // waveScore
+        state.score += state.currentWave < WAVES.waves.length ? 100 : 0;
         if (state.waveLivesLostThisWave === 0) {
-            state.score += 200; // perfectWaveBonus
+            state.score += 150; // perfectWaveBonus
             state.perfectWaves++;
         }
 
@@ -64,7 +64,7 @@ export function tickWave(state: GameState, dt: number): void {
         state.projectiles = state.projectiles.filter(p => p.alive);
 
         if (state.currentWave >= WAVES.waves.length) {
-            state.score += state.lives * 50; // lifeBonus
+            state.score += state.lives * 25; // lifeBonus
             state.phase = 'won';
         } else {
             startNextWave(state);
@@ -92,6 +92,12 @@ function spawnEnemy(state: GameState, type: EnemyType): void {
         alive: true,
         reached: false,
         slow: null,
+        dots: [],
+        shield: cfg.shield ?? 0,
+        maxShield: cfg.shield ?? 0,
+        armor: cfg.armor ?? 0,
+        special: cfg.special ?? 'none',
+        healCooldown: 0,
     };
 
     state.enemies.push(enemy);

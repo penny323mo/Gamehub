@@ -1,6 +1,7 @@
-import type { GameState } from '../types';
+import type { GameState, Enemy, DamageType } from '../types';
+import { ENEMIES } from '../config';
 
-/** Move projectiles and resolve hits */
+/** Move projectiles and resolve hits with counter system */
 export function tickCombat(state: GameState, dt: number): void {
     for (const proj of state.projectiles) {
         if (!proj.alive) continue;
@@ -30,18 +31,69 @@ export function tickCombat(state: GameState, dt: number): void {
                     const ez = enemy.worldZ - proj.targetZ;
                     const ed = Math.sqrt(ex * ex + ez * ez);
                     if (ed <= proj.aoeRadius) {
-                        applyDamage(state, enemy, proj.damage);
+                        applyHit(state, enemy, proj.damage, proj.damageType);
                         if (proj.slow) {
                             enemy.slow = { pct: proj.slow.pct, remaining: proj.slow.durationSec };
                         }
+                        if (proj.dot) {
+                            // Add DOT, stacking with existing
+                            enemy.dots.push({
+                                dps: proj.dot.dps,
+                                remaining: proj.dot.durationSec,
+                                damageType: proj.damageType,
+                            });
+                        }
+                    }
+                }
+            } else if (proj.chain && proj.chain.targets > 0) {
+                // Chain lightning — hit primary + jump to nearby
+                const hitEnemies: Enemy[] = [];
+                if (target && target.alive && !target.reached) {
+                    applyHit(state, target, proj.damage, proj.damageType);
+                    hitEnemies.push(target);
+                    if (proj.slow) {
+                        target.slow = { pct: proj.slow.pct, remaining: proj.slow.durationSec };
+                    }
+                }
+
+                let lastHit = target;
+                for (let i = 0; i < proj.chain.targets && lastHit; i++) {
+                    let nearest: Enemy | null = null;
+                    let nearestDist = proj.chain.rangeFalloff;
+
+                    for (const enemy of state.enemies) {
+                        if (!enemy.alive || enemy.reached) continue;
+                        if (hitEnemies.includes(enemy)) continue;
+                        const cdx = enemy.worldX - lastHit.worldX;
+                        const cdz = enemy.worldZ - lastHit.worldZ;
+                        const cd = Math.sqrt(cdx * cdx + cdz * cdz);
+                        if (cd < nearestDist) {
+                            nearestDist = cd;
+                            nearest = enemy;
+                        }
+                    }
+
+                    if (nearest) {
+                        applyHit(state, nearest, proj.damage * 0.7, proj.damageType); // 70% for chain
+                        hitEnemies.push(nearest);
+                        lastHit = nearest;
+                    } else {
+                        break;
                     }
                 }
             } else {
                 // Single target
                 if (target && target.alive && !target.reached) {
-                    applyDamage(state, target, proj.damage);
+                    applyHit(state, target, proj.damage, proj.damageType);
                     if (proj.slow) {
                         target.slow = { pct: proj.slow.pct, remaining: proj.slow.durationSec };
+                    }
+                    if (proj.dot) {
+                        target.dots.push({
+                            dps: proj.dot.dps,
+                            remaining: proj.dot.durationSec,
+                            damageType: proj.damageType,
+                        });
                     }
                 }
             }
@@ -55,8 +107,30 @@ export function tickCombat(state: GameState, dt: number): void {
     state.projectiles = state.projectiles.filter(p => p.alive);
 }
 
-function applyDamage(state: GameState, enemy: { id: number; hp: number; alive: boolean; bounty: number }, damage: number): void {
-    enemy.hp -= damage;
+/** Apply damage with shield + counter system */
+function applyHit(state: GameState, enemy: Enemy, baseDmg: number, damageType: DamageType): void {
+    const cfg = ENEMIES[enemy.type];
+    let dmg = baseDmg;
+
+    // Counter multipliers
+    if (cfg.weakness?.includes(damageType)) dmg *= 1.5;
+    if (cfg.resistance?.includes(damageType)) dmg *= 0.5;
+
+    // Armor
+    dmg = Math.max(1, dmg - enemy.armor);
+
+    // Shield absorb first
+    if (enemy.shield > 0) {
+        if (dmg <= enemy.shield) {
+            enemy.shield -= dmg;
+            return; // All absorbed
+        } else {
+            dmg -= enemy.shield;
+            enemy.shield = 0;
+        }
+    }
+
+    enemy.hp -= dmg;
     if (enemy.hp <= 0) {
         enemy.hp = 0;
         enemy.alive = false;

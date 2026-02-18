@@ -7,7 +7,8 @@ export function tickTowers(state: GameState, dt: number): void {
         tower.cooldownRemaining -= dt;
         if (tower.cooldownRemaining > 0) continue;
 
-        const cfg = TOWERS[tower.type].levels[tower.level];
+        const towerCfg = TOWERS[tower.type];
+        const cfg = towerCfg.levels[tower.level];
         const range = cfg.range;
 
         // Find closest enemy in range (prefer furthest along path)
@@ -21,7 +22,6 @@ export function tickTowers(state: GameState, dt: number): void {
             const d = Math.sqrt(dx * dx + dz * dz);
 
             if (d <= range) {
-                // Prefer enemy furthest along path
                 const progress = enemy.pathIndex + enemy.pathProgress;
                 if (progress > bestProgress) {
                     bestProgress = progress;
@@ -31,15 +31,17 @@ export function tickTowers(state: GameState, dt: number): void {
         }
 
         if (bestEnemy) {
-            // Fire projectile
             const proj: Projectile = {
                 id: state.nextId++,
                 fromTowerId: tower.id,
                 targetEnemyId: bestEnemy.id,
                 towerType: tower.type,
+                damageType: towerCfg.damageType,
                 damage: cfg.damage,
                 aoeRadius: cfg.aoeRadius,
                 slow: cfg.slow,
+                dot: cfg.dot,
+                chain: cfg.chain,
                 x: tower.worldX,
                 z: tower.worldZ,
                 targetX: bestEnemy.worldX,

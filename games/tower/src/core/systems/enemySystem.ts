@@ -1,7 +1,8 @@
-import type { GameState } from '../types';
+import type { GameState, Enemy, DamageType } from '../types';
+import { ENEMIES } from '../config';
 import { dist } from '../path';
 
-/** Move enemies along the path */
+/** Move enemies along the path, tick DOTs, tick healer ability */
 export function tickEnemies(state: GameState, dt: number): void {
     const path = state.pathWorld;
     if (path.length < 2) return;
@@ -13,6 +14,19 @@ export function tickEnemies(state: GameState, dt: number): void {
         enemy.prevWorldX = enemy.worldX;
         enemy.prevWorldZ = enemy.worldZ;
 
+        // Tick DOT effects
+        for (let i = enemy.dots.length - 1; i >= 0; i--) {
+            const dot = enemy.dots[i];
+            const dotDmg = dot.dps * dt;
+            applyRawDamage(state, enemy, dotDmg, dot.damageType);
+            dot.remaining -= dt;
+            if (dot.remaining <= 0) {
+                enemy.dots.splice(i, 1);
+            }
+            if (!enemy.alive) break;
+        }
+        if (!enemy.alive) continue;
+
         // Apply slow
         let speed = enemy.speed;
         if (enemy.slow) {
@@ -20,6 +34,26 @@ export function tickEnemies(state: GameState, dt: number): void {
             enemy.slow.remaining -= dt;
             if (enemy.slow.remaining <= 0) {
                 enemy.slow = null;
+            }
+        }
+
+        // Healer ability — heal nearby enemies
+        if (enemy.special === 'heal') {
+            const cfg = ENEMIES[enemy.type];
+            enemy.healCooldown -= dt;
+            if (enemy.healCooldown <= 0) {
+                const hRadius = cfg.healRadius ?? 2.5;
+                const hAmount = cfg.healAmount ?? 15;
+                for (const other of state.enemies) {
+                    if (!other.alive || other.reached || other.id === enemy.id) continue;
+                    const dx = other.worldX - enemy.worldX;
+                    const dz = other.worldZ - enemy.worldZ;
+                    const d = Math.sqrt(dx * dx + dz * dz);
+                    if (d <= hRadius) {
+                        other.hp = Math.min(other.maxHp, other.hp + hAmount);
+                    }
+                }
+                enemy.healCooldown = cfg.healIntervalSec ?? 2.0;
             }
         }
 
@@ -51,7 +85,6 @@ export function tickEnemies(state: GameState, dt: number): void {
 
         // Update world position
         if (enemy.pathIndex >= path.length - 1) {
-            // Reached the goal
             enemy.reached = true;
             enemy.alive = false;
             state.lives--;
@@ -70,5 +103,25 @@ export function tickEnemies(state: GameState, dt: number): void {
             enemy.worldX = from.x + (to.x - from.x) * enemy.pathProgress;
             enemy.worldZ = from.z + (to.z - from.z) * enemy.pathProgress;
         }
+    }
+}
+
+/** Apply raw damage considering armor and damage type weakness/resistance */
+function applyRawDamage(state: GameState, enemy: Enemy, baseDmg: number, damageType: DamageType): void {
+    const cfg = ENEMIES[enemy.type];
+    let dmg = baseDmg;
+
+    // Counter multipliers
+    if (cfg.weakness?.includes(damageType)) dmg *= 1.5;
+    if (cfg.resistance?.includes(damageType)) dmg *= 0.5;
+
+    // Armor reduces damage (flat)
+    dmg = Math.max(1, dmg - enemy.armor);
+
+    enemy.hp -= dmg;
+    if (enemy.hp <= 0) {
+        enemy.hp = 0;
+        enemy.alive = false;
+        state.gold += enemy.bounty;
     }
 }

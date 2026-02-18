@@ -1,13 +1,24 @@
 // ─── Core Types (no THREE imports) ───
 
-export type TowerType = 'arrow' | 'cannon' | 'ice';
-export type EnemyType = 'grunt' | 'tank' | 'runner';
+export type TowerType = 'arrow' | 'cannon' | 'ice' | 'fire' | 'lightning' | 'poison' | 'sniper';
+export type EnemyType = 'grunt' | 'tank' | 'runner' | 'swarm' | 'shield' | 'healer' | 'boss';
+export type DamageType = 'physical' | 'fire' | 'ice' | 'lightning' | 'poison' | 'sniper';
 
 export interface Vec2 { x: number; z: number; }
 
 export interface SlowConfig {
     pct: number;
     durationSec: number;
+}
+
+export interface DotConfig {
+    dps: number;         // damage per second
+    durationSec: number;
+}
+
+export interface ChainConfig {
+    targets: number;     // how many extra enemies to jump to
+    rangeFalloff: number; // range for chain jump
 }
 
 export interface TowerLevelConfig {
@@ -18,10 +29,13 @@ export interface TowerLevelConfig {
     range: number;
     slow: SlowConfig | null;
     aoeRadius: number;
+    dot: DotConfig | null;
+    chain: ChainConfig | null;
 }
 
 export interface TowerConfig {
     name: string;
+    damageType: DamageType;
     levels: TowerLevelConfig[];
 }
 
@@ -30,6 +44,15 @@ export interface EnemyConfig {
     hp: number;
     speed: number;
     bounty: number;
+    weakness: DamageType[];
+    resistance: DamageType[];
+    armor: number;        // flat damage reduction
+    shield: number;       // absorb shield HP (blocks first N dmg)
+    special: string;      // 'none' | 'heal' | 'shield_regen'
+    healRadius?: number;
+    healAmount?: number;
+    healIntervalSec?: number;
+    shieldRegenDelay?: number;
 }
 
 export interface SpawnGroup {
@@ -83,6 +106,12 @@ export interface SlowEffect {
     remaining: number;
 }
 
+export interface DotEffect {
+    dps: number;
+    remaining: number;
+    damageType: DamageType;
+}
+
 export interface Enemy {
     id: number;
     type: EnemyType;
@@ -99,6 +128,12 @@ export interface Enemy {
     alive: boolean;
     reached: boolean;
     slow: SlowEffect | null;
+    dots: DotEffect[];
+    shield: number;
+    maxShield: number;
+    armor: number;
+    special: string;
+    healCooldown: number;
 }
 
 export interface Projectile {
@@ -106,9 +141,12 @@ export interface Projectile {
     fromTowerId: number;
     targetEnemyId: number;
     towerType: TowerType;
+    damageType: DamageType;
     damage: number;
     aoeRadius: number;
     slow: SlowConfig | null;
+    dot: DotConfig | null;
+    chain: ChainConfig | null;
     x: number;
     z: number;
     targetX: number;

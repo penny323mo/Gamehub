@@ -5,6 +5,10 @@ const PROJ_COLORS: Record<TowerType, number> = {
     arrow: 0xffdd44,
     cannon: 0xff6633,
     ice: 0x88ddff,
+    fire: 0xff4400,
+    lightning: 0xffff00,
+    poison: 0x66ff33,
+    sniper: 0xaaaaff,
 };
 
 export class FxRenderer {

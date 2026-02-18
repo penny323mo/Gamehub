@@ -1207,300 +1207,112 @@ function buildInnerHoleWithSideNotches(TABLE_W, TABLE_L, SIDE_R) {
 function buildUnifiedInnerHole6Pockets(TABLE_W, TABLE_L, cornerR, sideR, pocketCenters = []) {
   const hw = TABLE_W / 2;
   const hl = TABLE_L / 2;
+  const rc = cornerR;
   const rs = sideR;
+  const corners = pocketCenters.filter((p) => (p.kind ?? p.type) === 'corner');
   const sides = pocketCenters.filter((p) => (p.kind ?? p.type) === 'side');
+  const tr = corners.find((p) => p.x > 0 && p.z > 0) || { x: hw, z: hl, r: rc };
+  const br = corners.find((p) => p.x > 0 && p.z < 0) || { x: hw, z: -hl, r: rc };
+  const bl = corners.find((p) => p.x < 0 && p.z < 0) || { x: -hw, z: -hl, r: rc };
+  const tl = corners.find((p) => p.x < 0 && p.z > 0) || { x: -hw, z: hl, r: rc };
   const rightSide = sides.find((p) => p.x > 0) || { x: hw, z: 0, r: rs };
   const leftSide = sides.find((p) => p.x < 0) || { x: -hw, z: 0, r: rs };
 
+  const rTR = tr.r ?? rc;
+  const rBR = br.r ?? rc;
+  const rBL = bl.r ?? rc;
+  const rTL = tl.r ?? rc;
+  const rRS = rightSide.r ?? rs;
+  const rLS = leftSide.r ?? rs;
   const safeSqrt = (v) => Math.sqrt(Math.max(0, v));
-  const EPS = 1e-6;
-  const TWO_PI = Math.PI * 2;
-  const normalizeDelta = (start, end, clockwise) => {
-    let d = end - start;
-    if (clockwise && d > 0) d -= TWO_PI;
-    if (!clockwise && d < 0) d += TWO_PI;
-    return d;
-  };
-  const segIntersects = (a, b, c, d) => {
-    const cross = (p1, p2, p3) => (p2.x - p1.x) * (p3.y - p1.y) - (p2.y - p1.y) * (p3.x - p1.x);
-    const o1 = cross(a, b, c);
-    const o2 = cross(a, b, d);
-    const o3 = cross(c, d, a);
-    const o4 = cross(c, d, b);
-    return ((o1 > 0 && o2 < 0) || (o1 < 0 && o2 > 0)) && ((o3 > 0 && o4 < 0) || (o3 < 0 && o4 > 0));
-  };
-  const hasSelfIntersectionClosed = (pts) => {
-    const n = pts.length;
-    if (n < 4) return false;
-    for (let i = 0; i < n; i += 1) {
-      const a1 = pts[i];
-      const a2 = pts[(i + 1) % n];
-      for (let j = i + 1; j < n; j += 1) {
-        const jn = (j + 1) % n;
-        if (i === j || (i + 1) % n === j || i === jn) continue; // adjacent edges
-        if (segIntersects(a1, a2, pts[j], pts[jn])) return true;
-      }
-    }
-    return false;
-  };
-  const sampleArcPoints = (cx, cz, r, a0, a1, clockwise, steps = 16) => {
-    const d = normalizeDelta(a0, a1, clockwise);
-    const pts = [];
-    for (let i = 0; i <= steps; i += 1) {
-      const t = i / steps;
-      const a = a0 + d * t;
-      pts.push({ x: cx + Math.cos(a) * r, y: cz + Math.sin(a) * r });
-    }
-    return pts;
-  };
-  const signedArea = (pts) => {
-    if (!pts || pts.length < 3) return 0;
-    let a = 0;
-    for (let i = 0; i < pts.length; i += 1) {
-      const p0 = pts[i];
-      const p1 = pts[(i + 1) % pts.length];
-      a += p0.x * p1.y - p1.x * p0.y;
-    }
-    return a * 0.5;
-  };
-  const bboxOfPoints = (pts) =>
-    pts.reduce(
-      (acc, pt) => ({
-        minX: Math.min(acc.minX, pt.x),
-        maxX: Math.max(acc.maxX, pt.x),
-        minZ: Math.min(acc.minZ, pt.y),
-        maxZ: Math.max(acc.maxZ, pt.y),
-      }),
-      { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity }
-    );
-  const makePathFromPoints = (pts) => {
-    const p = new THREE.Path();
-    if (!pts.length) return p;
-    p.moveTo(pts[0].x, pts[0].y);
-    for (let i = 1; i < pts.length; i += 1) p.lineTo(pts[i].x, pts[i].y);
-    p.closePath();
-    return p;
-  };
-  const pickCenterTowardPocket = (a, b, r, pocketInteriorRef) => {
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const d = Math.hypot(dx, dy);
-    if (d < EPS) throw new Error('[CORNER] degenerate throat endpoints');
-    if (r < d / 2 - EPS) {
-      throw new Error(`[CORNER] radius too small for throat endpoints: r=${r}, d/2=${d / 2}`);
-    }
-    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-    const h = safeSqrt(r * r - (d / 2) ** 2);
-    const nx = -dy / d;
-    const ny = dx / d;
-    const c1 = { x: mid.x + nx * h, y: mid.y + ny * h };
-    const c2 = { x: mid.x - nx * h, y: mid.y - ny * h };
-    const d1 = Math.hypot(c1.x - pocketInteriorRef.x, c1.y - pocketInteriorRef.y);
-    const d2 = Math.hypot(c2.x - pocketInteriorRef.x, c2.y - pocketInteriorRef.y);
-    return d1 <= d2 ? c1 : c2;
-  };
-  const arcInfoShort = (center, fromPt, toPt) => {
-    const a0 = Math.atan2(fromPt.y - center.y, fromPt.x - center.x);
-    const a1 = Math.atan2(toPt.y - center.y, toPt.x - center.x);
-    let d = a1 - a0;
-    while (d > Math.PI) d -= TWO_PI;
-    while (d < -Math.PI) d += TWO_PI;
-    const clockwise = d < 0;
-    return { a0, a1: a0 + d, delta: d, clockwise };
-  };
 
-  // Unified hole must stay a clean rectangle in Step 1.
-  const unifiedHole = new THREE.Path();
-  unifiedHole.moveTo(-hw, hl);
-  unifiedHole.lineTo(hw, hl);
-  unifiedHole.lineTo(hw, -hl);
-  unifiedHole.lineTo(-hw, -hl);
-  unifiedHole.closePath();
+  // Corner pocket intersections with cloth rectangle edges.
+  const trTopX = tr.x - safeSqrt(rTR * rTR - (hl - tr.z) * (hl - tr.z));
+  const trSideZ = tr.z - safeSqrt(rTR * rTR - (hw - tr.x) * (hw - tr.x));
+  const brSideZ = br.z + safeSqrt(rBR * rBR - (hw - br.x) * (hw - br.x));
+  const brBottomX = br.x - safeSqrt(rBR * rBR - (-hl - br.z) * (-hl - br.z));
+  const blBottomX = bl.x + safeSqrt(rBL * rBL - (-hl - bl.z) * (-hl - bl.z));
+  const blSideZ = bl.z + safeSqrt(rBL * rBL - (-hw - bl.x) * (-hw - bl.x));
+  const tlSideZ = tl.z - safeSqrt(rTL * rTL - (-hw - tl.x) * (-hw - tl.x));
+  const tlTopX = tl.x + safeSqrt(rTL * rTL - (hl - tl.z) * (hl - tl.z));
 
-  // Step 1: side pocket mouth = two approach lines + one short throat arc (<= 180deg).
-  const sideCfg = {
-    mouthWidthBase: 0.150,
-    throatWidth: 0.098,
-    throatDepth: 0.030,
-    throatRadius: 0.055,
-    approachAngleDeg: 32,
-    jawInset: 0.010,
-    noseCut: 0.008,
-  };
-  const sideMouthWidth = sideCfg.mouthWidthBase - 2 * sideCfg.noseCut;
-  const sideThroatWidth = sideCfg.throatWidth;
-  const sideThroatInset = sideCfg.throatDepth + sideCfg.jawInset;
-  const sideThroatR = sideCfg.throatRadius;
-  console.assert(sideMouthWidth > sideThroatWidth + EPS, '[SIDE] throat must be narrower than mouth', {
-    sideMouthWidth,
-    sideThroatWidth,
-  });
-  console.assert(sideThroatR >= sideThroatWidth / 2 + EPS, '[SIDE] throat radius too small', {
-    sideThroatR,
-    sideThroatWidth,
-  });
-  console.assert(sideThroatInset > EPS, '[SIDE] throat inset invalid', sideThroatInset);
+  // Side pocket intersections with cloth side edges.
+  const rightDx = hw - rightSide.x;
+  const rightDz = safeSqrt(rRS * rRS - rightDx * rightDx);
+  const rsTopZ = rightSide.z + rightDz;
+  const rsBottomZ = rightSide.z - rightDz;
 
-  const rsMTopZ = rightSide.z + sideMouthWidth / 2;
-  const rsMBottomZ = rightSide.z - sideMouthWidth / 2;
-  const rsTTopZ = rightSide.z + sideThroatWidth / 2;
-  const rsTBottomZ = rightSide.z - sideThroatWidth / 2;
-  const rsTx = hw - sideThroatInset;
-  const rsH = safeSqrt(sideThroatR * sideThroatR - (sideThroatWidth / 2) ** 2);
-  const rsCx = rsTx - rsH; // inward for right side
-  const rsA0 = Math.atan2(rsTTopZ - rightSide.z, rsTx - rsCx);
-  const rsA1 = Math.atan2(rsTBottomZ - rightSide.z, rsTx - rsCx);
-  const rsDelta = normalizeDelta(rsA0, rsA1, true);
-  if (Math.abs(rsDelta) > Math.PI + 1e-5) {
-    throw new Error(`[SIDE-R] throat arc over 180deg: delta=${rsDelta}`);
-  }
-  const rsArcPts = sampleArcPoints(rsCx, rightSide.z, sideThroatR, rsA0, rsA1, true, 20);
-  const rsHolePts = [
-    { x: hw, y: rsMTopZ },
-    { x: rsTx, y: rsTTopZ },
-    ...rsArcPts.slice(1, -1),
-    { x: rsTx, y: rsTBottomZ },
-    { x: hw, y: rsMBottomZ },
-  ];
-  const rsBBox = bboxOfPoints(rsHolePts);
-  const rsEntryHits = [rsMTopZ, rsMBottomZ].filter((z) => Number.isFinite(z) && z <= hl + EPS && z >= -hl - EPS).length;
-  const rsSelf = hasSelfIntersectionClosed(rsHolePts);
-  if (rsEntryHits !== 2) throw new Error(`[SIDE-R] must intersect edge exactly twice, got ${rsEntryHits}`);
-  if (rsSelf) throw new Error('[SIDE-R] self intersection detected');
-  const rsArea = signedArea(rsHolePts);
-  const rsDebugPayload = {
-    side: 'right-mid',
-    params: {
-      ...sideCfg,
-      mouthWidth: sideMouthWidth,
-      rBallScale: {
-        mouthWidth: Number((sideMouthWidth / BALL_RADIUS).toFixed(3)),
-        throatWidth: Number((sideThroatWidth / BALL_RADIUS).toFixed(3)),
-        throatDepth: Number((sideCfg.throatDepth / BALL_RADIUS).toFixed(3)),
-        throatRadius: Number((sideThroatR / BALL_RADIUS).toFixed(3)),
-      },
-    },
-    entryIntersections: rsEntryHits,
-    deltaAngle: rsDelta,
-    bbox: rsBBox,
-    selfIntersection: rsSelf,
-    pointCount: rsHolePts.length,
-    signedArea: rsArea,
-  };
-  console.log('[POCKET_HOLE_DEBUG]', rsDebugPayload);
-  console.log('[POCKET_HOLE_DEBUG_JSON]', JSON.stringify(rsDebugPayload));
+  const leftDx = -hw - leftSide.x;
+  const leftDz = safeSqrt(rLS * rLS - leftDx * leftDx);
+  const lsBottomZ = leftSide.z - leftDz;
+  const lsTopZ = leftSide.z + leftDz;
 
-  const lsMTopZ = leftSide.z + sideMouthWidth / 2;
-  const lsMBottomZ = leftSide.z - sideMouthWidth / 2;
-  const lsTTopZ = leftSide.z + sideThroatWidth / 2;
-  const lsTBottomZ = leftSide.z - sideThroatWidth / 2;
-  const lsTx = -hw + sideThroatInset;
-  const lsH = safeSqrt(sideThroatR * sideThroatR - (sideThroatWidth / 2) ** 2);
-  const lsCx = lsTx + lsH; // inward for left side
-  const lsA0 = Math.atan2(lsTBottomZ - leftSide.z, lsTx - lsCx); // path goes bottom -> top on left edge
-  const lsA1 = Math.atan2(lsTTopZ - leftSide.z, lsTx - lsCx);
-  const lsDelta = normalizeDelta(lsA0, lsA1, true);
-  if (Math.abs(lsDelta) > Math.PI + 1e-5) {
-    throw new Error(`[SIDE-L] throat arc over 180deg: delta=${lsDelta}`);
-  }
-  const lsArcPts = sampleArcPoints(lsCx, leftSide.z, sideThroatR, lsA0, lsA1, true, 20);
-  const lsHolePts = [
-    { x: -hw, y: lsMBottomZ },
-    { x: lsTx, y: lsTBottomZ },
-    ...lsArcPts.slice(1, -1),
-    { x: lsTx, y: lsTTopZ },
-    { x: -hw, y: lsMTopZ },
-  ];
-  const lsBBox = bboxOfPoints(lsHolePts);
-  const lsEntryHits = [lsMTopZ, lsMBottomZ].filter((z) => Number.isFinite(z) && z <= hl + EPS && z >= -hl - EPS).length;
-  const lsSelf = hasSelfIntersectionClosed(lsHolePts);
-  if (lsEntryHits !== 2) throw new Error(`[SIDE-L] must intersect edge exactly twice, got ${lsEntryHits}`);
-  if (lsSelf) throw new Error('[SIDE-L] self intersection detected');
-  const lsArea = signedArea(lsHolePts);
-  const lsDebugPayload = {
-    side: 'left-mid',
-    params: {
-      ...sideCfg,
-      mouthWidth: sideMouthWidth,
-      rBallScale: {
-        mouthWidth: Number((sideMouthWidth / BALL_RADIUS).toFixed(3)),
-        throatWidth: Number((sideThroatWidth / BALL_RADIUS).toFixed(3)),
-        throatDepth: Number((sideCfg.throatDepth / BALL_RADIUS).toFixed(3)),
-        throatRadius: Number((sideThroatR / BALL_RADIUS).toFixed(3)),
-      },
-    },
-    entryIntersections: lsEntryHits,
-    deltaAngle: lsDelta,
-    bbox: lsBBox,
-    selfIntersection: lsSelf,
-    pointCount: lsHolePts.length,
-    signedArea: lsArea,
-  };
-  console.log('[POCKET_HOLE_DEBUG]', lsDebugPayload);
-  console.log('[POCKET_HOLE_DEBUG_JSON]', JSON.stringify(lsDebugPayload));
+  const p = new THREE.Path();
 
-  const rightSidePocketHole = makePathFromPoints(rsHolePts);
-  const leftSidePocketHole = makePathFromPoints(lsHolePts);
+  // Traverse clockwise along cloth edges, only adding circular/semicircular pocket bites.
+  p.moveTo(tlTopX, hl);
+  p.lineTo(trTopX, hl);
+  p.absarc(
+    tr.x,
+    tr.z,
+    rTR,
+    Math.atan2(hl - tr.z, trTopX - tr.x),
+    Math.atan2(trSideZ - tr.z, hw - tr.x),
+    true
+  );
 
-  const cornerCfg = {
-    mouthInset: 0.090,
-    throatInset: 0.044,
-    throatRadius: 0.056,
-    arcSamples: 20,
-  };
-  const buildCornerPocketHole = (label, sx, sz) => {
-    const corner = { x: sx * hw, y: sz * hl };
-    const mTop = { x: sx * (hw - cornerCfg.mouthInset), y: sz * hl };
-    const mSide = { x: sx * hw, y: sz * (hl - cornerCfg.mouthInset) };
-    const tTop = { x: sx * (hw - cornerCfg.mouthInset), y: sz * (hl - cornerCfg.throatInset) };
-    const tSide = { x: sx * (hw - cornerCfg.throatInset), y: sz * (hl - cornerCfg.mouthInset) };
-    const center = pickCenterTowardPocket(tTop, tSide, cornerCfg.throatRadius, corner);
-    const arc = arcInfoShort(center, tTop, tSide);
-    if (Math.abs(arc.delta) > Math.PI + 1e-5) {
-      throw new Error(`[${label}] throat arc over 180deg: delta=${arc.delta}`);
-    }
-    const arcPts = sampleArcPoints(center.x, center.y, cornerCfg.throatRadius, arc.a0, arc.a1, arc.clockwise, cornerCfg.arcSamples);
-    const pts = [
-      mTop,
-      tTop,
-      ...arcPts.slice(1, -1),
-      tSide,
-      mSide,
-      corner,
-    ];
-    const bbox = bboxOfPoints(pts);
-    const self = hasSelfIntersectionClosed(pts);
-    if (self) throw new Error(`[${label}] self intersection detected`);
-    const area = signedArea(pts);
-    const debugPayload = {
-      side: label,
-      params: {
-        ...cornerCfg,
-        rBallScale: {
-          mouthInset: Number((cornerCfg.mouthInset / BALL_RADIUS).toFixed(3)),
-          throatInset: Number((cornerCfg.throatInset / BALL_RADIUS).toFixed(3)),
-          throatRadius: Number((cornerCfg.throatRadius / BALL_RADIUS).toFixed(3)),
-        },
-      },
-      arcCenter: { x: center.x, z: center.y },
-      deltaAngle: arc.delta,
-      bbox,
-      selfIntersection: self,
-      pointCount: pts.length,
-      signedArea: area,
-    };
-    console.log('[POCKET_HOLE_DEBUG]', debugPayload);
-    console.log('[POCKET_HOLE_DEBUG_JSON]', JSON.stringify(debugPayload));
-    return makePathFromPoints(pts);
-  };
-  const trHole = buildCornerPocketHole('top-right', +1, +1);
-  const brHole = buildCornerPocketHole('bottom-right', +1, -1);
-  const blHole = buildCornerPocketHole('bottom-left', -1, -1);
-  const tlHole = buildCornerPocketHole('top-left', -1, +1);
-  return {
-    unifiedHole,
-    pocketHoles: [rightSidePocketHole, leftSidePocketHole, trHole, brHole, blHole, tlHole],
-  };
+  p.lineTo(hw, rsTopZ);
+  p.absarc(
+    rightSide.x,
+    rightSide.z,
+    rRS,
+    Math.atan2(rsTopZ - rightSide.z, hw - rightSide.x),
+    Math.atan2(rsBottomZ - rightSide.z, hw - rightSide.x),
+    true
+  );
+
+  p.lineTo(hw, brSideZ);
+  p.absarc(
+    br.x,
+    br.z,
+    rBR,
+    Math.atan2(brSideZ - br.z, hw - br.x),
+    Math.atan2(-hl - br.z, brBottomX - br.x),
+    true
+  );
+
+  p.lineTo(blBottomX, -hl);
+  p.absarc(
+    bl.x,
+    bl.z,
+    rBL,
+    Math.atan2(-hl - bl.z, blBottomX - bl.x),
+    Math.atan2(blSideZ - bl.z, -hw - bl.x),
+    true
+  );
+
+  p.lineTo(-hw, lsBottomZ);
+  p.absarc(
+    leftSide.x,
+    leftSide.z,
+    rLS,
+    Math.atan2(lsBottomZ - leftSide.z, -hw - leftSide.x),
+    Math.atan2(lsTopZ - leftSide.z, -hw - leftSide.x),
+    true
+  );
+
+  p.lineTo(-hw, tlSideZ);
+  p.absarc(
+    tl.x,
+    tl.z,
+    rTL,
+    Math.atan2(tlSideZ - tl.z, -hw - tl.x),
+    Math.atan2(hl - tl.z, tlTopX - tl.x),
+    true
+  );
+
+  p.closePath();
+  return p;
 }
 
 function buildUnifiedRailGeometry(d, pocketCenters) {
@@ -1518,328 +1330,64 @@ function buildUnifiedRailGeometry(d, pocketCenters) {
   const sideRFromPockets = pocketCenters.find((p) => (p.kind ?? p.type) === 'side')?.r;
   const POCKET_RADIUS_CORNER = cornerRFromPockets ?? d.cornerPocketR;
   const POCKET_RADIUS_SIDE = sideRFromPockets ?? d.sidePocketR;
-  const outerHW = outerW / 2;
-  const outerHL = outerL / 2;
-  const hw = TABLE_W / 2;
-  const hl = TABLE_L / 2;
-  const EDGE_GAP = 0.003;
-  const TWO_PI = Math.PI * 2;
-
-  const bboxOfPoints = (pts) =>
-    pts.reduce(
-      (acc, p) => ({
-        minX: Math.min(acc.minX, p.x),
-        maxX: Math.max(acc.maxX, p.x),
-        minZ: Math.min(acc.minZ, p.y),
-        maxZ: Math.max(acc.maxZ, p.y),
-      }),
-      { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity }
-    );
-  const signedArea = (pts) => {
-    let area = 0;
-    for (let i = 0; i < pts.length; i += 1) {
-      const a = pts[i];
-      const b = pts[(i + 1) % pts.length];
-      area += a.x * b.y - b.x * a.y;
-    }
-    return area * 0.5;
-  };
-  const segIntersects = (a, b, c, dpt) => {
-    const cross = (p1, p2, p3) => (p2.x - p1.x) * (p3.y - p1.y) - (p2.y - p1.y) * (p3.x - p1.x);
-    const o1 = cross(a, b, c);
-    const o2 = cross(a, b, dpt);
-    const o3 = cross(c, dpt, a);
-    const o4 = cross(c, dpt, b);
-    return ((o1 > 0 && o2 < 0) || (o1 < 0 && o2 > 0)) && ((o3 > 0 && o4 < 0) || (o3 < 0 && o4 > 0));
-  };
-  const hasSelfIntersectionClosed = (pts) => {
-    const n = pts.length;
-    for (let i = 0; i < n; i += 1) {
-      const a1 = pts[i];
-      const a2 = pts[(i + 1) % n];
-      for (let j = i + 1; j < n; j += 1) {
-        const jn = (j + 1) % n;
-        if (i === j || (i + 1) % n === j || i === jn) continue;
-        if (segIntersects(a1, a2, pts[j], pts[jn])) return true;
-      }
-    }
-    return false;
-  };
-  const normalizeDelta = (a0, a1, clockwise) => {
-    let d = a1 - a0;
-    if (clockwise && d > 0) d -= TWO_PI;
-    if (!clockwise && d < 0) d += TWO_PI;
-    return d;
-  };
-  const sampleArcPoints = (cx, cz, r, a0, a1, clockwise, steps = 16) => {
-    const d = normalizeDelta(a0, a1, clockwise);
-    const pts = [];
-    for (let i = 0; i <= steps; i += 1) {
-      const t = i / steps;
-      const a = a0 + d * t;
-      pts.push({ x: cx + Math.cos(a) * r, y: cz + Math.sin(a) * r });
-    }
-    return pts;
-  };
-  const pointInPoly = (pt, poly) => {
-    let inside = false;
-    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-      const xi = poly[i].x;
-      const yi = poly[i].y;
-      const xj = poly[j].x;
-      const yj = poly[j].y;
-      const intersects = ((yi > pt.y) !== (yj > pt.y)) && (pt.x < ((xj - xi) * (pt.y - yi)) / (yj - yi + 1e-12) + xi);
-      if (intersects) inside = !inside;
-    }
-    return inside;
-  };
-  const holesOverlap = (a, b) => {
-    for (let i = 0; i < a.length; i += 1) {
-      const a1 = a[i];
-      const a2 = a[(i + 1) % a.length];
-      for (let j = 0; j < b.length; j += 1) {
-        const b1 = b[j];
-        const b2 = b[(j + 1) % b.length];
-        if (segIntersects(a1, a2, b1, b2)) return true;
-      }
-    }
-    if (pointInPoly(a[0], b)) return true;
-    if (pointInPoly(b[0], a)) return true;
-    return false;
-  };
-  const rectPoints = (minX, maxX, minZ, maxZ) => [
-    { x: minX, y: maxZ },
-    { x: maxX, y: maxZ },
-    { x: maxX, y: minZ },
-    { x: minX, y: minZ },
-  ];
-  const pathFromPoints = (pts) => {
-    const p = new THREE.Path();
-    p.moveTo(pts[0].x, pts[0].y);
-    for (let i = 1; i < pts.length; i += 1) p.lineTo(pts[i].x, pts[i].y);
-    p.closePath();
-    return p;
-  };
-  const shapeFromPoints = (pts) => {
-    const s = new THREE.Shape();
-    s.moveTo(pts[0].x, pts[0].y);
-    for (let i = 1; i < pts.length; i += 1) s.lineTo(pts[i].x, pts[i].y);
-    s.closePath();
-    return s;
-  };
-  const circleHolePoints = (cx, cz, r, steps = 24) => {
-    const pts = [];
-    for (let i = 0; i < steps; i += 1) {
-      const a = (i / steps) * TWO_PI;
-      pts.push({ x: cx + Math.cos(a) * r, y: cz + Math.sin(a) * r });
-    }
-    return pts;
-  };
-  const sidePocketHoleVertical = (xEdge, z0, side) => {
-    const sideCfg = {
-      mouthWidthBase: 0.150,
-      throatWidth: 0.098,
-      throatDepth: 0.030,
-      throatRadius: 0.055,
-      jawInset: 0.010,
-      noseCut: 0.008,
-    };
-    const mouth = sideCfg.mouthWidthBase - 2 * sideCfg.noseCut;
-    const throat = sideCfg.throatWidth;
-    const inset = sideCfg.throatDepth + sideCfg.jawInset;
-    const r = sideCfg.throatRadius;
-    const mTop = z0 + mouth / 2;
-    const mBottom = z0 - mouth / 2;
-    const tTop = z0 + throat / 2;
-    const tBottom = z0 - throat / 2;
-    const tx = side > 0 ? xEdge + inset : xEdge - inset;
-    const h = Math.sqrt(Math.max(0, r * r - (throat / 2) ** 2));
-    const cx = side > 0 ? tx + h : tx - h;
-    const a0 = side > 0 ? Math.atan2(tBottom - z0, tx - cx) : Math.atan2(tTop - z0, tx - cx);
-    const a1 = side > 0 ? Math.atan2(tTop - z0, tx - cx) : Math.atan2(tBottom - z0, tx - cx);
-    const arc = sampleArcPoints(cx, z0, r, a0, a1, false, 20);
-    return side > 0
-      ? [{ x: xEdge, y: mBottom }, { x: tx, y: tBottom }, ...arc.slice(1, -1), { x: tx, y: tTop }, { x: xEdge, y: mTop }]
-      : [{ x: xEdge, y: mTop }, { x: tx, y: tTop }, ...arc.slice(1, -1), { x: tx, y: tBottom }, { x: xEdge, y: mBottom }];
-  };
-  const sidePocketHoleHorizontalTop = (zEdge, x0) => {
-    const cfg = { mouthWidthBase: 0.150, throatWidth: 0.098, throatDepth: 0.030, throatRadius: 0.055, jawInset: 0.010, noseCut: 0.008 };
-    const mouth = cfg.mouthWidthBase - 2 * cfg.noseCut;
-    const throat = cfg.throatWidth;
-    const inset = cfg.throatDepth + cfg.jawInset;
-    const r = cfg.throatRadius;
-    const mL = x0 - mouth / 2;
-    const mR = x0 + mouth / 2;
-    const tL = x0 - throat / 2;
-    const tR = x0 + throat / 2;
-    const tz = zEdge + inset;
-    const h = Math.sqrt(Math.max(0, r * r - (throat / 2) ** 2));
-    const cz = tz - h;
-    const a0 = Math.atan2(tz - cz, tL - x0);
-    const a1 = Math.atan2(tz - cz, tR - x0);
-    const arc = sampleArcPoints(x0, cz, r, a0, a1, true, 20);
-    return [{ x: mL, y: zEdge }, { x: tL, y: tz }, ...arc.slice(1, -1), { x: tR, y: tz }, { x: mR, y: zEdge }];
-  };
-  const mergeGeometries = (geometries) => {
-    const geos = geometries.map((g) => (g.index ? g.toNonIndexed() : g));
-    const pos = [];
-    const norm = [];
-    const uv = [];
-    for (const g of geos) {
-      pos.push(...g.getAttribute('position').array);
-      norm.push(...g.getAttribute('normal').array);
-      if (g.getAttribute('uv')) uv.push(...g.getAttribute('uv').array);
-    }
-    const merged = new THREE.BufferGeometry();
-    merged.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    merged.setAttribute('normal', new THREE.Float32BufferAttribute(norm, 3));
-    if (uv.length) merged.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-    merged.computeBoundingBox();
-    merged.computeBoundingSphere();
-    return merged;
-  };
-  const makeStripGeometry = (step, name, shapePts, holePtsList) => {
-    const shape = shapeFromPoints(shapePts);
-    for (const h of holePtsList) shape.holes.push(pathFromPoints(h));
-    const sArea = signedArea(shapePts);
-    const sBBox = bboxOfPoints(shapePts);
-    const stripPayload = { step, strip: name, shapeArea: sArea, shapePointCount: shapePts.length, shapeBBox: sBBox };
-    console.log('[STRIP_DEBUG]', stripPayload);
-    console.log('[STRIP_DEBUG_JSON]', JSON.stringify(stripPayload));
-    for (let i = 0; i < holePtsList.length; i += 1) {
-      const hp = holePtsList[i];
-      const hArea = signedArea(hp);
-      const hBBox = bboxOfPoints(hp);
-      const hSelf = hasSelfIntersectionClosed(hp);
-      const touchBoundary = hp.some(
-        (pt) =>
-          Math.abs(pt.x - sBBox.minX) < 5e-4 ||
-          Math.abs(pt.x - sBBox.maxX) < 5e-4 ||
-          Math.abs(pt.y - sBBox.minZ) < 5e-4 ||
-          Math.abs(pt.y - sBBox.maxZ) < 5e-4
-      );
-      const holePayload = {
-        step,
-        strip: name,
-        holeIndex: i,
-        signedArea: hArea,
-        pointCount: hp.length,
-        bbox: hBBox,
-        selfIntersection: hSelf,
-        touchBoundary,
-      };
-      console.log('[STRIP_HOLE_DEBUG]', holePayload);
-      console.log('[STRIP_HOLE_DEBUG_JSON]', JSON.stringify(holePayload));
-      console.assert(!hSelf, `[${step}:${name}] hole self intersection`);
-      console.assert(!touchBoundary, `[${step}:${name}] hole touches strip boundary`);
-    }
-    let overlap = false;
-    for (let i = 0; i < holePtsList.length; i += 1) {
-      for (let j = i + 1; j < holePtsList.length; j += 1) {
-        if (holesOverlap(holePtsList[i], holePtsList[j])) overlap = true;
-      }
-    }
-    const overlapPayload = { step, strip: name, overlap, holeCount: holePtsList.length };
-    console.log('[STRIP_HOLE_OVERLAP]', overlapPayload);
-    console.log('[STRIP_HOLE_OVERLAP_JSON]', JSON.stringify(overlapPayload));
-    console.assert(!overlap, `[${step}:${name}] holes overlap`);
-
-    const geo = new THREE.ExtrudeGeometry(shape, {
-      depth: d.railH,
-      bevelEnabled: false,
-      curveSegments: 24,
-      steps: 1,
-    });
-    geo.rotateX(-Math.PI / 2);
-    geo.computeVertexNormals();
-    return geo;
-  };
-
-  const cornerTopL = pocketCenters.find((p) => (p.kind ?? p.type) === 'corner' && p.x < 0 && p.z > 0);
-  const cornerTopR = pocketCenters.find((p) => (p.kind ?? p.type) === 'corner' && p.x > 0 && p.z > 0);
-  const cornerBottomL = pocketCenters.find((p) => (p.kind ?? p.type) === 'corner' && p.x < 0 && p.z < 0);
-  const cornerBottomR = pocketCenters.find((p) => (p.kind ?? p.type) === 'corner' && p.x > 0 && p.z < 0);
-  const leftSide = pocketCenters.find((p) => (p.kind ?? p.type) === 'side' && p.x < 0);
-  const rightSide = pocketCenters.find((p) => (p.kind ?? p.type) === 'side' && p.x > 0);
-
-  const topShapePts = rectPoints(-outerHW, outerHW, hl, outerHL);
-  const bottomShapePts = rectPoints(-outerHW, outerHW, -outerHL, -hl);
-  const leftShapePts = rectPoints(-outerHW, -hw, -hl, hl);
-  const rightShapePts = rectPoints(hw, outerHW, -hl, hl);
-
-  // Step 0: baseline only, no mouth geometry.
-  {
-    const baseline = roundedRectShape(outerW, outerL, d.outerR);
-    const inner = pathFromPoints(rectPoints(-hw, hw, -hl, hl));
-    baseline.holes.push(inner);
-    const baseGeo = new THREE.ExtrudeGeometry(baseline, {
-      depth: d.railH,
-      bevelEnabled: false,
-      curveSegments: 24,
-      steps: 1,
-    });
-    baseGeo.rotateX(-Math.PI / 2);
-    baseGeo.computeBoundingBox();
-    console.log('[RAIL_STAGE_0]', {
-      shapeArea: Number((outerW * outerL).toFixed(6)),
-      holeArea: Number((TABLE_W * TABLE_L).toFixed(6)),
-      bbox: baseGeo.boundingBox,
-    });
-  }
-
-  // Step 1: top strip + one side pocket composite.
-  {
-    const topSideDemoHole = sidePocketHoleHorizontalTop(hl + EDGE_GAP, 0);
-    const g = makeStripGeometry('step1', 'top', topShapePts, [topSideDemoHole]);
-    g.computeBoundingBox();
-    console.log('[RAIL_STAGE_1]', { strip: 'top', bbox: g.boundingBox });
-  }
-
-  // Step 2: top strip + demo side pocket + two corner holes.
-  {
-    const holes = [];
-    holes.push(sidePocketHoleHorizontalTop(hl + EDGE_GAP, 0));
-    if (cornerTopL) holes.push(circleHolePoints(cornerTopL.x, hl + 0.02, Math.min(cornerTopL.r * 0.8, 0.05), 28));
-    if (cornerTopR) holes.push(circleHolePoints(cornerTopR.x, hl + 0.02, Math.min(cornerTopR.r * 0.8, 0.05), 28));
-    const g = makeStripGeometry('step2', 'top', topShapePts, holes);
-    g.computeBoundingBox();
-    console.log('[RAIL_STAGE_2]', { strip: 'top', bbox: g.boundingBox, holeCount: holes.length });
-  }
-
-  // Step 3: all 4 strips.
-  const topHoles = [];
-  const bottomHoles = [];
-  const leftHoles = [];
-  const rightHoles = [];
-  if (cornerTopL) topHoles.push(circleHolePoints(cornerTopL.x, hl + 0.02, Math.min(cornerTopL.r * 0.8, 0.05), 28));
-  if (cornerTopR) topHoles.push(circleHolePoints(cornerTopR.x, hl + 0.02, Math.min(cornerTopR.r * 0.8, 0.05), 28));
-  if (cornerBottomL) bottomHoles.push(circleHolePoints(cornerBottomL.x, -hl - 0.02, Math.min(cornerBottomL.r * 0.8, 0.05), 28));
-  if (cornerBottomR) bottomHoles.push(circleHolePoints(cornerBottomR.x, -hl - 0.02, Math.min(cornerBottomR.r * 0.8, 0.05), 28));
-  if (leftSide) leftHoles.push(sidePocketHoleVertical(-hw - EDGE_GAP, leftSide.z, -1));
-  if (rightSide) rightHoles.push(sidePocketHoleVertical(hw + EDGE_GAP, rightSide.z, +1));
-
-  const stripGeos = [
-    makeStripGeometry('step3', 'top', topShapePts, topHoles),
-    makeStripGeometry('step3', 'bottom', bottomShapePts, bottomHoles),
-    makeStripGeometry('step3', 'left', leftShapePts, leftHoles),
-    makeStripGeometry('step3', 'right', rightShapePts, rightHoles),
-  ];
-  const geo = mergeGeometries(stripGeos);
-  geo.computeBoundingBox();
-  console.log('[RAIL_STAGE_3]', {
-    stripCount: stripGeos.length,
-    bbox: geo.boundingBox,
-    cornerR: POCKET_RADIUS_CORNER,
-    sideR: POCKET_RADIUS_SIDE,
+  const outer = roundedRectShape(outerW, outerL, d.outerR);
+  const innerHoleW = TABLE_W;
+  const innerHoleL = TABLE_L;
+  console.log('[POCKET_VISUAL_MATCH]', { cornerR: POCKET_RADIUS_CORNER, sideR: POCKET_RADIUS_SIDE });
+  const unifiedHole = buildUnifiedInnerHole6Pockets(
+    TABLE_W,
+    TABLE_L,
+    POCKET_RADIUS_CORNER,
+    POCKET_RADIUS_SIDE,
+    pocketCenters
+  );
+  console.log('[INNER_MATCH]', {
+    TABLE_W,
+    TABLE_L,
+    outerW,
+    outerL,
+    innerHoleW,
+    innerHoleL
   });
-  console.log('[HOLE_TOPO_V4]', { mode: 'strip', strips: 4, pockets: 6 });
+  outer.holes = [];
+  outer.holes.push(unifiedHole);
+  console.log('[HOLE_TOPO_V4]', {
+    holes: outer.holes.length,
+    expect: 1,
+    TABLE_W,
+    TABLE_L,
+    cornerR: POCKET_RADIUS_CORNER,
+    sideR: POCKET_RADIUS_SIDE
+  });
+  console.assert(outer.holes.length === 1, 'holes count mismatch', outer.holes.length);
+
+  const geo = new THREE.ExtrudeGeometry(outer, {
+    depth: d.railH,
+    bevelEnabled: false,
+    curveSegments: 32,
+    steps: 1,
+  });
+
+  geo.rotateX(-Math.PI / 2);
+  geo.computeVertexNormals();
+  geo.computeBoundingBox();
+  console.log('[INNER_MATCH]', {
+    TABLE_W,
+    TABLE_L,
+    outerW,
+    outerL,
+    innerHoleW,
+    innerHoleL,
+    holeCount: (outer?.holes?.length ?? null)
+  });
+  console.log('[RAIL_BBOX]', geo.boundingBox);
   geo.userData.innerMatch = {
     TABLE_W,
     TABLE_L,
     outerW,
     outerL,
-    innerHoleW: TABLE_W,
-    innerHoleL: TABLE_L,
+    innerHoleW,
+    innerHoleL
   };
   return geo;
 }

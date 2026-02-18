@@ -57,11 +57,13 @@ const towerPanel = document.getElementById('tower-panel')!;
 const cancelBuildBtn = document.getElementById('cancel-build-btn')!;
 const buildBtns = document.querySelectorAll('.build-btn[data-tower]');
 
+const TOTAL_WAVES = WAVES.waves.length;
+
 // ─── HUD update ───
 function updateHUD(): void {
     goldEl.textContent = String(state.gold);
     livesEl.textContent = String(state.lives);
-    waveEl.textContent = `${Math.min(state.currentWave + 1, WAVES.waves.length)}/10`;
+    waveEl.textContent = `${Math.min(state.currentWave + 1, TOTAL_WAVES)}/${TOTAL_WAVES}`;
 
     // Update build button affordance
     buildBtns.forEach(btn => {
@@ -86,22 +88,26 @@ function showWaveBanner(text: string): void {
 // ─── Tower Panel ───
 function showTowerPanel(tower: Tower): void {
     inspectedTower = tower;
-    const cfg = TOWERS[tower.type].levels[tower.level];
+    const towerCfg = TOWERS[tower.type];
+    const cfg = towerCfg.levels[tower.level];
 
-    document.getElementById('panel-tower-name')!.textContent = TOWERS[tower.type].name;
+    document.getElementById('panel-tower-name')!.textContent = towerCfg.name;
     document.getElementById('panel-tower-level')!.textContent = `Lv.${tower.level + 1}`;
     document.getElementById('panel-dmg')!.textContent = String(cfg.damage);
     document.getElementById('panel-spd')!.textContent = `${cfg.cooldownSec}s`;
     document.getElementById('panel-rng')!.textContent = String(cfg.range);
 
     const specialEl = document.getElementById('panel-special')!;
-    if (cfg.aoeRadius > 0) specialEl.textContent = `AOE ${cfg.aoeRadius}`;
-    else if (cfg.slow) specialEl.textContent = `Slow ${Math.round(cfg.slow.pct * 100)}%`;
-    else specialEl.textContent = '—';
+    const specials: string[] = [];
+    if (cfg.aoeRadius > 0) specials.push(`AOE ${cfg.aoeRadius}`);
+    if (cfg.slow) specials.push(`Slow ${Math.round(cfg.slow.pct * 100)}%`);
+    if (cfg.dot) specials.push(`DOT ${cfg.dot.dps}/s ${cfg.dot.durationSec}s`);
+    if (cfg.chain) specials.push(`Chain ×${cfg.chain.targets}`);
+    specialEl.textContent = specials.length > 0 ? specials.join(' | ') : '—';
 
     const upgradeBtn = document.getElementById('upgrade-btn')! as HTMLButtonElement;
     const sellBtn = document.getElementById('sell-btn')!;
-    const levels = TOWERS[tower.type].levels;
+    const levels = towerCfg.levels;
 
     if (tower.level >= levels.length - 1) {
         upgradeBtn.disabled = true;
@@ -109,7 +115,6 @@ function showTowerPanel(tower: Tower): void {
     } else {
         const cost = levels[tower.level + 1].upgradeCost;
         upgradeBtn.disabled = !canUpgrade(state, tower);
-        document.getElementById('upgrade-cost')!.textContent = String(cost);
         upgradeBtn.innerHTML = `⬆ Upgrade (<span id="upgrade-cost">${cost}</span>g)`;
     }
 
@@ -133,7 +138,6 @@ function showEndScreen(): void {
     endTitle.style.color = won ? '#ffd700' : '#ff5555';
     endScore.textContent = `Score: ${state.score}`;
 
-    // Determine rank
     let rank = 'C';
     for (const r of SCORING.ranks) {
         if (state.score >= r.min) { rank = r.name; break; }
@@ -187,7 +191,6 @@ speedBtn.addEventListener('click', () => {
 document.getElementById('upgrade-btn')!.addEventListener('click', () => {
     if (!inspectedTower) return;
     if (upgradeTower(state, inspectedTower.id)) {
-        // Re-render tower
         towerRenderer.removeTower(inspectedTower.id);
         towerRenderer.sync(state);
         showTowerPanel(inspectedTower);
@@ -240,15 +243,12 @@ canvas.addEventListener('click', () => {
     if (col < 0 || row < 0) return;
 
     if (selectedTowerType) {
-        // Try to place tower
         const tower = buildTower(state, selectedTowerType, col, row);
         if (tower) {
             towerRenderer.sync(state);
             updateHUD();
-            // Don't deselect — allow placing multiple
         }
     } else {
-        // Check if clicked on a tower (inspect)
         const tower = state.towers.find(t => t.col === col && t.row === row);
         if (tower) {
             showTowerPanel(tower);
@@ -288,7 +288,6 @@ let lastTime = 0;
 let accumulator = 0;
 let lastWave = -1;
 
-// Track recent projectile hits for FX
 let prevProjectileIds = new Set<number>();
 
 function gameLoop(time: number): void {
@@ -315,7 +314,6 @@ function gameLoop(time: number): void {
 
     // Fixed-step logic
     while (accumulator >= LOGIC_DT) {
-        // Track projectile IDs before update
         const currentProjIds = new Set(state.projectiles.map(p => p.id));
 
         tickWave(state, LOGIC_DT);
@@ -323,18 +321,16 @@ function gameLoop(time: number): void {
         tickTowers(state, LOGIC_DT);
         tickCombat(state, LOGIC_DT);
 
-        // Detect hit projectiles for FX
         for (const id of prevProjectileIds) {
             if (!state.projectiles.find(p => p.id === id)) {
-                // This projectile was removed (hit something)
-                // We don't have exact position easily, skip explosion for now
+                // projectile hit — FX handled by fxRenderer
             }
         }
         prevProjectileIds = new Set(state.projectiles.map(p => p.id));
 
         accumulator -= LOGIC_DT;
 
-        // Check game over conditions (cast to avoid TS narrowing after mutation)
+        // Check game over conditions
         const phase = state.phase as string;
         if (phase === 'won' || phase === 'lost') {
             showEndScreen();
@@ -353,8 +349,6 @@ function gameLoop(time: number): void {
         const secs = Math.ceil(state.prepTimer);
         waveBannerText.textContent = `Next wave in ${secs}...`;
         waveBanner.classList.remove('hidden');
-    } else if (state.phase === 'wave') {
-        // Banner auto-hides via timeout
     }
 
     // Render sync
