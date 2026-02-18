@@ -5,7 +5,7 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "build": "tsc && vite build",
+        "build": "tsc && vite build && sed -i '' 's/ type=\"module\" crossorigin//g' dist/index.html && sed -i '' 's/<script src=/<script defer src=/g' dist/index.html",
         "preview": "vite preview"
     },
     "dependencies": {

@@ -1129,7 +1129,7 @@ const halfL = TABLE_LENGTH / 2;
 const halfW = TABLE_WIDTH / 2;
 const playW = TABLE_WIDTH;
 const playL = TABLE_LENGTH;
-const TABLE_UNIFIED_COLOR = 0xb5a599; // light unified tone (matched to approved look)
+const TABLE_UNIFIED_COLOR = 0x684c38; // deeper dark brown for table body/rails/legs
 
 function roundedRectShape(w, l, r) {
   const x = -w / 2;
@@ -1573,8 +1573,8 @@ function createWoodTexture() {
 
 const woodMaterial = new THREE.MeshStandardMaterial({
   color: TABLE_UNIFIED_COLOR,
-  roughness: 0.25,
-  metalness: 0.25,
+  roughness: 0.38,
+  metalness: 0.12,
 });
 
 const tableBody = new THREE.Mesh(
