@@ -1,0 +1,125 @@
+{
+    "prepSec": 6,
+    "waves": [
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 10,
+                    "intervalSec": 0.7
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 12,
+                    "intervalSec": 0.65
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 8,
+                    "intervalSec": 0.7
+                },
+                {
+                    "type": "runner",
+                    "count": 5,
+                    "intervalSec": 0.9
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 4,
+                    "intervalSec": 1.4
+                },
+                {
+                    "type": "grunt",
+                    "count": 10,
+                    "intervalSec": 0.6
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "runner",
+                    "count": 12,
+                    "intervalSec": 0.5
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 5,
+                    "intervalSec": 1.3
+                },
+                {
+                    "type": "runner",
+                    "count": 8,
+                    "intervalSec": 0.7
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 6,
+                    "intervalSec": 1.25
+                },
+                {
+                    "type": "grunt",
+                    "count": 12,
+                    "intervalSec": 0.55
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "runner",
+                    "count": 18,
+                    "intervalSec": 0.45
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.2
+                },
+                {
+                    "type": "runner",
+                    "count": 10,
+                    "intervalSec": 0.6
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 10,
+                    "intervalSec": 1.1
+                },
+                {
+                    "type": "runner",
+                    "count": 12,
+                    "intervalSec": 0.55
+                }
+            ]
+        }
+    ]
+}

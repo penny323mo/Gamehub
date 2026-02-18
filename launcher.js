@@ -42,6 +42,14 @@ const games = [
         playable: true
     },
     {
+        id: 'tower',
+        title: 'Tower Defense',
+        subtitle: '⚔️ 塔防！ 10 waves, 3 towers.',
+        icon: '🏰',
+        link: 'games/tower/index.html',
+        playable: true
+    },
+    {
         id: 'coming1',
         title: 'Coming Soon',
         subtitle: 'Under development',

@@ -1,0 +1,107 @@
+{
+    "arrow": {
+        "name": "Arrow Tower",
+        "levels": [
+            {
+                "buildCost": 100,
+                "upgradeCost": 0,
+                "damage": 15,
+                "cooldownSec": 1.0,
+                "range": 3.0,
+                "slow": null,
+                "aoeRadius": 0
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 80,
+                "damage": 25,
+                "cooldownSec": 0.9,
+                "range": 3.0,
+                "slow": null,
+                "aoeRadius": 0
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 120,
+                "damage": 40,
+                "cooldownSec": 0.8,
+                "range": 3.5,
+                "slow": null,
+                "aoeRadius": 0
+            }
+        ]
+    },
+    "cannon": {
+        "name": "Cannon Tower",
+        "levels": [
+            {
+                "buildCost": 140,
+                "upgradeCost": 0,
+                "damage": 40,
+                "cooldownSec": 2.2,
+                "range": 3.0,
+                "slow": null,
+                "aoeRadius": 1.2
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 110,
+                "damage": 65,
+                "cooldownSec": 2.0,
+                "range": 3.2,
+                "slow": null,
+                "aoeRadius": 1.3
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 160,
+                "damage": 95,
+                "cooldownSec": 1.8,
+                "range": 3.5,
+                "slow": null,
+                "aoeRadius": 1.4
+            }
+        ]
+    },
+    "ice": {
+        "name": "Ice Tower",
+        "levels": [
+            {
+                "buildCost": 120,
+                "upgradeCost": 0,
+                "damage": 8,
+                "cooldownSec": 0.8,
+                "range": 3.0,
+                "slow": {
+                    "pct": 0.30,
+                    "durationSec": 2.0
+                },
+                "aoeRadius": 0
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 90,
+                "damage": 12,
+                "cooldownSec": 0.75,
+                "range": 3.2,
+                "slow": {
+                    "pct": 0.35,
+                    "durationSec": 2.2
+                },
+                "aoeRadius": 0
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 140,
+                "damage": 18,
+                "cooldownSec": 0.70,
+                "range": 3.5,
+                "slow": {
+                    "pct": 0.40,
+                    "durationSec": 2.4
+                },
+                "aoeRadius": 0
+            }
+        ]
+    }
+}

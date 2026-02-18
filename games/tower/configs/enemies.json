@@ -1,0 +1,20 @@
+{
+    "grunt": {
+        "name": "Grunt",
+        "hp": 60,
+        "speed": 1.0,
+        "bounty": 8
+    },
+    "tank": {
+        "name": "Tank",
+        "hp": 220,
+        "speed": 0.55,
+        "bounty": 14
+    },
+    "runner": {
+        "name": "Runner",
+        "hp": 90,
+        "speed": 1.4,
+        "bounty": 10
+    }
+}
