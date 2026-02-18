@@ -4,7 +4,7 @@ const turnEl = document.getElementById('turn');
 const statusEl = document.getElementById('status');
 const stateNoteEl = document.getElementById('state-note');
 const player1NameInput = document.getElementById('player1-name');
-const player2NameInput = document.getElementById('player2-name');
+const player2ModeSelect = document.getElementById('player2-mode');
 const powerFillEl = document.getElementById('power-fill');
 const debugPanelEl = document.getElementById('debug-panel');
 const decisionPanelEl = document.getElementById('decision-panel');
@@ -15,6 +15,7 @@ const spinControlEl = document.getElementById('spin-control');
 const spinMarkerEl = document.getElementById('spin-marker');
 const spinResetBtn = document.getElementById('spin-reset');
 const confirmCueBtn = document.getElementById('confirm-cue-btn');
+const startGameBtn = document.getElementById('start-game-btn');
 
 // 手機控制面板
 const mobileControlsEl = document.getElementById('mobile-controls');
@@ -2214,6 +2215,7 @@ let expectingColor = false;
 let freeBallAvailable = false;
 let colorClearIndex = 0;
 let aiEnabled = true;
+let gameStarted = false;
 let aiQueued = false;
 let snookered = false;
 let cueBallInHand = true;
@@ -2367,6 +2369,17 @@ function currentTargetLabel() {
   return order[colorClearIndex] || 'Finish';
 }
 
+function syncModeFromLobby() {
+  const mode = player2ModeSelect?.value === 'p2' ? 'p2' : 'ai';
+  aiEnabled = mode === 'ai';
+  playerNames[1] = aiEnabled ? 'AI' : 'P2';
+}
+
+function refreshStartButtonUi() {
+  if (!startGameBtn) return;
+  startGameBtn.textContent = gameStarted ? '重新開始' : '開始遊戲';
+}
+
 function updateUi() {
   // 最終保險：全部清晒就完場
   if (!gameOver && redsRemaining() === 0 && colorsRemaining() === 0) {
@@ -2375,14 +2388,17 @@ function updateUi() {
   }
 
   scoreEl.textContent = `${playerNames[0]}: ${scores[0]}  |  ${playerNames[1]}: ${scores[1]}  |  Mode: ${playerNames[0]} vs ${playerNames[1]}`;
-  turnEl.textContent = `Turn: ${turn}  |  Player: ${currentPlayer === 0 ? playerNames[0] : playerNames[1]}  |  Target: ${currentTargetLabel()}${snookered ? ' (Snookered)' : ''}  |  State: ${turnState}`;
+  const stateLabel = gameStarted ? turnState : 'WAIT_START';
+  turnEl.textContent = `Turn: ${turn}  |  Player: ${currentPlayer === 0 ? playerNames[0] : playerNames[1]}  |  Target: ${currentTargetLabel()}${snookered ? ' (Snookered)' : ''}  |  State: ${stateLabel}`;
   powerFillEl.style.width = `${Math.round(power * 100)}%`;
 
   // 更新大電視計分牌
   updateTVScoreboard();
 
   if (stateNoteEl) {
-    if (foulDecisionPending) {
+    if (!gameStarted) {
+      stateNoteEl.textContent = '先選擇 P2/AI，然後按「開始遊戲」。';
+    } else if (foulDecisionPending) {
       stateNoteEl.textContent = '犯規決策中：請按 Y/N 或點下面按鈕。';
     } else if (cueBallInHand) {
       stateNoteEl.textContent = '你有白球在手：拖放到 D 區，再按「確認白球位置」。';
@@ -2397,7 +2413,7 @@ function updateUi() {
 
   // 確認白球按鈕：只喺 cueBallInHand 時顯示
   if (confirmCueBtn) {
-    if (cueBallInHand && !foulDecisionPending && currentPlayer === 0) {
+    if (gameStarted && cueBallInHand && !foulDecisionPending && currentPlayer === 0) {
       confirmCueBtn.classList.add('show');
     } else {
       confirmCueBtn.classList.remove('show');
@@ -2406,6 +2422,7 @@ function updateUi() {
 
   updateDecisionPanel();
   document.body.classList.toggle('cue-placement', cueBallInHand);
+  refreshStartButtonUi();
   if (mobileControlsEl) {
     if (isTouchDevice && (turnState === 'AIMING' || turnState === 'AIMING_DRAG')) {
       mobileControlsEl.classList.add('show');
@@ -2437,10 +2454,11 @@ function allStopped() {
 }
 
 function canTakeShot() {
-  return !gameOver && !shotInProgress && !cueBallInHand && !foulDecisionPending && stationaryTime >= settledDuration;
+  return gameStarted && !gameOver && !shotInProgress && !cueBallInHand && !foulDecisionPending && stationaryTime >= settledDuration;
 }
 
 function canTakeShotReason() {
+  if (!gameStarted) return 'NOT_STARTED';
   if (gameOver) return 'GAME_OVER';
   if (shotInProgress) return 'SHOT_IN_PROGRESS';
   if (cueBallInHand) return 'CUE_IN_HAND';
@@ -2455,9 +2473,10 @@ function resetCamera() {
   controls.update();
 }
 
-function resetGame() {
-  // This project defaults to P1 vs AI on every fresh/reset game.
-  aiEnabled = true;
+function resetGame({ startNow = true, aiMode = aiEnabled } = {}) {
+  aiEnabled = !!aiMode;
+  gameStarted = !!startNow;
+  playerNames[1] = aiEnabled ? 'AI' : 'P2';
   gameOver = false;
   scores = [0, 0];
   currentPlayer = 0;
@@ -2498,7 +2517,11 @@ function resetGame() {
   snookered = isSnookeredNow();
   updateAimLine();
   updateUi();
-  setStatus('P1 vs AI: drag cue ball in D, then double-click to confirm break', 2.2);
+  if (gameStarted) {
+    setStatus(`P1 vs ${playerNames[1]}: drag cue ball in D, then double-click to confirm break`, 2.2);
+  } else {
+    setStatus(`目前模式：P1 vs ${playerNames[1]}，按「開始遊戲」開始。`, 2.2);
+  }
 }
 
 function setGuideLinePoints(guide, start, end) {
@@ -3313,6 +3336,7 @@ function shootCueBall() {
 }
 
 function queueAiShot() {
+  if (!gameStarted) return;
   if (!aiQueued || !allStopped()) return;
   if (shotInProgress) return;
   if (cueBallInHand) return;
@@ -3590,6 +3614,7 @@ function handlePrimaryPointerDown(e) {
   inputDebug.lastMouseDown = `btn=${e.button} x=${e.clientX} y=${e.clientY} state=${turnState}`;
   if (e.button !== 0) return;
   if (foulDecisionPending) return;
+  if (!gameStarted) return;
   if (isTouchDevice && mobileChargeActive) return;
 
   // 手機模式處理
@@ -4632,11 +4657,15 @@ window.render_game_to_text = () => {
 
 window.__snookerDebug = {
   reset() {
-    resetGame();
+    resetGame({ startNow: true, aiMode: aiEnabled });
     return JSON.parse(window.render_game_to_text());
   },
   setAiEnabled(enabled) {
     aiEnabled = !!enabled;
+    playerNames[1] = aiEnabled ? 'AI' : 'P2';
+    if (player2ModeSelect) {
+      player2ModeSelect.value = aiEnabled ? 'ai' : 'p2';
+    }
     aiQueued = aiEnabled && currentPlayer === 1 && !cueBallInHand && !foulDecisionPending;
     updateUi();
     return { aiEnabled };
@@ -4722,7 +4751,8 @@ window.__snookerDebug = {
 };
 
 onResize();
-resetGame();
+syncModeFromLobby();
+resetGame({ startNow: false, aiMode: aiEnabled });
 updatePointer({ clientX: window.innerWidth / 2, clientY: window.innerHeight / 2 });
 
 // 玩家名稱輸入
@@ -4732,9 +4762,16 @@ if (player1NameInput) {
     updateUi();
   });
 }
-if (player2NameInput) {
-  player2NameInput.addEventListener('input', () => {
-    playerNames[1] = player2NameInput.value.trim() || 'AI';
+if (player2ModeSelect) {
+  player2ModeSelect.addEventListener('change', () => {
+    syncModeFromLobby();
+    updateUi();
+  });
+}
+if (startGameBtn) {
+  startGameBtn.addEventListener('click', () => {
+    syncModeFromLobby();
+    resetGame({ startNow: true, aiMode: aiEnabled });
     updateUi();
   });
 }

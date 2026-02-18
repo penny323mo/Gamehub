@@ -18,7 +18,13 @@
       <div id="hud-essential">
         <div id="player-names">
           <label>P1: <input id="player1-name" type="text" placeholder="Player 1" value="P1" /></label>
-          <label>P2: <input id="player2-name" type="text" placeholder="Player 2" value="AI" /></label>
+          <label>P2:
+            <select id="player2-mode">
+              <option value="p2">Offline P2</option>
+              <option value="ai" selected>AI</option>
+            </select>
+          </label>
+          <button id="start-game-btn" type="button">開始遊戲</button>
         </div>
         <div id="score">Score: 0</div>
         <div id="turn">Turn: 1</div>
