@@ -1,0 +1,334 @@
+{
+  "hasWindowScene": false,
+  "hasPocketPositions": false,
+  "sceneTraverseOk": true,
+  "rowsCount": 412,
+  "rowsSample": [
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "PlaneGeometry",
+      "mat": "MeshStandardMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "PlaneGeometry",
+      "mat": "MeshStandardMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "PlaneGeometry",
+      "mat": "MeshStandardMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "PlaneGeometry",
+      "mat": "MeshStandardMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "PlaneGeometry",
+      "mat": "MeshStandardMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "BoxGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "PlaneGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "PlaneGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "PlaneGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "PlaneGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "PlaneGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "PlaneGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    },
+    {
+      "name": "(no-name)",
+      "parent": "(none)",
+      "geom": "TorusGeometry",
+      "mat": "MeshBasicMaterial",
+      "vis": true
+    }
+  ],
+  "pocketPositionsOk": false,
+  "pocketPositionsError": "ReferenceError: pocketPositions is not defined",
+  "debugPockets": [
+    {
+      "id": 0,
+      "kind": "corner",
+      "x": -0.89,
+      "z": -1.79,
+      "r": 0.062
+    },
+    {
+      "id": 1,
+      "kind": "corner",
+      "x": 0.89,
+      "z": -1.79,
+      "r": 0.062
+    },
+    {
+      "id": 2,
+      "kind": "corner",
+      "x": -0.89,
+      "z": 1.79,
+      "r": 0.062
+    },
+    {
+      "id": 3,
+      "kind": "corner",
+      "x": 0.89,
+      "z": 1.79,
+      "r": 0.062
+    },
+    {
+      "id": 4,
+      "kind": "side",
+      "x": -0.9,
+      "z": 0,
+      "r": 0.068
+    },
+    {
+      "id": 5,
+      "kind": "side",
+      "x": 0.9,
+      "z": 0,
+      "r": 0.068
+    }
+  ]
+}

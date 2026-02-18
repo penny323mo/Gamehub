@@ -1,0 +1,11 @@
+{
+  "pocketsLine": {
+    "type": "log",
+    "text": "[POCKETS] [Array(2), Array(2), Array(2), Array(2), Array(2), Array(2)]"
+  },
+  "railLine": {
+    "type": "log",
+    "text": "[RAIL] holes: 7"
+  },
+  "clearcoatWarnCount": 0
+}

@@ -1,0 +1,51 @@
+{
+  "railExists": true,
+  "tableExists": true,
+  "pocketDebugExists": true,
+  "pocketCount": 6,
+  "hitAtCenters": [
+    {
+      "id": 0,
+      "kind": "corner",
+      "x": -0.89,
+      "z": -1.79,
+      "hits": 0
+    },
+    {
+      "id": 1,
+      "kind": "corner",
+      "x": 0.89,
+      "z": -1.79,
+      "hits": 0
+    },
+    {
+      "id": 2,
+      "kind": "corner",
+      "x": -0.89,
+      "z": 1.79,
+      "hits": 0
+    },
+    {
+      "id": 3,
+      "kind": "corner",
+      "x": 0.89,
+      "z": 1.79,
+      "hits": 0
+    },
+    {
+      "id": 4,
+      "kind": "side",
+      "x": -0.9,
+      "z": 0,
+      "hits": 1
+    },
+    {
+      "id": 5,
+      "kind": "side",
+      "x": 0.9,
+      "z": 0,
+      "hits": 0
+    }
+  ],
+  "noShortSideMiddlePocket": true
+}

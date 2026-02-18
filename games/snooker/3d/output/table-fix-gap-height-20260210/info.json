@@ -1,0 +1,9 @@
+{
+  "railColor": "422c1c",
+  "bodyColor": "422c1c",
+  "railMinY": 0,
+  "bodyTopY": 0,
+  "railBodyGap": 0,
+  "clothY": 0.005,
+  "cueY": null
+}

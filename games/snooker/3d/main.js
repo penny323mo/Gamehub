@@ -1121,13 +1121,279 @@ const RAIL_THICK = 0.12;
 const RAIL_HEIGHT = 0.08;
 const BALL_RADIUS = 0.035;
 const CLOTH_Y = 0.005;
+const CLOTH_RENDER_Y = 0.011;
+const TABLE_OUTER_W = TABLE_WIDTH + 2 * RAIL_THICK;
+const TABLE_OUTER_L = TABLE_LENGTH + 2 * RAIL_THICK;
 
 const halfL = TABLE_LENGTH / 2;
 const halfW = TABLE_WIDTH / 2;
 const playW = TABLE_WIDTH;
 const playL = TABLE_LENGTH;
+const TABLE_UNIFIED_COLOR = 0xb5a599; // light unified tone (matched to approved look)
+
+function roundedRectShape(w, l, r) {
+  const x = -w / 2;
+  const z = -l / 2;
+  const s = new THREE.Shape();
+  const rr = Math.max(0, Math.min(r, Math.min(w, l) / 2 - 1e-6));
+  s.moveTo(x + rr, z);
+  s.lineTo(x + w - rr, z);
+  s.quadraticCurveTo(x + w, z, x + w, z + rr);
+  s.lineTo(x + w, z + l - rr);
+  s.quadraticCurveTo(x + w, z + l, x + w - rr, z + l);
+  s.lineTo(x + rr, z + l);
+  s.quadraticCurveTo(x, z + l, x, z + l - rr);
+  s.lineTo(x, z + rr);
+  s.quadraticCurveTo(x, z, x + rr, z);
+  return s;
+}
+
+function circleHole(x, z, r) {
+  const p = new THREE.Path();
+  p.absarc(x, z, r, 0, Math.PI * 2, false);
+  return p;
+}
+
+function sideHalfMoonHole(cx, cz, r, dirX, flatInset = 0.55, n = 48) {
+  // dirX: +1 right pocket, -1 left pocket.
+  // Build with sampled points to avoid arc winding/self-intersection issues.
+  const p = new THREE.Path();
+  const mid = dirX > 0 ? 0 : Math.PI;
+  const span = Math.PI * 0.92;
+  const a0 = mid - span / 2;
+  const a1 = mid + span / 2;
+  const xFlat = cx + dirX * (r * flatInset);
+
+  const x0 = cx + Math.cos(a0) * r;
+  const z0 = cz + Math.sin(a0) * r;
+  p.moveTo(x0, z0);
+
+  for (let i = 1; i <= n; i += 1) {
+    const t = i / n;
+    const a = a0 + (a1 - a0) * t;
+    const x = cx + Math.cos(a) * r;
+    const z = cz + Math.sin(a) * r;
+    p.lineTo(x, z);
+  }
+
+  const x1 = cx + Math.cos(a1) * r;
+  const z1 = cz + Math.sin(a1) * r;
+  p.lineTo(xFlat, z1);
+  p.lineTo(xFlat, z0);
+  p.closePath();
+  return p;
+}
+
+function buildInnerHoleWithSideNotches(TABLE_W, TABLE_L, SIDE_R) {
+  const hw = TABLE_W / 2;
+  const hl = TABLE_L / 2;
+  const r = SIDE_R;
+  const p = new THREE.Path();
+
+  p.moveTo(-hw, hl);
+  p.lineTo(hw, hl);
+  p.lineTo(hw, r);
+  p.absarc(hw, 0, r, Math.PI / 2, -Math.PI / 2, true);
+  p.lineTo(hw, -hl);
+  p.lineTo(-hw, -hl);
+  p.lineTo(-hw, -r);
+  p.absarc(-hw, 0, r, -Math.PI / 2, Math.PI / 2, true);
+  p.lineTo(-hw, hl);
+  p.closePath();
+
+  return p;
+}
+
+function buildUnifiedInnerHole6Pockets(TABLE_W, TABLE_L, cornerR, sideR, pocketCenters = []) {
+  const hw = TABLE_W / 2;
+  const hl = TABLE_L / 2;
+  const rc = cornerR;
+  const rs = sideR;
+  const corners = pocketCenters.filter((p) => (p.kind ?? p.type) === 'corner');
+  const sides = pocketCenters.filter((p) => (p.kind ?? p.type) === 'side');
+  const tr = corners.find((p) => p.x > 0 && p.z > 0) || { x: hw, z: hl, r: rc };
+  const br = corners.find((p) => p.x > 0 && p.z < 0) || { x: hw, z: -hl, r: rc };
+  const bl = corners.find((p) => p.x < 0 && p.z < 0) || { x: -hw, z: -hl, r: rc };
+  const tl = corners.find((p) => p.x < 0 && p.z > 0) || { x: -hw, z: hl, r: rc };
+  const rightSide = sides.find((p) => p.x > 0) || { x: hw, z: 0, r: rs };
+  const leftSide = sides.find((p) => p.x < 0) || { x: -hw, z: 0, r: rs };
+
+  const rTR = tr.r ?? rc;
+  const rBR = br.r ?? rc;
+  const rBL = bl.r ?? rc;
+  const rTL = tl.r ?? rc;
+  const rRS = rightSide.r ?? rs;
+  const rLS = leftSide.r ?? rs;
+  const safeSqrt = (v) => Math.sqrt(Math.max(0, v));
+
+  // Corner pocket intersections with cloth rectangle edges.
+  const trTopX = tr.x - safeSqrt(rTR * rTR - (hl - tr.z) * (hl - tr.z));
+  const trSideZ = tr.z - safeSqrt(rTR * rTR - (hw - tr.x) * (hw - tr.x));
+  const brSideZ = br.z + safeSqrt(rBR * rBR - (hw - br.x) * (hw - br.x));
+  const brBottomX = br.x - safeSqrt(rBR * rBR - (-hl - br.z) * (-hl - br.z));
+  const blBottomX = bl.x + safeSqrt(rBL * rBL - (-hl - bl.z) * (-hl - bl.z));
+  const blSideZ = bl.z + safeSqrt(rBL * rBL - (-hw - bl.x) * (-hw - bl.x));
+  const tlSideZ = tl.z - safeSqrt(rTL * rTL - (-hw - tl.x) * (-hw - tl.x));
+  const tlTopX = tl.x + safeSqrt(rTL * rTL - (hl - tl.z) * (hl - tl.z));
+
+  // Side pocket intersections with cloth side edges.
+  const rightDx = hw - rightSide.x;
+  const rightDz = safeSqrt(rRS * rRS - rightDx * rightDx);
+  const rsTopZ = rightSide.z + rightDz;
+  const rsBottomZ = rightSide.z - rightDz;
+
+  const leftDx = -hw - leftSide.x;
+  const leftDz = safeSqrt(rLS * rLS - leftDx * leftDx);
+  const lsBottomZ = leftSide.z - leftDz;
+  const lsTopZ = leftSide.z + leftDz;
+
+  const p = new THREE.Path();
+
+  // Traverse clockwise along cloth edges, only adding circular/semicircular pocket bites.
+  p.moveTo(tlTopX, hl);
+  p.lineTo(trTopX, hl);
+  p.absarc(
+    tr.x,
+    tr.z,
+    rTR,
+    Math.atan2(hl - tr.z, trTopX - tr.x),
+    Math.atan2(trSideZ - tr.z, hw - tr.x),
+    true
+  );
+
+  p.lineTo(hw, rsTopZ);
+  p.absarc(
+    rightSide.x,
+    rightSide.z,
+    rRS,
+    Math.atan2(rsTopZ - rightSide.z, hw - rightSide.x),
+    Math.atan2(rsBottomZ - rightSide.z, hw - rightSide.x),
+    true
+  );
+
+  p.lineTo(hw, brSideZ);
+  p.absarc(
+    br.x,
+    br.z,
+    rBR,
+    Math.atan2(brSideZ - br.z, hw - br.x),
+    Math.atan2(-hl - br.z, brBottomX - br.x),
+    true
+  );
+
+  p.lineTo(blBottomX, -hl);
+  p.absarc(
+    bl.x,
+    bl.z,
+    rBL,
+    Math.atan2(-hl - bl.z, blBottomX - bl.x),
+    Math.atan2(blSideZ - bl.z, -hw - bl.x),
+    true
+  );
+
+  p.lineTo(-hw, lsBottomZ);
+  p.absarc(
+    leftSide.x,
+    leftSide.z,
+    rLS,
+    Math.atan2(lsBottomZ - leftSide.z, -hw - leftSide.x),
+    Math.atan2(lsTopZ - leftSide.z, -hw - leftSide.x),
+    true
+  );
+
+  p.lineTo(-hw, tlSideZ);
+  p.absarc(
+    tl.x,
+    tl.z,
+    rTL,
+    Math.atan2(tlSideZ - tl.z, -hw - tl.x),
+    Math.atan2(hl - tl.z, tlTopX - tl.x),
+    true
+  );
+
+  p.closePath();
+  return p;
+}
+
+function buildUnifiedRailGeometry(d, pocketCenters) {
+  console.assert([d.outerW, d.outerL, d.innerW, d.innerL, d.railH].every(Number.isFinite), 'dims invalid', d);
+  console.assert(Array.isArray(pocketCenters) && pocketCenters.length === 6, 'pocketCenters invalid', pocketCenters);
+  for (const pc of pocketCenters) {
+    console.assert(Number.isFinite(pc.x) && Number.isFinite(pc.z), 'pc invalid', pc);
+  }
+
+  const outerW = d.outerW;
+  const outerL = d.outerL;
+  const TABLE_W = TABLE_WIDTH;
+  const TABLE_L = TABLE_LENGTH;
+  const cornerRFromPockets = pocketCenters.find((p) => (p.kind ?? p.type) === 'corner')?.r;
+  const sideRFromPockets = pocketCenters.find((p) => (p.kind ?? p.type) === 'side')?.r;
+  const POCKET_RADIUS_CORNER = cornerRFromPockets ?? d.cornerPocketR;
+  const POCKET_RADIUS_SIDE = sideRFromPockets ?? d.sidePocketR;
+  const outer = roundedRectShape(outerW, outerL, d.outerR);
+  const innerHoleW = TABLE_W;
+  const innerHoleL = TABLE_L;
+  console.log('[POCKET_VISUAL_MATCH]', { cornerR: POCKET_RADIUS_CORNER, sideR: POCKET_RADIUS_SIDE });
+  const unifiedHole = buildUnifiedInnerHole6Pockets(
+    TABLE_W,
+    TABLE_L,
+    POCKET_RADIUS_CORNER,
+    POCKET_RADIUS_SIDE,
+    pocketCenters
+  );
+  console.log('[INNER_MATCH]', {
+    TABLE_W,
+    TABLE_L,
+    outerW,
+    outerL,
+    innerHoleW,
+    innerHoleL
+  });
+  outer.holes = [];
+  outer.holes.push(unifiedHole);
+  console.log('[HOLE_TOPO_V4]', {
+    holes: outer.holes.length,
+    expect: 1,
+    TABLE_W,
+    TABLE_L,
+    cornerR: POCKET_RADIUS_CORNER,
+    sideR: POCKET_RADIUS_SIDE
+  });
+  console.assert(outer.holes.length === 1, 'holes count mismatch', outer.holes.length);
+
+  const geo = new THREE.ExtrudeGeometry(outer, {
+    depth: d.railH,
+    bevelEnabled: false,
+    curveSegments: 32,
+    steps: 1,
+  });
+
+  geo.rotateX(-Math.PI / 2);
+  geo.computeVertexNormals();
+  geo.computeBoundingBox();
+  console.log('[INNER_MATCH]', {
+    TABLE_W,
+    TABLE_L,
+    outerW,
+    outerL,
+    innerHoleW,
+    innerHoleL,
+    holeCount: (outer?.holes?.length ?? null)
+  });
+  console.log('[RAIL_BBOX]', geo.boundingBox);
+  geo.userData.innerMatch = {
+    TABLE_W,
+    TABLE_L,
+    outerW,
+    outerL,
+    innerHoleW,
+    innerHoleL
+  };
+  return geo;
+}
 
 const tableGroup = new THREE.Group();
+tableGroup.name = 'tableGroup';
 scene.add(tableGroup);
 
 const worldAxes = new THREE.AxesHelper(2);
@@ -1230,12 +1496,13 @@ const cloth = new THREE.Mesh(
     metalness: 0.0,
     dithering: true,
     polygonOffset: true,
-    polygonOffsetFactor: 1,
-    polygonOffsetUnits: 1,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
   })
 );
+cloth.name = 'tableCloth';
 cloth.rotation.x = -Math.PI / 2;
-cloth.position.set(0, CLOTH_Y, 0);
+cloth.position.set(0, CLOTH_RENDER_Y, 0);
 const clothOverlay = new THREE.Mesh(
   new THREE.PlaneGeometry(TABLE_WIDTH, TABLE_LENGTH),
   new THREE.MeshStandardMaterial({
@@ -1254,6 +1521,14 @@ clothOverlay.rotation.x = -Math.PI / 2;
 clothOverlay.position.set(0, CLOTH_Y + 0.001, 0);
 
 tableGroup.add(cloth);
+console.log('[CLOTH_EXIST]', {
+  name: cloth.name,
+  visible: cloth.visible,
+  pos: { x: cloth.position.x, y: cloth.position.y, z: cloth.position.z },
+  rot: { x: cloth.rotation.x, y: cloth.rotation.y, z: cloth.rotation.z },
+});
+cloth.geometry.computeBoundingBox();
+console.log('[CLOTH_BBOX]', cloth.geometry.boundingBox);
 
 function createWoodTexture() {
   const canvas = document.createElement('canvas');
@@ -1297,69 +1572,13 @@ function createWoodTexture() {
 }
 
 const woodMaterial = new THREE.MeshStandardMaterial({
-  color: 0x4a2f1f,
-  map: createWoodTexture(),
+  color: TABLE_UNIFIED_COLOR,
   roughness: 0.25,
   metalness: 0.25,
-  clearcoat: 0.6,
-  clearcoatRoughness: 0.15,
 });
 
-// Rails with cutouts for pockets (using split BoxGeometry segments)
-// Pocket cutout sizes
-const pocketGap = 0.12;  // Gap size at pocket positions
-
-// LONG RAILS (x = ±halfW): run along Z axis
-// Split into 2 segments with gap at middle (z = 0) for middle pocket
-// Also need gaps at corners (z = ±halfL)
-const longSegmentLen = (TABLE_LENGTH - pocketGap) / 2 - pocketGap / 2;
-
-// Right long rail (x = +halfW): top and bottom segments
-const railRightTop = new THREE.Mesh(
-  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, longSegmentLen),
-  woodMaterial
-);
-railRightTop.position.set(halfW + RAIL_THICK / 2, RAIL_HEIGHT / 2, (halfL + pocketGap / 2) / 2);
-
-const railRightBottom = new THREE.Mesh(
-  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, longSegmentLen),
-  woodMaterial
-);
-railRightBottom.position.set(halfW + RAIL_THICK / 2, RAIL_HEIGHT / 2, -(halfL + pocketGap / 2) / 2);
-
-// Left long rail (x = -halfW): same as right
-const railLeftTop = new THREE.Mesh(
-  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, longSegmentLen),
-  woodMaterial
-);
-railLeftTop.position.set(-halfW - RAIL_THICK / 2, RAIL_HEIGHT / 2, (halfL + pocketGap / 2) / 2);
-
-const railLeftBottom = new THREE.Mesh(
-  new THREE.BoxGeometry(RAIL_THICK, RAIL_HEIGHT, longSegmentLen),
-  woodMaterial
-);
-railLeftBottom.position.set(-halfW - RAIL_THICK / 2, RAIL_HEIGHT / 2, -(halfL + pocketGap / 2) / 2);
-
-// SHORT RAILS (z = ±halfL): run along X axis
-// Only need gaps at corners (x = ±halfW), no middle pocket
-const shortRailLen = TABLE_WIDTH - pocketGap;
-
-const railTop = new THREE.Mesh(
-  new THREE.BoxGeometry(shortRailLen, RAIL_HEIGHT, RAIL_THICK),
-  woodMaterial
-);
-railTop.position.set(0, RAIL_HEIGHT / 2, halfL + RAIL_THICK / 2);
-
-const railBottom = new THREE.Mesh(
-  new THREE.BoxGeometry(shortRailLen, RAIL_HEIGHT, RAIL_THICK),
-  woodMaterial
-);
-railBottom.position.set(0, RAIL_HEIGHT / 2, -halfL - RAIL_THICK / 2);
-
-tableGroup.add(railRightTop, railRightBottom, railLeftTop, railLeftBottom, railTop, railBottom);
-
 const tableBody = new THREE.Mesh(
-  new THREE.BoxGeometry(TABLE_WIDTH + RAIL_THICK * 2.4, TABLE_HEIGHT, TABLE_LENGTH + RAIL_THICK * 2.4),
+  new THREE.BoxGeometry(TABLE_OUTER_W, TABLE_HEIGHT, TABLE_OUTER_L),
   woodMaterial
 );
 tableBody.position.y = -TABLE_HEIGHT / 2;
@@ -1367,10 +1586,10 @@ tableGroup.add(tableBody);
 
 // 前方木紋面板（加強木紋視覺）
 const frontPanel = new THREE.Mesh(
-  new THREE.PlaneGeometry(TABLE_WIDTH + RAIL_THICK * 2.4, TABLE_HEIGHT * 0.55),
+  new THREE.PlaneGeometry(TABLE_OUTER_W, TABLE_HEIGHT * 0.55),
   woodMaterial
 );
-frontPanel.position.set(0, -TABLE_HEIGHT * 0.55, -(TABLE_LENGTH + RAIL_THICK * 2.4) / 2 - 0.001);
+frontPanel.position.set(0, -TABLE_HEIGHT * 0.55, -TABLE_OUTER_L / 2 - 0.001);
 frontPanel.rotation.y = Math.PI; // 面向鏡頭
 frontPanel.rotation.x = 0;
 frontPanel.castShadow = false;
@@ -1387,8 +1606,9 @@ function createTableLeg(x, z) {
   leg.position.set(x, floorY + legHeight / 2, z);
   return leg;
 }
-const legInsetX = halfW + RAIL_THICK * 0.62;
-const legInsetZ = halfL + RAIL_THICK * 0.62;
+const legInsetMargin = 0.045;
+const legInsetX = TABLE_OUTER_W / 2 - legInsetMargin;
+const legInsetZ = TABLE_OUTER_L / 2 - legInsetMargin;
 tableGroup.add(createTableLeg(-legInsetX, -legInsetZ));
 tableGroup.add(createTableLeg(legInsetX, -legInsetZ));
 tableGroup.add(createTableLeg(-legInsetX, legInsetZ));
@@ -1396,6 +1616,7 @@ tableGroup.add(createTableLeg(legInsetX, legInsetZ));
 
 // Pocket group and materials
 const pocketGroup = new THREE.Group();
+pocketGroup.name = 'pocketGroup';
 pocketGroup.renderOrder = 10;  // Render on top of rails
 const pocketRimMaterial = new THREE.MeshStandardMaterial({ color: 0x12161b, roughness: 0.92, metalness: 0.06 });
 const pocketWallMaterial = new THREE.MeshStandardMaterial({ color: 0x06080b, roughness: 1, metalness: 0 });
@@ -1423,7 +1644,7 @@ const pocketDefs = [
   { kind: 'side', x: halfW, z: 0, r: pocketRadiusSide },   // Right middle
 ];
 
-const pockets = pocketDefs.map((p) => {
+const pockets = pocketDefs.map((p, i) => {
   const isSide = p.kind === 'side';
   const root = new THREE.Group();
   root.position.set(p.x, 0, p.z);
@@ -1482,21 +1703,165 @@ const pockets = pocketDefs.map((p) => {
   wall.position.set(p.x, CLOTH_Y - pocketDepth / 2, p.z);
   pocketGroup.add(wall);
 
-  return { kind: p.kind, position: new THREE.Vector3(p.x, CLOTH_Y, p.z), radius: p.r };
+  return { id: i, kind: p.kind, x: p.x, z: p.z, position: new THREE.Vector3(p.x, CLOTH_Y, p.z), radius: p.r };
 });
 
-// Add pockets to scene (not tableGroup) so they render on top of rails
-scene.add(pocketGroup);
+const pocketCenters = pockets.map((p) => ({
+  id: p.id ?? p.name,
+  x: p.x,
+  z: p.z,
+  kind: p.kind,
+  r: p.radius,
+  type: p.type ?? p.kind ?? p.id,
+}));
+console.assert(pocketCenters.length === 6, 'expect 6 pockets');
 
-console.log(
-  '[POCKETS]',
-  pockets.map((p, i) => ({
-    id: i,
-    x: Number(p.position.x.toFixed(3)),
-    z: Number(p.position.z.toFixed(3)),
-    r: Number(p.radius.toFixed(3)),
-  }))
-);
+const dims = {
+  outerW: TABLE_OUTER_W,
+  outerL: TABLE_OUTER_L,
+  outerR: 0.04,
+  innerW: TABLE_WIDTH - 0.08,
+  innerL: TABLE_LENGTH - 0.08,
+  innerR: 0.02,
+  railH: 0.10,
+  cornerPocketR: 0.03,
+  sidePocketR: 0.032,
+  sidePocketInset: 0.0,
+};
+
+const railGeo = buildUnifiedRailGeometry(dims, pocketCenters);
+railGeo.computeBoundingBox();
+console.assert(Number.isFinite(railGeo.boundingBox.min.y), 'railGeo bbox invalid -> path broken');
+const railMat = woodMaterial.clone();
+railMat.color.setHex(TABLE_UNIFIED_COLOR);
+const railMesh = new THREE.Mesh(railGeo, railMat);
+railMesh.name = 'railMesh';
+railMesh.castShadow = true;
+railMesh.receiveShadow = true;
+railMesh.position.set(0, 0, 0);
+cloth.position.y = CLOTH_RENDER_Y;
+cloth.material.side = THREE.DoubleSide;
+
+tableGroup.add(railMesh);
+
+// Pocket decorations and rail use the same parent to avoid transform drift.
+tableGroup.add(pocketGroup);
+
+// Temporary alignment debug rings at real pocket centers.
+const pocketAlignDebug = new THREE.Group();
+pocketAlignDebug.name = 'pocketAlignDebug';
+for (const pc of pocketCenters) {
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.017, 0.020, 40),
+    new THREE.MeshBasicMaterial({
+      color: 0x5fe7ff,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.95,
+      depthTest: false,
+    })
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.set(pc.x, CLOTH_Y + 0.0035, pc.z);
+  pocketAlignDebug.add(ring);
+}
+tableGroup.add(pocketAlignDebug);
+
+const innerMatchDebug = new THREE.Group();
+innerMatchDebug.name = 'innerMatchDebug';
+function makeRectOutline(width, length, y, color) {
+  const hw = width / 2;
+  const hl = length / 2;
+  const pts = [
+    new THREE.Vector3(-hw, y, -hl),
+    new THREE.Vector3(hw, y, -hl),
+    new THREE.Vector3(hw, y, hl),
+    new THREE.Vector3(-hw, y, hl),
+  ];
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  return new THREE.LineLoop(geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.95 }));
+}
+const innerMatchMeta = railGeo.userData?.innerMatch || {
+  TABLE_W: TABLE_WIDTH,
+  TABLE_L: TABLE_LENGTH,
+  outerW: TABLE_OUTER_W,
+  outerL: TABLE_OUTER_L,
+  innerHoleW: TABLE_WIDTH,
+  innerHoleL: TABLE_LENGTH,
+};
+const clothBoundaryLine = makeRectOutline(innerMatchMeta.TABLE_W, innerMatchMeta.TABLE_L, CLOTH_Y + 0.0045, 0x5fe7ff);
+const innerHoleBoundaryLine = makeRectOutline(innerMatchMeta.innerHoleW, innerMatchMeta.innerHoleL, CLOTH_Y + 0.0048, 0xffcc4d);
+innerMatchDebug.add(clothBoundaryLine);
+innerMatchDebug.add(innerHoleBoundaryLine);
+innerMatchDebug.visible = false;
+tableGroup.add(innerMatchDebug);
+
+{
+  const tg = scene.getObjectByName('tableGroup') || tableGroup;
+  console.assert(tg, 'tableGroup missing');
+  const clothMesh = scene.getObjectByName('tableCloth') || cloth;
+  const rail = scene.getObjectByName('railMesh') || railMesh;
+  const pg = scene.getObjectByName('pocketGroup') || pocketGroup;
+  console.assert(clothMesh && clothMesh.isMesh, 'cloth missing');
+  console.assert(rail && rail.isMesh, 'railMesh missing');
+  console.assert(pg, 'pocketGroup missing');
+  if (clothMesh && clothMesh.parent !== tg) tg.add(clothMesh);
+  if (rail && rail.parent !== tg) tg.add(rail);
+  if (pg && pg.parent !== tg) tg.add(pg);
+  console.log('[PARENTS]', {
+    cloth: clothMesh?.parent?.name,
+    rail: rail?.parent?.name,
+    pocketGroup: pg?.parent?.name,
+  });
+
+  rail.updateMatrixWorld(true);
+  clothMesh.updateMatrixWorld(true);
+  const rbBefore = new THREE.Box3().setFromObject(rail);
+  const bodyTopY = tableBody.position.y + TABLE_HEIGHT / 2;
+  rail.position.y += bodyTopY - rbBefore.min.y;
+  clothMesh.position.y = CLOTH_Y;
+  if (clothMesh.material) {
+    clothMesh.material.side = THREE.DoubleSide;
+  }
+  rail.updateMatrixWorld(true);
+  clothMesh.updateMatrixWorld(true);
+  const rb = new THREE.Box3().setFromObject(rail);
+  const cb = new THREE.Box3().setFromObject(clothMesh);
+  console.log('[BBOX] rail y', rb.min.y, rb.max.y, 'cloth y', cb.min.y, cb.max.y);
+  console.assert(Number.isFinite(rb.min.y) && Number.isFinite(cb.min.y), 'NaN bbox -> geometry invalid');
+
+  if (clothMesh.material) {
+    clothMesh.material.depthTest = false;
+  }
+  const railMaterials = Array.isArray(rail.material) ? rail.material : [rail.material];
+  railMaterials.forEach((m) => {
+    if (m) m.wireframe = true;
+  });
+  setTimeout(() => {
+    if (clothMesh.material) {
+      clothMesh.material.depthTest = true;
+    }
+    railMaterials.forEach((m) => {
+      if (m) m.wireframe = false;
+    });
+  }, 1500);
+
+  if (!scene.getObjectByName('tableCloth')) {
+    const rescue = new THREE.Mesh(
+      new THREE.PlaneGeometry(dims.innerW, dims.innerL),
+      new THREE.MeshStandardMaterial({ color: 0x1f8f5a, roughness: 0.9, metalness: 0 })
+    );
+    rescue.name = 'tableCloth';
+    rescue.rotation.x = -Math.PI / 2;
+    rescue.position.set(0, rail.position.y - 0.002, 0);
+    rescue.material.side = THREE.DoubleSide;
+    tg.add(rescue);
+    console.warn('[RESCUE] cloth recreated');
+  }
+}
+
+console.log('[POCKETS]', pocketCenters.map((p) => [p.x, p.z]));
+console.log('[RAIL] holes:', 1 + pocketCenters.length);
 
 const ballGeometry = new THREE.SphereGeometry(BALL_RADIUS, 32, 24);
 const shadowGeometry = new THREE.CircleGeometry(BALL_RADIUS * 1.25, 24);
@@ -3726,6 +4091,18 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyD') {
     debugVisible = !debugVisible;
     debugGroup.visible = debugVisible;
+    innerMatchDebug.visible = debugVisible;
+    if (debugVisible) {
+      const meta = railGeo.userData?.innerMatch || {
+        TABLE_W: TABLE_WIDTH,
+        TABLE_L: TABLE_LENGTH,
+        outerW: TABLE_OUTER_W,
+        outerL: TABLE_OUTER_L,
+        innerHoleW: TABLE_WIDTH,
+        innerHoleL: TABLE_LENGTH,
+      };
+      console.log('[INNER_MATCH]', meta);
+    }
     worldAxes.visible = debugVisible;
     tableAxes.visible = debugVisible;
     setStatus(`Debug ${debugVisible ? 'ON' : 'OFF'}`, 1.2);
@@ -3751,6 +4128,11 @@ function resolveCushion(ball) {
 
   // Check if ball is near any pocket (skip cushion collision if so)
   const isNearPocket = pockets.some((p) => {
+    if (p.kind === 'side') {
+      // Side pockets are semicircles opening toward table center only.
+      const insideHalf = p.position.x < 0 ? bx >= p.position.x : bx <= p.position.x;
+      if (!insideHalf) return false;
+    }
     const dx = bx - p.position.x;
     const dz = bz - p.position.z;
     return Math.hypot(dx, dz) < p.radius + BALL_RADIUS * 0.5;
@@ -3825,17 +4207,26 @@ function checkPockets(ball) {
     const dz = ball.position.z - pocket.position.z;
     const distSq = dx * dx + dz * dz;
 
-    // 中袋（side pocket）：只有球喺枱邊內側先算入袋
     if (pocket.kind === 'side') {
-      // 中袋係半圓形，開口向枱內
-      // 左中袋 (x = -halfW)：球要喺 x > pocket.x 先算入袋範圍
-      // 右中袋 (x = +halfW)：球要喺 x < pocket.x 先算入袋範圍
-      const isLeftPocket = pocket.position.x < 0;
-      const inPocketZone = isLeftPocket ? (ball.position.x > pocket.position.x - pocket.radius * 0.3) 
-                                         : (ball.position.x < pocket.position.x + pocket.radius * 0.3);
-      if (!inPocketZone) continue;
-      // 縮細中袋檢測半徑，避免擦邊誤判
-      if (distSq < (pocket.radius * 0.75) * (pocket.radius * 0.75)) {
+      const u = pocket.position.x;
+      const v = pocket.position.z;
+      const len = Math.hypot(u, v) || 1;
+      const nx = -u / len;
+      const nz = -v / len;
+      const dot = dx * nx + dz * nz;
+      const dist = Math.sqrt(distSq);
+      const allowed = distSq <= pocket.radius * pocket.radius && dot >= 0;
+      if (debugVisible && dist <= pocket.radius + BALL_RADIUS * 0.5) {
+        console.log('[POCKET_GATE]', {
+          kind: pocket.kind,
+          pocketCenter: { u, v },
+          n: { u: nx, v: nz },
+          dot,
+          dist,
+          allowed,
+        });
+      }
+      if (allowed) {
         handlePocket(ball);
         return true;
       }

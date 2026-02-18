@@ -1,0 +1,50 @@
+[
+  {
+    "type": "log",
+    "text": "[Device] isTouchDevice: false forceMobile: false"
+  },
+  {
+    "type": "log",
+    "text": "[PARENTS] {cloth: tableGroup, rail: tableGroup, pocketGroup: tableGroup}"
+  },
+  {
+    "type": "log",
+    "text": "[BBOX] rail y 0 0.10000000149011623 cloth y 0.0049999999999996 0.0050000000000004"
+  },
+  {
+    "type": "log",
+    "text": "[POCKETS] [Array(2), Array(2), Array(2), Array(2), Array(2), Array(2)]"
+  },
+  {
+    "type": "log",
+    "text": "[RAIL] holes: 7"
+  },
+  {
+    "type": "warning",
+    "text": "[.WebGL-0x10c001a1400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+  },
+  {
+    "type": "warning",
+    "text": "[.WebGL-0x10c001a1400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+  },
+  {
+    "type": "warning",
+    "text": "[.WebGL-0x10c001a1400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+  },
+  {
+    "type": "warning",
+    "text": "[.WebGL-0x10c001a1400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+  },
+  {
+    "type": "log",
+    "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+  },
+  {
+    "type": "log",
+    "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+  },
+  {
+    "type": "log",
+    "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+  }
+]

@@ -64,3 +64,13 @@ Self-check round 1 (break-off) result:
 - Artifacts:
   - `/Users/a123/AI/snooker/output/power-check/`
   - `/Users/a123/AI/snooker/output/power-check-after/`
+
+2026-02-10 rail side-pocket stability fix:
+- Replaced side-pocket hole builder from arc-based `halfCircleHole` to sampled-point `sideHalfMoonHole` to avoid Path winding/self-intersection failures that caused rail extrusion to collapse into a flat slab.
+- Side-pocket holes now generated with `sideHalfMoonHole(hx, z, r, dirX, 0.55, 48)` while keeping pocket centers/checkPockets unchanged.
+- Added hard assertions:
+  - `outer.holes.length === 1 + pocketCenters.length`
+  - `railGeo.computeBoundingBox()` + finite bbox check
+- Stabilized unified rail extrusion by preventing overlapping inner-hole/corner-hole degeneracy.
+- Kept side pockets as half-moon holes; corner pocket openings now come from enlarged rounded inner opening (no overlapping corner circle holes in rail shape).
+- This restores visible cloth and preserves side-pocket half-moon visuals while keeping pocket centers and checkPockets unchanged.

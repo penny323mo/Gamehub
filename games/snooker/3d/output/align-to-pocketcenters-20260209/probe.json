@@ -1,0 +1,48 @@
+{
+  "railExists": true,
+  "pocketCount": 6,
+  "centerHits": [
+    {
+      "id": 0,
+      "kind": "corner",
+      "x": -0.89,
+      "z": -1.79,
+      "h": 0
+    },
+    {
+      "id": 1,
+      "kind": "corner",
+      "x": 0.89,
+      "z": -1.79,
+      "h": 0
+    },
+    {
+      "id": 2,
+      "kind": "corner",
+      "x": -0.89,
+      "z": 1.79,
+      "h": 0
+    },
+    {
+      "id": 3,
+      "kind": "corner",
+      "x": 0.89,
+      "z": 1.79,
+      "h": 0
+    },
+    {
+      "id": 4,
+      "kind": "side",
+      "x": -0.9,
+      "z": 0,
+      "h": 1
+    },
+    {
+      "id": 5,
+      "kind": "side",
+      "x": 0.9,
+      "z": 0,
+      "h": 0
+    }
+  ]
+}

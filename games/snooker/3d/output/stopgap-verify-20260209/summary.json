@@ -1,0 +1,11 @@
+{
+  "parentLine": {
+    "type": "log",
+    "text": "[PARENTS] {cloth: tableGroup, rail: tableGroup, pocketGroup: tableGroup}"
+  },
+  "bboxLine": {
+    "type": "log",
+    "text": "[BBOX] rail y 0.024999999999999883 0.1250000014901161 cloth y 0.0229999999999996 0.0230000000000004"
+  },
+  "rescueLine": null
+}

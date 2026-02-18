@@ -1,0 +1,30 @@
+{
+  "railMeshExists": true,
+  "tableGroupExists": true,
+  "legacyRailCandidateCount": 0,
+  "pocketCount": 6,
+  "sidePockets": [
+    {
+      "id": 4,
+      "kind": "side",
+      "x": -0.9,
+      "z": 0,
+      "r": 0.068
+    },
+    {
+      "id": 5,
+      "kind": "side",
+      "x": 0.9,
+      "z": 0,
+      "r": 0.068
+    }
+  ],
+  "noShortSideMiddlePocket": true,
+  "centerHitCount": 0,
+  "sideHoleHitCount": 0,
+  "pocketSmoke": {
+    "attempted": true,
+    "success": true,
+    "pocketedReds": 1
+  }
+}
