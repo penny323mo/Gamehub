@@ -1577,36 +1577,37 @@ const woodMaterial = new THREE.MeshStandardMaterial({
   metalness: 0.12,
 });
 
+const BODY_CORNER_R = 0.04;
 const tableBody = new THREE.Mesh(
-  new THREE.BoxGeometry(TABLE_OUTER_W, TABLE_HEIGHT, TABLE_OUTER_L),
+  new THREE.ExtrudeGeometry(roundedRectShape(TABLE_OUTER_W, TABLE_OUTER_L, BODY_CORNER_R), {
+    depth: TABLE_HEIGHT,
+    bevelEnabled: false,
+    curveSegments: 24,
+    steps: 1,
+  }),
   woodMaterial
 );
-tableBody.position.y = -TABLE_HEIGHT / 2;
+tableBody.geometry.rotateX(-Math.PI / 2);
+tableBody.position.y = -TABLE_HEIGHT;
+tableBody.castShadow = true;
+tableBody.receiveShadow = true;
 tableGroup.add(tableBody);
-
-// 前方木紋面板（加強木紋視覺）
-const frontPanel = new THREE.Mesh(
-  new THREE.PlaneGeometry(TABLE_OUTER_W, TABLE_HEIGHT * 0.55),
-  woodMaterial
-);
-frontPanel.position.set(0, -TABLE_HEIGHT * 0.55, -TABLE_OUTER_L / 2 - 0.001);
-frontPanel.rotation.y = Math.PI; // 面向鏡頭
-frontPanel.rotation.x = 0;
-frontPanel.castShadow = false;
-frontPanel.receiveShadow = true;
-tableGroup.add(frontPanel);
 
 // Table legs
 function createTableLeg(x, z) {
-  const tableBodyBottom = tableBody.position.y - TABLE_HEIGHT / 2;
+  const tableBodyBottom = -TABLE_HEIGHT;
   const floorY = floor.position.y;
   const legHeight = Math.max(0.35, tableBodyBottom - floorY);
-  const legGeom = new THREE.CylinderGeometry(0.07, 0.085, legHeight, 18);
+  const legTopR = 0.092;
+  const legBottomR = 0.078;
+  const legGeom = new THREE.CylinderGeometry(legTopR, legBottomR, legHeight, 20);
   const leg = new THREE.Mesh(legGeom, woodMaterial.clone());
   leg.position.set(x, floorY + legHeight / 2, z);
+  leg.castShadow = true;
+  leg.receiveShadow = true;
   return leg;
 }
-const legInsetMargin = 0.045;
+const legInsetMargin = 0.11;
 const legInsetX = TABLE_OUTER_W / 2 - legInsetMargin;
 const legInsetZ = TABLE_OUTER_L / 2 - legInsetMargin;
 tableGroup.add(createTableLeg(-legInsetX, -legInsetZ));
@@ -1817,7 +1818,8 @@ tableGroup.add(innerMatchDebug);
   rail.updateMatrixWorld(true);
   clothMesh.updateMatrixWorld(true);
   const rbBefore = new THREE.Box3().setFromObject(rail);
-  const bodyTopY = tableBody.position.y + TABLE_HEIGHT / 2;
+  const tableBodyBox = new THREE.Box3().setFromObject(tableBody);
+  const bodyTopY = tableBodyBox.max.y;
   rail.position.y += bodyTopY - rbBefore.min.y;
   clothMesh.position.y = CLOTH_Y;
   if (clothMesh.material) {
