@@ -231,7 +231,7 @@ document.getElementById('restart-btn')!.addEventListener('click', () => {
 
 // Home
 document.getElementById('home-btn')!.addEventListener('click', () => {
-    window.location.href = '../../index.html';
+    window.location.href = '../../../index.html';
 });
 
 // Canvas click (place tower or inspect)

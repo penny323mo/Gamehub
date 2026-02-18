@@ -44,9 +44,9 @@ const games = [
     {
         id: 'tower',
         title: 'Tower Defense',
-        subtitle: '⚔️ 塔防！ 10 waves, 3 towers.',
+        subtitle: '⚔️ 塔防！7 towers × 7 enemies, 20 waves.',
         icon: '🏰',
-        link: 'games/tower/index.html',
+        link: 'games/tower/dist/index.html',
         playable: true
     },
     {
