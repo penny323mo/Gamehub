@@ -9,7 +9,7 @@ import { buildTower, canBuild, upgradeTower, sellTower, getSellValue, canUpgrade
 import type { GameState, TowerType, Tower } from './core/types';
 
 import { SceneManager } from './render/sceneManager';
-import { createCamera, handleResize } from './render/camera';
+import { CameraController } from './render/camera';
 import { setupLighting } from './render/lighting';
 import { TowerRenderer } from './render/towerRenderer';
 import { EnemyRenderer } from './render/enemyRenderer';
@@ -30,7 +30,8 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const sm = new SceneManager();
-const camera = createCamera();
+const camCtrl = new CameraController();
+const camera = camCtrl.cam;
 setupLighting(sm.scene);
 sm.buildGround();
 
@@ -234,8 +235,9 @@ document.getElementById('home-btn')!.addEventListener('click', () => {
     window.location.href = '../../../index.html';
 });
 
-// Canvas click (place tower or inspect)
+// Canvas click (place tower or inspect) — guard against two-finger gestures
 canvas.addEventListener('click', () => {
+    if (camCtrl.twoFingerActive) return;
     if (state.phase === 'idle' || state.phase === 'won' || state.phase === 'lost') return;
 
     const col = picking.hoveredCol;
@@ -265,8 +267,11 @@ canvas.addEventListener('mousemove', (e) => {
 });
 
 canvas.addEventListener('touchmove', (e) => {
-    picking.updateMouse(e, camera);
-    updateGhost();
+    // Only update placement preview during single-finger touch
+    if (e.touches.length === 1 && !camCtrl.twoFingerActive) {
+        picking.updateMouse(e, camera);
+        updateGhost();
+    }
 }, { passive: true });
 
 function updateGhost(): void {
@@ -280,8 +285,20 @@ function updateGhost(): void {
     picking.showGhost(picking.hoveredCol, picking.hoveredRow, valid, selectedTowerType, range);
 }
 
+// ─── Camera Controls ───
+// Scroll wheel zoom
+canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    camCtrl.zoom(e.deltaY);
+}, { passive: false });
+
+// Touch pinch-zoom & rotation
+canvas.addEventListener('touchstart', camCtrl.onTouchStart, { passive: true });
+canvas.addEventListener('touchmove', camCtrl.onTouchMove, { passive: false });
+canvas.addEventListener('touchend', camCtrl.onTouchEnd, { passive: true });
+
 // Resize
-window.addEventListener('resize', () => handleResize(camera, renderer));
+window.addEventListener('resize', () => camCtrl.resize(renderer));
 
 // ─── Game Loop ───
 let lastTime = 0;
