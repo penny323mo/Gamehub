@@ -6,7 +6,7 @@ import { tickEnemies } from './core/systems/enemySystem';
 import { tickTowers } from './core/systems/towerSystem';
 import { tickCombat } from './core/systems/combatSystem';
 import { buildTower, canBuild, upgradeTower, sellTower, getSellValue, canUpgrade } from './core/systems/economySystem';
-import type { GameState, TowerType, Tower } from './core/types';
+import type { GameState, TowerType, Tower, TargetingMode } from './core/types';
 
 import { SceneManager } from './render/sceneManager';
 import { CameraController } from './render/camera';
@@ -46,7 +46,10 @@ state = createInitialState();
 const goldEl = document.getElementById('gold-val')!;
 const livesEl = document.getElementById('lives-val')!;
 const waveEl = document.getElementById('wave-val')!;
+const killsEl = document.getElementById('kills-val')!;
 const speedBtn = document.getElementById('speed-btn')!;
+const pauseBtn = document.getElementById('pause-btn')!;
+const skipPrepBtn = document.getElementById('skip-prep-btn')! as HTMLButtonElement;
 const waveBanner = document.getElementById('wave-banner')!;
 const waveBannerText = document.getElementById('wave-banner-text')!;
 const startScreen = document.getElementById('start-screen')!;
@@ -65,6 +68,10 @@ function updateHUD(): void {
     goldEl.textContent = String(state.gold);
     livesEl.textContent = String(state.lives);
     waveEl.textContent = `${Math.min(state.currentWave + 1, TOTAL_WAVES)}/${TOTAL_WAVES}`;
+    killsEl.textContent = String(state.totalKills);
+
+    // Skip prep button visibility
+    skipPrepBtn.classList.toggle('hidden', state.phase !== 'prep');
 
     // Update build button affordance
     buildBtns.forEach(btn => {
@@ -105,6 +112,18 @@ function showTowerPanel(tower: Tower): void {
     if (cfg.dot) specials.push(`DOT ${cfg.dot.dps}/s ${cfg.dot.durationSec}s`);
     if (cfg.chain) specials.push(`Chain ×${cfg.chain.targets}`);
     specialEl.textContent = specials.length > 0 ? specials.join(' | ') : '—';
+
+    // Targeting mode buttons
+    document.querySelectorAll('.target-btn').forEach(btn => {
+        const mode = btn.getAttribute('data-mode') as TargetingMode;
+        btn.classList.toggle('active', tower.targetingMode === mode);
+        (btn as HTMLButtonElement).onclick = () => {
+            tower.targetingMode = mode;
+            document.querySelectorAll('.target-btn').forEach(b =>
+                b.classList.toggle('active', b.getAttribute('data-mode') === mode)
+            );
+        };
+    });
 
     const upgradeBtn = document.getElementById('upgrade-btn')! as HTMLButtonElement;
     const sellBtn = document.getElementById('sell-btn')!;
@@ -181,11 +200,43 @@ cancelBuildBtn.addEventListener('click', (e) => {
     picking.hideGhost();
 });
 
-// Speed toggle
+// Speed toggle — cycle 1× / 2× / 3×
 speedBtn.addEventListener('click', () => {
-    state.speedMultiplier = state.speedMultiplier === 1 ? 2 : 1;
+    if (state.speedMultiplier === 1) {
+        state.speedMultiplier = 2;
+    } else if (state.speedMultiplier === 2) {
+        state.speedMultiplier = 3;
+    } else {
+        state.speedMultiplier = 1;
+    }
     speedBtn.textContent = `${state.speedMultiplier}×`;
-    speedBtn.classList.toggle('active', state.speedMultiplier === 2);
+    speedBtn.classList.toggle('active', state.speedMultiplier > 1);
+});
+
+// Pause toggle
+pauseBtn.addEventListener('click', togglePause);
+
+function togglePause(): void {
+    state.paused = !state.paused;
+    pauseBtn.textContent = state.paused ? '▶' : '⏸';
+    pauseBtn.classList.toggle('active', state.paused);
+}
+
+// P key to pause
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'p' || e.key === 'P') {
+        if (state.phase === 'wave' || state.phase === 'prep') togglePause();
+    }
+});
+
+// Skip Prep
+skipPrepBtn.addEventListener('click', () => {
+    if (state.phase !== 'prep') return;
+    // Give Gold bonus for skipping prep
+    state.gold += 50;
+    state.prepTimer = 0;
+    skipPrepBtn.classList.add('hidden');
+    updateHUD();
 });
 
 // Tower panel buttons
@@ -326,6 +377,12 @@ function gameLoop(time: number): void {
         return;
     }
 
+    // Pause gate
+    if (state.paused) {
+        renderer.render(sm.scene, camera);
+        return;
+    }
+
     const dt = rawDt * state.speedMultiplier;
     accumulator += dt;
 
@@ -364,7 +421,10 @@ function gameLoop(time: number): void {
     // Prep countdown banner
     if (state.phase === 'prep') {
         const secs = Math.ceil(state.prepTimer);
-        waveBannerText.textContent = `Next wave in ${secs}...`;
+        const nextWaveIdx = Math.min(state.currentWave + 1, TOTAL_WAVES - 1);
+        const waveGroup = WAVES.waves[nextWaveIdx];
+        const totalEnemies = waveGroup?.groups?.reduce((s: number, g: { count: number }) => s + g.count, 0) ?? '?';
+        waveBannerText.textContent = `Wave ${nextWaveIdx + 1} — ${totalEnemies} enemies | Next in ${secs}s`;
         waveBanner.classList.remove('hidden');
     }
 

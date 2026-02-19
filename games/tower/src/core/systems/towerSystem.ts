@@ -11,9 +11,9 @@ export function tickTowers(state: GameState, dt: number): void {
         const cfg = towerCfg.levels[tower.level];
         const range = cfg.range;
 
-        // Find closest enemy in range (prefer furthest along path)
+        // Find best enemy in range based on targetingMode
         let bestEnemy = null;
-        let bestProgress = -1;
+        let bestScore = tower.targetingMode === 'last' ? Infinity : -Infinity;
 
         for (const enemy of state.enemies) {
             if (!enemy.alive || enemy.reached) continue;
@@ -23,9 +23,29 @@ export function tickTowers(state: GameState, dt: number): void {
 
             if (d <= range) {
                 const progress = enemy.pathIndex + enemy.pathProgress;
-                if (progress > bestProgress) {
-                    bestProgress = progress;
-                    bestEnemy = enemy;
+                let score: number;
+
+                switch (tower.targetingMode) {
+                    case 'first':
+                        // Highest progress (furthest along path) → pick maximum
+                        score = progress;
+                        if (score > bestScore) { bestScore = score; bestEnemy = enemy; }
+                        break;
+                    case 'last':
+                        // Lowest progress → pick minimum
+                        score = progress;
+                        if (score < bestScore) { bestScore = score; bestEnemy = enemy; }
+                        break;
+                    case 'strongest':
+                        // Highest HP
+                        score = enemy.hp + enemy.shield;
+                        if (score > bestScore) { bestScore = score; bestEnemy = enemy; }
+                        break;
+                    case 'weakest':
+                        // Lowest HP
+                        score = -(enemy.hp + enemy.shield);
+                        if (score > bestScore) { bestScore = score; bestEnemy = enemy; }
+                        break;
                 }
             }
         }

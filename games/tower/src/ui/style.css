@@ -67,9 +67,54 @@ body {
   color: #88ccff;
 }
 
+#hud-kills {
+  color: #cc88ff;
+}
+
+#skip-prep-btn {
+  pointer-events: auto;
+  background: rgba(255, 200, 0, 0.2);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 200, 0, 0.4);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffd700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+#skip-prep-btn:hover {
+  background: rgba(255, 200, 0, 0.35);
+}
+
+#pause-btn {
+  pointer-events: auto;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+#pause-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+#pause-btn.active {
+  background: rgba(255, 180, 0, 0.25);
+  border-color: #ffcc44;
+  color: #ffcc44;
+}
+
 #speed-btn {
   pointer-events: auto;
-  margin-left: auto;
   background: rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -91,6 +136,7 @@ body {
   border-color: #88ccff;
   color: #88ccff;
 }
+
 
 /* ─── Wave Banner ─── */
 #wave-banner {
@@ -270,6 +316,47 @@ body {
 
 #panel-special-row {
   grid-column: 1 / -1;
+}
+
+.panel-targeting {
+  margin-bottom: 10px;
+}
+
+.targeting-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 5px;
+}
+
+.targeting-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.target-btn {
+  flex: 1;
+  padding: 5px 2px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.target-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.target-btn.active {
+  background: rgba(100, 200, 255, 0.25);
+  border-color: #88ccff;
+  color: #88ccff;
+  font-weight: 700;
 }
 
 .panel-actions {

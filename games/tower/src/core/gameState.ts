@@ -19,6 +19,8 @@ export function createInitialState(): GameState {
         score: 0,
         perfectWaves: 0,
         speedMultiplier: 1,
+        paused: false,
+        totalKills: 0,
 
         towers: [],
         enemies: [],

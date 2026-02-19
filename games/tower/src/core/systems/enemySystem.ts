@@ -2,10 +2,26 @@ import type { GameState, Enemy, DamageType } from '../types';
 import { ENEMIES } from '../config';
 import { dist } from '../path';
 
-/** Move enemies along the path, tick DOTs, tick healer ability */
+// Shield enemy type — regen after no-damage delay
+const SHIELD_REGEN_DELAY = 4.0;   // seconds of no damage before regen starts
+const SHIELD_REGEN_RATE = 20;    // hp/sec
+
+// Speed scaling thresholds
+const SPEED_BOOST_WAVE_1 = 50;    // Wave 50+: ×1.15
+const SPEED_BOOST_WAVE_2 = 80;    // Wave 80+: ×1.30
+
+/** Move enemies along the path, tick DOTs, tick healer ability, tick shield regen */
 export function tickEnemies(state: GameState, dt: number): void {
     const path = state.pathWorld;
     if (path.length < 2) return;
+
+    // Derive speed multiplier based on wave
+    let waveSpeedMult = 1.0;
+    if (state.currentWave >= SPEED_BOOST_WAVE_2) {
+        waveSpeedMult = 1.30;
+    } else if (state.currentWave >= SPEED_BOOST_WAVE_1) {
+        waveSpeedMult = 1.15;
+    }
 
     for (const enemy of state.enemies) {
         if (!enemy.alive || enemy.reached) continue;
@@ -28,7 +44,7 @@ export function tickEnemies(state: GameState, dt: number): void {
         if (!enemy.alive) continue;
 
         // Apply slow
-        let speed = enemy.speed;
+        let speed = enemy.speed * waveSpeedMult;
         if (enemy.slow) {
             speed *= (1 - enemy.slow.pct);
             enemy.slow.remaining -= dt;
@@ -54,6 +70,27 @@ export function tickEnemies(state: GameState, dt: number): void {
                     }
                 }
                 enemy.healCooldown = cfg.healIntervalSec ?? 2.0;
+            }
+        }
+
+        // Shield Regen — only for shield-type enemies
+        if (enemy.maxShield > 0 && enemy.shield < enemy.maxShield) {
+            // Track last-hit using shieldRegenTimer (stored in healCooldown for shield enemies)
+            // We use a separate field; if enemy has no specialty, we use dots check
+            // Simple approach: check if shieldRegenDelay elapsed (tracked implicitly)
+            // Use enemy.healCooldown as shield regen timer for shield-type enemies
+            if (enemy.special === 'none' && enemy.dots.length === 0) {
+                // Only regen when not taking damage (no active DOTs)
+                enemy.healCooldown -= dt;
+                if (enemy.healCooldown <= 0) {
+                    enemy.shield = Math.min(enemy.maxShield, enemy.shield + SHIELD_REGEN_RATE * dt);
+                    // don't reset timer; continuously regen once started
+                } else {
+                    // waiting for regen delay
+                }
+            } else {
+                // Reset regen timer on taking dot damage
+                enemy.healCooldown = SHIELD_REGEN_DELAY;
             }
         }
 
@@ -118,10 +155,16 @@ function applyRawDamage(state: GameState, enemy: Enemy, baseDmg: number, damageT
     // Armor reduces damage (flat)
     dmg = Math.max(1, dmg - enemy.armor);
 
+    // Reset shield regen timer on damage
+    if (enemy.maxShield > 0 && enemy.special === 'none') {
+        enemy.healCooldown = SHIELD_REGEN_DELAY;
+    }
+
     enemy.hp -= dmg;
     if (enemy.hp <= 0) {
         enemy.hp = 0;
         enemy.alive = false;
         state.gold += enemy.bounty;
+        state.totalKills++;
     }
 }

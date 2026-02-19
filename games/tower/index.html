@@ -15,7 +15,10 @@
   <div id="hud">
     <div id="hud-gold">💰 <span id="gold-val">400</span></div>
     <div id="hud-lives">❤️ <span id="lives-val">20</span></div>
-    <div id="hud-wave">Wave <span id="wave-val">0</span>/20</div>
+    <div id="hud-wave">Wave <span id="wave-val">0</span>/99</div>
+    <div id="hud-kills">🗡️ <span id="kills-val">0</span></div>
+    <button id="skip-prep-btn" class="hidden">⏩ Skip</button>
+    <button id="pause-btn" style="margin-left:auto">⏸</button>
     <button id="speed-btn">1×</button>
   </div>
 
@@ -83,6 +86,15 @@
       <div>RNG: <span id="panel-rng">3.0</span></div>
       <div id="panel-special-row">Special: <span id="panel-special">—</span></div>
     </div>
+    <div class="panel-targeting">
+      <div class="targeting-label">Target</div>
+      <div class="targeting-btns">
+        <button class="target-btn" data-mode="first">First</button>
+        <button class="target-btn" data-mode="last">Last</button>
+        <button class="target-btn" data-mode="strongest">Strong</button>
+        <button class="target-btn" data-mode="weakest">Weak</button>
+      </div>
+    </div>
     <div class="panel-actions">
       <button id="upgrade-btn" class="action-btn upgrade">⬆ Upgrade (<span id="upgrade-cost">80</span>g)</button>
       <button id="sell-btn" class="action-btn sell">💰 Sell (<span id="sell-value">70</span>g)</button>
@@ -93,7 +105,7 @@
   <div id="start-screen">
     <div class="start-content">
       <h1 class="game-title">⚔️ Tower Defense</h1>
-      <p class="game-subtitle">Defend your base through 20 waves!</p>
+      <p class="game-subtitle">Defend your base through 99 waves!</p>
       <button id="start-btn" class="big-btn">▶ START</button>
     </div>
   </div>

@@ -1,19 +1,19 @@
 {
     "waveScore": 100,
     "lifeBonus": 25,
-    "perfectWaveBonus": 150,
+    "perfectWaveBonus": 200,
     "ranks": [
         {
             "name": "S",
-            "min": 5500
+            "min": 18000
         },
         {
             "name": "A",
-            "min": 4000
+            "min": 12000
         },
         {
             "name": "B",
-            "min": 2500
+            "min": 6000
         },
         {
             "name": "C",

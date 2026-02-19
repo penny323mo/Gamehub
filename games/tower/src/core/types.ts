@@ -3,6 +3,7 @@
 export type TowerType = 'arrow' | 'cannon' | 'ice' | 'fire' | 'lightning' | 'poison' | 'sniper';
 export type EnemyType = 'grunt' | 'tank' | 'runner' | 'swarm' | 'shield' | 'healer' | 'boss';
 export type DamageType = 'physical' | 'fire' | 'ice' | 'lightning' | 'poison' | 'sniper';
+export type TargetingMode = 'first' | 'last' | 'strongest' | 'weakest';
 
 export interface Vec2 { x: number; z: number; }
 
@@ -99,6 +100,7 @@ export interface Tower {
     worldZ: number;
     cooldownRemaining: number;
     totalInvested: number;
+    targetingMode: TargetingMode;
 }
 
 export interface SlowEffect {
@@ -166,6 +168,8 @@ export interface GameState {
     score: number;
     perfectWaves: number;
     speedMultiplier: number;
+    paused: boolean;
+    totalKills: number;
 
     towers: Tower[];
     enemies: Enemy[];
