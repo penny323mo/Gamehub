@@ -15,6 +15,7 @@ import { TowerRenderer } from './render/towerRenderer';
 import { EnemyRenderer } from './render/enemyRenderer';
 import { FxRenderer } from './render/fx';
 import { Picking } from './render/picking';
+import { PostProcessor } from './render/postProcessing';
 
 // ─── State ───
 let state: GameState;
@@ -28,6 +29,8 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
 
 const sm = new SceneManager();
 const camCtrl = new CameraController();
@@ -39,6 +42,7 @@ const towerRenderer = new TowerRenderer(sm.scene);
 const enemyRenderer = new EnemyRenderer(sm.scene);
 const fxRenderer = new FxRenderer(sm.scene);
 const picking = new Picking(sm.scene);
+const postProcessor = new PostProcessor(renderer, sm.scene, camera);
 
 state = createInitialState();
 
@@ -456,7 +460,10 @@ canvas.addEventListener('touchmove', camCtrl.onTouchMove, { passive: false });
 canvas.addEventListener('touchend', camCtrl.onTouchEnd, { passive: true });
 
 // Resize
-window.addEventListener('resize', () => camCtrl.resize(renderer));
+window.addEventListener('resize', () => {
+    camCtrl.resize(renderer);
+    postProcessor.resize(window.innerWidth, window.innerHeight);
+});
 
 // ─── Game Loop ───
 let lastTime = 0;
@@ -472,7 +479,7 @@ function gameLoop(time: number): void {
     lastTime = time;
 
     if (state.phase === 'idle') {
-        renderer.render(sm.scene, camera);
+        postProcessor.render();
         return;
     }
 
@@ -480,13 +487,13 @@ function gameLoop(time: number): void {
         if (endScreen.classList.contains('hidden')) {
             showEndScreen();
         }
-        renderer.render(sm.scene, camera);
+        postProcessor.render();
         return;
     }
 
     // Pause gate
     if (state.paused) {
-        renderer.render(sm.scene, camera);
+        postProcessor.render();
         return;
     }
 
@@ -565,7 +572,7 @@ function gameLoop(time: number): void {
         if (!stillExists) hideTowerPanel();
     }
 
-    renderer.render(sm.scene, camera);
+    postProcessor.render();
 }
 
 requestAnimationFrame(gameLoop);
