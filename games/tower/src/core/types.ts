@@ -197,6 +197,10 @@ export interface GameState {
 
     nextId: number;
 
+    // Kill Streak
+    killStreak: number;
+    killStreakTimer: number;  // counts down from 3s; resets streak on 0
+
     // Visual effects
     floatingTexts: FloatingText[];
 

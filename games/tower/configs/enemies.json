@@ -92,7 +92,7 @@
         "name": "Boss",
         "hp": 1200,
         "speed": 0.4,
-        "bounty": 80,
+        "bounty": 120,
         "weakness": [
             "sniper"
         ],

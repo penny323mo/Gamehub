@@ -37,6 +37,9 @@ export function createInitialState(): GameState {
 
         nextId: 1,
 
+        killStreak: 0,
+        killStreakTimer: 0,
+
         floatingTexts: [],
 
         pathWorld,

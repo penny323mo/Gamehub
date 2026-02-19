@@ -22,12 +22,42 @@ export function tickWave(state: GameState, dt: number): void {
     if (state.phase === 'prep') {
         state.prepTimer -= dt;
         if (state.prepTimer <= 0) {
+            // A — Interest on held gold (1%, min 10g, max 150g)
+            const interest = Math.min(150, Math.max(10, Math.floor(state.gold * 0.01)));
+            state.gold += interest;
+            state.floatingTexts.push({
+                id: state.nextId++,
+                worldX: 0,
+                worldZ: 0,
+                value: `+${interest}g 利息`,
+                color: '#aaff55',
+                life: 2.0,
+                maxLife: 2.0,
+            });
             state.phase = 'wave';
+        }
+
+        // B — Kill Streak timer decay
+        if (state.killStreakTimer > 0) {
+            state.killStreakTimer -= dt;
+            if (state.killStreakTimer <= 0) {
+                state.killStreak = 0;
+                state.killStreakTimer = 0;
+            }
         }
         return;
     }
 
     if (state.phase !== 'wave') return;
+
+    // B — Kill Streak timer decay (also in wave phase)
+    if (state.killStreakTimer > 0) {
+        state.killStreakTimer -= dt;
+        if (state.killStreakTimer <= 0) {
+            state.killStreak = 0;
+            state.killStreakTimer = 0;
+        }
+    }
 
     const wave = WAVES.waves[state.currentWave];
     if (!wave) return;
@@ -64,6 +94,7 @@ export function tickWave(state: GameState, dt: number): void {
         if (wave > 60) waveGoldBonus = 250;
         else if (wave > 30) waveGoldBonus = 200;
         else if (wave > 10) waveGoldBonus = 150;
+        else waveGoldBonus = 120; // 早期波次提升獎金
         state.gold += waveGoldBonus;
         state.lastWaveClearGold = waveGoldBonus;
 

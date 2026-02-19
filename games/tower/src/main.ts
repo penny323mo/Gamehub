@@ -66,8 +66,15 @@ const endRank = document.getElementById('end-rank')!;
 const towerPanel = document.getElementById('tower-panel')!;
 const cancelBuildBtn = document.getElementById('cancel-build-btn')!;
 const buildBtns = document.querySelectorAll('.build-btn[data-tower]');
+const streakBanner = document.getElementById('streak-banner')!;
 
 const TOTAL_WAVES = WAVES.waves.length;
+
+// Enemy type → display emoji
+const ENEMY_EMOJI: Record<string, string> = {
+    grunt: '🧟', tank: '🐢', runner: '💨', swarm: '🐝',
+    shield: '🛡', healer: '💚', boss: '💀',
+};
 
 // ─── HUD update ───
 function updateHUD(): void {
@@ -97,6 +104,21 @@ function showWaveBanner(text: string): void {
     bannerTimeout = window.setTimeout(() => {
         waveBanner.classList.add('hidden');
     }, 2000);
+}
+
+// ─── Streak Banner ───
+let streakBannerTimeout: number | null = null;
+function showStreakBanner(streak: number): void {
+    const isMega = streak >= 10;
+    streakBanner.textContent = isMega
+        ? `⚡ x${streak} MEGA COMBO!`
+        : `🔥 x${streak} Kill Streak!`;
+    streakBanner.className = isMega ? 'streak-mega' : 'streak-normal';
+    streakBanner.classList.remove('hidden');
+    if (streakBannerTimeout) clearTimeout(streakBannerTimeout);
+    streakBannerTimeout = window.setTimeout(() => {
+        streakBanner.classList.add('hidden');
+    }, 1800);
 }
 
 // ─── Milestone Banner ───
@@ -509,20 +531,29 @@ function gameLoop(time: number): void {
         const nextWaveIdx = Math.min(state.currentWave + 1, TOTAL_WAVES - 1);
         const waveGroup = WAVES.waves[nextWaveIdx];
         const totalEnemies = waveGroup?.groups?.reduce((s: number, g: { count: number }) => s + g.count, 0) ?? '?';
-        waveBannerText.textContent = `Wave ${nextWaveIdx + 1} — ${totalEnemies} enemies | Next in ${secs}s`;
+        // E — Enemy type emoji preview
+        const enemyPreview = waveGroup?.groups?.map((g: { type: string; count: number }) =>
+            `${ENEMY_EMOJI[g.type] ?? '?'}×${g.count}`
+        ).join(' ') ?? '';
+        waveBannerText.textContent = `Wave ${nextWaveIdx + 1} — ${totalEnemies} enemies | ${enemyPreview} | Next in ${secs}s`;
         waveBanner.classList.remove('hidden');
     }
 
     // Render sync
     towerRenderer.sync(state);
-    enemyRenderer.sync(state, 0);
+    enemyRenderer.sync(state, 0, camera);  // C — pass camera for billboard bars
     fxRenderer.sync(state, rawDt);
     syncFloatingTexts(rawDt);
 
     // O — Milestone banner
     if (state.milestoneReached > 0) {
         showMilestoneBanner(state.milestoneReached);
-        state.milestoneReached = 0; // consume the flag
+        state.milestoneReached = 0;
+    }
+
+    // B — Streak banner (trigger on multiples of 5 when streak >= 5)
+    if (state.killStreak >= 5 && state.killStreak % 5 === 0 && state.killStreakTimer > 2.9) {
+        showStreakBanner(state.killStreak);
     }
 
     // Update HUD

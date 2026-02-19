@@ -179,6 +179,23 @@ function applyRawDamage(state: GameState, enemy: Enemy, baseDmg: number, damageT
         enemy.alive = false;
         state.gold += enemy.bounty;
         state.totalKills++;
+
+        // B — Kill Streak
+        state.killStreak++;
+        state.killStreakTimer = 3.0;
+        if (state.killStreak === 10) {
+            state.gold += 50;
+            state.floatingTexts.push({
+                id: state.nextId++,
+                worldX: enemy.worldX,
+                worldZ: enemy.worldZ,
+                value: `⚡ x10 COMBO! +50g`,
+                color: '#ffee00',
+                life: 2.0,
+                maxLife: 2.0,
+            });
+        }
+
         state.floatingTexts.push({
             id: state.nextId++,
             worldX: enemy.worldX,

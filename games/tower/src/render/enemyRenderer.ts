@@ -61,7 +61,8 @@ export class EnemyRenderer {
         return mesh;
     }
 
-    sync(state: GameState, _interpolation: number): void {
+    // C — Accept camera for billboard lookAt
+    sync(state: GameState, _interpolation: number, camera?: THREE.Camera): void {
         // Group living enemies by type
         const byType = new Map<EnemyType, Enemy[]>();
         for (const e of state.enemies) {
@@ -100,28 +101,32 @@ export class EnemyRenderer {
                 this.dummy.updateMatrix();
                 mesh.setMatrixAt(i, this.dummy.matrix);
 
+                // C — Billboard bars: face camera if available
+                const buildBar = (y: number, width: number, color: number, height: number): THREE.Mesh => {
+                    const geo = new THREE.PlaneGeometry(width, height);
+                    const mat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, depthWrite: false });
+                    const bar = new THREE.Mesh(geo, mat);
+                    bar.position.set(e.worldX - (HP_BAR_WIDTH - width) / 2, y, e.worldZ);
+                    if (camera) {
+                        bar.lookAt(camera.position);
+                    } else {
+                        bar.rotation.x = -Math.PI / 4;
+                    }
+                    return bar;
+                };
+
                 // HP bar background
-                const bgGeo = new THREE.PlaneGeometry(HP_BAR_WIDTH, 0.06);
-                const bgMat = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide, depthWrite: false });
-                const bg = new THREE.Mesh(bgGeo, bgMat);
-                bg.position.set(e.worldX, 0.9, e.worldZ);
-                bg.rotation.x = -Math.PI / 4;
+                const bg = buildBar(0.9, HP_BAR_WIDTH, 0x333333, 0.06);
+                bg.position.set(e.worldX, 0.9, e.worldZ);  // centre align bg
+                if (camera) bg.lookAt(camera.position); else bg.rotation.x = -Math.PI / 4;
                 this.scene.add(bg);
                 this.hpBarBg.push(bg);
 
-                // HP bar
+                // HP bar fill
                 const hpRatio = Math.max(0, e.hp / e.maxHp);
                 const hpW = HP_BAR_WIDTH * hpRatio;
-                const hpGeo = new THREE.PlaneGeometry(hpW, 0.06);
                 const hpColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffaa00 : 0xff3333;
-                const hpMat = new THREE.MeshBasicMaterial({ color: hpColor, side: THREE.DoubleSide, depthWrite: false });
-                const hpBar = new THREE.Mesh(hpGeo, hpMat);
-                hpBar.position.set(
-                    e.worldX - (HP_BAR_WIDTH - hpW) / 2,
-                    0.9,
-                    e.worldZ
-                );
-                hpBar.rotation.x = -Math.PI / 4;
+                const hpBar = buildBar(0.9, hpW, hpColor, 0.06);
                 this.scene.add(hpBar);
                 this.hpBars.push(hpBar);
 
@@ -129,15 +134,7 @@ export class EnemyRenderer {
                 if (e.maxShield > 0 && e.shield > 0) {
                     const shieldRatio = e.shield / e.maxShield;
                     const sW = HP_BAR_WIDTH * shieldRatio;
-                    const sGeo = new THREE.PlaneGeometry(sW, 0.04);
-                    const sMat = new THREE.MeshBasicMaterial({ color: 0x4488ff, side: THREE.DoubleSide, depthWrite: false });
-                    const sBar = new THREE.Mesh(sGeo, sMat);
-                    sBar.position.set(
-                        e.worldX - (HP_BAR_WIDTH - sW) / 2,
-                        0.97,
-                        e.worldZ
-                    );
-                    sBar.rotation.x = -Math.PI / 4;
+                    const sBar = buildBar(0.97, sW, 0x4488ff, 0.04);
                     this.scene.add(sBar);
                     this.shieldBars.push(sBar);
                 }
