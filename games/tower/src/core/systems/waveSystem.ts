@@ -58,6 +58,24 @@ export function tickWave(state: GameState, dt: number): void {
             state.perfectWaves++;
         }
 
+        // M — Wave Clear Gold Bonus (scales with wave number)
+        const wave = state.currentWave + 1; // human-readable wave number just completed
+        let waveGoldBonus = 100;
+        if (wave > 60) waveGoldBonus = 250;
+        else if (wave > 30) waveGoldBonus = 200;
+        else if (wave > 10) waveGoldBonus = 150;
+        state.gold += waveGoldBonus;
+        state.lastWaveClearGold = waveGoldBonus;
+
+        // O — Milestone Wave bonus at Wave 25 / 50 / 75 / 99
+        const MILESTONES = [25, 50, 75, 99];
+        if (MILESTONES.includes(wave)) {
+            state.gold += 500;
+            state.milestoneReached = wave;
+        } else {
+            state.milestoneReached = 0;
+        }
+
         state.currentWave++;
         // Clean up dead enemies
         state.enemies = state.enemies.filter(e => e.alive && !e.reached);

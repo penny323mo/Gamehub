@@ -20,11 +20,36 @@
     <button id="skip-prep-btn" class="hidden">⏩ Skip</button>
     <button id="pause-btn" style="margin-left:auto">⏸</button>
     <button id="speed-btn">1×</button>
+    <button id="help-btn">?</button>
   </div>
 
   <!-- Wave Banner -->
   <div id="wave-banner" class="hidden">
     <div id="wave-banner-text"></div>
+  </div>
+
+  <!-- Milestone Banner -->
+  <div id="milestone-banner" class="hidden">
+    <div id="milestone-banner-text"></div>
+  </div>
+
+  <!-- Floating Text Layer -->
+  <div id="floating-text-layer"></div>
+
+  <!-- Help Overlay -->
+  <div id="help-overlay" class="hidden">
+    <div id="help-content">
+      <div class="help-title">⌨️ Shortcuts</div>
+      <div class="help-row"><span class="help-key">P</span><span class="help-desc">Pause / Resume</span></div>
+      <div class="help-row"><span class="help-key">1× 2× 3×</span><span class="help-desc">Change game speed</span></div>
+      <div class="help-row"><span class="help-key">⏩ Skip</span><span class="help-desc">Skip prep (+50g bonus)</span>
+      </div>
+      <div class="help-row"><span class="help-key">Click Tower</span><span class="help-desc">Inspect / Upgrade /
+          Sell</span></div>
+      <div class="help-row"><span class="help-key">Milestones</span><span class="help-desc">Wave 25/50/75/99 →
+          +500g</span></div>
+      <button id="help-close-btn">✕ Close</button>
+    </div>
   </div>
 
   <!-- Build Menu -->

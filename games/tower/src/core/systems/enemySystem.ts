@@ -160,11 +160,33 @@ function applyRawDamage(state: GameState, enemy: Enemy, baseDmg: number, damageT
         enemy.healCooldown = SHIELD_REGEN_DELAY;
     }
 
+    // DOT damage float (green, only show if >= 2 to avoid spam)
+    if (dmg >= 2) {
+        state.floatingTexts.push({
+            id: state.nextId++,
+            worldX: enemy.worldX,
+            worldZ: enemy.worldZ,
+            value: `-${Math.round(dmg)}`,
+            color: '#66ee44',
+            life: 0.8,
+            maxLife: 0.8,
+        });
+    }
+
     enemy.hp -= dmg;
     if (enemy.hp <= 0) {
         enemy.hp = 0;
         enemy.alive = false;
         state.gold += enemy.bounty;
         state.totalKills++;
+        state.floatingTexts.push({
+            id: state.nextId++,
+            worldX: enemy.worldX,
+            worldZ: enemy.worldZ,
+            value: `+${enemy.bounty}g`,
+            color: '#ffd700',
+            life: 1.2,
+            maxLife: 1.2,
+        });
     }
 }

@@ -122,18 +122,60 @@ function applyHit(state: GameState, enemy: Enemy, baseDmg: number, damageType: D
     // Shield absorb first
     if (enemy.shield > 0) {
         if (dmg <= enemy.shield) {
+            // Push shield damage float (blue)
+            state.floatingTexts.push({
+                id: state.nextId++,
+                worldX: enemy.worldX,
+                worldZ: enemy.worldZ,
+                value: `-${Math.round(dmg)}🛡`,
+                color: '#88ddff',
+                life: 1.0,
+                maxLife: 1.0,
+            });
             enemy.shield -= dmg;
-            return; // All absorbed
+            return;
         } else {
+            const shieldAbsorbed = enemy.shield;
             dmg -= enemy.shield;
             enemy.shield = 0;
+            // Show shield break
+            state.floatingTexts.push({
+                id: state.nextId++,
+                worldX: enemy.worldX,
+                worldZ: enemy.worldZ,
+                value: `-${Math.round(shieldAbsorbed)}🛡`,
+                color: '#88ddff',
+                life: 1.0,
+                maxLife: 1.0,
+            });
         }
     }
+
+    // Push HP damage float (red / yellow for crit)
+    const isCrit = cfg.weakness?.includes(damageType);
+    state.floatingTexts.push({
+        id: state.nextId++,
+        worldX: enemy.worldX,
+        worldZ: enemy.worldZ,
+        value: `-${Math.round(dmg)}`,
+        color: isCrit ? '#ffdd44' : '#ff6655',
+        life: 1.0,
+        maxLife: 1.0,
+    });
 
     enemy.hp -= dmg;
     if (enemy.hp <= 0) {
         enemy.hp = 0;
         enemy.alive = false;
         state.gold += enemy.bounty;
+        state.floatingTexts.push({
+            id: state.nextId++,
+            worldX: enemy.worldX,
+            worldZ: enemy.worldZ,
+            value: `+${enemy.bounty}g`,
+            color: '#ffd700',
+            life: 1.2,
+            maxLife: 1.2,
+        });
     }
 }

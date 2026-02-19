@@ -32,8 +32,12 @@ export function createInitialState(): GameState {
         waveEnemiesSpawned: 0,
         waveEnemiesTotal: 0,
         waveLivesLostThisWave: 0,
+        lastWaveClearGold: 0,
+        milestoneReached: 0,
 
         nextId: 1,
+
+        floatingTexts: [],
 
         pathWorld,
         occupiedCells: new Set<string>(),

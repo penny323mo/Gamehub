@@ -159,6 +159,16 @@ export interface Projectile {
 
 export type GamePhase = 'idle' | 'prep' | 'wave' | 'won' | 'lost';
 
+export interface FloatingText {
+    id: number;
+    worldX: number;
+    worldZ: number;
+    value: string;     // e.g. "-42" or "+50g"
+    color: string;     // CSS color
+    life: number;      // seconds remaining (starts at 1.0)
+    maxLife: number;
+}
+
 export interface GameState {
     phase: GamePhase;
     gold: number;
@@ -182,8 +192,13 @@ export interface GameState {
     waveEnemiesSpawned: number;
     waveEnemiesTotal: number;
     waveLivesLostThisWave: number;
+    lastWaveClearGold: number;  // M — gold bonus awarded on last wave clear
+    milestoneReached: number;   // O — wave number of milestone (0 = none)
 
     nextId: number;
+
+    // Visual effects
+    floatingTexts: FloatingText[];
 
     // Derived (rebuilt each tick)
     pathWorld: Vec2[];

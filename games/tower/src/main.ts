@@ -52,6 +52,12 @@ const pauseBtn = document.getElementById('pause-btn')!;
 const skipPrepBtn = document.getElementById('skip-prep-btn')! as HTMLButtonElement;
 const waveBanner = document.getElementById('wave-banner')!;
 const waveBannerText = document.getElementById('wave-banner-text')!;
+const milestoneBanner = document.getElementById('milestone-banner')!;
+const milestoneBannerText = document.getElementById('milestone-banner-text')!;
+const floatingTextLayer = document.getElementById('floating-text-layer')!;
+const helpBtn = document.getElementById('help-btn')!;
+const helpOverlay = document.getElementById('help-overlay')!;
+const helpCloseBtn = document.getElementById('help-close-btn')!;
 const startScreen = document.getElementById('start-screen')!;
 const endScreen = document.getElementById('end-screen')!;
 const endTitle = document.getElementById('end-title')!;
@@ -91,6 +97,63 @@ function showWaveBanner(text: string): void {
     bannerTimeout = window.setTimeout(() => {
         waveBanner.classList.add('hidden');
     }, 2000);
+}
+
+// ─── Milestone Banner ───
+let milestoneTimeout: number | null = null;
+function showMilestoneBanner(waveNum: number): void {
+    milestoneBannerText.textContent = `🏆 Milestone Wave ${waveNum}! +500g!`;
+    milestoneBanner.classList.remove('hidden');
+    // Force animation restart
+    milestoneBannerText.style.animation = 'none';
+    void milestoneBannerText.offsetWidth;
+    milestoneBannerText.style.animation = '';
+    if (milestoneTimeout) clearTimeout(milestoneTimeout);
+    milestoneTimeout = window.setTimeout(() => {
+        milestoneBanner.classList.add('hidden');
+    }, 3500);
+}
+
+// ─── Floating Texts (K) ───
+// project world coords to screen pixel coords
+function worldToScreen(wx: number, wz: number): { x: number; y: number } {
+    const v = new THREE.Vector3(wx, 0.6, wz);
+    v.project(camera);
+    return {
+        x: (v.x * 0.5 + 0.5) * window.innerWidth,
+        y: (-v.y * 0.5 + 0.5) * window.innerHeight,
+    };
+}
+
+const activeFloatEls = new Map<number, HTMLDivElement>();
+
+function syncFloatingTexts(rawDt: number): void {
+    // Update life and position of each
+    for (let i = state.floatingTexts.length - 1; i >= 0; i--) {
+        const ft = state.floatingTexts[i];
+        ft.life -= rawDt;
+        if (ft.life <= 0) {
+            const el = activeFloatEls.get(ft.id);
+            if (el) { floatingTextLayer.removeChild(el); activeFloatEls.delete(ft.id); }
+            state.floatingTexts.splice(i, 1);
+            continue;
+        }
+        // Create div on first tick
+        if (!activeFloatEls.has(ft.id)) {
+            const div = document.createElement('div');
+            div.className = 'floating-text';
+            div.textContent = ft.value;
+            div.style.color = ft.color;
+            div.style.animationDuration = `${ft.maxLife}s`;
+            floatingTextLayer.appendChild(div);
+            activeFloatEls.set(ft.id, div);
+        }
+        // Update position
+        const el = activeFloatEls.get(ft.id)!;
+        const sc = worldToScreen(ft.worldX, ft.worldZ);
+        el.style.left = `${sc.x}px`;
+        el.style.top = `${sc.y}px`;
+    }
 }
 
 // ─── Tower Panel ───
@@ -252,8 +315,19 @@ document.getElementById('upgrade-btn')!.addEventListener('click', () => {
 
 document.getElementById('sell-btn')!.addEventListener('click', () => {
     if (!inspectedTower) return;
+    const sellVal = getSellValue(inspectedTower);
     towerRenderer.removeTower(inspectedTower.id);
     sellTower(state, inspectedTower.id);
+    // N — show sell gold float
+    state.floatingTexts.push({
+        id: state.nextId++,
+        worldX: inspectedTower.worldX,
+        worldZ: inspectedTower.worldZ,
+        value: `+${sellVal}g`,
+        color: '#ffd700',
+        life: 1.5,
+        maxLife: 1.5,
+    });
     hideTowerPanel();
     towerRenderer.sync(state);
     updateHUD();
@@ -268,6 +342,17 @@ document.getElementById('start-btn')!.addEventListener('click', () => {
     startScreen.classList.add('hidden');
     startNextWave(state);
     showWaveBanner(`Wave 1`);
+});
+
+// Help overlay
+helpBtn.addEventListener('click', () => {
+    helpOverlay.classList.remove('hidden');
+});
+helpCloseBtn.addEventListener('click', () => {
+    helpOverlay.classList.add('hidden');
+});
+helpOverlay.addEventListener('click', (e) => {
+    if (e.target === helpOverlay) helpOverlay.classList.add('hidden');
 });
 
 // Restart
@@ -432,6 +517,13 @@ function gameLoop(time: number): void {
     towerRenderer.sync(state);
     enemyRenderer.sync(state, 0);
     fxRenderer.sync(state, rawDt);
+    syncFloatingTexts(rawDt);
+
+    // O — Milestone banner
+    if (state.milestoneReached > 0) {
+        showMilestoneBanner(state.milestoneReached);
+        state.milestoneReached = 0; // consume the flag
+    }
 
     // Update HUD
     updateHUD();
