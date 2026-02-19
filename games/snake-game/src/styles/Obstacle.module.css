@@ -1,0 +1,25 @@
+.obstacle {
+  position: absolute;
+  background: linear-gradient(135deg, #ff4757, #c0392b);
+  border-radius: 3px;
+  box-shadow: 
+    0 0 10px #ff4757,
+    inset 0 0 5px rgba(255, 255, 255, 0.2);
+}
+
+.obstacle.moving {
+  background: linear-gradient(135deg, #ffa502, #e67e22);
+  box-shadow: 
+    0 0 15px #ffa502,
+    inset 0 0 5px rgba(255, 255, 255, 0.3);
+  animation: warning 0.5s ease-in-out infinite;
+}
+
+@keyframes warning {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}

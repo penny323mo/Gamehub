@@ -50,12 +50,12 @@ const games = [
         playable: true
     },
     {
-        id: 'coming1',
-        title: 'Coming Soon',
-        subtitle: 'Under development',
-        icon: '🔒',
-        link: '#',
-        playable: false
+        id: 'snake',
+        title: 'Neon Snake',
+        subtitle: '🐍 霓虹貪食蛇！Classic arcade, modern glow.',
+        icon: '🐍',
+        link: 'games/snake-game/dist/index.html',
+        playable: true
     }
 ];
 
@@ -126,28 +126,19 @@ function updateCarousel() {
 function updateArrowVisibility() {
     const prevBtn = document.querySelector('.prev-btn');
     const nextBtn = document.querySelector('.next-btn');
-
-    if (prevBtn) {
-        prevBtn.style.display = currentIndex === 0 ? 'none' : 'flex';
-    }
-
-    if (nextBtn) {
-        nextBtn.style.display = currentIndex === games.length - 1 ? 'none' : 'flex';
-    }
+    // Circular mode: always show both arrows
+    if (prevBtn) prevBtn.style.display = 'flex';
+    if (nextBtn) nextBtn.style.display = 'flex';
 }
 
 function nextGame() {
-    if (currentIndex < games.length - 1) {
-        currentIndex++;
-        updateCarousel();
-    }
+    currentIndex = (currentIndex + 1) % games.length;
+    updateCarousel();
 }
 
 function prevGame() {
-    if (currentIndex > 0) {
-        currentIndex--;
-        updateCarousel();
-    }
+    currentIndex = (currentIndex - 1 + games.length) % games.length;
+    updateCarousel();
 }
 
 // Touch swipe support

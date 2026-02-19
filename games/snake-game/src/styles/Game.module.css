@@ -1,0 +1,233 @@
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  perspective: 1000px;
+}
+
+.gameWrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 25px;
+  transform-style: preserve-3d;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 500px;
+  transform: translateZ(30px);
+}
+
+.title {
+  font-size: 2rem;
+  font-weight: 900;
+  color: var(--neon-cyan);
+  text-shadow: 
+    0 0 10px var(--neon-cyan),
+    0 0 20px var(--neon-cyan);
+  letter-spacing: 4px;
+}
+
+@keyframes glow {
+  from {
+    text-shadow: 
+      0 0 10px var(--neon-cyan),
+      0 0 20px var(--neon-cyan),
+      0 0 40px var(--neon-cyan);
+  }
+  to {
+    text-shadow: 
+      0 0 20px var(--neon-cyan),
+      0 0 40px var(--neon-cyan),
+      0 0 60px var(--neon-cyan),
+      0 0 100px var(--neon-cyan);
+  }
+}
+
+.headerStats {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.userName {
+  color: var(--neon-yellow);
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-right: 8px;
+  text-shadow: 0 0 10px var(--neon-yellow);
+}
+
+.menuButton,
+.scoreButton {
+  background: rgba(255, 0, 255, 0.1);
+  border: 2px solid var(--neon-magenta);
+  color: var(--neon-magenta);
+  padding: 8px 16px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  border-radius: 8px;
+}
+
+.menuButton:hover,
+.scoreButton:hover {
+  background: var(--neon-magenta);
+  color: var(--bg-primary);
+  box-shadow: 0 0 20px var(--neon-magenta);
+}
+
+.menuButton:active,
+.scoreButton:active {
+  transform: scale(0.95);
+  box-shadow: 
+    0 0 10px var(--neon-magenta),
+    0 2px 0 #990099,
+    0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.gameBoard {
+  position: relative;
+  width: 500px;
+  height: 500px;
+  background: linear-gradient(145deg, #0d0d15 0%, #1a1a25 100%);
+  border: 3px solid var(--neon-cyan);
+  border-radius: 12px;
+  box-shadow: 
+    0 0 30px rgba(0, 255, 245, 0.3),
+    0 0 60px rgba(0, 255, 245, 0.1),
+    0 15px 40px rgba(0, 0, 0, 0.5),
+    inset 0 0 100px rgba(0, 255, 245, 0.05);
+  overflow: hidden;
+}
+
+.grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(20, 1fr);
+  grid-template-rows: repeat(20, 1fr);
+}
+
+.cell {
+  border: 1px solid rgba(0, 255, 245, 0.05);
+}
+
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(10, 10, 15, 0.9);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  z-index: 100;
+}
+
+.overlayTitle {
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: var(--neon-pink);
+  text-shadow: 
+    0 0 10px var(--neon-pink),
+    0 0 30px var(--neon-pink);
+  letter-spacing: 4px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.overlayText {
+  font-size: 1.2rem;
+  color: var(--text-primary);
+}
+
+.overlaySubtext {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.restartButton {
+  margin-top: 20px;
+  background: transparent;
+  border: 2px solid var(--neon-green);
+  color: var(--neon-green);
+  padding: 14px 35px;
+  font-family: inherit;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  border-radius: 8px;
+}
+
+.restartButton:hover {
+  background: var(--neon-green);
+  color: var(--bg-primary);
+  box-shadow: 0 0 30px var(--neon-green);
+}
+
+.timer {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--neon-yellow);
+  text-shadow: 0 0 10px var(--neon-yellow);
+  z-index: 100;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.1); }
+}
+
+.speedBoostButton {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #ffcc00, #ff6600);
+  border: 3px solid white;
+  font-size: 24px;
+  cursor: pointer;
+  z-index: 100;
+  transition: all 0.2s;
+  box-shadow: 0 0 20px rgba(255, 200, 0, 0.5);
+}
+
+.speedBoostButton:hover {
+  box-shadow: 0 0 30px rgba(255, 200, 0, 0.8);
+  transform: scale(1.1);
+}
+
+.speedBoostButton:active {
+  transform: scale(0.9);
+  box-shadow: 0 0 15px rgba(255, 200, 0, 0.6);
+}

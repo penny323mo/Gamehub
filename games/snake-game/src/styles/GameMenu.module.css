@@ -1,0 +1,274 @@
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2500;
+  animation: fade-in 0.3s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal {
+  background: var(--bg-secondary);
+  border: 2px solid var(--neon-cyan);
+  border-radius: 20px;
+  padding: 30px;
+  width: 90%;
+  max-width: 450px;
+  box-shadow: 
+    0 0 30px var(--neon-cyan),
+    0 0 60px rgba(0, 255, 245, 0.2);
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--neon-cyan);
+  text-align: center;
+  margin: 0 0 24px 0;
+  text-shadow: 0 0 20px var(--neon-cyan);
+}
+
+.section {
+  margin-bottom: 24px;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 12px 0;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.modes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modeButton {
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+}
+
+.modeButton:hover {
+  border-color: var(--neon-cyan);
+  transform: translateX(5px);
+}
+
+.modeButton.active {
+  border-color: var(--neon-cyan);
+  background: rgba(0, 255, 245, 0.15);
+  box-shadow: 0 0 20px rgba(0, 255, 245, 0.3);
+}
+
+.modeIcon {
+  font-size: 28px;
+}
+
+.modeName {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.modeDesc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+.difficulties {
+  display: flex;
+  gap: 10px;
+}
+
+.diffButton {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.diffButton:hover {
+  border-color: var(--neon-yellow);
+}
+
+.diffButton.active {
+  border-color: var(--neon-yellow);
+  background: rgba(255, 255, 0, 0.15);
+  color: var(--neon-yellow);
+  box-shadow: 0 0 15px rgba(255, 255, 0, 0.3);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.buttonRow {
+  display: flex;
+  gap: 10px;
+}
+
+.buttonRow button {
+  flex: 1;
+}
+
+.helpButton {
+  background: transparent;
+  border: 2px solid var(--neon-yellow);
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--neon-yellow);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.helpButton:hover {
+  background: var(--neon-yellow);
+  color: var(--bg-primary);
+}
+
+.helpPanel {
+  padding: 10px 0;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.helpSection {
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.helpSection:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.helpSection h4 {
+  font-size: 14px;
+  color: var(--neon-cyan);
+  margin: 0 0 10px 0;
+}
+
+.helpSection p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 5px 0;
+  line-height: 1.5;
+}
+
+.startButton {
+  background: linear-gradient(135deg, var(--neon-cyan), var(--neon-green));
+  border: none;
+  border-radius: 12px;
+  padding: 16px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--bg-primary);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.startButton:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 30px var(--neon-cyan);
+}
+
+.settingsButton {
+  background: transparent;
+  border: 2px solid var(--neon-magenta);
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--neon-magenta);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.settingsButton:hover {
+  background: var(--neon-magenta);
+  color: var(--bg-primary);
+}
+
+.settingsPanel {
+  padding: 10px 0;
+}
+
+.settingItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.toggle {
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.toggle.on {
+  border-color: var(--neon-green);
+  color: var(--neon-green);
+  background: rgba(107, 203, 119, 0.2);
+}
+
+.backButton {
+  margin-top: 20px;
+  width: 100%;
+  background: transparent;
+  border: 2px solid var(--neon-cyan);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--neon-cyan);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.backButton:hover {
+  background: var(--neon-cyan);
+  color: var(--bg-primary);
+}

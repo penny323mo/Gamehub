@@ -1,0 +1,124 @@
+.hud {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 500px;
+  padding: 18px 24px;
+  background: linear-gradient(145deg, rgba(18, 18, 26, 0.9), rgba(10, 10, 15, 0.95));
+  backdrop-filter: blur(15px);
+  border: 2px solid var(--neon-cyan);
+  border-radius: 16px;
+  box-shadow: 
+    0 0 20px rgba(0, 255, 245, 0.3),
+    0 10px 40px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform: translateZ(25px);
+  transform-style: preserve-3d;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transform: translateZ(10px);
+}
+
+.label {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.value {
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: var(--neon-cyan);
+  text-shadow: 
+    0 0 10px var(--neon-cyan),
+    0 0 20px var(--neon-cyan),
+    0 2px 4px rgba(0, 0, 0, 0.5);
+  font-family: 'Courier New', monospace;
+  letter-spacing: 2px;
+}
+
+.levelName {
+  font-size: 0.7rem;
+  color: var(--neon-magenta);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 600;
+  text-shadow: 0 0 10px var(--neon-magenta);
+  transform: translateZ(5px);
+}
+
+.lives {
+  display: flex;
+  gap: 6px;
+  transform: translateZ(10px);
+}
+
+.heart {
+  font-size: 1.4rem;
+  color: #333;
+  transition: all 0.3s ease;
+  transform-style: preserve-3d;
+}
+
+.heart.active {
+  color: #ff4757;
+  text-shadow: 
+    0 0 10px #ff4757,
+    0 0 20px #ff4757,
+    0 0 30px rgba(255, 71, 87, 0.5);
+  animation: heartbeat 1s ease-in-out infinite;
+  transform: translateZ(5px);
+}
+
+@keyframes heartbeat {
+  0%, 100% { 
+    transform: translateZ(5px) scale(1); 
+  }
+  50% { 
+    transform: translateZ(5px) scale(1.2); 
+  }
+}
+
+.powerups {
+  display: flex;
+  gap: 10px;
+  transform: translateZ(15px);
+}
+
+.powerup {
+  font-size: 1.6rem;
+  animation: bounce 0.5s ease-in-out infinite;
+  transform-style: preserve-3d;
+  filter: drop-shadow(0 0 10px currentColor);
+}
+
+.powerup.invincible {
+  animation: bounce 0.3s ease-in-out infinite, glow 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes bounce {
+  0%, 100% { 
+    transform: translateY(0) translateZ(0); 
+  }
+  50% { 
+    transform: translateY(-8px) translateZ(5px); 
+  }
+}
+
+@keyframes glow {
+  from { 
+    filter: drop-shadow(0 0 10px gold) brightness(1);
+    transform: translateZ(0);
+  }
+  to { 
+    filter: drop-shadow(0 0 25px gold) brightness(1.3);
+    transform: translateZ(10px);
+  }
+}
