@@ -76,13 +76,19 @@ function spawnEnemy(state: GameState, type: EnemyType): void {
     const cfg = ENEMIES[type];
     const spawn = cellToWorld(MAP.path[0][0], MAP.path[0][1]);
 
+    // Difficulty scaling: Linear 4% per wave + 1
+    // Wave 0: 1x
+    // Wave 50: 3x
+    // Wave 99: 5x
+    const difficultyMultiplier = 1 + (state.currentWave * 0.04);
+
     const enemy: Enemy = {
         id: state.nextId++,
         type,
-        hp: cfg.hp,
-        maxHp: cfg.hp,
+        hp: Math.ceil(cfg.hp * difficultyMultiplier),
+        maxHp: Math.ceil(cfg.hp * difficultyMultiplier),
         speed: cfg.speed,
-        bounty: cfg.bounty,
+        bounty: Math.ceil(cfg.bounty * Math.pow(difficultyMultiplier, 0.5)),
         pathIndex: 0,
         pathProgress: 0,
         worldX: spawn.x,
@@ -93,8 +99,8 @@ function spawnEnemy(state: GameState, type: EnemyType): void {
         reached: false,
         slow: null,
         dots: [],
-        shield: cfg.shield ?? 0,
-        maxShield: cfg.shield ?? 0,
+        shield: cfg.shield ? Math.ceil(cfg.shield * difficultyMultiplier) : 0,
+        maxShield: cfg.shield ? Math.ceil(cfg.shield * difficultyMultiplier) : 0,
         armor: cfg.armor ?? 0,
         special: cfg.special ?? 'none',
         healCooldown: 0,

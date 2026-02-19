@@ -5,139 +5,125 @@
             "groups": [
                 {
                     "type": "grunt",
-                    "count": 8,
-                    "intervalSec": 1.0
+                    "count": 13,
+                    "intervalSec": 0.8
+                },
+                {
+                    "type": "runner",
+                    "count": 6,
+                    "intervalSec": 0.8
                 }
             ]
         },
         {
             "groups": [
+                {
+                    "type": "runner",
+                    "count": 11,
+                    "intervalSec": 0.79
+                },
+                {
+                    "type": "grunt",
+                    "count": 13,
+                    "intervalSec": 0.79
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 20,
+                    "intervalSec": 0.79
+                },
+                {
+                    "type": "grunt",
+                    "count": 13,
+                    "intervalSec": 0.79
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "runner",
+                    "count": 10,
+                    "intervalSec": 0.78
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "runner",
+                    "count": 15,
+                    "intervalSec": 0.78
+                },
+                {
+                    "type": "runner",
+                    "count": 6,
+                    "intervalSec": 0.78
+                },
+                {
+                    "type": "runner",
+                    "count": 11,
+                    "intervalSec": 0.78
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 24,
+                    "intervalSec": 0.77
+                },
+                {
+                    "type": "runner",
+                    "count": 16,
+                    "intervalSec": 0.77
+                },
                 {
                     "type": "grunt",
                     "count": 10,
-                    "intervalSec": 0.9
+                    "intervalSec": 0.77
                 }
             ]
         },
         {
             "groups": [
-                {
-                    "type": "grunt",
-                    "count": 8,
-                    "intervalSec": 0.8
-                },
                 {
                     "type": "runner",
-                    "count": 4,
-                    "intervalSec": 1.2
+                    "count": 10,
+                    "intervalSec": 0.77
                 }
             ]
         },
         {
             "groups": [
                 {
-                    "type": "tank",
-                    "count": 3,
-                    "intervalSec": 2.0
+                    "type": "grunt",
+                    "count": 14,
+                    "intervalSec": 0.76
                 },
                 {
                     "type": "grunt",
-                    "count": 6,
-                    "intervalSec": 1.0
-                }
-            ]
-        },
-        {
-            "groups": [
-                {
-                    "type": "tank",
-                    "count": 4,
-                    "intervalSec": 1.8
-                },
-                {
-                    "type": "runner",
-                    "count": 5,
-                    "intervalSec": 1.0
-                }
-            ]
-        },
-        {
-            "groups": [
-                {
-                    "type": "swarm",
-                    "count": 20,
-                    "intervalSec": 0.3
+                    "count": 26,
+                    "intervalSec": 0.76
                 },
                 {
                     "type": "grunt",
-                    "count": 4,
-                    "intervalSec": 1.5
+                    "count": 13,
+                    "intervalSec": 0.76
                 }
             ]
         },
         {
             "groups": [
-                {
-                    "type": "swarm",
-                    "count": 15,
-                    "intervalSec": 0.35
-                },
-                {
-                    "type": "runner",
-                    "count": 6,
-                    "intervalSec": 0.8
-                }
-            ]
-        },
-        {
-            "groups": [
-                {
-                    "type": "healer",
-                    "count": 2,
-                    "intervalSec": 3.0
-                },
-                {
-                    "type": "tank",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
                 {
                     "type": "grunt",
-                    "count": 6,
-                    "intervalSec": 0.9
-                }
-            ]
-        },
-        {
-            "groups": [
-                {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "grunt",
-                    "count": 8,
-                    "intervalSec": 0.8
-                }
-            ]
-        },
-        {
-            "groups": [
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.8
-                },
-                {
-                    "type": "runner",
-                    "count": 6,
-                    "intervalSec": 0.9
-                },
-                {
-                    "type": "healer",
-                    "count": 1,
-                    "intervalSec": 5.0
+                    "count": 17,
+                    "intervalSec": 0.76
                 }
             ]
         },
@@ -149,9 +135,19 @@
                     "intervalSec": 1.0
                 },
                 {
-                    "type": "grunt",
-                    "count": 10,
-                    "intervalSec": 0.7
+                    "type": "tank",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
                 }
             ]
         },
@@ -159,93 +155,18 @@
             "groups": [
                 {
                     "type": "swarm",
-                    "count": 25,
-                    "intervalSec": 0.25
-                },
-                {
-                    "type": "healer",
-                    "count": 2,
-                    "intervalSec": 3.0
-                }
-            ]
-        },
-        {
-            "groups": [
-                {
-                    "type": "tank",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.8
-                }
-            ]
-        },
-        {
-            "groups": [
-                {
-                    "type": "runner",
-                    "count": 10,
-                    "intervalSec": 0.6
-                },
-                {
-                    "type": "swarm",
-                    "count": 15,
-                    "intervalSec": 0.3
-                }
-            ]
-        },
-        {
-            "groups": [
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 2.5
-                },
-                {
-                    "type": "tank",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 3,
-                    "intervalSec": 2.0
-                }
-            ]
-        },
-        {
-            "groups": [
-                {
-                    "type": "runner",
-                    "count": 12,
-                    "intervalSec": 0.5
-                },
-                {
-                    "type": "shield",
-                    "count": 6,
-                    "intervalSec": 1.2
-                }
-            ]
-        },
-        {
-            "groups": [
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 2.0
-                },
-                {
-                    "type": "tank",
-                    "count": 6,
-                    "intervalSec": 1.2
+                    "count": 38,
+                    "intervalSec": 0.38
                 },
                 {
                     "type": "runner",
-                    "count": 6,
-                    "intervalSec": 0.8
+                    "count": 9,
+                    "intervalSec": 0.74
+                },
+                {
+                    "type": "runner",
+                    "count": 17,
+                    "intervalSec": 0.74
                 }
             ]
         },
@@ -254,17 +175,7 @@
                 {
                     "type": "swarm",
                     "count": 30,
-                    "intervalSec": 0.2
-                },
-                {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 2,
-                    "intervalSec": 3.0
+                    "intervalSec": 0.38
                 }
             ]
         },
@@ -272,23 +183,151 @@
             "groups": [
                 {
                     "type": "grunt",
+                    "count": 16,
+                    "intervalSec": 0.74
+                },
+                {
+                    "type": "tank",
+                    "count": 3,
+                    "intervalSec": 1.87
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "swarm",
+                    "count": 28,
+                    "intervalSec": 0.37
+                },
+                {
+                    "type": "runner",
                     "count": 10,
-                    "intervalSec": 0.5
+                    "intervalSec": 0.73
+                },
+                {
+                    "type": "grunt",
+                    "count": 18,
+                    "intervalSec": 0.73
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "runner",
+                    "count": 15,
+                    "intervalSec": 0.73
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.84
+                },
+                {
+                    "type": "swarm",
+                    "count": 40,
+                    "intervalSec": 0.37
+                },
+                {
+                    "type": "tank",
+                    "count": 4,
+                    "intervalSec": 1.84
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 26,
+                    "intervalSec": 0.72
+                },
+                {
+                    "type": "swarm",
+                    "count": 39,
+                    "intervalSec": 0.37
+                },
+                {
+                    "type": "swarm",
+                    "count": 45,
+                    "intervalSec": 0.37
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 26,
+                    "intervalSec": 0.71
+                },
+                {
+                    "type": "grunt",
+                    "count": 22,
+                    "intervalSec": 0.71
+                },
+                {
+                    "type": "grunt",
+                    "count": 26,
+                    "intervalSec": 0.71
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 9,
+                    "intervalSec": 1.81
+                },
+                {
+                    "type": "swarm",
+                    "count": 37,
+                    "intervalSec": 0.36
+                },
+                {
+                    "type": "swarm",
+                    "count": 35,
+                    "intervalSec": 0.36
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "boss",
+                    "count": 2,
+                    "intervalSec": 3.0
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 4,
+                    "intervalSec": 1.5
                 },
                 {
                     "type": "tank",
                     "count": 5,
-                    "intervalSec": 1.0
+                    "intervalSec": 1.5
                 },
                 {
-                    "type": "runner",
-                    "count": 8,
-                    "intervalSec": 0.6
-                },
-                {
-                    "type": "swarm",
-                    "count": 15,
-                    "intervalSec": 0.3
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
                 },
                 {
                     "type": "shield",
@@ -297,8 +336,334 @@
                 },
                 {
                     "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 21,
+                    "intervalSec": 0.7
+                },
+                {
+                    "type": "runner",
+                    "count": 11,
+                    "intervalSec": 0.7
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.58
+                },
+                {
+                    "type": "runner",
+                    "count": 11,
+                    "intervalSec": 0.69
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 9,
+                    "intervalSec": 1.77
+                },
+                {
+                    "type": "runner",
+                    "count": 19,
+                    "intervalSec": 0.69
+                },
+                {
+                    "type": "grunt",
+                    "count": 24,
+                    "intervalSec": 0.69
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 31,
+                    "intervalSec": 0.68
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "swarm",
+                    "count": 44,
+                    "intervalSec": 0.35
+                },
+                {
+                    "type": "swarm",
+                    "count": 35,
+                    "intervalSec": 0.35
+                },
+                {
+                    "type": "grunt",
+                    "count": 21,
+                    "intervalSec": 0.68
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 10,
+                    "intervalSec": 1.74
+                },
+                {
+                    "type": "grunt",
+                    "count": 19,
+                    "intervalSec": 0.67
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "swarm",
+                    "count": 28,
+                    "intervalSec": 0.35
+                },
+                {
+                    "type": "grunt",
+                    "count": 21,
+                    "intervalSec": 0.67
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.73
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "shield",
+                    "count": 10,
+                    "intervalSec": 1.52
+                },
+                {
+                    "type": "swarm",
+                    "count": 35,
+                    "intervalSec": 0.34
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.52
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "shield",
+                    "count": 10,
+                    "intervalSec": 1.51
+                },
+                {
+                    "type": "swarm",
+                    "count": 43,
+                    "intervalSec": 0.34
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "boss",
                     "count": 2,
                     "intervalSec": 3.0
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 6,
+                    "intervalSec": 1.69
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "runner",
+                    "count": 18,
+                    "intervalSec": 0.64
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 3.36
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.67
+                },
+                {
+                    "type": "swarm",
+                    "count": 37,
+                    "intervalSec": 0.33
+                },
+                {
+                    "type": "grunt",
+                    "count": 23,
+                    "intervalSec": 0.64
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.46
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "swarm",
+                    "count": 32,
+                    "intervalSec": 0.33
+                },
+                {
+                    "type": "runner",
+                    "count": 15,
+                    "intervalSec": 0.62
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 30,
+                    "intervalSec": 0.62
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.44
+                },
+                {
+                    "type": "swarm",
+                    "count": 39,
+                    "intervalSec": 0.33
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 3.26
+                },
+                {
+                    "type": "grunt",
+                    "count": 32,
+                    "intervalSec": 0.61
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "healer",
+                    "count": 2,
+                    "intervalSec": 3.24
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 6,
+                    "intervalSec": 1.61
+                },
+                {
+                    "type": "runner",
+                    "count": 12,
+                    "intervalSec": 0.6
                 }
             ]
         },
@@ -307,16 +672,2782 @@
                 {
                     "type": "boss",
                     "count": 3,
-                    "intervalSec": 4.0
+                    "intervalSec": 3.0
                 },
                 {
                     "type": "healer",
-                    "count": 3,
-                    "intervalSec": 2.5
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 4,
+                    "intervalSec": 1.5
                 },
                 {
                     "type": "shield",
                     "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 3.18
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 3.18
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 3.18
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 9,
+                    "intervalSec": 1.58
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.38
+                },
+                {
+                    "type": "runner",
+                    "count": 23,
+                    "intervalSec": 0.59
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "runner",
+                    "count": 17,
+                    "intervalSec": 0.59
+                },
+                {
+                    "type": "shield",
+                    "count": 11,
+                    "intervalSec": 1.37
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.57
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 3.14
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 36,
+                    "intervalSec": 0.58
+                },
+                {
+                    "type": "swarm",
+                    "count": 55,
+                    "intervalSec": 0.31
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "healer",
+                    "count": 4,
+                    "intervalSec": 3.1
+                },
+                {
+                    "type": "runner",
+                    "count": 23,
+                    "intervalSec": 0.58
+                },
+                {
+                    "type": "runner",
+                    "count": 21,
+                    "intervalSec": 0.58
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "runner",
+                    "count": 16,
+                    "intervalSec": 0.57
+                },
+                {
+                    "type": "runner",
+                    "count": 20,
+                    "intervalSec": 0.57
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 3.06
+                },
+                {
+                    "type": "tank",
+                    "count": 9,
+                    "intervalSec": 1.53
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 3.04
+                },
+                {
+                    "type": "shield",
+                    "count": 9,
+                    "intervalSec": 1.32
+                },
+                {
+                    "type": "swarm",
+                    "count": 52,
+                    "intervalSec": 0.3
+                },
+                {
+                    "type": "shield",
+                    "count": 12,
+                    "intervalSec": 1.32
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "shield",
+                    "count": 11,
+                    "intervalSec": 1.31
+                },
+                {
+                    "type": "swarm",
+                    "count": 43,
+                    "intervalSec": 0.3
+                },
+                {
+                    "type": "grunt",
+                    "count": 25,
+                    "intervalSec": 0.56
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "boss",
+                    "count": 3,
+                    "intervalSec": 3.0
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 6,
+                    "intervalSec": 1.5
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 13,
+                    "intervalSec": 1.49
+                },
+                {
+                    "type": "shield",
+                    "count": 13,
+                    "intervalSec": 1.29
+                },
+                {
+                    "type": "swarm",
+                    "count": 64,
+                    "intervalSec": 0.3
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "swarm",
+                    "count": 62,
+                    "intervalSec": 0.3
+                },
+                {
+                    "type": "runner",
+                    "count": 22,
+                    "intervalSec": 0.54
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.48
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 35,
+                    "intervalSec": 0.54
+                },
+                {
+                    "type": "swarm",
+                    "count": 65,
+                    "intervalSec": 0.29
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "runner",
+                    "count": 18,
+                    "intervalSec": 0.53
+                },
+                {
+                    "type": "swarm",
+                    "count": 66,
+                    "intervalSec": 0.29
+                },
+                {
+                    "type": "grunt",
+                    "count": 27,
+                    "intervalSec": 0.53
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "runner",
+                    "count": 18,
+                    "intervalSec": 0.53
+                },
+                {
+                    "type": "tank",
+                    "count": 10,
+                    "intervalSec": 1.45
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 9,
+                    "intervalSec": 1.44
+                },
+                {
+                    "type": "swarm",
+                    "count": 56,
+                    "intervalSec": 0.29
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 27,
+                    "intervalSec": 0.52
+                },
+                {
+                    "type": "swarm",
+                    "count": 62,
+                    "intervalSec": 0.29
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.43
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "runner",
+                    "count": 20,
+                    "intervalSec": 0.51
+                },
+                {
+                    "type": "swarm",
+                    "count": 62,
+                    "intervalSec": 0.28
+                },
+                {
+                    "type": "grunt",
+                    "count": 36,
+                    "intervalSec": 0.51
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "runner",
+                    "count": 26,
+                    "intervalSec": 0.51
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 2.82
+                },
+                {
+                    "type": "runner",
+                    "count": 25,
+                    "intervalSec": 0.51
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "boss",
+                    "count": 4,
+                    "intervalSec": 3.0
+                },
+                {
+                    "type": "tank",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "healer",
+                    "count": 4,
+                    "intervalSec": 2.78
+                },
+                {
+                    "type": "swarm",
+                    "count": 62,
+                    "intervalSec": 0.28
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.19
+                },
+                {
+                    "type": "shield",
+                    "count": 14,
+                    "intervalSec": 1.19
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "healer",
+                    "count": 4,
+                    "intervalSec": 2.76
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 2.76
+                },
+                {
+                    "type": "swarm",
+                    "count": 61,
+                    "intervalSec": 0.28
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.37
+                },
+                {
+                    "type": "shield",
+                    "count": 13,
+                    "intervalSec": 1.17
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.36
+                },
+                {
+                    "type": "swarm",
+                    "count": 59,
+                    "intervalSec": 0.27
+                },
+                {
+                    "type": "shield",
+                    "count": 10,
+                    "intervalSec": 1.16
+                },
+                {
+                    "type": "grunt",
+                    "count": 33,
+                    "intervalSec": 0.48
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 37,
+                    "intervalSec": 0.48
+                },
+                {
+                    "type": "tank",
+                    "count": 9,
+                    "intervalSec": 1.35
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 44,
+                    "intervalSec": 0.47
+                },
+                {
+                    "type": "swarm",
+                    "count": 69,
+                    "intervalSec": 0.27
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 2.68
+                },
+                {
+                    "type": "shield",
+                    "count": 14,
+                    "intervalSec": 1.14
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 9,
+                    "intervalSec": 1.33
+                },
+                {
+                    "type": "shield",
+                    "count": 13,
+                    "intervalSec": 1.13
+                },
+                {
+                    "type": "grunt",
+                    "count": 38,
+                    "intervalSec": 0.47
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 30,
+                    "intervalSec": 0.46
+                },
+                {
+                    "type": "shield",
+                    "count": 13,
+                    "intervalSec": 1.12
+                },
+                {
+                    "type": "shield",
+                    "count": 12,
+                    "intervalSec": 1.12
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 2.64
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 2.62
+                },
+                {
+                    "type": "tank",
+                    "count": 9,
+                    "intervalSec": 1.31
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "boss",
+                    "count": 4,
+                    "intervalSec": 3.0
+                },
+                {
+                    "type": "shield",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 6,
+                    "intervalSec": 1.5
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 2.58
+                },
+                {
+                    "type": "healer",
+                    "count": 4,
+                    "intervalSec": 2.58
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 2.58
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 13,
+                    "intervalSec": 1.28
+                },
+                {
+                    "type": "shield",
+                    "count": 14,
+                    "intervalSec": 1.08
+                },
+                {
+                    "type": "grunt",
+                    "count": 42,
+                    "intervalSec": 0.44
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "shield",
+                    "count": 14,
+                    "intervalSec": 1.07
+                },
+                {
+                    "type": "grunt",
+                    "count": 42,
+                    "intervalSec": 0.44
+                },
+                {
+                    "type": "shield",
+                    "count": 12,
+                    "intervalSec": 1.07
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "swarm",
+                    "count": 70,
+                    "intervalSec": 0.25
+                },
+                {
+                    "type": "grunt",
+                    "count": 36,
+                    "intervalSec": 0.43
+                },
+                {
+                    "type": "tank",
+                    "count": 9,
+                    "intervalSec": 1.26
+                },
+                {
+                    "type": "runner",
+                    "count": 22,
+                    "intervalSec": 0.43
+                },
+                {
+                    "type": "shield",
+                    "count": 11,
+                    "intervalSec": 1.06
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "swarm",
+                    "count": 52,
+                    "intervalSec": 0.25
+                },
+                {
+                    "type": "runner",
+                    "count": 25,
+                    "intervalSec": 0.43
+                },
+                {
+                    "type": "runner",
+                    "count": 20,
+                    "intervalSec": 0.43
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 36,
+                    "intervalSec": 0.42
+                },
+                {
+                    "type": "shield",
+                    "count": 14,
+                    "intervalSec": 1.04
+                },
+                {
+                    "type": "shield",
+                    "count": 9,
+                    "intervalSec": 1.04
+                },
+                {
+                    "type": "shield",
+                    "count": 14,
+                    "intervalSec": 1.04
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "runner",
+                    "count": 21,
+                    "intervalSec": 0.42
+                },
+                {
+                    "type": "tank",
+                    "count": 15,
+                    "intervalSec": 1.23
+                },
+                {
+                    "type": "shield",
+                    "count": 13,
+                    "intervalSec": 1.03
+                },
+                {
+                    "type": "grunt",
+                    "count": 34,
+                    "intervalSec": 0.42
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "shield",
+                    "count": 15,
+                    "intervalSec": 1.02
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 2.44
+                },
+                {
+                    "type": "runner",
+                    "count": 20,
+                    "intervalSec": 0.41
+                },
+                {
+                    "type": "shield",
+                    "count": 15,
+                    "intervalSec": 1.02
+                },
+                {
+                    "type": "grunt",
+                    "count": 40,
+                    "intervalSec": 0.41
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 39,
+                    "intervalSec": 0.41
+                },
+                {
+                    "type": "runner",
+                    "count": 20,
+                    "intervalSec": 0.41
+                },
+                {
+                    "type": "grunt",
+                    "count": 33,
+                    "intervalSec": 0.41
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "boss",
+                    "count": 5,
+                    "intervalSec": 3.0
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "swarm",
+                    "count": 60,
+                    "intervalSec": 0.24
+                },
+                {
+                    "type": "runner",
+                    "count": 28,
+                    "intervalSec": 0.4
+                },
+                {
+                    "type": "grunt",
+                    "count": 43,
+                    "intervalSec": 0.4
+                },
+                {
+                    "type": "shield",
+                    "count": 16,
+                    "intervalSec": 1.0
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "swarm",
+                    "count": 72,
+                    "intervalSec": 0.24
+                },
+                {
+                    "type": "tank",
+                    "count": 13,
+                    "intervalSec": 1.18
+                },
+                {
+                    "type": "runner",
+                    "count": 25,
+                    "intervalSec": 0.4
+                },
+                {
+                    "type": "shield",
+                    "count": 13,
+                    "intervalSec": 1.0
+                },
+                {
+                    "type": "shield",
+                    "count": 14,
+                    "intervalSec": 1.0
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "swarm",
+                    "count": 74,
+                    "intervalSec": 0.23
+                },
+                {
+                    "type": "swarm",
+                    "count": 70,
+                    "intervalSec": 0.23
+                },
+                {
+                    "type": "swarm",
+                    "count": 62,
+                    "intervalSec": 0.23
+                },
+                {
+                    "type": "runner",
+                    "count": 23,
+                    "intervalSec": 0.4
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "swarm",
+                    "count": 79,
+                    "intervalSec": 0.23
+                },
+                {
+                    "type": "swarm",
+                    "count": 67,
+                    "intervalSec": 0.23
+                },
+                {
+                    "type": "runner",
+                    "count": 30,
+                    "intervalSec": 0.4
+                },
+                {
+                    "type": "grunt",
+                    "count": 49,
+                    "intervalSec": 0.4
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "swarm",
+                    "count": 82,
+                    "intervalSec": 0.23
+                },
+                {
+                    "type": "swarm",
+                    "count": 73,
+                    "intervalSec": 0.23
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 2.3
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "swarm",
+                    "count": 60,
+                    "intervalSec": 0.23
+                },
+                {
+                    "type": "runner",
+                    "count": 27,
+                    "intervalSec": 0.4
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 2.28
+                },
+                {
+                    "type": "runner",
+                    "count": 28,
+                    "intervalSec": 0.4
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 36,
+                    "intervalSec": 0.4
+                },
+                {
+                    "type": "runner",
+                    "count": 22,
+                    "intervalSec": 0.4
+                },
+                {
+                    "type": "swarm",
+                    "count": 64,
+                    "intervalSec": 0.23
+                },
+                {
+                    "type": "grunt",
+                    "count": 47,
+                    "intervalSec": 0.4
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 2.26
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "shield",
+                    "count": 15,
+                    "intervalSec": 1.0
+                },
+                {
+                    "type": "tank",
+                    "count": 10,
+                    "intervalSec": 1.12
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 2.24
+                },
+                {
+                    "type": "shield",
+                    "count": 13,
+                    "intervalSec": 1.0
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 2.22
+                },
+                {
+                    "type": "swarm",
+                    "count": 75,
+                    "intervalSec": 0.22
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 2.22
+                },
+                {
+                    "type": "runner",
+                    "count": 25,
+                    "intervalSec": 0.4
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "boss",
+                    "count": 5,
+                    "intervalSec": 3.0
+                },
+                {
+                    "type": "healer",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "swarm",
+                    "count": 62,
+                    "intervalSec": 0.22
+                },
+                {
+                    "type": "grunt",
+                    "count": 45,
+                    "intervalSec": 0.4
+                },
+                {
+                    "type": "grunt",
+                    "count": 45,
+                    "intervalSec": 0.4
+                },
+                {
+                    "type": "shield",
+                    "count": 17,
+                    "intervalSec": 1.0
+                },
+                {
+                    "type": "grunt",
+                    "count": 45,
+                    "intervalSec": 0.4
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "tank",
+                    "count": 17,
+                    "intervalSec": 1.08
+                },
+                {
+                    "type": "runner",
+                    "count": 27,
+                    "intervalSec": 0.4
+                },
+                {
+                    "type": "tank",
+                    "count": 12,
+                    "intervalSec": 1.08
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "swarm",
+                    "count": 64,
+                    "intervalSec": 0.21
+                },
+                {
+                    "type": "tank",
+                    "count": 17,
+                    "intervalSec": 1.07
+                },
+                {
+                    "type": "grunt",
+                    "count": 46,
+                    "intervalSec": 0.4
+                },
+                {
+                    "type": "shield",
+                    "count": 15,
+                    "intervalSec": 1.0
+                },
+                {
+                    "type": "swarm",
+                    "count": 73,
+                    "intervalSec": 0.21
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 2.12
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 2.12
+                },
+                {
+                    "type": "grunt",
+                    "count": 46,
+                    "intervalSec": 0.4
+                },
+                {
+                    "type": "swarm",
+                    "count": 83,
+                    "intervalSec": 0.21
+                },
+                {
+                    "type": "tank",
+                    "count": 16,
+                    "intervalSec": 1.06
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "runner",
+                    "count": 32,
+                    "intervalSec": 0.4
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 2.1
+                },
+                {
+                    "type": "swarm",
+                    "count": 84,
+                    "intervalSec": 0.21
+                },
+                {
+                    "type": "runner",
+                    "count": 26,
+                    "intervalSec": 0.4
+                },
+                {
+                    "type": "shield",
+                    "count": 11,
+                    "intervalSec": 1.0
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "grunt",
+                    "count": 39,
+                    "intervalSec": 0.4
+                },
+                {
+                    "type": "runner",
+                    "count": 29,
+                    "intervalSec": 0.4
+                },
+                {
+                    "type": "shield",
+                    "count": 16,
+                    "intervalSec": 1.0
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "swarm",
+                    "count": 86,
+                    "intervalSec": 0.21
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 2.06
+                },
+                {
+                    "type": "shield",
+                    "count": 15,
+                    "intervalSec": 1.0
+                },
+                {
+                    "type": "swarm",
+                    "count": 69,
+                    "intervalSec": 0.21
+                },
+                {
+                    "type": "grunt",
+                    "count": 42,
+                    "intervalSec": 0.4
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 2.04
+                },
+                {
+                    "type": "grunt",
+                    "count": 44,
+                    "intervalSec": 0.4
+                },
+                {
+                    "type": "tank",
+                    "count": 14,
+                    "intervalSec": 1.02
+                },
+                {
+                    "type": "runner",
+                    "count": 31,
+                    "intervalSec": 0.4
+                },
+                {
+                    "type": "swarm",
+                    "count": 86,
+                    "intervalSec": 0.2
+                }
+            ]
+        },
+        {
+            "groups": [
+                {
+                    "type": "boss",
+                    "count": 5,
+                    "intervalSec": 3.0
+                },
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 5,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 7,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "shield",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 3,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 4,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "tank",
+                    "count": 8,
+                    "intervalSec": 1.5
+                },
+                {
+                    "type": "healer",
+                    "count": 6,
                     "intervalSec": 1.5
                 }
             ]
