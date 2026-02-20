@@ -28,6 +28,7 @@ export class TowerRenderer {
     private scene: THREE.Scene;
     private meshes = new Map<number, THREE.Group>();
     private rangeRing: THREE.Mesh | null = null;
+    private time = 0;
 
     constructor(scene: THREE.Scene) {
         this.scene = scene;
@@ -59,6 +60,65 @@ export class TowerRenderer {
         if (group) {
             this.scene.remove(group);
             this.meshes.delete(id);
+        }
+    }
+
+    animate(dt: number, state: GameState): void {
+        this.time += dt;
+        for (const tower of state.towers) {
+            const group = this.meshes.get(tower.id);
+            if (!group) continue;
+
+            const parts = group.userData;
+
+            // Detect attack for scale bump
+            if (tower.cooldownRemaining > parts.lastCooldown) {
+                // Cooldown reset usually means it fired
+                parts.attackTimer = 0.15;
+            }
+            parts.lastCooldown = tower.cooldownRemaining;
+
+            // Attack bump animation
+            if (parts.attackTimer > 0) {
+                parts.attackTimer -= dt;
+                const t = Math.max(0, parts.attackTimer / 0.15); // 1 to 0
+                const bump = 1.0 + t * 0.15; // 1.15 max
+                group.scale.set(bump, bump, bump);
+            } else {
+                group.scale.set(1, 1, 1);
+            }
+
+            // Idle animations based on type
+            switch (tower.type) {
+                case 'ice':
+                    if (parts.crystal) parts.crystal.rotation.y += dt * 0.8;
+                    break;
+                case 'lightning':
+                    if (parts.top) {
+                        parts.top.rotation.y += dt * 2.0;
+                        parts.top.position.y = 0.65 + Math.sin(this.time * 5) * 0.05;
+                    }
+                    break;
+                case 'fire':
+                    if (parts.cone1 && parts.cone2) {
+                        parts.cone1.rotation.y += dt * 1.5;
+                        parts.cone2.rotation.y -= dt * 2.0;
+                        const pulse = 1.0 + Math.sin(this.time * 8) * 0.05;
+                        parts.cone1.scale.set(pulse, 1, pulse);
+                    }
+                    break;
+                case 'poison':
+                    if (parts.sphere) {
+                        const pulse = 1.0 + Math.sin(this.time * 3) * 0.1;
+                        parts.sphere.scale.set(pulse, pulse, pulse);
+                    }
+                    break;
+                case 'sniper':
+                    if (parts.scope) {
+                        parts.scope.position.y = 1.0 + Math.sin(this.time * 2) * 0.02;
+                    }
+                    break;
+            }
         }
     }
 
@@ -129,6 +189,7 @@ export class TowerRenderer {
                 m.position.y = 0.65;
                 m.castShadow = true;
                 group.add(m);
+                group.userData.crystal = m;
                 break;
             }
             case 'fire': {
@@ -146,6 +207,8 @@ export class TowerRenderer {
                 }));
                 m2.position.y = 0.55;
                 group.add(m2);
+                group.userData.cone1 = m;
+                group.userData.cone2 = m2;
                 break;
             }
             case 'lightning': {
@@ -156,6 +219,7 @@ export class TowerRenderer {
                 m.position.y = 0.65;
                 m.castShadow = true;
                 group.add(m);
+                group.userData.top = m;
                 break;
             }
             case 'poison': {
@@ -167,6 +231,7 @@ export class TowerRenderer {
                 m.position.y = 0.6;
                 m.castShadow = true;
                 group.add(m);
+                group.userData.sphere = m;
                 break;
             }
             case 'sniper': {
@@ -180,9 +245,13 @@ export class TowerRenderer {
                 const m2 = new THREE.Mesh(scope, new THREE.MeshStandardMaterial({ color: 0xaa0000 }));
                 m2.position.y = 1.0;
                 group.add(m2);
+                group.userData.scope = m2;
                 break;
             }
         }
+
+        group.userData.lastCooldown = tower.cooldownRemaining;
+        group.userData.attackTimer = 0;
 
         // Level indicator pips on base
         for (let i = 0; i <= tower.level; i++) {
