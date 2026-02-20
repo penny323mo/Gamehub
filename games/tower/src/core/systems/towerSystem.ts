@@ -71,6 +71,7 @@ export function tickTowers(state: GameState, dt: number): void {
             };
             state.projectiles.push(proj);
             tower.cooldownRemaining = cfg.cooldownSec;
+            tower.aimAngle = Math.atan2(bestEnemy.worldX - tower.worldX, bestEnemy.worldZ - tower.worldZ);
         }
     }
 }

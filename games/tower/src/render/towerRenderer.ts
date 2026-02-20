@@ -154,98 +154,222 @@ export class TowerRenderer {
         const accentColor = ACCENT_COLORS[tower.type];
         const scale = 1 + tower.level * 0.15;
 
-        // Base cylinder
-        const baseGeo = new THREE.CylinderGeometry(0.3 * scale, 0.38 * scale, 0.3, 8);
-        const baseMat = new THREE.MeshStandardMaterial({ color: baseColor });
+        // Base definition
+        const baseGroup = new THREE.Group();
+        const baseGeo = new THREE.CylinderGeometry(0.3 * scale, 0.38 * scale, 0.2, 8);
+        const baseMat = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.7 });
         const baseMesh = new THREE.Mesh(baseGeo, baseMat);
-        baseMesh.position.y = 0.15;
+        baseMesh.position.y = 0.1;
         baseMesh.castShadow = true;
-        group.add(baseMesh);
+        baseGroup.add(baseMesh);
+
+        const rimGeo = new THREE.CylinderGeometry(0.32 * scale, 0.32 * scale, 0.05, 8);
+        const rimMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9, metalness: 0.5 });
+        const rimMesh = new THREE.Mesh(rimGeo, rimMat);
+        rimMesh.position.y = 0.225;
+        rimMesh.castShadow = true;
+        baseGroup.add(rimMesh);
+
+        group.add(baseGroup);
 
         // Type-specific top
         switch (tower.type) {
             case 'arrow': {
-                const body = new THREE.CylinderGeometry(0.12 * scale, 0.2 * scale, 0.6, 6);
+                const body = new THREE.CylinderGeometry(0.12 * scale, 0.2 * scale, 0.5, 6);
                 const m = new THREE.Mesh(body, new THREE.MeshStandardMaterial({ color: accentColor }));
-                m.position.y = 0.6;
+                m.position.y = 0.5;
                 m.castShadow = true;
                 group.add(m);
+
+                // Crossbow arms
+                const armGeo = new THREE.BoxGeometry(0.6 * scale, 0.04 * scale, 0.08 * scale);
+                const arms = new THREE.Mesh(armGeo, new THREE.MeshStandardMaterial({ color: 0x5c4033 }));
+                arms.position.y = 0.75;
+                arms.position.z = 0.1;
+                arms.castShadow = true;
+                group.add(arms);
+
+                // Arrow
+                const arrGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.4, 4);
+                const arrGeoHead = new THREE.ConeGeometry(0.04, 0.1, 4);
+                const arrMat = new THREE.MeshStandardMaterial({ color: 0xcccccc });
+
+                const arrowPole = new THREE.Mesh(arrGeo, arrMat);
+                arrowPole.rotation.x = Math.PI / 2;
+                arrowPole.position.set(0, 0.8, 0);
+
+                const arrowHead = new THREE.Mesh(arrGeoHead, arrMat);
+                arrowHead.rotation.x = Math.PI / 2;
+                arrowHead.position.set(0, 0.8, 0.25);
+
+                group.add(arrowPole);
+                group.add(arrowHead);
                 break;
             }
             case 'cannon': {
-                const barrel = new THREE.CylinderGeometry(0.1 * scale, 0.1 * scale, 0.5, 8);
-                const m = new THREE.Mesh(barrel, new THREE.MeshStandardMaterial({ color: accentColor }));
-                m.position.set(0, 0.5, 0.2);
-                m.rotation.x = Math.PI / 4;
-                m.castShadow = true;
-                group.add(m);
+                const turretGeo = new THREE.SphereGeometry(0.25 * scale, 12, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+                const turret = new THREE.Mesh(turretGeo, new THREE.MeshStandardMaterial({ color: accentColor, metalness: 0.6, roughness: 0.4 }));
+                turret.position.y = 0.25;
+                turret.castShadow = true;
+                group.add(turret);
+
+                // Barrel
+                const barrelGeo = new THREE.CylinderGeometry(0.08 * scale, 0.12 * scale, 0.6 * scale, 8);
+                const barrel = new THREE.Mesh(barrelGeo, new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8, roughness: 0.3 }));
+                barrel.position.set(0, 0.45, 0.25);
+                barrel.rotation.x = Math.PI / 4;
+                barrel.castShadow = true;
+                group.add(barrel);
+
+                // Muzzle ring
+                const ringGeo = new THREE.TorusGeometry(0.1 * scale, 0.03 * scale, 6, 12);
+                const ring = new THREE.Mesh(ringGeo, new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9 }));
+                ring.position.set(0, 0.65, 0.45);
+                ring.rotation.x = Math.PI / 4;
+                group.add(ring);
                 break;
             }
             case 'ice': {
-                const crystal = new THREE.OctahedronGeometry(0.22 * scale);
-                const m = new THREE.Mesh(crystal, new THREE.MeshStandardMaterial({
-                    color: accentColor, transparent: true, opacity: 0.8
-                }));
-                m.position.y = 0.65;
+                const crystalMat = new THREE.MeshPhysicalMaterial({
+                    color: accentColor,
+                    transmission: 0.9,
+                    opacity: 1,
+                    metalness: 0,
+                    roughness: 0.1,
+                    ior: 1.5,
+                    thickness: 0.5,
+                });
+                const crystal = new THREE.OctahedronGeometry(0.25 * scale);
+                const m = new THREE.Mesh(crystal, crystalMat);
+                m.position.y = 0.7;
                 m.castShadow = true;
+
+                const innerCrystal = new THREE.OctahedronGeometry(0.12 * scale);
+                const mInner = new THREE.Mesh(innerCrystal, new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x88ccff }));
+                m.add(mInner);
+
                 group.add(m);
                 group.userData.crystal = m;
                 break;
             }
             case 'fire': {
-                const cone = new THREE.ConeGeometry(0.18 * scale, 0.5, 6);
+                const bowlPts = [];
+                for (let i = 0; i < 5; i++) {
+                    bowlPts.push(new THREE.Vector2(0.25 * scale + Math.sin(i * 0.5) * 0.05, i * 0.1));
+                }
+                const bowlGeo = new THREE.LatheGeometry(bowlPts, 8);
+                const bowl = new THREE.Mesh(bowlGeo, new THREE.MeshStandardMaterial({ color: 0x331100, roughness: 0.9 }));
+                bowl.position.y = 0.25;
+                bowl.castShadow = true;
+                group.add(bowl);
+
+                const cone = new THREE.ConeGeometry(0.2 * scale, 0.6, 6);
                 const m = new THREE.Mesh(cone, new THREE.MeshStandardMaterial({
-                    color: 0xff3300, emissive: 0xff2200, emissiveIntensity: 0.3
+                    color: 0xff3300, emissive: 0xff2200, emissiveIntensity: 0.5, transparent: true, opacity: 0.9
                 }));
-                m.position.y = 0.6;
+                m.position.y = 0.65;
                 m.castShadow = true;
                 group.add(m);
+
                 // Inner flame
-                const inner = new THREE.ConeGeometry(0.1 * scale, 0.35, 6);
+                const inner = new THREE.ConeGeometry(0.1 * scale, 0.4, 6);
                 const m2 = new THREE.Mesh(inner, new THREE.MeshStandardMaterial({
-                    color: 0xffaa00, emissive: 0xffaa00, emissiveIntensity: 0.5
+                    color: 0xffaa00, emissive: 0xffdd00, emissiveIntensity: 0.8
                 }));
-                m2.position.y = 0.55;
+                m2.position.y = 0.6;
                 group.add(m2);
                 group.userData.cone1 = m;
                 group.userData.cone2 = m2;
                 break;
             }
             case 'lightning': {
-                const top = new THREE.TetrahedronGeometry(0.22 * scale);
+                // Coil body
+                const coilGeo = new THREE.CylinderGeometry(0.08 * scale, 0.15 * scale, 0.5 * scale, 8);
+                const coil = new THREE.Mesh(coilGeo, new THREE.MeshStandardMaterial({ color: 0x222233, metalness: 0.8 }));
+                coil.position.y = 0.5;
+                group.add(coil);
+
+                // Rings
+                for (let r = 0; r < 3; r++) {
+                    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.15 * scale, 0.02 * scale, 4, 12), new THREE.MeshStandardMaterial({ color: 0xaaaaaa, metalness: 0.9 }));
+                    ring.position.y = 0.4 + r * 0.15;
+                    ring.rotation.x = Math.PI / 2;
+                    group.add(ring);
+                }
+
+                const top = new THREE.IcosahedronGeometry(0.2 * scale);
                 const m = new THREE.Mesh(top, new THREE.MeshStandardMaterial({
-                    color: accentColor, emissive: 0xffee00, emissiveIntensity: 0.4
+                    color: accentColor, emissive: 0xffee00, emissiveIntensity: 0.6, wireframe: true
                 }));
-                m.position.y = 0.65;
-                m.castShadow = true;
+                m.position.y = 0.85;
                 group.add(m);
+
+                const innerTop = new THREE.Mesh(new THREE.IcosahedronGeometry(0.1 * scale), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1 }));
+                m.add(innerTop);
+
                 group.userData.top = m;
                 break;
             }
             case 'poison': {
-                const sphere = new THREE.SphereGeometry(0.2 * scale, 8, 8);
-                const m = new THREE.Mesh(sphere, new THREE.MeshStandardMaterial({
-                    color: 0x44cc22, transparent: true, opacity: 0.75,
-                    emissive: 0x33aa00, emissiveIntensity: 0.2
+                const flaskPts = [
+                    new THREE.Vector2(0.15 * scale, 0),
+                    new THREE.Vector2(0.25 * scale, 0.2 * scale),
+                    new THREE.Vector2(0.25 * scale, 0.4 * scale),
+                    new THREE.Vector2(0.1 * scale, 0.6 * scale),
+                    new THREE.Vector2(0.1 * scale, 0.8 * scale),
+                    new THREE.Vector2(0.15 * scale, 0.85 * scale)
+                ];
+                const flaskGeo = new THREE.LatheGeometry(flaskPts, 12);
+                const flaskMat = new THREE.MeshPhysicalMaterial({
+                    color: 0xffffff, transmission: 0.8, opacity: 1, roughness: 0.1, ior: 1.5, side: THREE.DoubleSide
+                });
+                const flask = new THREE.Mesh(flaskGeo, flaskMat);
+                flask.position.y = 0.25;
+                group.add(flask);
+
+                // Liquid inside
+                const liquidGeo = new THREE.CylinderGeometry(0.2 * scale, 0.22 * scale, 0.4 * scale, 12);
+                const m = new THREE.Mesh(liquidGeo, new THREE.MeshStandardMaterial({
+                    color: 0x33cc11, transparent: true, opacity: 0.85, emissive: 0x22aa00, emissiveIntensity: 0.3
                 }));
-                m.position.y = 0.6;
-                m.castShadow = true;
+                m.position.y = 0.45;
                 group.add(m);
-                group.userData.sphere = m;
+                group.userData.sphere = m; // keep name 'sphere' so animation works
                 break;
             }
             case 'sniper': {
-                const body = new THREE.CylinderGeometry(0.06 * scale, 0.12 * scale, 0.8, 4);
-                const m = new THREE.Mesh(body, new THREE.MeshStandardMaterial({ color: accentColor }));
-                m.position.y = 0.7;
-                m.castShadow = true;
+                const legsGroup = new THREE.Group();
+                for (let i = 0; i < 3; i++) {
+                    const legGeo = new THREE.CylinderGeometry(0.02 * scale, 0.02 * scale, 0.6 * scale, 4);
+                    const leg = new THREE.Mesh(legGeo, new THREE.MeshStandardMaterial({ color: 0x555555 }));
+                    leg.position.set(Math.cos(i * Math.PI * 2 / 3) * 0.15, 0.3, Math.sin(i * Math.PI * 2 / 3) * 0.15);
+                    leg.rotation.x = -Math.sin(i * Math.PI * 2 / 3) * 0.3;
+                    leg.rotation.z = Math.cos(i * Math.PI * 2 / 3) * 0.3;
+                    legsGroup.add(leg);
+                }
+                legsGroup.position.y = 0.25;
+                group.add(legsGroup);
+
+                const body = new THREE.BoxGeometry(0.1 * scale, 0.15 * scale, 0.4 * scale);
+                const m = new THREE.Mesh(body, new THREE.MeshStandardMaterial({ color: accentColor, metalness: 0.7 }));
+                m.position.set(0, 0.7, 0);
                 group.add(m);
+
+                // Barrel
+                const barrelGeo = new THREE.CylinderGeometry(0.03 * scale, 0.04 * scale, 0.8 * scale, 6);
+                const barrel = new THREE.Mesh(barrelGeo, new THREE.MeshStandardMaterial({ color: 0x222222 }));
+                barrel.rotation.x = Math.PI / 2;
+                barrel.position.set(0, 0.7, 0.4);
+                group.add(barrel);
+
                 // Scope
-                const scope = new THREE.SphereGeometry(0.08 * scale, 6, 6);
-                const m2 = new THREE.Mesh(scope, new THREE.MeshStandardMaterial({ color: 0xaa0000 }));
-                m2.position.y = 1.0;
-                group.add(m2);
-                group.userData.scope = m2;
+                const scopeGeo = new THREE.CylinderGeometry(0.04 * scale, 0.04 * scale, 0.3 * scale, 8);
+                const scope = new THREE.Mesh(scopeGeo, new THREE.MeshStandardMaterial({ color: 0x111111 }));
+                scope.rotation.x = Math.PI / 2;
+                scope.position.set(0.08 * scale, 0.8, 0.1);
+                group.add(scope);
+
+                group.userData.scope = scope;
                 break;
             }
         }

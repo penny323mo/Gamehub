@@ -550,7 +550,7 @@ function gameLoop(time: number): void {
     towerRenderer.animate(rawDt, state);
     towerRenderer.sync(state);
     enemyRenderer.sync(state, 0, camera);  // C — pass camera for billboard bars
-    fxRenderer.sync(state, rawDt);
+    fxRenderer.sync(state, dt);
     syncFloatingTexts(rawDt);
 
     // O — Milestone banner

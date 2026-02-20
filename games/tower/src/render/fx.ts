@@ -53,35 +53,34 @@ export class FxRenderer {
 
         this.projGeo = new THREE.BufferGeometry();
         this.projGeo.setAttribute('position', new THREE.BufferAttribute(this.projPositions, 3));
-        this.projGeo.setAttribute('color', new THREE.BufferAttribute(this.projColors, 3));
-        this.projGeo.setAttribute('size', new THREE.BufferAttribute(this.projSizes, 1));
+        this.projGeo.setAttribute('aColor', new THREE.BufferAttribute(this.projColors, 3));
+        this.projGeo.setAttribute('aSize', new THREE.BufferAttribute(this.projSizes, 1));
 
         const projMat = new THREE.ShaderMaterial({
-            uniforms: {
-                color: { value: new THREE.Color(0xffffff) },
-            },
             vertexShader: `
-                attribute float size;
+                attribute vec3 aColor;
+                attribute float aSize;
                 varying vec3 vColor;
                 void main() {
-                    vColor = color;
+                    vColor = aColor;
                     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                    gl_PointSize = size * (300.0 / -mvPosition.z);
+                    gl_PointSize = max(12.0, aSize * (900.0 / -mvPosition.z));
                     gl_Position = projectionMatrix * mvPosition;
                 }
             `,
             fragmentShader: `
                 varying vec3 vColor;
                 void main() {
-                    float dist = length(gl_PointCoord - vec2(0.5));
+                    vec2 coord = gl_PointCoord - vec2(0.5);
+                    float dist = length(coord);
                     if (dist > 0.5) discard;
-                    gl_FragColor = vec4(vColor, 1.0 - (dist * 2.0));
+                    float alpha = 1.0 - smoothstep(0.3, 0.5, dist);
+                    gl_FragColor = vec4(vColor * 2.0, alpha);
                 }
             `,
             transparent: true,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
-            vertexColors: true,
         });
         this.projPoints = new THREE.Points(this.projGeo, projMat);
         scene.add(this.projPoints);
@@ -94,25 +93,22 @@ export class FxRenderer {
 
         this.particleGeo = new THREE.BufferGeometry();
         this.particleGeo.setAttribute('position', new THREE.BufferAttribute(this.particlePositions, 3));
-        this.particleGeo.setAttribute('color', new THREE.BufferAttribute(this.particleColors, 3));
-        this.particleGeo.setAttribute('size', new THREE.BufferAttribute(this.particleSizes, 1));
-
-        this.particleGeo.setAttribute('alpha', new THREE.BufferAttribute(this.particleAlphas, 1));
+        this.particleGeo.setAttribute('aColor', new THREE.BufferAttribute(this.particleColors, 3));
+        this.particleGeo.setAttribute('aSize', new THREE.BufferAttribute(this.particleSizes, 1));
+        this.particleGeo.setAttribute('aAlpha', new THREE.BufferAttribute(this.particleAlphas, 1));
 
         const particleMat = new THREE.ShaderMaterial({
-            uniforms: {
-                color: { value: new THREE.Color(0xffffff) },
-            },
             vertexShader: `
-                attribute float size;
-                attribute float alpha;
+                attribute vec3 aColor;
+                attribute float aSize;
+                attribute float aAlpha;
                 varying vec3 vColor;
                 varying float vAlpha;
                 void main() {
-                    vColor = color;
-                    vAlpha = alpha;
+                    vColor = aColor;
+                    vAlpha = aAlpha;
                     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                    gl_PointSize = size * (300.0 / -mvPosition.z);
+                    gl_PointSize = max(5.0, aSize * (800.0 / -mvPosition.z));
                     gl_Position = projectionMatrix * mvPosition;
                 }
             `,
@@ -120,15 +116,16 @@ export class FxRenderer {
                 varying vec3 vColor;
                 varying float vAlpha;
                 void main() {
-                    float dist = length(gl_PointCoord - vec2(0.5));
+                    vec2 coord = gl_PointCoord - vec2(0.5);
+                    float dist = length(coord);
                     if (dist > 0.5) discard;
-                    gl_FragColor = vec4(vColor, vAlpha * (1.0 - (dist * 2.0)));
+                    float alpha = vAlpha * (1.0 - smoothstep(0.3, 0.5, dist));
+                    gl_FragColor = vec4(vColor * 1.5, alpha);
                 }
             `,
             transparent: true,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
-            vertexColors: true,
         });
         this.particlePoints = new THREE.Points(this.particleGeo, particleMat);
         scene.add(this.particlePoints);
@@ -144,7 +141,7 @@ export class FxRenderer {
             const i3 = projCount * 3;
 
             this.projPositions[i3] = proj.x;
-            this.projPositions[i3 + 1] = 0.5;
+            this.projPositions[i3 + 1] = 0.8; // 拉高避免遮擋
             this.projPositions[i3 + 2] = proj.z;
 
             tmpColor.set(PROJ_COLORS[proj.towerType]);
@@ -158,7 +155,8 @@ export class FxRenderer {
 
         this.projGeo.setDrawRange(0, projCount);
         (this.projGeo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
-        (this.projGeo.attributes.color as THREE.BufferAttribute).needsUpdate = true;
+        (this.projGeo.attributes.aColor as THREE.BufferAttribute).needsUpdate = true;
+        (this.projGeo.attributes.aSize as THREE.BufferAttribute).needsUpdate = true;
 
         // ── Update explosion / death particles ──
         let aliveCount = 0;
@@ -192,8 +190,9 @@ export class FxRenderer {
 
         this.particleGeo.setDrawRange(0, aliveCount);
         (this.particleGeo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
-        (this.particleGeo.attributes.color as THREE.BufferAttribute).needsUpdate = true;
-        (this.particleGeo.attributes.size as THREE.BufferAttribute).needsUpdate = true;
+        (this.particleGeo.attributes.aColor as THREE.BufferAttribute).needsUpdate = true;
+        (this.particleGeo.attributes.aSize as THREE.BufferAttribute).needsUpdate = true;
+        (this.particleGeo.attributes.aAlpha as THREE.BufferAttribute).needsUpdate = true;
     }
 
     addExplosion(x: number, z: number, type: TowerType): void {

@@ -101,6 +101,7 @@ export interface Tower {
     cooldownRemaining: number;
     totalInvested: number;
     targetingMode: TargetingMode;
+    aimAngle?: number;
 }
 
 export interface SlowEffect {
