@@ -8,7 +8,13 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+# Keep production build in repo because Game Hub links directly to dist/index.html.
 dist
+!dist/
+!dist/index.html
+!dist/assets/
+!dist/assets/*
+!dist/vite.svg
 dist-ssr
 *.local
 
