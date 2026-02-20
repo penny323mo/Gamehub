@@ -56,14 +56,32 @@ export class FxRenderer {
         this.projGeo.setAttribute('color', new THREE.BufferAttribute(this.projColors, 3));
         this.projGeo.setAttribute('size', new THREE.BufferAttribute(this.projSizes, 1));
 
-        const projMat = new THREE.PointsMaterial({
-            size: 0.25,
-            vertexColors: true,
+        const projMat = new THREE.ShaderMaterial({
+            uniforms: {
+                color: { value: new THREE.Color(0xffffff) },
+            },
+            vertexShader: `
+                attribute float size;
+                varying vec3 vColor;
+                void main() {
+                    vColor = color;
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    gl_PointSize = size * (300.0 / -mvPosition.z);
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vColor;
+                void main() {
+                    float dist = length(gl_PointCoord - vec2(0.5));
+                    if (dist > 0.5) discard;
+                    gl_FragColor = vec4(vColor, 1.0 - (dist * 2.0));
+                }
+            `,
             transparent: true,
-            opacity: 0.9,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
-            sizeAttenuation: true,
+            vertexColors: true,
         });
         this.projPoints = new THREE.Points(this.projGeo, projMat);
         scene.add(this.projPoints);
@@ -79,14 +97,38 @@ export class FxRenderer {
         this.particleGeo.setAttribute('color', new THREE.BufferAttribute(this.particleColors, 3));
         this.particleGeo.setAttribute('size', new THREE.BufferAttribute(this.particleSizes, 1));
 
-        const particleMat = new THREE.PointsMaterial({
-            size: 0.2,
-            vertexColors: true,
+        this.particleGeo.setAttribute('alpha', new THREE.BufferAttribute(this.particleAlphas, 1));
+
+        const particleMat = new THREE.ShaderMaterial({
+            uniforms: {
+                color: { value: new THREE.Color(0xffffff) },
+            },
+            vertexShader: `
+                attribute float size;
+                attribute float alpha;
+                varying vec3 vColor;
+                varying float vAlpha;
+                void main() {
+                    vColor = color;
+                    vAlpha = alpha;
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    gl_PointSize = size * (300.0 / -mvPosition.z);
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vColor;
+                varying float vAlpha;
+                void main() {
+                    float dist = length(gl_PointCoord - vec2(0.5));
+                    if (dist > 0.5) discard;
+                    gl_FragColor = vec4(vColor, vAlpha * (1.0 - (dist * 2.0)));
+                }
+            `,
             transparent: true,
-            opacity: 0.85,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
-            sizeAttenuation: true,
+            vertexColors: true,
         });
         this.particlePoints = new THREE.Points(this.particleGeo, particleMat);
         scene.add(this.particlePoints);
