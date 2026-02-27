@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createInitialState } from './core/gameState';
-import { LOGIC_DT, TOWERS, SCORING, WAVES } from './core/config';
+import { LOGIC_DT, TOWERS, SCORING, WAVES, GRAPHICS } from './core/config';
 import { tickWave, startNextWave } from './core/systems/waveSystem';
 import { tickEnemies } from './core/systems/enemySystem';
 import { tickTowers } from './core/systems/towerSystem';
@@ -14,6 +14,7 @@ import { setupLighting } from './render/lighting';
 import { TowerRenderer } from './render/towerRenderer';
 import { EnemyRenderer } from './render/enemyRenderer';
 import { FxRenderer } from './render/fx';
+import { ProjectileRenderer } from './render/projectileRenderer';
 import { Picking } from './render/picking';
 import { PostProcessor } from './render/postProcessing';
 
@@ -24,11 +25,15 @@ let inspectedTower: Tower | null = null;
 
 // ─── Renderer setup ───
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(GRAPHICS.pixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+if (GRAPHICS.enableShadows) {
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
+}
+
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
 
@@ -41,8 +46,13 @@ sm.buildGround();
 const towerRenderer = new TowerRenderer(sm.scene);
 const enemyRenderer = new EnemyRenderer(sm.scene);
 const fxRenderer = new FxRenderer(sm.scene);
+const projectileRenderer = new ProjectileRenderer(sm.scene);
 const picking = new Picking(sm.scene);
-const postProcessor = new PostProcessor(renderer, sm.scene, camera);
+
+let postProcessor: PostProcessor | null = null;
+if (GRAPHICS.enablePostProcessing) {
+    postProcessor = new PostProcessor(renderer, sm.scene, camera);
+}
 
 state = createInitialState();
 
@@ -462,7 +472,9 @@ canvas.addEventListener('touchend', camCtrl.onTouchEnd, { passive: true });
 // Resize
 window.addEventListener('resize', () => {
     camCtrl.resize(renderer);
-    postProcessor.resize(window.innerWidth, window.innerHeight);
+    if (postProcessor) {
+        postProcessor.resize(window.innerWidth, window.innerHeight);
+    }
 });
 
 // ─── Game Loop ───
@@ -472,6 +484,14 @@ let lastWave = -1;
 
 let prevProjectileIds = new Set<number>();
 
+function renderScene() {
+    if (postProcessor) {
+        postProcessor.render();
+    } else {
+        renderer.render(sm.scene, camera);
+    }
+}
+
 function gameLoop(time: number): void {
     requestAnimationFrame(gameLoop);
 
@@ -479,7 +499,7 @@ function gameLoop(time: number): void {
     lastTime = time;
 
     if (state.phase === 'idle') {
-        postProcessor.render();
+        renderScene();
         return;
     }
 
@@ -487,13 +507,13 @@ function gameLoop(time: number): void {
         if (endScreen.classList.contains('hidden')) {
             showEndScreen();
         }
-        postProcessor.render();
+        renderScene();
         return;
     }
 
     // Pause gate
     if (state.paused) {
-        postProcessor.render();
+        renderScene();
         return;
     }
 
@@ -551,6 +571,7 @@ function gameLoop(time: number): void {
     towerRenderer.sync(state);
     enemyRenderer.sync(state, 0, camera);  // C — pass camera for billboard bars
     fxRenderer.sync(state, dt);
+    projectileRenderer.sync(state, dt);
     syncFloatingTexts(rawDt);
 
     // O — Milestone banner
@@ -573,7 +594,7 @@ function gameLoop(time: number): void {
         if (!stillExists) hideTowerPanel();
     }
 
-    postProcessor.render();
+    renderScene();
 }
 
 requestAnimationFrame(gameLoop);

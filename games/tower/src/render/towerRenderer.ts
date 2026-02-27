@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { GameState, TowerType, Tower } from '../core/types';
-import { TOWERS } from '../core/config';
+import { TOWERS, GRAPHICS } from '../core/config';
 import { cellToWorld } from '../core/path';
 
 // Colour palettes per tower type
@@ -83,9 +83,36 @@ export class TowerRenderer {
                 parts.attackTimer -= dt;
                 const t = Math.max(0, parts.attackTimer / 0.15); // 1 to 0
                 const bump = 1.0 + t * 0.15; // 1.15 max
-                group.scale.set(bump, bump, bump);
+                if (parts.turretGroup) {
+                    parts.turretGroup.scale.set(bump, bump, bump);
+                } else {
+                    group.scale.set(bump, bump, bump);
+                }
             } else {
+                if (parts.turretGroup) parts.turretGroup.scale.set(1, 1, 1);
                 group.scale.set(1, 1, 1);
+            }
+
+            // Aiming
+            let targetAngle: number | null = null;
+            if (tower.targetId !== null && tower.targetId !== undefined) {
+                const target = state.enemies.find(e => e.id === tower.targetId);
+                if (target) {
+                    const dx = target.worldX - tower.worldX;
+                    const dz = target.worldZ - tower.worldZ;
+                    if (dx !== 0 || dz !== 0) {
+                        targetAngle = Math.atan2(dx, dz);
+                    }
+                }
+            }
+            if (targetAngle === null && tower.aimAngle !== undefined) {
+                targetAngle = tower.aimAngle;
+            }
+
+            if (targetAngle !== null && parts.turretGroup) {
+                let diff = targetAngle - parts.turretGroup.rotation.y;
+                diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+                parts.turretGroup.rotation.y += diff * 10 * dt;
             }
 
             // Idle animations based on type
@@ -160,17 +187,24 @@ export class TowerRenderer {
         const baseMat = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.7 });
         const baseMesh = new THREE.Mesh(baseGeo, baseMat);
         baseMesh.position.y = 0.1;
-        baseMesh.castShadow = true;
+        if (GRAPHICS.enableShadows) baseMesh.castShadow = true;
         baseGroup.add(baseMesh);
 
         const rimGeo = new THREE.CylinderGeometry(0.32 * scale, 0.32 * scale, 0.05, 8);
         const rimMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9, metalness: 0.5 });
         const rimMesh = new THREE.Mesh(rimGeo, rimMat);
         rimMesh.position.y = 0.225;
-        rimMesh.castShadow = true;
+        if (GRAPHICS.enableShadows) rimMesh.castShadow = true;
         baseGroup.add(rimMesh);
 
         group.add(baseGroup);
+
+        const turretGroup = new THREE.Group();
+        group.add(turretGroup);
+        group.userData.turretGroup = turretGroup;
+
+        const _trueGroupAdd = group.add.bind(group);
+        group.add = (...args: any[]) => turretGroup.add(...args);
 
         // Type-specific top
         switch (tower.type) {
@@ -178,7 +212,7 @@ export class TowerRenderer {
                 const body = new THREE.CylinderGeometry(0.12 * scale, 0.2 * scale, 0.5, 6);
                 const m = new THREE.Mesh(body, new THREE.MeshStandardMaterial({ color: accentColor }));
                 m.position.y = 0.5;
-                m.castShadow = true;
+                if (GRAPHICS.enableShadows) m.castShadow = true;
                 group.add(m);
 
                 // Crossbow arms
@@ -186,7 +220,7 @@ export class TowerRenderer {
                 const arms = new THREE.Mesh(armGeo, new THREE.MeshStandardMaterial({ color: 0x5c4033 }));
                 arms.position.y = 0.75;
                 arms.position.z = 0.1;
-                arms.castShadow = true;
+                if (GRAPHICS.enableShadows) arms.castShadow = true;
                 group.add(arms);
 
                 // Arrow
@@ -210,7 +244,7 @@ export class TowerRenderer {
                 const turretGeo = new THREE.SphereGeometry(0.25 * scale, 12, 12, 0, Math.PI * 2, 0, Math.PI / 2);
                 const turret = new THREE.Mesh(turretGeo, new THREE.MeshStandardMaterial({ color: accentColor, metalness: 0.6, roughness: 0.4 }));
                 turret.position.y = 0.25;
-                turret.castShadow = true;
+                if (GRAPHICS.enableShadows) turret.castShadow = true;
                 group.add(turret);
 
                 // Barrel
@@ -218,7 +252,7 @@ export class TowerRenderer {
                 const barrel = new THREE.Mesh(barrelGeo, new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8, roughness: 0.3 }));
                 barrel.position.set(0, 0.45, 0.25);
                 barrel.rotation.x = Math.PI / 4;
-                barrel.castShadow = true;
+                if (GRAPHICS.enableShadows) barrel.castShadow = true;
                 group.add(barrel);
 
                 // Muzzle ring
@@ -242,7 +276,7 @@ export class TowerRenderer {
                 const crystal = new THREE.OctahedronGeometry(0.25 * scale);
                 const m = new THREE.Mesh(crystal, crystalMat);
                 m.position.y = 0.7;
-                m.castShadow = true;
+                if (GRAPHICS.enableShadows) m.castShadow = true;
 
                 const innerCrystal = new THREE.OctahedronGeometry(0.12 * scale);
                 const mInner = new THREE.Mesh(innerCrystal, new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x88ccff }));
@@ -260,7 +294,7 @@ export class TowerRenderer {
                 const bowlGeo = new THREE.LatheGeometry(bowlPts, 8);
                 const bowl = new THREE.Mesh(bowlGeo, new THREE.MeshStandardMaterial({ color: 0x331100, roughness: 0.9 }));
                 bowl.position.y = 0.25;
-                bowl.castShadow = true;
+                if (GRAPHICS.enableShadows) bowl.castShadow = true;
                 group.add(bowl);
 
                 const cone = new THREE.ConeGeometry(0.2 * scale, 0.6, 6);
@@ -268,7 +302,7 @@ export class TowerRenderer {
                     color: 0xff3300, emissive: 0xff2200, emissiveIntensity: 0.5, transparent: true, opacity: 0.9
                 }));
                 m.position.y = 0.65;
-                m.castShadow = true;
+                if (GRAPHICS.enableShadows) m.castShadow = true;
                 group.add(m);
 
                 // Inner flame
@@ -348,7 +382,7 @@ export class TowerRenderer {
                     legsGroup.add(leg);
                 }
                 legsGroup.position.y = 0.25;
-                group.add(legsGroup);
+                _trueGroupAdd(legsGroup);
 
                 const body = new THREE.BoxGeometry(0.1 * scale, 0.15 * scale, 0.4 * scale);
                 const m = new THREE.Mesh(body, new THREE.MeshStandardMaterial({ color: accentColor, metalness: 0.7 }));
@@ -373,6 +407,8 @@ export class TowerRenderer {
                 break;
             }
         }
+
+        group.add = _trueGroupAdd; // Restore
 
         group.userData.lastCooldown = tower.cooldownRemaining;
         group.userData.attackTimer = 0;

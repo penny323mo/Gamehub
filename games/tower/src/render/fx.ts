@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { GameState, TowerType } from '../core/types';
+import { GRAPHICS } from '../core/config';
 
 const PROJ_COLORS: Record<TowerType, number> = {
     arrow: 0xffdd44,
@@ -21,18 +22,13 @@ interface Particle {
     size: number;
 }
 
-const MAX_PARTICLES = 800;
+const MAX_PARTICLES = GRAPHICS.maxParticles;
 const MAX_PROJECTILES = 100;
 
 export class FxRenderer {
     private scene: THREE.Scene;
 
-    // ── Projectile trail system ──
-    private projGeo: THREE.BufferGeometry;
-    private projPositions: Float32Array;
-    private projColors: Float32Array;
-    private projSizes: Float32Array;
-    private projPoints: THREE.Points;
+    // ── Projectile trail system (Mesh references removed, just particle spawning left) ──
 
     // ── Explosion / death particle system ──
     private particles: Particle[] = [];
@@ -46,44 +42,7 @@ export class FxRenderer {
     constructor(scene: THREE.Scene) {
         this.scene = scene;
 
-        // ── Projectiles ──
-        this.projPositions = new Float32Array(MAX_PROJECTILES * 3);
-        this.projColors = new Float32Array(MAX_PROJECTILES * 3);
-        this.projSizes = new Float32Array(MAX_PROJECTILES);
-
-        this.projGeo = new THREE.BufferGeometry();
-        this.projGeo.setAttribute('position', new THREE.BufferAttribute(this.projPositions, 3));
-        this.projGeo.setAttribute('aColor', new THREE.BufferAttribute(this.projColors, 3));
-        this.projGeo.setAttribute('aSize', new THREE.BufferAttribute(this.projSizes, 1));
-
-        const projMat = new THREE.ShaderMaterial({
-            vertexShader: `
-                attribute vec3 aColor;
-                attribute float aSize;
-                varying vec3 vColor;
-                void main() {
-                    vColor = aColor;
-                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                    gl_PointSize = max(12.0, aSize * (900.0 / -mvPosition.z));
-                    gl_Position = projectionMatrix * mvPosition;
-                }
-            `,
-            fragmentShader: `
-                varying vec3 vColor;
-                void main() {
-                    vec2 coord = gl_PointCoord - vec2(0.5);
-                    float dist = length(coord);
-                    if (dist > 0.5) discard;
-                    float alpha = 1.0 - smoothstep(0.3, 0.5, dist);
-                    gl_FragColor = vec4(vColor * 2.0, alpha);
-                }
-            `,
-            transparent: true,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-        });
-        this.projPoints = new THREE.Points(this.projGeo, projMat);
-        scene.add(this.projPoints);
+        // ── Projectile Trails are handled in sync() now, points removed ──
 
         // ── Explosion / death particles ──
         this.particlePositions = new Float32Array(MAX_PARTICLES * 3);
@@ -128,35 +87,21 @@ export class FxRenderer {
             depthWrite: false,
         });
         this.particlePoints = new THREE.Points(this.particleGeo, particleMat);
+        this.particlePoints.frustumCulled = false;
         scene.add(this.particlePoints);
     }
 
     sync(state: GameState, dt: number): void {
-        // ── Update projectile positions ──
-        let projCount = 0;
-        const tmpColor = new THREE.Color();
-
+        // ── Spawn particle trails for projectiles ──
         for (const proj of state.projectiles) {
-            if (!proj.alive || projCount >= MAX_PROJECTILES) continue;
-            const i3 = projCount * 3;
+            if (!proj.alive) continue;
 
-            this.projPositions[i3] = proj.x;
-            this.projPositions[i3 + 1] = 0.8; // 拉高避免遮擋
-            this.projPositions[i3 + 2] = proj.z;
-
-            tmpColor.set(PROJ_COLORS[proj.towerType]);
-            this.projColors[i3] = tmpColor.r;
-            this.projColors[i3 + 1] = tmpColor.g;
-            this.projColors[i3 + 2] = tmpColor.b;
-
-            this.projSizes[projCount] = 0.25;
-            projCount++;
+            if (proj.towerType === 'fire' || Math.random() < 0.3) {
+                if (proj.towerType === 'fire' || proj.towerType === 'poison' || proj.towerType === 'ice') {
+                    this.addTrailParticle(proj.x, proj.y !== undefined ? proj.y : 0.8, proj.z, PROJ_COLORS[proj.towerType]);
+                }
+            }
         }
-
-        this.projGeo.setDrawRange(0, projCount);
-        (this.projGeo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
-        (this.projGeo.attributes.aColor as THREE.BufferAttribute).needsUpdate = true;
-        (this.projGeo.attributes.aSize as THREE.BufferAttribute).needsUpdate = true;
 
         // ── Update explosion / death particles ──
         let aliveCount = 0;
@@ -257,5 +202,18 @@ export class FxRenderer {
                 size: 0.3 + Math.random() * 0.2,
             });
         }
+    }
+
+    addTrailParticle(x: number, y: number, z: number, color: number): void {
+        if (this.particles.length >= MAX_PARTICLES) return;
+        const baseColor = new THREE.Color(color);
+        this.particles.push({
+            position: new THREE.Vector3(x + (Math.random() - 0.5) * 0.1, y + (Math.random() - 0.5) * 0.1, z + (Math.random() - 0.5) * 0.1),
+            velocity: new THREE.Vector3(0, Math.random() * 0.5, 0),
+            life: 0.2 + Math.random() * 0.2,
+            maxLife: 0.4,
+            color: baseColor.clone().offsetHSL(Math.random() * 0.1 - 0.05, 0, Math.random() * 0.2),
+            size: 0.1 + Math.random() * 0.1,
+        });
     }
 }

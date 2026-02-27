@@ -5,7 +5,6 @@ import { TOWERS, PROJECTILE_SPEED } from '../config';
 export function tickTowers(state: GameState, dt: number): void {
     for (const tower of state.towers) {
         tower.cooldownRemaining -= dt;
-        if (tower.cooldownRemaining > 0) continue;
 
         const towerCfg = TOWERS[tower.type];
         const cfg = towerCfg.levels[tower.level];
@@ -27,22 +26,18 @@ export function tickTowers(state: GameState, dt: number): void {
 
                 switch (tower.targetingMode) {
                     case 'first':
-                        // Highest progress (furthest along path) → pick maximum
                         score = progress;
                         if (score > bestScore) { bestScore = score; bestEnemy = enemy; }
                         break;
                     case 'last':
-                        // Lowest progress → pick minimum
                         score = progress;
                         if (score < bestScore) { bestScore = score; bestEnemy = enemy; }
                         break;
                     case 'strongest':
-                        // Highest HP
                         score = enemy.hp + enemy.shield;
                         if (score > bestScore) { bestScore = score; bestEnemy = enemy; }
                         break;
                     case 'weakest':
-                        // Lowest HP
                         score = -(enemy.hp + enemy.shield);
                         if (score > bestScore) { bestScore = score; bestEnemy = enemy; }
                         break;
@@ -50,7 +45,24 @@ export function tickTowers(state: GameState, dt: number): void {
             }
         }
 
+        tower.targetId = bestEnemy ? bestEnemy.id : null;
+
+        if (tower.cooldownRemaining > 0) continue;
+
         if (bestEnemy) {
+            let arcHeight = 0;
+            let speed = PROJECTILE_SPEED;
+            if (tower.type === 'cannon' || tower.type === 'poison') {
+                arcHeight = 1.5;
+                speed = PROJECTILE_SPEED * 0.8;
+            } else if (tower.type === 'lightning') {
+                speed = PROJECTILE_SPEED * 8.0; // almost instant
+            } else if (tower.type === 'sniper') {
+                speed = PROJECTILE_SPEED * 4.0;
+            } else if (tower.type === 'fire') {
+                speed = PROJECTILE_SPEED * 0.6;
+            }
+
             const proj: Projectile = {
                 id: state.nextId++,
                 fromTowerId: tower.id,
@@ -63,10 +75,17 @@ export function tickTowers(state: GameState, dt: number): void {
                 dot: cfg.dot,
                 chain: cfg.chain,
                 x: tower.worldX,
+                y: 0.8,
                 z: tower.worldZ,
+                startX: tower.worldX,
+                startY: 0.8,
+                startZ: tower.worldZ,
                 targetX: bestEnemy.worldX,
+                targetY: 0.3,
                 targetZ: bestEnemy.worldZ,
-                speed: PROJECTILE_SPEED,
+                speed,
+                progress: 0,
+                arcHeight: arcHeight,
                 alive: true,
             };
             state.projectiles.push(proj);

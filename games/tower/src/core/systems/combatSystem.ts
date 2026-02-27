@@ -15,8 +15,9 @@ export function tickCombat(state: GameState, dt: number): void {
 
         // Move towards target
         const dx = proj.targetX - proj.x;
+        const dy = proj.targetY - proj.y;
         const dz = proj.targetZ - proj.z;
-        const d = Math.sqrt(dx * dx + dz * dz);
+        const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
         const step = proj.speed * dt;
 
         if (d <= step || d < 0.1) {
@@ -97,9 +98,26 @@ export function tickCombat(state: GameState, dt: number): void {
                     }
                 }
             }
-        } else {
             proj.x += (dx / d) * step;
             proj.z += (dz / d) * step;
+
+            // Recalculate horizontal progress to apply vertical arcs accurately
+            const totalDx = proj.targetX - proj.startX;
+            const totalDz = proj.targetZ - proj.startZ;
+            const totalDist = Math.max(0.1, Math.sqrt(totalDx * totalDx + totalDz * totalDz));
+
+            const curDx = proj.x - proj.startX;
+            const curDz = proj.z - proj.startZ;
+            const curDist = Math.sqrt(curDx * curDx + curDz * curDz);
+
+            proj.progress = Math.min(1.0, curDist / totalDist);
+
+            const base_y = proj.startY + (proj.targetY - proj.startY) * proj.progress;
+            if (proj.arcHeight > 0) {
+                proj.y = base_y + Math.sin(proj.progress * Math.PI) * proj.arcHeight;
+            } else {
+                proj.y = base_y;
+            }
         }
     }
 

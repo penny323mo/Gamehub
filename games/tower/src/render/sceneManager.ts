@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MAP } from '../core/config';
+import { MAP, GRAPHICS } from '../core/config';
 import { cellToWorld } from '../core/path';
 
 // ─── Colors ───
@@ -53,15 +53,19 @@ export class SceneManager {
                     emissiveIntensity = 0.15;
                 }
 
-                const mat = new THREE.MeshStandardMaterial({
-                    color,
-                    emissive,
-                    emissiveIntensity,
-                    roughness: 0.8,
-                    metalness: 0.1,
-                });
+                const matArgs: any = { color, emissive };
+                if (emissiveIntensity > 0) matArgs.emissiveIntensity = emissiveIntensity;
 
-                if (color === COLOR_BUILDABLE) {
+                let mat: THREE.Material;
+                if (GRAPHICS.isMobile) {
+                    mat = new THREE.MeshLambertMaterial(matArgs);
+                } else {
+                    matArgs.roughness = 0.8;
+                    matArgs.metalness = 0.1;
+                    mat = new THREE.MeshStandardMaterial(matArgs);
+                }
+
+                if (color === COLOR_BUILDABLE && !GRAPHICS.isMobile) {
                     mat.onBeforeCompile = (shader) => {
                         shader.vertexShader = shader.vertexShader.replace(
                             '#include <common>',
@@ -132,13 +136,17 @@ export class SceneManager {
             }
         }
 
-        // Grid base plane (slightly below tiles for gap effect)
         const baseGeo = new THREE.PlaneGeometry(cols * cellSize + 1, rows * cellSize + 1);
-        const baseMat = new THREE.MeshStandardMaterial({
-            color: COLOR_GRID_LINE,
-            roughness: 0.9,
-            metalness: 0,
-        });
+        let baseMat: THREE.Material;
+        if (GRAPHICS.isMobile) {
+            baseMat = new THREE.MeshBasicMaterial({ color: COLOR_GRID_LINE });
+        } else {
+            baseMat = new THREE.MeshStandardMaterial({
+                color: COLOR_GRID_LINE,
+                roughness: 0.9,
+                metalness: 0,
+            });
+        }
         const base = new THREE.Mesh(baseGeo, baseMat);
         base.rotation.x = -Math.PI / 2;
         base.position.set(

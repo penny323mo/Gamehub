@@ -102,6 +102,7 @@ export interface Tower {
     totalInvested: number;
     targetingMode: TargetingMode;
     aimAngle?: number;
+    targetId?: number | null;
 }
 
 export interface SlowEffect {
@@ -151,10 +152,17 @@ export interface Projectile {
     dot: DotConfig | null;
     chain: ChainConfig | null;
     x: number;
+    y: number;
     z: number;
+    startX: number;
+    startY: number;
+    startZ: number;
     targetX: number;
+    targetY: number;
     targetZ: number;
     speed: number;
+    progress: number;  // 0 to 1
+    arcHeight: number; // >0 for parabolic flights
     alive: boolean;
 }
 

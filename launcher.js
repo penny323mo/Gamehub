@@ -56,6 +56,14 @@ const games = [
         icon: '🐍',
         link: 'games/snake-game/dist/index.html',
         playable: true
+    },
+    {
+        id: 'xiangqi',
+        title: 'Xiangqi AI',
+        subtitle: '中國象棋！Play against advanced AI.',
+        icon: '🨄',
+        link: 'games/xiangqi-ai/index.html',
+        playable: true
     }
 ];
 

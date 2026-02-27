@@ -23,3 +23,16 @@ export const LOGIC_HZ = 20;
 export const LOGIC_DT = 1 / LOGIC_HZ; // 50ms
 export const SELL_REFUND_PCT = 0.70;
 export const PROJECTILE_SPEED = 12; // world units / sec
+
+export const isMobile = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+};
+
+export const GRAPHICS = {
+    isMobile: isMobile(),
+    maxParticles: isMobile() ? 200 : 800,
+    enablePostProcessing: !isMobile(),
+    enableShadows: !isMobile(),
+    pixelRatio: isMobile() ? 1 : Math.min(window.devicePixelRatio, 2),
+};

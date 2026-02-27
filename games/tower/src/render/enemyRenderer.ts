@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { GameState, EnemyType, Enemy } from '../core/types';
+import { GRAPHICS } from '../core/config';
 
 interface EnemyPartDef {
     geo: THREE.BufferGeometry;
@@ -12,11 +13,14 @@ interface EnemyPartDef {
 function buildEnemyConfigs(): Record<EnemyType, EnemyPartDef[]> {
     const configs: Record<EnemyType, EnemyPartDef[]> = {} as any;
 
+    // Helpers to swap materials on mobile
+    const MaterialClass = GRAPHICS.isMobile ? THREE.MeshLambertMaterial : THREE.MeshStandardMaterial;
+
     // Grunt: 身體（capsule）+ 頭（sphere）
     const gruntBody = new THREE.CapsuleGeometry(0.12, 0.2, 4, 8);
     const gruntHead = new THREE.SphereGeometry(0.14, 8, 8);
-    const gruntMat = new THREE.MeshStandardMaterial({ color: 0xee8833, roughness: 0.8 });
-    const gruntHeadMat = new THREE.MeshStandardMaterial({ color: 0xffaa55, roughness: 0.6 });
+    const gruntMat = new MaterialClass({ color: 0xee8833, ...(GRAPHICS.isMobile ? {} : { roughness: 0.8 }) });
+    const gruntHeadMat = new MaterialClass({ color: 0xffaa55, ...(GRAPHICS.isMobile ? {} : { roughness: 0.6 }) });
     configs.grunt = [
         { geo: gruntBody, mat: gruntMat, offset: new THREE.Vector3(0, 0.2, 0) },
         { geo: gruntHead, mat: gruntHeadMat, offset: new THREE.Vector3(0, 0.45, 0.05) }
@@ -24,8 +28,8 @@ function buildEnemyConfigs(): Record<EnemyType, EnemyPartDef[]> {
 
     // Tank: 龜殼（半球扁平）+ 腳 + 頭
     const tankShell = new THREE.SphereGeometry(0.3, 12, 12, 0, Math.PI * 2, 0, Math.PI / 2);
-    const tankMat = new THREE.MeshStandardMaterial({ color: 0x9944cc, roughness: 0.9, metalness: 0.2 });
-    const tankHeadMat = new THREE.MeshStandardMaterial({ color: 0x7722aa });
+    const tankMat = new MaterialClass({ color: 0x9944cc, ...(GRAPHICS.isMobile ? {} : { roughness: 0.9, metalness: 0.2 }) });
+    const tankHeadMat = new MaterialClass({ color: 0x7722aa });
     const tankHead = new THREE.SphereGeometry(0.15, 8, 8);
     configs.tank = [
         { geo: tankShell, mat: tankMat, offset: new THREE.Vector3(0, 0.2, 0), scale: new THREE.Vector3(1, 0.6, 1.2) },
@@ -34,7 +38,7 @@ function buildEnemyConfigs(): Record<EnemyType, EnemyPartDef[]> {
 
     // Runner: 流線形身體 (Cone)
     const runnerBody = new THREE.ConeGeometry(0.15, 0.4, 6);
-    const runnerMat = new THREE.MeshStandardMaterial({ color: 0x33cc55, roughness: 0.5 });
+    const runnerMat = new MaterialClass({ color: 0x33cc55, ...(GRAPHICS.isMobile ? {} : { roughness: 0.5 }) });
     configs.runner = [
         { geo: runnerBody, mat: runnerMat, offset: new THREE.Vector3(0, 0.2, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0) }
     ];
@@ -42,8 +46,8 @@ function buildEnemyConfigs(): Record<EnemyType, EnemyPartDef[]> {
     // Swarm: 小蟲形：翅膀（plane）+ 身體（小 capsule）
     const swarmBody = new THREE.CapsuleGeometry(0.06, 0.15, 4, 6);
     const swarmWing = new THREE.PlaneGeometry(0.3, 0.15);
-    const swarmMat = new THREE.MeshStandardMaterial({ color: 0x996633 });
-    const wingMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+    const swarmMat = new MaterialClass({ color: 0x996633 });
+    const wingMat = new MaterialClass({ color: 0xdddddd, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
     configs.swarm = [
         { geo: swarmBody, mat: swarmMat, offset: new THREE.Vector3(0, 0.3, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0) },
         { geo: swarmWing, mat: wingMat, offset: new THREE.Vector3(0, 0.35, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0) }
@@ -52,8 +56,8 @@ function buildEnemyConfigs(): Record<EnemyType, EnemyPartDef[]> {
     // Shield: 核心球 + 外層半透明能量盾 ring
     const shieldCore = new THREE.DodecahedronGeometry(0.15);
     const shieldRing = new THREE.TorusGeometry(0.25, 0.05, 6, 12);
-    const shieldCoreMat = new THREE.MeshStandardMaterial({ color: 0x1155cc });
-    const shieldRingMat = new THREE.MeshStandardMaterial({ color: 0x3388ff, transparent: true, opacity: 0.7, emissive: 0x114488 });
+    const shieldCoreMat = new MaterialClass({ color: 0x1155cc });
+    const shieldRingMat = new MaterialClass({ color: 0x3388ff, transparent: true, opacity: 0.7, emissive: 0x114488 });
     configs.shield = [
         { geo: shieldCore, mat: shieldCoreMat, offset: new THREE.Vector3(0, 0.3, 0) },
         { geo: shieldRing, mat: shieldRingMat, offset: new THREE.Vector3(0, 0.3, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0) }
@@ -63,8 +67,8 @@ function buildEnemyConfigs(): Record<EnemyType, EnemyPartDef[]> {
     const healerV = new THREE.BoxGeometry(0.1, 0.3, 0.1);
     const healerH = new THREE.BoxGeometry(0.3, 0.1, 0.1);
     const healerRing = new THREE.TorusGeometry(0.2, 0.03, 6, 12);
-    const healerMat = new THREE.MeshStandardMaterial({ color: 0xff77aa });
-    const healerRingMat = new THREE.MeshStandardMaterial({ color: 0xffffee, emissive: 0xffaaaa });
+    const healerMat = new MaterialClass({ color: 0xff77aa });
+    const healerRingMat = new MaterialClass({ color: 0xffffee, emissive: 0xffaaaa });
     configs.healer = [
         { geo: healerV, mat: healerMat, offset: new THREE.Vector3(0, 0.3, 0) },
         { geo: healerH, mat: healerMat, offset: new THREE.Vector3(0, 0.3, 0) },
@@ -73,11 +77,11 @@ function buildEnemyConfigs(): Record<EnemyType, EnemyPartDef[]> {
 
     // Boss: 巨大複合體：帶角頭盔 + 厚甲 + 發光眼
     const bossBody = new THREE.CapsuleGeometry(0.3, 0.5, 6, 12);
-    const bossMat = new THREE.MeshStandardMaterial({ color: 0xaa1111, metalness: 0.5, roughness: 0.6 });
+    const bossMat = new MaterialClass({ color: 0xaa1111, ...(GRAPHICS.isMobile ? {} : { metalness: 0.5, roughness: 0.6 }) });
     const bossEye = new THREE.BoxGeometry(0.3, 0.08, 0.1);
-    const bossEyeMat = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xffaa00, emissiveIntensity: 1 });
+    const bossEyeMat = new MaterialClass({ color: 0x222222, emissive: 0xffaa00, ...(GRAPHICS.isMobile ? {} : { emissiveIntensity: 1 }) });
     const bossHorn = new THREE.ConeGeometry(0.08, 0.3, 4);
-    const bossHornMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee });
+    const bossHornMat = new MaterialClass({ color: 0xeeeeee });
     configs.boss = [
         { geo: bossBody, mat: bossMat, offset: new THREE.Vector3(0, 0.5, 0) },
         { geo: bossEye, mat: bossEyeMat, offset: new THREE.Vector3(0, 0.65, 0.3) },
@@ -113,8 +117,10 @@ export class EnemyRenderer {
             for (const part of parts) {
                 const mesh = new THREE.InstancedMesh(part.geo, part.mat, MAX_PER_TYPE);
                 mesh.count = 0;
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
+                if (GRAPHICS.enableShadows) {
+                    mesh.castShadow = true;
+                    mesh.receiveShadow = true;
+                }
                 this.scene.add(mesh);
                 meshes.push(mesh);
             }
