@@ -2,7 +2,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && sed -i '' 's/ type=\"module\" crossorigin//g' dist/index.html && sed -i '' 's/<script src=/<script defer src=/g' dist/index.html && sed -i '' 's/ crossorigin//g' dist/index.html",
+    "build": "vite build && sed -i '' 's/ type=\"module\" crossorigin//g' dist/index.html && sed -i '' 's/<script src=/<script defer src=/g' dist/index.html && sed -i '' 's/ crossorigin//g' dist/index.html && TIMESTAMP=$(date +%Y%m%d_%H%M%S) && sed -i '' \"s/\\.js\\\"/\\.js?v=${TIMESTAMP}\\\"/g\" dist/index.html && sed -i '' \"s/\\.css\\\"/\\.css?v=${TIMESTAMP}\\\"/g\" dist/index.html",
     "preview": "vite preview"
   },
   "devDependencies": {

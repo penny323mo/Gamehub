@@ -1,13 +1,16 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  // ⚠️ 改成你嘅 GitHub repo name，例如 /xiangqi-ai/
   base: './',
   build: {
     outDir: 'dist',
-    // Ensure worker is bundled correctly
     rollupOptions: {
-      input: 'index.html'
+      input: 'index.html',
+      output: {
+        entryFileNames: 'assets/app.bundle.js',
+        chunkFileNames: 'assets/[name].js',
+        assetFileNames: 'assets/style.[ext]'
+      }
     }
   }
 });
