@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+  <title>中國象棋 AI</title>
+  <link rel="stylesheet" href="./css/style.css">
+  <style>
+    #eval-bar {
+      width: 16px;
+      height: 220px;
+      background: #333;
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #eval-fill {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      height: 50%;
+      background: linear-gradient(to top, #b71c1c, #ffd54f);
+      transition: height .2s ease;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app" class="switch-container">
+    <main class="switch-card">
+      <header>
+        <h1>中國象棋</h1>
+        <div id="status">紅方先行</div>
+        <div id="ai-info"></div>
+      </header>
+      <div style="display:flex;gap:10px;align-items:center;justify-content:center;">
+        <div id="eval-bar">
+          <div id="eval-fill"></div>
+        </div>
+        <div id="board-wrap">
+          <canvas id="board"></canvas>
+        </div>
+      </div>
+      <div id="controls">
+        <label>AI 強度：
+          <select id="ai-time">
+            <option value="200">快 (200ms)</option>
+            <option value="500" selected>中 (500ms)</option>
+            <option value="1000">強 (1s)</option>
+          </select>
+        </label>
+        <label>難度：
+          <select id="difficulty">
+            <option value="easy">Easy</option>
+            <option value="normal" selected>Normal</option>
+            <option value="hard">Hard</option>
+            <option value="extreme">Extreme Hard</option>
+          </select>
+        </label>
+        <button id="btn-sfx" class="pill-btn">音效：開</button>
+        <button id="btn-undo" class="pill-btn">悔棋</button>
+        <button id="btn-restart" class="pill-btn">重新開始</button>
+        <button id="btn-back" class="pill-btn" onclick="window.location.href='../../index.html'">返回大廳</button>
+      </div>
+      <div id="movelog-wrap">
+        <div id="movelog"></div>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="./js/main.js"></script>
+</body>
+
+</html>
