@@ -2,6 +2,14 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   base: './',
+  worker: {
+    format: 'iife',
+    rollupOptions: {
+      output: {
+        entryFileNames: '[name].js'
+      }
+    }
+  },
   build: {
     outDir: 'dist',
     rollupOptions: {
