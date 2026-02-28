@@ -2,32 +2,32 @@
 const games = [
     {
         id: 'gomoku',
-        title: 'Gomoku',
-        subtitle: 'Classic strategy game. AI & Online PvP.',
+        title: '五子棋',
+        subtitle: '經典策略棋！AI 對戰 & 線上 PvP',
         icon: '⚫⚪',
         link: 'games/gomoku/index.html',
         playable: true
     },
     {
         id: 'pennycrush',
-        title: 'Penny Crush',
-        subtitle: 'Match 3 candies! 8x8, 10x10 & 12x12 modes.',
+        title: '消消樂',
+        subtitle: '三消糖果！8x8、10x10、12x12 模式',
         icon: '🍬',
         link: 'games/penny_crush/index.html',
         playable: true
     },
     {
         id: 'big2',
-        title: 'Big Two',
-        subtitle: '鋤大D! Play against 3 AI opponents.',
+        title: '鋤大D',
+        subtitle: '鋤大D！對戰 3 個 AI 對手',
         icon: '🃏',
         link: 'games/big2/index.html',
         playable: true
     },
     {
         id: 'doudizhu',
-        title: 'Fight the Landlord',
-        subtitle: '鬥地主! vs 2 AI.',
+        title: '鬥地主',
+        subtitle: '鬥地主！對戰 2 個 AI',
         icon: 'assets/doudizhu_logo.png',
         isImage: true,
         link: 'games/doudizhu/index.html',
@@ -35,33 +35,34 @@ const games = [
     },
     {
         id: 'snooker',
-        title: 'Snooker',
-        subtitle: '桌球! 2D 經典版 / 3D 立體版',
+        title: '桌球',
+        subtitle: '桌球！2D 經典版 / 3D 立體版',
         icon: '🎱',
         link: 'games/snooker/index.html',
         playable: true
     },
     {
         id: 'tower',
-        title: 'Tower Defense',
-        subtitle: '⚔️ 塔防！7 towers × 7 enemies, 20 waves.',
+        title: '塔防大戰',
+        subtitle: '⚔️ 塔防！7 種塔 × 7 種敵人，20 波挑戰',
         icon: '🏰',
         link: 'games/tower/dist/index.html',
         playable: true
     },
     {
         id: 'snake',
-        title: 'Neon Snake',
-        subtitle: '🐍 霓虹貪食蛇！Classic arcade, modern glow.',
+        title: '霓虹貪食蛇',
+        subtitle: '🐍 經典街機，霓虹光效',
         icon: '🐍',
         link: 'games/snake-game/dist/index.html',
         playable: true
     },
     {
         id: 'xiangqi',
-        title: 'Xiangqi AI',
-        subtitle: '中國象棋！Play against advanced AI.',
-        icon: '🨄',
+        title: '中國象棋',
+        subtitle: '中國象棋！挑戰進階 AI',
+        icon: 'assets/xiangqi_logo.png',
+        isImage: true,
         link: 'games/xiangqi-ai/dist/index.html',
         playable: true
     }
