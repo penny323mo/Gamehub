@@ -24,52 +24,167 @@
       transition: height .2s ease;
     }
   </style>
-  <script type="module" src="./assets/app.bundle.js?v=20260228_100806"></script>
-  <link rel="stylesheet" href="./assets/style.css?v=20260228_100806">
+  <script src="./assets/index-uv7n5O2k.js"></script>
+  <link rel="stylesheet" href="./assets/index-D-5gmZj4.css">
 </head>
 
 <body>
-  <div id="app" class="switch-container">
+  <div id="app" class="switch-container xiangqi-menu-container">
     <main class="switch-card">
       <header>
         <h1>中國象棋</h1>
-        <div id="status">紅方先行</div>
-        <div id="ai-info"></div>
       </header>
-      <div style="display:flex;gap:10px;align-items:center;justify-content:center;">
-        <div id="eval-bar">
-          <div id="eval-fill"></div>
+
+      <!-- Landing Page / Game Selection -->
+      <div id="landing-page">
+        <div class="landing-actions"
+          style="display:flex; flex-direction:column; gap:10px; align-items:center; margin-top:20px;">
+          <button id="xiangqi-ai-btn" class="pill-btn mode-btn" style="width:200px; padding:15px; font-size:1.1rem;"
+            onclick="selectMode('ai')">單機 AI 對戰</button>
+          <button id="xiangqi-online-btn" class="pill-btn mode-btn"
+            style="width:200px; padding:15px; font-size:1.1rem; background:linear-gradient(135deg, #1b5e20, #388e3c);"
+            onclick="selectMode('online')">ONLINE 對戰</button>
+          <button id="xiangqi-back-btn" class="pill-btn secondary" style="width:200px; padding:10px; margin-top:10px;"
+            onclick="goToLauncher()">返回遊戲大廳</button>
         </div>
-        <div id="board-wrap">
-          <canvas id="board"></canvas>
+      </div>
+
+      <!-- Online Lobby: 固定三房列表 -->
+      <div id="online-lobby" class="hidden">
+        <h3>線上對戰大廳</h3>
+        <p style="font-size:0.8rem; color:#888; margin-bottom:15px;">選擇房間加入對戰</p>
+
+        <div id="room-list" class="room-list" style="display:flex; flex-direction:column; gap:10px;">
+          <!-- Room Cards -->
+          <div class="room-card" id="room-card-ROOM01"
+            style="border:1px solid #444; padding:15px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div class="room-name" style="font-weight:bold; margin-bottom:5px;">🏠 ROOM 01</div>
+              <div class="room-info" style="font-size:0.8rem; color:#bbb;">
+                <span class="room-status" id="room-status-ROOM01">載入中...</span> |
+                <span class="room-players" id="room-players-ROOM01">🔴 - / ⚫ -</span>
+              </div>
+            </div>
+            <button class="pill-btn room-join-btn" id="room-join-ROOM01" onclick="joinFixedRoom('ROOM01')">加入</button>
+          </div>
+
+          <div class="room-card" id="room-card-ROOM02"
+            style="border:1px solid #444; padding:15px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div class="room-name" style="font-weight:bold; margin-bottom:5px;">🏠 ROOM 02</div>
+              <div class="room-info" style="font-size:0.8rem; color:#bbb;">
+                <span class="room-status" id="room-status-ROOM02">載入中...</span> |
+                <span class="room-players" id="room-players-ROOM02">🔴 - / ⚫ -</span>
+              </div>
+            </div>
+            <button class="pill-btn room-join-btn" id="room-join-ROOM02" onclick="joinFixedRoom('ROOM02')">加入</button>
+          </div>
+
+          <div class="room-card" id="room-card-ROOM03"
+            style="border:1px solid #444; padding:15px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div class="room-name" style="font-weight:bold; margin-bottom:5px;">🏠 ROOM 03</div>
+              <div class="room-info" style="font-size:0.8rem; color:#bbb;">
+                <span class="room-status" id="room-status-ROOM03">載入中...</span> |
+                <span class="room-players" id="room-players-ROOM03">🔴 - / ⚫ -</span>
+              </div>
+            </div>
+            <button class="pill-btn room-join-btn" id="room-join-ROOM03" onclick="joinFixedRoom('ROOM03')">加入</button>
+          </div>
+        </div>
+
+        <button class="pill-btn secondary" style="margin-top:20px;" onclick="backToLanding()">返回選單</button>
+      </div>
+
+      <!-- Online Room View -->
+      <div id="online-room" class="hidden" style="margin-bottom:15px;">
+        <div class="room-header-card" style="background:#222; padding:10px; border-radius:8px; margin-bottom:15px;">
+          <div class="room-status">
+            <span class="label">房間：</span><span id="current-room-id" class="value"
+              style="font-weight:bold;">??????</span>
+            <span class="divider" style="margin:0 10px;">|</span>
+            <span class="label">身份：</span><span id="my-role" class="value" style="font-weight:bold;">載入中...</span>
+          </div>
+        </div>
+
+        <!-- Ready Status UI -->
+        <div id="ready-status" class="hidden"
+          style="margin:15px 0; padding:15px; background:rgba(0,255,136,0.1); border:1px solid rgba(0,255,136,0.3); border-radius:8px;">
+          <div class="ready-info"
+            style="display:flex; justify-content:space-around; margin-bottom:10px; font-size:0.9rem;">
+            <span id="red-ready-status">🔴 帥：未準備</span>
+            <span id="black-ready-status">⚫ 將：未準備</span>
+          </div>
+          <button id="toggle-ready-btn" class="pill-btn" onclick="toggleReady()" style="width:100%;">準備</button>
+        </div>
+
+        <div id="game-over-actions" class="hidden" style="margin:15px 0; display:flex; gap:10px; flex-direction:column; align-items:center;">
+          <div id="game-result" style="font-size:1.1rem; font-weight:bold; color:#ffd54f; text-align:center;"></div>
+          <div style="display:flex; gap:10px; width:100%;">
+            <button class="pill-btn" onclick="rematchGame()" style="flex:1;">🔄 再戰一局</button>
+            <button class="pill-btn danger-btn" onclick="exitFixedRoom()" style="flex:1;">🚪 離開房間</button>
+          </div>
+        </div>
+
+        <div id="waiting-msg" style="margin-bottom:10px; color:#4caf50;">等待對手加入...</div>
+
+        <div class="room-actions" style="margin-top:10px;">
+          <button id="leave-room-btn" class="pill-btn danger-btn" onclick="exitFixedRoom()">退出房間</button>
         </div>
       </div>
-      <div id="controls">
-        <label>AI 強度：
-          <select id="ai-time">
-            <option value="200">快 (200ms)</option>
-            <option value="500" selected>中 (500ms)</option>
-            <option value="1000">強 (1s)</option>
-          </select>
-        </label>
-        <label>難度：
-          <select id="difficulty">
-            <option value="easy">Easy</option>
-            <option value="normal" selected>Normal</option>
-            <option value="hard">Hard</option>
-            <option value="extreme">Extreme Hard</option>
-          </select>
-        </label>
-        <button id="btn-sfx" class="pill-btn">音效：開</button>
-        <button id="btn-undo" class="pill-btn">悔棋</button>
-        <button id="btn-restart" class="pill-btn">重新開始</button>
-        <button id="btn-back" class="pill-btn" onclick="window.location.href='../../../index.html'">返回大廳</button>
-      </div>
-      <div id="movelog-wrap">
-        <div id="movelog"></div>
-      </div>
+
+      <!-- Game Container (Hidden on Landing) -->
+      <div id="game-container" class="hidden">
+        <div id="game-header-status" style="text-align:center; margin-bottom: 10px;">
+          <div id="status" style="font-size:1.2rem; font-weight:bold;">等待對局...</div>
+          <div id="turn-timer" class="hidden" style="font-size:1rem; font-weight:bold; color:#ffd54f; margin-top:5px;"></div>
+          <div id="ai-info" style="font-size:0.8rem; color:#aaa; margin-top:5px;"></div>
+        </div>
+
+        <div id="game-board-area" class="hidden">
+          <div style="display:flex;gap:10px;align-items:center;justify-content:center;">
+            <div id="eval-bar">
+              <div id="eval-fill"></div>
+            </div>
+            <div id="board-wrap">
+              <canvas id="board"></canvas>
+            </div>
+          </div>
+
+          <div id="controls">
+            <div id="ai-controls" class="hidden">
+              <label>AI 強度：
+                <select id="ai-time">
+                  <option value="200">快 (200ms)</option>
+                  <option value="500" selected>中 (500ms)</option>
+                  <option value="1000">強 (1s)</option>
+                </select>
+              </label>
+              <label>難度：
+                <select id="difficulty">
+                  <option value="easy">Easy</option>
+                  <option value="normal" selected>Normal</option>
+                  <option value="hard">Hard</option>
+                  <option value="extreme">Extreme Hard</option>
+                </select>
+              </label>
+            </div>
+
+            <button id="btn-sfx" class="pill-btn" style="margin-top:10px;">音效：開</button>
+            <button id="btn-undo" class="pill-btn">悔棋</button>
+            <button id="btn-restart" class="pill-btn">重新開始</button>
+            <button id="btn-surrender" class="pill-btn danger-btn hidden" onclick="surrenderGame()" style="margin-top:10px;">🏳️ 投降</button>
+            <button id="btn-back" class="pill-btn" style="margin-top:10px;" onclick="backToLanding()">返回選單</button>
+          </div>
+          <div id="movelog-wrap">
+            <div id="movelog"></div>
+          </div>
+        </div> <!-- End of game-board-area -->
+      </div> <!-- End of game-container -->
     </main>
   </div>
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </body>
 
 </html>

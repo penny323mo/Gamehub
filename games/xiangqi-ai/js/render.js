@@ -39,6 +39,7 @@ let legalDests = [];
 let lastMove = null;
 let checkSide = 0;
 let fitDistance = 8;
+let currentViewRole = 'red'; // 'red' or 'black' — determines board orientation
 
 // ghost move state
 let ghostMove = null; // {piece,from,to,t,side,name}
@@ -154,10 +155,11 @@ function createWoodNormalMap() {
 }
 
 function renderFrame() {
+  requestAnimationFrame(renderFrame);
+  if (!canvas || canvas.clientWidth === 0) return; // 此保護確保隱藏時不會執行 WebGL Render 導致崩潰
   if (controls) controls.update();
   if (composer) composer.render();
   else renderer.render(scene, camera);
-  requestAnimationFrame(renderFrame);
 }
 
 /* ── Init ── */
@@ -261,7 +263,14 @@ function init(cvs) {
 /* ── Resize ── */
 function resize() {
   const wrap = canvas.parentElement;
-  const w = wrap.clientWidth;
+  if (!wrap) return;
+  let w = wrap.clientWidth;
+
+  const isHidden = (w <= 0);
+  if (isHidden) {
+    w = 1; // Prevent zero-width NaN corruption!
+  }
+
   const h = w * (10.2 / 9);
   renderer.setSize(w, h);
   if (composer) composer.setSize(w, h);
@@ -271,7 +280,7 @@ function resize() {
   const fit = fitCameraToObject(camera, boardGroup, controls, 1.25);
   fitDistance = fit.distance;
 
-  // Keep default view from Red side (red at bottom) after every resize/refit.
+  // Camera always views from south (z negative) looking north
   camera.position.z = -Math.abs(camera.position.z);
   camera.lookAt(0, 0, 0);
   controls.target.set(0, 0, 0);
@@ -279,7 +288,10 @@ function resize() {
   controls.minDistance = fitDistance * 0.95;
   controls.maxDistance = fitDistance * 2.0;
   controls.update();
-  if (composer) composer.render(); else renderer.render(scene, camera);
+
+  if (!isHidden) {
+    if (composer) composer.render(); else renderer.render(scene, camera);
+  }
 }
 
 /* ── Build static board ── */
@@ -400,7 +412,7 @@ function buildPiecePool() {
     labelMat.polygonOffsetUnits = -1;
     const label = new THREE.Mesh(geoTextPlane, labelMat);
     label.rotation.x = -Math.PI / 2;
-    label.rotation.z = Math.PI;
+    label.rotation.z = currentViewRole === 'black' ? 0 : Math.PI;
     label.visible = false;
     scene.add(label);
 
@@ -426,7 +438,7 @@ function buildGhostSlot() {
   labelMat.polygonOffsetUnits = -1;
   const label = new THREE.Mesh(geoTextPlane, labelMat);
   label.rotation.x = -Math.PI / 2;
-  label.rotation.z = Math.PI;
+  label.rotation.z = currentViewRole === 'black' ? 0 : Math.PI;
   label.visible = false;
   scene.add(label);
 
@@ -483,11 +495,14 @@ function draw(board) {
   const dotStart = 5;
   const ringStart = 5 + 44;
 
+  // Flip sign: negate world coords for black view (pieces are in scene, not boardGroup)
+  const flip = currentViewRole === 'black' ? -1 : 1;
+
   function placeHighlight(boardIdx, color, opacity) {
     if (hlIdx >= 5) return;
     const slot = overlayPool[hlStart + hlIdx++];
     const r = rowOf(boardIdx), c = colOf(boardIdx);
-    slot.mesh.position.set(toWorldX(c), 0.002, toWorldZ(r));
+    slot.mesh.position.set(toWorldX(c) * flip, 0.002, toWorldZ(r) * flip);
     slot.mesh.material.color.setHex(color);
     slot.mesh.material.opacity = opacity;
     slot.mesh.visible = true;
@@ -507,7 +522,7 @@ function draw(board) {
 
   for (const dest of legalDests) {
     const r = rowOf(dest), c = colOf(dest);
-    const wx = toWorldX(c), wz = toWorldZ(r);
+    const wx = toWorldX(c) * flip, wz = toWorldZ(r) * flip;
     if (board[dest]) {
       if (ringIdx < 16) {
         const slot = overlayPool[ringStart + ringIdx++];
@@ -529,7 +544,7 @@ function draw(board) {
     if (!p || pi >= MAX_PIECES) continue;
 
     const r = rowOf(i), c = colOf(i);
-    const wx = toWorldX(c), wz = toWorldZ(r);
+    const wx = toWorldX(c) * flip, wz = toWorldZ(r) * flip;
     const side = pSide(p);
     const name = pieceName(p);
     const slot = piecePool[pi++];
@@ -548,6 +563,7 @@ function draw(board) {
       slot.label.material.needsUpdate = true;
     }
     slot.label.position.set(wx, PIECE_H + 0.002, wz);
+    slot.label.rotation.z = Math.PI; // Always readable from south camera
     slot.label.visible = true;
   }
 
@@ -556,8 +572,8 @@ function draw(board) {
     const fromR = rowOf(ghostMove.from), fromC = colOf(ghostMove.from);
     const toR = rowOf(ghostMove.to), toC = colOf(ghostMove.to);
     const t = ghostMove.t;
-    const x = toWorldX(fromC) + (toWorldX(toC) - toWorldX(fromC)) * t;
-    const z = toWorldZ(fromR) + (toWorldZ(toR) - toWorldZ(fromR)) * t;
+    const x = (toWorldX(fromC) + (toWorldX(toC) - toWorldX(fromC)) * t) * flip;
+    const z = (toWorldZ(fromR) + (toWorldZ(toR) - toWorldZ(fromR)) * t) * flip;
 
     ghostSlot.body.material = ghostMove.side === RED ? matPieceRed : matPieceBlack;
     ghostSlot.body.position.set(x, PIECE_H / 2, z);
@@ -573,6 +589,7 @@ function draw(board) {
       ghostSlot.label.material.needsUpdate = true;
     }
     ghostSlot.label.position.set(x, PIECE_H + 0.002, z);
+    ghostSlot.label.rotation.z = Math.PI; // Always readable from south camera
     ghostSlot.label.visible = true;
   }
 
@@ -590,7 +607,9 @@ function hitTest(px, py) {
   if (hits.length === 0) return -1;
 
   const pt = hits[0].point;
-  return fromWorld(pt.x, pt.z);
+  // Flip back to board coordinates if viewing as black
+  const flip = currentViewRole === 'black' ? -1 : 1;
+  return fromWorld(pt.x * flip, pt.z * flip);
 }
 
 /* ── Setters ── */
@@ -606,6 +625,12 @@ function clearGhost() {
   ghostMove = null;
 }
 
+function setCameraView(role) {
+  currentViewRole = role || 'red';
+  // All visual flipping is handled by the flip multiplier in draw() and hitTest().
+  // No boardGroup rotation needed — board lines are symmetric.
+}
+
 export const Render = {
   init,
   resize,
@@ -615,5 +640,6 @@ export const Render = {
   setLastMove,
   setCheck,
   setGhostMove,
-  clearGhost
+  clearGhost,
+  setCameraView
 };

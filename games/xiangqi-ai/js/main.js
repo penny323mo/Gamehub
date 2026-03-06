@@ -6,6 +6,7 @@ import {
 } from './engine/types.js';
 import { generateLegalMoves, inCheck } from './engine/gen.js';
 import { Render } from './render.js';
+window.Render = Render;
 
 /* ── State ── */
 let board = initBoard();
@@ -24,6 +25,11 @@ let killShotActive = false;
 let difficulty = 'normal';
 let aiStartTs = 0;
 let prevAIScore = 0;
+// Online Mode specific globals
+window.isVsAI = true;
+window.mode = 'ai'; // 'ai' or 'online'
+window.setMode = (m) => { window.mode = m; };
+window.setIsVsAI = (v) => { window.isVsAI = v; };
 let momentumTimer = null;
 const AI_MIN_THINK_MS = 150;
 const AI_MOVE_ANIM_MS = 120;
@@ -39,7 +45,7 @@ let audioCtx = null;
 
 const TAP_MOVE_THRESHOLD = 8;
 const TAP_MAX_AGE_MS = 350;
-let pointerState = { down:false, sx:0, sy:0, drag:false, tap:false, ux:0, uy:0, ts:0 };
+let pointerState = { down: false, sx: 0, sy: 0, drag: false, tap: false, ux: 0, uy: 0, ts: 0 };
 
 /* ── History (for undo) ── */
 let history = [];
@@ -52,16 +58,16 @@ function recomputeMoveNumber() {
   moveNumber = Math.floor(count / 2) + 1;
 }
 
-const statusEl   = document.getElementById('status');
-const aiInfoEl   = document.getElementById('ai-info');
-const aiTimeEl   = document.getElementById('ai-time');
-const diffEl     = document.getElementById('difficulty');
+const statusEl = document.getElementById('status');
+const aiInfoEl = document.getElementById('ai-info');
+const aiTimeEl = document.getElementById('ai-time');
+const diffEl = document.getElementById('difficulty');
 const restartBtn = document.getElementById('btn-restart');
-const sfxBtn     = document.getElementById('btn-sfx');
-const undoBtn    = document.getElementById('btn-undo');
-const movelogEl  = document.getElementById('movelog');
-const canvas     = document.getElementById('board');
-const evalFill   = document.getElementById('eval-fill');
+const sfxBtn = document.getElementById('btn-sfx');
+const undoBtn = document.getElementById('btn-undo');
+const movelogEl = document.getElementById('movelog');
+const canvas = document.getElementById('board');
+const evalFill = document.getElementById('eval-fill');
 
 /* ── Renderer ── */
 Render.init(canvas);
@@ -127,10 +133,24 @@ function setStatus(text, cls) {
 
 function updateTurnStatus() {
   if (gameOver) return;
+  if (window.mode === 'online') {
+    const myRole = window.onlinePlayerRole;
+    const currentTurnColor = turn === RED ? 'red' : 'black';
+    if (currentTurnColor === myRole) {
+      setStatus('輪到你走棋', '');
+    } else {
+      setStatus('等待對手走棋…', 'thinking');
+    }
+    return;
+  }
   if (turn === RED) {
     setStatus('紅方走棋', '');
   } else {
-    setStatus('AI 思考中…', 'thinking');
+    if (window.isVsAI) {
+      setStatus('AI 思考中…', 'thinking');
+    } else {
+      setStatus('黑方走棋', '');
+    }
   }
 }
 
@@ -140,7 +160,15 @@ function syncStatusAndControls() {
     updateTurnStatus();
   }
   updateUndoBtn();
-  if (diffEl) diffEl.disabled = !!(aiThinking || aiCommitPending || moveLock);
+  const isOnline = window.mode === 'online';
+  if (diffEl) diffEl.disabled = !!(aiThinking || aiCommitPending || moveLock || isOnline);
+  // Hide AI-only controls in online mode, show online controls
+  if (restartBtn) restartBtn.classList.toggle('hidden', isOnline);
+  if (undoBtn) undoBtn.classList.toggle('hidden', isOnline);
+  const aiControlsEl = document.getElementById('ai-controls');
+  if (aiControlsEl) aiControlsEl.classList.toggle('hidden', isOnline);
+  const surrenderBtn = document.getElementById('btn-surrender');
+  if (surrenderBtn) surrenderBtn.classList.toggle('hidden', !isOnline || gameOver);
 }
 
 function updateUndoBtn() {
@@ -178,10 +206,10 @@ function getDifficulty() {
 /* ── Move log helpers ── */
 function logMove(packedMove, side) {
   const from = unpackFrom(packedMove);
-  const to   = unpackTo(packedMove);
-  const cap  = unpackCaptured(packedMove);
+  const to = unpackTo(packedMove);
+  const cap = unpackCaptured(packedMove);
   const piece = board[from];
-  const name  = pieceName(piece);
+  const name = pieceName(piece);
   const capStr = cap ? ` x${pieceName(cap)}` : '';
   const prefix = side === RED
     ? `${moveNumber}. 紅：`
@@ -203,7 +231,11 @@ function removeLastLogEntry() {
 
 /* ── Input consistency (tap vs drag) ── */
 function handleTap(clientX, clientY) {
-  if (aiThinking || aiCommitPending || gameOver || turn !== RED || moveLock) return;
+  const isMyTurn = window.mode === 'online'
+    ? (window.onlinePlayerRole === (turn === RED ? 'red' : 'black'))
+    : (turn === RED);
+
+  if (aiThinking || aiCommitPending || gameOver || !isMyTurn || moveLock) return;
 
   const i = Render.hitTest(clientX, clientY);
   if (i < 0) return;
@@ -211,14 +243,27 @@ function handleTap(clientX, clientY) {
   if (selectedIdx >= 0) {
     const mv = legalFromSel.find(m => unpackTo(m) === i);
     if (mv !== undefined) {
-      doMove(mv);
+      if (window.isVsAI && window.mode !== 'online') {
+        doMove(mv);
+      } else {
+        // Online Mode: attempt to send move via window.handleOnlineMove
+        if (window.handleOnlineMove) {
+          window.handleOnlineMove(unpackFrom(mv), unpackTo(mv), mv, turn === RED ? 'red' : 'black')
+            .then(success => {
+              if (success) {
+                clearSelection();
+                // Local apply handled by Realtime event in online.js
+              }
+            });
+        }
+      }
       return;
     }
   }
 
-  if (board[i] && pSide(board[i]) === RED) {
+  if (board[i] && pSide(board[i]) === turn) {
     selectedIdx = i;
-    legalFromSel = generateLegalMoves(board, RED).filter(m => unpackFrom(m) === i);
+    legalFromSel = generateLegalMoves(board, turn).filter(m => unpackFrom(m) === i);
     Render.setSelected(i, legalFromSel.map(m => unpackTo(m)));
     redraw();
     return;
@@ -281,8 +326,16 @@ function afterMoveFlow() {
     gameOver = true;
     if (inCheck(board, turn)) {
       setStatus(turn === RED ? '黑方勝！' : '紅方勝！', 'check');
+      // Online mode: notify DB of checkmate
+      if (window.mode === 'online' && window.notifyOnlineGameOver) {
+        const winnerColor = turn === RED ? 'black' : 'red';
+        window.notifyOnlineGameOver(winnerColor, 'checkmate');
+      }
     } else {
       setStatus('和棋', '');
+      if (window.mode === 'online' && window.notifyOnlineGameOver) {
+        window.notifyOnlineGameOver(null, 'stalemate');
+      }
     }
     redraw();
     moveLock = false;
@@ -299,7 +352,7 @@ function afterMoveFlow() {
 
   redraw();
 
-  if (turn === BLACK && !gameOver) {
+  if (turn === BLACK && !gameOver && window.isVsAI === true && window.mode !== 'online') {
     startAI();
   }
 
@@ -329,13 +382,13 @@ function animateMove(packedMove, movingPiece, durationMs, turnAfter, onDone) {
       requestAnimationFrame(frame);
     } else {
       Render.clearGhost();
-  const boardEl = document.getElementById('board');
-  if (boardEl) {
-    boardEl.style.filter = '';
-    boardEl.style.transition = '';
-    boardEl.style.transform = '';
-  }
-  statusEl.classList.remove('clutch', 'boss', 'momentum');
+      const boardEl = document.getElementById('board');
+      if (boardEl) {
+        boardEl.style.filter = '';
+        boardEl.style.transition = '';
+        boardEl.style.transform = '';
+      }
+      statusEl.classList.remove('clutch', 'boss', 'momentum');
       onDone();
     }
   }
@@ -433,7 +486,7 @@ function doMove(packedMove) {
     afterMoveFlow();
   };
 
-  if (sideBefore === RED) {
+  if (window.mode === 'online' || sideBefore === RED) {
     animateHumanMove(packedMove, movingPiece, commitBoard);
   } else {
     animateAIMove(packedMove, movingPiece, commitBoard);
@@ -600,6 +653,14 @@ undoBtn.addEventListener('click', () => {
 
 /* ── Restart ── */
 restartBtn.addEventListener('click', () => {
+  if (window.mode === 'online') return; // Online mode uses rematch flow
+  resetGameParams();
+});
+
+window.resetGameParams = resetGameParams;
+window.resetGame = resetGameParams;
+
+function resetGameParams() {
   cancelPendingAI();
 
   board = initBoard();
@@ -628,7 +689,7 @@ restartBtn.addEventListener('click', () => {
   updateTurnStatus();
   updateEvalBar(0);
   syncStatusAndControls();
-});
+}
 
 
 
@@ -719,3 +780,32 @@ function exitBossMode() {
 /* ── Init ── */
 redraw();
 updateEvalBar(0);
+
+// Expose API for Online Mode
+window.applyNetworkMove = (packedMove, color, isSilent = false) => {
+  if (isSilent) {
+    // Apply without animation/sound
+    const from = unpackFrom(packedMove);
+    const to = unpackTo(packedMove);
+    const movingPiece = board[from];
+    logMove(packedMove, turn);
+    history.push({ board: cloneBoard(board), turn: turn, packedMove });
+    board[to] = movingPiece;
+    board[from] = EMPTY;
+    turn = color === 'red' ? BLACK : RED;
+    afterMoveFlow();
+  } else {
+    doMove(packedMove);
+  }
+};
+
+window.updateStatusUI = (currentPlayerColor) => {
+  if (gameOver) return;
+  if (currentPlayerColor === 'red') {
+    setStatus('紅方走棋', '');
+  } else if (currentPlayerColor === 'black') {
+    setStatus('黑方走棋', '');
+  } else {
+    setStatus('等待對局...', '');
+  }
+};
