@@ -1,15 +1,14 @@
 import { defineConfig } from 'vite';
 
-// Plugin: strip type="module" and crossorigin from built HTML
-// so dist/index.html works when opened via file:// (double-click)
-function stripModuleAttrs() {
+// Plugin: strip crossorigin from built HTML
+// NOTE: type="module" is kept because the bundle uses import.meta (for Worker)
+function stripCrossorigin() {
   return {
-    name: 'strip-module-attrs',
+    name: 'strip-crossorigin',
     enforce: 'post',
     apply: 'build', // Only run during build, NOT dev server
     transformIndexHtml(html) {
       return html
-        .replace(/ type="module"/g, '')
         .replace(/ crossorigin/g, '');
     }
   };
@@ -17,7 +16,7 @@ function stripModuleAttrs() {
 
 export default defineConfig({
   base: './',
-  plugins: [stripModuleAttrs()],
+  plugins: [stripCrossorigin()],
   worker: {
     format: 'iife',
     rollupOptions: {
