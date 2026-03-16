@@ -245,6 +245,17 @@ function renderRoomState(room) {
     const rematchBtn = document.getElementById('snooker-rematch-btn');
     if (rematchBtn) rematchBtn.classList.toggle('hidden', room.status !== 'finished');
 
+    // ── Both players ready → transition to 'playing' (player1 initiates, race-safe) ──
+    if (room.status === 'waiting' && room.player1_ready && room.player2_ready &&
+        SnookerOnline.playerRole === 'player1' && SnookerOnline.sbClient) {
+        SnookerOnline.sbClient
+            .from('snooker_rooms')
+            .update({ status: 'playing', current_turn: 'player1' })
+            .eq('id', SnookerOnline.roomUuid)
+            .eq('status', 'waiting')   // condition: only apply if still waiting
+            .then(({ error }) => { if (error) console.log('[SnookerOnline] start-game skipped:', error.message); });
+    }
+
     // Notify the game
     if (window.snookerOnlineRoomUpdate) {
         const p1Name = room.player1_name || 'P1';
