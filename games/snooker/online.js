@@ -450,6 +450,7 @@ async function snookerRematch() {
 // CREATE TABLE IF NOT EXISTS snooker_rooms (
 //   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 //   room_code        text NOT NULL UNIQUE,
+//   game_mode        text NOT NULL DEFAULT 'snooker',
 //   player1_id       text,
 //   player2_id       text,
 //   player1_name     text,
@@ -472,8 +473,8 @@ async function snookerRematch() {
 // CREATE POLICY "allow all" ON snooker_rooms FOR ALL USING (true) WITH CHECK (true);
 //
 // -- Insert the 3 fixed rooms (safe to re-run):
-// INSERT INTO snooker_rooms (room_code)
-// VALUES ('ROOM01'), ('ROOM02'), ('ROOM03')
+// INSERT INTO snooker_rooms (room_code, game_mode)
+// VALUES ('ROOM01','snooker'), ('ROOM02','snooker'), ('ROOM03','snooker')
 // ON CONFLICT (room_code) DO NOTHING;
 //
 // CREATE TABLE IF NOT EXISTS snooker_shots (
