@@ -78,13 +78,19 @@ function initOnlineMode() {
     }, 3000);
 }
 
+let _lastRpcCleanAt = 0;
 async function fetchLobbyRooms() {
     if (!OnlineState.sbClient) return;
 
-    try {
-        await OnlineState.sbClient.rpc('clean_stale_big2_rooms');
-    } catch (e) {
-        console.log('[Lobby] RPC Error:', e);
+    // Throttle stale-room cleanup to at most once every 30s
+    const now = Date.now();
+    if (now - _lastRpcCleanAt > 30000) {
+        _lastRpcCleanAt = now;
+        try {
+            await OnlineState.sbClient.rpc('clean_stale_big2_rooms');
+        } catch (e) {
+            console.log('[Lobby] RPC Error:', e);
+        }
     }
 
     const { data: rooms, error } = await OnlineState.sbClient
@@ -384,9 +390,12 @@ function queueAction(action) {
     if (!action || !action.id || OnlineState.appliedActionIds.has(action.id)) return;
     OnlineState.appliedActionIds.add(action.id);
     
-    // Insert sorting by action_no
-    OnlineState.actionQueue.push(action);
-    OnlineState.actionQueue.sort((a, b) => a.action_no - b.action_no);
+    // Insert in sorted position by action_no (O(n) vs sort's O(n log n))
+    const queue = OnlineState.actionQueue;
+    const no = action.action_no;
+    let i = queue.length;
+    while (i > 0 && queue[i - 1].action_no > no) { i--; }
+    queue.splice(i, 0, action);
 }
 
 async function processActionQueue() {
@@ -434,25 +443,20 @@ async function handleOnlineAction(actionType, payloadObj, actPlayerIndex = null)
 
     const pIndex = actPlayerIndex !== null ? actPlayerIndex : OnlineState.playerIndex;
 
-    // For human players, do a basic sanity check (but don't block CPU dispatches from host)
-    if (actPlayerIndex === null) {
-        // This is a human player action - they can only act on their own turn
-        // We trust the local game state more than the cached room object
-    }
-
-    const { error } = await OnlineState.sbClient.from('big2_actions').insert([{
+    const { data, error } = await OnlineState.sbClient.from('big2_actions').insert([{
         room_id: OnlineState.roomUuid,
         player_index: pIndex,
         action_type: actionType,
         payload: payloadObj
-    }]);
+    }]).select('id').single();
 
     if (error) {
         alert('Action failed: ' + error.message);
         return false;
     }
 
-    return true;
+    // Return the DB-assigned id so callers can track locally-applied actions
+    return data?.id ?? true;
 }
 
 async function exitFixedRoom() {

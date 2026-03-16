@@ -109,9 +109,13 @@ async function fetchLobbyRooms() {
     });
 }
 
-// 呼叫 server-side RPC 清理過期房間
+// 呼叫 server-side RPC 清理過期房間（最多每 30 秒一次）
+let _lastRpcCleanAt = 0;
 async function cleanStaleRoomsRPC() {
     if (!OnlineState.sbClient) return;
+    const now = Date.now();
+    if (now - _lastRpcCleanAt <= 30000) return;
+    _lastRpcCleanAt = now;
 
     try {
         const { data, error } = await OnlineState.sbClient.rpc('clean_stale_gomoku_rooms');
@@ -732,14 +736,18 @@ function startClientTimer(room) {
     stopClientTimer();
     if (!room.turn_deadline_at) return;
 
+    let _lastRemaining = null;
     OnlineState.timerInterval = setInterval(() => {
         const cr = window.currentRoom;
         if (!cr?.turn_deadline_at || cr.status !== 'playing') {
-            updateTimerUI('--');
+            if (_lastRemaining !== '--') { _lastRemaining = '--'; updateTimerUI('--'); }
             return;
         }
         const remaining = Math.max(0, Math.ceil((new Date(cr.turn_deadline_at) - Date.now()) / 1000));
-        updateTimerUI(remaining);
+        if (remaining !== _lastRemaining) {
+            _lastRemaining = remaining;
+            updateTimerUI(remaining);
+        }
         if (remaining <= 0) handleTimeout();
     }, 200);
 }

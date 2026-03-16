@@ -285,7 +285,10 @@
     
     window.applyNetworkAction = function(action) {
       const { player_index, action_type, payload } = action;
-      state.current = player_index; // Force sync turn
+      if (state.current !== player_index) {
+        console.warn('[NetAction] Turn mismatch: local P' + state.current + ' vs network P' + player_index + '. Resyncing.');
+        state.current = player_index;
+      }
       
       if (action_type === 'bid_call') bidCall();
       else if (action_type === 'bid_rob') bidRob();

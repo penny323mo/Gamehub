@@ -9,6 +9,10 @@
 */
 
 (() => {
+  // Tracks DB action IDs that the host applied locally (CPU moves), so the
+  // Realtime echo can be skipped without relying on the fragile `isHuman` flag.
+  const _hostAppliedIds = new Set();
+
   // ---------- Card model ----------
   // rankIndex: 0..12 where 0=3, 1=4, ..., 8=J, 9=Q, 10=K, 11=A, 12=2
   const RANKS = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2'];
@@ -864,7 +868,7 @@
           setHint('Waiting for network sync...');
           render();
         }
-      });
+      }).catch(e => console.error('[Play action] Failed:', e));
       return;
     }
 
@@ -894,7 +898,7 @@
           setHint('Waiting for network sync (PASS)...');
           render();
         }
-      });
+      }).catch(e => console.error('[Pass action] Failed:', e));
       return;
     }
 
@@ -1138,9 +1142,12 @@
         render();
         // Note: checkWin() is already called inside applyPlay, do NOT call again
 
-        // Send to DB so other players receive it
+        // Send to DB so other players receive it; capture the action ID so we
+        // can skip the Realtime echo (which would double-apply the move on the host).
         const idArray = move ? move.cards.map(c => cardId(c)) : null;
-        window.handleOnlineAction(move ? 'play' : 'pass', idArray, idx);
+        window.handleOnlineAction(move ? 'play' : 'pass', idArray, idx)
+            .then(actionId => { if (actionId && actionId !== true) _hostAppliedIds.add(actionId); })
+            .catch(e => console.error('[CPU action] Failed to sync to DB:', e));
 
         // Continue chaining CPU turns
         if (!state.gameOver && !state.players[state.currentPlayer].isHuman) {
@@ -1261,6 +1268,7 @@
 
   // ---------- UI Mode Switching ----------
   window.resetGameState = function () {
+    _hostAppliedIds.clear();
     state.gameOver = false;
     state.table = null;
     state.currentPlayer = 0;
@@ -1380,8 +1388,16 @@
   window.applyNetworkAction = function (action) {
     const pIdx = action.player_index;
 
-    // Host already applied CPU moves locally in queueCpuTurns - skip duplicates
+    // Primary check: skip this action if the host already applied it locally
+    // (CPU move applied in queueCpuTurns before the DB round-trip completed).
+    if (_hostAppliedIds.has(action.id)) {
+      _hostAppliedIds.delete(action.id);
+      return;
+    }
+    // Fallback for the rare race where Realtime fires before the INSERT response
+    // returns and _hostAppliedIds hasn't been populated yet.
     if (window.isOnlineHost() && state.players[pIdx] && !state.players[pIdx].isHuman) {
+      console.warn('[NetAction] CPU Realtime echo arrived before INSERT response; skipping (P' + pIdx + ')');
       return;
     }
 

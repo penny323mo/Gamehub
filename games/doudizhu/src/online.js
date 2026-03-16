@@ -76,13 +76,18 @@ function initOnlineMode() {
     }, 3000);
 }
 
+let _lastRpcCleanAt = 0;
 async function fetchLobbyRooms() {
     if (!OnlineState.sbClient) return;
 
-    try {
-        await OnlineState.sbClient.rpc('clean_stale_doudizhu_rooms');
-    } catch (e) {
-        console.log('[Lobby] RPC Error:', e);
+    const now = Date.now();
+    if (now - _lastRpcCleanAt > 30000) {
+        _lastRpcCleanAt = now;
+        try {
+            await OnlineState.sbClient.rpc('clean_stale_doudizhu_rooms');
+        } catch (e) {
+            console.log('[Lobby] RPC Error:', e);
+        }
     }
 
     const { data: rooms, error } = await OnlineState.sbClient
@@ -370,8 +375,11 @@ async function syncHistoricalActions() {
 function queueAction(action) {
     if (!action || !action.id || OnlineState.appliedActionIds.has(action.id)) return;
     OnlineState.appliedActionIds.add(action.id);
-    OnlineState.actionQueue.push(action);
-    OnlineState.actionQueue.sort((a, b) => a.action_no - b.action_no);
+    const queue = OnlineState.actionQueue;
+    const no = action.action_no;
+    let i = queue.length;
+    while (i > 0 && queue[i - 1].action_no > no) { i--; }
+    queue.splice(i, 0, action);
 }
 
 async function processActionQueue() {
@@ -495,4 +503,3 @@ function cleanupAndReturnToLobby() {
 
 // Expose
 window.initOnlineMode = initOnlineMode;
-window.OnlineState = OnlineState;

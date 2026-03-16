@@ -93,8 +93,12 @@ async function fetchLobbyRooms() {
     });
 }
 
+let _lastRpcCleanAt = 0;
 async function cleanStaleRoomsRPC() {
     if (!OnlineState.sbClient) return;
+    const now = Date.now();
+    if (now - _lastRpcCleanAt <= 30000) return;
+    _lastRpcCleanAt = now;
     try {
         await OnlineState.sbClient.rpc('clean_stale_xiangqi_rooms');
     } catch (e) {
@@ -435,8 +439,10 @@ const _moveQueue = [];
 let _processingMoves = false;
 
 function queueAndApplyMove(move) {
-    _moveQueue.push(move);
-    _moveQueue.sort((a, b) => (a.move_no || 0) - (b.move_no || 0));
+    const no = move.move_no || 0;
+    let i = _moveQueue.length;
+    while (i > 0 && (_moveQueue[i - 1].move_no || 0) > no) { i--; }
+    _moveQueue.splice(i, 0, move);
     processMovesQueue();
 }
 
