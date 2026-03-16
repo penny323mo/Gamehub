@@ -4797,4 +4797,23 @@ if (mobileControlsEl) {
   mobileControlsEl.addEventListener('mouseup', stopProp);
 }
 
+// Online multiplayer room update hook.
+// Called externally when the Supabase room state changes.
+// Expected payload: { status: 'playing'|'waiting'|'finished', players: [{ name, seat }] }
+window.snookerOnlineRoomUpdate = function ({ status, players } = {}) {
+  if (status === 'playing') {
+    if (Array.isArray(players)) {
+      if (players[0]?.name) playerNames[0] = players[0].name;
+      if (players[1]?.name) playerNames[1] = players[1].name;
+    }
+    resetGame({ startNow: true, aiMode: false });
+    updateUi();
+  } else if (status === 'finished') {
+    gameStarted = false;
+    gameOver = true;
+    setStatus('對手已離開，遊戲結束。', 5);
+    updateUi();
+  }
+};
+
 animate();

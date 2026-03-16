@@ -140,9 +140,12 @@
   function reset() {
     if (state.aiTimer) { clearTimeout(state.aiTimer); state.aiTimer = null; }
     if (state.shotTimer) { clearTimeout(state.shotTimer); state.shotTimer = null; }
-    const m = modeSelect.value;
-    state.mode = m === 'practice' ? 'practice' : 'ai';
-    state.difficulty = m === 'practice' ? 'normal' : m;
+    // Online mode is set externally; do not overwrite it from modeSelect.
+    if (state.mode !== 'online') {
+      const m = modeSelect.value;
+      state.mode = m === 'practice' ? 'practice' : 'ai';
+      state.difficulty = m === 'practice' ? 'normal' : m;
+    }
     state.turn = 'player';
     state.aiThinking = false;
 
@@ -740,7 +743,7 @@
     const opponent = currentScorer === 'player' ? 'ai' : 'player';
 
     if (foul) {
-      if (state.mode === 'ai') {
+      if (state.mode === 'ai' || state.mode === 'online') {
         state.scores[opponent] += foulVal;
       } else {
         // Practice mode: negative score for player
@@ -799,7 +802,7 @@
     }
 
     updateTarget();
-    if (state.mode === 'ai' && !state.isComplete) {
+    if ((state.mode === 'ai' || state.mode === 'online') && !state.isComplete) {
       const validPot = !foul && state.shotPots.length > 0;
       if (!validPot) {
         state.turn = state.turn === 'player' ? 'ai' : 'player';
