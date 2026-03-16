@@ -864,7 +864,7 @@
           setHint('Waiting for network sync...');
           render();
         }
-      });
+      }).catch(e => console.error('[Play action] Failed:', e));
       return;
     }
 
@@ -894,7 +894,7 @@
           setHint('Waiting for network sync (PASS)...');
           render();
         }
-      });
+      }).catch(e => console.error('[Pass action] Failed:', e));
       return;
     }
 
@@ -1140,7 +1140,8 @@
 
         // Send to DB so other players receive it
         const idArray = move ? move.cards.map(c => cardId(c)) : null;
-        window.handleOnlineAction(move ? 'play' : 'pass', idArray, idx);
+        window.handleOnlineAction(move ? 'play' : 'pass', idArray, idx)
+            .catch(e => console.error('[CPU action] Failed to sync to DB:', e));
 
         // Continue chaining CPU turns
         if (!state.gameOver && !state.players[state.currentPlayer].isHuman) {
