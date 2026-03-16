@@ -449,7 +449,7 @@ async function snookerRematch() {
 //
 // CREATE TABLE IF NOT EXISTS snooker_rooms (
 //   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-//   room_code        text NOT NULL,
+//   room_code        text NOT NULL UNIQUE,
 //   player1_id       text,
 //   player2_id       text,
 //   player1_name     text,
@@ -468,9 +468,13 @@ async function snookerRematch() {
 // );
 //
 // ALTER TABLE snooker_rooms ENABLE ROW LEVEL SECURITY;
+// DROP POLICY IF EXISTS "allow all" ON snooker_rooms;
 // CREATE POLICY "allow all" ON snooker_rooms FOR ALL USING (true) WITH CHECK (true);
 //
-// INSERT INTO snooker_rooms (room_code) VALUES ('ROOM01'), ('ROOM02'), ('ROOM03');
+// -- Insert the 3 fixed rooms (safe to re-run):
+// INSERT INTO snooker_rooms (room_code)
+// VALUES ('ROOM01'), ('ROOM02'), ('ROOM03')
+// ON CONFLICT (room_code) DO NOTHING;
 //
 // CREATE TABLE IF NOT EXISTS snooker_shots (
 //   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -482,14 +486,16 @@ async function snookerRematch() {
 // );
 //
 // ALTER TABLE snooker_shots ENABLE ROW LEVEL SECURITY;
+// DROP POLICY IF EXISTS "allow all" ON snooker_shots;
 // CREATE POLICY "allow all" ON snooker_shots FOR ALL USING (true) WITH CHECK (true);
 //
-// -- Auto shot_no trigger
+// -- Auto shot_no trigger (safe to re-run):
 // CREATE OR REPLACE FUNCTION set_snooker_shot_no() RETURNS trigger LANGUAGE plpgsql AS $$
 // BEGIN
 //   SELECT COALESCE(MAX(shot_no),0)+1 INTO NEW.shot_no FROM snooker_shots WHERE room_id = NEW.room_id;
 //   RETURN NEW;
 // END; $$;
+// DROP TRIGGER IF EXISTS trg_snooker_shot_no ON snooker_shots;
 // CREATE TRIGGER trg_snooker_shot_no BEFORE INSERT ON snooker_shots
 //   FOR EACH ROW EXECUTE FUNCTION set_snooker_shot_no();
 //
