@@ -2370,7 +2370,8 @@ function currentTargetLabel() {
 }
 
 function syncModeFromLobby() {
-  const mode = player2ModeSelect?.value === 'p2' ? 'p2' : 'ai';
+  const val = player2ModeSelect?.value;
+  const mode = val === 'p2' ? 'p2' : val === 'online' ? 'online' : 'ai';
   aiEnabled = mode === 'ai';
   playerNames[1] = aiEnabled ? 'AI' : 'P2';
 }
@@ -2404,6 +2405,8 @@ function updateUi() {
       stateNoteEl.textContent = '你有白球在手：拖放到 D 區，再按「確認白球位置」。';
     } else if (shotInProgress || stationaryTime < settledDuration || !allStopped()) {
       stateNoteEl.textContent = '球仍在移動中，請等待停球。';
+    } else if (window.isOnlineMode && currentPlayer !== (window.onlineMyPlayerIndex ?? 0)) {
+      stateNoteEl.textContent = '等待對手出桿...';
     } else if (aiEnabled && currentPlayer === 1) {
       stateNoteEl.textContent = 'AI 回合中...';
     } else {
@@ -2413,7 +2416,8 @@ function updateUi() {
 
   // 確認白球按鈕：只喺 cueBallInHand 時顯示
   if (confirmCueBtn) {
-    if (gameStarted && cueBallInHand && !foulDecisionPending && currentPlayer === 0) {
+    const isMyTurn = !window.isOnlineMode || currentPlayer === (window.onlineMyPlayerIndex ?? 0);
+    if (gameStarted && cueBallInHand && !foulDecisionPending && isMyTurn) {
       confirmCueBtn.classList.add('show');
     } else {
       confirmCueBtn.classList.remove('show');
@@ -4786,6 +4790,7 @@ if (player2ModeSelect) {
 }
 if (startGameBtn) {
   startGameBtn.addEventListener('click', () => {
+    if (player2ModeSelect?.value === 'online') return; // handled by online overlay
     syncModeFromLobby();
     resetGame({ startNow: true, aiMode: aiEnabled });
     updateUi();

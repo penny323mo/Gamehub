@@ -17,7 +17,11 @@
 
 const SUPABASE_URL     = 'https://djbhipofzbonxfqriovi.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_DX7aNwHHI7tb6RUiWWe0qg_qPzuLcld';
-const FIXED_ROOMS = ['ROOM01', 'ROOM02', 'ROOM03'];
+const FIXED_ROOMS_MAP = {
+    '2d': ['ROOM01', 'ROOM02', 'ROOM03'],
+    '3d': ['3D-ROOM01', '3D-ROOM02', '3D-ROOM03'],
+};
+let FIXED_ROOMS = FIXED_ROOMS_MAP['2d'];
 
 const SnookerOnline = {
     sbClient:        null,
@@ -31,15 +35,20 @@ const SnookerOnline = {
     appliedShotIds:  new Set(),
     currentRoundId:  null,
     hasSeat:         false,
+    gameMode:        '2d',
 };
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 
-function initSnookerOnline() {
-    SnookerOnline.clientId = localStorage.getItem('snooker_clientId');
+function initSnookerOnline({ gameMode = '2d' } = {}) {
+    SnookerOnline.gameMode = gameMode;
+    FIXED_ROOMS = FIXED_ROOMS_MAP[gameMode] ?? FIXED_ROOMS_MAP['2d'];
+    // Use sessionStorage so each browser tab gets its own ID,
+    // allowing two tabs on the same device to be different players.
+    SnookerOnline.clientId = sessionStorage.getItem('snooker_clientId');
     if (!SnookerOnline.clientId) {
         SnookerOnline.clientId = crypto.randomUUID();
-        localStorage.setItem('snooker_clientId', SnookerOnline.clientId);
+        sessionStorage.setItem('snooker_clientId', SnookerOnline.clientId);
     }
     console.log('[SnookerOnline] clientId:', SnookerOnline.clientId);
 
@@ -168,15 +177,32 @@ async function joinFixedRoom(roomKey) {
     let query = SnookerOnline.sbClient.from('snooker_rooms').update(updateData).eq('id', room.id);
     if (conditionField) query = query.is(conditionField, null);
 
-    const { data: updatedRows, error: updateErr } = await query.select();
+    const { error: updateErr } = await query;
+    if (updateErr) {
+        console.error('[SnookerOnline] join update error:', updateErr);
+        alert('加入失敗: ' + (updateErr.message || '未知錯誤'));
+        fetchLobbyRooms();
+        return;
+    }
 
-    if (updateErr || !updatedRows || updatedRows.length === 0) {
+    // Verify we actually got the slot (re-fetch is more reliable than checking updatedRows)
+    const { data: freshRoom, error: fetchErr } = await SnookerOnline.sbClient
+        .from('snooker_rooms').select('*').eq('id', room.id).single();
+
+    if (fetchErr || !freshRoom) {
+        alert('加入失敗，讀取房間出錯');
+        fetchLobbyRooms();
+        return;
+    }
+
+    // If we tried to claim a slot, verify we actually got it
+    if (conditionField && freshRoom[conditionField] !== SnookerOnline.clientId) {
         alert('加入失敗，位置可能被搶走');
         fetchLobbyRooms();
         return;
     }
 
-    Object.assign(room, updatedRows[0]);
+    Object.assign(room, freshRoom);
     SnookerOnline.hasSeat       = true;
     SnookerOnline.roomKey       = roomKey;
     SnookerOnline.roomUuid      = room.id;
@@ -244,6 +270,17 @@ function renderRoomState(room) {
 
     const rematchBtn = document.getElementById('snooker-rematch-btn');
     if (rematchBtn) rematchBtn.classList.toggle('hidden', room.status !== 'finished');
+
+    // ── Both players ready → transition to 'playing' (player1 initiates, race-safe) ──
+    if (room.status === 'waiting' && room.player1_ready && room.player2_ready &&
+        SnookerOnline.playerRole === 'player1' && SnookerOnline.sbClient) {
+        SnookerOnline.sbClient
+            .from('snooker_rooms')
+            .update({ status: 'playing', current_turn: 'player1' })
+            .eq('id', SnookerOnline.roomUuid)
+            .eq('status', 'waiting')   // condition: only apply if still waiting
+            .then(({ error }) => { if (error) console.log('[SnookerOnline] start-game skipped:', error.message); });
+    }
 
     // Notify the game
     if (window.snookerOnlineRoomUpdate) {
@@ -438,7 +475,8 @@ async function snookerRematch() {
 //
 // CREATE TABLE IF NOT EXISTS snooker_rooms (
 //   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-//   room_code        text NOT NULL,
+//   room_code        text NOT NULL UNIQUE,
+//   game_mode        text NOT NULL CHECK (game_mode IN ('2d','3d')),
 //   player1_id       text,
 //   player2_id       text,
 //   player1_name     text,
@@ -457,9 +495,14 @@ async function snookerRematch() {
 // );
 //
 // ALTER TABLE snooker_rooms ENABLE ROW LEVEL SECURITY;
+// DROP POLICY IF EXISTS "allow all" ON snooker_rooms;
 // CREATE POLICY "allow all" ON snooker_rooms FOR ALL USING (true) WITH CHECK (true);
 //
-// INSERT INTO snooker_rooms (room_code) VALUES ('ROOM01'), ('ROOM02'), ('ROOM03');
+// -- Insert the 6 fixed rooms – 3 per variant (safe to re-run):
+// INSERT INTO snooker_rooms (room_code, game_mode) VALUES
+//   ('ROOM01','2d'), ('ROOM02','2d'), ('ROOM03','2d'),
+//   ('3D-ROOM01','3d'), ('3D-ROOM02','3d'), ('3D-ROOM03','3d')
+// ON CONFLICT (room_code) DO NOTHING;
 //
 // CREATE TABLE IF NOT EXISTS snooker_shots (
 //   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -471,14 +514,16 @@ async function snookerRematch() {
 // );
 //
 // ALTER TABLE snooker_shots ENABLE ROW LEVEL SECURITY;
+// DROP POLICY IF EXISTS "allow all" ON snooker_shots;
 // CREATE POLICY "allow all" ON snooker_shots FOR ALL USING (true) WITH CHECK (true);
 //
-// -- Auto shot_no trigger
+// -- Auto shot_no trigger (safe to re-run):
 // CREATE OR REPLACE FUNCTION set_snooker_shot_no() RETURNS trigger LANGUAGE plpgsql AS $$
 // BEGIN
 //   SELECT COALESCE(MAX(shot_no),0)+1 INTO NEW.shot_no FROM snooker_shots WHERE room_id = NEW.room_id;
 //   RETURN NEW;
 // END; $$;
+// DROP TRIGGER IF EXISTS trg_snooker_shot_no ON snooker_shots;
 // CREATE TRIGGER trg_snooker_shot_no BEFORE INSERT ON snooker_shots
 //   FOR EACH ROW EXECUTE FUNCTION set_snooker_shot_no();
 //

@@ -21,6 +21,7 @@
     .s3d-status-row{display:flex;gap:10px;margin:8px 0;font-size:12px;color:#a9b6d6}
     #snooker3d-waiting-msg{color:#ffd66a;font-size:12px;margin:6px 0}
     .s3d-hidden{display:none!important}
+    .hidden{display:none!important}
   </style>
 </head>
 
@@ -36,23 +37,23 @@
       <h2>線上對戰 — 選擇房間</h2>
       <div id="snooker3d-room-list">
         <div class="s3d-room-card">
-          <div class="s3d-room-info"><div>ROOM01 &nbsp;<span id="snooker-room-players-ROOM01">-</span></div><div class="s3d-room-status" id="snooker-room-status-ROOM01">-</div></div>
-          <button class="s3d-btn primary" id="snooker-room-join-ROOM01" onclick="window.snookerJoinRoom('ROOM01')">加入</button>
+          <div class="s3d-room-info"><div>ROOM01 &nbsp;<span id="snooker-room-players-3D-ROOM01">-</span></div><div class="s3d-room-status" id="snooker-room-status-3D-ROOM01">-</div></div>
+          <button class="s3d-btn primary" id="snooker-room-join-3D-ROOM01" onclick="window.snookerJoinRoom('3D-ROOM01')">加入</button>
         </div>
         <div class="s3d-room-card">
-          <div class="s3d-room-info"><div>ROOM02 &nbsp;<span id="snooker-room-players-ROOM02">-</span></div><div class="s3d-room-status" id="snooker-room-status-ROOM02">-</div></div>
-          <button class="s3d-btn primary" id="snooker-room-join-ROOM02" onclick="window.snookerJoinRoom('ROOM02')">加入</button>
+          <div class="s3d-room-info"><div>ROOM02 &nbsp;<span id="snooker-room-players-3D-ROOM02">-</span></div><div class="s3d-room-status" id="snooker-room-status-3D-ROOM02">-</div></div>
+          <button class="s3d-btn primary" id="snooker-room-join-3D-ROOM02" onclick="window.snookerJoinRoom('3D-ROOM02')">加入</button>
         </div>
         <div class="s3d-room-card">
-          <div class="s3d-room-info"><div>ROOM03 &nbsp;<span id="snooker-room-players-ROOM03">-</span></div><div class="s3d-room-status" id="snooker-room-status-ROOM03">-</div></div>
-          <button class="s3d-btn primary" id="snooker-room-join-ROOM03" onclick="window.snookerJoinRoom('ROOM03')">加入</button>
+          <div class="s3d-room-info"><div>ROOM03 &nbsp;<span id="snooker-room-players-3D-ROOM03">-</span></div><div class="s3d-room-status" id="snooker-room-status-3D-ROOM03">-</div></div>
+          <button class="s3d-btn primary" id="snooker-room-join-3D-ROOM03" onclick="window.snookerJoinRoom('3D-ROOM03')">加入</button>
         </div>
       </div>
       <button class="s3d-btn" style="margin-top:8px;width:100%" onclick="document.getElementById('snooker3d-online-overlay').classList.add('hidden')">返回離線模式</button>
     </div>
 
     <!-- Room -->
-    <div id="snooker3d-online-room" class="s3d-panel s3d-hidden">
+    <div id="snooker3d-online-room" class="s3d-panel hidden">
       <h2>房間 <span id="snooker-room-id">-</span> &nbsp;|&nbsp; 你是 <span id="snooker-my-role">-</span></h2>
       <div id="snooker3d-waiting-msg" style="display:none">等待對手加入...</div>
       <div id="snooker-ready-area">
@@ -62,7 +63,7 @@
         </div>
         <button class="s3d-btn primary" id="snooker-ready-btn" onclick="window.snookerToggleReady()" disabled>準備</button>
       </div>
-      <button class="s3d-btn s3d-hidden" id="snooker-rematch-btn" style="margin-top:10px;width:100%" onclick="window.snookerRematch()">再來一局</button>
+      <button class="s3d-btn hidden" id="snooker-rematch-btn" style="margin-top:10px;width:100%" onclick="window.snookerRematch()">再來一局</button>
       <button class="s3d-btn" style="margin-top:8px;width:100%" onclick="window.snookerExitRoom()">離開房間</button>
     </div>
 
@@ -77,10 +78,10 @@
             <select id="player2-mode">
               <option value="p2">Offline P2</option>
               <option value="ai" selected>AI</option>
-              <option value="online">🌐 Online</option>
             </select>
           </label>
           <button id="start-game-btn" type="button">開始遊戲</button>
+          <button id="online-battle-btn" type="button" style="background:#2563eb;border:1px solid #3b82f6;color:#fff;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">🌐 線上對戰</button>
         </div>
         <div id="score">Score: 0</div>
         <div id="turn">Turn: 1</div>
@@ -125,22 +126,9 @@
   <script src="./assets/three/three.min.js?v=20260207b"></script>
   <script src="./assets/three/OrbitControls.legacy.js?v=20260207b"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="../online.js"></script>
+  <script src="../online.js?v=20260316a"></script>
   <script src="./main.js?v=20260207b"></script>
   <script>
-    // Wire "Online" option in player2-mode select
-    const _p2Mode = document.getElementById('player2-mode');
-    const _startBtn = document.getElementById('start-game-btn');
-    if (_p2Mode && _startBtn) {
-      _startBtn.addEventListener('click', function _onlineGuard(e) {
-        if (_p2Mode.value === 'online') {
-          e.stopImmediatePropagation();
-          document.getElementById('snooker3d-online-overlay').classList.remove('hidden');
-          if (window.initSnookerOnline) window.initSnookerOnline();
-        }
-      }, true); // capture phase so it runs before main.js listener
-    }
-
     // Remap online.js room DOM IDs to 3d-prefixed equivalents for waiting/room views
     const _waitId  = document.getElementById('snooker3d-waiting-msg');
     const _roomId  = document.getElementById('snooker3d-online-room');
@@ -148,6 +136,14 @@
     if (_waitId)  _waitId.id  = 'snooker-waiting-msg';
     if (_roomId)  _roomId.id  = 'snooker-online-room';
     if (_lobbyId) _lobbyId.id = 'snooker-online-lobby';
+
+    // Init online module immediately (scripts are sync, DOM is ready at this point)
+    if (window.initSnookerOnline) window.initSnookerOnline({ gameMode: '3d' });
+
+    // "線上對戰" button opens the lobby overlay
+    document.getElementById('online-battle-btn').addEventListener('click', () => {
+      document.getElementById('snooker3d-online-overlay').classList.remove('hidden');
+    });
   </script>
 </body>
 
