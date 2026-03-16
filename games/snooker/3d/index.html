@@ -78,10 +78,10 @@
             <select id="player2-mode">
               <option value="p2">Offline P2</option>
               <option value="ai" selected>AI</option>
-              <option value="online">🌐 Online</option>
             </select>
           </label>
           <button id="start-game-btn" type="button">開始遊戲</button>
+          <button id="online-battle-btn" type="button" style="background:#2563eb;border:1px solid #3b82f6;color:#fff;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">🌐 線上對戰</button>
         </div>
         <div id="score">Score: 0</div>
         <div id="turn">Turn: 1</div>
@@ -129,19 +129,6 @@
   <script src="../online.js"></script>
   <script src="./main.js?v=20260207b"></script>
   <script>
-    // Wire "Online" option in player2-mode select
-    const _p2Mode = document.getElementById('player2-mode');
-    const _startBtn = document.getElementById('start-game-btn');
-    if (_p2Mode && _startBtn) {
-      _startBtn.addEventListener('click', function _onlineGuard(e) {
-        if (_p2Mode.value === 'online') {
-          e.stopImmediatePropagation();
-          document.getElementById('snooker3d-online-overlay').classList.remove('hidden');
-          if (window.initSnookerOnline) window.initSnookerOnline({ gameMode: '3d' });
-        }
-      }, true); // capture phase so it runs before main.js listener
-    }
-
     // Remap online.js room DOM IDs to 3d-prefixed equivalents for waiting/room views
     const _waitId  = document.getElementById('snooker3d-waiting-msg');
     const _roomId  = document.getElementById('snooker3d-online-room');
@@ -149,6 +136,14 @@
     if (_waitId)  _waitId.id  = 'snooker-waiting-msg';
     if (_roomId)  _roomId.id  = 'snooker-online-room';
     if (_lobbyId) _lobbyId.id = 'snooker-online-lobby';
+
+    // Init online module immediately (scripts are sync, DOM is ready at this point)
+    if (window.initSnookerOnline) window.initSnookerOnline({ gameMode: '3d' });
+
+    // "線上對戰" button opens the lobby overlay
+    document.getElementById('online-battle-btn').addEventListener('click', () => {
+      document.getElementById('snooker3d-online-overlay').classList.remove('hidden');
+    });
   </script>
 </body>
 

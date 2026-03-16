@@ -43,10 +43,12 @@ const SnookerOnline = {
 function initSnookerOnline({ gameMode = '2d' } = {}) {
     SnookerOnline.gameMode = gameMode;
     FIXED_ROOMS = FIXED_ROOMS_MAP[gameMode] ?? FIXED_ROOMS_MAP['2d'];
-    SnookerOnline.clientId = localStorage.getItem('snooker_clientId');
+    // Use sessionStorage so each browser tab gets its own ID,
+    // allowing two tabs on the same device to be different players.
+    SnookerOnline.clientId = sessionStorage.getItem('snooker_clientId');
     if (!SnookerOnline.clientId) {
         SnookerOnline.clientId = crypto.randomUUID();
-        localStorage.setItem('snooker_clientId', SnookerOnline.clientId);
+        sessionStorage.setItem('snooker_clientId', SnookerOnline.clientId);
     }
     console.log('[SnookerOnline] clientId:', SnookerOnline.clientId);
 
