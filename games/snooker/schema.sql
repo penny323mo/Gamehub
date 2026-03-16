@@ -85,48 +85,31 @@ CREATE TRIGGER snooker_auto_start_trigger
 CREATE OR REPLACE FUNCTION clean_stale_snooker_rooms()
 RETURNS JSON LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
-    stale_threshold INTERVAL := INTERVAL '25 seconds';
-    cleaned_count   INTEGER := 0;
-    r               RECORD;
+    cleaned_count INTEGER;
 BEGIN
-    FOR r IN
-        SELECT id, player0_id, player1_id, p0_last_seen_at, p1_last_seen_at, status
+    WITH stale AS (
+        SELECT id,
+            player0_id IS NOT NULL AND (p0_last_seen_at IS NULL OR NOW() - p0_last_seen_at > INTERVAL '25 seconds') AS p0_stale,
+            player1_id IS NOT NULL AND (p1_last_seen_at IS NULL OR NOW() - p1_last_seen_at > INTERVAL '25 seconds') AS p1_stale,
+            status
         FROM snooker_rooms
         WHERE status IN ('waiting', 'playing')
-    LOOP
-        DECLARE
-            p0_stale BOOLEAN := r.player0_id IS NOT NULL
-                AND (r.p0_last_seen_at IS NULL OR NOW() - r.p0_last_seen_at > stale_threshold);
-            p1_stale BOOLEAN := r.player1_id IS NOT NULL
-                AND (r.p1_last_seen_at IS NULL OR NOW() - r.p1_last_seen_at > stale_threshold);
-            update_data JSONB := '{}';
-        BEGIN
-            IF p0_stale THEN
-                update_data := update_data || '{"player0_id": null, "player0_ready": false}';
-            END IF;
-            IF p1_stale THEN
-                update_data := update_data || '{"player1_id": null, "player1_ready": false}';
-            END IF;
+    )
+    UPDATE snooker_rooms AS room SET
+        player0_id    = CASE WHEN stale.p0_stale THEN NULL ELSE room.player0_id END,
+        player0_ready = CASE WHEN stale.p0_stale THEN FALSE ELSE room.player0_ready END,
+        player1_id    = CASE WHEN stale.p1_stale THEN NULL ELSE room.player1_id END,
+        player1_ready = CASE WHEN stale.p1_stale THEN FALSE ELSE room.player1_ready END,
+        status        = CASE WHEN stale.status = 'playing' THEN 'finished' ELSE 'waiting' END,
+        winner        = CASE
+                            WHEN stale.status = 'playing' AND stale.p0_stale AND NOT stale.p1_stale THEN 1
+                            WHEN stale.status = 'playing' AND stale.p1_stale AND NOT stale.p0_stale THEN 0
+                            ELSE NULL END,
+        finished_reason = CASE WHEN stale.status = 'playing' THEN 'timeout' ELSE NULL END
+    FROM stale
+    WHERE room.id = stale.id AND (stale.p0_stale OR stale.p1_stale);
 
-            IF p0_stale OR p1_stale THEN
-                UPDATE snooker_rooms SET
-                    player0_id    = CASE WHEN p0_stale THEN NULL ELSE player0_id END,
-                    player0_ready = CASE WHEN p0_stale THEN FALSE ELSE player0_ready END,
-                    player1_id    = CASE WHEN p1_stale THEN NULL ELSE player1_id END,
-                    player1_ready = CASE WHEN p1_stale THEN FALSE ELSE player1_ready END,
-                    status        = CASE WHEN r.status = 'playing' THEN 'finished' ELSE 'waiting' END,
-                    winner        = CASE
-                                        WHEN r.status = 'playing' AND p0_stale AND NOT p1_stale THEN 1
-                                        WHEN r.status = 'playing' AND p1_stale AND NOT p0_stale THEN 0
-                                        ELSE NULL
-                                    END,
-                    finished_reason = CASE WHEN r.status = 'playing' THEN 'timeout' ELSE NULL END
-                WHERE id = r.id;
-                cleaned_count := cleaned_count + 1;
-            END IF;
-        END;
-    END LOOP;
-
+    GET DIAGNOSTICS cleaned_count = ROW_COUNT;
     RETURN json_build_object('cleaned', cleaned_count);
 END;
 $$;
