@@ -17,7 +17,11 @@
 
 const SUPABASE_URL     = 'https://djbhipofzbonxfqriovi.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_DX7aNwHHI7tb6RUiWWe0qg_qPzuLcld';
-const FIXED_ROOMS = ['ROOM01', 'ROOM02', 'ROOM03'];
+const FIXED_ROOMS_MAP = {
+    '2d': ['ROOM01', 'ROOM02', 'ROOM03'],
+    '3d': ['3D-ROOM01', '3D-ROOM02', '3D-ROOM03'],
+};
+let FIXED_ROOMS = FIXED_ROOMS_MAP['2d'];
 
 const SnookerOnline = {
     sbClient:        null,
@@ -31,11 +35,14 @@ const SnookerOnline = {
     appliedShotIds:  new Set(),
     currentRoundId:  null,
     hasSeat:         false,
+    gameMode:        '2d',
 };
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 
-function initSnookerOnline() {
+function initSnookerOnline({ gameMode = '2d' } = {}) {
+    SnookerOnline.gameMode = gameMode;
+    FIXED_ROOMS = FIXED_ROOMS_MAP[gameMode] ?? FIXED_ROOMS_MAP['2d'];
     SnookerOnline.clientId = localStorage.getItem('snooker_clientId');
     if (!SnookerOnline.clientId) {
         SnookerOnline.clientId = crypto.randomUUID();
@@ -450,7 +457,7 @@ async function snookerRematch() {
 // CREATE TABLE IF NOT EXISTS snooker_rooms (
 //   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 //   room_code        text NOT NULL UNIQUE,
-//   game_mode        text NOT NULL DEFAULT 'snooker',
+//   game_mode        text NOT NULL CHECK (game_mode IN ('2d','3d')),
 //   player1_id       text,
 //   player2_id       text,
 //   player1_name     text,
@@ -472,9 +479,10 @@ async function snookerRematch() {
 // DROP POLICY IF EXISTS "allow all" ON snooker_rooms;
 // CREATE POLICY "allow all" ON snooker_rooms FOR ALL USING (true) WITH CHECK (true);
 //
-// -- Insert the 3 fixed rooms (safe to re-run):
-// INSERT INTO snooker_rooms (room_code, game_mode)
-// VALUES ('ROOM01','snooker'), ('ROOM02','snooker'), ('ROOM03','snooker')
+// -- Insert the 6 fixed rooms – 3 per variant (safe to re-run):
+// INSERT INTO snooker_rooms (room_code, game_mode) VALUES
+//   ('ROOM01','2d'), ('ROOM02','2d'), ('ROOM03','2d'),
+//   ('3D-ROOM01','3d'), ('3D-ROOM02','3d'), ('3D-ROOM03','3d')
 // ON CONFLICT (room_code) DO NOTHING;
 //
 // CREATE TABLE IF NOT EXISTS snooker_shots (
