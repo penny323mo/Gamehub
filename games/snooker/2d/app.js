@@ -120,18 +120,20 @@
         statusMsgEl.textContent = `${msg}\n目標: ${getTargetLabel()} | 紅球: ${state.redRemaining}`;
       }
     } else {
-      scoreLeftEl.textContent = `P1: ${state.scores.player}`;
-      scoreRightEl.textContent = `AI: ${state.scores.ai}`;
+      const p1Name = state.mode === 'online' ? (state.onlineLocalName || 'You') : 'P1';
+      const p2Name = state.mode === 'online' ? (state.onlineRemoteName || 'Opp') : 'AI';
+      scoreLeftEl.textContent = `${p1Name}: ${state.scores.player}`;
+      scoreRightEl.textContent = `${p2Name}: ${state.scores.ai}`;
       scoreRightEl.style.visibility = 'visible';
 
       if (state.isComplete) {
         let result = '';
-        if (state.scores.player > state.scores.ai) result = '玩家獲勝!';
-        else if (state.scores.ai > state.scores.player) result = 'AI獲勝!';
+        if (state.scores.player > state.scores.ai) result = `${p1Name}獲勝!`;
+        else if (state.scores.ai > state.scores.player) result = `${p2Name}獲勝!`;
         else result = '平局!';
         statusMsgEl.textContent = `${result}\n最終比分 ${state.scores.player} - ${state.scores.ai}`;
       } else {
-        const turnLabel = state.turn === 'player' ? '玩家' : 'AI';
+        const turnLabel = state.turn === 'player' ? p1Name : p2Name;
         statusMsgEl.textContent = `${msg} (輪次: ${turnLabel})\n目標: ${getTargetLabel()} | 紅球: ${state.redRemaining} | 剩餘: ${maxScore}`;
       }
     }
@@ -140,9 +142,12 @@
   function reset() {
     if (state.aiTimer) { clearTimeout(state.aiTimer); state.aiTimer = null; }
     if (state.shotTimer) { clearTimeout(state.shotTimer); state.shotTimer = null; }
-    const m = modeSelect.value;
-    state.mode = m === 'practice' ? 'practice' : 'ai';
-    state.difficulty = m === 'practice' ? 'normal' : m;
+    // Online mode is set externally; do not overwrite it from modeSelect.
+    if (state.mode !== 'online') {
+      const m = modeSelect.value;
+      state.mode = m === 'practice' ? 'practice' : 'ai';
+      state.difficulty = m === 'practice' ? 'normal' : m;
+    }
     state.turn = 'player';
     state.aiThinking = false;
 
@@ -740,7 +745,7 @@
     const opponent = currentScorer === 'player' ? 'ai' : 'player';
 
     if (foul) {
-      if (state.mode === 'ai') {
+      if (state.mode === 'ai' || state.mode === 'online') {
         state.scores[opponent] += foulVal;
       } else {
         // Practice mode: negative score for player
@@ -799,7 +804,7 @@
     }
 
     updateTarget();
-    if (state.mode === 'ai' && !state.isComplete) {
+    if ((state.mode === 'ai' || state.mode === 'online') && !state.isComplete) {
       const validPot = !foul && state.shotPots.length > 0;
       if (!validPot) {
         state.turn = state.turn === 'player' ? 'ai' : 'player';
@@ -915,8 +920,19 @@
     // scale to px/s since physics now uses dt
     state.cue.vx = Math.cos(state.aimAngle) * power * 24;
     state.cue.vy = Math.sin(state.aimAngle) * power * 24;
-
     state.aiming = false;
+
+    // Broadcast in online mode (only for the local player's turn)
+    if (state.mode === 'online' && state.turn === 'player' && window.snookerSendShot) {
+      window.snookerSendShot({
+        angle:  state.aimAngle,
+        power,
+        spin_x: state.spin.x,
+        spin_y: state.spin.y,
+        cue_x:  state.cue.x,
+        cue_y:  state.cue.y,
+      });
+    }
   }
 
   function setAimFromPointer(x, y) {
@@ -1186,6 +1202,10 @@
     state.aiming = true;
   });
   startBtn.addEventListener('click', () => {
+    if (modeSelect.value === 'online') {
+      document.getElementById('snooker-online-overlay').classList.remove('hidden');
+      return;
+    }
     reset();
     state.aiming = true;
   });
@@ -1246,4 +1266,62 @@
 
   reset();
   tick();
+
+  // ── Online mode hooks ──────────────────────────────────────────────────────
+
+  /**
+   * Called by online.js when the room state changes.
+   * myRole: 'player1' | 'player2'
+   */
+  window.snookerOnlineRoomUpdate = function({ status, players, myRole } = {}) {
+    if (status === 'playing') {
+      state.mode = 'online';
+      // Map room roles to local/remote names
+      const localIdx  = myRole === 'player2' ? 1 : 0;
+      const remoteIdx = 1 - localIdx;
+      state.onlineLocalName  = players?.[localIdx]?.name  || (myRole === 'player1' ? 'P1' : 'P2');
+      state.onlineRemoteName = players?.[remoteIdx]?.name || (myRole === 'player1' ? 'P2' : 'P1');
+      state.onlineMyRole     = myRole;
+      // In local turn model: 'player' = local seat, 'ai' = remote seat
+      // player1 goes first; if local is player2 swap the starting turn
+      reset();
+      if (myRole === 'player2') state.turn = 'ai';
+      state.aiming = true;
+      // Collapse the online panel so the board is visible
+      document.getElementById('snooker-online-overlay').classList.add('hidden');
+      updateStatus();
+    } else if (status === 'finished') {
+      state.isComplete = true;
+      updateStatus('對手已離開，遊戲結束');
+    } else if (status === 'left') {
+      // Reset to offline mode
+      state.mode = 'practice';
+      modeSelect.value = 'practice';
+      updateStatus();
+    }
+  };
+
+  /**
+   * Called by online.js when the opponent fires a shot.
+   * payload: { angle, power, spin_x, spin_y, cue_x, cue_y }
+   */
+  window.snookerApplyRemoteShot = function(payload) {
+    if (state.mode !== 'online') return;
+    // Apply received cue position (covers cue-in-hand placements)
+    if (payload.cue_x != null) {
+      state.cue.x = payload.cue_x;
+      state.cue.y = payload.cue_y;
+    }
+    state.aimAngle = payload.angle;
+    state.spin     = { x: payload.spin_x || 0, y: payload.spin_y || 0 };
+    // Ensure we're in an aim-ready state
+    if (state.placingCue) {
+      state.placingCue      = false;
+      state.positionsConfirmed = true;
+      state.cueInHand       = false;
+    }
+    state.aiming = true;
+    state.phase  = 'aim';
+    shoot(payload.power);
+  };
 })();

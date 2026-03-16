@@ -2454,6 +2454,8 @@ function allStopped() {
 }
 
 function canTakeShot() {
+  // In online mode only allow the local player's turn
+  if (window.isOnlineMode && currentPlayer !== (window.onlineMyPlayerIndex ?? 0)) return false;
   return gameStarted && !gameOver && !shotInProgress && !cueBallInHand && !foulDecisionPending && stationaryTime >= settledDuration;
 }
 
@@ -3321,7 +3323,8 @@ function shootCueBall() {
     inputDebug.lastBlockReason = `shootBlocked reason=${canTakeShotReason()} cuePocketed=${cueBall.pocketed} cueInHand=${cueBallInHand}`;
     return;
   }
-  const strength = minCharge + power * (maxCharge - minCharge);
+  const currentPower = power; // capture before reset
+  const strength = minCharge + currentPower * (maxCharge - minCharge);
   const impulse = aimDirection.clone().multiplyScalar(strength * powerMultiplier);
   cueBall.velocity.add(impulse);
   if (cueBall.velocity.length() > cueSpeedCap) {
@@ -3331,6 +3334,19 @@ function shootCueBall() {
   power = 0;
   stationaryTime = 0;
   turnState = 'BALLS_MOVING';
+
+  // Broadcast in online mode
+  if (window.isOnlineMode && window.snookerSendShot) {
+    window.snookerSendShot({
+      aim_dx: aimDirection.x,
+      aim_dz: aimDirection.z,
+      power:  currentPower,
+      spin_x: spin.x,
+      spin_y: spin.y,
+      cue_x:  cueBall.position.x,
+      cue_z:  cueBall.position.z,
+    });
+  }
   startShot();
   updateUi();
 }
@@ -4796,5 +4812,67 @@ if (mobileControlsEl) {
   mobileControlsEl.addEventListener('mousemove', stopProp);
   mobileControlsEl.addEventListener('mouseup', stopProp);
 }
+
+// Apply a shot received from the remote player via online.js.
+window.snookerApplyRemoteShot = function(payload) {
+  if (!gameStarted || gameOver) return;
+  if (!payload) return;
+
+  // Apply cue ball position when it was placed in hand
+  if (cueBallInHand && payload.cue_x != null) {
+    cueBall.position.set(payload.cue_x, cueBall.position.y, payload.cue_z ?? 0);
+    cueBall.group.position.copy(cueBall.position);
+    cueBallInHand = false;
+    stationaryTime = settledDuration; // allow immediate shot
+  }
+
+  // Set aim direction
+  if (payload.aim_dx != null) {
+    aimDirection.set(payload.aim_dx, 0, payload.aim_dz ?? 0).normalize();
+    chargeLockedAimDirection.copy(aimDirection);
+  }
+
+  // Set spin
+  if (payload.spin_x != null) { spin.x = payload.spin_x; spin.y = payload.spin_y ?? 0; }
+
+  // Fire
+  const remotePower = payload.power ?? 0.3;
+  const strength    = minCharge + remotePower * (maxCharge - minCharge);
+  const impulse     = aimDirection.clone().multiplyScalar(strength * powerMultiplier);
+  cueBall.velocity.add(impulse);
+  if (cueBall.velocity.length() > cueSpeedCap) cueBall.velocity.setLength(cueSpeedCap);
+  isCharging     = false;
+  power          = 0;
+  stationaryTime = 0;
+  turnState      = 'BALLS_MOVING';
+  startShot();
+  updateUi();
+};
+
+// Online multiplayer room update hook.
+// Called by online.js when the Supabase room state changes.
+window.snookerOnlineRoomUpdate = function ({ status, players, myRole } = {}) {
+  if (status === 'playing') {
+    if (Array.isArray(players)) {
+      if (players[0]?.name) playerNames[0] = players[0].name;
+      if (players[1]?.name) playerNames[1] = players[1].name;
+    }
+    // Set online flags before resetGame so canTakeShot() guards correctly
+    window.isOnlineMode       = true;
+    window.onlineMyPlayerIndex = myRole === 'player2' ? 1 : 0;
+    resetGame({ startNow: true, aiMode: false });
+    updateUi();
+  } else if (status === 'finished') {
+    gameStarted = false;
+    gameOver    = true;
+    window.isOnlineMode = false;
+    setStatus('對手已離開，遊戲結束。', 5);
+    updateUi();
+  } else if (status === 'left') {
+    window.isOnlineMode = false;
+    setStatus('已返回離線模式。', 3);
+    updateUi();
+  }
+};
 
 animate();
