@@ -443,19 +443,20 @@ async function handleOnlineAction(actionType, payloadObj, actPlayerIndex = null)
 
     const pIndex = actPlayerIndex !== null ? actPlayerIndex : OnlineState.playerIndex;
 
-    const { error } = await OnlineState.sbClient.from('big2_actions').insert([{
+    const { data, error } = await OnlineState.sbClient.from('big2_actions').insert([{
         room_id: OnlineState.roomUuid,
         player_index: pIndex,
         action_type: actionType,
         payload: payloadObj
-    }]);
+    }]).select('id').single();
 
     if (error) {
         alert('Action failed: ' + error.message);
         return false;
     }
 
-    return true;
+    // Return the DB-assigned id so callers can track locally-applied actions
+    return data?.id ?? true;
 }
 
 async function exitFixedRoom() {
