@@ -7,6 +7,21 @@
     content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Snooker (簡化版)</title>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    .online-overlay{position:fixed;inset:0;z-index:100;background:rgba(5,10,20,.92);display:flex;align-items:center;justify-content:center}
+    .online-overlay.hidden{display:none}
+    .online-panel{background:#101a30;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:24px 28px;min-width:320px;max-width:420px;width:90%}
+    .online-panel h2{margin:0 0 16px;font-size:1.1rem;color:#6aa6ff}
+    .room-card{background:#0b1220;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .room-card .room-info{font-size:13px;color:#a9b6d6}
+    .room-card .room-status{font-size:12px;color:#ffd66a;margin-top:2px}
+    .online-btn{padding:7px 16px;border-radius:6px;border:1px solid rgba(255,255,255,.18);background:#1a2a44;color:#e7eefc;cursor:pointer;font-size:13px}
+    .online-btn:disabled{opacity:.4;cursor:default}
+    .online-btn.primary{background:#2563eb;border-color:#3b82f6}
+    .online-status-row{display:flex;gap:12px;margin-bottom:8px;font-size:13px;color:#a9b6d6}
+    #snooker-waiting-msg{color:#ffd66a;font-size:13px;margin:8px 0}
+    .hidden{display:none!important}
+  </style>
 </head>
 
 <body>
@@ -14,6 +29,58 @@
     <a href="../index.html" class="back-btn">← 返回</a>
     <h1>Snooker</h1>
   </header>
+
+  <!-- Online Overlay -->
+  <div id="snooker-online-overlay" class="online-overlay hidden">
+
+    <!-- Lobby -->
+    <div id="snooker-online-lobby" class="online-panel">
+      <h2>線上對戰 — 選擇房間</h2>
+      <div id="snooker-room-list">
+        <!-- ROOM01 -->
+        <div class="room-card">
+          <div class="room-info">
+            <div>ROOM01 &nbsp; <span id="snooker-room-players-ROOM01">-</span></div>
+            <div class="room-status" id="snooker-room-status-ROOM01">-</div>
+          </div>
+          <button class="online-btn primary" id="snooker-room-join-ROOM01" onclick="window.snookerJoinRoom('ROOM01')">加入</button>
+        </div>
+        <!-- ROOM02 -->
+        <div class="room-card">
+          <div class="room-info">
+            <div>ROOM02 &nbsp; <span id="snooker-room-players-ROOM02">-</span></div>
+            <div class="room-status" id="snooker-room-status-ROOM02">-</div>
+          </div>
+          <button class="online-btn primary" id="snooker-room-join-ROOM02" onclick="window.snookerJoinRoom('ROOM02')">加入</button>
+        </div>
+        <!-- ROOM03 -->
+        <div class="room-card">
+          <div class="room-info">
+            <div>ROOM03 &nbsp; <span id="snooker-room-players-ROOM03">-</span></div>
+            <div class="room-status" id="snooker-room-status-ROOM03">-</div>
+          </div>
+          <button class="online-btn primary" id="snooker-room-join-ROOM03" onclick="window.snookerJoinRoom('ROOM03')">加入</button>
+        </div>
+      </div>
+      <button class="online-btn" style="margin-top:8px;width:100%" onclick="document.getElementById('snooker-online-overlay').classList.add('hidden')">返回離線模式</button>
+    </div>
+
+    <!-- Room -->
+    <div id="snooker-online-room" class="online-panel hidden">
+      <h2>房間 <span id="snooker-room-id">-</span> &nbsp;|&nbsp; 你是 <span id="snooker-my-role">-</span></h2>
+      <div id="snooker-waiting-msg" style="display:none">等待對手加入...</div>
+      <div id="snooker-ready-area">
+        <div class="online-status-row">
+          <span id="snooker-p1-ready">P1: -</span>
+          <span id="snooker-p2-ready">P2: -</span>
+        </div>
+        <button class="online-btn primary" id="snooker-ready-btn" onclick="window.snookerToggleReady()" disabled>準備</button>
+      </div>
+      <button class="online-btn hidden" id="snooker-rematch-btn" style="margin-top:12px;width:100%" onclick="window.snookerRematch()">再來一局</button>
+      <button class="online-btn" style="margin-top:8px;width:100%" onclick="window.snookerExitRoom()">離開房間</button>
+    </div>
+
+  </div>
 
   <main class="layout">
     <section class="panel">
@@ -36,6 +103,7 @@
             <option value="easy">AI (簡單)</option>
             <option value="normal">AI (普通)</option>
             <option value="hard">AI (困難)</option>
+            <option value="online">🌐 線上對戰</option>
           </select>
           <button id="startBtn" class="btn btn--primary">開始遊戲</button>
           <button id="aimBtn" class="btn">確認白球</button>
@@ -58,7 +126,15 @@
     </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="../online.js"></script>
   <script src="app.js" defer></script>
+  <script>
+    // Init online module after DOM ready
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.initSnookerOnline) window.initSnookerOnline();
+    });
+  </script>
 </body>
 
 </html>
