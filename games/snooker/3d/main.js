@@ -2370,7 +2370,8 @@ function currentTargetLabel() {
 }
 
 function syncModeFromLobby() {
-  const mode = player2ModeSelect?.value === 'p2' ? 'p2' : 'ai';
+  const val = player2ModeSelect?.value;
+  const mode = val === 'p2' ? 'p2' : val === 'online' ? 'online' : 'ai';
   aiEnabled = mode === 'ai';
   playerNames[1] = aiEnabled ? 'AI' : 'P2';
 }
@@ -4789,6 +4790,7 @@ if (player2ModeSelect) {
 }
 if (startGameBtn) {
   startGameBtn.addEventListener('click', () => {
+    if (player2ModeSelect?.value === 'online') return; // handled by online overlay
     syncModeFromLobby();
     resetGame({ startNow: true, aiMode: aiEnabled });
     updateUi();

@@ -21,6 +21,7 @@
     .s3d-status-row{display:flex;gap:10px;margin:8px 0;font-size:12px;color:#a9b6d6}
     #snooker3d-waiting-msg{color:#ffd66a;font-size:12px;margin:6px 0}
     .s3d-hidden{display:none!important}
+    .hidden{display:none!important}
   </style>
 </head>
 
@@ -52,7 +53,7 @@
     </div>
 
     <!-- Room -->
-    <div id="snooker3d-online-room" class="s3d-panel s3d-hidden">
+    <div id="snooker3d-online-room" class="s3d-panel hidden">
       <h2>房間 <span id="snooker-room-id">-</span> &nbsp;|&nbsp; 你是 <span id="snooker-my-role">-</span></h2>
       <div id="snooker3d-waiting-msg" style="display:none">等待對手加入...</div>
       <div id="snooker-ready-area">
@@ -62,7 +63,7 @@
         </div>
         <button class="s3d-btn primary" id="snooker-ready-btn" onclick="window.snookerToggleReady()" disabled>準備</button>
       </div>
-      <button class="s3d-btn s3d-hidden" id="snooker-rematch-btn" style="margin-top:10px;width:100%" onclick="window.snookerRematch()">再來一局</button>
+      <button class="s3d-btn hidden" id="snooker-rematch-btn" style="margin-top:10px;width:100%" onclick="window.snookerRematch()">再來一局</button>
       <button class="s3d-btn" style="margin-top:8px;width:100%" onclick="window.snookerExitRoom()">離開房間</button>
     </div>
 
