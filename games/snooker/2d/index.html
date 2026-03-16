@@ -7,9 +7,76 @@
     content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Snooker (簡化版)</title>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Online overlay */
+    .snk-overlay { position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:200; display:flex; align-items:center; justify-content:center; }
+    .snk-overlay.hidden { display:none; }
+    .snk-panel { background:#1a2030; border:1px solid #3a4a6a; border-radius:12px; padding:24px 28px; min-width:320px; max-width:500px; color:#eee; font-family:system-ui,sans-serif; }
+    .snk-panel h2 { margin:0 0 16px; font-size:20px; color:#7ec8e3; }
+    .snk-room-card { background:#222d40; border:1px solid #3a4a6a; border-radius:8px; padding:12px 14px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .snk-room-info { font-size:13px; color:#aaa; }
+    .snk-room-info strong { color:#eee; font-size:14px; display:block; margin-bottom:2px; }
+    .snk-btn { padding:7px 16px; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600; }
+    .snk-btn-primary { background:#2a6bbf; color:#fff; }
+    .snk-btn-primary:hover:not(:disabled) { background:#3a7bcf; }
+    .snk-btn-secondary { background:#3a4a5a; color:#ddd; }
+    .snk-btn-secondary:hover:not(:disabled) { background:#4a5a6a; }
+    .snk-btn:disabled { opacity:.45; cursor:not-allowed; }
+    .snk-status-row { display:flex; gap:8px; align-items:center; margin-bottom:12px; font-size:13px; color:#aaa; }
+    .snk-ready-row { font-size:13px; color:#aaa; margin-bottom:10px; }
+    #snk-game-status { font-size:13px; background:#2a3a50; border-radius:5px; padding:4px 10px; color:#7ec8e3; }
+    #snk-game-over-actions button { margin-right:8px; }
+    .snk-online-mode-btn { margin-left:8px; }
+  </style>
 </head>
 
 <body>
+  <!-- Online Lobby Overlay -->
+  <div id="snk-online-lobby" class="snk-overlay hidden">
+    <div class="snk-panel">
+      <h2>Snooker 2D — 線上對戰</h2>
+      <div id="snk-lobby-rooms">
+        <div class="snk-room-card" id="snk-card-S2D_01">
+          <div class="snk-room-info"><strong>房間 1</strong><span id="snk-room-status-S2D_01">載入中…</span> | <span id="snk-room-players-S2D_01"></span></div>
+          <button class="snk-btn snk-btn-primary" id="snk-room-join-S2D_01" onclick="snookerJoinRoom('S2D_01')">加入</button>
+        </div>
+        <div class="snk-room-card" id="snk-card-S2D_02">
+          <div class="snk-room-info"><strong>房間 2</strong><span id="snk-room-status-S2D_02">載入中…</span> | <span id="snk-room-players-S2D_02"></span></div>
+          <button class="snk-btn snk-btn-primary" id="snk-room-join-S2D_02" onclick="snookerJoinRoom('S2D_02')">加入</button>
+        </div>
+        <div class="snk-room-card" id="snk-card-S2D_03">
+          <div class="snk-room-info"><strong>房間 3</strong><span id="snk-room-status-S2D_03">載入中…</span> | <span id="snk-room-players-S2D_03"></span></div>
+          <button class="snk-btn snk-btn-primary" id="snk-room-join-S2D_03" onclick="snookerJoinRoom('S2D_03')">加入</button>
+        </div>
+      </div>
+      <div style="margin-top:14px; text-align:right;">
+        <button class="snk-btn snk-btn-secondary" onclick="document.getElementById('snk-online-lobby').classList.add('hidden')">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Online Room Overlay -->
+  <div id="snk-online-room" class="snk-overlay hidden">
+    <div class="snk-panel">
+      <h2>房間 <span id="snk-current-room-id">—</span> &nbsp;<span id="snk-game-status"></span></h2>
+      <div class="snk-status-row">
+        你的身份：<strong id="snk-my-role">—</strong>
+      </div>
+      <div id="snk-waiting-msg" style="color:#facc15; margin-bottom:10px; display:none;"></div>
+      <div id="snk-ready-area" class="snk-ready-row hidden">
+        <div id="snk-p0-ready"></div>
+        <div id="snk-p1-ready"></div>
+        <button class="snk-btn snk-btn-primary" id="snk-ready-btn" style="margin-top:8px;" onclick="snookerToggleReady()" disabled>準備</button>
+      </div>
+      <div id="snk-game-over-actions" class="hidden" style="margin-top:14px;">
+        <button class="snk-btn snk-btn-primary" onclick="snookerRematch()">再來一局</button>
+      </div>
+      <div style="margin-top:14px; text-align:right;">
+        <button class="snk-btn snk-btn-secondary" onclick="snookerExitRoom()">離開房間</button>
+      </div>
+    </div>
+  </div>
+
   <header class="topbar">
     <a href="../index.html" class="back-btn">← 返回</a>
     <h1>Snooker</h1>
@@ -36,6 +103,7 @@
             <option value="easy">AI (簡單)</option>
             <option value="normal">AI (普通)</option>
             <option value="hard">AI (困難)</option>
+            <option value="online">線上對戰</option>
           </select>
           <button id="startBtn" class="btn btn--primary">開始遊戲</button>
           <button id="aimBtn" class="btn">確認白球</button>
@@ -58,7 +126,23 @@
     </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="../online.js"></script>
   <script src="app.js" defer></script>
+  <script>
+    // Init online mode when "線上對戰" is selected
+    document.addEventListener('DOMContentLoaded', () => {
+      const modeSelect = document.getElementById('modeSelect');
+      const startBtn = document.getElementById('startBtn');
+      const _origStart = startBtn?.onclick;
+      startBtn?.addEventListener('click', () => {
+        if (modeSelect?.value === 'online') {
+          initSnookerOnline('2d');
+          document.getElementById('snk-online-lobby')?.classList.remove('hidden');
+        }
+      }, true);
+    });
+  </script>
 </body>
 
 </html>

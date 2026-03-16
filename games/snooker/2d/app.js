@@ -65,6 +65,10 @@
     showExtendedGuide: true,
   };
 
+  // Online mode flag — false by default, set true by online.js on room join
+  window.snookerOnlineMode = false;
+  window.snookerState2D = state;  // expose for applyNetworkSnookerShot
+
   // config removed
 
   function getMaxScore() {
@@ -818,12 +822,20 @@
     state.shotPots = [];
     state.cuePotted = false;
 
+    // Online: transmit snapshot after resolving (only when this client just shot)
+    if (window.snookerOnlineMode && !window._snookerApplyingNetwork) {
+      if (typeof window._snookerTransmit === 'function') {
+        window._snookerTransmit(snookerCapture2D(state));
+      }
+    }
+
     if (state.turn === 'ai' && !state.isComplete) {
       state.aiming = true;
       state.phase = 'aim';
       state.inputState = 'ai_thinking';
       state.aiThinking = true;
-      state.aiTimer = setTimeout(aiDecide, 1500);
+      // Online: skip AI timer — opponent is a real player
+      if (!window.snookerOnlineMode) state.aiTimer = setTimeout(aiDecide, 1500);
     } else {
       state.aiming = true;
       state.phase = 'aim';
@@ -1243,6 +1255,69 @@
     state.showExtendedGuide = extendGuideChk.checked;
   });
 
+
+  // === Online 2D helpers ===
+
+  function snookerCapture2D(s) {
+    return {
+      currentPlayer: s.turn === 'player' ? 0 : 1,
+      scores: { player: s.scores.player, ai: s.scores.ai },
+      turn: s.turn,
+      target: s.target,
+      gamePhase: s.gamePhase,
+      redRemaining: s.redRemaining,
+      clearanceIndex: s.clearanceIndex,
+      isComplete: s.isComplete,
+      balls: s.balls.map(b => ({
+        type: b.type, isCue: b.isCue, alive: b.alive,
+        x: b.x, y: b.y, vx: 0, vy: 0,
+      })),
+    };
+  }
+
+  window.applyNetworkSnookerShot = function(snapshot) {
+    if (!snapshot) return;
+    console.log('[SNK 2D] Applying network snapshot, currentPlayer:', snapshot.currentPlayer);
+
+    // Restore ball positions
+    if (snapshot.balls) {
+      for (const sb of snapshot.balls) {
+        const b = state.balls.find(x => x.type === sb.type && !!x.isCue === !!sb.isCue);
+        if (!b) continue;
+        b.alive = sb.alive;
+        b.x = sb.x; b.y = sb.y;
+        b.vx = 0; b.vy = 0;
+      }
+    }
+
+    // Restore game state
+    if (snapshot.scores) { state.scores.player = snapshot.scores.player; state.scores.ai = snapshot.scores.ai; }
+    if (snapshot.turn !== undefined) state.turn = snapshot.turn;
+    if (snapshot.target !== undefined) state.target = snapshot.target;
+    if (snapshot.gamePhase !== undefined) state.gamePhase = snapshot.gamePhase;
+    if (snapshot.redRemaining !== undefined) state.redRemaining = snapshot.redRemaining;
+    if (snapshot.clearanceIndex !== undefined) state.clearanceIndex = snapshot.clearanceIndex;
+    if (snapshot.isComplete !== undefined) state.isComplete = snapshot.isComplete;
+
+    // Set up aiming state based on whose turn it is
+    const myTurn = (snapshot.currentPlayer === 0 && window.snookerMyPlayer === 0) ||
+                   (snapshot.currentPlayer === 1 && window.snookerMyPlayer === 1);
+
+    state.aiming = true;
+    state.phase = 'aim';
+    state.aiThinking = false;
+    if (myTurn) {
+      state.inputState = 'aiming';
+    } else {
+      state.inputState = 'ai_thinking'; // repurposed as "waiting for opponent"
+    }
+
+    updateStatus();
+  };
+
+  window.snookerOnlineResetGame = function() {
+    reset();
+  };
 
   reset();
   tick();

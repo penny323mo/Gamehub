@@ -2200,6 +2200,9 @@ cueGroup.visible = false;
 cueGroup.renderOrder = 2;
 scene.add(cueGroup);
 
+// Online mode flag — false by default, set true by online.js on room join
+window.snookerOnlineMode = false;
+
 let scores = [0, 0];
 let currentPlayer = 0;
 let turn = 1;
@@ -3081,9 +3084,15 @@ function applyFoulDecision(forceFoulerContinue) {
   stationaryTime = cueBallInHand ? 0 : settledDuration;
   foulDecisionPending = false;
   foulDecisionContext = null;
-  aiQueued = aiEnabled && currentPlayer === 1 && !cueBallInHand;
+  aiQueued = !window.snookerOnlineMode && aiEnabled && currentPlayer === 1 && !cueBallInHand;
   updateAimLine();
   updateUi();
+  // Online: transmit after foul decision is applied (only the decision-maker transmits)
+  if (window.snookerOnlineMode && !window._snookerApplyingNetwork) {
+    if (typeof window._snookerTransmit === 'function') {
+      window._snookerTransmit(snookerCapture3D());
+    }
+  }
 }
 
 function endShot() {
@@ -3199,8 +3208,14 @@ function endShot() {
   }
 
   updateUi();
-  if (aiEnabled && currentPlayer === 1) {
+  if (!window.snookerOnlineMode && aiEnabled && currentPlayer === 1) {
     aiQueued = true;
+  }
+  // Online: transmit snapshot after resolving (only when this client just shot)
+  if (window.snookerOnlineMode && !window._snookerApplyingNetwork) {
+    if (typeof window._snookerTransmit === 'function') {
+      window._snookerTransmit(snookerCapture3D());
+    }
   }
 }
 
@@ -4798,3 +4813,98 @@ if (mobileControlsEl) {
 }
 
 animate();
+
+// === Online 3D helpers ===
+
+function snookerCapture3D() {
+  return {
+    currentPlayer,
+    turn,
+    scores: [...scores],
+    expectingColor,
+    colorClearIndex,
+    freeBallAvailable,
+    snookered,
+    cueBallInHand,
+    gameOver,
+    foulDecisionPending,
+    foulDecisionContext: foulDecisionContext ? Object.assign({}, foulDecisionContext) : null,
+    balls: balls.map(b => ({
+      type: b.type,
+      pocketed: b.pocketed,
+      x: b.position.x,
+      y: b.position.y,
+      z: b.position.z,
+    })),
+  };
+}
+
+window.applyNetworkSnookerShot = function(snapshot) {
+  if (!snapshot) return;
+  console.log('[SNK 3D] Applying network snapshot, currentPlayer:', snapshot.currentPlayer);
+
+  // Restore ball positions
+  if (snapshot.balls) {
+    for (const sb of snapshot.balls) {
+      const b = balls.find(x => x.type === sb.type);
+      if (!b) continue;
+      b.pocketed = sb.pocketed;
+      b.position.set(sb.x, sb.y, sb.z);
+      b.velocity.set(0, 0, 0);
+      b.group.position.copy(b.position);
+      b.group.visible = !sb.pocketed;
+    }
+  }
+
+  // Restore game vars
+  if (snapshot.scores) { scores[0] = snapshot.scores[0]; scores[1] = snapshot.scores[1]; }
+  if (snapshot.currentPlayer !== undefined) currentPlayer = snapshot.currentPlayer;
+  if (snapshot.turn !== undefined) turn = snapshot.turn;
+  if (snapshot.expectingColor !== undefined) expectingColor = snapshot.expectingColor;
+  if (snapshot.colorClearIndex !== undefined) colorClearIndex = snapshot.colorClearIndex;
+  if (snapshot.freeBallAvailable !== undefined) freeBallAvailable = snapshot.freeBallAvailable;
+  if (snapshot.snookered !== undefined) snookered = snapshot.snookered;
+  if (snapshot.cueBallInHand !== undefined) cueBallInHand = snapshot.cueBallInHand;
+  if (snapshot.gameOver !== undefined) gameOver = snapshot.gameOver;
+  if (snapshot.foulDecisionPending !== undefined) foulDecisionPending = snapshot.foulDecisionPending;
+  if (snapshot.foulDecisionContext !== undefined) foulDecisionContext = snapshot.foulDecisionContext;
+
+  shotInProgress = false;
+  stationaryTime = cueBallInHand ? 0 : settledDuration;
+
+  // In online mode, never queue AI
+  aiQueued = false;
+
+  updateAimLine();
+  updateUi();
+};
+
+window.snookerOnlineResetGame = function() {
+  // Reset triggered by round_id change (rematch)
+  scores = [0, 0];
+  currentPlayer = 0;
+  turn = 1;
+  expectingColor = false;
+  colorClearIndex = 0;
+  freeBallAvailable = false;
+  snookered = false;
+  cueBallInHand = true;
+  gameOver = false;
+  foulDecisionPending = false;
+  foulDecisionContext = null;
+  shotInProgress = false;
+  aiQueued = false;
+  // Re-place balls to initial positions
+  for (const b of balls) {
+    const init = initialPositions.get(b);
+    if (init) {
+      b.pocketed = false;
+      b.position.copy(init);
+      b.velocity.set(0, 0, 0);
+      b.group.position.copy(init);
+      b.group.visible = true;
+    }
+  }
+  updateAimLine();
+  updateUi();
+};
