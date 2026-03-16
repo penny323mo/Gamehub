@@ -177,15 +177,32 @@ async function joinFixedRoom(roomKey) {
     let query = SnookerOnline.sbClient.from('snooker_rooms').update(updateData).eq('id', room.id);
     if (conditionField) query = query.is(conditionField, null);
 
-    const { data: updatedRows, error: updateErr } = await query.select();
+    const { error: updateErr } = await query;
+    if (updateErr) {
+        console.error('[SnookerOnline] join update error:', updateErr);
+        alert('加入失敗: ' + (updateErr.message || '未知錯誤'));
+        fetchLobbyRooms();
+        return;
+    }
 
-    if (updateErr || !updatedRows || updatedRows.length === 0) {
+    // Verify we actually got the slot (re-fetch is more reliable than checking updatedRows)
+    const { data: freshRoom, error: fetchErr } = await SnookerOnline.sbClient
+        .from('snooker_rooms').select('*').eq('id', room.id).single();
+
+    if (fetchErr || !freshRoom) {
+        alert('加入失敗，讀取房間出錯');
+        fetchLobbyRooms();
+        return;
+    }
+
+    // If we tried to claim a slot, verify we actually got it
+    if (conditionField && freshRoom[conditionField] !== SnookerOnline.clientId) {
         alert('加入失敗，位置可能被搶走');
         fetchLobbyRooms();
         return;
     }
 
-    Object.assign(room, updatedRows[0]);
+    Object.assign(room, freshRoom);
     SnookerOnline.hasSeat       = true;
     SnookerOnline.roomKey       = roomKey;
     SnookerOnline.roomUuid      = room.id;

@@ -103,9 +103,9 @@
             <option value="easy">AI (簡單)</option>
             <option value="normal">AI (普通)</option>
             <option value="hard">AI (困難)</option>
-            <option value="online">🌐 線上對戰</option>
           </select>
           <button id="startBtn" class="btn btn--primary">開始遊戲</button>
+          <button id="onlineBtn" class="btn" style="background:#2563eb;color:#fff;border-color:#3b82f6">🌐 線上對戰</button>
           <button id="aimBtn" class="btn">確認白球</button>
           <button id="restartBtn2" class="btn">重新開始</button>
         </div>
@@ -127,12 +127,15 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="../online.js"></script>
+  <script src="../online.js?v=20260316a"></script>
   <script src="app.js" defer></script>
   <script>
     // Init online module after DOM ready
     document.addEventListener('DOMContentLoaded', () => {
       if (window.initSnookerOnline) window.initSnookerOnline({ gameMode: '2d' });
+      document.getElementById('onlineBtn').addEventListener('click', () => {
+        document.getElementById('snooker-online-overlay').classList.remove('hidden');
+      });
     });
   </script>
 </body>
