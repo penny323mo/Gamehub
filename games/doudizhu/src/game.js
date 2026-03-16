@@ -1,6 +1,15 @@
 // Game state + actions (no-module build)
 (() => {
   const DDZ = window.DDZ = window.DDZ || {};
+  
+  function getMyIndex() {
+    return window.gameMode === 'online' ? window.onlinePlayerIndex : 0;
+  }
+  
+  function isMyTurn(state) {
+    return state.current === getMyIndex();
+  }
+
   const { makeDeck, shuffle, sortCards, cardId, cardToText } = DDZ;
   const { evalHand, canBeat } = DDZ;
   const { clearMovesCache } = DDZ;
@@ -192,7 +201,15 @@
 
     function cpuStep(){
       if (state.phase !== 'play') return;
-      if (state.current === 0) return;
+      if (window.gameMode === 'online') {
+        // If it's a CPU turn in an online room without a real player, 
+        // the host handles the CPU. If there's a player, wait for them.
+        const currentId = window.currentRoom ? window.currentRoom[`player${state.current}_id`] : null;
+        if (currentId) return; // Wait for real player
+        if (!window.isOnlineHost()) return; // Only host drives CPU
+      } else {
+        if (state.current === 0) return;
+      }
 
       const idx = state.current;
       const hand = state.players[idx].hand;
@@ -208,25 +225,105 @@
       const move = cpuChooseMove(hand, state.lastPlay, context);
 
       if (!move){
-        if (state.lastPlay) applyPass(idx);
+        if (state.lastPlay) {
+          if (window.gameMode === 'online') window.handleOnlineAction('pass_turn', {}, idx);
+          else applyPass(idx);
+        }
         else {
-          applyPlay(idx, [hand[0]]);
+          if (window.gameMode === 'online') window.handleOnlineAction('play_cards', { cards: [hand[0]] }, idx);
+          else applyPlay(idx, [hand[0]]);
         }
       } else {
-        applyPlay(idx, move.cards);
+        if (window.gameMode === 'online') window.handleOnlineAction('play_cards', { cards: move.cards }, idx);
+        else applyPlay(idx, move.cards);
       }
     }
+    
+    // --- Online Hooks ---
+    window.handleRoomSync = function(room) {
+      if (room.status !== 'playing' || !room.initial_deck) return;
+
+      if (state.phase === 'idle' || state.phase === 'over') {
+        resetForNewRound();
+        
+        const deck = room.initial_deck;
+        state.players.forEach(p => { p.hand = []; p.role = null; });
+
+        for (let i=0;i<51;i++) state.players[i%3].hand.push(deck[i]);
+        state.bottom = deck.slice(51);
+        for (const p of state.players) p.hand = sortCards(p.hand);
+
+        // Map names
+        for (let i = 0; i < 3; i++) {
+          if (room[`player${i}_id`]) {
+            state.players[i].name = `Player ${i + 1}`;
+            if (i === window.onlinePlayerIndex) state.players[i].name += ' (You)';
+          } else {
+            state.players[i].name = `CPU ${i + 1}`;
+          }
+        }
+
+        state.phase = 'bid';
+        state.bid.start = 0; 
+        state.bid.cursor = state.bid.start;
+        state.bid.calledBy = null;
+        state.bid.robCount = 0;
+        state.bid.passed = [false,false,false];
+
+        state.current = state.bid.cursor;
+        state.log = [];
+        pushLog('線上對局開始，開始叫地主。');
+        
+        if (window.DDZ.render) window.DDZ.render(window.__ddz);
+        
+        // Host trigger first bid if it is CPU
+        if (window.isOnlineHost() && !room[`player${state.current}_id`]) {
+           setTimeout(() => { if (window.__ddz.actions.cpuBidStep) window.__ddz.actions.cpuBidStep(); }, 1500);
+        }
+      }
+    };
+    
+    window.applyNetworkAction = function(action) {
+      const { player_index, action_type, payload } = action;
+      state.current = player_index; // Force sync turn
+      
+      if (action_type === 'bid_call') bidCall();
+      else if (action_type === 'bid_rob') bidRob();
+      else if (action_type === 'bid_pass') bidPass();
+      else if (action_type === 'play_cards') applyPlay(player_index, payload.cards);
+      else if (action_type === 'pass_turn') applyPass(player_index);
+      
+      if (window.DDZ.render) window.DDZ.render(window.__ddz);
+      
+      // Auto CPU trigger for next turn if we are host and it is a CPU turn
+      if (window.gameMode === 'online' && window.isOnlineHost()) {
+         const nextId = window.currentRoom ? window.currentRoom[`player${state.current}_id`] : null;
+         if (!nextId) {
+            if (state.phase === 'bid') setTimeout(() => { if (window.__ddz.actions.cpuBidStep) window.__ddz.actions.cpuBidStep(); }, 1500);
+            else if (state.phase === 'play') setTimeout(() => { cpuStep(); }, 1500);
+         }
+      }
+    };
 
     return {
       state,
       actions: {
         restart(){ deal(); },
-        bidCall(){ bidCall(); },
-        bidPass(){ bidPass(); },
-        bidRob(){ bidRob(); },
-        playSelected(){
+        async bidCall(){ 
+          if (window.gameMode === 'online') await window.handleOnlineAction('bid_call', {}); 
+          else bidCall(); 
+        },
+        async bidPass(){ 
+          if (window.gameMode === 'online') await window.handleOnlineAction('bid_pass', {}); 
+          else bidPass(); 
+        },
+        async bidRob(){ 
+          if (window.gameMode === 'online') await window.handleOnlineAction('bid_rob', {}); 
+          else bidRob(); 
+        },
+        async playSelected(){
           if (state.phase !== 'play') return;
-          if (state.current !== 0) return;
+          if (!isMyTurn(state)) return;
           const cards = getSelectedCards();
           if (!cards.length) return;
 
@@ -234,21 +331,44 @@
           if (!ev) return;
           if (state.lastPlay && !canBeat(ev, state.lastPlay.eval)) return;
 
-          try {
-            applyPlay(0, cards);
-            state.ui.selected.clear();
-          } catch (e){
-            console.warn('Invalid play:', e);
+          if (window.gameMode === 'online') {
+            const ok = await window.handleOnlineAction('play_cards', { cards });
+            if (ok) state.ui.selected.clear();
+          } else {
+            try {
+              applyPlay(0, cards);
+              state.ui.selected.clear();
+            } catch (e){
+              console.warn('Invalid play:', e);
+            }
           }
         },
-        pass(){
+        async pass(){
           if (state.phase !== 'play') return;
-          if (state.current !== 0) return;
+          if (!isMyTurn(state)) return;
           if (!state.lastPlay) return;
           state.ui.selected.clear();
-          applyPass(0);
+          
+          if (window.gameMode === 'online') {
+            await window.handleOnlineAction('pass_turn', {});
+          } else {
+            applyPass(0);
+          }
         },
         cpuStep,
+        cpuBidStep() {
+            if (state.phase !== 'bid') return;
+            const idx = state.current;
+            const currentId = window.currentRoom ? window.currentRoom[`player${idx}_id`] : null;
+            if (currentId) return; // Wait for real player
+            if (!window.isOnlineHost()) return;
+            
+            const hand = state.players[idx].hand;
+            const decision = cpuBidDecision(hand, state.bid);
+            if (decision === 'call') window.handleOnlineAction('bid_call', {}, idx);
+            else if (decision === 'rob') window.handleOnlineAction('bid_rob', {}, idx);
+            else window.handleOnlineAction('bid_pass', {}, idx);
+        }
       }
     };
   }

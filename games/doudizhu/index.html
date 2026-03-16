@@ -15,81 +15,150 @@
   </header>
 
   <main class="layout">
-    <section class="panel">
-      <h2>Game</h2>
-      <div id="status" class="status" aria-live="polite">Loading…</div>
-      <div id="log" class="log" aria-live="polite"></div>
+    <!-- Landing Page / Menu -->
+    <section id="landing-page" class="panel panel--landing" style="text-align:center; padding: 40px;">
+      <h2>選擇遊戲模式</h2>
+      <div style="display:flex; flex-direction:column; gap:15px; margin-top:30px; align-items:center;">
+        <button id="btn-local-ai" class="btn btn--primary" style="font-size:1.2rem; padding:15px 30px;" onclick="window.setGameMode('local')">🆚 對戰電腦 (CPU)</button>
+        <button id="btn-online" class="btn btn--action" style="font-size:1.2rem; padding:15px 30px; background:#4CAF50;" onclick="window.setGameMode('online-lobby')">🌐 線上對戰 (3人連線)</button>
+        <button id="btn-back-menu" class="btn btn--nav" style="margin-top:20px;" onclick="window.location.href='../../index.html'">← 返回 Game Hub</button>
+      </div>
+    </section>
 
-      <div class="tableFrame" aria-label="Table">
-        <div class="tableFelt">
-          <div class="tableGrid" aria-label="Table seats">
-            <div class="seat seat--topRight" id="seat2">
-              <div class="seat__hdr">
-                <div class="seat__name" id="p2Name">CPU 2</div>
-                <div class="seat__meta" id="p2Meta"></div>
-              </div>
-              <div class="seat__body" id="p2Body"></div>
-            </div>
-
-            <div class="seat seat--topLeft" id="seat1">
-              <div class="seat__hdr">
-                <div class="seat__name" id="p1Name">CPU 1</div>
-                <div class="seat__meta" id="p1Meta"></div>
-              </div>
-              <div class="seat__body" id="p1Body"></div>
-            </div>
-
-            <div class="tableCenter">
-              <div class="centerCol">
-                <div class="muted" id="tableInfo"></div>
-                <div class="centerRow">
-                  <div class="pile">
-                    <div class="muted">Bottom (3)</div>
-                    <div id="bottom" class="pile__cards" aria-label="Bottom cards"></div>
-                  </div>
-                  <div class="pile">
-                    <div class="muted">Last play</div>
-                    <div id="lastPlay" class="pile__cards" aria-label="Last play"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="seat seat--bottom" id="seat0">
-              <div class="seat__hdr">
-                <div class="seat__name" id="p0Name">You</div>
-                <div class="seat__meta" id="p0Meta"></div>
-              </div>
-              <div class="seat__body" id="p0Body"></div>
-            </div>
+    <!-- Online Lobby -->
+    <section id="online-lobby" class="panel hidden" style="text-align:center; padding: 20px;">
+      <h2>線上大廳</h2>
+      <p class="muted">選擇房間加入對戰</p>
+      <div class="room-list" style="display:flex; flex-direction:column; gap:10px; margin-top:20px; max-width:400px; margin-left:auto; margin-right:auto;">
+        <div class="room-card" style="border:1px solid #ccc; padding:15px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-weight:bold; font-size:1.1rem;">ROOM 01</div>
+            <div id="room-status-ROOM01" class="muted" style="font-size:0.9rem;">Loading...</div>
+          </div>
+          <div>
+            <div id="room-players-ROOM01" style="font-size:0.9rem; margin-bottom:5px;">- / 3 Players</div>
+            <button id="room-join-ROOM01" class="btn btn--primary" onclick="joinFixedRoom('ROOM01')">Join</button>
+          </div>
+        </div>
+        <div class="room-card" style="border:1px solid #ccc; padding:15px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-weight:bold; font-size:1.1rem;">ROOM 02</div>
+            <div id="room-status-ROOM02" class="muted" style="font-size:0.9rem;">Loading...</div>
+          </div>
+          <div>
+            <div id="room-players-ROOM02" style="font-size:0.9rem; margin-bottom:5px;">- / 3 Players</div>
+            <button id="room-join-ROOM02" class="btn btn--primary" onclick="joinFixedRoom('ROOM02')">Join</button>
+          </div>
+        </div>
+        <div class="room-card" style="border:1px solid #ccc; padding:15px; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-weight:bold; font-size:1.1rem;">ROOM 03</div>
+            <div id="room-status-ROOM03" class="muted" style="font-size:0.9rem;">Loading...</div>
+          </div>
+          <div>
+            <div id="room-players-ROOM03" style="font-size:0.9rem; margin-bottom:5px;">- / 3 Players</div>
+            <button id="room-join-ROOM03" class="btn btn--primary" onclick="joinFixedRoom('ROOM03')">Join</button>
           </div>
         </div>
       </div>
+      <button class="btn btn--back" style="margin-top:20px;" onclick="window.setGameMode('landing')">返回主選單</button>
     </section>
 
-    <section class="panel">
-      <h2>You</h2>
-      <div class="actions">
-        <button id="bidCallBtn" class="btn btn--primary">Call Landlord</button>
-        <button id="bidRobBtn" class="btn">Rob</button>
-        <button id="bidPassBtn" class="btn">Pass</button>
-        <span class="sep"></span>
-        <button id="playBtn" class="btn btn--primary">Play Selected</button>
-        <button id="hintBtn" class="btn">Hint</button>
-        <button id="cancelBtn" class="btn">Cancel</button>
-        <button id="passBtn" class="btn">Pass</button>
-        <div id="hint" class="hint"></div>
-        <div class="hotkeys">快捷鍵：Enter 出牌｜Space Pass｜H 提示｜C 取消</div>
+    <!-- Game Container (Hidden until mode is selected) -->
+    <div id="doudizhu-game" class="hidden">
+
+      <!-- Online Room Status (Ready Box) -->
+      <section id="online-room" class="panel panel--player hidden" style="margin-bottom:10px; padding:10px; border:1px solid #4CAF50;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <strong><span id="current-room-id">ROOM</span> | <span id="my-role">Seat ?</span></strong>
+          <button class="btn btn--back" style="padding:4px 8px; font-size:0.8rem; background:#f44336;" onclick="exitFixedRoom()">退出房間</button>
+        </div>
+        <div id="ready-status" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:0.9rem;">
+          <span id="p0-ready-status">P1: Loading</span>
+          <span id="p1-ready-status">P2: Loading</span>
+          <span id="p2-ready-status">P3: Loading</span>
+          <button id="toggle-ready-btn" class="btn btn--primary" onclick="toggleReady()" style="margin-left:auto; padding:4px 10px;">Ready</button>
+          <button id="start-game-btn" class="btn btn--danger hidden" onclick="forceStartGame()" style="margin-left:10px; padding:4px 10px; background-color: #f44336; color: white;">Start Game</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Game</h2>
+        <div id="status" class="status" aria-live="polite">Loading…</div>
+        <div id="log" class="log" aria-live="polite"></div>
+
+        <div class="tableFrame" aria-label="Table">
+          <div class="tableFelt">
+            <div class="tableGrid" aria-label="Table seats">
+              <div class="seat seat--topRight" id="seat2">
+                <div class="seat__hdr">
+                  <div class="seat__name" id="p2Name">CPU 2</div>
+                  <div class="seat__meta" id="p2Meta"></div>
+                </div>
+                <div class="seat__body" id="p2Body"></div>
+              </div>
+
+              <div class="seat seat--topLeft" id="seat1">
+                <div class="seat__hdr">
+                  <div class="seat__name" id="p1Name">CPU 1</div>
+                  <div class="seat__meta" id="p1Meta"></div>
+                </div>
+                <div class="seat__body" id="p1Body"></div>
+              </div>
+
+              <div class="tableCenter">
+                <div class="centerCol">
+                  <div class="muted" id="tableInfo"></div>
+                  <div class="centerRow">
+                    <div class="pile">
+                      <div class="muted">Bottom (3)</div>
+                      <div id="bottom" class="pile__cards" aria-label="Bottom cards"></div>
+                    </div>
+                    <div class="pile">
+                      <div class="muted">Last play</div>
+                      <div id="lastPlay" class="pile__cards" aria-label="Last play"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="seat seat--bottom" id="seat0">
+                <div class="seat__hdr">
+                  <div class="seat__name" id="p0Name">You</div>
+                  <div class="seat__meta" id="p0Meta"></div>
+                </div>
+                <div class="seat__body" id="p0Body"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>You</h2>
+        <div class="actions">
+          <button id="bidCallBtn" class="btn btn--primary">Call Landlord</button>
+          <button id="bidRobBtn" class="btn">Rob</button>
+          <button id="bidPassBtn" class="btn">Pass</button>
+          <span class="sep"></span>
+          <button id="playBtn" class="btn btn--primary">Play Selected</button>
+          <button id="hintBtn" class="btn">Hint</button>
+          <button id="cancelBtn" class="btn">Cancel</button>
+          <button id="passBtn" class="btn">Pass</button>
+          <div id="hint" class="hint"></div>
+          <div class="hotkeys">快捷鍵：Enter 出牌｜Space Pass｜H 提示｜C 取消</div>
+        </div>
+
+        <div id="hand" class="hand" aria-label="Your hand"></div>
+      </section>
+
+      <!-- 底部控制按鈕 -->
+      <div class="bottomControls" id="bottomControls">
+        <a href="../../index.html" class="btn btn--nav">← 返回 Menu</a>
+        <button id="startGameBtn" class="btn btn--nav btn--start">開始遊戲</button>
+        <button id="restartBtn" class="btn btn--nav">重新開始</button>
       </div>
 
-      <div id="hand" class="hand" aria-label="Your hand"></div>
-    </section>
-
-    <!-- 底部控制按鈕 -->
-    <div class="bottomControls" id="bottomControls">
-      <a href="../../index.html" class="btn btn--nav">← 返回 Menu</a>
-      <button id="startGameBtn" class="btn btn--nav btn--start">開始遊戲</button>
-      <button id="restartBtn" class="btn btn--nav">重新開始</button>
     </div>
   </main>
 
@@ -123,6 +192,8 @@
     </details>
   </footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./src/online.js" defer></script>
   <script src="./src/cards.js" defer></script>
   <script src="./src/rules.js" defer></script>
   <script src="./src/moves.js" defer></script>
@@ -131,5 +202,4 @@
   <script src="./src/ui.js" defer></script>
   <script src="./main.js" defer></script>
 </body>
-
 </html>

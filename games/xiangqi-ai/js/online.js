@@ -32,11 +32,17 @@ function initOnlineMode() {
     }
     console.log('[Online] ClientId:', OnlineState.clientId);
 
-    if (window.supabase) {
+    // Fix X6: Reuse existing Supabase client to avoid connection leaks
+    if (OnlineState.sbClient) {
+        console.log('[Online] Supabase already initialized, reusing client');
+    } else if (window.supabase && window.supabase.createClient) {
         OnlineState.sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY.trim(), {
             auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }
         });
         console.log('[Online] Supabase initialized');
+    } else if (window.supabase && window.supabase.from) {
+        OnlineState.sbClient = window.supabase;
+        console.log('[Online] Supabase client recovered from window.supabase');
     } else {
         console.error('[Online] Supabase SDK not loaded');
         return;
@@ -346,14 +352,20 @@ async function toggleReady() {
     const otherReadyField = OnlineState.playerRole === 'red' ? 'black_ready' : 'red_ready';
 
     // 如果雙方都準備好，自動進入 playing 狀態
+    // Fix X3: Add condition to prevent double-setting playing when both toggle simultaneously
     if (newReady && room[otherReadyField] && room.status === 'waiting') {
         updateData.status = 'playing';
         updateData.current_player = 'red';
         updateData.turn_deadline_at = new Date(Date.now() + TURN_TIME_LIMIT_S * 1000).toISOString();
         if (window.resetGameParams) window.resetGameParams();
+        // Fix X3: condition update to prevent race when both toggle simultaneously
+        await OnlineState.sbClient.from('xiangqi_rooms').update(updateData)
+            .eq('id', OnlineState.roomUuid)
+            .eq('status', 'waiting');
+    } else {
+        await OnlineState.sbClient.from('xiangqi_rooms').update(updateData)
+            .eq('id', OnlineState.roomUuid);
     }
-
-    await OnlineState.sbClient.from('xiangqi_rooms').update(updateData).eq('id', OnlineState.roomUuid);
 }
 
 async function handleOnlineMove(from_idx, to_idx, packedMove, moveColor) {
@@ -412,11 +424,33 @@ function subscribeToMoves() {
             const move = payload.new;
             if (move && move.id && !OnlineState.appliedMoveIds.has(move.id)) {
                 OnlineState.appliedMoveIds.add(move.id);
-                if (window.applyNetworkMove) {
-                    window.applyNetworkMove(move.packed_move, move.color);
-                }
+                // Fix X7: Queue moves by move_no to ensure ordering
+                queueAndApplyMove(move);
             }
         }).subscribe();
+}
+
+// Fix X7: Move queue to ensure ordering
+const _moveQueue = [];
+let _processingMoves = false;
+
+function queueAndApplyMove(move) {
+    _moveQueue.push(move);
+    _moveQueue.sort((a, b) => (a.move_no || 0) - (b.move_no || 0));
+    processMovesQueue();
+}
+
+async function processMovesQueue() {
+    if (_processingMoves) return;
+    _processingMoves = true;
+    while (_moveQueue.length > 0) {
+        const m = _moveQueue.shift();
+        if (window.applyNetworkMove) {
+            window.applyNetworkMove(m.packed_move, m.color);
+        }
+        await new Promise(r => setTimeout(r, 30));
+    }
+    _processingMoves = false;
 }
 
 async function fetchAndApplyMoves() {
@@ -434,6 +468,13 @@ async function fetchAndApplyMoves() {
 
 async function exitFixedRoom() {
     if (!OnlineState.sbClient || !OnlineState.roomUuid) { cleanupAndReturnToLobby(); return; }
+
+    // Fix X5: Confirm before leaving a playing game
+    const room = window.currentRoom;
+    if (room && room.status === 'playing') {
+        if (!confirm('退出將會判負，確定要退出嗎？')) return;
+    }
+
     stopHeartbeat();
 
     const updateData = { last_activity_at: new Date().toISOString() };
@@ -443,7 +484,6 @@ async function exitFixedRoom() {
         updateData.black_player_id = null; updateData.black_ready = false;
     }
 
-    const room = window.currentRoom;
     if (room?.status === 'playing') {
         updateData.status = 'finished';
         updateData.winner_color = OnlineState.playerRole === 'red' ? 'black' : 'red';
@@ -505,12 +545,14 @@ async function surrenderGame() {
 
 async function notifyOnlineGameOver(winnerColor, reason) {
     if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+    // Fix X1: Add condition update to prevent double-write race
     await OnlineState.sbClient.from('xiangqi_rooms').update({
         status: 'finished',
         winner_color: winnerColor,
         finished_reason: reason,
         turn_deadline_at: null
-    }).eq('id', OnlineState.roomUuid);
+    }).eq('id', OnlineState.roomUuid)
+      .eq('status', 'playing');  // Only update if still playing
 }
 
 function startTurnTimer(deadlineIso, currentPlayer) {
@@ -527,15 +569,17 @@ function startTurnTimer(deadlineIso, currentPlayer) {
 
         if (remaining <= 0) {
             stopTurnTimer();
-            // If it's my turn and I timed out, notify the DB
-            if (isMyTurn && OnlineState.sbClient && OnlineState.roomUuid) {
-                const winnerColor = OnlineState.playerRole === 'red' ? 'black' : 'red';
+            // Fix X2: Timeout should be triggered by the OPPONENT, not the timed-out player
+            // This prevents malicious players from avoiding timeout
+            if (!isMyTurn && OnlineState.sbClient && OnlineState.roomUuid) {
+                // I'm the opponent of the timed-out player, so I win
                 OnlineState.sbClient.from('xiangqi_rooms').update({
                     status: 'finished',
-                    winner_color: winnerColor,
+                    winner_color: OnlineState.playerRole,
                     finished_reason: 'timeout',
                     turn_deadline_at: null
-                }).eq('id', OnlineState.roomUuid);
+                }).eq('id', OnlineState.roomUuid)
+                  .eq('status', 'playing');  // Condition update
             }
         }
     }

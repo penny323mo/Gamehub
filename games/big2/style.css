@@ -700,7 +700,7 @@ body {
   }
 
   /* Game panel - REDUCED by 30% (flex: 0.7 instead of 1) */
-  .panel:first-child {
+  #game-container > .panel:first-of-type {
     flex: 0.7 1 auto !important;
     min-height: 0 !important;
     max-height: 50% !important;
@@ -958,4 +958,32 @@ body {
   .seat--bottom {
     display: none !important;
   }
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Ensure game-container always fits within viewport */
+#game-container {
+  max-height: 100vh;
+  overflow-y: auto;
+}
+
+/* Compact table in online mode: reduce table grid height */
+#online-room:not(.hidden)~.layout .tableFrame,
+#game-container .tableFrame {
+  max-height: 50vh;
+}
+
+#game-container .tableGrid {
+  min-height: 0;
+}
+
+#game-container .tableCenter {
+  min-height: 80px;
+}
+
+#game-container .seat {
+  min-height: 60px;
 }

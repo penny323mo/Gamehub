@@ -318,16 +318,43 @@
     return player.hand.findIndex(c => c.r === 0 && c.s === 'D');
   }
 
-  function dealNewGame() {
+  function dealNewGame(forcedDeck = null) {
     // New game => invalidate cached move generation.
     legalPlaysCache.clear();
-    const deck = shuffle(makeDeck());
+
+    // Use forced deck (from Supabase online mode) or generate a new local one
+    const deck = forcedDeck || shuffle(makeDeck());
+
+    let isH = [true, false, false, false];
+    let names = ['You', 'CPU 1', 'CPU 2', 'CPU 3'];
+
+    if (window.gameMode === 'online' && window.currentRoom) {
+      const r = window.currentRoom;
+      isH = [
+        !!r.player0_id,
+        !!r.player1_id,
+        !!r.player2_id,
+        !!r.player3_id
+      ];
+      names = [
+        r.player0_id ? 'Seat 1' : 'CPU (S1)',
+        r.player1_id ? 'Seat 2' : 'CPU (S2)',
+        r.player2_id ? 'Seat 3' : 'CPU (S3)',
+        r.player3_id ? 'Seat 4' : 'CPU (S4)'
+      ];
+    }
+
     state.players = [
-      { name: 'You', isHuman: true, hand: [] },
-      { name: 'CPU 1', isHuman: false, hand: [] },
-      { name: 'CPU 2', isHuman: false, hand: [] },
-      { name: 'CPU 3', isHuman: false, hand: [] },
+      { name: names[0], isHuman: isH[0], hand: [] },
+      { name: names[1], isHuman: isH[1], hand: [] },
+      { name: names[2], isHuman: isH[2], hand: [] },
+      { name: names[3], isHuman: isH[3], hand: [] },
     ];
+
+    if (window.gameMode === 'online' && window.onlinePlayerIndex !== null && window.onlinePlayerIndex >= 0 && window.onlinePlayerIndex < 4) {
+      state.players[window.onlinePlayerIndex].name += ' (You)';
+    }
+
     for (let i = 0; i < 52; i++) {
       state.players[i % 4].hand.push(deck[i]);
     }
@@ -338,6 +365,7 @@
     for (let i = 0; i < 4; i++) {
       if (find3D(state.players[i]) !== -1) { starter = i; break; }
     }
+
     state.currentPlayer = starter;
     state.table = null;
     state.lastPlayPlayer = null;
@@ -490,6 +518,37 @@
     for (let i = 0; i < 4; i++) {
       if (state.players[i].hand.length === 0) {
         state.gameOver = true;
+
+        // Only host writes game-over to DB to avoid write races (#5)
+        if (window.gameMode === 'online' && window.currentRoom && window.isOnlineHost()) {
+          window.supabase.from('big2_rooms').update({
+            status: 'finished',
+            winner_index: i,
+            finished_at: new Date().toISOString()
+          }).eq('id', window.currentRoom.id).then();
+        }
+
+        // Show game-over message with countdown
+        render();
+        if (window.gameMode === 'online') {
+          let countdown = 10;
+          els.status.textContent = `Game Over — ${state.players[i].name} wins! (${countdown}s to restart)`;
+          const timer = setInterval(() => {
+            countdown--;
+            if (countdown <= 0) {
+              clearInterval(timer);
+              // Only host triggers restart to avoid non-host calling restartGame (#6)
+              if (window.isOnlineHost()) {
+                restartGame();
+              } else {
+                els.status.textContent = 'Waiting for host to start new round...';
+              }
+            } else {
+              els.status.textContent = `Game Over — ${state.players[i].name} wins! (${countdown}s to restart)`;
+            }
+          }, 1000);
+        }
+
         return i;
       }
     }
@@ -556,7 +615,8 @@
     const btn = e.target.closest('button.cardBtn');
     if (!btn) return;
     if (state.gameOver) return;
-    if (state.currentPlayer !== 0) return;
+    const myIndex = window.gameMode === 'online' ? window.onlinePlayerIndex : 0;
+    if (state.currentPlayer !== myIndex) return;
 
     // Manual selection cancels cycling suggestions
     clearSuggest();
@@ -569,9 +629,13 @@
   });
 
   function render() {
+    // Guard: don't render if players not initialised
+    if (!state.players || state.players.length < 4) return;
+
     // seats (fixed positions)
     for (let i = 0; i < 4; i++) {
       const p = state.players[i];
+      if (!p) return;
       const seatEl = els.seats[i];
       seatEl.name.textContent = p.name;
 
@@ -639,26 +703,33 @@
     }
 
     // hand (human)
-    const human = state.players[0];
+    const viewIndex = window.gameMode === 'online' ? window.onlinePlayerIndex : 0;
+    const human = state.players[viewIndex];
     els.hand.innerHTML = '';
-    for (const c of human.hand) {
-      const btn = document.createElement('button');
-      btn.className = 'cardBtn' + (ui.selected.has(cardId(c)) ? ' cardBtn--selected' : '');
-      btn.type = 'button';
-      btn.dataset.id = cardId(c);
 
-      const img = document.createElement('img');
-      img.className = 'cardImg cardImg--hand';
-      img.src = cardAssetFile(c);
-      img.alt = cardToText(c);
-      img.loading = 'lazy';
-      btn.appendChild(img);
+    if (human) {
+      for (const c of human.hand) {
+        const btn = document.createElement('button');
+        btn.className = 'cardBtn' + (ui.selected.has(cardId(c)) ? ' cardBtn--selected' : '');
+        btn.type = 'button';
+        btn.dataset.id = cardId(c);
 
-      els.hand.appendChild(btn);
+        const img = document.createElement('img');
+        img.className = 'cardImg cardImg--hand';
+        img.src = cardAssetFile(c);
+        img.alt = cardToText(c);
+        img.loading = 'lazy';
+        btn.appendChild(img);
+
+        els.hand.appendChild(btn);
+      }
     }
 
     // buttons enable/disable
-    const isHumanTurn = state.currentPlayer === 0 && !state.gameOver;
+    const isHumanTurn = window.gameMode === 'online'
+      ? (state.currentPlayer === window.onlinePlayerIndex && !state.gameOver)
+      : (state.currentPlayer === 0 && !state.gameOver);
+
     els.playBtn.disabled = !isHumanTurn;
 
     // Pass is only valid when following an existing table.
@@ -692,7 +763,8 @@
   }
 
   function getSelectedCards() {
-    const human = state.players[0];
+    const viewIndex = window.gameMode === 'online' ? window.onlinePlayerIndex : 0;
+    const human = state.players[viewIndex];
     const ids = ui.selected;
     return human.hand.filter(c => ids.has(cardId(c)));
   }
@@ -748,7 +820,9 @@
 
   function tryHumanPlay() {
     if (state.gameOver) return;
-    if (state.currentPlayer !== 0) return;
+
+    const myIndex = window.gameMode === 'online' ? window.onlinePlayerIndex : 0;
+    if (state.currentPlayer !== myIndex) return;
 
     const cards = getSelectedCards();
     if (cards.length === 0) {
@@ -780,6 +854,20 @@
       }
     }
 
+    // Attempt online
+    if (window.gameMode === 'online') {
+      const idArray = cards.map(c => cardId(c));
+      window.handleOnlineAction('play', idArray).then(success => {
+        if (success) {
+          ui.selected.clear();
+          clearSuggest();
+          setHint('Waiting for network sync...');
+          render();
+        }
+      });
+      return;
+    }
+
     ui.selected.clear();
     clearSuggest();
     applyPlay(0, cards);
@@ -789,11 +877,27 @@
 
   function tryHumanPass() {
     if (state.gameOver) return;
-    if (state.currentPlayer !== 0) return;
+    const myIndex = window.gameMode === 'online' ? window.onlinePlayerIndex : 0;
+    if (state.currentPlayer !== myIndex) return;
+
     if (!state.table) {
       setHint('You cannot pass when you are leading.', true);
       return;
     }
+
+    // Attempt online
+    if (window.gameMode === 'online') {
+      window.handleOnlineAction('pass', null).then(success => {
+        if (success) {
+          ui.selected.clear();
+          clearSuggest();
+          setHint('Waiting for network sync (PASS)...');
+          render();
+        }
+      });
+      return;
+    }
+
     ui.selected.clear();
     clearSuggest();
     applyPass(0);
@@ -913,8 +1017,14 @@
     ui.suggestContext = '';
   }
 
+  function getMyIndex() {
+    return window.gameMode === 'online' ? window.onlinePlayerIndex : 0;
+  }
+
   function makeSuggestContext() {
-    const human = state.players[0];
+    const myIdx = getMyIndex();
+    const human = state.players[myIdx];
+    if (!human) return '';
     const handSig = human.hand.map(cardId).join(',');
     const tableSig = state.table ? state.table.cards.map(cardId).join(',') : 'LEAD';
     return `${state.currentPlayer}|${tableSig}|${handSig}`;
@@ -933,8 +1043,10 @@
   }
 
   function buildSuggestionList() {
-    const human = state.players[0];
-    const legal = getLegalPlays(0);
+    const myIdx = getMyIndex();
+    const human = state.players[myIdx];
+    if (!human) return [];
+    const legal = getLegalPlays(myIdx);
     if (!legal.length) return [];
 
     const isLead = !state.table;
@@ -971,7 +1083,8 @@
 
   function suggestHumanSelection() {
     if (state.gameOver) return;
-    if (state.currentPlayer !== 0) return;
+    const myIdx = getMyIndex();
+    if (state.currentPlayer !== myIdx) return;
 
     const ctx = makeSuggestContext();
     if (ctx !== ui.suggestContext || !ui.suggestList.length) {
@@ -998,17 +1111,49 @@
     // Execute CPU turns with small delays for readability.
     const step = () => {
       if (state.gameOver) { render(); return; }
-      if (state.currentPlayer === 0) { render(); return; }
 
       const idx = state.currentPlayer;
+      const isCpuTurn = !state.players[idx].isHuman;
+
+      // Online mode: We don't advance standard CPU turns locally UNLESS we are the host.
+      // If we are host and it's a CPU's turn, we calculate and dispatch the network action.
+      if (window.gameMode === 'online') {
+        if (!isCpuTurn) { render(); return; } // Wait for human to act
+        if (!window.isOnlineHost()) { render(); return; } // Wait for host to dispatch CPU action
+      } else {
+        // Local Mode: Wait if it's Player 0 
+        if (idx === 0) { render(); return; }
+      }
+
       const move = cpuChoosePlay(idx);
 
-      // If following and no moves exist, pass; if leading and no moves exist (shouldn't happen), pass.
+      if (window.gameMode === 'online') {
+        // Host applies CPU move locally FIRST, then sends to DB for others
+        if (!move) {
+          applyPass(idx);
+        } else {
+          applyPlay(idx, move.cards);
+        }
+        legalPlaysCache.clear();
+        render();
+        // Note: checkWin() is already called inside applyPlay, do NOT call again
+
+        // Send to DB so other players receive it
+        const idArray = move ? move.cards.map(c => cardId(c)) : null;
+        window.handleOnlineAction(move ? 'play' : 'pass', idArray, idx);
+
+        // Continue chaining CPU turns
+        if (!state.gameOver && !state.players[state.currentPlayer].isHuman) {
+          setTimeout(step, 600);
+        }
+        return;
+      }
+
+      // Local execution fallback
       if (!move) {
         if (state.table) {
           applyPass(idx);
         } else {
-          // fallback (should not happen): play lowest single
           const c = state.players[idx].hand[0];
           applyPlay(idx, [c]);
         }
@@ -1017,7 +1162,6 @@
       }
 
       render();
-      // Continue with next CPU / back to human
       setTimeout(step, 450);
     };
 
@@ -1028,7 +1172,8 @@
   els.playBtn.addEventListener('click', tryHumanPlay);
   els.suggestBtn.addEventListener('click', suggestHumanSelection);
   els.cancelSuggestBtn.addEventListener('click', () => {
-    if (state.currentPlayer !== 0) return;
+    const myIdx = getMyIndex();
+    if (state.currentPlayer !== myIdx) return;
     ui.selected.clear();
     clearSuggest();
     render();
@@ -1048,9 +1193,46 @@
   const startBtn = document.getElementById('startBtn');
   if (startBtn) startBtn.addEventListener('click', startGame);
 
-  function restartGame() {
+  async function restartGame() {
     ui.selected.clear();
     clearSuggest();
+
+    if (window.gameMode === 'online') {
+      if (window.isOnlineHost() && window.currentRoom) {
+        // Host generates new deck and restarts the game
+        const newDeck = shuffle(makeDeck());
+        const roomId = window.currentRoom.id;
+
+        // Delete old actions FIRST and await completion (#7)
+        await window.supabase.from('big2_actions')
+          .delete()
+          .eq('room_id', roomId);
+
+        // Clear applied action tracking
+        if (window.clearAppliedActions) window.clearAppliedActions();
+
+        await window.supabase.from('big2_rooms').update({
+          status: 'playing',
+          initial_deck: newDeck,
+          current_player_index: null,
+          winner_index: null,
+          finished_at: null,
+          finished_reason: null
+        }).eq('id', roomId);
+
+        // Apply locally
+        state.gameOver = false;
+        dealNewGame(newDeck);
+        render();
+        queueCpuTurns();
+      } else {
+        // Non-host: just reset local state and wait for room sync
+        state.gameOver = false;
+        els.status.textContent = 'Waiting for host to start new round...';
+      }
+      return;
+    }
+
     dealNewGame();
     render();
     if (state.currentPlayer !== 0) queueCpuTurns();
@@ -1077,12 +1259,157 @@
     }
   }
 
-  // ---------- Boot ----------
-  // DON'T start game automatically - wait for user to click start
-  // Just show the start screen
-  els.status.textContent = '按「開始遊戲」開始';
+  // ---------- UI Mode Switching ----------
+  window.resetGameState = function () {
+    state.gameOver = false;
+    state.table = null;
+    state.currentPlayer = 0;
+    state.lastPlayPlayer = null;
+    state.mustInclude3D = false;
+    state.passed = [false, false, false, false];
+    state.seat = [
+      { cards: null, pass: false },
+      { cards: null, pass: false },
+      { cards: null, pass: false },
+      { cards: null, pass: false },
+    ];
+    // Always ensure 4 valid player entries
+    state.players = [
+      { name: 'Seat 1', isHuman: true, hand: [] },
+      { name: 'Seat 2', isHuman: false, hand: [] },
+      { name: 'Seat 3', isHuman: false, hand: [] },
+      { name: 'Seat 4', isHuman: false, hand: [] },
+    ];
+    ui.selected.clear();
+    clearSuggest();
+    els.status.textContent = '等待開始...';
+    render();
+  };
 
-  // Initially hide restart button, show start button
-  if (startGameBtn) startGameBtn.style.display = '';
-  if (restartBtn2) restartBtn2.style.display = 'none';
+  window.gameMode = 'local'; // 'local' or 'online'
+
+  window.setMode = function (mode) {
+    const landing = document.getElementById('landing-page');
+    const lobby = document.getElementById('online-lobby');
+    const gameCont = document.getElementById('game-container');
+    const bottomCtrls = document.getElementById('bottomControls');
+    const exitGameBtn = document.getElementById('exitGameBtn');
+
+    if (mode === 'landing') {
+      window.gameMode = 'local';
+      landing.classList.remove('hidden');
+      lobby.classList.add('hidden');
+      gameCont.classList.add('hidden');
+      if (exitGameBtn) exitGameBtn.classList.add('hidden');
+    } else if (mode === 'online-lobby') {
+      window.gameMode = 'online';
+      window.resetGameState();
+      landing.classList.add('hidden');
+      lobby.classList.remove('hidden');
+      gameCont.classList.add('hidden');
+      document.getElementById('online-room')?.classList.add('hidden');
+      if (window.initOnlineMode) window.initOnlineMode();
+    } else if (mode === 'online') {
+      window.gameMode = 'online';
+      landing.classList.add('hidden');
+      lobby.classList.add('hidden');
+      gameCont.classList.remove('hidden');
+      if (startGameBtn) startGameBtn.style.display = 'none';
+      if (restartBtn2) restartBtn2.style.display = 'none';
+      if (exitGameBtn) exitGameBtn.classList.add('hidden'); // use in-room leave btn
+    } else if (mode === 'local') {
+      window.gameMode = 'local';
+      landing.classList.add('hidden');
+      lobby.classList.add('hidden');
+      gameCont.classList.remove('hidden');
+
+      // Initialize local game
+      els.status.textContent = '按「開始遊戲」開始';
+      if (startGameBtn) startGameBtn.style.display = '';
+      if (restartBtn2) restartBtn2.style.display = 'none';
+      if (exitGameBtn) exitGameBtn.classList.remove('hidden');
+    }
+  };
+
+  // Wire up new landing page buttons
+  const btnLocalAi = document.getElementById('btn-local-ai');
+  const btnOnline = document.getElementById('btn-online');
+  if (btnLocalAi) btnLocalAi.addEventListener('click', () => window.setMode('local'));
+  if (btnOnline) btnOnline.addEventListener('click', () => window.setMode('online-lobby'));
+
+  // Host helper
+  window.isOnlineHost = function () {
+    // In big2, P1 (Seat 0) acts as host to generate deck
+    return window.onlinePlayerIndex === 0;
+  };
+
+  window.generateShuffledDeck = function () {
+    return shuffle(makeDeck());
+  };
+
+  // Online Hooks
+  window.handleRoomSync = function (room) {
+    if (room.status === 'playing') {
+      if (!room.initial_deck) return; // Wait for deck
+
+      // If we haven't dealt this round, deal it
+      if (state.gameOver || state.players.length === 0 || state.players[0].hand.length === 0) {
+        dealNewGame(room.initial_deck);
+        render();
+        if (window.isOnlineHost() && !state.gameOver) {
+          queueCpuTurns();
+        }
+      }
+
+      // Sync current player if diverged (should be handled mostly by actions, but good as a fallback)
+      if (room.current_player_index !== null && state.currentPlayer !== room.current_player_index) {
+        state.currentPlayer = room.current_player_index;
+        render();
+      }
+    } else if (room.status === 'waiting' && window.gameMode === 'online' && !state.gameOver) {
+      // Room got reset or we just joined.
+      state.table = null;
+      state.players.forEach(p => p.hand = []);
+      render();
+    } else if (room.status === 'finished') {
+      state.gameOver = true;
+      render();
+    }
+  };
+
+  window.applyNetworkAction = function (action) {
+    const pIdx = action.player_index;
+
+    // Host already applied CPU moves locally in queueCpuTurns - skip duplicates
+    if (window.isOnlineHost() && state.players[pIdx] && !state.players[pIdx].isHuman) {
+      return;
+    }
+
+    if (action.action_type === 'play') {
+      // ... same logic ...
+      const pHand = state.players[pIdx].hand;
+      const cardsToPlay = action.payload.map(idStr => {
+        return pHand.find(c => cardId(c) === idStr);
+      }).filter(c => c !== undefined);
+
+      if (cardsToPlay.length > 0) {
+        applyPlay(pIdx, cardsToPlay);
+      }
+    } else if (action.action_type === 'pass') {
+      applyPass(pIdx);
+    }
+
+    legalPlaysCache.clear();
+    render();
+    console.log('[NetworkAction] Applied:', action.action_type, 'by P' + pIdx, '→ currentPlayer:', state.currentPlayer, 'isHuman:', state.players[state.currentPlayer]?.isHuman);
+
+    // Auto-trigger next CPU turn if it's their turn
+    if (window.gameMode === 'online' && window.isOnlineHost() && !state.gameOver) {
+      queueCpuTurns();
+    }
+  };
+
+  // ---------- Boot ----------
+  // Initial state is landing page
+  window.setMode('landing');
 })();

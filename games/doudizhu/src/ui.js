@@ -1,6 +1,11 @@
 // UI + render (no-module build)
 (() => {
   const DDZ = window.DDZ = window.DDZ || {};
+  function getMyIndex() { return window.gameMode === 'online' ? window.onlinePlayerIndex : 0; }
+  function isMyTurn(state) { return state.current === getMyIndex(); }
+  function getAbsIndex(relIdx) { const me = getMyIndex(); return me == null ? relIdx : (relIdx + me) % 3; }
+  function getRelIndex(absIdx) { const me = getMyIndex(); return me == null ? absIdx : (absIdx - me + 3) % 3; }
+
   const { cardAssetFile, cardId, cardToText } = DDZ;
   const { evalHand, canBeat, TYPE } = DDZ;
   const { getLegalMoves } = DDZ;
@@ -119,7 +124,7 @@
       const btn = e.target.closest('button.cardBtn');
       if (!btn) return;
       if (state.phase !== 'play') return;
-      if (state.current !== 0) return;
+      if (!isMyTurn(state)) return;
 
       const id = btn.dataset.id;
       if (state.ui.selected.has(id)) state.ui.selected.delete(id);
@@ -132,11 +137,11 @@
       const btn = e.target.closest('button.cardBtn');
       if (!btn) return;
       if (state.phase !== 'play') return;
-      if (state.current !== 0) return;
+      if (!isMyTurn(state)) return;
 
       const rank = btn.dataset.rank;
       state.ui.selected.clear();
-      for (const c of state.players[0].hand) {
+      for (const c of state.players[getMyIndex()].hand) {
         const cid = cardId(c);
         if (c.rank === rank) state.ui.selected.add(cid);
       }
@@ -145,6 +150,10 @@
 
     // 開始遊戲按鈕
     function startNewGame() {
+      if (window.gameMode === 'online') {
+          if (window.forceStartGame) window.forceStartGame();
+          return;
+      }
       actions.restart();
       render(game);
       bidCpuLoop();
@@ -219,8 +228,8 @@
 
     // Play
     els.playBtn.addEventListener('click', () => {
-      if (state.phase === 'play' && state.current === 0 && state.lastPlay) {
-        const legal = getLegalMoves(state.players[0].hand, state.lastPlay);
+      if (state.phase === 'play' && isMyTurn(state) && state.lastPlay) {
+        const legal = getLegalMoves(state.players[getMyIndex()].hand, state.lastPlay);
         if (!legal.length) {
           actions.pass();
           render(game);
@@ -245,12 +254,12 @@
 
     // Hint
     els.hintBtn.addEventListener('click', () => {
-      if (state.phase !== 'play' || state.current !== 0) {
+      if (state.phase !== 'play' || !isMyTurn(state)) {
         setHint('未輪到你出牌。', true);
         return;
       }
 
-      const hand = state.players[0].hand;
+      const hand = state.players[getMyIndex()].hand;
       const last = state.lastPlay;
       const ctx = `${hand.map(cardId).sort().join(',')}|${last ? last.cards.map(cardId).sort().join(',') : 'LEAD'}`;
 
@@ -283,7 +292,7 @@
       if (e.repeat) return;
       const key = e.key.toLowerCase();
       const inPlay = state.phase === 'play';
-      const isHumanTurn = state.current === 0;
+      const isHumanTurn = isMyTurn(state);
 
       if (key === 'h') {
         els.hintBtn.click();
@@ -306,10 +315,10 @@
     const { els, setHint } = game._ui || {};
     if (!els) return;
 
-    const isHumanTurn = state.current === 0;
+    const isHumanTurn = isMyTurn(state);
     const inPlay = state.phase === 'play';
     const legalMovesHuman = (inPlay && isHumanTurn)
-      ? getLegalMoves(state.players[0].hand, state.lastPlay)
+      ? getLegalMoves(state.players[getMyIndex()].hand, state.lastPlay)
       : null;
 
     if (inPlay && isHumanTurn && legalMovesHuman && legalMovesHuman.length === 0) {
@@ -317,24 +326,25 @@
     }
 
     // seats
-    for (let i = 0; i < 3; i++) {
-      const p = state.players[i];
-      els.seats[i].name.textContent = p.name;
+    for (let rel = 0; rel < 3; rel++) {
+      const abs = getAbsIndex(rel);
+      const p = state.players[abs];
+      els.seats[rel].name.textContent = p.name;
       const role = p.role ? (p.role === 'landlord' ? '地主' : '農民') : '';
-      const pass = seatPassText(state, i);
-      els.seats[i].meta.textContent = `${p.hand.length} cards ${role ? '· ' + role : ''} ${pass}`.trim();
+      const pass = seatPassText(state, abs);
+      els.seats[rel].meta.textContent = `${p.hand.length} cards ${role ? '· ' + role : ''} ${pass}`.trim();
 
-      els.seats[i].wrap.classList.toggle('seat--turn', i === state.current);
-      els.seats[i].body.innerHTML = '';
+      els.seats[rel].wrap.classList.toggle('seat--turn', abs === state.current);
+      els.seats[rel].body.innerHTML = '';
 
-      if (i !== 0) {
-        const count = state.players[i].hand.length;
+      if (rel !== 0) {
+        const count = state.players[abs].hand.length;
         const wrap = document.createElement('div');
         wrap.className = 'stack';
 
         // 牌局結束後公開所有手牌
         if (state.phase === 'over') {
-          for (const c of state.players[i].hand) {
+          for (const c of state.players[abs].hand) {
             const img = document.createElement('img');
             img.className = 'cardImg cardImg--table stackItem';
             img.src = cardAssetFile(c);
@@ -349,7 +359,7 @@
             wrap.appendChild(back);
           }
         }
-        els.seats[i].body.appendChild(wrap);
+        els.seats[rel].body.appendChild(wrap);
       }
     }
 
@@ -411,7 +421,7 @@
       const who = state.players[state.current].name;
       const landlord = state.landlord != null ? `｜地主：${state.players[state.landlord].name}` : '';
       let extra = '';
-      if (state.current === 0) {
+      if (isMyTurn(state)) {
         const legal = legalMovesHuman || [];
         extra = legal.length ? `｜可出 ${legal.length} 手` : '｜無牌可跟';
       }
@@ -426,7 +436,7 @@
 
     // hand
     els.hand.innerHTML = '';
-    const human = state.players[0];
+    const human = state.players[getMyIndex()];
     let idx = 0;
     for (const c of human.hand) {
       const btn = document.createElement('button');
@@ -477,7 +487,7 @@
     let canPlay = false;
     let selEval = null;
     if (inPlay && isHumanTurn) {
-      const sel = state.players[0].hand.filter(c => state.ui.selected.has(cardId(c)));
+      const sel = state.players[getMyIndex()].hand.filter(c => state.ui.selected.has(cardId(c)));
       if (sel.length) {
         selEval = evalHand(sel);
         if (selEval) {

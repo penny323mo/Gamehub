@@ -41,11 +41,17 @@ function initOnlineMode() {
     }
     console.log('[Online] ClientId:', OnlineState.clientId);
 
-    if (window.supabase) {
+    // Fix G5: Reuse existing Supabase client to avoid connection leaks
+    if (OnlineState.sbClient) {
+        console.log('[Online] Supabase already initialized, reusing client');
+    } else if (window.supabase && window.supabase.createClient) {
         OnlineState.sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY.trim(), {
             auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }
         });
         console.log('[Online] Supabase initialized');
+    } else if (window.supabase && window.supabase.from) {
+        OnlineState.sbClient = window.supabase;
+        console.log('[Online] Supabase client recovered from window.supabase');
     } else {
         console.error('[Online] Supabase SDK not loaded');
         return;
@@ -313,7 +319,7 @@ function startHeartbeat() {
             .eq('id', OnlineState.roomUuid);
 
         console.log('[Heartbeat] Updated', updateField);
-    }, 30000);  // 30 秒一次，減少 DB writes
+    }, 15000);  // Fix G3: 15 秒一次，與 stale 清理閾值匹配
 }
 
 function stopHeartbeat() {
@@ -592,9 +598,8 @@ function applyMoveToBoard(row, col, color, moveId) {
             setGameOver(true);
             updateWinUI(color);
 
-            // 兩邊 client 都會 checkWin，但只有第一個成功 update
-            // 使用條件 update eq('status', 'playing') 避免重複
-            if (OnlineState.sbClient && OnlineState.roomUuid) {
+            // Fix G1: Only the winner writes to DB to avoid double-write race
+            if (OnlineState.sbClient && OnlineState.roomUuid && color === OnlineState.playerRole) {
                 OnlineState.sbClient
                     .from('gomoku_rooms')
                     .update({
@@ -604,7 +609,7 @@ function applyMoveToBoard(row, col, color, moveId) {
                         finished_at: new Date().toISOString()
                     })
                     .eq('id', OnlineState.roomUuid)
-                    .eq('status', 'playing')  // 條件 update：只有 playing 時才更新
+                    .eq('status', 'playing')
                     .then(({ error }) => {
                         if (error) console.log('[Board] Win update skipped (already finished)');
                         else console.log('[Board] Win updated to DB');
@@ -652,6 +657,12 @@ async function exitFixedRoom() {
         return;
     }
 
+    // Fix G6: Confirm before leaving a playing game
+    const room = window.currentRoom;
+    if (room && room.status === 'playing') {
+        if (!confirm('退出將會判負，確定要退出嗎？')) return;
+    }
+
     console.log('[Leave] Exiting...');
     stopHeartbeat();
 
@@ -664,7 +675,6 @@ async function exitFixedRoom() {
         updateData.white_ready = false;
     }
 
-    const room = window.currentRoom;
     if (room?.status === 'playing') {
         // 對局中離開 = 認輸
         updateData.status = 'finished';
@@ -751,13 +761,19 @@ function updateTimerUI(sec) {
 async function handleTimeout() {
     const room = window.currentRoom;
     if (!room || room.status !== 'playing') return;
-    if (room.current_player === OnlineState.playerRole) return;
+
+    // Fix G4: Both sides can trigger timeout, but with condition update to avoid races
+    // The winner (non-timeout player) gets priority
+    const isMyTurn = room.current_player === OnlineState.playerRole;
+    const winnerColor = isMyTurn
+        ? (OnlineState.playerRole === 'black' ? 'white' : 'black')
+        : OnlineState.playerRole;
 
     await OnlineState.sbClient
         .from('gomoku_rooms')
         .update({
             status: 'finished',
-            winner_color: OnlineState.playerRole,
+            winner_color: winnerColor,
             finished_reason: 'timeout'
         })
         .eq('id', OnlineState.roomUuid)
@@ -766,38 +782,44 @@ async function handleTimeout() {
 
 // === Rematch ===
 
+let _rematchInProgress = false; // Fix G2: debounce
 async function rematchGame() {
     if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+    if (_rematchInProgress) return;
+    _rematchInProgress = true;
 
-    // 清空 moves
-    await OnlineState.sbClient
-        .from('moves')
-        .delete()
-        .eq('room_id', OnlineState.roomUuid);
+    try {
+        // 清空 moves
+        await OnlineState.sbClient
+            .from('moves')
+            .delete()
+            .eq('room_id', OnlineState.roomUuid);
 
-    // 更新房間狀態 + round_id+1（會觸發兩邊 hardResetBoard）
-    const newRoundId = (window.currentRoom?.round_id || 0) + 1;
-    console.log('[Rematch] New round_id:', newRoundId);
+        // 更新房間狀態 + round_id+1（會觸發兩邊 hardResetBoard）
+        const newRoundId = (window.currentRoom?.round_id || 0) + 1;
+        console.log('[Rematch] New round_id:', newRoundId);
 
-    await OnlineState.sbClient
-        .from('gomoku_rooms')
-        .update({
-            status: 'waiting',
-            black_ready: false,
-            white_ready: false,
-            current_player: null,
-            turn_deadline_at: null,
-            winner_color: null,
-            finished_reason: null,
-            finished_at: null,
-            round_id: newRoundId,
-            waiting_since: null,
-            both_present_since: null
-        })
-        .eq('id', OnlineState.roomUuid);
+        await OnlineState.sbClient
+            .from('gomoku_rooms')
+            .update({
+                status: 'waiting',
+                black_ready: false,
+                white_ready: false,
+                current_player: null,
+                turn_deadline_at: null,
+                winner_color: null,
+                finished_reason: null,
+                finished_at: null,
+                round_id: newRoundId,
+                waiting_since: null,
+                both_present_since: null
+            })
+            .eq('id', OnlineState.roomUuid);
 
-    // 本地會由 Realtime 收到 round_id 變更後自動 hardResetBoard
-    console.log('[Rematch] Waiting for Realtime to trigger hardResetBoard');
+        console.log('[Rematch] Waiting for Realtime to trigger hardResetBoard');
+    } finally {
+        setTimeout(() => _rematchInProgress = false, 2000);
+    }
 }
 
 async function resetFixedRoom() {
