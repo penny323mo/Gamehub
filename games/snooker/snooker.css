@@ -1,0 +1,315 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
+
+:root {
+    --bg-dark:        #0f172a;
+    --bg-darker:      #020617;
+    --card-bg:        rgba(30, 41, 59, 0.7);
+    --glass-border:   rgba(255, 255, 255, 0.1);
+    --neon-blue:      #0ea5e9;
+    --neon-cyan:      #22d3ee;
+    --neon-green:     #10b981;
+    --neon-red:       #f43f5e;
+    --neon-amber:     #f59e0b;
+    --text-main:      #f8fafc;
+    --text-muted:     #94a3b8;
+    --font-stack:     'Outfit', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: var(--font-stack);
+    background-color: var(--bg-darker);
+    background-image:
+        radial-gradient(circle at 10% 20%, rgba(75, 211, 127, 0.12) 0%, transparent 22%),
+        radial-gradient(circle at 90% 80%, rgba(34, 211, 238, 0.12) 0%, transparent 22%);
+    color: var(--text-main);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+    overflow-x: hidden;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────────── */
+.switch-container {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 0 10px;
+}
+
+.switch-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    padding: 40px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    min-height: 420px;
+}
+
+.switch-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
+    opacity: 0.5;
+}
+
+h1 {
+    font-size: 2.6rem;
+    font-weight: 800;
+    margin-bottom: 36px;
+    background: linear-gradient(135deg, var(--text-main) 0%, var(--neon-cyan) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 2px;
+}
+
+h3 {
+    font-size: 1.1rem;
+    color: var(--neon-cyan);
+    margin-bottom: 6px;
+    letter-spacing: 1px;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────── */
+.pill-btn {
+    padding: 12px 30px;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+    font-family: var(--font-stack);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    position: relative;
+    overflow: hidden;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.pill-btn::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0;
+    width: 100%; height: 2px;
+    background: var(--neon-blue);
+    transform: scaleX(0);
+    transform-origin: right;
+    transition: transform 0.3s ease;
+}
+
+.pill-btn:hover::after { transform: scaleX(1); transform-origin: left; }
+.pill-btn:hover {
+    background: rgba(14, 165, 233, 0.1);
+    border-color: var(--neon-blue);
+    box-shadow: 0 0 15px rgba(14, 165, 233, 0.3);
+    text-shadow: 0 0 8px var(--neon-blue);
+}
+.pill-btn:active { transform: scale(0.98); }
+
+.pill-btn.secondary { font-size: 0.9rem; opacity: 0.8; }
+
+.pill-btn.danger-btn { border-color: rgba(244, 63, 94, 0.3); }
+.pill-btn.danger-btn:hover {
+    background: rgba(244, 63, 94, 0.1);
+    border-color: var(--neon-red);
+    box-shadow: 0 0 15px rgba(244, 63, 94, 0.3);
+    text-shadow: 0 0 8px var(--neon-red);
+}
+.pill-btn.danger-btn::after { background: var(--neon-red); }
+
+.pill-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.pill-btn:disabled:hover { background: rgba(255,255,255,0.05); border-color: var(--glass-border); box-shadow: none; text-shadow: none; }
+
+/* ── Landing Actions ─────────────────────────────────────────────────── */
+.landing-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 10px 0;
+    align-items: center;
+}
+
+.landing-actions .pill-btn { width: 260px; }
+
+/* ── Version Cards (Single Player) ──────────────────────────────────── */
+.version-cards {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin: 24px 0;
+}
+
+.version-card {
+    width: 200px;
+    padding: 24px 18px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    text-decoration: none;
+    color: var(--text-main);
+}
+
+.version-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+}
+
+.card-2d { border-color: rgba(100, 180, 255, 0.3); }
+.card-2d:hover { border-color: rgba(100, 180, 255, 0.7); box-shadow: 0 10px 28px rgba(100, 180, 255, 0.15); }
+
+.card-3d { border-color: rgba(255, 180, 100, 0.3); }
+.card-3d:hover { border-color: rgba(255, 180, 100, 0.7); box-shadow: 0 10px 28px rgba(255, 180, 100, 0.15); }
+
+.version-icon { font-size: 3rem; margin-bottom: 12px; }
+.version-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
+.version-desc  { font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; }
+
+/* ── Mode Switcher ───────────────────────────────────────────────────── */
+.mode-switcher {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin: 16px 0 20px;
+}
+
+.mode-btn {
+    padding: 8px 26px;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-muted);
+    font-family: var(--font-stack);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+}
+
+.mode-btn.active {
+    background: rgba(14, 165, 233, 0.15);
+    border-color: var(--neon-blue);
+    color: var(--neon-blue);
+    box-shadow: 0 0 10px rgba(14, 165, 233, 0.25);
+}
+
+.mode-btn:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: var(--text-main);
+}
+
+/* ── Room List ───────────────────────────────────────────────────────── */
+.room-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 4px 0 20px;
+}
+
+.room-card {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.room-card:hover {
+    border-color: var(--neon-blue);
+    box-shadow: 0 0 10px rgba(14, 165, 233, 0.15);
+}
+
+.room-name  { font-weight: 700; font-size: 1rem; color: var(--text-main); }
+.room-info  { display: flex; gap: 12px; font-size: 0.82rem; }
+.room-status  { color: var(--neon-green); font-weight: 600; }
+.room-players { color: var(--text-muted); }
+
+.room-join-btn { padding: 7px 18px; font-size: 0.85rem; }
+
+/* ── Room Header ─────────────────────────────────────────────────────── */
+.room-header-card {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+    padding: 12px 24px;
+    margin-bottom: 20px;
+    display: inline-block;
+    border: 1px solid var(--glass-border);
+}
+
+.room-status-row .label { color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase; }
+.room-status-row .value { color: var(--neon-blue); font-weight: 700; margin: 0 6px; font-size: 1rem; }
+.room-status-row .divider { color: var(--glass-border); margin: 0 12px; }
+
+/* ── Ready Area ──────────────────────────────────────────────────────── */
+#snooker-ready-area {
+    margin: 14px 0;
+    padding: 14px;
+    background: rgba(0, 255, 136, 0.07);
+    border: 1px solid rgba(0, 255, 136, 0.2);
+    border-radius: 8px;
+}
+
+.ready-row {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+}
+
+#snooker-waiting-msg { color: var(--neon-green); margin-bottom: 10px; font-size: 0.9rem; }
+
+/* ── Utility ─────────────────────────────────────────────────────────── */
+.hidden { display: none !important; }
+
+.controls-back { margin-top: 20px; }
+
+/* ── Mobile ──────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+    body { padding: 0; align-items: flex-start; }
+
+    .snooker-menu-container {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 16px;
+    }
+
+    .switch-card { padding: 24px 16px; border-radius: 16px; width: 100%; }
+
+    h1 { font-size: 1.9rem; margin-bottom: 24px; }
+
+    .landing-actions .pill-btn { width: 100%; }
+
+    .version-cards { gap: 14px; }
+    .version-card  { width: 100%; max-width: 280px; }
+
+    .room-card { flex-direction: column; align-items: flex-start; }
+    .room-join-btn { width: 100%; }
+}

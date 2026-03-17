@@ -3,164 +3,195 @@
 
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Snooker - 選擇版本</title>
-    <style>
-        :root {
-            color-scheme: dark;
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        html,
-        body {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%);
-            font-family: "Helvetica Neue", "Noto Sans TC", Arial, sans-serif;
-            color: #e6f3ea;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-
-        h1 {
-            font-size: 2.5rem;
-            margin-bottom: 0.5rem;
-            background: linear-gradient(90deg, #4bd37f, #6ee7b7);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .subtitle {
-            color: rgba(230, 243, 234, 0.7);
-            margin-bottom: 2.5rem;
-            font-size: 1rem;
-        }
-
-        .version-container {
-            display: flex;
-            gap: 24px;
-            flex-wrap: wrap;
-            justify-content: center;
-            padding: 0 20px;
-        }
-
-        .version-card {
-            width: 260px;
-            padding: 28px 24px;
-            background: rgba(20, 28, 36, 0.85);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            text-align: center;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
-            text-decoration: none;
-            color: inherit;
-        }
-
-        .version-card:hover {
-            transform: translateY(-6px);
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
-            border-color: rgba(75, 211, 127, 0.5);
-        }
-
-        .version-card:active {
-            transform: translateY(-2px);
-        }
-
-        .version-icon {
-            font-size: 3.5rem;
-            margin-bottom: 16px;
-        }
-
-        .version-title {
-            font-size: 1.4rem;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-
-        .version-desc {
-            font-size: 0.9rem;
-            color: rgba(230, 243, 234, 0.65);
-            line-height: 1.5;
-        }
-
-        .back-btn {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            padding: 10px 16px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
-            color: #e6f3ea;
-            font-size: 14px;
-            cursor: pointer;
-            text-decoration: none;
-            transition: background 0.2s;
-        }
-
-        .back-btn:hover {
-            background: rgba(255, 255, 255, 0.15);
-        }
-
-        .card-2d {
-            border-color: rgba(100, 180, 255, 0.3);
-        }
-
-        .card-2d:hover {
-            border-color: rgba(100, 180, 255, 0.6);
-            box-shadow: 0 12px 32px rgba(100, 180, 255, 0.15);
-        }
-
-        .card-3d {
-            border-color: rgba(255, 180, 100, 0.3);
-        }
-
-        .card-3d:hover {
-            border-color: rgba(255, 180, 100, 0.6);
-            box-shadow: 0 12px 32px rgba(255, 180, 100, 0.15);
-        }
-
-        @media (max-width: 600px) {
-            h1 {
-                font-size: 1.8rem;
-            }
-
-            .version-card {
-                width: 100%;
-                max-width: 300px;
-            }
-        }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Snooker 桌球</title>
+    <link rel="stylesheet" href="snooker.css" />
 </head>
 
 <body>
-    <a href="../../index.html" class="back-btn">← 返回 GameHub</a>
+    <div class="switch-container snooker-menu-container">
+        <main class="switch-card">
+            <h1>🎱 Snooker</h1>
 
-    <h1>🎱 Snooker 桌球</h1>
-    <p class="subtitle">選擇遊戲版本</p>
+            <!-- ── Landing Page ─────────────────────────────────────── -->
+            <div id="landing-page">
+                <div class="landing-actions">
+                    <button class="pill-btn" onclick="selectMode('single')">🎯 單人模式</button>
+                    <button class="pill-btn" onclick="selectMode('online')">🌐 線上對戰</button>
+                    <button class="pill-btn secondary" onclick="location.href='../../index.html'">← 返回遊戲大廳</button>
+                </div>
+            </div>
 
-    <div class="version-container">
-        <a href="./2d/index.html" class="version-card card-2d">
-            <div class="version-icon">🎯</div>
-            <div class="version-title">2D 經典版</div>
-            <div class="version-desc">簡潔俯視角度<br>快速載入、輕量級<br>適合手機遊玩</div>
-        </a>
+            <!-- ── Game Container (hidden until mode selected) ─────── -->
+            <div id="game-container" class="hidden">
 
-        <a href="./3d/index.html" class="version-card card-3d">
-            <div class="version-icon">🌐</div>
-            <div class="version-title">3D 立體版</div>
-            <div class="version-desc">真實 3D 視角<br>自由旋轉鏡頭<br>沉浸式體驗</div>
-        </a>
+                <!-- Single Player: 2D / 3D version selector -->
+                <div id="single-version" class="hidden">
+                    <h3>選擇版本</h3>
+                    <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">選擇遊戲版本開始單人對局</p>
+                    <div class="version-cards">
+                        <a href="./2d/index.html" class="version-card card-2d">
+                            <div class="version-icon">🎯</div>
+                            <div class="version-title">2D 經典版</div>
+                            <div class="version-desc">俯視角度<br>輕量快速<br>適合手機</div>
+                        </a>
+                        <a href="./3d/index.html" class="version-card card-3d">
+                            <div class="version-icon">🌐</div>
+                            <div class="version-title">3D 立體版</div>
+                            <div class="version-desc">真實 3D 視角<br>自由旋轉鏡頭<br>沉浸式體驗</div>
+                        </a>
+                    </div>
+                    <div class="controls-back">
+                        <button class="pill-btn secondary" onclick="backToLanding()">← 返回選單</button>
+                    </div>
+                </div>
+
+                <!-- Online Lobby: room list with 2D / 3D mode switcher -->
+                <div id="snooker-online-lobby" class="hidden">
+                    <h3>線上對戰大廳</h3>
+                    <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">選擇版本及房間加入對戰</p>
+
+                    <div class="mode-switcher">
+                        <button class="mode-btn active" id="mode-btn-2d" onclick="switchOnlineMode('2d')">🎯 2D 版</button>
+                        <button class="mode-btn" id="mode-btn-3d" onclick="switchOnlineMode('3d')">🌐 3D 版</button>
+                    </div>
+
+                    <div id="snooker-room-list" class="room-list">
+                        <!-- Injected by buildRoomCards() -->
+                    </div>
+
+                    <div class="controls-back">
+                        <button class="pill-btn secondary" onclick="backToLanding()">← 返回選單</button>
+                    </div>
+                </div>
+
+                <!-- Online Room View: ready / waiting state -->
+                <div id="snooker-online-room" class="hidden">
+                    <div class="room-header-card">
+                        <div class="room-status-row">
+                            <span class="label">房間：</span><span id="snooker-room-id" class="value">-</span>
+                            <span class="divider">|</span>
+                            <span class="label">身份：</span><span id="snooker-my-role" class="value">-</span>
+                        </div>
+                    </div>
+
+                    <div id="snooker-waiting-msg">等待對手加入...</div>
+
+                    <div id="snooker-ready-area">
+                        <div class="ready-row">
+                            <span id="snooker-p1-ready">P1：未準備</span>
+                            <span id="snooker-p2-ready">P2：未準備</span>
+                        </div>
+                        <button class="pill-btn" id="snooker-ready-btn"
+                            onclick="window.snookerToggleReady()" disabled
+                            style="width:100%">準備</button>
+                    </div>
+
+                    <button class="pill-btn hidden" id="snooker-rematch-btn"
+                        onclick="window.snookerRematch()"
+                        style="margin-top:12px; width:100%">🔄 再戰一局</button>
+
+                    <div style="margin-top:10px;">
+                        <button class="pill-btn danger-btn" onclick="window.snookerExitRoom()"
+                            style="width:100%">退出房間</button>
+                    </div>
+                </div>
+
+            </div><!-- /game-container -->
+        </main>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script src="./online.js"></script>
+    <script>
+        // ── State ──────────────────────────────────────────────────────
+        let currentOnlineMode = '2d';
+
+        const ROOMS_MAP = {
+            '2d': ['ROOM01', 'ROOM02', 'ROOM03'],
+            '3d': ['3D-ROOM01', '3D-ROOM02', '3D-ROOM03'],
+        };
+
+        // ── View Management ────────────────────────────────────────────
+        function showView(viewId) {
+            ['single-version', 'snooker-online-lobby', 'snooker-online-room']
+                .forEach(id => document.getElementById(id)?.classList.add('hidden'));
+
+            const gc = document.getElementById('game-container');
+            const lp = document.getElementById('landing-page');
+
+            if (viewId === 'landing-page') {
+                gc.classList.add('hidden');
+                lp.classList.remove('hidden');
+            } else {
+                lp.classList.add('hidden');
+                gc.classList.remove('hidden');
+                document.getElementById(viewId)?.classList.remove('hidden');
+            }
+        }
+
+        // ── Mode Selection ─────────────────────────────────────────────
+        function selectMode(mode) {
+            if (mode === 'single') {
+                showView('single-version');
+            } else {
+                showView('snooker-online-lobby');
+                buildRoomCards(currentOnlineMode);
+                window.initSnookerOnline?.({ gameMode: currentOnlineMode });
+            }
+        }
+
+        function backToLanding() {
+            showView('landing-page');
+        }
+
+        // ── Online Mode Switcher ────────────────────────────────────────
+        function switchOnlineMode(mode) {
+            currentOnlineMode = mode;
+            document.getElementById('mode-btn-2d').classList.toggle('active', mode === '2d');
+            document.getElementById('mode-btn-3d').classList.toggle('active', mode === '3d');
+            buildRoomCards(mode);
+            window.initSnookerOnline?.({ gameMode: mode });
+        }
+
+        // ── Room Card Builder ──────────────────────────────────────────
+        function buildRoomCards(mode) {
+            const rooms = ROOMS_MAP[mode] || ROOMS_MAP['2d'];
+            const list  = document.getElementById('snooker-room-list');
+            list.innerHTML = rooms.map((key, i) => `
+                <div class="room-card" id="snooker-room-card-${key}">
+                    <div class="room-name">🏠 ROOM 0${i + 1}</div>
+                    <div class="room-info">
+                        <span class="room-status" id="snooker-room-status-${key}">載入中…</span>
+                        <span class="room-players" id="snooker-room-players-${key}">P1:- / P2:-</span>
+                    </div>
+                    <button class="pill-btn room-join-btn" id="snooker-room-join-${key}"
+                        onclick="window.snookerJoinRoom('${key}')">加入</button>
+                </div>
+            `).join('');
+        }
+
+        // ── Callbacks from online.js ───────────────────────────────────
+        // When both players are ready and game starts, redirect to the
+        // appropriate game page.  The game page picks up the room from
+        // sessionStorage and auto-connects.
+        window.snookerOnlineRoomUpdate = function ({ status } = {}) {
+            if (status === 'playing') {
+                const roomCode = window.snookerCurrentRoom?.room_code || '';
+                sessionStorage.setItem('snooker_pending_room', roomCode);
+                sessionStorage.setItem('snooker_pending_mode', currentOnlineMode);
+                const dest = currentOnlineMode === '3d' ? './3d/index.html' : './2d/index.html';
+                location.href = dest;
+            } else if (status === 'left') {
+                // Returned from room to lobby
+                showView('snooker-online-lobby');
+            }
+        };
+
+        // ── Init ───────────────────────────────────────────────────────
+        buildRoomCards('2d');
+        showView('landing-page');
+    </script>
 </body>
 
 </html>

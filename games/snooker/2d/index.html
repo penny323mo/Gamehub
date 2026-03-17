@@ -130,12 +130,26 @@
   <script src="../online.js?v=20260316a"></script>
   <script src="app.js" defer></script>
   <script>
-    // Init online module after DOM ready
     document.addEventListener('DOMContentLoaded', () => {
       if (window.initSnookerOnline) window.initSnookerOnline({ gameMode: '2d' });
+
       document.getElementById('onlineBtn').addEventListener('click', () => {
         document.getElementById('snooker-online-overlay').classList.remove('hidden');
       });
+
+      // Auto-connect when redirected from the snooker lobby (index.html)
+      const pendingRoom = sessionStorage.getItem('snooker_pending_room');
+      if (pendingRoom && sessionStorage.getItem('snooker_pending_mode') === '2d') {
+        sessionStorage.removeItem('snooker_pending_room');
+        sessionStorage.removeItem('snooker_pending_mode');
+        // Show the room panel so the user sees the ready state while the
+        // game initialises, then online.js → snookerOnlineRoomUpdate('playing')
+        // will hide the overlay and start the match.
+        document.getElementById('snooker-online-overlay').classList.remove('hidden');
+        setTimeout(() => {
+          if (window.snookerJoinRoom) window.snookerJoinRoom(pendingRoom);
+        }, 300);
+      }
     });
   </script>
 </body>
