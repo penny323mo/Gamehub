@@ -4867,6 +4867,8 @@ window.snookerOnlineRoomUpdate = function ({ status, players, myRole } = {}) {
     window.onlineMyPlayerIndex = myRole === 'player2' ? 1 : 0;
     resetGame({ startNow: true, aiMode: false });
     updateUi();
+    // Collapse the overlay so the 3-D canvas is fully visible
+    document.getElementById('snooker3d-online-overlay')?.classList.add('hidden');
   } else if (status === 'finished') {
     gameStarted = false;
     gameOver    = true;

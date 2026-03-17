@@ -74,9 +74,14 @@ function initSnookerOnline({ gameMode = '2d' } = {}) {
     window.snookerToggleReady = toggleReady;
     window.snookerSendShot    = sendShot;
 
-    window.addEventListener('beforeunload', () => {
-        if (SnookerOnline.roomUuid) exitFixedRoom();
-    });
+    // Register the unload guard only once, even if initSnookerOnline()
+    // is called multiple times (e.g. switching 2D ↔ 3D in the hub).
+    if (!SnookerOnline._unloadRegistered) {
+        SnookerOnline._unloadRegistered = true;
+        window.addEventListener('beforeunload', () => {
+            if (SnookerOnline.roomUuid) exitFixedRoom();
+        });
+    }
 
     fetchLobbyRooms();
 
@@ -412,8 +417,9 @@ function subscribeToShots() {
             if (!shot?.id) return;
             // Ignore own shots
             if (shot.player_role === SnookerOnline.playerRole) return;
-            // Deduplicate
+            // Deduplicate; cap size to avoid unbounded growth in long sessions
             if (SnookerOnline.appliedShotIds.has(shot.id)) return;
+            if (SnookerOnline.appliedShotIds.size > 500) SnookerOnline.appliedShotIds.clear();
             SnookerOnline.appliedShotIds.add(shot.id);
             console.log('[SnookerShot] Remote shot received:', shot.payload);
             if (window.snookerApplyRemoteShot) window.snookerApplyRemoteShot(shot.payload || shot);
@@ -506,6 +512,8 @@ async function snookerRematch() {
 
     await SnookerOnline.sbClient.from('snooker_shots').delete().eq('room_id', SnookerOnline.roomUuid);
 
+    // Guard: only reset if the room is genuinely finished.
+    // Prevents a stale rematch click from resetting a game already in progress.
     await SnookerOnline.sbClient.from('snooker_rooms').update({
         status:          'waiting',
         player1_ready:   false,
@@ -515,7 +523,7 @@ async function snookerRematch() {
         finished_reason: null,
         finished_at:     null,
         round_id:        (window.snookerCurrentRoom?.round_id || 0) + 1,
-    }).eq('id', SnookerOnline.roomUuid);
+    }).eq('id', SnookerOnline.roomUuid).eq('status', 'finished');
 }
 
 // ─── SQL Schema (for reference / first-time setup) ───────────────────────────
