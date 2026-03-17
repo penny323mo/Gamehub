@@ -19,7 +19,7 @@
     .s3d-btn:disabled{opacity:.4;cursor:default}
     .s3d-btn.primary{background:#2563eb;border-color:#3b82f6}
     .s3d-status-row{display:flex;gap:10px;margin:8px 0;font-size:12px;color:#a9b6d6}
-    #snooker3d-waiting-msg{color:#ffd66a;font-size:12px;margin:6px 0}
+    #snooker-waiting-msg{color:#ffd66a;font-size:12px;margin:6px 0}
     .s3d-hidden{display:none!important}
     .hidden{display:none!important}
   </style>
@@ -33,7 +33,7 @@
   <div id="snooker3d-online-overlay" class="hidden">
 
     <!-- Lobby -->
-    <div id="snooker3d-online-lobby" class="s3d-panel">
+    <div id="snooker-online-lobby" class="s3d-panel">
       <h2>線上對戰 — 選擇房間</h2>
       <div id="snooker3d-room-list">
         <div class="s3d-room-card">
@@ -53,9 +53,9 @@
     </div>
 
     <!-- Room -->
-    <div id="snooker3d-online-room" class="s3d-panel hidden">
+    <div id="snooker-online-room" class="s3d-panel hidden">
       <h2>房間 <span id="snooker-room-id">-</span> &nbsp;|&nbsp; 你是 <span id="snooker-my-role">-</span></h2>
-      <div id="snooker3d-waiting-msg" style="display:none">等待對手加入...</div>
+      <div id="snooker-waiting-msg" style="display:none">等待對手加入...</div>
       <div id="snooker-ready-area">
         <div class="s3d-status-row">
           <span id="snooker-p1-ready">P1: -</span>
@@ -129,14 +129,6 @@
   <script src="../online.js?v=20260316a"></script>
   <script src="./main.js?v=20260207b"></script>
   <script>
-    // Remap online.js room DOM IDs to 3d-prefixed equivalents for waiting/room views
-    const _waitId  = document.getElementById('snooker3d-waiting-msg');
-    const _roomId  = document.getElementById('snooker3d-online-room');
-    const _lobbyId = document.getElementById('snooker3d-online-lobby');
-    if (_waitId)  _waitId.id  = 'snooker-waiting-msg';
-    if (_roomId)  _roomId.id  = 'snooker-online-room';
-    if (_lobbyId) _lobbyId.id = 'snooker-online-lobby';
-
     // Init online module immediately (scripts are sync, DOM is ready at this point)
     if (window.initSnookerOnline) window.initSnookerOnline({ gameMode: '3d' });
 
