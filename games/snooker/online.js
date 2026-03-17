@@ -32,6 +32,7 @@ const SnookerOnline = {
     shotsChannel:    null,
     clientId:        null,
     heartbeatInterval: null,
+    lobbyInterval:   null,   // tracked so repeated initSnookerOnline() calls don't leak
     appliedShotIds:  new Set(),
     currentRoundId:  null,
     hasSeat:         false,
@@ -79,8 +80,11 @@ function initSnookerOnline({ gameMode = '2d' } = {}) {
 
     fetchLobbyRooms();
 
-    // Auto-refresh lobby every 5 s while lobby is visible
-    setInterval(() => {
+    // Auto-refresh lobby every 5 s while lobby is visible.
+    // Clear any previous interval so repeated calls to initSnookerOnline()
+    // (e.g. switching between 2D / 3D in the hub) do not accumulate timers.
+    if (SnookerOnline.lobbyInterval) clearInterval(SnookerOnline.lobbyInterval);
+    SnookerOnline.lobbyInterval = setInterval(() => {
         if (document.getElementById('snooker-online-lobby')?.offsetParent !== null) {
             fetchLobbyRooms();
         }
@@ -271,6 +275,22 @@ function renderRoomState(room) {
     const rematchBtn = document.getElementById('snooker-rematch-btn');
     if (rematchBtn) rematchBtn.classList.toggle('hidden', room.status !== 'finished');
 
+    // ── Rematch: when status returns to 'waiting' after a completed game
+    // (round_id > 0), bring the room panel back into view so both players
+    // can click Ready again.  The overlay IDs differ between 2D and 3D pages
+    // but the inner room / lobby panel IDs are normalised by each page.
+    if (room.status === 'waiting' && newRoundId > 0) {
+        const overlayId = SnookerOnline.gameMode === '3d'
+            ? 'snooker3d-online-overlay'
+            : 'snooker-online-overlay';
+        const overlay = document.getElementById(overlayId);
+        if (overlay) {
+            overlay.classList.remove('hidden');
+            document.getElementById('snooker-online-lobby')?.classList.add('hidden');
+            document.getElementById('snooker-online-room')?.classList.remove('hidden');
+        }
+    }
+
     // ── Both players ready → transition to 'playing' (player1 initiates, race-safe) ──
     if (room.status === 'waiting' && room.player1_ready && room.player2_ready &&
         SnookerOnline.playerRole === 'player1' && SnookerOnline.sbClient) {
@@ -343,8 +363,20 @@ async function sendShot(payload) {
     const { error } = await SnookerOnline.sbClient
         .from('snooker_shots')
         .insert([{ room_id: SnookerOnline.roomUuid, player_role: SnookerOnline.playerRole, payload }]);
-    if (error) console.error('[SnookerShot] Send error:', error);
-    else       console.log('[SnookerShot] Sent:', payload);
+    if (error) {
+        console.error('[SnookerShot] Send error:', error);
+    } else {
+        console.log('[SnookerShot] Sent:', payload);
+        // Keep current_turn in sync so that reconnecting clients can determine
+        // whose turn it is without relying solely on local game state.
+        // The DB value reflects the player who fired the last shot; the game
+        // engines flip it locally when the turn actually transfers.
+        const nextTurn = SnookerOnline.playerRole === 'player1' ? 'player2' : 'player1';
+        SnookerOnline.sbClient.from('snooker_rooms')
+            .update({ current_turn: nextTurn })
+            .eq('id', SnookerOnline.roomUuid)
+            .then(({ error: e }) => { if (e) console.error('[SnookerShot] turn update error:', e); });
+    }
 }
 
 // ─── Realtime ────────────────────────────────────────────────────────────────
@@ -417,11 +449,27 @@ async function exitFixedRoom() {
         updateData.player2_ready = false;
     }
 
+    // Check whether the opponent still occupies the other seat.
+    const otherIdField  = SnookerOnline.playerRole === 'player1' ? 'player2_id' : 'player1_id';
+    const otherPlayerId = room?.[otherIdField];
+
     if (room?.status === 'playing') {
+        // Forfeit: leaving mid-game hands the win to the opponent.
         updateData.status          = 'finished';
         updateData.winner          = SnookerOnline.playerRole === 'player1' ? 'player2' : 'player1';
         updateData.finished_reason = 'opponent_left';
         updateData.finished_at     = now;
+    } else if (!otherPlayerId) {
+        // Last player to leave a non-playing room: reset the room completely
+        // so the next visitors find it in a clean, joinable state.
+        // (Without this, 'finished' rooms with no players are permanently stuck.)
+        updateData.status          = 'waiting';
+        updateData.player1_ready   = false;
+        updateData.player2_ready   = false;
+        updateData.current_turn    = null;
+        updateData.winner          = null;
+        updateData.finished_reason = null;
+        updateData.finished_at     = null;
     }
 
     await SnookerOnline.sbClient.from('snooker_rooms').update(updateData).eq('id', SnookerOnline.roomUuid);
