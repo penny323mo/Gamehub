@@ -12,6 +12,10 @@
 <body>
   <header class="topbar">
     <h1>鬥地主</h1>
+    <div class="topbar__actions topbar__actions--hidden" id="topbarActions">
+      <a href="../../index.html" class="btn btn--back">← Menu</a>
+      <button id="restartBtn" class="btn">Restart</button>
+    </div>
   </header>
 
   <main class="layout">
@@ -19,7 +23,7 @@
     <section id="landing-page" class="panel panel--landing" style="text-align:center; padding: 40px;">
       <h2>選擇遊戲模式</h2>
       <div style="display:flex; flex-direction:column; gap:15px; margin-top:30px; align-items:center;">
-        <button id="btn-local-ai" class="btn btn--primary" style="font-size:1.2rem; padding:15px 30px;" onclick="window.setGameMode('local')">🆚 對戰電腦 (CPU)</button>
+        <button id="btn-local-ai" class="btn btn--primary" style="font-size:1.2rem; padding:15px 30px;" onclick="window.setGameMode('local')">🆚 對戰電腦 (1v2 AI)</button>
         <button id="btn-online" class="btn btn--action" style="font-size:1.2rem; padding:15px 30px; background:#4CAF50;" onclick="window.setGameMode('online-lobby')">🌐 線上對戰 (3人連線)</button>
         <button id="btn-back-menu" class="btn btn--nav" style="margin-top:20px;" onclick="window.location.href='../../index.html'">← 返回 Game Hub</button>
       </div>
@@ -78,7 +82,7 @@
           <span id="p1-ready-status">P2: Loading</span>
           <span id="p2-ready-status">P3: Loading</span>
           <button id="toggle-ready-btn" class="btn btn--primary" onclick="toggleReady()" style="margin-left:auto; padding:4px 10px;">Ready</button>
-          <button id="start-game-btn" class="btn btn--danger hidden" onclick="forceStartGame()" style="margin-left:10px; padding:4px 10px; background-color: #f44336; color: white;">Start Game</button>
+          <button id="start-game-btn" class="btn btn--danger hidden" onclick="forceStartGame()" style="margin-left:10px; padding:4px 10px; background-color: #f44336; color: white;">Start Game (CPU Fill)</button>
         </div>
       </section>
 
@@ -156,7 +160,8 @@
       <div class="bottomControls" id="bottomControls">
         <a href="../../index.html" class="btn btn--nav">← 返回 Menu</a>
         <button id="startGameBtn" class="btn btn--nav btn--start">開始遊戲</button>
-        <button id="restartBtn" class="btn btn--nav">重新開始</button>
+        <button id="restartBtn2" class="btn btn--nav">重新開始</button>
+        <button class="btn btn--nav hidden" id="exitGameBtn" onclick="window.setGameMode('landing')">退出對局</button>
       </div>
 
     </div>

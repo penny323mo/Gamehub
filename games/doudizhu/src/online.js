@@ -476,6 +476,8 @@ async function exitFixedRoom() {
             updateData.status = 'finished';
             updateData.finished_reason = 'opponent_left';
         }
+        // Fix #9: If room is already waiting or finished, do NOT change it to finished!
+        // We just leave it as waiting so others can still join.
     }
 
     await OnlineState.sbClient.from('doudizhu_rooms').update(updateData).eq('id', OnlineState.roomUuid);
