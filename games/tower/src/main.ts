@@ -519,6 +519,9 @@ function gameLoop(time: number): void {
 
     const dt = rawDt * state.speedMultiplier;
     accumulator += dt;
+    // Cap accumulator to prevent spiral-of-death on lag spikes
+    const MAX_STEPS = 5;
+    if (accumulator > LOGIC_DT * MAX_STEPS) accumulator = LOGIC_DT * MAX_STEPS;
 
     // Fixed-step logic
     while (accumulator >= LOGIC_DT) {

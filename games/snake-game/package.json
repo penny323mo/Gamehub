@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && sed -i '' 's/ type=\"module\" crossorigin//g' dist/index.html && sed -i '' 's/<script src=/<script defer src=/g' dist/index.html && sed -i '' 's/ crossorigin//g' dist/index.html",
+    "build": "tsc -b && vite build && node -e \"const fs=require('fs'),p='dist/index.html';let h=fs.readFileSync(p,'utf8');h=h.replace(/ type=\\\"module\\\" crossorigin/g,'').replace(/(<script) src=/g,'$1 defer src=').replace(/ crossorigin/g,'');fs.writeFileSync(p,h);\"",
     "lint": "eslint .",
     "preview": "vite preview"
   },

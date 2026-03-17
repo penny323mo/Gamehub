@@ -1,11 +1,24 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { GameState, Position, Direction, Food, Level, Obstacle, GameMode, GameSettings } from '../../types/game';
 
+let _audioCtx: AudioContext | null = null;
+const getAudioContext = (): AudioContext | null => {
+  if (_audioCtx) return _audioCtx;
+  try {
+    _audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    return _audioCtx;
+  } catch (e) {
+    console.warn('AudioContext unavailable:', e);
+    return null;
+  }
+};
+
 const playSoundEffect = (type: 'eat' | 'die' | 'powerup' | 'levelup' | 'gem' | 'hit' | 'pause' | 'tick', settings: GameSettings) => {
   if (!settings.soundEnabled) return;
 
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const ctx = getAudioContext();
+    if (!ctx) return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -90,7 +103,9 @@ const playSoundEffect = (type: 'eat' | 'die' | 'powerup' | 'levelup' | 'gem' | '
         osc.stop(ctx.currentTime + 0.05);
         break;
     }
-  } catch (e) { }
+  } catch (e) {
+    console.warn('playSoundEffect error:', e);
+  }
 };
 import { useGameLoop } from '../../hooks/useGameLoop';
 import { useStorage } from '../../hooks/useStorage';
@@ -140,7 +155,7 @@ export default function Game() {
 
   function initializeGame(level: number): GameState {
     const levelData = LEVELS[level - 1] || LEVELS[0];
-    const obstacles = JSON.parse(JSON.stringify(levelData.obstacles));
+    const obstacles = structuredClone(levelData.obstacles);
     obstaclesRef.current = obstacles;
 
     return {
@@ -426,7 +441,7 @@ export default function Game() {
       if (shouldAdvanceLevel) {
         const nextLevel = prev.level + 1;
         const newLevelData = LEVELS[nextLevel - 1];
-        obstaclesRef.current = JSON.parse(JSON.stringify(newLevelData.obstacles));
+        obstaclesRef.current = structuredClone(newLevelData.obstacles);
         return {
           ...prev,
           snake: newSnake,
