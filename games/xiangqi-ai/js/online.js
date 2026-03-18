@@ -75,8 +75,6 @@ function initOnlineMode() {
 async function fetchLobbyRooms() {
     if (!OnlineState.sbClient) return;
 
-    await cleanStaleRoomsRPC();
-
     const { data: rooms, error } = await OnlineState.sbClient
         .from('xiangqi_rooms')
         .select('*')
@@ -93,18 +91,6 @@ async function fetchLobbyRooms() {
     });
 }
 
-let _lastRpcCleanAt = 0;
-async function cleanStaleRoomsRPC() {
-    if (!OnlineState.sbClient) return;
-    const now = Date.now();
-    if (now - _lastRpcCleanAt <= 30000) return;
-    _lastRpcCleanAt = now;
-    try {
-        await OnlineState.sbClient.rpc('clean_stale_xiangqi_rooms');
-    } catch (e) {
-        console.log('[Stale] RPC error:', e.message);
-    }
-}
 
 function updateRoomCardUI(roomKey, room) {
     const statusEl = document.getElementById(`room-status-${roomKey}`);
@@ -132,8 +118,6 @@ function updateRoomCardUI(roomKey, room) {
 async function joinFixedRoom(roomKey) {
     if (!OnlineState.sbClient) return;
     console.log('[Join] Joining:', roomKey);
-
-    await cleanStaleRoomsRPC();
 
     const { data: room, error } = await OnlineState.sbClient
         .from('xiangqi_rooms')

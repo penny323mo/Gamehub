@@ -78,9 +78,6 @@ function initOnlineMode() {
 async function fetchLobbyRooms() {
     if (!OnlineState.sbClient) return;
 
-    // 呼叫 RPC 清理過期房間（server-side）
-    await cleanStaleRoomsRPC();
-
     const { data: rooms, error } = await OnlineState.sbClient
         .from('gomoku_rooms')
         .select('room_code, black_player_id, white_player_id, status, last_activity_at, waiting_since, both_present_since, black_ready, white_ready')
@@ -109,23 +106,6 @@ async function fetchLobbyRooms() {
     });
 }
 
-// 呼叫 server-side RPC 清理過期房間（最多每 30 秒一次）
-let _lastRpcCleanAt = 0;
-async function cleanStaleRoomsRPC() {
-    if (!OnlineState.sbClient) return;
-    const now = Date.now();
-    if (now - _lastRpcCleanAt <= 30000) return;
-    _lastRpcCleanAt = now;
-
-    try {
-        const { data, error } = await OnlineState.sbClient.rpc('clean_stale_gomoku_rooms');
-        if (data?.cleaned > 0) {
-            console.log('[Stale] RPC cleaned', data.cleaned, 'rooms');
-        }
-    } catch (e) {
-        console.log('[Stale] RPC error (non-fatal):', e.message);
-    }
-}
 
 function updateRoomCardUI(roomKey, room) {
     const statusEl = document.getElementById(`room-status-${roomKey}`);
@@ -155,9 +135,6 @@ function updateRoomCardUI(roomKey, room) {
 async function joinFixedRoom(roomKey) {
     if (!OnlineState.sbClient) return;
     console.log('[Join] Joining:', roomKey);
-
-    // 0. 先清理過期房間
-    await cleanStaleRoomsRPC();
 
     // 1. 讀取房間
     const { data: room, error } = await OnlineState.sbClient

@@ -84,20 +84,8 @@ function initOnlineMode() {
     }, 3000);
 }
 
-let _lastRpcCleanAt = 0;
 async function fetchLobbyRooms() {
     if (!OnlineState.sbClient) return;
-
-    // Throttle stale-room cleanup to at most once every 30s
-    const now = Date.now();
-    if (now - _lastRpcCleanAt > 30000) {
-        _lastRpcCleanAt = now;
-        try {
-            await OnlineState.sbClient.rpc('clean_stale_big2_rooms');
-        } catch (e) {
-            console.log('[Lobby] RPC Error:', e);
-        }
-    }
 
     const { data: rooms, error } = await OnlineState.sbClient
         .from('big2_rooms')
@@ -150,12 +138,6 @@ function updateRoomCardUI(roomKey, room) {
 
 async function joinFixedRoom(roomKey) {
     if (!OnlineState.sbClient) return;
-
-    try {
-        await OnlineState.sbClient.rpc('clean_stale_big2_rooms');
-    } catch (e) {
-        console.log('[Room Join] RPC Error:', e);
-    }
 
     const { data: room, error } = await OnlineState.sbClient
         .from('big2_rooms')
