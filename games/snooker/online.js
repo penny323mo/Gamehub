@@ -201,6 +201,25 @@ async function joinFixedRoom(roomKey) {
         return;
     }
 
+    // If we claimed a NEW slot (not re-entry) in a stuck non-waiting room
+    // (e.g. both players exited simultaneously and the room was never reset),
+    // reset it to waiting so we don't inherit a stale 'finished'/'playing' state.
+    if (conditionField && freshRoom.status !== 'waiting') {
+        await SnookerOnline.sbClient.from('snooker_rooms').update({
+            status:          'waiting',
+            player1_ready:   false,
+            player2_ready:   false,
+            current_turn:    null,
+            winner:          null,
+            finished_reason: null,
+            finished_at:     null,
+        }).eq('id', room.id);
+        // Re-fetch so we render the corrected state
+        const { data: resetRoom } = await SnookerOnline.sbClient
+            .from('snooker_rooms').select('*').eq('id', room.id).single();
+        if (resetRoom) Object.assign(freshRoom, resetRoom);
+    }
+
     Object.assign(room, freshRoom);
     SnookerOnline.hasSeat       = true;
     SnookerOnline.roomKey       = roomKey;
@@ -424,7 +443,16 @@ async function exitFixedRoom() {
         cleanupAndLobby(); return;
     }
 
-    const room = window.snookerCurrentRoom;
+    // Always re-fetch fresh room state; window.snookerCurrentRoom can be stale,
+    // especially when both players exit near-simultaneously (otherPlayerId would
+    // be wrong and the room would get stuck in 'finished' with empty slots).
+    const { data: freshRoom } = await SnookerOnline.sbClient
+        .from('snooker_rooms')
+        .select('player1_id, player2_id, status')
+        .eq('id', SnookerOnline.roomUuid)
+        .single();
+    const room = freshRoom || window.snookerCurrentRoom;
+
     if (room?.status === 'playing') {
         if (!confirm('退出將判負，確定要離開？')) return;
     }
@@ -442,7 +470,7 @@ async function exitFixedRoom() {
         updateData.player2_ready = false;
     }
 
-    // Check whether the opponent still occupies the other seat.
+    // Check whether the opponent still occupies the other seat (using fresh state).
     const otherIdField  = SnookerOnline.playerRole === 'player1' ? 'player2_id' : 'player1_id';
     const otherPlayerId = room?.[otherIdField];
 
@@ -453,16 +481,23 @@ async function exitFixedRoom() {
         updateData.finished_reason = 'opponent_left';
         updateData.finished_at     = now;
     } else if (!otherPlayerId) {
-        // Last player to leave a non-playing room: reset the room completely
-        // so the next visitors find it in a clean, joinable state.
-        // (Without this, 'finished' rooms with no players are permanently stuck.)
+        // Last player to leave: reset the room completely so next visitors find
+        // it in a clean, joinable state.
         updateData.status          = 'waiting';
+        updateData.player1_id      = null;
         updateData.player1_ready   = false;
+        updateData.player2_id      = null;
         updateData.player2_ready   = false;
         updateData.current_turn    = null;
         updateData.winner          = null;
         updateData.finished_reason = null;
         updateData.finished_at     = null;
+    } else {
+        // Opponent is still in the room (non-playing): clear our own ready flag
+        // AND the opponent's, so the next person who fills our seat must
+        // re-confirm readiness rather than triggering an instant game start.
+        updateData.player1_ready = false;
+        updateData.player2_ready = false;
     }
 
     await SnookerOnline.sbClient.from('snooker_rooms').update(updateData).eq('id', SnookerOnline.roomUuid);
