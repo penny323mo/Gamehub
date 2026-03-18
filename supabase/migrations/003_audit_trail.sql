@@ -12,17 +12,14 @@
 -- ────────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION _get_client_ip()
 RETURNS text LANGUAGE sql STABLE SECURITY DEFINER AS $$
+    -- Parse request headers once, then extract both candidate fields from
+    -- the single parsed jsonb value to avoid redundant JSON parsing.
     SELECT COALESCE(
-        NULLIF(
-            (current_setting('request.headers', true)::jsonb)->>'x-forwarded-for',
-            ''
-        ),
-        NULLIF(
-            (current_setting('request.headers', true)::jsonb)->>'x-real-ip',
-            ''
-        ),
+        NULLIF(h->>'x-forwarded-for', ''),
+        NULLIF(h->>'x-real-ip', ''),
         'unknown'
-    );
+    )
+    FROM (SELECT NULLIF(current_setting('request.headers', true), '')::jsonb AS h) t;
 $$;
 
 GRANT EXECUTE ON FUNCTION _get_client_ip() TO anon, authenticated;

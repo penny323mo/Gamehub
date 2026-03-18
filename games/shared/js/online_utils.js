@@ -60,8 +60,11 @@
         .gh-toast.success { background: #1e8449; }
     `;
 
+    const MAX_TOASTS = 5;
+
     function ensureContainer() {
-        if (document.getElementById(CONTAINER_ID)) return document.getElementById(CONTAINER_ID);
+        const existing = document.getElementById(CONTAINER_ID);
+        if (existing) return existing;
 
         if (!document.getElementById(CSS_ID)) {
             const s = document.createElement('style');
@@ -82,10 +85,12 @@
      * @param {number} [duration=3500] - Auto-dismiss delay in ms
      */
     window.showOnlineToast = function (msg, type, duration) {
-        type = type || 'error';
-        duration = duration !== undefined ? duration : 3500;
+        type = type ?? 'error';
+        duration = duration ?? 3500;
 
         const container = ensureContainer();
+        // Evict the oldest toast if we've hit the cap
+        if (container.childElementCount >= MAX_TOASTS) container.firstElementChild.remove();
         const toast = document.createElement('div');
         toast.className = 'gh-toast ' + type;
         toast.textContent = msg;
