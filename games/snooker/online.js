@@ -146,7 +146,7 @@ async function joinFixedRoom(roomKey) {
         .eq('room_code', roomKey)
         .single();
 
-    if (error || !room) { alert('房間不存在'); return; }
+    if (error || !room) { showOnlineToast('房間不存在', 'error'); return; }
 
     let role = null;
     const now = new Date().toISOString();
@@ -170,7 +170,7 @@ async function joinFixedRoom(roomKey) {
         updateData.p2_last_seen_at = now;
         conditionField             = 'player2_id';
     } else {
-        alert('房間已滿'); return;
+        showOnlineToast('房間已滿', 'warn'); return;
     }
 
     let query = SnookerOnline.sbClient.from('snooker_rooms').update(updateData).eq('id', room.id);
@@ -179,7 +179,7 @@ async function joinFixedRoom(roomKey) {
     const { error: updateErr } = await query;
     if (updateErr) {
         console.error('[SnookerOnline] join update error:', updateErr);
-        alert('加入失敗: ' + (updateErr.message || '未知錯誤'));
+        showOnlineToast('加入失敗: ' + (updateErr.message || '未知錯誤'), 'error');
         fetchLobbyRooms();
         return;
     }
@@ -189,14 +189,14 @@ async function joinFixedRoom(roomKey) {
         .from('snooker_rooms').select('*').eq('id', room.id).single();
 
     if (fetchErr || !freshRoom) {
-        alert('加入失敗，讀取房間出錯');
+        showOnlineToast('加入失敗，讀取房間出錯', 'error');
         fetchLobbyRooms();
         return;
     }
 
     // If we tried to claim a slot, verify we actually got it
     if (conditionField && freshRoom[conditionField] !== SnookerOnline.clientId) {
-        alert('加入失敗，位置可能被搶走');
+        showOnlineToast('加入失敗，位置可能被搶走', 'warn');
         fetchLobbyRooms();
         return;
     }
@@ -317,7 +317,7 @@ async function toggleReady() {
     const { data: room } = await SnookerOnline.sbClient
         .from('snooker_rooms').select('*').eq('id', SnookerOnline.roomUuid).single();
 
-    if (!room?.player1_id || !room?.player2_id) { alert('請等待對手加入'); return; }
+    if (!room?.player1_id || !room?.player2_id) { showOnlineToast('請等待對手加入', 'info'); return; }
 
     const field    = SnookerOnline.playerRole === 'player1' ? 'player1_ready' : 'player2_ready';
     const newReady = !room[field];
