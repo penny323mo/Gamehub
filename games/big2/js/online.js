@@ -146,7 +146,7 @@ async function joinFixedRoom(roomKey) {
         .single();
 
     if (error || !room) {
-        alert('Room not found');
+        showOnlineToast('Room not found', 'error');
         return;
     }
 
@@ -172,7 +172,7 @@ async function joinFixedRoom(roomKey) {
         else if (!room.player3_id) seatIndex = 3;
 
         if (seatIndex === -1) {
-            alert('Room is full');
+            showOnlineToast('Room is full', 'warn');
             return;
         }
 
@@ -187,7 +187,7 @@ async function joinFixedRoom(roomKey) {
     const { data: updatedRows, error: updateErr } = await query.select();
 
     if (updateErr || !updatedRows || updatedRows.length === 0) {
-        alert('Failed to join or seat taken');
+        showOnlineToast('Failed to join — seat may have been taken', 'warn');
         fetchLobbyRooms();
         return;
     }
@@ -446,13 +446,13 @@ async function handleOnlineAction(actionType, payloadObj, actPlayerIndex = null)
 
     if (error) {
         console.error('[Online] Action RPC error:', error);
-        alert('Action failed: ' + (error.message || 'unknown error'));
+        showOnlineToast('Action failed: ' + (error.message || 'unknown error'), 'error');
         return false;
     }
     if (data?.error) {
         console.warn('[Online] Action rejected:', data.error);
-        if (data.error === 'not_your_turn') alert('唔係你嘅回合！');
-        else alert('Action failed: ' + data.error);
+        if (data.error === 'not_your_turn') showOnlineToast('唔係你嘅回合！', 'warn');
+        else showOnlineToast('Action failed: ' + data.error, 'warn');
         return false;
     }
 
