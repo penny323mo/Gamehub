@@ -98,16 +98,8 @@ function initSnookerOnline({ gameMode = '2d' } = {}) {
 
 // ─── Lobby ───────────────────────────────────────────────────────────────────
 
-let _lastRpcCleanAt = 0;
-
 async function fetchLobbyRooms() {
     if (!SnookerOnline.sbClient) return;
-
-    const now = Date.now();
-    if (now - _lastRpcCleanAt > 30000) {
-        _lastRpcCleanAt = now;
-        try { await SnookerOnline.sbClient.rpc('clean_stale_snooker_rooms'); } catch (_) {}
-    }
 
     const { data: rooms, error } = await SnookerOnline.sbClient
         .from('snooker_rooms')
@@ -147,8 +139,6 @@ function updateRoomCardUI(roomKey, room) {
 
 async function joinFixedRoom(roomKey) {
     if (!SnookerOnline.sbClient) return;
-
-    try { await SnookerOnline.sbClient.rpc('clean_stale_snooker_rooms'); } catch (_) {}
 
     const { data: room, error } = await SnookerOnline.sbClient
         .from('snooker_rooms')
