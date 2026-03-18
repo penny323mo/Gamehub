@@ -126,7 +126,7 @@ async function joinFixedRoom(roomKey) {
         .single();
 
     if (error || !room) {
-        alert('房間唔存在');
+        showOnlineToast('房間唔存在', 'error');
         return;
     }
 
@@ -152,7 +152,7 @@ async function joinFixedRoom(roomKey) {
         updateData.black_last_seen_at = now;
         conditionField = 'black_player_id';
     } else {
-        alert('房間已滿');
+        showOnlineToast('房間已滿', 'warn');
         return;
     }
 
@@ -162,7 +162,7 @@ async function joinFixedRoom(roomKey) {
     const { data: updatedRows, error: updateErr } = await query.select();
 
     if (updateErr || !updatedRows || updatedRows.length === 0) {
-        alert('加入失敗或位置剛被搶走');
+        showOnlineToast('加入失敗或位置剛被搶走', 'warn');
         fetchLobbyRooms();
         return;
     }
@@ -220,7 +220,7 @@ function renderRoomState(room) {
     if (OnlineState.hasSeat && OnlineState.playerRole && OnlineState.roomUuid) {
         const myIdInRoom = OnlineState.playerRole === 'red' ? room.red_player_id : room.black_player_id;
         if (myIdInRoom !== OnlineState.clientId) {
-            alert('你已被系統移出房間');
+            showOnlineToast('你已被系統移出房間', 'warn');
             cleanupAndReturnToLobby();
             return;
         }
@@ -360,11 +360,11 @@ async function handleOnlineMove(from_idx, to_idx, packedMove, moveColor) {
     if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
     const room = window.currentRoom;
     if (!room || room.status !== 'playing') {
-        alert('遊戲尚未開始或已結束');
+        showOnlineToast('遊戲尚未開始或已結束', 'warn');
         return false;
     }
     if (room.current_player !== OnlineState.playerRole) {
-        alert('未到你行棋！');
+        showOnlineToast('未到你行棋！', 'warn');
         return false;
     }
     // Route through server-validated RPC (seat + turn check).
@@ -379,13 +379,13 @@ async function handleOnlineMove(from_idx, to_idx, packedMove, moveColor) {
     });
 
     if (error) {
-        alert('落子失敗：' + (error.message || 'unknown error'));
+        showOnlineToast('落子失敗：' + (error.message || 'unknown error'), 'error');
         return false;
     }
     if (data?.error) {
         console.warn('[Move] Rejected:', data.error);
-        if (data.error === 'not_your_turn') alert('未到你行棋！');
-        else alert('落子失敗：' + data.error);
+        if (data.error === 'not_your_turn') showOnlineToast('未到你行棋！', 'warn');
+        else showOnlineToast('落子失敗：' + data.error, 'warn');
         return false;
     }
 

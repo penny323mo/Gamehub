@@ -144,7 +144,7 @@ async function joinFixedRoom(roomKey) {
         .single();
 
     if (error || !room) {
-        alert('房間唔存在');
+        showOnlineToast('房間唔存在', 'error');
         return;
     }
 
@@ -200,7 +200,7 @@ async function joinFixedRoom(roomKey) {
         updateData.both_present_since = now;
         updateData.waiting_since = null;
     } else {
-        alert('房間已滿');
+        showOnlineToast('房間已滿', 'warn');
         return;
     }
 
@@ -218,13 +218,13 @@ async function joinFixedRoom(roomKey) {
     const { data: updatedRows, error: updateErr } = await query.select();
 
     if (updateErr) {
-        alert('加入失敗：' + updateErr.message);
+        showOnlineToast('加入失敗：' + updateErr.message, 'error');
         return;
     }
 
     // 檢查條件 update 是否成功（如果冇 row 返回，代表被搶咗）
     if (!updatedRows || updatedRows.length === 0) {
-        alert('位置剛被搶走，請重新選擇');
+        showOnlineToast('位置剛被搶走，請重新選擇', 'warn');
         fetchLobbyRooms();
         return;
     }
@@ -322,7 +322,7 @@ function renderRoomState(room) {
         const myIdInRoom = OnlineState.playerRole === 'black' ? room.black_player_id : room.white_player_id;
         if (myIdInRoom !== OnlineState.clientId) {
             console.log('[Render] ⚠️ KICKED: my seat is no longer mine!');
-            alert('你已被系統移出房間');
+            showOnlineToast('你已被系統移出房間', 'warn');
             cleanupAndReturnToLobby();
             return;
         }
@@ -403,7 +403,7 @@ async function toggleReady() {
         .single();
 
     if (!room || !room.black_player_id || !room.white_player_id) {
-        alert('請等待對手加入');
+        showOnlineToast('請等待對手加入', 'info');
         return;
     }
 
@@ -420,7 +420,7 @@ async function toggleReady() {
 
     if (error) {
         console.error('[Ready] Error:', error);
-        alert('更新失敗');
+        showOnlineToast('更新失敗', 'error');
     }
 }
 
@@ -438,7 +438,7 @@ async function handleOnlineMove(row, col) {
 
     if (room.current_player !== OnlineState.playerRole) {
         console.log('[Move] Not my turn');
-        alert('唔係你嘅回合！');
+        showOnlineToast('唔係你嘅回合！', 'warn');
         return;
     }
 
@@ -456,14 +456,14 @@ async function handleOnlineMove(row, col) {
 
     if (error) {
         console.error('[Move] RPC error:', error);
-        alert('落子失敗：' + (error.message || 'unknown error'));
+        showOnlineToast('落子失敗：' + (error.message || 'unknown error'), 'error');
         return;
     }
     if (data?.error) {
         console.warn('[Move] Rejected:', data.error);
-        if (data.error === 'not_your_turn') alert('唔係你嘅回合！');
-        else if (data.error === 'cell_occupied') alert('此格已有棋子！');
-        else alert('落子失敗：' + data.error);
+        if (data.error === 'not_your_turn') showOnlineToast('唔係你嘅回合！', 'warn');
+        else if (data.error === 'cell_occupied') showOnlineToast('此格已有棋子！', 'warn');
+        else showOnlineToast('落子失敗：' + data.error, 'warn');
         return;
     }
 
