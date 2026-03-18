@@ -305,14 +305,16 @@ function renderRoomState(room) {
         }
     }
 
-    // ── Both players ready → transition to 'playing' (player1 initiates, race-safe) ──
+    // ── Both players ready → transition to 'playing' ──────────────────────────
+    // Either player can trigger this; eq('status','waiting') makes it race-safe
+    // so only the first update wins (the second is a silent no-op).
     if (room.status === 'waiting' && room.player1_ready && room.player2_ready &&
-        SnookerOnline.playerRole === 'player1' && SnookerOnline.sbClient) {
+        SnookerOnline.roomUuid && SnookerOnline.sbClient) {
         SnookerOnline.sbClient
             .from('snooker_rooms')
             .update({ status: 'playing', current_turn: 'player1' })
             .eq('id', SnookerOnline.roomUuid)
-            .eq('status', 'waiting')   // condition: only apply if still waiting
+            .eq('status', 'waiting')
             .then(({ error }) => { if (error) console.log('[SnookerOnline] start-game skipped:', error.message); });
     }
 
@@ -344,7 +346,15 @@ async function toggleReady() {
     const { error } = await SnookerOnline.sbClient
         .from('snooker_rooms').update({ [field]: newReady }).eq('id', SnookerOnline.roomUuid);
 
-    if (error) console.error('[SnookerOnline] toggleReady error:', error);
+    if (error) { console.error('[SnookerOnline] toggleReady error:', error); return; }
+
+    // Don't rely solely on realtime to drive the game-start check.
+    // Re-fetch and run renderRoomState immediately so that whichever player
+    // clicks ready last can trigger the transition without waiting for a
+    // Supabase realtime delivery that may be slow or dropped.
+    const { data: fresh } = await SnookerOnline.sbClient
+        .from('snooker_rooms').select('*').eq('id', SnookerOnline.roomUuid).single();
+    if (fresh) renderRoomState(fresh);
 }
 
 // ─── Heartbeat ───────────────────────────────────────────────────────────────
