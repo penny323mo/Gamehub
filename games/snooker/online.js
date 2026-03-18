@@ -260,7 +260,8 @@ function renderRoomState(room) {
     const roomIdEl = document.getElementById('snooker-room-id');
     const roleEl   = document.getElementById('snooker-my-role');
     if (roomIdEl) roomIdEl.textContent = SnookerOnline.roomKey;
-    if (roleEl)   roleEl.textContent   = SnookerOnline.playerRole === 'player1' ? 'P1' : 'P2';
+    if (roleEl)   roleEl.textContent   = SnookerOnline.playerRole === 'player1' ? 'P1'
+                                       : SnookerOnline.playerRole === 'player2' ? 'P2' : '-';
 
     // Waiting message
     const hasOpponent = room.player1_id && room.player2_id;
@@ -278,9 +279,10 @@ function renderRoomState(room) {
 
     const readyBtn = document.getElementById('snooker-ready-btn');
     if (readyBtn) {
-        const myReady = SnookerOnline.playerRole === 'player1' ? room.player1_ready : room.player2_ready;
+        const myReady = SnookerOnline.playerRole === 'player1' ? room.player1_ready
+                      : SnookerOnline.playerRole === 'player2' ? room.player2_ready : false;
         readyBtn.textContent = myReady ? '取消準備' : '準備';
-        readyBtn.disabled    = !hasOpponent;
+        readyBtn.disabled    = !hasOpponent || !SnookerOnline.playerRole;
     }
 
     const readyArea = document.getElementById('snooker-ready-area');
@@ -333,7 +335,7 @@ function renderRoomState(room) {
 // ─── Ready ───────────────────────────────────────────────────────────────────
 
 async function toggleReady() {
-    if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid) return;
+    if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
 
     const { data: room } = await SnookerOnline.sbClient
         .from('snooker_rooms').select('*').eq('id', SnookerOnline.roomUuid).single();
@@ -362,7 +364,7 @@ async function toggleReady() {
 function startHeartbeat() {
     stopHeartbeat();
     SnookerOnline.heartbeatInterval = setInterval(async () => {
-        if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid) return;
+        if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
         const field = SnookerOnline.playerRole === 'player1' ? 'p1_last_seen_at' : 'p2_last_seen_at';
         await SnookerOnline.sbClient
             .from('snooker_rooms').update({ [field]: new Date().toISOString() })
@@ -383,7 +385,7 @@ function stopHeartbeat() {
  * payload for 3D: { aim_dx, aim_dz, power, spin_x, spin_y, cue_x, cue_z }
  */
 async function sendShot(payload) {
-    if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid) return;
+    if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
     // Route through server-validated RPC (seat ownership check + current_turn flip).
     const { data, error } = await SnookerOnline.sbClient.rpc('submit_snooker_shot', {
         p_room_id:     SnookerOnline.roomUuid,
@@ -449,7 +451,7 @@ function subscribeToShots() {
 // ─── Exit ────────────────────────────────────────────────────────────────────
 
 async function exitFixedRoom() {
-    if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid) {
+    if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid || !SnookerOnline.playerRole) {
         cleanupAndLobby(); return;
     }
 

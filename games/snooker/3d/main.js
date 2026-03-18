@@ -4820,7 +4820,7 @@ if (mobileControlsEl) {
 
 // Apply a shot received from the remote player via online.js.
 window.snookerApplyRemoteShot = function(payload) {
-  if (!gameStarted || gameOver) return;
+  if (!window.isOnlineMode || !gameStarted || gameOver) return;
   if (!payload) return;
 
   // Apply cue ball position when it was placed in hand
@@ -4876,7 +4876,10 @@ window.snookerOnlineRoomUpdate = function ({ status, players, myRole } = {}) {
     setStatus('對手已離開，遊戲結束。', 5);
     updateUi();
   } else if (status === 'left') {
-    window.isOnlineMode = false;
+    window.isOnlineMode        = false;
+    window.onlineMyPlayerIndex = 0;
+    gameStarted                = false;
+    gameOver                   = false;
     setStatus('已返回離線模式。', 3);
     updateUi();
   }
