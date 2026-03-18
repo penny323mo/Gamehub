@@ -15,6 +15,7 @@ const OnlineState = {
     actionsChannel: null,
     clientId: null,
     heartbeatInterval: null,
+    lobbyInterval: null,      // tracked to prevent accumulation on re-init
     appliedActionIds: new Set(),
     actionQueue: [], // For sorting actions
     isProcessingActions: false,
@@ -57,9 +58,13 @@ function initOnlineMode() {
     window.toggleReady = toggleReady;
     window.handleOnlineAction = handleOnlineAction;
 
-    window.addEventListener('beforeunload', () => {
-        if (OnlineState.roomUuid) exitFixedRoom();
-    });
+    // Guard: register the unload handler only once even on re-init
+    if (!OnlineState._unloadRegistered) {
+        OnlineState._unloadRegistered = true;
+        window.addEventListener('beforeunload', () => {
+            if (OnlineState.roomUuid) exitFixedRoom();
+        });
+    }
 
     // Override isOnlineHost in app.js
     window.isOnlineHost = function() {
@@ -69,8 +74,9 @@ function initOnlineMode() {
 
     fetchLobbyRooms();
 
-    // Auto refresh lobby
-    setInterval(() => {
+    // Auto refresh lobby — clear any previous interval to prevent accumulation
+    if (OnlineState.lobbyInterval) clearInterval(OnlineState.lobbyInterval);
+    OnlineState.lobbyInterval = setInterval(() => {
         const lobbyEl = document.getElementById('online-lobby');
         if (lobbyEl && !lobbyEl.classList.contains('hidden')) {
             fetchLobbyRooms();
@@ -342,12 +348,14 @@ async function forceStartGame() {
 // Logic triggered by Host (P0 or whoever is making everyone ready)
 async function startGameFromHost() {
     const deck = window.generateShuffledDeck ? window.generateShuffledDeck() : [];
-    const updateData = {
-        status: 'playing',
-        initial_deck: deck,
-        current_player_index: null, // to be decided by 3D rule
-    };
-    await OnlineState.sbClient.from('big2_rooms').update(updateData).eq('id', OnlineState.roomUuid);
+    // Route through validated RPC — race-safe (.eq('status','waiting') inside)
+    const { data, error } = await OnlineState.sbClient.rpc('start_big2_game', {
+        p_room_id:      OnlineState.roomUuid,
+        p_client_id:    OnlineState.clientId,
+        p_initial_deck: deck,
+    });
+    if (error) console.error('[Online] startGame RPC error:', error);
+    else if (data?.skipped) console.log('[Online] startGame skipped – already started');
 }
 
 function subscribeToRoom() {
@@ -388,6 +396,8 @@ async function syncHistoricalActions() {
 
 function queueAction(action) {
     if (!action || !action.id || OnlineState.appliedActionIds.has(action.id)) return;
+    // Bound the set to prevent unbounded memory growth in long sessions
+    if (OnlineState.appliedActionIds.size > 500) OnlineState.appliedActionIds.clear();
     OnlineState.appliedActionIds.add(action.id);
     
     // Insert in sorted position by action_no (O(n) vs sort's O(n log n))
@@ -443,20 +453,28 @@ async function handleOnlineAction(actionType, payloadObj, actPlayerIndex = null)
 
     const pIndex = actPlayerIndex !== null ? actPlayerIndex : OnlineState.playerIndex;
 
-    const { data, error } = await OnlineState.sbClient.from('big2_actions').insert([{
-        room_id: OnlineState.roomUuid,
-        player_index: pIndex,
-        action_type: actionType,
-        payload: payloadObj
-    }]).select('id').single();
+    // Route through server-validated RPC (seat ownership + turn check)
+    const { data, error } = await OnlineState.sbClient.rpc('submit_big2_action', {
+        p_room_id:      OnlineState.roomUuid,
+        p_client_id:    OnlineState.clientId,
+        p_player_index: pIndex,
+        p_action_type:  actionType,
+        p_payload:      payloadObj ?? {},
+    });
 
     if (error) {
-        alert('Action failed: ' + error.message);
+        console.error('[Online] Action RPC error:', error);
+        alert('Action failed: ' + (error.message || 'unknown error'));
+        return false;
+    }
+    if (data?.error) {
+        console.warn('[Online] Action rejected:', data.error);
+        if (data.error === 'not_your_turn') alert('唔係你嘅回合！');
+        else alert('Action failed: ' + data.error);
         return false;
     }
 
-    // Return the DB-assigned id so callers can track locally-applied actions
-    return data?.id ?? true;
+    return true;
 }
 
 async function exitFixedRoom() {
