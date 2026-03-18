@@ -383,28 +383,27 @@ async function handleOnlineMove(from_idx, to_idx, packedMove, moveColor) {
         alert('未到你行棋！');
         return false;
     }
-    // INSERT move to trigger sync globally
-    const { data, error } = await OnlineState.sbClient.from('xiangqi_moves').insert([{
-        room_id: OnlineState.roomUuid,
-        from_idx: from_idx,
-        to_idx: to_idx,
-        packed_move: packedMove,
-        color: OnlineState.playerRole
-    }]).select().single();
+    // Route through server-validated RPC (seat + turn check).
+    // The RPC also flips current_player and sets turn_deadline_at atomically.
+    const { data, error } = await OnlineState.sbClient.rpc('submit_xiangqi_move', {
+        p_room_id:     OnlineState.roomUuid,
+        p_client_id:   OnlineState.clientId,
+        p_color:       OnlineState.playerRole,
+        p_from_idx:    from_idx,
+        p_to_idx:      to_idx,
+        p_packed_move: packedMove,
+    });
 
     if (error) {
-        alert('落子失敗：' + error.message);
+        alert('落子失敗：' + (error.message || 'unknown error'));
         return false;
     }
-
-    // Update current_player to alternate turns + set turn deadline
-    const nextPlayer = OnlineState.playerRole === 'red' ? 'black' : 'red';
-    const deadline = new Date(Date.now() + TURN_TIME_LIMIT_S * 1000).toISOString();
-    await OnlineState.sbClient.from('xiangqi_rooms').update({
-        current_player: nextPlayer,
-        turn_deadline_at: deadline,
-        last_activity_at: new Date().toISOString()
-    }).eq('id', OnlineState.roomUuid);
+    if (data?.error) {
+        console.warn('[Move] Rejected:', data.error);
+        if (data.error === 'not_your_turn') alert('未到你行棋！');
+        else alert('落子失敗：' + data.error);
+        return false;
+    }
 
     return true; // Wait for Realtime to apply it locally to ensure 100% sync
 }
@@ -427,6 +426,8 @@ function subscribeToMoves() {
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'xiangqi_moves', filter: `room_id=eq.${OnlineState.roomUuid}` }, (payload) => {
             const move = payload.new;
             if (move && move.id && !OnlineState.appliedMoveIds.has(move.id)) {
+                // Bound the set to prevent unbounded growth in long sessions
+                if (OnlineState.appliedMoveIds.size > 500) OnlineState.appliedMoveIds.clear();
                 OnlineState.appliedMoveIds.add(move.id);
                 // Fix X7: Queue moves by move_no to ensure ordering
                 queueAndApplyMove(move);

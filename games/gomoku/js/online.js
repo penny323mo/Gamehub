@@ -465,34 +465,32 @@ async function handleOnlineMove(row, col) {
         return;
     }
 
-    console.log('[Move] INSERT:', row, col, OnlineState.playerRole);
+    console.log('[Move] RPC submit:', row, col, OnlineState.playerRole);
 
-    // 只 INSERT moves，DB trigger 會自動生成 move_no 同切換回合
-    // UI 更新由 Realtime 推動（包括自己嘅棋）
-    // 勝負由 applyMoveToBoard 收到 realtime 後 checkWin
-    const { data, error } = await OnlineState.sbClient
-        .from('moves')
-        .insert([{
-            room_id: OnlineState.roomUuid,
-            x: row,
-            y: col,
-            color: OnlineState.playerRole
-            // 唔傳 move_no，由 DB trigger 自動生成
-        }])
-        .select()
-        .single();
+    // Route through server-validated RPC (seat + turn + bounds + duplicate check)
+    // DB trigger still handles move_no and current_player flip after INSERT.
+    const { data, error } = await OnlineState.sbClient.rpc('submit_gomoku_move', {
+        p_room_id:   OnlineState.roomUuid,
+        p_client_id: OnlineState.clientId,
+        p_color:     OnlineState.playerRole,
+        p_x:         row,
+        p_y:         col,
+    });
 
     if (error) {
-        console.error('[Move] Error:', error);
-        if (error.message.includes('Not your turn')) {
-            alert('唔係你嘅回合！');
-        } else {
-            alert('落子失敗：' + error.message);
-        }
+        console.error('[Move] RPC error:', error);
+        alert('落子失敗：' + (error.message || 'unknown error'));
+        return;
+    }
+    if (data?.error) {
+        console.warn('[Move] Rejected:', data.error);
+        if (data.error === 'not_your_turn') alert('唔係你嘅回合！');
+        else if (data.error === 'cell_occupied') alert('此格已有棋子！');
+        else alert('落子失敗：' + data.error);
         return;
     }
 
-    console.log('[Move] Inserted successfully, move_id:', data?.id);
+    console.log('[Move] Submitted successfully');
     // 注意：唔再喺呢度 update rooms finished，勝負由 applyMoveToBoard 處理
 }
 
@@ -576,8 +574,9 @@ function subscribeToMoves() {
 // === 應用落子到棋盤（統一入口）===
 
 function applyMoveToBoard(row, col, color, moveId) {
-    // 記錄已應用嘅 move
+    // 記錄已應用嘅 move；cap the set to avoid unbounded growth
     if (moveId) {
+        if (OnlineState.appliedMoveIds.size > 500) OnlineState.appliedMoveIds.clear();
         OnlineState.appliedMoveIds.add(moveId);
     }
 

@@ -365,22 +365,19 @@ function stopHeartbeat() {
  */
 async function sendShot(payload) {
     if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid) return;
-    const { error } = await SnookerOnline.sbClient
-        .from('snooker_shots')
-        .insert([{ room_id: SnookerOnline.roomUuid, player_role: SnookerOnline.playerRole, payload }]);
+    // Route through server-validated RPC (seat ownership check + current_turn flip).
+    const { data, error } = await SnookerOnline.sbClient.rpc('submit_snooker_shot', {
+        p_room_id:     SnookerOnline.roomUuid,
+        p_client_id:   SnookerOnline.clientId,
+        p_player_role: SnookerOnline.playerRole,
+        p_payload:     payload,
+    });
     if (error) {
-        console.error('[SnookerShot] Send error:', error);
+        console.error('[SnookerShot] RPC error:', error);
+    } else if (data?.error) {
+        console.warn('[SnookerShot] Rejected:', data.error);
     } else {
-        console.log('[SnookerShot] Sent:', payload);
-        // Keep current_turn in sync so that reconnecting clients can determine
-        // whose turn it is without relying solely on local game state.
-        // The DB value reflects the player who fired the last shot; the game
-        // engines flip it locally when the turn actually transfers.
-        const nextTurn = SnookerOnline.playerRole === 'player1' ? 'player2' : 'player1';
-        SnookerOnline.sbClient.from('snooker_rooms')
-            .update({ current_turn: nextTurn })
-            .eq('id', SnookerOnline.roomUuid)
-            .then(({ error: e }) => { if (e) console.error('[SnookerShot] turn update error:', e); });
+        console.log('[SnookerShot] Sent via RPC:', payload);
     }
 }
 
