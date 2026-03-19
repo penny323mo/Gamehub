@@ -386,7 +386,7 @@ async function toggleReady() {
     const { data: room } = await SnookerOnline.sbClient
         .from('snooker_rooms').select('*').eq('id', SnookerOnline.roomUuid).single();
 
-    if (!room?.player1_id || !room?.player2_id) { showOnlineToast('請等待對手加入', 'info'); return; }
+    if (!room?.player1_id || !room?.player2_id) { showOnlineToast('請等待對手加入', 'info'); _readyDebouncing = false; return; }
 
     const field    = SnookerOnline.playerRole === 'player1' ? 'player1_ready' : 'player2_ready';
     const newReady = !room[field];
