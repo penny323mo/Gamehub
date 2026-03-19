@@ -167,6 +167,11 @@
     // 重新開始按鈕
     if (els.restartBtn) {
       els.restartBtn.addEventListener('click', () => {
+        if (window.gameMode === 'online') {
+          // Online mode restart goes through the room flow
+          if (window.forceStartGame) window.forceStartGame();
+          return;
+        }
         actions.restart();
         render(game);
         bidCpuLoop();

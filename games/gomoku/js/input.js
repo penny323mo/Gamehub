@@ -64,7 +64,8 @@ function handleCellClick(row, col, difficulty) {
             return;
         }
 
-        // Attempt local move
+        // Optimistic local placement so the move feels instant.
+        // If the server RPC rejects it, we roll back the board and redraw.
         const result = tryPlaceStone(row, col, myRole);
         if (!result.success) {
             console.log('[CLICK] BLOCKED: tryPlaceStone failed (occupied?)');
@@ -72,18 +73,22 @@ function handleCellClick(row, col, difficulty) {
         }
 
         console.log('[CLICK] ACCEPTED: Move at (' + row + ',' + col + ') by ' + myRole);
-
-        // Update UI
         placeStoneUI(row, col, myRole);
+        if (result.win) updateWinUI(myRole);
+        else { switchTurn(); updateStatusUI(); }
 
-        if (result.win) {
-            updateWinUI(myRole);
-            handleOnlineMove(row, col, true, myRole);
-        } else {
-            switchTurn();
-            updateStatusUI();
-            handleOnlineMove(row, col, false, null);
-        }
+        // Submit to server; roll back on rejection so board stays in sync.
+        handleOnlineMove(row, col, result.win, result.win ? myRole : null)
+            .then(accepted => {
+                if (!accepted) {
+                    // Undo: clear the stone and revert turn/UI
+                    board[row][col] = null;
+                    if (result.win) gameOver = false;
+                    else switchTurn();
+                    drawBoard();
+                    updateStatusUI();
+                }
+            });
         return;
     }
 

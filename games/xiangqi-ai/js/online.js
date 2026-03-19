@@ -57,14 +57,20 @@ function initOnlineMode() {
     window.surrenderGame = surrenderGame;
     window.notifyOnlineGameOver = notifyOnlineGameOver;
 
-    window.addEventListener('beforeunload', () => {
-        if (OnlineState.roomUuid) exitFixedRoom();
-    });
+    // Register the unload guard only once; re-calling initOnlineMode must not stack listeners.
+    if (!OnlineState._unloadRegistered) {
+        OnlineState._unloadRegistered = true;
+        window.addEventListener('beforeunload', () => {
+            if (OnlineState.roomUuid) exitFixedRoom();
+        });
+    }
 
     fetchLobbyRooms();
 
-    // 每 3 秒自動更新大廳狀態與觸發清理 AFK
-    setInterval(() => {
+    // Clear any previous lobby-poll interval before starting a new one so
+    // repeated initOnlineMode() calls (e.g. switching views) don't leak timers.
+    if (OnlineState.lobbyInterval) clearInterval(OnlineState.lobbyInterval);
+    OnlineState.lobbyInterval = setInterval(() => {
         const lobbyEl = document.getElementById('online-lobby');
         if (lobbyEl && !lobbyEl.classList.contains('hidden')) {
             fetchLobbyRooms();

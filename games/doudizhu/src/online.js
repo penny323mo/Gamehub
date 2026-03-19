@@ -316,13 +316,10 @@ window.forceStartGame = async function() {
 }
 
 async function startGameFromHost() {
-    // Generate deck using DDZ.makeDeck() and shuffle
-    const deck = window.DDZ && window.DDZ.shuffle && window.DDZ.makeDeck ? window.DDZ.shuffle(window.DDZ.makeDeck()) : [];
-    // Route through validated RPC — race-safe (.eq('status','waiting') inside)
+    // Deck is now generated server-side in start_doudizhu_game RPC — no client shuffle needed.
     const { data, error } = await OnlineState.sbClient.rpc('start_doudizhu_game', {
-        p_room_id:      OnlineState.roomUuid,
-        p_client_id:    OnlineState.clientId,
-        p_initial_deck: deck,
+        p_room_id:   OnlineState.roomUuid,
+        p_client_id: OnlineState.clientId,
     });
     if (error) console.error('[Online] startGame RPC error:', error);
     else if (data?.skipped) console.log('[Online] startGame skipped – already started');

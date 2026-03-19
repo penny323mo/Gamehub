@@ -5,6 +5,9 @@ const ctx = canvas.getContext('2d');
 const statusElement = document.getElementById('status');
 let playerTurnSpan = document.querySelector('.player-turn');
 let onCellClick = null;
+// Keep track of the current board interaction handler so we can remove it
+// before adding a new one (prevents duplicate listeners on re-entry or rematch).
+let _boardHandler = null;
 
 // Star points for 15x15 board (0-indexed)
 const STAR_POINTS = [
@@ -52,9 +55,13 @@ function createBoardUI(handleCellClick) {
         }
     };
 
-    // Remove old listeners to prevent stacking
-    canvas.onclick = null;
-    canvas.ontouchstart = null;
+    // Remove previous handler before adding the new one to prevent stacking
+    // when createBoardUI is called again on rematch or room re-entry.
+    if (_boardHandler) {
+        canvas.removeEventListener('click', _boardHandler);
+        canvas.removeEventListener('touchstart', _boardHandler);
+    }
+    _boardHandler = clickHandler;
 
     canvas.addEventListener('click', clickHandler);
     // Add touch handler for better mobile responsiveness (avoid 300ms delay)

@@ -43,6 +43,8 @@ DROP POLICY IF EXISTS "actions_update"       ON big2_actions;
 DROP POLICY IF EXISTS "actions_delete"       ON big2_actions;
 
 CREATE POLICY "actions_select" ON big2_actions FOR SELECT USING (true);
+DROP POLICY IF EXISTS "actions_delete" ON big2_actions;
+CREATE POLICY "actions_delete" ON big2_actions FOR DELETE USING (true);
 -- INSERT blocked: use submit_big2_action() RPC instead
 
 
@@ -62,6 +64,8 @@ DROP POLICY IF EXISTS "allow all"            ON doudizhu_actions;
 DROP POLICY IF EXISTS "actions_select"       ON doudizhu_actions;
 
 CREATE POLICY "actions_select" ON doudizhu_actions FOR SELECT USING (true);
+DROP POLICY IF EXISTS "actions_delete" ON doudizhu_actions;
+CREATE POLICY "actions_delete" ON doudizhu_actions FOR DELETE USING (true);
 -- INSERT blocked: use submit_doudizhu_action() RPC instead
 
 
@@ -81,6 +85,8 @@ DROP POLICY IF EXISTS "allow all"            ON moves;
 DROP POLICY IF EXISTS "moves_select"         ON moves;
 
 CREATE POLICY "moves_select" ON moves FOR SELECT USING (true);
+DROP POLICY IF EXISTS "moves_delete" ON moves;
+CREATE POLICY "moves_delete" ON moves FOR DELETE USING (true);
 -- INSERT blocked: use submit_gomoku_move() RPC instead
 
 
@@ -100,6 +106,8 @@ DROP POLICY IF EXISTS "allow all"            ON xiangqi_moves;
 DROP POLICY IF EXISTS "moves_select"         ON xiangqi_moves;
 
 CREATE POLICY "moves_select" ON xiangqi_moves FOR SELECT USING (true);
+DROP POLICY IF EXISTS "moves_delete" ON xiangqi_moves;
+CREATE POLICY "moves_delete" ON xiangqi_moves FOR DELETE USING (true);
 -- INSERT blocked: use submit_xiangqi_move() RPC instead
 
 
@@ -119,6 +127,8 @@ DROP POLICY IF EXISTS "allow all"            ON snooker_shots;
 DROP POLICY IF EXISTS "shots_select"         ON snooker_shots;
 
 CREATE POLICY "shots_select" ON snooker_shots FOR SELECT USING (true);
+DROP POLICY IF EXISTS "shots_delete" ON snooker_shots;
+CREATE POLICY "shots_delete" ON snooker_shots FOR DELETE USING (true);
 -- INSERT blocked: use submit_snooker_shot() RPC instead
 
 
@@ -413,12 +423,12 @@ GRANT EXECUTE ON FUNCTION submit_snooker_shot TO anon, authenticated;
 -- even when multiple clients call simultaneously.
 
 CREATE OR REPLACE FUNCTION start_big2_game(
-    p_room_id      uuid,
-    p_client_id    text,
-    p_initial_deck jsonb
+    p_room_id   uuid,
+    p_client_id text
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
     v_room big2_rooms%ROWTYPE;
+    v_deck jsonb;
 BEGIN
     SELECT * INTO v_room FROM big2_rooms WHERE id = p_room_id FOR UPDATE;
 
@@ -439,8 +449,15 @@ BEGIN
         RETURN jsonb_build_object('error', 'not_a_member');
     END IF;
 
+    -- Generate and shuffle the deck server-side so no client knows the order in advance.
+    -- Big2 deck: 52 cards { r: 0-12, s: 'D'|'C'|'H'|'S' }
+    SELECT jsonb_agg(jsonb_build_object('r', r, 's', s) ORDER BY random())
+    INTO   v_deck
+    FROM   generate_series(0, 12) AS r
+    CROSS JOIN (VALUES ('D'), ('C'), ('H'), ('S')) AS suits(s);
+
     UPDATE big2_rooms
-    SET    status = 'playing', initial_deck = p_initial_deck,
+    SET    status = 'playing', initial_deck = v_deck,
            current_player_index = NULL
     WHERE  id = p_room_id AND status = 'waiting';
 
@@ -452,12 +469,12 @@ GRANT EXECUTE ON FUNCTION start_big2_game TO anon, authenticated;
 
 
 CREATE OR REPLACE FUNCTION start_doudizhu_game(
-    p_room_id      uuid,
-    p_client_id    text,
-    p_initial_deck jsonb
+    p_room_id   uuid,
+    p_client_id text
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
     v_room doudizhu_rooms%ROWTYPE;
+    v_deck jsonb;
 BEGIN
     SELECT * INTO v_room FROM doudizhu_rooms WHERE id = p_room_id FOR UPDATE;
 
@@ -476,8 +493,23 @@ BEGIN
         RETURN jsonb_build_object('error', 'not_a_member');
     END IF;
 
+    -- Generate and shuffle the deck server-side (54 cards: 52 suited + 2 jokers).
+    -- Doudizhu deck: { rank: '3'-'2', suit: 'D'|'C'|'H'|'S' } + { rank: 'BJ'|'RJ', suit: null }
+    SELECT jsonb_agg(card ORDER BY random())
+    INTO   v_deck
+    FROM (
+        SELECT jsonb_build_object('rank', rank, 'suit', s) AS card
+        FROM (VALUES ('3'),('4'),('5'),('6'),('7'),('8'),('9'),('10'),
+                     ('J'),('Q'),('K'),('A'),('2')) AS ranks(rank)
+        CROSS JOIN (VALUES ('D'),('C'),('H'),('S')) AS suits(s)
+        UNION ALL
+        SELECT jsonb_build_object('rank', 'BJ', 'suit', NULL::text)
+        UNION ALL
+        SELECT jsonb_build_object('rank', 'RJ', 'suit', NULL::text)
+    ) AS cards;
+
     UPDATE doudizhu_rooms
-    SET    status = 'playing', initial_deck = p_initial_deck,
+    SET    status = 'playing', initial_deck = v_deck,
            current_player_index = NULL
     WHERE  id = p_room_id AND status = 'waiting';
 

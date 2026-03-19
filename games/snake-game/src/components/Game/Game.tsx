@@ -675,7 +675,10 @@ export default function Game() {
       const timer = setInterval(() => {
         setTimeRemaining(prev => {
           if (prev <= 1) {
-            setGameState(prev => ({ ...prev, isGameOver: true, isRunning: false }));
+            setGameState(prev => {
+              saveScore(prev.score, prev.level);
+              return { ...prev, isGameOver: true, isRunning: false };
+            });
             return 0;
           }
           if (prev % 10 === 0) {
