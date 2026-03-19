@@ -382,14 +382,23 @@ BEGIN
         RETURN jsonb_build_object('error', 'invalid_role');
     END IF;
 
+    -- Enforce turn order server-side (prevents out-of-turn cheating)
+    IF v_room.current_turn IS NOT NULL AND v_room.current_turn IS DISTINCT FROM p_player_role THEN
+        RETURN jsonb_build_object('error', 'not_your_turn');
+    END IF;
+
+    -- Flip current_turn BEFORE inserting the shot so that when the realtime
+    -- event fires for the INSERT (snooker_shots channel), the room row already
+    -- shows the updated turn (snooker_rooms channel).  Both changes commit in
+    -- the same transaction; updating the room first ensures correct WAL order.
+    UPDATE snooker_rooms
+    SET    current_turn     = CASE p_player_role WHEN 'player1' THEN 'player2' ELSE 'player1' END,
+           last_activity_at = now()
+    WHERE  id = p_room_id;
+
     -- Insert shot; shot_no trigger handles auto-increment
     INSERT INTO snooker_shots (room_id, player_role, payload)
     VALUES (p_room_id, p_player_role, p_payload);
-
-    -- Flip current_turn to opponent (best-effort; game engines enforce locally)
-    UPDATE snooker_rooms
-    SET    current_turn = CASE p_player_role WHEN 'player1' THEN 'player2' ELSE 'player1' END
-    WHERE  id = p_room_id;
 
     RETURN jsonb_build_object('ok', true);
 END;
