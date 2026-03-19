@@ -2,7 +2,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && sed -i '' 's/ crossorigin//g' dist/index.html && TIMESTAMP=$(date +%Y%m%d_%H%M%S) && sed -i '' \"s/\\.js\\\"/\\.js?v=${TIMESTAMP}\\\"/g\" dist/index.html && sed -i '' \"s/\\.css\\\"/\\.css?v=${TIMESTAMP}\\\"/g\" dist/index.html",
+    "build": "vite build && node -e \"const fs=require('fs'),f='dist/index.html',ts=Date.now();fs.writeFileSync(f,fs.readFileSync(f,'utf8').replace(/ crossorigin/g,'').replace(/\\.js\\\"/g,'.js?v='+ts+'\\\"').replace(/\\.css\\\"/g,'.css?v='+ts+'\\\"'))\"",
     "preview": "vite preview"
   },
   "devDependencies": {

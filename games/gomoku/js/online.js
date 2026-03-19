@@ -388,12 +388,46 @@ function renderRoomState(room) {
         stopClientTimer();
         if (room.winner_color) updateStatusUI(null, `${room.winner_color === 'black' ? '⚫黑' : '⚪白'} 獲勝！`);
     }
+
+    // ── Both players ready → transition to 'playing' ─────────────────────────
+    // Race-safe: .eq('status','waiting') ensures only one client's UPDATE wins.
+    // We also notify the game directly from the callback so start doesn't depend
+    // on a Supabase realtime delivery (mirrors the Snooker fix).
+    if (room.status === 'waiting' && room.black_ready && room.white_ready &&
+        room.black_player_id && room.white_player_id &&
+        OnlineState.roomUuid && OnlineState.sbClient) {
+        const myRole = OnlineState.playerRole;
+        OnlineState.sbClient
+            .from('gomoku_rooms')
+            .update({ status: 'playing', current_player: 'black' })
+            .eq('id', OnlineState.roomUuid)
+            .eq('status', 'waiting')
+            .then(({ error }) => {
+                if (error) { console.log('[Gomoku] start-game skipped:', error.message); return; }
+                const playingRoom = { ...room, status: 'playing', current_player: 'black' };
+                window.currentRoom  = playingRoom;
+                window.isGameReady  = true;
+                setCurrentPlayer('black');
+                updateStatusUI('black');
+                startClientTimer(playingRoom);
+                const canvas   = document.getElementById('gomoku-board');
+                const controls = document.getElementById('online-controls');
+                const readyArea = document.getElementById('ready-status');
+                if (canvas)    canvas.style.pointerEvents = 'auto';
+                if (controls)  controls.classList.remove('hidden');
+                if (readyArea) readyArea.classList.add('hidden');
+                console.log('[Gomoku] Game started as', myRole);
+            });
+    }
 }
 
 // === Ready ===
 
+let _gomokuReadyDebouncing = false;
 async function toggleReady() {
+    if (_gomokuReadyDebouncing) return;
     if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+    _gomokuReadyDebouncing = true;
     console.log('[Ready] Toggle ready');
 
     const { data: room } = await OnlineState.sbClient
@@ -404,6 +438,7 @@ async function toggleReady() {
 
     if (!room || !room.black_player_id || !room.white_player_id) {
         showOnlineToast('請等待對手加入', 'info');
+        _gomokuReadyDebouncing = false;
         return;
     }
 
@@ -416,30 +451,40 @@ async function toggleReady() {
         .from('gomoku_rooms')
         .update({ [myReadyField]: newReady })
         .eq('id', OnlineState.roomUuid);
-    // 注意：唔清 both_present_since，由 RPC 用 ready/status 判斷是否踢人
 
     if (error) {
         console.error('[Ready] Error:', error);
         showOnlineToast('更新失敗', 'error');
+        _gomokuReadyDebouncing = false;
+        return;
     }
+
+    // Re-fetch and run renderRoomState immediately (like Snooker) to trigger
+    // the start-game transition without relying solely on realtime delivery.
+    const { data: fresh } = await OnlineState.sbClient
+        .from('gomoku_rooms').select('*').eq('id', OnlineState.roomUuid).single();
+    if (fresh) renderRoomState(fresh);
+
+    setTimeout(() => { _gomokuReadyDebouncing = false; }, 1000);
 }
 
 // === 落子（只 INSERT moves，唔直接畫棋）===
 
+// Returns true if the move was accepted by the server, false otherwise.
+// input.js uses the return value to roll back an optimistic local placement.
 async function handleOnlineMove(row, col) {
-    // 注意：移除咗 isWin/winner 參數，勝負由 server 判定
-    if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+    if (!OnlineState.sbClient || !OnlineState.roomUuid) return false;
 
     const room = window.currentRoom;
     if (!room || room.status !== 'playing') {
         console.log('[Move] Not in playing state');
-        return;
+        return false;
     }
 
     if (room.current_player !== OnlineState.playerRole) {
         console.log('[Move] Not my turn');
         showOnlineToast('唔係你嘅回合！', 'warn');
-        return;
+        return false;
     }
 
     console.log('[Move] RPC submit:', row, col, OnlineState.playerRole);
@@ -457,18 +502,18 @@ async function handleOnlineMove(row, col) {
     if (error) {
         console.error('[Move] RPC error:', error);
         showOnlineToast('落子失敗：' + (error.message || 'unknown error'), 'error');
-        return;
+        return false;
     }
     if (data?.error) {
         console.warn('[Move] Rejected:', data.error);
         if (data.error === 'not_your_turn') showOnlineToast('唔係你嘅回合！', 'warn');
         else if (data.error === 'cell_occupied') showOnlineToast('此格已有棋子！', 'warn');
         else showOnlineToast('落子失敗：' + data.error, 'warn');
-        return;
+        return false;
     }
 
     console.log('[Move] Submitted successfully');
-    // 注意：唔再喺呢度 update rooms finished，勝負由 applyMoveToBoard 處理
+    return true;
 }
 
 // === Realtime 訂閱 ===

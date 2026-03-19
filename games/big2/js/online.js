@@ -329,12 +329,10 @@ async function forceStartGame() {
 
 // Logic triggered by Host (P0 or whoever is making everyone ready)
 async function startGameFromHost() {
-    const deck = window.generateShuffledDeck ? window.generateShuffledDeck() : [];
-    // Route through validated RPC — race-safe (.eq('status','waiting') inside)
+    // Deck is now generated server-side in start_big2_game RPC — no client shuffle needed.
     const { data, error } = await OnlineState.sbClient.rpc('start_big2_game', {
-        p_room_id:      OnlineState.roomUuid,
-        p_client_id:    OnlineState.clientId,
-        p_initial_deck: deck,
+        p_room_id:   OnlineState.roomUuid,
+        p_client_id: OnlineState.clientId,
     });
     if (error) console.error('[Online] startGame RPC error:', error);
     else if (data?.skipped) console.log('[Online] startGame skipped – already started');
