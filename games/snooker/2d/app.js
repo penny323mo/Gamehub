@@ -60,6 +60,7 @@
     redRemaining: 15,
     clearanceIndex: 0,
     isComplete: false,
+    gameOverSignaled: false,
     aiTimer: null,
     shotTimer: null,
     showExtendedGuide: true,
@@ -157,6 +158,7 @@
     state.redRemaining = 15;
     state.clearanceIndex = 0;
     state.isComplete = false;
+    state.gameOverSignaled = false;
 
     // cue ball (baulk/D area start)
     state.cue = { x: W * 0.2, y: H * 0.5, vx: 0, vy: 0, color: '#fff', alive: true, isCue: true, mass: BALL_MASS };
@@ -813,6 +815,14 @@
 
     if (state.isComplete) {
       updateStatus('清枱完成');
+      if (state.mode === 'online' && !state.gameOverSignaled && window.snookerSignalGameOver) {
+        state.gameOverSignaled = true;
+        const myRole = state.onlineMyRole; // 'player1' | 'player2'
+        const p1Score = myRole === 'player1' ? state.scores.player : state.scores.ai;
+        const p2Score = myRole === 'player1' ? state.scores.ai   : state.scores.player;
+        const winner  = p1Score > p2Score ? 1 : p2Score > p1Score ? 2 : 0;
+        window.snookerSignalGameOver({ winner, scores: [p1Score, p2Score] });
+      }
     } else if (foul) {
       updateStatus(`犯規 -${foulVal}`);
     } else {
