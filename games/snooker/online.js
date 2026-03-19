@@ -101,9 +101,22 @@ function initSnookerOnline({ gameMode = '2d' } = {}) {
 async function fetchLobbyRooms() {
     if (!SnookerOnline.sbClient) return;
 
+    // Evict seats that haven't sent a heartbeat in 90 s (waiting rooms only).
+    const stale = new Date(Date.now() - 90_000).toISOString();
+    await Promise.all([
+        SnookerOnline.sbClient.from('snooker_rooms')
+            .update({ player1_id: null, player1_ready: false, p1_last_seen_at: null })
+            .in('room_code', FIXED_ROOMS).eq('status', 'waiting')
+            .lt('p1_last_seen_at', stale).not('player1_id', 'is', null),
+        SnookerOnline.sbClient.from('snooker_rooms')
+            .update({ player2_id: null, player2_ready: false, p2_last_seen_at: null })
+            .in('room_code', FIXED_ROOMS).eq('status', 'waiting')
+            .lt('p2_last_seen_at', stale).not('player2_id', 'is', null),
+    ]);
+
     const { data: rooms, error } = await SnookerOnline.sbClient
         .from('snooker_rooms')
-        .select('room_code, player1_id, player2_id, status, player1_ready, player2_ready')
+        .select('room_code, player1_id, player2_id, status, player1_ready, player2_ready, p1_last_seen_at, p2_last_seen_at')
         .in('room_code', FIXED_ROOMS);
 
     if (error) { console.error('[SnookerLobby]', error); return; }
@@ -125,9 +138,21 @@ function updateRoomCardUI(roomKey, room) {
 
     const map = { waiting: '等待中', playing: '對戰中', finished: '已結束' };
     statusEl.textContent  = map[room.status] || room.status;
-    playersEl.textContent = `${room.player1_id ? 'P1:有' : 'P1:空'} / ${room.player2_id ? 'P2:有' : 'P2:空'}`;
 
-    const isFull = room.player1_id && room.player2_id;
+    // Show each seat's state; mark as disconnected if heartbeat is stale (>90s)
+    const staleMs = 90_000;
+    const now = Date.now();
+    const p1Stale = room.player1_id && room.status === 'waiting' &&
+                    room.p1_last_seen_at &&
+                    (now - new Date(room.p1_last_seen_at).getTime()) > staleMs;
+    const p2Stale = room.player2_id && room.status === 'waiting' &&
+                    room.p2_last_seen_at &&
+                    (now - new Date(room.p2_last_seen_at).getTime()) > staleMs;
+    const p1Label = !room.player1_id ? 'P1:空' : p1Stale ? 'P1:離' : 'P1:有';
+    const p2Label = !room.player2_id ? 'P2:空' : p2Stale ? 'P2:離' : 'P2:有';
+    playersEl.textContent = `${p1Label} / ${p2Label}`;
+
+    const isFull = (room.player1_id && !p1Stale) && (room.player2_id && !p2Stale);
     const amIIn  = room.player1_id === SnookerOnline.clientId ||
                    room.player2_id === SnookerOnline.clientId;
 
