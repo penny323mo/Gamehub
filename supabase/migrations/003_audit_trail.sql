@@ -76,8 +76,7 @@ BEGIN
     END IF;
 
     IF p_action_type NOT IN ('system', 'bid', 'pass_bid') AND
-       v_room.current_player_index IS NOT NULL AND
-       v_room.current_player_index != p_player_index THEN
+       v_room.current_player_index IS DISTINCT FROM p_player_index THEN
         RETURN jsonb_build_object('error', 'not_your_turn');
     END IF;
 
@@ -114,8 +113,7 @@ BEGIN
     END IF;
 
     IF p_action_type NOT IN ('system', 'bid') AND
-       v_room.current_player_index IS NOT NULL AND
-       v_room.current_player_index != p_player_index THEN
+       v_room.current_player_index IS DISTINCT FROM p_player_index THEN
         RETURN jsonb_build_object('error', 'not_your_turn');
     END IF;
 
@@ -233,12 +231,17 @@ BEGIN
     ELSIF p_player_role NOT IN ('player1', 'player2') THEN RETURN jsonb_build_object('error', 'invalid_role');
     END IF;
 
-    INSERT INTO snooker_shots (room_id, player_role, payload, client_ip)
-    VALUES (p_room_id, p_player_role, p_payload, _get_client_ip());
+    IF v_room.current_turn IS DISTINCT FROM p_player_role THEN
+        RETURN jsonb_build_object('error', 'not_your_turn');
+    END IF;
 
+    -- UPDATE before INSERT so realtime subscribers see the room change before the shot event.
     UPDATE snooker_rooms
     SET    current_turn = CASE p_player_role WHEN 'player1' THEN 'player2' ELSE 'player1' END
     WHERE  id = p_room_id;
+
+    INSERT INTO snooker_shots (room_id, player_role, payload, client_ip)
+    VALUES (p_room_id, p_player_role, p_payload, _get_client_ip());
 
     RETURN jsonb_build_object('ok', true);
 END;

@@ -504,6 +504,8 @@ function cleanupAndReturnToLobby() {
     OnlineState.hasSeat = false; window.currentRoom = null;
     OnlineState.gameOverHandled = false;
     window.onlinePlayerRole = null;
+    _moveQueue.length = 0;
+    _processingMoves = false;
     stopTurnTimer();
 
     showView('online-lobby');

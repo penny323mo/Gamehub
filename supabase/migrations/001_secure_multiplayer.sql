@@ -181,8 +181,7 @@ BEGIN
 
     -- Turn check (only for play actions; system/bid actions are exempt)
     IF p_action_type NOT IN ('system', 'bid', 'pass_bid') AND
-       v_room.current_player_index IS NOT NULL AND
-       v_room.current_player_index != p_player_index THEN
+       v_room.current_player_index IS DISTINCT FROM p_player_index THEN
         RETURN jsonb_build_object('error', 'not_your_turn');
     END IF;
 
@@ -229,8 +228,7 @@ BEGIN
     END IF;
 
     IF p_action_type NOT IN ('system', 'bid') AND
-       v_room.current_player_index IS NOT NULL AND
-       v_room.current_player_index != p_player_index THEN
+       v_room.current_player_index IS DISTINCT FROM p_player_index THEN
         RETURN jsonb_build_object('error', 'not_your_turn');
     END IF;
 
@@ -427,8 +425,9 @@ CREATE OR REPLACE FUNCTION start_big2_game(
     p_client_id text
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
-    v_room big2_rooms%ROWTYPE;
-    v_deck jsonb;
+    v_room         big2_rooms%ROWTYPE;
+    v_deck         jsonb;
+    v_first_player integer;
 BEGIN
     SELECT * INTO v_room FROM big2_rooms WHERE id = p_room_id FOR UPDATE;
 
@@ -456,9 +455,16 @@ BEGIN
     FROM   generate_series(0, 12) AS r
     CROSS JOIN (VALUES ('D'), ('C'), ('H'), ('S')) AS suits(s);
 
+    -- Player holding 3♦ (r=0, s='D') goes first.
+    -- Cards are dealt in order: player 0 gets indices 1-13, player 1 gets 14-26, etc.
+    SELECT ((ord - 1) / 13)::integer INTO v_first_player
+    FROM jsonb_array_elements(v_deck) WITH ORDINALITY AS t(card, ord)
+    WHERE (t.card->>'r')::integer = 0 AND t.card->>'s' = 'D'
+    LIMIT 1;
+
     UPDATE big2_rooms
     SET    status = 'playing', initial_deck = v_deck,
-           current_player_index = NULL
+           current_player_index = v_first_player
     WHERE  id = p_room_id AND status = 'waiting';
 
     RETURN jsonb_build_object('ok', true);
@@ -510,7 +516,7 @@ BEGIN
 
     UPDATE doudizhu_rooms
     SET    status = 'playing', initial_deck = v_deck,
-           current_player_index = NULL
+           current_player_index = 0
     WHERE  id = p_room_id AND status = 'waiting';
 
     RETURN jsonb_build_object('ok', true);
