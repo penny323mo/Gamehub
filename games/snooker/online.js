@@ -33,6 +33,7 @@ const SnookerOnline = {
     clientId:        null,
     heartbeatInterval: null,
     lobbyInterval:   null,   // tracked so repeated initSnookerOnline() calls don't leak
+    roomPollInterval: null,  // polls room state while waiting (realtime is unreliable)
     appliedShotIds:  new Set(),
     currentRoundId:  null,
     hasSeat:         false,
@@ -259,6 +260,7 @@ async function joinFixedRoom(roomKey) {
     subscribeToRoom();
     subscribeToShots();
     startHeartbeat();
+    startRoomPoll();
 }
 
 // ─── Room View ───────────────────────────────────────────────────────────────
@@ -408,6 +410,27 @@ async function toggleReady() {
 }
 
 // ─── Heartbeat ───────────────────────────────────────────────────────────────
+
+// ─── Room-view poll (backup for unreliable realtime) ─────────────────────────
+// While both players are in the waiting room but haven't started yet, realtime
+// delivery may be dropped.  Polling every 3 s ensures P1 sees P2's join/ready
+// state and the Ready button becomes clickable.
+
+function startRoomPoll() {
+    stopRoomPoll();
+    SnookerOnline.roomPollInterval = setInterval(async () => {
+        if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid) return;
+        const { data: room } = await SnookerOnline.sbClient
+            .from('snooker_rooms').select('*').eq('id', SnookerOnline.roomUuid).single();
+        if (room && room.status === 'waiting') renderRoomState(room);
+        else if (room && room.status !== 'waiting') stopRoomPoll();
+    }, 3000);
+}
+
+function stopRoomPoll() {
+    clearInterval(SnookerOnline.roomPollInterval);
+    SnookerOnline.roomPollInterval = null;
+}
 
 function startHeartbeat() {
     stopHeartbeat();
@@ -574,6 +597,7 @@ async function exitFixedRoom() {
 
 function cleanupAndLobby() {
     stopHeartbeat();
+    stopRoomPoll();
     SnookerOnline.sbClient?.removeChannel(SnookerOnline.roomChannel);
     SnookerOnline.sbClient?.removeChannel(SnookerOnline.shotsChannel);
 
