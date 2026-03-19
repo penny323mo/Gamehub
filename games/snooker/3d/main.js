@@ -3222,6 +3222,11 @@ function endGame() {
 
   logRule('game_over', { winner, scores: [...scores] });
 
+  // Persist the result to the server so both players and the DB agree.
+  if (window.isOnlineMode && window.snookerSignalGameOver) {
+    window.snookerSignalGameOver({ winner, scores: [...scores] });
+  }
+
   // 顯示結果
   setStatus(`${winnerText} ${finalScore}`, 999);
 
@@ -4858,6 +4863,8 @@ window.snookerApplyRemoteShot = function(payload) {
 // Called by online.js when the Supabase room state changes.
 window.snookerOnlineRoomUpdate = function ({ status, players, myRole } = {}) {
   if (status === 'playing') {
+    // Guard against duplicate calls (direct callback + realtime both firing).
+    if (gameStarted) return;
     if (Array.isArray(players)) {
       if (players[0]?.name) playerNames[0] = players[0].name;
       if (players[1]?.name) playerNames[1] = players[1].name;

@@ -1275,6 +1275,7 @@
    */
   window.snookerOnlineRoomUpdate = function({ status, players, myRole } = {}) {
     if (status === 'playing') {
+      if (state.mode === 'online') return; // already started, prevent double reset
       state.mode = 'online';
       // Map room roles to local/remote names
       const localIdx  = myRole === 'player2' ? 1 : 0;
@@ -1306,7 +1307,7 @@
    * payload: { angle, power, spin_x, spin_y, cue_x, cue_y }
    */
   window.snookerApplyRemoteShot = function(payload) {
-    if (state.mode !== 'online') return;
+    if (state.mode !== 'online' || state.isComplete) return;
     // Apply received cue position (covers cue-in-hand placements)
     if (payload.cue_x != null) {
       state.cue.x = payload.cue_x;

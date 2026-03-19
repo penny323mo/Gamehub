@@ -309,18 +309,36 @@ function renderRoomState(room) {
 
     // ── Both players ready → transition to 'playing' ──────────────────────────
     // Either player can trigger this; eq('status','waiting') makes it race-safe
-    // so only the first update wins (the second is a silent no-op).
+    // so only the first UPDATE wins (the second is a silent no-op).
+    // IMPORTANT: we also call snookerOnlineRoomUpdate('playing') directly from
+    // the UPDATE callback so the game starts immediately without waiting for a
+    // Supabase realtime delivery that may be slow or dropped.
     if (room.status === 'waiting' && room.player1_ready && room.player2_ready &&
         SnookerOnline.roomUuid && SnookerOnline.sbClient) {
+        const p1Name = room.player1_name || 'P1';
+        const p2Name = room.player2_name || 'P2';
+        const myRole = SnookerOnline.playerRole;
         SnookerOnline.sbClient
             .from('snooker_rooms')
             .update({ status: 'playing', current_turn: 'player1' })
             .eq('id', SnookerOnline.roomUuid)
             .eq('status', 'waiting')
-            .then(({ error }) => { if (error) console.log('[SnookerOnline] start-game skipped:', error.message); });
+            .then(({ error }) => {
+                if (error) { console.log('[SnookerOnline] start-game skipped:', error.message); return; }
+                // Start immediately — game engine's gameStarted guard prevents double reset
+                // if realtime also fires this callback later.
+                if (window.snookerOnlineRoomUpdate) {
+                    window.snookerOnlineRoomUpdate({
+                        status:  'playing',
+                        players: [{ name: p1Name, role: 'player1' }, { name: p2Name, role: 'player2' }],
+                        myRole,
+                    });
+                }
+            });
+        return; // skip the generic notify below; we'll notify via the async callback
     }
 
-    // Notify the game
+    // Notify the game for all non-start state changes
     if (window.snookerOnlineRoomUpdate) {
         const p1Name = room.player1_name || 'P1';
         const p2Name = room.player2_name || 'P2';
@@ -334,8 +352,11 @@ function renderRoomState(room) {
 
 // ─── Ready ───────────────────────────────────────────────────────────────────
 
+let _readyDebouncing = false;
 async function toggleReady() {
+    if (_readyDebouncing) return;
     if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
+    _readyDebouncing = true;
 
     const { data: room } = await SnookerOnline.sbClient
         .from('snooker_rooms').select('*').eq('id', SnookerOnline.roomUuid).single();
@@ -348,7 +369,7 @@ async function toggleReady() {
     const { error } = await SnookerOnline.sbClient
         .from('snooker_rooms').update({ [field]: newReady }).eq('id', SnookerOnline.roomUuid);
 
-    if (error) { console.error('[SnookerOnline] toggleReady error:', error); return; }
+    if (error) { console.error('[SnookerOnline] toggleReady error:', error); _readyDebouncing = false; return; }
 
     // Don't rely solely on realtime to drive the game-start check.
     // Re-fetch and run renderRoomState immediately so that whichever player
@@ -357,6 +378,8 @@ async function toggleReady() {
     const { data: fresh } = await SnookerOnline.sbClient
         .from('snooker_rooms').select('*').eq('id', SnookerOnline.roomUuid).single();
     if (fresh) renderRoomState(fresh);
+
+    setTimeout(() => { _readyDebouncing = false; }, 1000);
 }
 
 // ─── Heartbeat ───────────────────────────────────────────────────────────────
@@ -467,6 +490,14 @@ async function exitFixedRoom() {
 
     if (room?.status === 'playing') {
         if (!confirm('退出將判負，確定要離開？')) return;
+        // Re-fetch after the dialog: the opponent may have exited during it,
+        // changing the room status. Use the freshest state for the winner write.
+        const { data: recheck } = await SnookerOnline.sbClient
+            .from('snooker_rooms')
+            .select('player1_id, player2_id, status')
+            .eq('id', SnookerOnline.roomUuid)
+            .single();
+        if (recheck) Object.assign(room, recheck);
     }
 
     stopHeartbeat();
@@ -538,6 +569,27 @@ function cleanupAndLobby() {
     document.getElementById('snooker-online-lobby')?.classList.remove('hidden');
     fetchLobbyRooms();
 }
+
+// ─── Game Over (natural completion) ──────────────────────────────────────────
+
+// Called by the game engine when the game ends naturally (all balls potted).
+// winner: 1 = player1, 2 = player2, 0 = draw
+window.snookerSignalGameOver = async function({ winner = 0, scores = [] } = {}) {
+    if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid) return;
+    const winnerRole = winner === 1 ? 'player1' : winner === 2 ? 'player2' : null;
+    const { error } = await SnookerOnline.sbClient
+        .from('snooker_rooms')
+        .update({
+            status:          'finished',
+            winner:          winnerRole,
+            finished_reason: 'natural',
+            finished_at:     new Date().toISOString(),
+            current_turn:    null,
+        })
+        .eq('id', SnookerOnline.roomUuid)
+        .eq('status', 'playing'); // no-op if already finished (race-safe)
+    if (error) console.error('[SnookerOnline] signalGameOver error:', error);
+};
 
 // ─── Rematch ─────────────────────────────────────────────────────────────────
 
