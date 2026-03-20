@@ -84,6 +84,8 @@ function initSnookerOnline({ gameMode = '2d' } = {}) {
     if (!SnookerOnline._unloadRegistered) {
         SnookerOnline._unloadRegistered = true;
         window.addEventListener('beforeunload', () => {
+            // Skip cleanup during intentional redirects (lobby → game page)
+            if (SnookerOnline._intentionalRedirect) return;
             if (!SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
             const isP1 = SnookerOnline.playerRole === 'player1';
             const body = JSON.stringify({
@@ -365,25 +367,30 @@ function renderRoomState(room) {
         const p1Name = room.player1_name || 'P1';
         const p2Name = room.player2_name || 'P2';
         const myRole = SnookerOnline.playerRole;
-        SnookerOnline.sbClient
-            .from('snooker_rooms')
-            .update({ status: 'playing', current_turn: 'player1' })
-            .eq('id', SnookerOnline.roomUuid)
-            .eq('status', 'waiting')
-            .then(({ error }) => {
-                if (error) { console.log('[SnookerOnline] start-game skipped:', error.message); return; }
-                // Start shot polling now that game is in progress
-                startShotPoll();
-                // Start immediately — game engine's gameStarted guard prevents double reset
-                // if realtime also fires this callback later.
-                if (window.snookerOnlineRoomUpdate) {
-                    window.snookerOnlineRoomUpdate({
-                        status:  'playing',
-                        players: [{ name: p1Name, role: 'player1' }, { name: p2Name, role: 'player2' }],
-                        myRole,
-                    });
-                }
-            });
+        const applyStart = () => {
+            startShotPoll();
+            if (window.snookerOnlineRoomUpdate) {
+                window.snookerOnlineRoomUpdate({
+                    status: 'playing',
+                    players: [{ name: p1Name, role: 'player1' }, { name: p2Name, role: 'player2' }],
+                    myRole,
+                });
+            }
+        };
+        // Use server-validated RPC, fall back to direct UPDATE if not deployed
+        SnookerOnline.sbClient.rpc('start_snooker_game', {
+            p_room_id: SnookerOnline.roomUuid, p_client_id: SnookerOnline.clientId,
+        }).then(({ data, error }) => {
+            if (!error && data?.ok) { applyStart(); return; }
+            if (data?.skipped) return;
+            // Fallback if RPC not deployed
+            if (error?.code === 'PGRST202' || error?.message?.includes('Could not find')) {
+                SnookerOnline.sbClient.from('snooker_rooms')
+                    .update({ status: 'playing', current_turn: 'player1' })
+                    .eq('id', SnookerOnline.roomUuid).eq('status', 'waiting')
+                    .then(({ error: e2 }) => { if (!e2) applyStart(); });
+            }
+        });
         return; // skip the generic notify below; we'll notify via the async callback
     }
 
@@ -528,6 +535,13 @@ function subscribeToRoom() {
         .subscribe((status, err) => {
             console.log('[SnookerRT-ROOM] subscribe status:', status);
             if (err) console.error('[SnookerRT-ROOM] error:', err);
+            // Refetch after subscription to catch state changes that happened
+            // between joining and subscription becoming active
+            if (status === 'SUBSCRIBED') {
+                SnookerOnline.sbClient.from('snooker_rooms').select('*')
+                    .eq('id', SnookerOnline.roomUuid).single()
+                    .then(({ data }) => { if (data) renderRoomState(data); });
+            }
         });
 }
 

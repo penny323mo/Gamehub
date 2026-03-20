@@ -48,11 +48,6 @@ BEGIN
         RETURN jsonb_build_object('error', 'not_a_member');
     END IF;
 
-    -- Only allow cleanup when game is finished (not mid-game)
-    IF v_room.status = 'playing' THEN
-        RETURN jsonb_build_object('error', 'game_in_progress');
-    END IF;
-
     DELETE FROM big2_actions WHERE room_id = p_room_id;
     RETURN jsonb_build_object('ok', true);
 END;
@@ -198,3 +193,130 @@ GRANT EXECUTE ON FUNCTION cleanup_snooker_shots TO anon, authenticated;
 --  Clients are encouraged to use start_*_game RPCs which are already
 --  server-validated.  Future migration will lock down room UPDATEs
 --  once all room mutations go through RPCs.)
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SECTION 4 – Start Game RPCs for Gomoku, Xiangqi, Snooker
+-- Validates room membership, both-players-present, both-ready, and waiting
+-- status before atomically transitioning to playing.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- ── Gomoku ────────────────────────────────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION start_gomoku_game(
+    p_room_id   uuid,
+    p_client_id text
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+    v_room gomoku_rooms%ROWTYPE;
+BEGIN
+    SELECT * INTO v_room FROM gomoku_rooms WHERE id = p_room_id FOR UPDATE;
+
+    IF NOT FOUND THEN RETURN jsonb_build_object('error', 'room_not_found'); END IF;
+
+    IF v_room.status != 'waiting' THEN
+        RETURN jsonb_build_object('skipped', true, 'status', v_room.status);
+    END IF;
+
+    IF p_client_id NOT IN (
+        COALESCE(v_room.black_player_id,''), COALESCE(v_room.white_player_id,'')
+    ) THEN
+        RETURN jsonb_build_object('error', 'not_a_member');
+    END IF;
+
+    IF NOT (v_room.black_ready AND v_room.white_ready
+            AND v_room.black_player_id IS NOT NULL
+            AND v_room.white_player_id IS NOT NULL) THEN
+        RETURN jsonb_build_object('error', 'not_all_ready');
+    END IF;
+
+    UPDATE gomoku_rooms
+    SET    status = 'playing', current_player = 'black'
+    WHERE  id = p_room_id AND status = 'waiting';
+
+    RETURN jsonb_build_object('ok', true);
+END;
+$$;
+GRANT EXECUTE ON FUNCTION start_gomoku_game TO anon, authenticated;
+
+
+-- ── Xiangqi ───────────────────────────────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION start_xiangqi_game(
+    p_room_id   uuid,
+    p_client_id text
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+    v_room     xiangqi_rooms%ROWTYPE;
+    v_deadline timestamptz;
+BEGIN
+    SELECT * INTO v_room FROM xiangqi_rooms WHERE id = p_room_id FOR UPDATE;
+
+    IF NOT FOUND THEN RETURN jsonb_build_object('error', 'room_not_found'); END IF;
+
+    IF v_room.status != 'waiting' THEN
+        RETURN jsonb_build_object('skipped', true, 'status', v_room.status);
+    END IF;
+
+    IF p_client_id NOT IN (
+        COALESCE(v_room.red_player_id,''), COALESCE(v_room.black_player_id,'')
+    ) THEN
+        RETURN jsonb_build_object('error', 'not_a_member');
+    END IF;
+
+    IF NOT (v_room.red_ready AND v_room.black_ready
+            AND v_room.red_player_id IS NOT NULL
+            AND v_room.black_player_id IS NOT NULL) THEN
+        RETURN jsonb_build_object('error', 'not_all_ready');
+    END IF;
+
+    v_deadline := now() + interval '60 seconds';
+
+    UPDATE xiangqi_rooms
+    SET    status = 'playing', current_player = 'red',
+           turn_deadline_at = v_deadline
+    WHERE  id = p_room_id AND status = 'waiting';
+
+    RETURN jsonb_build_object('ok', true);
+END;
+$$;
+GRANT EXECUTE ON FUNCTION start_xiangqi_game TO anon, authenticated;
+
+
+-- ── Snooker ───────────────────────────────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION start_snooker_game(
+    p_room_id   uuid,
+    p_client_id text
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+    v_room snooker_rooms%ROWTYPE;
+BEGIN
+    SELECT * INTO v_room FROM snooker_rooms WHERE id = p_room_id FOR UPDATE;
+
+    IF NOT FOUND THEN RETURN jsonb_build_object('error', 'room_not_found'); END IF;
+
+    IF v_room.status != 'waiting' THEN
+        RETURN jsonb_build_object('skipped', true, 'status', v_room.status);
+    END IF;
+
+    IF p_client_id NOT IN (
+        COALESCE(v_room.player1_id,''), COALESCE(v_room.player2_id,'')
+    ) THEN
+        RETURN jsonb_build_object('error', 'not_a_member');
+    END IF;
+
+    IF NOT (v_room.player1_ready AND v_room.player2_ready
+            AND v_room.player1_id IS NOT NULL
+            AND v_room.player2_id IS NOT NULL) THEN
+        RETURN jsonb_build_object('error', 'not_all_ready');
+    END IF;
+
+    UPDATE snooker_rooms
+    SET    status = 'playing', current_turn = 'player1'
+    WHERE  id = p_room_id AND status = 'waiting';
+
+    RETURN jsonb_build_object('ok', true);
+END;
+$$;
+GRANT EXECUTE ON FUNCTION start_snooker_game TO anon, authenticated;
