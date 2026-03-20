@@ -345,6 +345,25 @@ function renderRoomState(room) {
         }
     }
 
+    // Self-heal: if both players are ready but room is still waiting
+    // (e.g. both toggled simultaneously and neither promoted), attempt transition
+    if (room.status === 'waiting' && room.red_ready && room.black_ready &&
+        room.red_player_id && room.black_player_id && OnlineState.sbClient) {
+        OnlineState.sbClient.rpc('start_xiangqi_game', {
+            p_room_id: OnlineState.roomUuid, p_client_id: OnlineState.clientId,
+        }).then(({ data, error }) => {
+            if (!error && data?.ok && window.resetGameParams) window.resetGameParams();
+            // Fallback if RPC not deployed
+            if (error?.code === 'PGRST202' || error?.message?.includes('Could not find')) {
+                OnlineState.sbClient.from('xiangqi_rooms').update({
+                    status: 'playing', current_player: 'red',
+                    turn_deadline_at: new Date(Date.now() + TURN_TIME_LIMIT_S * 1000).toISOString(),
+                }).eq('id', OnlineState.roomUuid).eq('status', 'waiting')
+                .then(({ error: e2 }) => { if (!e2 && window.resetGameParams) window.resetGameParams(); });
+            }
+        });
+    }
+
     // Start/update turn timer when playing
     if (room.status === 'playing' && room.turn_deadline_at) {
         startTurnTimer(room.turn_deadline_at, room.current_player);
@@ -360,23 +379,30 @@ async function toggleReady() {
     const myReadyField = OnlineState.playerRole === 'red' ? 'red_ready' : 'black_ready';
     const newReady = !room[myReadyField];
 
-    let updateData = { [myReadyField]: newReady };
-    const otherReadyField = OnlineState.playerRole === 'red' ? 'black_ready' : 'red_ready';
+    // Step 1: Always write just the ready flag first
+    await OnlineState.sbClient.from('xiangqi_rooms').update({ [myReadyField]: newReady })
+        .eq('id', OnlineState.roomUuid);
 
-    // 如果雙方都準備好，自動進入 playing 狀態
-    // Fix X3: Add condition to prevent double-setting playing when both toggle simultaneously
-    if (newReady && room[otherReadyField] && room.status === 'waiting') {
-        updateData.status = 'playing';
-        updateData.current_player = 'red';
-        updateData.turn_deadline_at = new Date(Date.now() + TURN_TIME_LIMIT_S * 1000).toISOString();
-        if (window.resetGameParams) window.resetGameParams();
-        // Fix X3: condition update to prevent race when both toggle simultaneously
-        await OnlineState.sbClient.from('xiangqi_rooms').update(updateData)
-            .eq('id', OnlineState.roomUuid)
-            .eq('status', 'waiting');
-    } else {
-        await OnlineState.sbClient.from('xiangqi_rooms').update(updateData)
-            .eq('id', OnlineState.roomUuid);
+    // Step 2: Re-fetch to see if both are now ready (fixes race where both
+    // clients toggle simultaneously and neither sees the other's ready flag)
+    if (newReady) {
+        const { data: fresh } = await OnlineState.sbClient.from('xiangqi_rooms').select('*').eq('id', OnlineState.roomUuid).single();
+        if (fresh && fresh.red_ready && fresh.black_ready && fresh.status === 'waiting') {
+            if (window.resetGameParams) window.resetGameParams();
+            // Use server-validated RPC, fall back to direct UPDATE if not deployed
+            const { data: rpcResult, error: rpcErr } = await OnlineState.sbClient.rpc('start_xiangqi_game', {
+                p_room_id: OnlineState.roomUuid, p_client_id: OnlineState.clientId,
+            });
+            if (rpcErr?.code === 'PGRST202' || rpcErr?.message?.includes('Could not find')) {
+                await OnlineState.sbClient.from('xiangqi_rooms').update({
+                    status: 'playing', current_player: 'red',
+                    turn_deadline_at: new Date(Date.now() + TURN_TIME_LIMIT_S * 1000).toISOString(),
+                }).eq('id', OnlineState.roomUuid).eq('status', 'waiting');
+            }
+        }
+        // Re-fetch after start attempt and render
+        const { data: latest } = await OnlineState.sbClient.from('xiangqi_rooms').select('*').eq('id', OnlineState.roomUuid).single();
+        if (latest) renderRoomState(latest);
     }
 }
 
@@ -423,7 +449,15 @@ function subscribeToRoom() {
     OnlineState.roomChannel = OnlineState.sbClient.channel(`room-${OnlineState.roomUuid}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'xiangqi_rooms', filter: `id=eq.${OnlineState.roomUuid}` }, (payload) => {
             if (payload.new) renderRoomState(payload.new);
-        }).subscribe();
+        }).subscribe((status) => {
+            // Refetch after subscription to catch any state changes that happened
+            // between joining and subscription becoming active (ready-race fix)
+            if (status === 'SUBSCRIBED') {
+                OnlineState.sbClient.from('xiangqi_rooms').select('*')
+                    .eq('id', OnlineState.roomUuid).single()
+                    .then(({ data }) => { if (data) renderRoomState(data); });
+            }
+        });
 }
 
 function subscribeToMoves() {

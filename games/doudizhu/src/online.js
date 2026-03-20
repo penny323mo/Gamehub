@@ -27,10 +27,12 @@ const OnlineState = {
 };
 
 function initOnlineMode() {
-    OnlineState.clientId = localStorage.getItem('doudizhu_clientId');
+    // Use sessionStorage so each browser tab gets its own ID,
+    // allowing multiple tabs on the same device to be different players.
+    OnlineState.clientId = sessionStorage.getItem('doudizhu_clientId');
     if (!OnlineState.clientId) {
         OnlineState.clientId = crypto.randomUUID();
-        localStorage.setItem('doudizhu_clientId', OnlineState.clientId);
+        sessionStorage.setItem('doudizhu_clientId', OnlineState.clientId);
     }
     console.log('[Online] ClientId:', OnlineState.clientId);
 
@@ -419,14 +421,16 @@ async function startGameFromHost() {
         p_room_id:   OnlineState.roomUuid,
         p_client_id: OnlineState.clientId,
     });
-    if (error) { console.error('[Online] startGame RPC error:', error); return; }
+    if (error) { console.error('[Online] startGame RPC error:', error); showOnlineToast('啟動遊戲失敗', 'error'); return; }
+    if (data?.error) { console.error('[Online] startGame rejected:', data.error); showOnlineToast('啟動遊戲被拒: ' + data.error, 'error'); return; }
     if (data?.skipped) { console.log('[Online] startGame skipped – already started'); return; }
 
-    // Clean up old actions only after the RPC succeeds, so we don't destroy
-    // previous game history if the start fails.
-    await OnlineState.sbClient.rpc('cleanup_doudizhu_actions', { p_room_id: OnlineState.roomUuid, p_client_id: OnlineState.clientId });
+    // Clean up old actions from previous rounds. Always clear client-side
+    // tracking; server cleanup is best-effort (may fail if RPC isn't deployed).
     OnlineState.appliedActionIds.clear();
     OnlineState.actionQueue = [];
+    OnlineState.sbClient.rpc('cleanup_doudizhu_actions', { p_room_id: OnlineState.roomUuid, p_client_id: OnlineState.clientId })
+        .then(({ error: e }) => { if (e) console.warn('[Online] cleanup RPC unavailable, skipping:', e.message); });
 }
 
 function subscribeToRoom() {

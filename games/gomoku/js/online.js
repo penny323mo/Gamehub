@@ -410,35 +410,43 @@ function renderRoomState(room) {
         if (room.winner_color) updateStatusUI(null, `${room.winner_color === 'black' ? '⚫黑' : '⚪白'} 獲勝！`);
     }
 
-    // ── Both players ready → transition to 'playing' ─────────────────────────
-    // Race-safe: .eq('status','waiting') ensures only one client's UPDATE wins.
+    // ── Both players ready → transition to 'playing' via server RPC ─────────
+    // Uses start_gomoku_game RPC for server-validated transition.
+    // Falls back to direct UPDATE if RPC is not deployed yet.
     // We also notify the game directly from the callback so start doesn't depend
-    // on a Supabase realtime delivery (mirrors the Snooker fix).
+    // on a Supabase realtime delivery.
     if (room.status === 'waiting' && room.black_ready && room.white_ready &&
         room.black_player_id && room.white_player_id &&
         OnlineState.roomUuid && OnlineState.sbClient) {
         const myRole = OnlineState.playerRole;
-        OnlineState.sbClient
-            .from('gomoku_rooms')
-            .update({ status: 'playing', current_player: 'black' })
-            .eq('id', OnlineState.roomUuid)
-            .eq('status', 'waiting')
-            .then(({ error }) => {
-                if (error) { console.log('[Gomoku] start-game skipped:', error.message); return; }
-                const playingRoom = { ...room, status: 'playing', current_player: 'black' };
-                window.currentRoom  = playingRoom;
-                window.isGameReady  = true;
-                setCurrentPlayer('black');
-                updateStatusUI('black');
-                startClientTimer(playingRoom);
-                const canvas   = document.getElementById('gomoku-board');
-                const controls = document.getElementById('online-controls');
-                const readyArea = document.getElementById('ready-status');
-                if (canvas)    canvas.style.pointerEvents = 'auto';
-                if (controls)  controls.classList.remove('hidden');
-                if (readyArea) readyArea.classList.add('hidden');
-                console.log('[Gomoku] Game started as', myRole);
-            });
+        const applyStart = () => {
+            const playingRoom = { ...room, status: 'playing', current_player: 'black' };
+            window.currentRoom  = playingRoom;
+            window.isGameReady  = true;
+            setCurrentPlayer('black');
+            updateStatusUI('black');
+            startClientTimer(playingRoom);
+            const canvas   = document.getElementById('gomoku-board');
+            const controls = document.getElementById('online-controls');
+            const readyArea = document.getElementById('ready-status');
+            if (canvas)    canvas.style.pointerEvents = 'auto';
+            if (controls)  controls.classList.remove('hidden');
+            if (readyArea) readyArea.classList.add('hidden');
+            console.log('[Gomoku] Game started as', myRole);
+        };
+        OnlineState.sbClient.rpc('start_gomoku_game', {
+            p_room_id: OnlineState.roomUuid, p_client_id: OnlineState.clientId,
+        }).then(({ data, error }) => {
+            if (!error && data?.ok) { applyStart(); return; }
+            if (data?.skipped) return; // already started
+            // Fallback: direct UPDATE if RPC not deployed (PGRST202)
+            if (error?.code === 'PGRST202' || error?.message?.includes('Could not find')) {
+                OnlineState.sbClient.from('gomoku_rooms')
+                    .update({ status: 'playing', current_player: 'black' })
+                    .eq('id', OnlineState.roomUuid).eq('status', 'waiting')
+                    .then(({ error: e2 }) => { if (!e2) applyStart(); });
+            }
+        });
     }
 }
 
@@ -570,6 +578,11 @@ function subscribeToRoom() {
             if (err) console.error('[RT-ROOM] Error:', err);
             if (status === 'SUBSCRIBED') {
                 console.log('[RT-ROOM] ✓ Subscribed');
+                // Refetch after subscription to catch state changes that happened
+                // between joining and subscription becoming active (start self-heal)
+                OnlineState.sbClient.from('gomoku_rooms').select('*')
+                    .eq('id', OnlineState.roomUuid).single()
+                    .then(({ data }) => { if (data) renderRoomState(data); });
             }
         });
 }
