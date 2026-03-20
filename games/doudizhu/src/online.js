@@ -449,7 +449,13 @@ function subscribeToRoom() {
                 
                 renderRoomState(payload.new);
             }
-        }).subscribe();
+        }).subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                OnlineState.sbClient.from('doudizhu_rooms').select('*')
+                    .eq('id', OnlineState.roomUuid).single()
+                    .then(({ data }) => { if (data) renderRoomState(data); });
+            }
+        });
 }
 
 async function syncHistoricalActions() {

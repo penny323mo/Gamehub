@@ -15,6 +15,7 @@ const OnlineState = {
     movesChannel: null,
     clientId: null,
     heartbeatInterval: null,
+    roomPollInterval: null,
     appliedMoveIds: new Set(),
     currentRoundId: null,
     hasSeat: false,
@@ -25,10 +26,12 @@ const OnlineState = {
 const TURN_TIME_LIMIT_S = 60;
 
 function initOnlineMode() {
-    OnlineState.clientId = localStorage.getItem('xiangqi_clientId');
+    // Use sessionStorage so each browser tab gets its own ID,
+    // allowing multiple tabs on the same device to be different players.
+    OnlineState.clientId = sessionStorage.getItem('xiangqi_clientId');
     if (!OnlineState.clientId) {
         OnlineState.clientId = crypto.randomUUID();
-        localStorage.setItem('xiangqi_clientId', OnlineState.clientId);
+        sessionStorage.setItem('xiangqi_clientId', OnlineState.clientId);
     }
     console.log('[Online] ClientId:', OnlineState.clientId);
 
@@ -209,6 +212,7 @@ async function joinFixedRoom(roomKey) {
         await fetchAndApplyMoves();
     }
     startHeartbeat();
+    startRoomPoll();
 }
 
 function enterRoomView(room) {
@@ -238,6 +242,27 @@ function stopHeartbeat() {
     OnlineState.heartbeatInterval = null;
 }
 
+function startRoomPoll() {
+    stopRoomPoll();
+    OnlineState.roomPollInterval = setInterval(async () => {
+        if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+        const { data: room } = await OnlineState.sbClient
+            .from('xiangqi_rooms').select('*').eq('id', OnlineState.roomUuid).single();
+        if (!room) return;
+        if (room.status === 'waiting') {
+            renderRoomState(room);
+        } else {
+            renderRoomState(room);
+            stopRoomPoll();
+        }
+    }, 3000);
+}
+
+function stopRoomPoll() {
+    clearInterval(OnlineState.roomPollInterval);
+    OnlineState.roomPollInterval = null;
+}
+
 function renderRoomState(room) {
     if (!room) return;
 
@@ -248,6 +273,11 @@ function renderRoomState(room) {
             cleanupAndReturnToLobby();
             return;
         }
+    }
+
+    // Reset start guard when room is back in waiting without both ready
+    if (room.status === 'waiting' && !(room.red_ready && room.black_ready)) {
+        OnlineState._startAttempted = false;
     }
 
     const newRoundId = room.round_id || 0;
@@ -346,9 +376,12 @@ function renderRoomState(room) {
     }
 
     // Self-heal: if both players are ready but room is still waiting
-    // (e.g. both toggled simultaneously and neither promoted), attempt transition
+    // (e.g. both toggled simultaneously and neither promoted), attempt transition.
+    // Guard with _startAttempted to avoid redundant RPC calls on every render.
     if (room.status === 'waiting' && room.red_ready && room.black_ready &&
-        room.red_player_id && room.black_player_id && OnlineState.sbClient) {
+        room.red_player_id && room.black_player_id && OnlineState.sbClient &&
+        !OnlineState._startAttempted) {
+        OnlineState._startAttempted = true;
         OnlineState.sbClient.rpc('start_xiangqi_game', {
             p_room_id: OnlineState.roomUuid, p_client_id: OnlineState.clientId,
         }).then(({ data, error }) => {
@@ -547,6 +580,7 @@ async function exitFixedRoom() {
 
 function cleanupAndReturnToLobby() {
     stopHeartbeat();
+    stopRoomPoll();
     if (OnlineState.roomChannel) OnlineState.sbClient?.removeChannel(OnlineState.roomChannel);
     if (OnlineState.movesChannel) OnlineState.sbClient?.removeChannel(OnlineState.movesChannel);
 

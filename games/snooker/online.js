@@ -84,8 +84,12 @@ function initSnookerOnline({ gameMode = '2d' } = {}) {
     if (!SnookerOnline._unloadRegistered) {
         SnookerOnline._unloadRegistered = true;
         window.addEventListener('beforeunload', () => {
-            // Skip cleanup during intentional redirects (lobby → game page)
+            // Skip cleanup during intentional redirects (lobby → game page).
+            // Check both in-memory flag AND sessionStorage handoff signal for
+            // maximum reliability — the in-memory flag alone can fail if the
+            // JS engine doesn't propagate it in time.
             if (SnookerOnline._intentionalRedirect) return;
+            if (sessionStorage.getItem('snooker_pending_room')) return;
             if (!SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
             const isP1 = SnookerOnline.playerRole === 'player1';
             const body = JSON.stringify({
@@ -249,23 +253,31 @@ async function joinFixedRoom(roomKey) {
         return;
     }
 
-    // If we claimed a NEW slot (not re-entry) in a stuck non-waiting room
-    // (e.g. both players exited simultaneously and the room was never reset),
-    // reset it to waiting so we don't inherit a stale 'finished'/'playing' state.
+    // If we claimed a NEW slot (not re-entry) in a stuck non-waiting room,
+    // we may need to reset it. But ONLY if:
+    //   - The room is 'finished' (game ended, safe to reset), OR
+    //   - The room is 'playing' but the OTHER player is also gone (truly stuck)
+    // Never reset a 'playing' room where the opponent is still present — that
+    // would destroy an active game (happens during lobby→game page handoff).
     if (conditionField && freshRoom.status !== 'waiting') {
-        await SnookerOnline.sbClient.from('snooker_rooms').update({
-            status:          'waiting',
-            player1_ready:   false,
-            player2_ready:   false,
-            current_turn:    null,
-            winner:          null,
-            finished_reason: null,
-            finished_at:     null,
-        }).eq('id', room.id);
-        // Re-fetch so we render the corrected state
-        const { data: resetRoom } = await SnookerOnline.sbClient
-            .from('snooker_rooms').select('*').eq('id', room.id).single();
-        if (resetRoom) Object.assign(freshRoom, resetRoom);
+        const otherIdField = role === 'player1' ? 'player2_id' : 'player1_id';
+        const otherPlayerGone = !freshRoom[otherIdField];
+
+        if (freshRoom.status === 'finished' || (freshRoom.status === 'playing' && otherPlayerGone)) {
+            await SnookerOnline.sbClient.from('snooker_rooms').update({
+                status:          'waiting',
+                player1_ready:   false,
+                player2_ready:   false,
+                current_turn:    null,
+                winner:          null,
+                finished_reason: null,
+                finished_at:     null,
+            }).eq('id', room.id);
+            const { data: resetRoom } = await SnookerOnline.sbClient
+                .from('snooker_rooms').select('*').eq('id', room.id).single();
+            if (resetRoom) Object.assign(freshRoom, resetRoom);
+        }
+        // If room is 'playing' and opponent is present, just join without resetting
     }
 
     Object.assign(room, freshRoom);

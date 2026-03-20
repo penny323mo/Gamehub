@@ -529,7 +529,9 @@
             status: 'finished',
             winner_index: i,
             finished_at: new Date().toISOString()
-          }).eq('id', window.currentRoom.id).then();
+          }).eq('id', window.currentRoom.id)
+            .eq('status', 'playing')  // race-safe: only the first write wins
+            .then();
         }
 
         // Show game-over message with countdown
@@ -1205,35 +1207,10 @@
     clearSuggest();
 
     if (window.gameMode === 'online') {
-      if (window.isOnlineHost() && window.currentRoom) {
-        // Host generates new deck and restarts the game
-        const newDeck = shuffle(makeDeck());
-        const roomId = window.currentRoom.id;
-
-        // Delete old actions via validated RPC (#7)
-        if (window.cleanupBig2Actions) await window.cleanupBig2Actions();
-
-        // Clear applied action tracking
-        if (window.clearAppliedActions) window.clearAppliedActions();
-
-        await window.supabase.from('big2_rooms').update({
-          status: 'playing',
-          initial_deck: newDeck,
-          current_player_index: null,
-          winner_index: null,
-          finished_at: null,
-          finished_reason: null
-        }).eq('id', roomId);
-
-        // Apply locally
-        state.gameOver = false;
-        dealNewGame(newDeck);
-        render();
-        queueCpuTurns();
-      } else {
-        // Non-host: just reset local state and wait for room sync
-        state.gameOver = false;
-        els.status.textContent = 'Waiting for host to start new round...';
+      // Route through rematch flow which uses validated RPCs:
+      // rematch → waiting → all ready → start_big2_game (server deck generation)
+      if (window.rematchGame) {
+        await window.rematchGame();
       }
       return;
     }
