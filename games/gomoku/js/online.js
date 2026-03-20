@@ -349,9 +349,14 @@ function startRoomPoll() {
     stopRoomPoll();
     OnlineState.roomPollInterval = setInterval(async () => {
         if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+        // Capture the UUID before the async fetch so we can detect if the
+        // player left this room (or joined another) while the request was in flight.
+        const expectedUuid = OnlineState.roomUuid;
         const { data: room } = await OnlineState.sbClient
-            .from('gomoku_rooms').select('*').eq('id', OnlineState.roomUuid).single();
+            .from('gomoku_rooms').select('*').eq('id', expectedUuid).single();
         if (!room) return;
+        // Stale guard: if the active room changed while we were fetching, discard.
+        if (OnlineState.roomUuid !== expectedUuid) return;
         if (room.status === 'waiting') {
             renderRoomState(room);
         } else {

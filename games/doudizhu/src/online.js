@@ -453,7 +453,15 @@ function subscribeToRoom() {
             if (status === 'SUBSCRIBED') {
                 OnlineState.sbClient.from('doudizhu_rooms').select('*')
                     .eq('id', OnlineState.roomUuid).single()
-                    .then(({ data }) => { if (data) renderRoomState(data); });
+                    .then(async ({ data }) => {
+                        if (!data) return;
+                        const wasPlaying = OnlineState.lastKnownRoom?.status === 'playing';
+                        if (data.status === 'playing' && !wasPlaying) {
+                            OnlineState.lastKnownRoom = data;
+                            await syncHistoricalActions();
+                        }
+                        renderRoomState(data);
+                    });
             }
         });
 }

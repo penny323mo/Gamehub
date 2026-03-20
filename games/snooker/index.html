@@ -181,6 +181,7 @@
                 const roomCode = window.snookerCurrentRoom?.room_code || '';
                 sessionStorage.setItem('snooker_pending_room', roomCode);
                 sessionStorage.setItem('snooker_pending_mode', currentOnlineMode);
+                sessionStorage.setItem('snooker_pending_ts', String(Date.now()));
                 // Suppress beforeunload seat-clearing during intentional redirect
                 // Tell online.js to suppress beforeunload seat-clearing
                 if (typeof SnookerOnline !== 'undefined') SnookerOnline._intentionalRedirect = true;
