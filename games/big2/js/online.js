@@ -59,11 +59,29 @@ function initOnlineMode() {
     window.toggleReady = toggleReady;
     window.handleOnlineAction = handleOnlineAction;
 
-    // Guard: register the unload handler only once even on re-init
+    // Guard: register the unload handler only once even on re-init.
+    // Use fetch({keepalive:true}) to survive page unload — the async
+    // exitFixedRoom() would be killed before completing.
     if (!OnlineState._unloadRegistered) {
         OnlineState._unloadRegistered = true;
         window.addEventListener('beforeunload', () => {
-            if (OnlineState.roomUuid) exitFixedRoom();
+            if (!OnlineState.roomUuid || OnlineState.playerIndex === null) return;
+            const idx = OnlineState.playerIndex;
+            const body = JSON.stringify({
+                [`player${idx}_id`]: null,
+                [`player${idx}_ready`]: false,
+                last_activity_at: new Date().toISOString(),
+            });
+            try {
+                fetch(`${SUPABASE_URL}/rest/v1/big2_rooms?id=eq.${OnlineState.roomUuid}`, {
+                    method: 'PATCH', keepalive: true,
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                        'Content-Type': 'application/json', 'Prefer': 'return=minimal',
+                    },
+                    body,
+                });
+            } catch (_) { /* best effort */ }
         });
     }
 
@@ -292,24 +310,30 @@ function renderRoomState(room) {
     window.currentRoom = room;
     OnlineState.lastKnownRoom = room;
 
-    // Determine Host (lowest active player index based on last_seen_at)
+    // Sticky host: keep the current host unless they are stale or gone,
+    // then fall back to the lowest-index active player. This prevents
+    // host flapping when heartbeats are slightly delayed.
     const now = Date.now();
-    let bestHost = -1;
-    for (let i = 0; i < 4; i++) {
-        if (room[`player${i}_id`]) {
-            const seenStr = room[`p${i}_last_seen_at`];
-            const isStale = seenStr ? (now - new Date(seenStr).getTime() > 25000) : true;
-            if (!isStale) {
-                bestHost = i;
-                break;
+    const currentHost = OnlineState.hostIndex;
+    let currentHostOk = false;
+    if (currentHost !== null && currentHost >= 0 && room[`player${currentHost}_id`]) {
+        const seenStr = room[`p${currentHost}_last_seen_at`];
+        currentHostOk = seenStr ? (now - new Date(seenStr).getTime() <= 25000) : false;
+    }
+    if (!currentHostOk) {
+        let bestHost = -1;
+        for (let i = 0; i < 4; i++) {
+            if (room[`player${i}_id`]) {
+                const seenStr = room[`p${i}_last_seen_at`];
+                const isStale = seenStr ? (now - new Date(seenStr).getTime() > 25000) : true;
+                if (!isStale) { bestHost = i; break; }
             }
         }
+        if (bestHost === -1 && OnlineState.playerIndex !== null) {
+            bestHost = OnlineState.playerIndex;
+        }
+        OnlineState.hostIndex = bestHost;
     }
-    // Fallback if everyone looks stale but we are here
-    if (bestHost === -1 && OnlineState.playerIndex !== null) {
-        bestHost = OnlineState.playerIndex;
-    }
-    OnlineState.hostIndex = bestHost;
 
     const roomIdEl = document.getElementById('current-room-id');
     const roleEl = document.getElementById('my-role');
@@ -350,6 +374,10 @@ function renderRoomState(room) {
             }
         }
     }
+
+    // Show rematch button when game is finished
+    const rematchBtn = document.getElementById('rematch-btn');
+    if (rematchBtn) rematchBtn.classList.toggle('hidden', room.status !== 'finished');
 
     if (room.status === 'playing') {
         document.getElementById('ready-status')?.classList.add('hidden');
@@ -607,6 +635,40 @@ function cleanupAndReturnToLobby() {
     fetchLobbyRooms();
 }
 
+// ─── Rematch ─────────────────────────────────────────────────────────────────
+// Reset the room back to waiting so players can Ready up again.
+
+async function rematchGame() {
+    if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+
+    // Clean up old actions
+    await OnlineState.sbClient.from('big2_actions').delete().eq('room_id', OnlineState.roomUuid);
+    OnlineState.appliedActionIds.clear();
+    OnlineState.actionQueue = [];
+
+    // Reset room to waiting — only if it's genuinely finished (race-safe)
+    const { error } = await OnlineState.sbClient.from('big2_rooms').update({
+        status: 'waiting',
+        player0_ready: false,
+        player1_ready: false,
+        player2_ready: false,
+        player3_ready: false,
+        initial_deck: null,
+        current_player_index: null,
+        finished_reason: null,
+    }).eq('id', OnlineState.roomUuid).eq('status', 'finished');
+
+    if (error) { console.error('[Online] rematch error:', error); return; }
+
+    // Restart room polling for the new waiting phase
+    startRoomPoll();
+
+    // Re-fetch to update UI immediately
+    const { data: fresh } = await OnlineState.sbClient.from('big2_rooms').select('*').eq('id', OnlineState.roomUuid).single();
+    if (fresh) renderRoomState(fresh);
+}
+
 // Expose
 window.initOnlineMode = initOnlineMode;
 window.forceStartGame = forceStartGame;
+window.rematchGame = rematchGame;

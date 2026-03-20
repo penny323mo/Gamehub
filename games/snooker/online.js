@@ -34,6 +34,8 @@ const SnookerOnline = {
     heartbeatInterval: null,
     lobbyInterval:   null,   // tracked so repeated initSnookerOnline() calls don't leak
     roomPollInterval: null,  // polls room state while waiting (realtime is unreliable)
+    shotPollInterval: null,  // polls shots during gameplay (realtime can drop messages)
+    lastAppliedShotNo: 0,    // track highest shot_no we've applied for gap detection
     appliedShotIds:  new Set(),
     currentRoundId:  null,
     hasSeat:         false,
@@ -77,10 +79,28 @@ function initSnookerOnline({ gameMode = '2d' } = {}) {
 
     // Register the unload guard only once, even if initSnookerOnline()
     // is called multiple times (e.g. switching 2D ↔ 3D in the hub).
+    // Use fetch({keepalive:true}) to survive page unload — the async
+    // exitFixedRoom() would be killed before completing.
     if (!SnookerOnline._unloadRegistered) {
         SnookerOnline._unloadRegistered = true;
         window.addEventListener('beforeunload', () => {
-            if (SnookerOnline.roomUuid) exitFixedRoom();
+            if (!SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
+            const isP1 = SnookerOnline.playerRole === 'player1';
+            const body = JSON.stringify({
+                [isP1 ? 'player1_id' : 'player2_id']: null,
+                [isP1 ? 'player1_ready' : 'player2_ready']: false,
+                last_activity_at: new Date().toISOString(),
+            });
+            try {
+                fetch(`${SUPABASE_URL}/rest/v1/snooker_rooms?id=eq.${SnookerOnline.roomUuid}`, {
+                    method: 'PATCH', keepalive: true,
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                        'Content-Type': 'application/json', 'Prefer': 'return=minimal',
+                    },
+                    body,
+                });
+            } catch (_) { /* best effort */ }
         });
     }
 
@@ -352,6 +372,8 @@ function renderRoomState(room) {
             .eq('status', 'waiting')
             .then(({ error }) => {
                 if (error) { console.log('[SnookerOnline] start-game skipped:', error.message); return; }
+                // Start shot polling now that game is in progress
+                startShotPoll();
                 // Start immediately — game engine's gameStarted guard prevents double reset
                 // if realtime also fires this callback later.
                 if (window.snookerOnlineRoomUpdate) {
@@ -363,6 +385,16 @@ function renderRoomState(room) {
                 }
             });
         return; // skip the generic notify below; we'll notify via the async callback
+    }
+
+    // Start shot recovery polling when we see the playing state
+    // (covers the non-trigger player who receives it via realtime/poll)
+    if (room.status === 'playing' && !SnookerOnline.shotPollInterval) {
+        startShotPoll();
+    }
+    // Stop shot polling when game is no longer playing
+    if (room.status !== 'playing' && SnookerOnline.shotPollInterval) {
+        stopShotPoll();
     }
 
     // Notify the game for all non-start state changes
@@ -422,8 +454,14 @@ function startRoomPoll() {
         if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid) return;
         const { data: room } = await SnookerOnline.sbClient
             .from('snooker_rooms').select('*').eq('id', SnookerOnline.roomUuid).single();
-        if (room && room.status === 'waiting') renderRoomState(room);
-        else if (room && room.status !== 'waiting') stopRoomPoll();
+        if (!room) return;
+        if (room.status === 'waiting') {
+            renderRoomState(room);
+        } else {
+            // Render once so clients that missed the realtime event pick up the transition
+            renderRoomState(room);
+            stopRoomPoll();
+        }
     }, 3000);
 }
 
@@ -522,6 +560,35 @@ function subscribeToShots() {
         });
 }
 
+// ─── Shot Poll (backup for unreliable realtime during gameplay) ──────────────
+// If the realtime channel drops a shot, the two clients permanently diverge.
+// Polling every 5s for remote shots we haven't applied yet provides recovery.
+
+function startShotPoll() {
+    stopShotPoll();
+    SnookerOnline.shotPollInterval = setInterval(async () => {
+        if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
+        const { data: shots } = await SnookerOnline.sbClient
+            .from('snooker_shots')
+            .select('*')
+            .eq('room_id', SnookerOnline.roomUuid)
+            .neq('player_role', SnookerOnline.playerRole)
+            .order('shot_no', { ascending: true });
+        if (!shots) return;
+        for (const shot of shots) {
+            if (!shot?.id || SnookerOnline.appliedShotIds.has(shot.id)) continue;
+            SnookerOnline.appliedShotIds.add(shot.id);
+            console.log('[ShotPoll] Recovered missed shot:', shot.shot_no);
+            if (window.snookerApplyRemoteShot) window.snookerApplyRemoteShot(shot.payload || shot);
+        }
+    }, 5000);
+}
+
+function stopShotPoll() {
+    clearInterval(SnookerOnline.shotPollInterval);
+    SnookerOnline.shotPollInterval = null;
+}
+
 // ─── Exit ────────────────────────────────────────────────────────────────────
 
 async function exitFixedRoom() {
@@ -600,6 +667,7 @@ async function exitFixedRoom() {
 
 function cleanupAndLobby() {
     stopHeartbeat();
+    stopShotPoll();
     stopRoomPoll();
     SnookerOnline.sbClient?.removeChannel(SnookerOnline.roomChannel);
     SnookerOnline.sbClient?.removeChannel(SnookerOnline.shotsChannel);
