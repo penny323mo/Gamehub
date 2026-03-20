@@ -16,6 +16,7 @@ const OnlineState = {
     clientId: null,
     heartbeatInterval: null,
     lobbyInterval: null,      // tracked to prevent accumulation on re-init
+    roomPollInterval: null,   // polls room state while waiting (realtime is unreliable)
     appliedActionIds: new Set(),
     actionQueue: [], // For sorting actions
     isProcessingActions: false,
@@ -56,11 +57,29 @@ function initOnlineMode() {
     window.toggleReady = toggleReady;
     window.handleOnlineAction = handleOnlineAction;
 
-    // Guard: register the unload handler only once even on re-init
+    // Guard: register the unload handler only once even on re-init.
+    // Use fetch({keepalive:true}) to survive page unload — the async
+    // exitFixedRoom() would be killed before completing.
     if (!OnlineState._unloadRegistered) {
         OnlineState._unloadRegistered = true;
         window.addEventListener('beforeunload', () => {
-            if (OnlineState.roomUuid) exitFixedRoom();
+            if (!OnlineState.roomUuid || OnlineState.playerIndex === null) return;
+            const idx = OnlineState.playerIndex;
+            const body = JSON.stringify({
+                [`player${idx}_id`]: null,
+                [`player${idx}_ready`]: false,
+                last_activity_at: new Date().toISOString(),
+            });
+            try {
+                fetch(`${SUPABASE_URL}/rest/v1/doudizhu_rooms?id=eq.${OnlineState.roomUuid}`, {
+                    method: 'PATCH', keepalive: true,
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                        'Content-Type': 'application/json', 'Prefer': 'return=minimal',
+                    },
+                    body,
+                });
+            } catch (_) { /* best effort */ }
         });
     }
 
@@ -220,6 +239,7 @@ async function joinFixedRoom(roomKey) {
     subscribeToActions();
 
     startHeartbeat();
+    startRoomPoll();
 }
 
 function enterRoomView(room) {
@@ -249,27 +269,64 @@ function stopHeartbeat() {
     OnlineState.heartbeatInterval = null;
 }
 
+// ── Room-view poll (backup for unreliable realtime) ─────────────────────────
+// While players are in the waiting room, realtime delivery may be dropped.
+// Polling every 3s ensures all clients see join/ready state updates and the
+// Start Game button becomes clickable.
+
+function startRoomPoll() {
+    stopRoomPoll();
+    OnlineState.roomPollInterval = setInterval(async () => {
+        if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+        const { data: room } = await OnlineState.sbClient
+            .from('doudizhu_rooms').select('*').eq('id', OnlineState.roomUuid).single();
+        if (!room) return;
+        if (room.status === 'waiting') {
+            renderRoomState(room);
+        } else {
+            // Room transitioned away from waiting (e.g. to playing).
+            // Render once so clients that missed the realtime event can
+            // pick up the transition, then stop polling.
+            renderRoomState(room);
+            stopRoomPoll();
+        }
+    }, 3000);
+}
+
+function stopRoomPoll() {
+    clearInterval(OnlineState.roomPollInterval);
+    OnlineState.roomPollInterval = null;
+}
+
 function renderRoomState(room) {
     if (!room) return;
     window.currentRoom = room;
     OnlineState.lastKnownRoom = room;
 
+    // Sticky host: keep the current host unless they are stale or gone,
+    // then fall back to the lowest-index active player. This prevents
+    // host flapping when heartbeats are slightly delayed.
     const now = Date.now();
-    let bestHost = -1;
-    for (let i = 0; i < 3; i++) {
-        if (room[`player${i}_id`]) {
-            const seenStr = room[`p${i}_last_seen_at`];
-            const isStale = seenStr ? (now - new Date(seenStr).getTime() > 25000) : true;
-            if (!isStale) {
-                bestHost = i;
-                break;
+    const currentHost = OnlineState.hostIndex;
+    let currentHostOk = false;
+    if (currentHost !== null && currentHost >= 0 && room[`player${currentHost}_id`]) {
+        const seenStr = room[`p${currentHost}_last_seen_at`];
+        currentHostOk = seenStr ? (now - new Date(seenStr).getTime() <= 25000) : false;
+    }
+    if (!currentHostOk) {
+        let bestHost = -1;
+        for (let i = 0; i < 3; i++) {
+            if (room[`player${i}_id`]) {
+                const seenStr = room[`p${i}_last_seen_at`];
+                const isStale = seenStr ? (now - new Date(seenStr).getTime() > 25000) : true;
+                if (!isStale) { bestHost = i; break; }
             }
         }
+        if (bestHost === -1 && OnlineState.playerIndex !== null) {
+            bestHost = OnlineState.playerIndex;
+        }
+        OnlineState.hostIndex = bestHost;
     }
-    if (bestHost === -1 && OnlineState.playerIndex !== null) {
-        bestHost = OnlineState.playerIndex;
-    }
-    OnlineState.hostIndex = bestHost;
 
     const roomIdEl = document.getElementById('current-room-id');
     const roleEl = document.getElementById('my-role');
@@ -297,7 +354,8 @@ function renderRoomState(room) {
         readyBtn.textContent = myReady ? 'Cancel Ready' : 'Ready';
 
         const occupiedStatuses = statuses.filter(s => s !== 'Empty');
-        const allReady = occupiedStatuses.length > 0 && occupiedStatuses.every(s => s === 'Ready');
+        // Doudizhu requires exactly 3 players
+        const allReady = occupiedStatuses.length === 3 && occupiedStatuses.every(s => s === 'Ready');
 
         const startBtn = document.getElementById('start-game-btn');
         if (startBtn) {
@@ -309,6 +367,10 @@ function renderRoomState(room) {
         }
     }
 
+    // Show rematch button when game is finished
+    const rematchBtn = document.getElementById('rematch-btn');
+    if (rematchBtn) rematchBtn.classList.toggle('hidden', room.status !== 'finished');
+
     if (room.status === 'playing') {
         document.getElementById('ready-status')?.classList.add('hidden');
         if (window.handleRoomSync) window.handleRoomSync(room);
@@ -317,15 +379,29 @@ function renderRoomState(room) {
     }
 }
 
+let _readyDebouncing = false;
 async function toggleReady() {
+    if (_readyDebouncing) return;
     if (!OnlineState.sbClient || !OnlineState.roomUuid || OnlineState.playerIndex === null) return;
+    _readyDebouncing = true;
+
     const { data: room } = await OnlineState.sbClient.from('doudizhu_rooms').select('*').eq('id', OnlineState.roomUuid).single();
-    if (!room) return;
+    if (!room) { _readyDebouncing = false; return; }
 
     const myReadyField = `player${OnlineState.playerIndex}_ready`;
     const newReady = !room[myReadyField];
 
-    await OnlineState.sbClient.from('doudizhu_rooms').update({ [myReadyField]: newReady }).eq('id', OnlineState.roomUuid);
+    const { error } = await OnlineState.sbClient.from('doudizhu_rooms').update({ [myReadyField]: newReady }).eq('id', OnlineState.roomUuid);
+    if (error) { console.error('[Online] toggleReady error:', error); _readyDebouncing = false; return; }
+
+    // Don't rely solely on realtime to drive the Start Game button.
+    // Re-fetch and run renderRoomState immediately so the last player
+    // to click Ready can see the Start Game button without waiting for
+    // a Supabase realtime delivery that may be slow or dropped.
+    const { data: fresh } = await OnlineState.sbClient.from('doudizhu_rooms').select('*').eq('id', OnlineState.roomUuid).single();
+    if (fresh) renderRoomState(fresh);
+
+    setTimeout(() => { _readyDebouncing = false; }, 1000);
 }
 
 // Global func to be called from UI by the host
@@ -338,18 +414,19 @@ window.forceStartGame = async function() {
 }
 
 async function startGameFromHost() {
-    // Clean up old actions from previous games before starting a new one
-    await OnlineState.sbClient.from('doudizhu_actions').delete().eq('room_id', OnlineState.roomUuid);
-    OnlineState.appliedActionIds.clear();
-    OnlineState.actionQueue = [];
-
     // Deck is now generated server-side in start_doudizhu_game RPC — no client shuffle needed.
     const { data, error } = await OnlineState.sbClient.rpc('start_doudizhu_game', {
         p_room_id:   OnlineState.roomUuid,
         p_client_id: OnlineState.clientId,
     });
-    if (error) console.error('[Online] startGame RPC error:', error);
-    else if (data?.skipped) console.log('[Online] startGame skipped – already started');
+    if (error) { console.error('[Online] startGame RPC error:', error); return; }
+    if (data?.skipped) { console.log('[Online] startGame skipped – already started'); return; }
+
+    // Clean up old actions only after the RPC succeeds, so we don't destroy
+    // previous game history if the start fails.
+    await OnlineState.sbClient.from('doudizhu_actions').delete().eq('room_id', OnlineState.roomUuid);
+    OnlineState.appliedActionIds.clear();
+    OnlineState.actionQueue = [];
 }
 
 function subscribeToRoom() {
@@ -393,8 +470,11 @@ async function syncHistoricalActions() {
 
 function queueAction(action) {
     if (!action || !action.id || OnlineState.appliedActionIds.has(action.id)) return;
-    // Bound the set to prevent unbounded memory growth in long sessions
-    if (OnlineState.appliedActionIds.size > 500) OnlineState.appliedActionIds.clear();
+    // Evict oldest entries to prevent unbounded memory growth, keeping recent 250
+    if (OnlineState.appliedActionIds.size > 500) {
+        const ids = [...OnlineState.appliedActionIds];
+        OnlineState.appliedActionIds = new Set(ids.slice(-250));
+    }
     OnlineState.appliedActionIds.add(action.id);
     const queue = OnlineState.actionQueue;
     const no = action.action_no;
@@ -406,16 +486,20 @@ function queueAction(action) {
 async function processActionQueue() {
     if (OnlineState.isProcessingActions) return;
     OnlineState.isProcessingActions = true;
-    
-    while (OnlineState.actionQueue.length > 0) {
-        const action = OnlineState.actionQueue.shift();
-        if (window.applyNetworkAction) {
-            window.applyNetworkAction(action);
+
+    try {
+        while (OnlineState.actionQueue.length > 0) {
+            const action = OnlineState.actionQueue.shift();
+            if (window.applyNetworkAction) {
+                window.applyNetworkAction(action);
+            }
+            await new Promise(r => setTimeout(r, 50));
         }
-        await new Promise(r => setTimeout(r, 50));
+    } catch (e) {
+        console.error('[Online] processActionQueue error:', e);
+    } finally {
+        OnlineState.isProcessingActions = false;
     }
-    
-    OnlineState.isProcessingActions = false;
 }
 
 window.clearAppliedActions = function() {
@@ -516,6 +600,7 @@ async function exitFixedRoom() {
 
 function cleanupAndReturnToLobby() {
     stopHeartbeat();
+    stopRoomPoll();
     if (OnlineState.roomChannel) OnlineState.sbClient?.removeChannel(OnlineState.roomChannel);
     if (OnlineState.actionsChannel) OnlineState.sbClient?.removeChannel(OnlineState.actionsChannel);
 
@@ -525,6 +610,10 @@ function cleanupAndReturnToLobby() {
     OnlineState.roomChannel = null;
     OnlineState.actionsChannel = null;
     OnlineState.appliedActionIds.clear();
+    OnlineState.actionQueue = [];
+    OnlineState.lastKnownRoom = null;
+    OnlineState.isStartingGame = false;
+    OnlineState.isProcessingActions = false;
     OnlineState.hasSeat = false;
     window.currentRoom = null;
     window.onlinePlayerIndex = null;
@@ -532,6 +621,39 @@ function cleanupAndReturnToLobby() {
     if (window.setGameMode) window.setGameMode('online-lobby');
     fetchLobbyRooms();
 }
+
+// ─── Rematch ─────────────────────────────────────────────────────────────────
+// Reset the room back to waiting so players can Ready up again.
+
+async function rematchGame() {
+    if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+
+    // Clean up old actions
+    await OnlineState.sbClient.from('doudizhu_actions').delete().eq('room_id', OnlineState.roomUuid);
+    OnlineState.appliedActionIds.clear();
+    OnlineState.actionQueue = [];
+
+    // Reset room to waiting — only if it's genuinely finished (race-safe)
+    const { error } = await OnlineState.sbClient.from('doudizhu_rooms').update({
+        status: 'waiting',
+        player0_ready: false,
+        player1_ready: false,
+        player2_ready: false,
+        initial_deck: null,
+        current_player_index: null,
+        finished_reason: null,
+    }).eq('id', OnlineState.roomUuid).eq('status', 'finished');
+
+    if (error) { console.error('[Online] rematch error:', error); return; }
+
+    // Restart room polling for the new waiting phase
+    startRoomPoll();
+
+    // Re-fetch to update UI immediately
+    const { data: fresh } = await OnlineState.sbClient.from('doudizhu_rooms').select('*').eq('id', OnlineState.roomUuid).single();
+    if (fresh) renderRoomState(fresh);
+}
+window.rematchGame = rematchGame;
 
 // Expose
 window.initOnlineMode = initOnlineMode;
