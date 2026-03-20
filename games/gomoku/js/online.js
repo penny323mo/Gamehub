@@ -26,6 +26,8 @@ const OnlineState = {
     clientId: null,
     timerInterval: null,
     heartbeatInterval: null,
+    roomPollInterval: null,  // polls room state while waiting (realtime unreliable)
+    lobbyInterval: null,     // lobby auto-refresh
     appliedMoveIds: new Set(),  // 已應用嘅 move IDs（避免重複）
     currentRoundId: null,  // 追蹤 round_id 偵測新局
     hasSeat: false  // 只有成功入座後才為 true（避免 KICKED 誤判）
@@ -34,10 +36,12 @@ const OnlineState = {
 // === 初始化 ===
 
 function initOnlineMode() {
-    OnlineState.clientId = localStorage.getItem('gomoku_clientId');
+    // Use sessionStorage so each browser tab gets its own ID,
+    // allowing multiple tabs on the same device to be different players.
+    OnlineState.clientId = sessionStorage.getItem('gomoku_clientId');
     if (!OnlineState.clientId) {
         OnlineState.clientId = crypto.randomUUID();
-        localStorage.setItem('gomoku_clientId', OnlineState.clientId);
+        sessionStorage.setItem('gomoku_clientId', OnlineState.clientId);
     }
     console.log('[Online] ClientId:', OnlineState.clientId);
 
@@ -92,6 +96,13 @@ function initOnlineMode() {
     }
 
     fetchLobbyRooms();
+
+    // Auto-refresh lobby every 5s while lobby is visible
+    if (OnlineState.lobbyInterval) clearInterval(OnlineState.lobbyInterval);
+    OnlineState.lobbyInterval = setInterval(() => {
+        const lobbyEl = document.getElementById('online-lobby');
+        if (lobbyEl && !lobbyEl.classList.contains('hidden')) fetchLobbyRooms();
+    }, 5000);
 }
 
 // === Lobby ===
@@ -272,8 +283,9 @@ async function joinFixedRoom(roomKey) {
         await fetchAndApplyMoves();
     }
 
-    // 8. 啟動 heartbeat
+    // 8. 啟動 heartbeat + room poll
     startHeartbeat();
+    startRoomPoll();
 }
 
 function enterRoomView(room) {
@@ -329,6 +341,29 @@ function stopHeartbeat() {
         clearInterval(OnlineState.heartbeatInterval);
         OnlineState.heartbeatInterval = null;
     }
+}
+
+// === Room Poll (backup for unreliable realtime during waiting) ===
+
+function startRoomPoll() {
+    stopRoomPoll();
+    OnlineState.roomPollInterval = setInterval(async () => {
+        if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+        const { data: room } = await OnlineState.sbClient
+            .from('gomoku_rooms').select('*').eq('id', OnlineState.roomUuid).single();
+        if (!room) return;
+        if (room.status === 'waiting') {
+            renderRoomState(room);
+        } else {
+            renderRoomState(room);
+            stopRoomPoll();
+        }
+    }, 3000);
+}
+
+function stopRoomPoll() {
+    clearInterval(OnlineState.roomPollInterval);
+    OnlineState.roomPollInterval = null;
 }
 
 // === 渲染房間狀態 ===
@@ -766,6 +801,7 @@ async function exitFixedRoom() {
 
 function cleanupAndReturnToLobby() {
     stopHeartbeat();
+    stopRoomPoll();
     stopClientTimer();
 
     if (OnlineState.roomChannel) OnlineState.sbClient?.removeChannel(OnlineState.roomChannel);
