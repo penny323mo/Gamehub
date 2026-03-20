@@ -187,6 +187,28 @@ async function joinFixedRoom(roomKey) {
     }
 
     Object.assign(room, updatedRows[0]);
+
+    // If we claimed a NEW slot in a stuck non-waiting room (e.g. both players
+    // left without proper cleanup), reset it to waiting so we don't inherit
+    // stale 'playing'/'finished' state.
+    if (conditionField && room.status !== 'waiting') {
+        const resetData = {
+            status: 'waiting',
+            initial_deck: null,
+            current_player_index: null,
+            finished_reason: null,
+        };
+        for (let i = 0; i < 3; i++) {
+            resetData[`player${i}_ready`] = false;
+        }
+        await OnlineState.sbClient.from('doudizhu_rooms').update(resetData).eq('id', room.id);
+        // Also clear stale actions
+        await OnlineState.sbClient.from('doudizhu_actions').delete().eq('room_id', room.id);
+        // Re-fetch fresh state
+        const { data: freshRoom } = await OnlineState.sbClient.from('doudizhu_rooms').select('*').eq('id', room.id).single();
+        if (freshRoom) Object.assign(room, freshRoom);
+    }
+
     OnlineState.hasSeat = true;
     OnlineState.roomKey = roomKey;
     OnlineState.roomUuid = room.id;
@@ -316,6 +338,11 @@ window.forceStartGame = async function() {
 }
 
 async function startGameFromHost() {
+    // Clean up old actions from previous games before starting a new one
+    await OnlineState.sbClient.from('doudizhu_actions').delete().eq('room_id', OnlineState.roomUuid);
+    OnlineState.appliedActionIds.clear();
+    OnlineState.actionQueue = [];
+
     // Deck is now generated server-side in start_doudizhu_game RPC — no client shuffle needed.
     const { data, error } = await OnlineState.sbClient.rpc('start_doudizhu_game', {
         p_room_id:   OnlineState.roomUuid,
@@ -346,12 +373,16 @@ function subscribeToRoom() {
 
 async function syncHistoricalActions() {
     if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+    // Clear local tracking before syncing to avoid stale dedup entries
+    OnlineState.appliedActionIds.clear();
+    OnlineState.actionQueue = [];
+
     const { data: actions, error } = await OnlineState.sbClient
         .from('doudizhu_actions')
         .select('*')
         .eq('room_id', OnlineState.roomUuid)
         .order('action_no', { ascending: true });
-        
+
     if (!error && actions) {
         for (const act of actions) {
             queueAction(act);

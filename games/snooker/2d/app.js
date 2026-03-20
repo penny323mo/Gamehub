@@ -833,12 +833,19 @@
     state.shotPots = [];
     state.cuePotted = false;
 
-    if (state.turn === 'ai' && !state.isComplete) {
+    if (state.turn === 'ai' && !state.isComplete && state.mode !== 'online') {
       state.aiming = true;
       state.phase = 'aim';
       state.inputState = 'ai_thinking';
       state.aiThinking = true;
       state.aiTimer = setTimeout(aiDecide, 1500);
+    } else if (state.turn === 'ai' && !state.isComplete && state.mode === 'online') {
+      // Online mode: wait for remote player's shot, don't trigger AI
+      state.aiming = false;
+      state.phase = 'aim';
+      state.inputState = 'waiting_remote';
+      state.aiThinking = false;
+      updateStatus('等待對手擊球...');
     } else {
       state.aiming = true;
       state.phase = 'aim';
@@ -1100,7 +1107,7 @@
   }
 
   canvas.addEventListener('pointerdown', (e) => {
-    if (state.turn === 'ai' || state.aiThinking) return;
+    if (state.turn === 'ai' || state.aiThinking || state.inputState === 'waiting_remote') return;
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (W / rect.width);
     const y = (e.clientY - rect.top) * (H / rect.height);
