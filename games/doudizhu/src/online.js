@@ -16,6 +16,7 @@ const OnlineState = {
     clientId: null,
     heartbeatInterval: null,
     lobbyInterval: null,      // tracked to prevent accumulation on re-init
+    roomPollInterval: null,   // polls room state while waiting (realtime is unreliable)
     appliedActionIds: new Set(),
     actionQueue: [], // For sorting actions
     isProcessingActions: false,
@@ -220,6 +221,7 @@ async function joinFixedRoom(roomKey) {
     subscribeToActions();
 
     startHeartbeat();
+    startRoomPoll();
 }
 
 function enterRoomView(room) {
@@ -247,6 +249,27 @@ function startHeartbeat() {
 function stopHeartbeat() {
     if (OnlineState.heartbeatInterval) clearInterval(OnlineState.heartbeatInterval);
     OnlineState.heartbeatInterval = null;
+}
+
+// ── Room-view poll (backup for unreliable realtime) ─────────────────────────
+// While players are in the waiting room, realtime delivery may be dropped.
+// Polling every 3s ensures all clients see join/ready state updates and the
+// Start Game button becomes clickable.
+
+function startRoomPoll() {
+    stopRoomPoll();
+    OnlineState.roomPollInterval = setInterval(async () => {
+        if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+        const { data: room } = await OnlineState.sbClient
+            .from('doudizhu_rooms').select('*').eq('id', OnlineState.roomUuid).single();
+        if (room && room.status === 'waiting') renderRoomState(room);
+        else if (room && room.status !== 'waiting') stopRoomPoll();
+    }, 3000);
+}
+
+function stopRoomPoll() {
+    clearInterval(OnlineState.roomPollInterval);
+    OnlineState.roomPollInterval = null;
 }
 
 function renderRoomState(room) {
@@ -317,15 +340,29 @@ function renderRoomState(room) {
     }
 }
 
+let _readyDebouncing = false;
 async function toggleReady() {
+    if (_readyDebouncing) return;
     if (!OnlineState.sbClient || !OnlineState.roomUuid || OnlineState.playerIndex === null) return;
+    _readyDebouncing = true;
+
     const { data: room } = await OnlineState.sbClient.from('doudizhu_rooms').select('*').eq('id', OnlineState.roomUuid).single();
-    if (!room) return;
+    if (!room) { _readyDebouncing = false; return; }
 
     const myReadyField = `player${OnlineState.playerIndex}_ready`;
     const newReady = !room[myReadyField];
 
-    await OnlineState.sbClient.from('doudizhu_rooms').update({ [myReadyField]: newReady }).eq('id', OnlineState.roomUuid);
+    const { error } = await OnlineState.sbClient.from('doudizhu_rooms').update({ [myReadyField]: newReady }).eq('id', OnlineState.roomUuid);
+    if (error) { console.error('[Online] toggleReady error:', error); _readyDebouncing = false; return; }
+
+    // Don't rely solely on realtime to drive the Start Game button.
+    // Re-fetch and run renderRoomState immediately so the last player
+    // to click Ready can see the Start Game button without waiting for
+    // a Supabase realtime delivery that may be slow or dropped.
+    const { data: fresh } = await OnlineState.sbClient.from('doudizhu_rooms').select('*').eq('id', OnlineState.roomUuid).single();
+    if (fresh) renderRoomState(fresh);
+
+    setTimeout(() => { _readyDebouncing = false; }, 1000);
 }
 
 // Global func to be called from UI by the host
@@ -516,6 +553,7 @@ async function exitFixedRoom() {
 
 function cleanupAndReturnToLobby() {
     stopHeartbeat();
+    stopRoomPoll();
     if (OnlineState.roomChannel) OnlineState.sbClient?.removeChannel(OnlineState.roomChannel);
     if (OnlineState.actionsChannel) OnlineState.sbClient?.removeChannel(OnlineState.actionsChannel);
 
