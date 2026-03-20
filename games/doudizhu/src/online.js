@@ -262,8 +262,16 @@ function startRoomPoll() {
         if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
         const { data: room } = await OnlineState.sbClient
             .from('doudizhu_rooms').select('*').eq('id', OnlineState.roomUuid).single();
-        if (room && room.status === 'waiting') renderRoomState(room);
-        else if (room && room.status !== 'waiting') stopRoomPoll();
+        if (!room) return;
+        if (room.status === 'waiting') {
+            renderRoomState(room);
+        } else {
+            // Room transitioned away from waiting (e.g. to playing).
+            // Render once so clients that missed the realtime event can
+            // pick up the transition, then stop polling.
+            renderRoomState(room);
+            stopRoomPoll();
+        }
     }, 3000);
 }
 
@@ -320,7 +328,8 @@ function renderRoomState(room) {
         readyBtn.textContent = myReady ? 'Cancel Ready' : 'Ready';
 
         const occupiedStatuses = statuses.filter(s => s !== 'Empty');
-        const allReady = occupiedStatuses.length > 0 && occupiedStatuses.every(s => s === 'Ready');
+        // Doudizhu requires exactly 3 players
+        const allReady = occupiedStatuses.length === 3 && occupiedStatuses.every(s => s === 'Ready');
 
         const startBtn = document.getElementById('start-game-btn');
         if (startBtn) {
@@ -375,18 +384,19 @@ window.forceStartGame = async function() {
 }
 
 async function startGameFromHost() {
-    // Clean up old actions from previous games before starting a new one
-    await OnlineState.sbClient.from('doudizhu_actions').delete().eq('room_id', OnlineState.roomUuid);
-    OnlineState.appliedActionIds.clear();
-    OnlineState.actionQueue = [];
-
     // Deck is now generated server-side in start_doudizhu_game RPC — no client shuffle needed.
     const { data, error } = await OnlineState.sbClient.rpc('start_doudizhu_game', {
         p_room_id:   OnlineState.roomUuid,
         p_client_id: OnlineState.clientId,
     });
-    if (error) console.error('[Online] startGame RPC error:', error);
-    else if (data?.skipped) console.log('[Online] startGame skipped – already started');
+    if (error) { console.error('[Online] startGame RPC error:', error); return; }
+    if (data?.skipped) { console.log('[Online] startGame skipped – already started'); return; }
+
+    // Clean up old actions only after the RPC succeeds, so we don't destroy
+    // previous game history if the start fails.
+    await OnlineState.sbClient.from('doudizhu_actions').delete().eq('room_id', OnlineState.roomUuid);
+    OnlineState.appliedActionIds.clear();
+    OnlineState.actionQueue = [];
 }
 
 function subscribeToRoom() {
@@ -430,8 +440,11 @@ async function syncHistoricalActions() {
 
 function queueAction(action) {
     if (!action || !action.id || OnlineState.appliedActionIds.has(action.id)) return;
-    // Bound the set to prevent unbounded memory growth in long sessions
-    if (OnlineState.appliedActionIds.size > 500) OnlineState.appliedActionIds.clear();
+    // Evict oldest entries to prevent unbounded memory growth, keeping recent 250
+    if (OnlineState.appliedActionIds.size > 500) {
+        const ids = [...OnlineState.appliedActionIds];
+        OnlineState.appliedActionIds = new Set(ids.slice(-250));
+    }
     OnlineState.appliedActionIds.add(action.id);
     const queue = OnlineState.actionQueue;
     const no = action.action_no;
@@ -443,16 +456,20 @@ function queueAction(action) {
 async function processActionQueue() {
     if (OnlineState.isProcessingActions) return;
     OnlineState.isProcessingActions = true;
-    
-    while (OnlineState.actionQueue.length > 0) {
-        const action = OnlineState.actionQueue.shift();
-        if (window.applyNetworkAction) {
-            window.applyNetworkAction(action);
+
+    try {
+        while (OnlineState.actionQueue.length > 0) {
+            const action = OnlineState.actionQueue.shift();
+            if (window.applyNetworkAction) {
+                window.applyNetworkAction(action);
+            }
+            await new Promise(r => setTimeout(r, 50));
         }
-        await new Promise(r => setTimeout(r, 50));
+    } catch (e) {
+        console.error('[Online] processActionQueue error:', e);
+    } finally {
+        OnlineState.isProcessingActions = false;
     }
-    
-    OnlineState.isProcessingActions = false;
 }
 
 window.clearAppliedActions = function() {
@@ -563,6 +580,10 @@ function cleanupAndReturnToLobby() {
     OnlineState.roomChannel = null;
     OnlineState.actionsChannel = null;
     OnlineState.appliedActionIds.clear();
+    OnlineState.actionQueue = [];
+    OnlineState.lastKnownRoom = null;
+    OnlineState.isStartingGame = false;
+    OnlineState.isProcessingActions = false;
     OnlineState.hasSeat = false;
     window.currentRoom = null;
     window.onlinePlayerIndex = null;

@@ -269,8 +269,16 @@ function startRoomPoll() {
         if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
         const { data: room } = await OnlineState.sbClient
             .from('big2_rooms').select('*').eq('id', OnlineState.roomUuid).single();
-        if (room && room.status === 'waiting') renderRoomState(room);
-        else if (room && room.status !== 'waiting') stopRoomPoll();
+        if (!room) return;
+        if (room.status === 'waiting') {
+            renderRoomState(room);
+        } else {
+            // Room transitioned away from waiting (e.g. to playing).
+            // Render once so clients that missed the realtime event can
+            // pick up the transition, then stop polling.
+            renderRoomState(room);
+            stopRoomPoll();
+        }
     }, 3000);
 }
 
@@ -330,11 +338,11 @@ function renderRoomState(room) {
         readyBtn.textContent = myReady ? 'Cancel Ready' : 'Ready';
 
         const occupiedStatuses = statuses.filter(s => s !== 'Empty');
-        const allReady = occupiedStatuses.length > 0 && occupiedStatuses.every(s => s === 'Ready');
+        // Big2 requires exactly 4 players
+        const allReady = occupiedStatuses.length === 4 && occupiedStatuses.every(s => s === 'Ready');
 
         const startBtn = document.getElementById('start-game-btn');
         if (startBtn) {
-            // Fix #4: Only show if waiting, everyone ready, and we are the dynamic host
             if (room.status === 'waiting' && allReady && window.isOnlineHost()) {
                 startBtn.classList.remove('hidden');
             } else {
@@ -386,18 +394,19 @@ async function forceStartGame() {
 
 // Logic triggered by Host (P0 or whoever is making everyone ready)
 async function startGameFromHost() {
-    // Clean up old actions from previous games before starting a new one
-    await OnlineState.sbClient.from('big2_actions').delete().eq('room_id', OnlineState.roomUuid);
-    OnlineState.appliedActionIds.clear();
-    OnlineState.actionQueue = [];
-
     // Deck is now generated server-side in start_big2_game RPC — no client shuffle needed.
     const { data, error } = await OnlineState.sbClient.rpc('start_big2_game', {
         p_room_id:   OnlineState.roomUuid,
         p_client_id: OnlineState.clientId,
     });
-    if (error) console.error('[Online] startGame RPC error:', error);
-    else if (data?.skipped) console.log('[Online] startGame skipped – already started');
+    if (error) { console.error('[Online] startGame RPC error:', error); return; }
+    if (data?.skipped) { console.log('[Online] startGame skipped – already started'); return; }
+
+    // Clean up old actions only after the RPC succeeds, so we don't destroy
+    // previous game history if the start fails.
+    await OnlineState.sbClient.from('big2_actions').delete().eq('room_id', OnlineState.roomUuid);
+    OnlineState.appliedActionIds.clear();
+    OnlineState.actionQueue = [];
 }
 
 function subscribeToRoom() {
@@ -442,8 +451,11 @@ async function syncHistoricalActions() {
 
 function queueAction(action) {
     if (!action || !action.id || OnlineState.appliedActionIds.has(action.id)) return;
-    // Bound the set to prevent unbounded memory growth in long sessions
-    if (OnlineState.appliedActionIds.size > 500) OnlineState.appliedActionIds.clear();
+    // Evict oldest entries to prevent unbounded memory growth, keeping recent 250
+    if (OnlineState.appliedActionIds.size > 500) {
+        const ids = [...OnlineState.appliedActionIds];
+        OnlineState.appliedActionIds = new Set(ids.slice(-250));
+    }
     OnlineState.appliedActionIds.add(action.id);
     
     // Insert in sorted position by action_no (O(n) vs sort's O(n log n))
@@ -457,17 +469,21 @@ function queueAction(action) {
 async function processActionQueue() {
     if (OnlineState.isProcessingActions) return;
     OnlineState.isProcessingActions = true;
-    
-    while (OnlineState.actionQueue.length > 0) {
-        const action = OnlineState.actionQueue.shift();
-        if (window.applyNetworkAction) {
-            window.applyNetworkAction(action);
+
+    try {
+        while (OnlineState.actionQueue.length > 0) {
+            const action = OnlineState.actionQueue.shift();
+            if (window.applyNetworkAction) {
+                window.applyNetworkAction(action);
+            }
+            // Small delay to let UI render if there are many queued actions
+            await new Promise(r => setTimeout(r, 50));
         }
-        // Small delay to let UI render if there are many queued actions
-        await new Promise(r => setTimeout(r, 50));
+    } catch (e) {
+        console.error('[Online] processActionQueue error:', e);
+    } finally {
+        OnlineState.isProcessingActions = false;
     }
-    
-    OnlineState.isProcessingActions = false;
 }
 
 window.clearAppliedActions = function() {
@@ -579,6 +595,10 @@ function cleanupAndReturnToLobby() {
     OnlineState.roomChannel = null;
     OnlineState.actionsChannel = null;
     OnlineState.appliedActionIds.clear();
+    OnlineState.actionQueue = [];
+    OnlineState.lastKnownRoom = null;
+    OnlineState.isStartingGame = false;
+    OnlineState.isProcessingActions = false;
     OnlineState.hasSeat = false;
     window.currentRoom = null;
     window.onlinePlayerIndex = null;

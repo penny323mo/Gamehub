@@ -508,7 +508,10 @@ function subscribeToShots() {
             if (shot.player_role === SnookerOnline.playerRole) return;
             // Deduplicate; cap size to avoid unbounded growth in long sessions
             if (SnookerOnline.appliedShotIds.has(shot.id)) return;
-            if (SnookerOnline.appliedShotIds.size > 500) SnookerOnline.appliedShotIds.clear();
+            if (SnookerOnline.appliedShotIds.size > 500) {
+                const ids = [...SnookerOnline.appliedShotIds];
+                SnookerOnline.appliedShotIds = new Set(ids.slice(-250));
+            }
             SnookerOnline.appliedShotIds.add(shot.id);
             console.log('[SnookerShot] Remote shot received:', shot.payload);
             if (window.snookerApplyRemoteShot) window.snookerApplyRemoteShot(shot.payload || shot);
