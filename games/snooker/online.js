@@ -716,7 +716,7 @@ window.snookerSignalGameOver = async function({ winner = 0, scores = [] } = {}) 
 async function snookerRematch() {
     if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid) return;
 
-    await SnookerOnline.sbClient.from('snooker_shots').delete().eq('room_id', SnookerOnline.roomUuid);
+    await SnookerOnline.sbClient.rpc('cleanup_snooker_shots', { p_room_id: SnookerOnline.roomUuid, p_client_id: SnookerOnline.clientId });
 
     // Guard: only reset if the room is genuinely finished.
     // Prevents a stale rematch click from resetting a game already in progress.

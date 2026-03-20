@@ -58,10 +58,28 @@ function initOnlineMode() {
     window.notifyOnlineGameOver = notifyOnlineGameOver;
 
     // Register the unload guard only once; re-calling initOnlineMode must not stack listeners.
+    // Use fetch({keepalive:true}) to survive page unload — the async
+    // exitFixedRoom() would be killed before completing.
     if (!OnlineState._unloadRegistered) {
         OnlineState._unloadRegistered = true;
         window.addEventListener('beforeunload', () => {
-            if (OnlineState.roomUuid) exitFixedRoom();
+            if (!OnlineState.roomUuid || !OnlineState.playerRole) return;
+            const field = OnlineState.playerRole === 'red' ? 'red_player_id' : 'black_player_id';
+            const readyField = OnlineState.playerRole === 'red' ? 'red_ready' : 'black_ready';
+            const body = JSON.stringify({
+                [field]: null, [readyField]: false,
+                last_activity_at: new Date().toISOString(),
+            });
+            try {
+                fetch(`${SUPABASE_URL}/rest/v1/xiangqi_rooms?id=eq.${OnlineState.roomUuid}`, {
+                    method: 'PATCH', keepalive: true,
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                        'Content-Type': 'application/json', 'Prefer': 'return=minimal',
+                    },
+                    body,
+                });
+            } catch (_) { /* best effort */ }
         });
     }
 
@@ -514,7 +532,7 @@ function cleanupAndReturnToLobby() {
 
 async function rematchGame() {
     if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
-    await OnlineState.sbClient.from('xiangqi_moves').delete().eq('room_id', OnlineState.roomUuid);
+    await OnlineState.sbClient.rpc('cleanup_xiangqi_moves', { p_room_id: OnlineState.roomUuid, p_client_id: OnlineState.clientId });
     const newRoundId = (window.currentRoom?.round_id || 0) + 1;
     const deadline = new Date(Date.now() + TURN_TIME_LIMIT_S * 1000).toISOString();
     await OnlineState.sbClient.from('xiangqi_rooms').update({

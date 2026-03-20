@@ -1210,10 +1210,8 @@
         const newDeck = shuffle(makeDeck());
         const roomId = window.currentRoom.id;
 
-        // Delete old actions FIRST and await completion (#7)
-        await window.supabase.from('big2_actions')
-          .delete()
-          .eq('room_id', roomId);
+        // Delete old actions via validated RPC (#7)
+        if (window.cleanupBig2Actions) await window.cleanupBig2Actions();
 
         // Clear applied action tracking
         if (window.clearAppliedActions) window.clearAppliedActions();
