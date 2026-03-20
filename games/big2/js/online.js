@@ -228,7 +228,7 @@ async function joinFixedRoom(roomKey) {
         }
         await OnlineState.sbClient.from('big2_rooms').update(resetData).eq('id', room.id);
         // Also clear stale actions
-        await OnlineState.sbClient.from('big2_actions').delete().eq('room_id', room.id);
+        await OnlineState.sbClient.rpc('cleanup_big2_actions', { p_room_id: room.id, p_client_id: OnlineState.clientId });
         // Re-fetch fresh state
         const { data: freshRoom } = await OnlineState.sbClient.from('big2_rooms').select('*').eq('id', room.id).single();
         if (freshRoom) Object.assign(room, freshRoom);
@@ -432,7 +432,7 @@ async function startGameFromHost() {
 
     // Clean up old actions only after the RPC succeeds, so we don't destroy
     // previous game history if the start fails.
-    await OnlineState.sbClient.from('big2_actions').delete().eq('room_id', OnlineState.roomUuid);
+    await OnlineState.sbClient.rpc('cleanup_big2_actions', { p_room_id: OnlineState.roomUuid, p_client_id: OnlineState.clientId });
     OnlineState.appliedActionIds.clear();
     OnlineState.actionQueue = [];
 }
@@ -513,6 +513,11 @@ async function processActionQueue() {
         OnlineState.isProcessingActions = false;
     }
 }
+
+window.cleanupBig2Actions = async function() {
+    if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+    await OnlineState.sbClient.rpc('cleanup_big2_actions', { p_room_id: OnlineState.roomUuid, p_client_id: OnlineState.clientId });
+};
 
 window.clearAppliedActions = function() {
     OnlineState.appliedActionIds.clear();
@@ -642,7 +647,7 @@ async function rematchGame() {
     if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
 
     // Clean up old actions
-    await OnlineState.sbClient.from('big2_actions').delete().eq('room_id', OnlineState.roomUuid);
+    await OnlineState.sbClient.rpc('cleanup_big2_actions', { p_room_id: OnlineState.roomUuid, p_client_id: OnlineState.clientId });
     OnlineState.appliedActionIds.clear();
     OnlineState.actionQueue = [];
 

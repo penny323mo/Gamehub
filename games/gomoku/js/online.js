@@ -65,10 +65,31 @@ function initOnlineMode() {
     window.resetFixedRoom = resetFixedRoom;
     window.handleOnlineMove = handleOnlineMove;
 
-    // 頁面關閉時嘗試退出
-    window.addEventListener('beforeunload', () => {
-        if (OnlineState.roomUuid) exitFixedRoom();
-    });
+    // Guard: register the unload handler only once even on re-init.
+    // Use fetch({keepalive:true}) to survive page unload — the async
+    // exitFixedRoom() would be killed before completing.
+    if (!OnlineState._unloadRegistered) {
+        OnlineState._unloadRegistered = true;
+        window.addEventListener('beforeunload', () => {
+            if (!OnlineState.roomUuid || !OnlineState.playerRole) return;
+            const field = OnlineState.playerRole === 'black' ? 'black_player_id' : 'white_player_id';
+            const readyField = OnlineState.playerRole === 'black' ? 'black_ready' : 'white_ready';
+            const body = JSON.stringify({
+                [field]: null, [readyField]: false,
+                last_activity_at: new Date().toISOString(),
+            });
+            try {
+                fetch(`${SUPABASE_URL}/rest/v1/gomoku_rooms?id=eq.${OnlineState.roomUuid}`, {
+                    method: 'PATCH', keepalive: true,
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                        'Content-Type': 'application/json', 'Prefer': 'return=minimal',
+                    },
+                    body,
+                });
+            } catch (_) { /* best effort */ }
+        });
+    }
 
     fetchLobbyRooms();
 }
@@ -819,10 +840,9 @@ async function rematchGame() {
 
     try {
         // 清空 moves
-        await OnlineState.sbClient
-            .from('moves')
-            .delete()
-            .eq('room_id', OnlineState.roomUuid);
+        await OnlineState.sbClient.rpc('cleanup_gomoku_moves', {
+            p_room_id: OnlineState.roomUuid, p_client_id: OnlineState.clientId
+        });
 
         // 更新房間狀態 + round_id+1（會觸發兩邊 hardResetBoard）
         const newRoundId = (window.currentRoom?.round_id || 0) + 1;
@@ -865,10 +885,9 @@ async function resetFixedRoom() {
     console.log('[Reset] Resetting room...');
 
     try {
-        await OnlineState.sbClient
-            .from('moves')
-            .delete()
-            .eq('room_id', OnlineState.roomUuid);
+        await OnlineState.sbClient.rpc('cleanup_gomoku_moves', {
+            p_room_id: OnlineState.roomUuid, p_client_id: OnlineState.clientId
+        });
 
         await OnlineState.sbClient
             .from('gomoku_rooms')
