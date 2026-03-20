@@ -141,12 +141,13 @@
     // Auto-connect when redirected from the snooker lobby (index.html)
     const _pendingRoom = sessionStorage.getItem('snooker_pending_room');
     if (_pendingRoom && sessionStorage.getItem('snooker_pending_mode') === '3d') {
-      sessionStorage.removeItem('snooker_pending_room');
-      sessionStorage.removeItem('snooker_pending_mode');
       // Show the overlay so the user sees the room state while the game
       // initialises, then snookerOnlineRoomUpdate('playing') hides it.
       document.getElementById('snooker3d-online-overlay').classList.remove('hidden');
       setTimeout(() => {
+        // Clear handoff flag AFTER join starts — also suppresses old page beforeunload
+        sessionStorage.removeItem('snooker_pending_room');
+        sessionStorage.removeItem('snooker_pending_mode');
         if (window.snookerJoinRoom) window.snookerJoinRoom(_pendingRoom);
       }, 300);
     }
