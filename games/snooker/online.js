@@ -514,7 +514,7 @@ function stopHeartbeat() {
  */
 async function sendShot(payload) {
     if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
-    // Route through server-validated RPC (seat ownership check + current_turn flip).
+    // Route through server-validated RPC (seat ownership check).
     const { data, error } = await SnookerOnline.sbClient.rpc('submit_snooker_shot', {
         p_room_id:     SnookerOnline.roomUuid,
         p_client_id:   SnookerOnline.clientId,
@@ -522,6 +522,14 @@ async function sendShot(payload) {
         p_payload:     payload,
     });
     if (error) {
+        // Fallback to direct INSERT if RPC not yet deployed
+        if (error.code === 'PGRST202' || error.message?.includes('Could not find')) {
+            const { error: e2 } = await SnookerOnline.sbClient.from('snooker_shots')
+                .insert({ room_id: SnookerOnline.roomUuid, player_role: SnookerOnline.playerRole, payload });
+            if (e2) console.error('[SnookerShot] Direct insert error:', e2);
+            else    console.log('[SnookerShot] Sent via direct insert:', payload);
+            return;
+        }
         console.error('[SnookerShot] RPC error:', error);
     } else if (data?.error) {
         console.warn('[SnookerShot] Rejected:', data.error);
