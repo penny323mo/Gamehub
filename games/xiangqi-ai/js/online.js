@@ -246,9 +246,13 @@ function startRoomPoll() {
     stopRoomPoll();
     OnlineState.roomPollInterval = setInterval(async () => {
         if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+        // Capture UUID before async fetch to detect room changes mid-flight.
+        const expectedUuid = OnlineState.roomUuid;
         const { data: room } = await OnlineState.sbClient
-            .from('xiangqi_rooms').select('*').eq('id', OnlineState.roomUuid).single();
+            .from('xiangqi_rooms').select('*').eq('id', expectedUuid).single();
         if (!room) return;
+        // Stale guard: discard if player left or switched rooms during fetch.
+        if (OnlineState.roomUuid !== expectedUuid) return;
         if (room.status === 'waiting') {
             renderRoomState(room);
         } else {
@@ -283,6 +287,8 @@ function renderRoomState(room) {
     const newRoundId = room.round_id || 0;
     if (OnlineState.currentRoundId !== null && newRoundId !== OnlineState.currentRoundId) {
         OnlineState.appliedMoveIds.clear();
+        _moveQueue.length = 0;
+        _processingMoves = false;
         if (window.resetGameParams) window.resetGameParams();
     }
     OnlineState.currentRoundId = newRoundId;
@@ -385,7 +391,8 @@ function renderRoomState(room) {
         OnlineState.sbClient.rpc('start_xiangqi_game', {
             p_room_id: OnlineState.roomUuid, p_client_id: OnlineState.clientId,
         }).then(({ data, error }) => {
-            if (!error && data?.ok && window.resetGameParams) window.resetGameParams();
+            if (!error && data?.ok) { if (window.resetGameParams) window.resetGameParams(); return; }
+            if (data?.skipped) return; // another client already started
             // Fallback if RPC not deployed
             if (error?.code === 'PGRST202' || error?.message?.includes('Could not find')) {
                 OnlineState.sbClient.from('xiangqi_rooms').update({
@@ -393,6 +400,13 @@ function renderRoomState(room) {
                     turn_deadline_at: new Date(Date.now() + TURN_TIME_LIMIT_S * 1000).toISOString(),
                 }).eq('id', OnlineState.roomUuid).eq('status', 'waiting')
                 .then(({ error: e2 }) => { if (!e2 && window.resetGameParams) window.resetGameParams(); });
+                return;
+            }
+            // Transient failure (network error, server 500, etc.) — reset the guard
+            // so the next poll/render can retry the start attempt.
+            if (error) {
+                console.warn('[Xiangqi] start RPC transient failure, resetting guard:', error.message);
+                OnlineState._startAttempted = false;
             }
         });
     }

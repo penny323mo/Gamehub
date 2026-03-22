@@ -280,15 +280,16 @@ function startRoomPoll() {
     stopRoomPoll();
     OnlineState.roomPollInterval = setInterval(async () => {
         if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+        // Capture UUID before async fetch to detect room changes mid-flight.
+        const expectedUuid = OnlineState.roomUuid;
         const { data: room } = await OnlineState.sbClient
-            .from('doudizhu_rooms').select('*').eq('id', OnlineState.roomUuid).single();
+            .from('doudizhu_rooms').select('*').eq('id', expectedUuid).single();
         if (!room) return;
+        // Stale guard: discard if player left or switched rooms during fetch.
+        if (OnlineState.roomUuid !== expectedUuid) return;
         if (room.status === 'waiting') {
             renderRoomState(room);
         } else {
-            // Room transitioned away from waiting (e.g. to playing).
-            // Render once so clients that missed the realtime event can
-            // pick up the transition, then stop polling.
             renderRoomState(room);
             stopRoomPoll();
         }
@@ -453,7 +454,15 @@ function subscribeToRoom() {
             if (status === 'SUBSCRIBED') {
                 OnlineState.sbClient.from('doudizhu_rooms').select('*')
                     .eq('id', OnlineState.roomUuid).single()
-                    .then(({ data }) => { if (data) renderRoomState(data); });
+                    .then(async ({ data }) => {
+                        if (!data) return;
+                        const wasPlaying = OnlineState.lastKnownRoom?.status === 'playing';
+                        if (data.status === 'playing' && !wasPlaying) {
+                            OnlineState.lastKnownRoom = data;
+                            await syncHistoricalActions();
+                        }
+                        renderRoomState(data);
+                    });
             }
         });
 }

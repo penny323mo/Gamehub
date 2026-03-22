@@ -146,10 +146,11 @@
         // will hide the overlay and start the match.
         document.getElementById('snooker-online-overlay').classList.remove('hidden');
         setTimeout(() => {
-          // Clear the handoff flag AFTER join starts — this flag also suppresses
+          // Clear ALL handoff flags AFTER join starts — this flag also suppresses
           // the old page's beforeunload seat-clearing via sessionStorage check.
           sessionStorage.removeItem('snooker_pending_room');
           sessionStorage.removeItem('snooker_pending_mode');
+          sessionStorage.removeItem('snooker_pending_ts');
           if (window.snookerJoinRoom) window.snookerJoinRoom(pendingRoom);
         }, 300);
       }

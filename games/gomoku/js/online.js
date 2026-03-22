@@ -349,9 +349,14 @@ function startRoomPoll() {
     stopRoomPoll();
     OnlineState.roomPollInterval = setInterval(async () => {
         if (!OnlineState.sbClient || !OnlineState.roomUuid) return;
+        // Capture the UUID before the async fetch so we can detect if the
+        // player left this room (or joined another) while the request was in flight.
+        const expectedUuid = OnlineState.roomUuid;
         const { data: room } = await OnlineState.sbClient
-            .from('gomoku_rooms').select('*').eq('id', OnlineState.roomUuid).single();
+            .from('gomoku_rooms').select('*').eq('id', expectedUuid).single();
         if (!room) return;
+        // Stale guard: if the active room changed while we were fetching, discard.
+        if (OnlineState.roomUuid !== expectedUuid) return;
         if (room.status === 'waiting') {
             renderRoomState(room);
         } else {
@@ -445,14 +450,20 @@ function renderRoomState(room) {
         if (room.winner_color) updateStatusUI(null, `${room.winner_color === 'black' ? '⚫黑' : '⚪白'} 獲勝！`);
     }
 
+    // Reset start guard when room is back in waiting without both ready
+    if (room.status === 'waiting' && !(room.black_ready && room.white_ready)) {
+        OnlineState._startAttempted = false;
+    }
+
     // ── Both players ready → transition to 'playing' via server RPC ─────────
     // Uses start_gomoku_game RPC for server-validated transition.
     // Falls back to direct UPDATE if RPC is not deployed yet.
-    // We also notify the game directly from the callback so start doesn't depend
-    // on a Supabase realtime delivery.
+    // Guard with _startAttempted to avoid redundant RPC calls on every render.
     if (room.status === 'waiting' && room.black_ready && room.white_ready &&
         room.black_player_id && room.white_player_id &&
-        OnlineState.roomUuid && OnlineState.sbClient) {
+        OnlineState.roomUuid && OnlineState.sbClient &&
+        !OnlineState._startAttempted) {
+        OnlineState._startAttempted = true;
         const myRole = OnlineState.playerRole;
         const applyStart = () => {
             const playingRoom = { ...room, status: 'playing', current_player: 'black' };
@@ -480,6 +491,12 @@ function renderRoomState(room) {
                     .update({ status: 'playing', current_player: 'black' })
                     .eq('id', OnlineState.roomUuid).eq('status', 'waiting')
                     .then(({ error: e2 }) => { if (!e2) applyStart(); });
+                return;
+            }
+            // Transient failure — reset guard so next poll/render can retry
+            if (error) {
+                console.warn('[Gomoku] start RPC transient failure, resetting guard:', error.message);
+                OnlineState._startAttempted = false;
             }
         });
     }

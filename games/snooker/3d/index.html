@@ -145,9 +145,10 @@
       // initialises, then snookerOnlineRoomUpdate('playing') hides it.
       document.getElementById('snooker3d-online-overlay').classList.remove('hidden');
       setTimeout(() => {
-        // Clear handoff flag AFTER join starts — also suppresses old page beforeunload
+        // Clear ALL handoff flags AFTER join starts — also suppresses old page beforeunload
         sessionStorage.removeItem('snooker_pending_room');
         sessionStorage.removeItem('snooker_pending_mode');
+        sessionStorage.removeItem('snooker_pending_ts');
         if (window.snookerJoinRoom) window.snookerJoinRoom(_pendingRoom);
       }, 300);
     }
