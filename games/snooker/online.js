@@ -363,6 +363,9 @@ function renderRoomState(room) {
             document.getElementById('snooker-online-lobby')?.classList.add('hidden');
             document.getElementById('snooker-online-room')?.classList.remove('hidden');
         }
+        // Restart room poll for the new waiting phase — it was stopped when
+        // the previous game transitioned away from waiting.
+        if (!SnookerOnline.roomPollInterval) startRoomPoll();
     }
 
     // ── Both players ready → transition to 'playing' ──────────────────────────
