@@ -450,14 +450,20 @@ function renderRoomState(room) {
         if (room.winner_color) updateStatusUI(null, `${room.winner_color === 'black' ? '⚫黑' : '⚪白'} 獲勝！`);
     }
 
+    // Reset start guard when room is back in waiting without both ready
+    if (room.status === 'waiting' && !(room.black_ready && room.white_ready)) {
+        OnlineState._startAttempted = false;
+    }
+
     // ── Both players ready → transition to 'playing' via server RPC ─────────
     // Uses start_gomoku_game RPC for server-validated transition.
     // Falls back to direct UPDATE if RPC is not deployed yet.
-    // We also notify the game directly from the callback so start doesn't depend
-    // on a Supabase realtime delivery.
+    // Guard with _startAttempted to avoid redundant RPC calls on every render.
     if (room.status === 'waiting' && room.black_ready && room.white_ready &&
         room.black_player_id && room.white_player_id &&
-        OnlineState.roomUuid && OnlineState.sbClient) {
+        OnlineState.roomUuid && OnlineState.sbClient &&
+        !OnlineState._startAttempted) {
+        OnlineState._startAttempted = true;
         const myRole = OnlineState.playerRole;
         const applyStart = () => {
             const playingRoom = { ...room, status: 'playing', current_player: 'black' };
@@ -485,6 +491,12 @@ function renderRoomState(room) {
                     .update({ status: 'playing', current_player: 'black' })
                     .eq('id', OnlineState.roomUuid).eq('status', 'waiting')
                     .then(({ error: e2 }) => { if (!e2) applyStart(); });
+                return;
+            }
+            // Transient failure — reset guard so next poll/render can retry
+            if (error) {
+                console.warn('[Gomoku] start RPC transient failure, resetting guard:', error.message);
+                OnlineState._startAttempted = false;
             }
         });
     }

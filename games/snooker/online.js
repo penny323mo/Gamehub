@@ -35,7 +35,6 @@ const SnookerOnline = {
     lobbyInterval:   null,   // tracked so repeated initSnookerOnline() calls don't leak
     roomPollInterval: null,  // polls room state while waiting (realtime is unreliable)
     shotPollInterval: null,  // polls shots during gameplay (realtime can drop messages)
-    lastAppliedShotNo: 0,    // track highest shot_no we've applied for gap detection
     appliedShotIds:  new Set(),
     currentRoundId:  null,
     hasSeat:         false,
