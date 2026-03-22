@@ -287,6 +287,8 @@ function renderRoomState(room) {
     const newRoundId = room.round_id || 0;
     if (OnlineState.currentRoundId !== null && newRoundId !== OnlineState.currentRoundId) {
         OnlineState.appliedMoveIds.clear();
+        _moveQueue.length = 0;
+        _processingMoves = false;
         if (window.resetGameParams) window.resetGameParams();
     }
     OnlineState.currentRoundId = newRoundId;
