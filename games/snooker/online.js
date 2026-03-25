@@ -35,6 +35,7 @@ const SnookerOnline = {
     lobbyInterval:   null,   // tracked so repeated initSnookerOnline() calls don't leak
     roomPollInterval: null,  // polls room state while waiting (realtime is unreliable)
     shotPollInterval: null,  // polls shots during gameplay (realtime can drop messages)
+    gameStartedAt:   null,   // ISO timestamp when current round started (filters stale shots)
     appliedShotIds:  new Set(),
     currentRoundId:  null,
     hasSeat:         false,
@@ -380,6 +381,7 @@ function renderRoomState(room) {
         const p2Name = room.player2_name || 'P2';
         const myRole = SnookerOnline.playerRole;
         const applyStart = () => {
+            SnookerOnline.gameStartedAt = new Date().toISOString();
             startShotPoll();
             if (window.snookerOnlineRoomUpdate) {
                 window.snookerOnlineRoomUpdate({
@@ -409,6 +411,7 @@ function renderRoomState(room) {
     // Start shot recovery polling when we see the playing state
     // (covers the non-trigger player who receives it via realtime/poll)
     if (room.status === 'playing' && !SnookerOnline.shotPollInterval) {
+        if (!SnookerOnline.gameStartedAt) SnookerOnline.gameStartedAt = new Date().toISOString();
         startShotPoll();
     }
     // Stop shot polling when game is no longer playing
@@ -514,7 +517,7 @@ function stopHeartbeat() {
  */
 async function sendShot(payload) {
     if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
-    // Route through server-validated RPC (seat ownership check + current_turn flip).
+    // Route through server-validated RPC (seat ownership check).
     const { data, error } = await SnookerOnline.sbClient.rpc('submit_snooker_shot', {
         p_room_id:     SnookerOnline.roomUuid,
         p_client_id:   SnookerOnline.clientId,
@@ -522,6 +525,14 @@ async function sendShot(payload) {
         p_payload:     payload,
     });
     if (error) {
+        // Fallback to direct INSERT if RPC not yet deployed
+        if (error.code === 'PGRST202' || error.message?.includes('Could not find')) {
+            const { error: e2 } = await SnookerOnline.sbClient.from('snooker_shots')
+                .insert({ room_id: SnookerOnline.roomUuid, player_role: SnookerOnline.playerRole, payload });
+            if (e2) console.error('[SnookerShot] Direct insert error:', e2);
+            else    console.log('[SnookerShot] Sent via direct insert:', payload);
+            return;
+        }
         console.error('[SnookerShot] RPC error:', error);
     } else if (data?.error) {
         console.warn('[SnookerShot] Rejected:', data.error);
@@ -594,12 +605,14 @@ function startShotPoll() {
     stopShotPoll();
     SnookerOnline.shotPollInterval = setInterval(async () => {
         if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
-        const { data: shots } = await SnookerOnline.sbClient
+        let query = SnookerOnline.sbClient
             .from('snooker_shots')
             .select('*')
             .eq('room_id', SnookerOnline.roomUuid)
-            .neq('player_role', SnookerOnline.playerRole)
-            .order('shot_no', { ascending: true });
+            .neq('player_role', SnookerOnline.playerRole);
+        // Filter out shots from previous rounds if cleanup_snooker_shots failed
+        if (SnookerOnline.gameStartedAt) query = query.gte('created_at', SnookerOnline.gameStartedAt);
+        const { data: shots } = await query.order('shot_no', { ascending: true });
         if (!shots) return;
         for (const shot of shots) {
             if (!shot?.id || SnookerOnline.appliedShotIds.has(shot.id)) continue;
@@ -743,6 +756,7 @@ async function snookerRematch() {
     if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid) return;
 
     await SnookerOnline.sbClient.rpc('cleanup_snooker_shots', { p_room_id: SnookerOnline.roomUuid, p_client_id: SnookerOnline.clientId });
+    SnookerOnline.gameStartedAt = null;
 
     // Guard: only reset if the room is genuinely finished.
     // Prevents a stale rematch click from resetting a game already in progress.
