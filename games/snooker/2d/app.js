@@ -96,6 +96,8 @@
     if (!msg) {
       if (state.isComplete) {
         msg = '清枱完成';
+      } else if (state.mode === 'online' && state.turn === 'ai') {
+        msg = state.placingCue ? '對手擺放白球中...' : '等待對手擊球...';
       } else if (state.placingCue) {
         msg = '擺放白球';
       } else if (state.aiming) {
@@ -111,6 +113,16 @@
     if (!state.isComplete) {
       if (state.turn === 'player') scoreLeftEl.classList.add('active-turn');
       else if (state.turn === 'ai') scoreRightEl.classList.add('active-turn');
+    }
+
+    // Online mode: grey out aimBtn when not your turn
+    if (state.mode === 'online') {
+      const isMyTurn = state.turn === 'player';
+      aimBtn.disabled = !isMyTurn || !state.placingCue;
+      aimBtn.style.opacity = (!isMyTurn || !state.placingCue) ? '0.35' : '1';
+    } else {
+      aimBtn.disabled = false;
+      aimBtn.style.opacity = '1';
     }
 
     if (state.mode === 'practice') {
@@ -137,7 +149,12 @@
         statusMsgEl.textContent = `${result}\n最終比分 ${state.scores.player} - ${state.scores.ai}`;
       } else {
         const turnLabel = state.turn === 'player' ? p1Name : p2Name;
-        statusMsgEl.textContent = `${msg} (輪次: ${turnLabel})\n目標: ${getTargetLabel()} | 紅球: ${state.redRemaining} | 剩餘: ${maxScore}`;
+        const isMyTurn = state.turn === 'player';
+        if (state.mode === 'online') {
+          statusMsgEl.textContent = `${isMyTurn ? '▶ 你的回合' : '⏳ 對手回合'} | ${msg}\n目標: ${getTargetLabel()} | 紅球: ${state.redRemaining} | 剩餘: ${maxScore}`;
+        } else {
+          statusMsgEl.textContent = `${msg} (輪次: ${turnLabel})\n目標: ${getTargetLabel()} | 紅球: ${state.redRemaining} | 剩餘: ${maxScore}`;
+        }
       }
     }
   }
@@ -335,6 +352,8 @@
 
   function drawAim() {
     if (!state.aiming) return;
+    // Online mode: hide aim guide when it's opponent's turn
+    if (state.mode === 'online' && state.turn === 'ai') return;
     const len = 120 + Math.min(80, state.pullPower);
     // Dynamic collision search range based on power (max ~800px at full power)
     const collisionSearchLen = 200 + state.pullPower * 7;
@@ -996,22 +1015,24 @@
     state.cuePotted = false;
 
     if (state.turn === 'ai' && !state.isComplete && state.mode !== 'online') {
+      // Single player AI mode
       state.aiming = true;
-      state.phase = 'aim';
+      state.phase = state.placingCue ? 'place' : 'aim';
       state.inputState = 'ai_thinking';
       state.aiThinking = true;
       state.aiTimer = setTimeout(aiDecide, 1500);
     } else if (state.turn === 'ai' && !state.isComplete && state.mode === 'online') {
-      // Online mode: wait for remote player's shot, don't trigger AI
+      // Online: opponent's turn – wait for remote (with or without cue placement)
       state.aiming = false;
-      state.phase = 'aim';
+      state.phase = state.placingCue ? 'place' : 'aim';
       state.inputState = 'waiting_remote';
       state.aiThinking = false;
-      updateStatus('等待對手擊球...');
+      updateStatus();
     } else {
+      // My turn (local player)
       state.aiming = true;
-      state.phase = 'aim';
-      state.inputState = 'aiming';
+      state.phase = state.placingCue ? 'place' : 'aim';
+      state.inputState = state.placingCue ? 'idle' : 'aiming';
       state.aiThinking = false;
     }
 

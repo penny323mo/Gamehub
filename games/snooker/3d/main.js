@@ -2659,9 +2659,18 @@ function updateUi() {
     return;
   }
 
-  scoreEl.textContent = `${playerNames[0]}: ${scores[0]}  |  ${playerNames[1]}: ${scores[1]}  |  Mode: ${playerNames[0]} vs ${playerNames[1]}`;
-  const stateLabel = gameStarted ? turnState : 'WAIT_START';
-  turnEl.textContent = `Turn: ${turn}  |  Player: ${currentPlayer === 0 ? playerNames[0] : playerNames[1]}  |  Target: ${currentTargetLabel()}${snookered ? ' (Snookered)' : ''}  |  State: ${stateLabel}`;
+  if (window.isOnlineMode) {
+    const isMyTurn = currentPlayer === (window.onlineMyPlayerIndex ?? 0);
+    const myName = playerNames[window.onlineMyPlayerIndex ?? 0] || 'You';
+    const oppName = playerNames[1 - (window.onlineMyPlayerIndex ?? 0)] || 'Opp';
+    scoreEl.textContent = `${myName}: ${scores[window.onlineMyPlayerIndex ?? 0]}  |  ${oppName}: ${scores[1 - (window.onlineMyPlayerIndex ?? 0)]}`;
+    const turnIndicator = isMyTurn ? '▶ 你的回合' : '⏳ 對手回合';
+    turnEl.textContent = `${turnIndicator}  |  目標: ${currentTargetLabel()}${snookered ? ' (Snookered)' : ''}  |  Turn: ${turn}`;
+  } else {
+    scoreEl.textContent = `${playerNames[0]}: ${scores[0]}  |  ${playerNames[1]}: ${scores[1]}  |  Mode: ${playerNames[0]} vs ${playerNames[1]}`;
+    const stateLabel = gameStarted ? turnState : 'WAIT_START';
+    turnEl.textContent = `Turn: ${turn}  |  Player: ${currentPlayer === 0 ? playerNames[0] : playerNames[1]}  |  Target: ${currentTargetLabel()}${snookered ? ' (Snookered)' : ''}  |  State: ${stateLabel}`;
+  }
   powerFillEl.style.width = `${Math.round(power * 100)}%`;
 
   // 更新大電視計分牌
@@ -2677,7 +2686,7 @@ function updateUi() {
     } else if (shotInProgress || stationaryTime < settledDuration || !allStopped()) {
       stateNoteEl.textContent = '球仍在移動中，請等待停球。';
     } else if (window.isOnlineMode && currentPlayer !== (window.onlineMyPlayerIndex ?? 0)) {
-      stateNoteEl.textContent = '等待對手出桿...';
+      stateNoteEl.textContent = cueBallInHand ? '對手擺放白球中...' : '等待對手出桿...';
     } else if (aiEnabled && currentPlayer === 1) {
       stateNoteEl.textContent = 'AI 回合中...';
     } else {
@@ -2909,6 +2918,13 @@ function updateAimLine() {
   }
   const inAimStage = !cueBallInHand && !foulDecisionPending;
   if (!inAimStage) {
+    hideAimGuides();
+    cueGroup.visible = false;
+    lastAimCollision = null;
+    return;
+  }
+  // Online mode: hide aim guides and cue when it's the opponent's turn
+  if (window.isOnlineMode && currentPlayer !== (window.onlineMyPlayerIndex ?? 0)) {
     hideAimGuides();
     cueGroup.visible = false;
     lastAimCollision = null;
