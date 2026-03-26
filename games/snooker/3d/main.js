@@ -2232,6 +2232,11 @@ let foulDecisionPending = false;
 let foulDecisionContext = null;
 let showExtendedGuide = true;
 let lastAimCollision = null;
+let activeShotOrigin = null;          // 'local' | 'remote' | 'offline' | null
+let lastCompletedShotOrigin = null;   // Tracks the last fully resolved shot
+let currentShotSerial = 0;            // Monotonic per shot, shared in snapshots
+let lastAppliedSnapshotSerial = 0;
+let lastAppliedSnapshotId = null;
 const inputDebug = {
   lastMouseDown: '',
   lastMouseUp: '',
@@ -2278,6 +2283,272 @@ function clearStatusIfNeeded(dt) {
     if (statusTimer <= 0) {
       statusEl.textContent = '';
     }
+  }
+}
+
+function cloneFoulDecisionContext(context) {
+  if (!context) return null;
+  return {
+    fouler: context.fouler,
+    beneficiary: context.beneficiary,
+    points: context.points,
+    reason: context.reason,
+    cueBallInHandAfterFoul: !!context.cueBallInHandAfterFoul,
+    cueBallPotted: !!context.cueBallPotted,
+    breakShot: !!context.breakShot,
+  };
+}
+
+function serializeBallSnapshot(ball, index) {
+  return {
+    index,
+    type: ball.type,
+    x: ball.position.x,
+    y: ball.position.y,
+    z: ball.position.z,
+    vx: ball.velocity.x,
+    vy: ball.velocity.y,
+    vz: ball.velocity.z,
+    pocketed: !!ball.pocketed,
+    visible: ball.group?.visible !== false,
+  };
+}
+
+function normalizeSnapshotPayload(payload) {
+  if (!payload || typeof payload !== 'object') return null;
+  if (payload.snapshot && typeof payload.snapshot === 'object') return payload.snapshot;
+  if (payload.stateSnapshot && typeof payload.stateSnapshot === 'object') return payload.stateSnapshot;
+  if (payload.gameState && typeof payload.gameState === 'object') return payload.gameState;
+  return payload;
+}
+
+function isStateSnapshotPayload(payload) {
+  if (!payload || typeof payload !== 'object') return false;
+  return (
+    payload.snapshotVersion === 1 ||
+    payload.kind === 'snooker_3d_state_snapshot' ||
+    Array.isArray(payload.balls) ||
+    Array.isArray(payload.playerNames) ||
+    Object.prototype.hasOwnProperty.call(payload, 'completedShotOrigin')
+  );
+}
+
+function beginShotSession(origin, requestedSerial = null) {
+  if (Number.isFinite(requestedSerial) && requestedSerial > currentShotSerial) {
+    currentShotSerial = requestedSerial - 1;
+  }
+  currentShotSerial += 1;
+  activeShotOrigin = origin;
+  return currentShotSerial;
+}
+
+function serializeGameStateSnapshot(extra = {}) {
+  const clientId = typeof SnookerOnline !== 'undefined' && SnookerOnline?.clientId
+    ? SnookerOnline.clientId
+    : null;
+  const completedShotOrigin = lastCompletedShotOrigin || activeShotOrigin || 'offline';
+  return {
+    snapshotVersion: 1,
+    kind: 'snooker_3d_state_snapshot',
+    snapshotId: `${clientId || 'local'}:${currentShotSerial}:${Date.now()}`,
+    clientId,
+    gameMode: '3d',
+    shotSerial: currentShotSerial,
+    shotOrigin: completedShotOrigin,
+    completedShotOrigin,
+    roomUuid: typeof SnookerOnline !== 'undefined' && SnookerOnline?.roomUuid
+      ? SnookerOnline.roomUuid
+      : null,
+    createdAt: new Date().toISOString(),
+    gameStarted,
+    gameOver,
+    aiEnabled,
+    scores: [...scores],
+    currentPlayer,
+    turn,
+    turnState,
+    expectingColor,
+    freeBallAvailable,
+    colorClearIndex,
+    cueBallInHand,
+    breakShotPending,
+    foulDecisionPending,
+    foulDecisionContext: cloneFoulDecisionContext(foulDecisionContext),
+    snookered,
+    stationaryTime,
+    power,
+    isCharging,
+    shotInProgress,
+    shotElapsed,
+    firstHitType,
+    shotPotted: shotPotted.map((ball) => ball.type),
+    foulThisShot,
+    foulReason,
+    cueBallPottedThisShot,
+    aiQueued,
+    playerNames: [...playerNames],
+    aimDirection: {
+      x: aimDirection.x,
+      y: aimDirection.y,
+      z: aimDirection.z,
+    },
+    spin: {
+      x: spin.x,
+      y: spin.y,
+    },
+    cueBall: serializeBallSnapshot(cueBall, 0),
+    balls: balls.map((ball, index) => serializeBallSnapshot(ball, index)),
+    ...extra,
+  };
+}
+
+function applyBallSnapshot(ballSnapshot, index) {
+  const ball = balls[index];
+  if (!ball || !ballSnapshot) return false;
+  const x = Number.isFinite(ballSnapshot.x) ? ballSnapshot.x : ball.position.x;
+  const y = Number.isFinite(ballSnapshot.y) ? ballSnapshot.y : ball.position.y;
+  const z = Number.isFinite(ballSnapshot.z) ? ballSnapshot.z : ball.position.z;
+  const vx = Number.isFinite(ballSnapshot.vx) ? ballSnapshot.vx : 0;
+  const vy = Number.isFinite(ballSnapshot.vy) ? ballSnapshot.vy : 0;
+  const vz = Number.isFinite(ballSnapshot.vz) ? ballSnapshot.vz : 0;
+
+  ball.position.set(x, y, z);
+  ball.velocity.set(vx, vy, vz);
+  ball.pocketed = !!ballSnapshot.pocketed;
+  ball.group.visible = ballSnapshot.visible !== undefined ? !!ballSnapshot.visible : !ball.pocketed;
+  ball.group.position.copy(ball.position);
+  return true;
+}
+
+function applyGameStateSnapshot(rawPayload) {
+  const snapshot = normalizeSnapshotPayload(rawPayload);
+  if (!snapshot || typeof snapshot !== 'object') return false;
+  if (!window.isOnlineMode) return false;
+
+  const localClientId = typeof SnookerOnline !== 'undefined' && SnookerOnline?.clientId
+    ? SnookerOnline.clientId
+    : null;
+  if (snapshot.clientId && localClientId && snapshot.clientId === localClientId) {
+    return false;
+  }
+
+  const snapshotSerial = Number.isFinite(snapshot.shotSerial) ? snapshot.shotSerial : null;
+  if (snapshotSerial !== null) {
+    if (snapshotSerial < currentShotSerial) return false;
+    if (snapshotSerial === lastAppliedSnapshotSerial && snapshot.snapshotId && snapshot.snapshotId === lastAppliedSnapshotId) {
+      return false;
+    }
+    if (snapshotSerial === currentShotSerial && shotInProgress && activeShotOrigin === 'local') {
+      return false;
+    }
+  }
+
+  if (Array.isArray(snapshot.playerNames) && snapshot.playerNames.length >= 2) {
+    playerNames[0] = snapshot.playerNames[0] || playerNames[0];
+    playerNames[1] = snapshot.playerNames[1] || playerNames[1];
+  }
+
+  if (Array.isArray(snapshot.scores) && snapshot.scores.length >= 2) {
+    scores = [
+      Number.isFinite(snapshot.scores[0]) ? snapshot.scores[0] : 0,
+      Number.isFinite(snapshot.scores[1]) ? snapshot.scores[1] : 0,
+    ];
+  }
+
+  if (Array.isArray(snapshot.balls)) {
+    snapshot.balls.forEach((ballSnapshot, index) => {
+      applyBallSnapshot(ballSnapshot, index);
+    });
+    cueBall.position.copy(balls[0].position);
+    cueBall.group.position.copy(cueBall.position);
+  }
+
+  if (Number.isFinite(snapshotSerial)) {
+    currentShotSerial = Math.max(currentShotSerial, snapshotSerial);
+    lastAppliedSnapshotSerial = snapshotSerial;
+    lastAppliedSnapshotId = snapshot.snapshotId || lastAppliedSnapshotId;
+  }
+
+  gameStarted = snapshot.gameStarted !== undefined ? !!snapshot.gameStarted : gameStarted;
+  gameOver = snapshot.gameOver !== undefined ? !!snapshot.gameOver : gameOver;
+  aiEnabled = snapshot.aiEnabled !== undefined ? !!snapshot.aiEnabled : aiEnabled;
+  currentPlayer = Number.isFinite(snapshot.currentPlayer) ? snapshot.currentPlayer : currentPlayer;
+  turn = Number.isFinite(snapshot.turn) ? snapshot.turn : turn;
+  turnState = typeof snapshot.turnState === 'string' ? snapshot.turnState : turnState;
+  expectingColor = snapshot.expectingColor !== undefined ? !!snapshot.expectingColor : expectingColor;
+  freeBallAvailable = snapshot.freeBallAvailable !== undefined ? !!snapshot.freeBallAvailable : freeBallAvailable;
+  colorClearIndex = Number.isFinite(snapshot.colorClearIndex) ? snapshot.colorClearIndex : colorClearIndex;
+  cueBallInHand = snapshot.cueBallInHand !== undefined ? !!snapshot.cueBallInHand : cueBallInHand;
+  breakShotPending = snapshot.breakShotPending !== undefined ? !!snapshot.breakShotPending : breakShotPending;
+  foulDecisionPending = snapshot.foulDecisionPending !== undefined ? !!snapshot.foulDecisionPending : foulDecisionPending;
+  foulDecisionContext = cloneFoulDecisionContext(snapshot.foulDecisionContext);
+  snookered = snapshot.snookered !== undefined ? !!snapshot.snookered : snookered;
+  stationaryTime = Number.isFinite(snapshot.stationaryTime) ? snapshot.stationaryTime : stationaryTime;
+  power = Number.isFinite(snapshot.power) ? snapshot.power : 0;
+  isCharging = snapshot.isCharging !== undefined ? !!snapshot.isCharging : false;
+  shotInProgress = snapshot.shotInProgress !== undefined ? !!snapshot.shotInProgress : false;
+  shotElapsed = Number.isFinite(snapshot.shotElapsed) ? snapshot.shotElapsed : 0;
+  firstHitType = typeof snapshot.firstHitType === 'string' ? snapshot.firstHitType : null;
+  shotPotted = Array.isArray(snapshot.shotPotted)
+    ? snapshot.shotPotted
+        .map((entry) => (typeof entry === 'string' ? entry : entry?.type))
+        .filter((entry) => typeof entry === 'string')
+        .map((type) => ({ type }))
+    : shotPotted;
+  foulThisShot = snapshot.foulThisShot !== undefined ? !!snapshot.foulThisShot : false;
+  foulReason = typeof snapshot.foulReason === 'string' ? snapshot.foulReason : '';
+  cueBallPottedThisShot = snapshot.cueBallPottedThisShot !== undefined ? !!snapshot.cueBallPottedThisShot : false;
+  aiQueued = snapshot.aiQueued !== undefined ? !!snapshot.aiQueued : false;
+
+  if (snapshot.aimDirection && Number.isFinite(snapshot.aimDirection.x) && Number.isFinite(snapshot.aimDirection.z)) {
+    aimDirection.set(snapshot.aimDirection.x, 0, snapshot.aimDirection.z);
+    chargeLockedAimDirection.copy(aimDirection);
+  }
+  if (snapshot.spin) {
+    if (Number.isFinite(snapshot.spin.x)) spin.x = snapshot.spin.x;
+    if (Number.isFinite(snapshot.spin.y)) spin.y = snapshot.spin.y;
+  }
+
+  lastCompletedShotOrigin = typeof snapshot.completedShotOrigin === 'string'
+    ? snapshot.completedShotOrigin
+    : typeof snapshot.shotOrigin === 'string'
+      ? snapshot.shotOrigin
+      : lastCompletedShotOrigin;
+  activeShotOrigin = null;
+
+  updateAimLine();
+  updateUi();
+
+  console.log('[Snooker3D] Applied state snapshot', {
+    shotSerial: snapshotSerial,
+    shotOrigin: lastCompletedShotOrigin,
+  });
+  return true;
+}
+
+function broadcastSettledStateSnapshot({ force = false, reason = 'shot_resolved' } = {}) {
+  if (!window.isOnlineMode) return false;
+  if (!force && activeShotOrigin !== 'local') return false;
+  if (typeof window.snookerSendStateSnapshot !== 'function') return false;
+
+  const snapshot = serializeGameStateSnapshot({
+    reason,
+  });
+
+  lastAppliedSnapshotSerial = Number.isFinite(snapshot.shotSerial) ? snapshot.shotSerial : lastAppliedSnapshotSerial;
+  lastAppliedSnapshotId = snapshot.snapshotId || lastAppliedSnapshotId;
+
+  try {
+    const result = window.snookerSendStateSnapshot(snapshot);
+    if (result && typeof result.catch === 'function') {
+      result.catch((error) => {
+        console.error('[Snooker3D] sendStateSnapshot failed:', error);
+      });
+    }
+    return true;
+  } catch (error) {
+    console.error('[Snooker3D] sendStateSnapshot threw:', error);
+    return false;
   }
 }
 
@@ -2508,6 +2779,11 @@ function resetGame({ startNow = true, aiMode = aiEnabled } = {}) {
   isDraggingCueBall = false;
   foulDecisionPending = false;
   foulDecisionContext = null;
+  activeShotOrigin = null;
+  lastCompletedShotOrigin = null;
+  currentShotSerial = 0;
+  lastAppliedSnapshotSerial = 0;
+  lastAppliedSnapshotId = null;
   statusEl.textContent = '';
 
   balls.forEach((ball) => {
@@ -2996,6 +3272,9 @@ function updateCueBallPlacementFromPointer(event) {
 }
 
 function startShot() {
+  if (activeShotOrigin == null) {
+    activeShotOrigin = window.isOnlineMode ? 'local' : 'offline';
+  }
   shotInProgress = true;
   shotElapsed = 0;
   cueBallPottedThisShot = false;
@@ -3004,6 +3283,8 @@ function startShot() {
   foulThisShot = false;
   foulReason = '';
   logRule('shot_start', {
+    shotSerial: currentShotSerial,
+    shotOrigin: activeShotOrigin,
     player: currentPlayer + 1,
     target: currentTargetLabel(),
     cueBall: { x: Number(cueBall.position.x.toFixed(3)), z: Number(cueBall.position.z.toFixed(3)) },
@@ -3090,10 +3371,16 @@ function applyFoulDecision(forceFoulerContinue) {
   aiQueued = aiEnabled && currentPlayer === 1 && !cueBallInHand;
   updateAimLine();
   updateUi();
+  if (window.isOnlineMode) {
+    broadcastSettledStateSnapshot({ force: true, reason: 'foul_decision' });
+    activeShotOrigin = null;
+  }
 }
 
 function endShot() {
   shotInProgress = false;
+  const completedShotOrigin = activeShotOrigin || 'offline';
+  lastCompletedShotOrigin = completedShotOrigin;
   const wasBreakShot = breakShotPending;
   breakShotPending = false;
   const reds = redsRemaining();
@@ -3122,6 +3409,8 @@ function endShot() {
       breakShot: wasBreakShot,
     });
     updateUi();
+    broadcastSettledStateSnapshot();
+    activeShotOrigin = null;
     return;
   }
 
@@ -3144,6 +3433,8 @@ function endShot() {
       logRule('freeball_miss', { nextPlayer: currentPlayer + 1 });
     }
     updateUi();
+    broadcastSettledStateSnapshot();
+    activeShotOrigin = null;
     return;
   }
 
@@ -3205,6 +3496,8 @@ function endShot() {
   }
 
   updateUi();
+  broadcastSettledStateSnapshot();
+  activeShotOrigin = null;
   if (aiEnabled && currentPlayer === 1) {
     aiQueued = true;
   }
@@ -3232,6 +3525,10 @@ function endGame() {
 
   // 顯示重新開始按鈕
   showGameOverPanel(winnerText, finalScore);
+  if (window.isOnlineMode && activeShotOrigin === 'local') {
+    broadcastSettledStateSnapshot({ reason: 'game_over' });
+    activeShotOrigin = null;
+  }
 }
 
 function showGameOverPanel(winnerText, finalScore) {
@@ -3332,6 +3629,7 @@ function shootCueBall() {
     inputDebug.lastBlockReason = `shootBlocked reason=${canTakeShotReason()} cuePocketed=${cueBall.pocketed} cueInHand=${cueBallInHand}`;
     return;
   }
+  beginShotSession(window.isOnlineMode ? 'local' : 'offline');
   const currentPower = power; // capture before reset
   const strength = minCharge + currentPower * (maxCharge - minCharge);
   const impulse = aimDirection.clone().multiplyScalar(strength * powerMultiplier);
@@ -3354,6 +3652,8 @@ function shootCueBall() {
       spin_y: spin.y,
       cue_x:  cueBall.position.x,
       cue_z:  cueBall.position.z,
+      shotSerial: currentShotSerial,
+      shotOrigin: activeShotOrigin,
     });
   }
   startShot();
@@ -4635,6 +4935,10 @@ window.render_game_to_text = () => {
     mode: shotInProgress ? 'shot' : 'aim',
     coordinate: 'x right, z forward (toward top pockets), y up',
     player: currentPlayer + 1,
+    shotSerial: currentShotSerial,
+    shotOrigin: activeShotOrigin,
+    lastCompletedShotOrigin,
+    lastAppliedSnapshotSerial,
     scores,
     target: currentTargetLabel(),
     freeBallAvailable,
@@ -4679,6 +4983,14 @@ window.render_game_to_text = () => {
   };
   return JSON.stringify(payload);
 };
+
+window.snookerSerializeStateSnapshot = serializeGameStateSnapshot;
+window.snookerSerializeGameStateSnapshot = serializeGameStateSnapshot;
+window.snookerSerializeSnapshot = serializeGameStateSnapshot;
+window.snookerApplyRemoteStateSnapshot = applyGameStateSnapshot;
+window.snookerApplyStateSnapshot = applyGameStateSnapshot;
+window.snookerApplyGameStateSnapshot = applyGameStateSnapshot;
+window.snookerApplySnapshot = applyGameStateSnapshot;
 
 window.__snookerDebug = {
   reset() {
@@ -4826,27 +5138,47 @@ if (mobileControlsEl) {
 // Apply a shot received from the remote player via online.js.
 window.snookerApplyRemoteShot = function(payload) {
   if (!window.isOnlineMode || !gameStarted || gameOver) return;
-  if (!payload) return;
+  const normalized = normalizeSnapshotPayload(payload);
+  if (!normalized) return;
+
+  if (isStateSnapshotPayload(normalized)) {
+    applyGameStateSnapshot(normalized);
+    return;
+  }
+
+  const incomingSerial = Number.isFinite(normalized.shotSerial) ? normalized.shotSerial : null;
+  if (incomingSerial !== null) {
+    if (incomingSerial < currentShotSerial) return;
+    if (incomingSerial === currentShotSerial && shotInProgress) {
+      if (activeShotOrigin === 'local') return;
+      if (activeShotOrigin === 'remote') return;
+    }
+    if (!shotInProgress && incomingSerial <= lastAppliedSnapshotSerial) return;
+    beginShotSession('remote', incomingSerial);
+  } else {
+    if (shotInProgress && (activeShotOrigin === 'local' || activeShotOrigin === 'remote')) return;
+    beginShotSession('remote');
+  }
 
   // Apply cue ball position when it was placed in hand
-  if (cueBallInHand && payload.cue_x != null) {
-    cueBall.position.set(payload.cue_x, cueBall.position.y, payload.cue_z ?? 0);
+  if (cueBallInHand && normalized.cue_x != null) {
+    cueBall.position.set(normalized.cue_x, cueBall.position.y, normalized.cue_z ?? 0);
     cueBall.group.position.copy(cueBall.position);
     cueBallInHand = false;
     stationaryTime = settledDuration; // allow immediate shot
   }
 
   // Set aim direction
-  if (payload.aim_dx != null) {
-    aimDirection.set(payload.aim_dx, 0, payload.aim_dz ?? 0).normalize();
+  if (normalized.aim_dx != null) {
+    aimDirection.set(normalized.aim_dx, 0, normalized.aim_dz ?? 0).normalize();
     chargeLockedAimDirection.copy(aimDirection);
   }
 
   // Set spin
-  if (payload.spin_x != null) { spin.x = payload.spin_x; spin.y = payload.spin_y ?? 0; }
+  if (normalized.spin_x != null) { spin.x = normalized.spin_x; spin.y = normalized.spin_y ?? 0; }
 
   // Fire
-  const remotePower = payload.power ?? 0.3;
+  const remotePower = normalized.power ?? 0.3;
   const strength    = minCharge + remotePower * (maxCharge - minCharge);
   const impulse     = aimDirection.clone().multiplyScalar(strength * powerMultiplier);
   cueBall.velocity.add(impulse);
@@ -4859,12 +5191,20 @@ window.snookerApplyRemoteShot = function(payload) {
   updateUi();
 };
 
+window.snookerApplyRemoteStateSnapshot = function(snapshot, meta) {
+  if (!window.isOnlineMode) return;
+  const payload = meta?.snapshot ? meta : snapshot;
+  applyGameStateSnapshot(payload);
+};
+
 // Online multiplayer room update hook.
 // Called by online.js when the Supabase room state changes.
 window.snookerOnlineRoomUpdate = function ({ status, players, myRole } = {}) {
   if (status === 'playing') {
     // Guard against duplicate calls (direct callback + realtime both firing).
     if (gameStarted) return;
+    const localP1Name = Array.isArray(players) && players[0]?.name ? players[0].name : null;
+    const localP2Name = Array.isArray(players) && players[1]?.name ? players[1].name : null;
     if (Array.isArray(players)) {
       if (players[0]?.name) playerNames[0] = players[0].name;
       if (players[1]?.name) playerNames[1] = players[1].name;
@@ -4873,6 +5213,8 @@ window.snookerOnlineRoomUpdate = function ({ status, players, myRole } = {}) {
     window.isOnlineMode       = true;
     window.onlineMyPlayerIndex = myRole === 'player2' ? 1 : 0;
     resetGame({ startNow: true, aiMode: false });
+    if (localP1Name) playerNames[0] = localP1Name;
+    if (localP2Name) playerNames[1] = localP2Name;
     updateUi();
     // Collapse the overlay so the 3-D canvas is fully visible
     document.getElementById('snooker3d-online-overlay')?.classList.add('hidden');

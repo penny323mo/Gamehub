@@ -64,6 +64,8 @@
     aiTimer: null,
     shotTimer: null,
     showExtendedGuide: true,
+    onlineShotOrigin: null,
+    pendingAuthoritativeSync: false,
   };
 
   // config removed
@@ -537,6 +539,157 @@
     }
   }
 
+  function localTurnToRole(turn) {
+    if (state.onlineMyRole === 'player2') {
+      return turn === 'player' ? 'player2' : 'player1';
+    }
+    return turn === 'player' ? 'player1' : 'player2';
+  }
+
+  function roleToLocalTurn(role) {
+    if (state.onlineMyRole === 'player2') {
+      return role === 'player2' ? 'player' : 'ai';
+    }
+    return role === 'player1' ? 'player' : 'ai';
+  }
+
+  function serializeBall(ball) {
+    return {
+      x: ball.x,
+      y: ball.y,
+      vx: ball.vx,
+      vy: ball.vy,
+      color: ball.color,
+      alive: ball.alive !== false,
+      isCue: !!ball.isCue,
+      type: ball.type || null,
+      value: ball.value ?? null,
+      mass: ball.mass || BALL_MASS,
+      spot: ball.spot ? { x: ball.spot.x, y: ball.spot.y } : null,
+    };
+  }
+
+  function serializeOnlineSnapshot() {
+    const myRole = state.onlineMyRole || 'player1';
+    const player1Score = myRole === 'player1' ? state.scores.player : state.scores.ai;
+    const player2Score = myRole === 'player1' ? state.scores.ai : state.scores.player;
+
+    return {
+      format: 'snooker-2d-v1',
+      turn_role: localTurnToRole(state.turn),
+      scores: {
+        player1: player1Score,
+        player2: player2Score,
+      },
+      balls: state.balls.map(serializeBall),
+      aimAngle: state.aimAngle,
+      target: state.target,
+      placingCue: state.placingCue,
+      positionsConfirmed: state.positionsConfirmed,
+      phase: state.phase,
+      gamePhase: state.gamePhase,
+      cueInHand: state.cueInHand,
+      spin: { x: state.spin.x, y: state.spin.y },
+      redRemaining: state.redRemaining,
+      clearanceIndex: state.clearanceIndex,
+      isComplete: state.isComplete,
+    };
+  }
+
+  function clearAsyncStateForSnapshot() {
+    if (state.aiTimer) { clearTimeout(state.aiTimer); state.aiTimer = null; }
+    if (state.shotTimer) { clearTimeout(state.shotTimer); state.shotTimer = null; }
+    if (state.respotTimer) { clearTimeout(state.respotTimer); state.respotTimer = null; }
+    state.respotQueue = [];
+    state.dragging = false;
+    state.placingDrag = false;
+    state.pullStart = null;
+    state.pullPower = 0;
+    state.aiThinking = false;
+  }
+
+  function clearOnlineShotTracking() {
+    state.onlineShotOrigin = null;
+    state.pendingAuthoritativeSync = false;
+  }
+
+  function broadcastOnlineSnapshotIfNeeded() {
+    if (state.mode !== 'online' || state.onlineShotOrigin !== 'local' || !window.snookerSendStateSnapshot) {
+      return false;
+    }
+    window.snookerSendStateSnapshot(serializeOnlineSnapshot());
+    clearOnlineShotTracking();
+    return true;
+  }
+
+  function applyRemoteSnapshot(snapshot) {
+    if (!snapshot || snapshot.format !== 'snooker-2d-v1') return;
+
+    clearAsyncStateForSnapshot();
+
+    const absScores = snapshot.scores || { player1: 0, player2: 0 };
+    const player1Score = absScores.player1 || 0;
+    const player2Score = absScores.player2 || 0;
+
+    state.mode = 'online';
+    state.turn = roleToLocalTurn(snapshot.turn_role || 'player1');
+    state.scores = state.onlineMyRole === 'player2'
+      ? { player: player2Score, ai: player1Score }
+      : { player: player1Score, ai: player2Score };
+    state.balls = (snapshot.balls || []).map((ball) => ({
+      x: ball.x,
+      y: ball.y,
+      vx: ball.vx || 0,
+      vy: ball.vy || 0,
+      color: ball.color,
+      alive: ball.alive !== false,
+      isCue: !!ball.isCue,
+      type: ball.type || undefined,
+      value: ball.value ?? undefined,
+      mass: ball.mass || BALL_MASS,
+      spot: ball.spot ? { x: ball.spot.x, y: ball.spot.y } : undefined,
+    }));
+    state.cue = state.balls.find((ball) => ball.isCue) || state.cue;
+    state.aimAngle = snapshot.aimAngle ?? state.aimAngle;
+    state.target = snapshot.target || state.target;
+    state.placingCue = !!snapshot.placingCue;
+    state.positionsConfirmed = !!snapshot.positionsConfirmed;
+    state.phase = snapshot.phase || (state.placingCue ? 'place' : 'aim');
+    state.gamePhase = snapshot.gamePhase || state.gamePhase;
+    state.cueInHand = !!snapshot.cueInHand;
+    state.spin = {
+      x: snapshot.spin?.x || 0,
+      y: snapshot.spin?.y || 0,
+    };
+    state.redRemaining = snapshot.redRemaining ?? state.redRemaining;
+    state.clearanceIndex = snapshot.clearanceIndex ?? state.clearanceIndex;
+    state.isComplete = !!snapshot.isComplete;
+    state.gameOverSignaled = state.isComplete;
+    state.firstContact = null;
+    state.shotPots = [];
+    state.cuePotted = false;
+
+    updateTarget();
+    if (state.isComplete) {
+      state.aiming = false;
+      state.inputState = 'idle';
+      updateStatus('清枱完成');
+    } else if (state.turn === 'ai') {
+      state.aiming = false;
+      state.phase = 'aim';
+      state.inputState = 'waiting_remote';
+      updateStatus('等待對手擊球...');
+    } else {
+      state.aiming = true;
+      state.phase = state.placingCue ? 'place' : 'aim';
+      state.inputState = state.placingCue ? 'idle' : 'aiming';
+      updateStatus();
+    }
+
+    updateSpinMarker();
+    clearOnlineShotTracking();
+  }
+
   function resolvePair(a, b) {
     const dx = b.x - a.x, dy = b.y - a.y;
     let dist = Math.hypot(dx, dy);
@@ -793,6 +946,9 @@
       const legalClearPot = inClear && !foul && b.type === requiredClear;
       if (!legalClearPot) state.respotQueue.push(b);
     }
+    const needsDelayedSnapshot = state.mode === 'online' &&
+      state.onlineShotOrigin === 'local' &&
+      state.respotQueue.length > 0;
     if (state.respotQueue.length) {
       if (state.respotTimer) clearTimeout(state.respotTimer);
       state.respotTimer = setTimeout(() => {
@@ -802,6 +958,9 @@
         }
         state.respotQueue = [];
         state.respotTimer = null;
+        if (state.pendingAuthoritativeSync) {
+          broadcastOnlineSnapshotIfNeeded();
+        }
       }, 180);
     }
 
@@ -814,6 +973,9 @@
     }
 
     if (state.isComplete) {
+      if (!needsDelayedSnapshot) {
+        broadcastOnlineSnapshotIfNeeded();
+      }
       updateStatus('清枱完成');
       if (state.mode === 'online' && !state.gameOverSignaled && window.snookerSignalGameOver) {
         state.gameOverSignaled = true;
@@ -851,6 +1013,14 @@
       state.phase = 'aim';
       state.inputState = 'aiming';
       state.aiThinking = false;
+    }
+
+    if (needsDelayedSnapshot) {
+      state.pendingAuthoritativeSync = true;
+    } else if (state.onlineShotOrigin === 'local') {
+      broadcastOnlineSnapshotIfNeeded();
+    } else {
+      clearOnlineShotTracking();
     }
   }
 
@@ -941,6 +1111,7 @@
 
     // Broadcast in online mode (only for the local player's turn)
     if (state.mode === 'online' && state.turn === 'player' && window.snookerSendShot) {
+      state.onlineShotOrigin = 'local';
       window.snookerSendShot({
         angle:  state.aimAngle,
         power,
@@ -949,6 +1120,8 @@
         cue_x:  state.cue.x,
         cue_y:  state.cue.y,
       });
+    } else if (state.mode !== 'online') {
+      clearOnlineShotTracking();
     }
   }
 
@@ -1325,6 +1498,7 @@
    */
   window.snookerApplyRemoteShot = function(payload) {
     if (state.mode !== 'online' || state.isComplete) return;
+    state.onlineShotOrigin = 'remote';
     // Apply received cue position (covers cue-in-hand placements)
     if (payload.cue_x != null) {
       state.cue.x = payload.cue_x;
@@ -1341,5 +1515,10 @@
     state.aiming = true;
     state.phase  = 'aim';
     shoot(payload.power);
+  };
+
+  window.snookerApplyRemoteStateSnapshot = function(snapshot) {
+    if (state.mode !== 'online') return;
+    applyRemoteSnapshot(snapshot);
   };
 })();

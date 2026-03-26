@@ -5,12 +5,14 @@
  * External API consumed by the game:
  *   window.snookerOnlineRoomUpdate({ status, players, myRole })
  *   window.snookerApplyRemoteShot(shot)
+ *   window.snookerApplyRemoteStateSnapshot(snapshot, meta)
  *
  * API exposed to the game:
  *   window.snookerJoinRoom(roomKey)
  *   window.snookerExitRoom()
  *   window.snookerToggleReady()
  *   window.snookerSendShot(payload)
+ *   window.snookerSendStateSnapshot(snapshot)
  *   window.snookerRematch()
  *   window.initSnookerOnline()
  */
@@ -22,6 +24,9 @@ const FIXED_ROOMS_MAP = {
     '3d': ['3D-ROOM01', '3D-ROOM02', '3D-ROOM03'],
 };
 let FIXED_ROOMS = FIXED_ROOMS_MAP['2d'];
+const SHOT_POLL_MS = 1500;
+const ROOM_POLL_MS = 1000;
+const MAX_APPLIED_EVENT_IDS = 500;
 
 const SnookerOnline = {
     sbClient:        null,
@@ -31,16 +36,134 @@ const SnookerOnline = {
     roomChannel:     null,
     shotsChannel:    null,
     clientId:        null,
+    fallbackInsertWarned: false,
     heartbeatInterval: null,
     lobbyInterval:   null,   // tracked so repeated initSnookerOnline() calls don't leak
     roomPollInterval: null,  // polls room state while waiting (realtime is unreliable)
     shotPollInterval: null,  // polls shots during gameplay (realtime can drop messages)
-    gameStartedAt:   null,   // ISO timestamp when current round started (filters stale shots)
+    gameStartedAt:   null,
     appliedShotIds:  new Set(),
     currentRoundId:  null,
     hasSeat:         false,
     gameMode:        '2d',
 };
+
+function buildShotEnvelope(kind, payload) {
+    return {
+        ...(payload || {}),
+        kind,
+        round_id: SnookerOnline.currentRoundId || 0,
+        event_id: crypto.randomUUID(),
+        sender_role: SnookerOnline.playerRole,
+        sent_at: new Date().toISOString(),
+    };
+}
+
+function trimAppliedEventIds() {
+    if (SnookerOnline.appliedShotIds.size <= MAX_APPLIED_EVENT_IDS) return;
+    const ids = [...SnookerOnline.appliedShotIds];
+    SnookerOnline.appliedShotIds = new Set(ids.slice(-Math.floor(MAX_APPLIED_EVENT_IDS / 2)));
+}
+
+function isShotPayloadForCurrentRound(payload) {
+    const payloadRoundId = payload?.round_id;
+    if (payloadRoundId == null) {
+        return (SnookerOnline.currentRoundId || 0) === 0;
+    }
+    return payloadRoundId === (SnookerOnline.currentRoundId || 0);
+}
+
+function getShotPayload(rawShot) {
+    return rawShot?.payload || rawShot || null;
+}
+
+function applyIncomingShotEvent(rawShot) {
+    if (!rawShot?.id || rawShot.player_role === SnookerOnline.playerRole) return;
+
+    const payload = getShotPayload(rawShot);
+    if (!payload || !isShotPayloadForCurrentRound(payload)) return;
+    if (SnookerOnline.appliedShotIds.has(rawShot.id)) return;
+
+    trimAppliedEventIds();
+    SnookerOnline.appliedShotIds.add(rawShot.id);
+
+    if (payload.kind === 'state_sync') {
+        console.log('[SnookerShot] Remote snapshot received:', payload.snapshot?.format || 'unknown');
+        if (window.snookerApplyRemoteStateSnapshot) {
+            window.snookerApplyRemoteStateSnapshot(payload.snapshot || null, payload);
+        }
+        return;
+    }
+
+    console.log('[SnookerShot] Remote shot received:', payload);
+    if (window.snookerApplyRemoteShot) {
+        window.snookerApplyRemoteShot(payload);
+    }
+}
+
+async function fetchMissingShotsOnce() {
+    if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
+    const { data: shots, error } = await SnookerOnline.sbClient
+        .from('snooker_shots')
+        .select('*')
+        .eq('room_id', SnookerOnline.roomUuid)
+        .neq('player_role', SnookerOnline.playerRole)
+        .order('shot_no', { ascending: true });
+    if (error) {
+        console.error('[ShotPoll] Fetch error:', error);
+        return;
+    }
+    for (const shot of shots || []) {
+        applyIncomingShotEvent(shot);
+    }
+}
+
+async function persistShotPayload(payload, { label = 'SnookerShot', strictPlaying = false } = {}) {
+    if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid || !SnookerOnline.playerRole) {
+        return { ok: false, reason: 'not_connected' };
+    }
+
+    const { data, error } = await SnookerOnline.sbClient.rpc('submit_snooker_shot', {
+        p_room_id:     SnookerOnline.roomUuid,
+        p_client_id:   SnookerOnline.clientId,
+        p_player_role: SnookerOnline.playerRole,
+        p_payload:     payload,
+    });
+    if (!error && !data?.error) {
+        console.log(`[${label}] Sent via RPC:`, payload);
+        return { ok: true, transport: 'rpc' };
+    }
+    if (data?.error) {
+        console.warn(`[${label}] Rejected:`, data.error);
+        if (strictPlaying || data.error !== 'game_not_playing') {
+            showOnlineToast(`同步被拒絕: ${data.error}`, 'warn');
+        }
+        return { ok: false, reason: data.error };
+    }
+
+    const rpcMissing = error?.code === 'PGRST202' || error?.message?.includes('Could not find');
+    if (!rpcMissing) {
+        console.error(`[${label}] RPC error:`, error);
+        showOnlineToast('同步失敗，請重新整理後再試', 'error');
+        return { ok: false, reason: error?.message || 'rpc_error' };
+    }
+
+    if (!SnookerOnline.fallbackInsertWarned) {
+        SnookerOnline.fallbackInsertWarned = true;
+        console.warn(`[${label}] submit_snooker_shot RPC missing; falling back to direct insert`);
+    }
+
+    const { error: insertError } = await SnookerOnline.sbClient.from('snooker_shots')
+        .insert({ room_id: SnookerOnline.roomUuid, player_role: SnookerOnline.playerRole, payload });
+    if (insertError) {
+        console.error(`[${label}] Direct insert error:`, insertError);
+        showOnlineToast('同步失敗，請檢查 Supabase migration', 'error');
+        return { ok: false, reason: insertError?.message || 'insert_error' };
+    }
+
+    console.log(`[${label}] Sent via direct insert:`, payload);
+    return { ok: true, transport: 'direct_insert' };
+}
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 
@@ -76,6 +199,7 @@ function initSnookerOnline({ gameMode = '2d' } = {}) {
     window.snookerExitRoom    = exitFixedRoom;
     window.snookerToggleReady = toggleReady;
     window.snookerSendShot    = sendShot;
+    window.snookerSendStateSnapshot = sendStateSnapshot;
 
     // Register the unload guard only once, even if initSnookerOnline()
     // is called multiple times (e.g. switching 2D ↔ 3D in the hub).
@@ -285,6 +409,7 @@ async function joinFixedRoom(roomKey) {
     SnookerOnline.playerRole    = role;
     SnookerOnline.currentRoundId = room.round_id || 0;
     SnookerOnline.appliedShotIds.clear();
+    SnookerOnline.gameStartedAt = null;
 
     console.log('[SnookerOnline] Joined as', role, 'in room', roomKey);
 
@@ -383,6 +508,7 @@ function renderRoomState(room) {
         const applyStart = () => {
             SnookerOnline.gameStartedAt = new Date().toISOString();
             startShotPoll();
+            fetchMissingShotsOnce();
             if (window.snookerOnlineRoomUpdate) {
                 window.snookerOnlineRoomUpdate({
                     status: 'playing',
@@ -413,6 +539,7 @@ function renderRoomState(room) {
     if (room.status === 'playing' && !SnookerOnline.shotPollInterval) {
         if (!SnookerOnline.gameStartedAt) SnookerOnline.gameStartedAt = new Date().toISOString();
         startShotPoll();
+        fetchMissingShotsOnce();
     }
     // Stop shot polling when game is no longer playing
     if (room.status !== 'playing' && SnookerOnline.shotPollInterval) {
@@ -467,7 +594,7 @@ async function toggleReady() {
 
 // ─── Room-view poll (backup for unreliable realtime) ─────────────────────────
 // While both players are in the waiting room but haven't started yet, realtime
-// delivery may be dropped.  Polling every 3 s ensures P1 sees P2's join/ready
+// delivery may be dropped.  Polling every 1 s ensures P1 sees P2's join/ready
 // state and the Ready button becomes clickable.
 
 function startRoomPoll() {
@@ -484,7 +611,7 @@ function startRoomPoll() {
             renderRoomState(room);
             stopRoomPoll();
         }
-    }, 3000);
+    }, ROOM_POLL_MS);
 }
 
 function stopRoomPoll() {
@@ -516,29 +643,15 @@ function stopHeartbeat() {
  * payload for 3D: { aim_dx, aim_dz, power, spin_x, spin_y, cue_x, cue_z }
  */
 async function sendShot(payload) {
-    if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
-    // Route through server-validated RPC (seat ownership check).
-    const { data, error } = await SnookerOnline.sbClient.rpc('submit_snooker_shot', {
-        p_room_id:     SnookerOnline.roomUuid,
-        p_client_id:   SnookerOnline.clientId,
-        p_player_role: SnookerOnline.playerRole,
-        p_payload:     payload,
+    await persistShotPayload(buildShotEnvelope('shot', payload), { label: 'SnookerShot', strictPlaying: true });
+}
+
+async function sendStateSnapshot(snapshot) {
+    if (!snapshot) return;
+    await persistShotPayload(buildShotEnvelope('state_sync', { snapshot }), {
+        label: 'SnookerStateSync',
+        strictPlaying: false,
     });
-    if (error) {
-        // Fallback to direct INSERT if RPC not yet deployed
-        if (error.code === 'PGRST202' || error.message?.includes('Could not find')) {
-            const { error: e2 } = await SnookerOnline.sbClient.from('snooker_shots')
-                .insert({ room_id: SnookerOnline.roomUuid, player_role: SnookerOnline.playerRole, payload });
-            if (e2) console.error('[SnookerShot] Direct insert error:', e2);
-            else    console.log('[SnookerShot] Sent via direct insert:', payload);
-            return;
-        }
-        console.error('[SnookerShot] RPC error:', error);
-    } else if (data?.error) {
-        console.warn('[SnookerShot] Rejected:', data.error);
-    } else {
-        console.log('[SnookerShot] Sent via RPC:', payload);
-    }
 }
 
 // ─── Realtime ────────────────────────────────────────────────────────────────
@@ -578,49 +691,26 @@ function subscribeToShots() {
             filter: `room_id=eq.${SnookerOnline.roomUuid}`,
         }, (payload) => {
             const shot = payload.new;
-            if (!shot?.id) return;
-            // Ignore own shots
-            if (shot.player_role === SnookerOnline.playerRole) return;
-            // Deduplicate; cap size to avoid unbounded growth in long sessions
-            if (SnookerOnline.appliedShotIds.has(shot.id)) return;
-            if (SnookerOnline.appliedShotIds.size > 500) {
-                const ids = [...SnookerOnline.appliedShotIds];
-                SnookerOnline.appliedShotIds = new Set(ids.slice(-250));
-            }
-            SnookerOnline.appliedShotIds.add(shot.id);
-            console.log('[SnookerShot] Remote shot received:', shot.payload);
-            if (window.snookerApplyRemoteShot) window.snookerApplyRemoteShot(shot.payload || shot);
+            applyIncomingShotEvent(shot);
         })
         .subscribe((status, err) => {
             console.log('[SnookerRT-SHOTS] subscribe status:', status);
             if (err) console.error('[SnookerRT-SHOTS] error:', err);
+            if (status === 'SUBSCRIBED') {
+                fetchMissingShotsOnce();
+            }
         });
 }
 
 // ─── Shot Poll (backup for unreliable realtime during gameplay) ──────────────
 // If the realtime channel drops a shot, the two clients permanently diverge.
-// Polling every 5s for remote shots we haven't applied yet provides recovery.
+// Polling every 1.5s for remote shots we haven't applied yet provides recovery.
 
 function startShotPoll() {
     stopShotPoll();
     SnookerOnline.shotPollInterval = setInterval(async () => {
-        if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
-        let query = SnookerOnline.sbClient
-            .from('snooker_shots')
-            .select('*')
-            .eq('room_id', SnookerOnline.roomUuid)
-            .neq('player_role', SnookerOnline.playerRole);
-        // Filter out shots from previous rounds if cleanup_snooker_shots failed
-        if (SnookerOnline.gameStartedAt) query = query.gte('created_at', SnookerOnline.gameStartedAt);
-        const { data: shots } = await query.order('shot_no', { ascending: true });
-        if (!shots) return;
-        for (const shot of shots) {
-            if (!shot?.id || SnookerOnline.appliedShotIds.has(shot.id)) continue;
-            SnookerOnline.appliedShotIds.add(shot.id);
-            console.log('[ShotPoll] Recovered missed shot:', shot.shot_no);
-            if (window.snookerApplyRemoteShot) window.snookerApplyRemoteShot(shot.payload || shot);
-        }
-    }, 5000);
+        await fetchMissingShotsOnce();
+    }, SHOT_POLL_MS);
 }
 
 function stopShotPoll() {
@@ -718,6 +808,7 @@ function cleanupAndLobby() {
     SnookerOnline.shotsChannel  = null;
     SnookerOnline.hasSeat       = false;
     SnookerOnline.appliedShotIds.clear();
+    SnookerOnline.gameStartedAt = null;
     window.snookerCurrentRoom   = null;
 
     if (window.snookerOnlineRoomUpdate) {
