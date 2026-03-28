@@ -219,6 +219,22 @@ body {
   cursor: pointer;
   transition: all 0.2s;
   min-width: 60px;
+  position: relative;
+}
+
+.build-key {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  background: #3b82f6;
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 5px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  border: 1px solid #60a5fa;
+  pointer-events: none;
 }
 
 .build-btn:hover {
@@ -385,6 +401,28 @@ body {
 }
 
 .action-btn.upgrade:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#evolve-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 2;
+}
+
+.action-btn.evolve {
+  background: linear-gradient(135deg, #cc88ff, #9933ff);
+  font-size: 11px;
+  padding: 6px;
+}
+
+.action-btn.evolve:hover {
+  background: linear-gradient(135deg, #eeaafe, #aa44ff);
+}
+
+.action-btn.evolve:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
@@ -726,6 +764,76 @@ body {
 /* ─── Utility ─── */
 .hidden {
   display: none !important;
+}
+
+/* ─── Tower Tooltip ─── */
+#tower-tooltip {
+  position: fixed;
+  z-index: 1000;
+  background: rgba(10, 15, 30, 0.95);
+  border: 1px solid #4ade80;
+  border-radius: 8px;
+  padding: 10px;
+  color: white;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  font-size: 14px;
+  min-width: 150px;
+}
+#tower-tooltip .tooltip-name {
+  font-weight: bold;
+  font-size: 16px;
+  color: #4ade80;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 2px;
+}
+#tower-tooltip .tooltip-type {
+  color: #aaa;
+  font-size: 12px;
+  margin-bottom: 6px;
+  text-transform: capitalize;
+}
+#tower-tooltip .tooltip-stats div {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+#tower-tooltip .tooltip-special {
+  margin-top: 6px;
+  color: #fbbf24;
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* ─── Enemy Panel ─── */
+#enemy-panel {
+  position: absolute;
+  top: 60px;
+  right: 10px;
+  background: rgba(20, 10, 10, 0.85);
+  border: 1px solid #ff4444;
+  border-radius: 8px;
+  padding: 10px;
+  color: white;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(255, 0, 0, 0.3);
+  font-size: 14px;
+  min-width: 140px;
+  text-transform: capitalize;
+}
+#enemy-panel .panel-header {
+  font-weight: bold;
+  font-size: 16px;
+  color: #ff4444;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 2px;
+}
+#enemy-panel .panel-stats div {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
 }
 
 /* ─── Mobile ─── */

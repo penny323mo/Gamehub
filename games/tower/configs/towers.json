@@ -36,6 +36,20 @@
                 "dot": null,
                 "chain": null
             }
+        ],
+        "evolutions": [
+            {
+                "type": "arrow_rapid",
+                "name": "Rapid Arrow",
+                "cost": 250,
+                "desc": "Insane ATK SPD"
+            },
+            {
+                "type": "arrow_pierce",
+                "name": "Piercing Arrow",
+                "cost": 250,
+                "desc": "Chain ×4"
+            }
         ]
     },
     "cannon": {
@@ -305,6 +319,43 @@
                 "aoeRadius": 0,
                 "dot": null,
                 "chain": null
+            }
+        ]
+    },
+    "arrow_rapid": {
+        "name": "Rapid Arrow",
+        "damageType": "physical",
+        "levels": [
+            {
+                "buildCost": 0,
+                "upgradeCost": 0,
+                "damage": 35,
+                "cooldownSec": 0.15,
+                "range": 4.5,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": null
+            }
+        ]
+    },
+    "arrow_pierce": {
+        "name": "Piercing Arrow",
+        "damageType": "physical",
+        "levels": [
+            {
+                "buildCost": 0,
+                "upgradeCost": 0,
+                "damage": 90,
+                "cooldownSec": 0.5,
+                "range": 5.5,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": {
+                    "targets": 4,
+                    "rangeFalloff": 3.0
+                }
             }
         ]
     }

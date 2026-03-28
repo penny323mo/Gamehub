@@ -1,13 +1,15 @@
 import * as THREE from 'three';
 import { createInitialState } from './core/gameState';
-import { LOGIC_DT, TOWERS, SCORING, WAVES, GRAPHICS } from './core/config';
+import { LOGIC_DT, MAP, TOWERS, SCORING, WAVES, GRAPHICS, ENEMIES } from './core/config';
 import { tickWave, startNextWave } from './core/systems/waveSystem';
+import { cellToWorld } from './core/path';
 import { tickEnemies } from './core/systems/enemySystem';
 import { tickTowers } from './core/systems/towerSystem';
 import { tickCombat } from './core/systems/combatSystem';
-import { buildTower, canBuild, upgradeTower, sellTower, getSellValue, canUpgrade } from './core/systems/economySystem';
-import type { GameState, TowerType, Tower, TargetingMode } from './core/types';
-
+import { buildTower, canBuild, upgradeTower, sellTower, getSellValue, canUpgrade, evolveTower } from './core/systems/economySystem';
+import type { GameState, TowerType, Tower, TargetingMode, Difficulty, Enemy } from './core/types';
+import { killEnemy } from './core/systems/killSystem';
+import { bus } from './core/systems/eventBus';
 import { SceneManager } from './render/sceneManager';
 import { CameraController } from './render/camera';
 import { setupLighting } from './render/lighting';
@@ -17,11 +19,13 @@ import { FxRenderer } from './render/fx';
 import { ProjectileRenderer } from './render/projectileRenderer';
 import { Picking } from './render/picking';
 import { PostProcessor } from './render/postProcessing';
+import { audioSystem } from './core/systems/audioSystem';
 
 // ─── State ───
 let state: GameState;
 let selectedTowerType: TowerType | null = null;
 let inspectedTower: Tower | null = null;
+let currentDifficulty: Difficulty = 'normal';
 
 // ─── Renderer setup ───
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -54,20 +58,69 @@ if (GRAPHICS.enablePostProcessing) {
     postProcessor = new PostProcessor(renderer, sm.scene, camera);
 }
 
-state = createInitialState();
+state = createInitialState(currentDifficulty);
 
-// ─── DOM refs ───
+// ─── EventBus Listeners ───
+bus.on('streakBonus', e => showStreakBanner(e.streak));
+bus.on('milestone', e => showMilestoneBanner(e.wave));
+bus.on('towerBuilt', e => {
+    const pos = cellToWorld(e.col, e.row);
+    fxRenderer.addBuildEffect(pos.x, pos.z);
+
+    towerRenderer.sync(state);
+    updateHUD();
+});
+bus.on('towerUpgraded', e => {
+    towerRenderer.removeTower(e.towerId);
+    towerRenderer.sync(state);
+    updateHUD();
+    if (inspectedTower && inspectedTower.id === e.towerId) {
+        showTowerPanel(inspectedTower);
+    }
+});
+bus.on('towerSold', e => {
+    fxRenderer.addSellEffect(e.worldX, e.worldZ);
+
+    state.floatingTexts.push({
+        id: state.nextId++,
+        worldX: e.worldX,
+        worldZ: e.worldZ,
+        value: `+${e.refund}g`,
+        color: '#ffd700',
+        life: 1.5,
+        maxLife: 1.5,
+    });
+    towerRenderer.removeTower(e.towerId);
+    towerRenderer.sync(state);
+    updateHUD();
+    if (inspectedTower && inspectedTower.id === e.towerId) {
+        hideTowerPanel();
+    }
+});
+
 const goldEl = document.getElementById('gold-val')!;
 const livesEl = document.getElementById('lives-val')!;
 const waveEl = document.getElementById('wave-val')!;
 const killsEl = document.getElementById('kills-val')!;
-const speedBtn = document.getElementById('speed-btn')!;
-const pauseBtn = document.getElementById('pause-btn')!;
-const skipPrepBtn = document.getElementById('skip-prep-btn')! as HTMLButtonElement;
+const skipPrepBtn = document.getElementById('skip-prep-btn') as HTMLButtonElement;
+const pauseBtn = document.getElementById('pause-btn') as HTMLButtonElement;
+const speedBtn = document.getElementById('speed-btn') as HTMLButtonElement;
+const soundBtn = document.getElementById('sound-btn') as HTMLButtonElement;
+
+// Enemy Panel UI
+const enemyPanelUi = document.getElementById('enemy-panel')!;
+const enemyNameUi = document.getElementById('enemy-name')!;
+const enemyHpUi = document.getElementById('enemy-hp')!;
+const enemySpdUi = document.getElementById('enemy-spd')!;
+const enemyArmorUi = document.getElementById('enemy-armor')!;
 const waveBanner = document.getElementById('wave-banner')!;
 const waveBannerText = document.getElementById('wave-banner-text')!;
 const milestoneBanner = document.getElementById('milestone-banner')!;
 const milestoneBannerText = document.getElementById('milestone-banner-text')!;
+
+bus.on('towerBuilt', () => audioSystem.playBuild());
+bus.on('towerSold', () => audioSystem.playSell());
+bus.on('enemyKilled', () => audioSystem.playHit());
 const floatingTextLayer = document.getElementById('floating-text-layer')!;
 const helpBtn = document.getElementById('help-btn')!;
 const helpOverlay = document.getElementById('help-overlay')!;
@@ -81,6 +134,12 @@ const towerPanel = document.getElementById('tower-panel')!;
 const cancelBuildBtn = document.getElementById('cancel-build-btn')!;
 const buildBtns = document.querySelectorAll('.build-btn[data-tower]');
 const streakBanner = document.getElementById('streak-banner')!;
+
+const tooltip = document.getElementById('tower-tooltip')!;
+const tooltipName = tooltip.querySelector('.tooltip-name')!;
+const tooltipType = tooltip.querySelector('.tooltip-type')!;
+const tooltipStats = tooltip.querySelector('.tooltip-stats')!;
+const tooltipSpecial = tooltip.querySelector('.tooltip-special')!;
 
 const TOTAL_WAVES = WAVES.waves.length;
 
@@ -107,6 +166,34 @@ function updateHUD(): void {
         const canAfford = state.gold >= cost;
         btn.classList.toggle('disabled', !canAfford);
     });
+
+    // Enemy Hover Logic
+    let closestEnemy: Enemy | null = null;
+    if (picking.hoveredCol >= 0 && state.phase === 'wave') {
+        const hoverWorld = cellToWorld(picking.hoveredCol, picking.hoveredRow);
+        let minDistSq = 1.0;
+        for (const e of state.enemies) {
+            if (!e.alive) continue;
+            const dx = e.worldX - hoverWorld.x;
+            const dz = e.worldZ - hoverWorld.z;
+            const dSq = dx * dx + dz * dz;
+            if (dSq < minDistSq) {
+                minDistSq = dSq;
+                closestEnemy = e;
+            }
+        }
+    }
+
+    if (closestEnemy) {
+        const cfg = ENEMIES[closestEnemy.type];
+        enemyNameUi.textContent = cfg.name;
+        enemyHpUi.textContent = `${Math.ceil(closestEnemy.hp)}/${cfg.hp}`;
+        enemySpdUi.textContent = cfg.speed.toFixed(1);
+        enemyArmorUi.textContent = String(cfg.armor);
+        enemyPanelUi.classList.remove('hidden');
+    } else {
+        enemyPanelUi.classList.add('hidden');
+    }
 }
 
 // ─── Wave Banner ───
@@ -225,12 +312,34 @@ function showTowerPanel(tower: Tower): void {
     });
 
     const upgradeBtn = document.getElementById('upgrade-btn')! as HTMLButtonElement;
+    const evolveContainer = document.getElementById('evolve-container')!;
     const sellBtn = document.getElementById('sell-btn')!;
     const levels = towerCfg.levels;
 
+    // Reset evolution UI
+    evolveContainer.classList.add('hidden');
+    evolveContainer.innerHTML = '';
+    upgradeBtn.style.display = 'block';
+
     if (tower.level >= levels.length - 1) {
-        upgradeBtn.disabled = true;
-        upgradeBtn.textContent = '⬆ MAX';
+        if (towerCfg.evolutions && towerCfg.evolutions.length > 0) {
+            upgradeBtn.style.display = 'none';
+            evolveContainer.classList.remove('hidden');
+            
+            for (const evo of towerCfg.evolutions) {
+                const btn = document.createElement('button');
+                btn.className = 'action-btn evolve';
+                btn.innerHTML = `⭐ ${evo.name} (<span class="evolve-cost">${evo.cost}</span>g)<div style="font-size: 0.8em; margin-top: 2px;">${evo.desc}</div>`;
+                btn.disabled = state.gold < evo.cost;
+                btn.onclick = () => {
+                    if (inspectedTower) evolveTower(state, inspectedTower.id, evo.type);
+                };
+                evolveContainer.appendChild(btn);
+            }
+        } else {
+            upgradeBtn.disabled = true;
+            upgradeBtn.textContent = '⬆ MAX';
+        }
     } else {
         const cost = levels[tower.level + 1].upgradeCost;
         upgradeBtn.disabled = !canUpgrade(state, tower);
@@ -263,6 +372,15 @@ function showEndScreen(): void {
     }
     endRank.textContent = rank;
     endRank.className = `rank rank-${rank}`;
+
+    // Populate stats
+    document.getElementById('stat-kills')!.textContent = state.totalKills.toString();
+    document.getElementById('stat-streak')!.textContent = state.stats.longestStreak.toString();
+    document.getElementById('stat-perfect')!.textContent = state.perfectWaves.toString();
+    document.getElementById('stat-built')!.textContent = state.stats.towersBuilt.toString();
+    document.getElementById('stat-gold')!.textContent = state.stats.goldEarned.toString();
+    document.getElementById('stat-dmg')!.textContent = Math.round(state.stats.totalDamageDealt).toString();
+
     endScreen.classList.remove('hidden');
 }
 
@@ -288,6 +406,43 @@ buildBtns.forEach(btn => {
             hideTowerPanel();
         }
     });
+
+    btn.addEventListener('mouseenter', () => {
+        const type = btn.getAttribute('data-tower') as TowerType;
+        if (!type || !TOWERS[type]) return;
+        
+        const towerCfg = TOWERS[type];
+        const lvlCfg = towerCfg.levels[0];
+        
+        tooltipName.textContent = towerCfg.name + ' Tower';
+        tooltipType.textContent = 'Type: ' + towerCfg.damageType;
+        
+        tooltipStats.innerHTML = `
+            <div><span>Damage:</span> <span>${lvlCfg.damage}</span></div>
+            <div><span>Speed:</span> <span>${lvlCfg.cooldownSec}s</span></div>
+            <div><span>Range:</span> <span>${lvlCfg.range}</span></div>
+            <div><span>DPS:</span> <span>${(lvlCfg.damage / lvlCfg.cooldownSec).toFixed(1)}</span></div>
+        `;
+        
+        let special = '';
+        if (lvlCfg.slow) special = `Slows by ${Math.round(lvlCfg.slow.pct * 100)}% for ${lvlCfg.slow.durationSec}s`;
+        else if (lvlCfg.dot) special = `DOT: ${lvlCfg.dot.dps} dmg/s (${lvlCfg.dot.durationSec}s)`;
+        else if (lvlCfg.chain) special = `Chains to ${lvlCfg.chain.targets} targets`;
+        else if (lvlCfg.aoeRadius > 0) special = `AOE Radius: ${lvlCfg.aoeRadius}`;
+        
+        tooltipSpecial.textContent = special;
+        
+        // Position tooltip above the button
+        const rect = btn.getBoundingClientRect();
+        tooltip.style.left = `${rect.left + rect.width / 2}px`;
+        tooltip.style.transform = 'translate(-50%, calc(-100% - 10px))';
+        tooltip.style.top = `${rect.top}px`;
+        tooltip.classList.remove('hidden');
+    });
+
+    btn.addEventListener('mouseleave', () => {
+        tooltip.classList.add('hidden');
+    });
 });
 
 // Cancel build
@@ -301,15 +456,15 @@ cancelBuildBtn.addEventListener('click', (e) => {
 
 // Speed toggle — cycle 1× / 2× / 3×
 speedBtn.addEventListener('click', () => {
-    if (state.speedMultiplier === 1) {
-        state.speedMultiplier = 2;
-    } else if (state.speedMultiplier === 2) {
-        state.speedMultiplier = 3;
-    } else {
-        state.speedMultiplier = 1;
-    }
-    speedBtn.textContent = `${state.speedMultiplier}×`;
-    speedBtn.classList.toggle('active', state.speedMultiplier > 1);
+    state.speedMultiplier = state.speedMultiplier === 1 ? 2 : state.speedMultiplier === 2 ? 4 : 1;
+    speedBtn.textContent = state.speedMultiplier + '×';
+});
+
+soundBtn.addEventListener('click', () => {
+    audioSystem.init();
+    const isEnabled = audioSystem.toggle();
+    soundBtn.textContent = isEnabled ? '🔊' : '🔇';
+    soundBtn.style.opacity = isEnabled ? '1' : '0.5';
 });
 
 // Pause toggle
@@ -321,12 +476,113 @@ function togglePause(): void {
     pauseBtn.classList.toggle('active', state.paused);
 }
 
-// P key to pause
+// Keyboard Shortcuts
 window.addEventListener('keydown', (e) => {
-    if (e.key === 'p' || e.key === 'P') {
+    // Ignore if game is inactive
+    if (state.phase === 'idle' || state.phase === 'won' || state.phase === 'lost') return;
+
+    const key = e.key.toLowerCase();
+
+    // P - Pause
+    if (key === 'p') {
         if (state.phase === 'wave' || state.phase === 'prep') togglePause();
+        return;
+    }
+    
+    // Ignore input if in help overlay
+    if (!helpOverlay.classList.contains('hidden')) return;
+
+    // 1-7: Fast select tower to build
+    if (key >= '1' && key <= '7') {
+        const idx = Number(key) - 1;
+        if (idx >= 0 && idx < buildBtns.length) {
+            (buildBtns[idx] as HTMLButtonElement).click();
+        }
+    }
+
+    // U: Upgrade inspected tower
+    if (key === 'u' && inspectedTower) {
+        document.getElementById('upgrade-btn')!.click();
+    }
+
+    // S: Sell inspected tower
+    if (key === 's' && inspectedTower) {
+        document.getElementById('sell-btn')!.click();
+    }
+
+    // M - Keys Q W E for skills
+    if (key === 'q') useSkill(0);
+    if (key === 'w') useSkill(1);
+    if (key === 'e') useSkill(2);
+
+    // Escape: Cancel build or close panel
+    if (e.key === 'Escape') {
+        if (selectedTowerType) {
+            cancelBuildBtn.click();
+        } else if (inspectedTower) {
+            document.getElementById('panel-close-btn')!.click();
+        }
     }
 });
+
+// ─── Skills ───
+const skillBtns = document.querySelectorAll('.skill-btn');
+skillBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        const idx = parseInt(btn.getAttribute('data-skill') || '0', 10);
+        useSkill(idx);
+    });
+});
+
+function useSkill(idx: number) {
+    if (state.phase !== 'wave' && state.phase !== 'prep') return;
+    const skill = state.skills[idx];
+    if (!skill || skill.remaining > 0) return;
+
+    if (idx === 0) {
+        // Airstrike
+        for (const enemy of state.enemies) {
+            if (enemy.alive) {
+                enemy.hp -= 200;
+                if (enemy.hp <= 0) {
+                    killEnemy(state, enemy);
+                } else {
+                    state.floatingTexts.push({ id: state.nextId++, worldX: enemy.worldX, worldZ: enemy.worldZ, value: '-200', color: '#ff4444', life: 1, maxLife: 1 });
+                }
+            }
+        }
+    } else if (idx === 1) {
+        // Freeze
+        for (const enemy of state.enemies) {
+            if (enemy.alive) {
+                enemy.slow = { pct: 1.0, remaining: 5.0 };
+            }
+        }
+    } else if (idx === 2) {
+        // Repair
+        state.lives = Math.min(state.maxLives, state.lives + 5);
+        updateHUD();
+    }
+
+    skill.remaining = skill.cooldown;
+    updateSkillsHUD();
+}
+
+function updateSkillsHUD() {
+    skillBtns.forEach(btn => {
+        const idx = parseInt(btn.getAttribute('data-skill') || '0', 10);
+        const skill = state.skills[idx];
+        const cdSpan = btn.querySelector('.skill-cd') as HTMLElement;
+        if (skill && skill.remaining > 0) {
+            btn.classList.add('on-cooldown');
+            cdSpan.classList.remove('hidden');
+            cdSpan.textContent = Math.ceil(skill.remaining) + 's';
+        } else {
+            btn.classList.remove('on-cooldown');
+            cdSpan.classList.add('hidden');
+        }
+    });
+}
 
 // Skip Prep
 skipPrepBtn.addEventListener('click', () => {
@@ -341,32 +597,12 @@ skipPrepBtn.addEventListener('click', () => {
 // Tower panel buttons
 document.getElementById('upgrade-btn')!.addEventListener('click', () => {
     if (!inspectedTower) return;
-    if (upgradeTower(state, inspectedTower.id)) {
-        towerRenderer.removeTower(inspectedTower.id);
-        towerRenderer.sync(state);
-        showTowerPanel(inspectedTower);
-        updateHUD();
-    }
+    upgradeTower(state, inspectedTower.id);
 });
 
 document.getElementById('sell-btn')!.addEventListener('click', () => {
     if (!inspectedTower) return;
-    const sellVal = getSellValue(inspectedTower);
-    towerRenderer.removeTower(inspectedTower.id);
     sellTower(state, inspectedTower.id);
-    // N — show sell gold float
-    state.floatingTexts.push({
-        id: state.nextId++,
-        worldX: inspectedTower.worldX,
-        worldZ: inspectedTower.worldZ,
-        value: `+${sellVal}g`,
-        color: '#ffd700',
-        life: 1.5,
-        maxLife: 1.5,
-    });
-    hideTowerPanel();
-    towerRenderer.sync(state);
-    updateHUD();
 });
 
 document.getElementById('panel-close-btn')!.addEventListener('click', () => {
@@ -378,6 +614,28 @@ document.getElementById('start-btn')!.addEventListener('click', () => {
     startScreen.classList.add('hidden');
     startNextWave(state);
     showWaveBanner(`Wave 1`);
+});
+
+// Difficulty Selector
+const diffBtns = document.querySelectorAll('.diff-btn');
+const diffDesc = document.getElementById('diff-desc')!;
+const diffNames: Record<string, string> = {
+    easy: 'Easy difficulty — 600g, 30 lives, 25% weaker enemies',
+    normal: 'Standard difficulty — 400g, 20 lives',
+    hard: 'Hard difficulty — 250g, 10 lives, 40% tougher enemies & slightly faster'
+};
+
+diffBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        diffBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentDifficulty = btn.getAttribute('data-diff') as Difficulty;
+        diffDesc.textContent = diffNames[currentDifficulty];
+        
+        // Re-init state to apply gold/lives BEFORE starting
+        state = createInitialState(currentDifficulty);
+        updateHUD();
+    });
 });
 
 // Help overlay
@@ -394,9 +652,10 @@ helpOverlay.addEventListener('click', (e) => {
 // Restart
 document.getElementById('restart-btn')!.addEventListener('click', () => {
     endScreen.classList.add('hidden');
-    state = createInitialState();
+    state = createInitialState(currentDifficulty);
     towerRenderer.sync(state);
     updateHUD();
+    updateSkillsHUD();
     hideTowerPanel();
     startNextWave(state);
     showWaveBanner('Wave 1');
@@ -417,11 +676,7 @@ canvas.addEventListener('click', () => {
     if (col < 0 || row < 0) return;
 
     if (selectedTowerType) {
-        const tower = buildTower(state, selectedTowerType, col, row);
-        if (tower) {
-            towerRenderer.sync(state);
-            updateHUD();
-        }
+        buildTower(state, selectedTowerType, col, row);
     } else {
         const tower = state.towers.find(t => t.col === col && t.row === row);
         if (tower) {
@@ -549,6 +804,30 @@ function gameLoop(time: number): void {
         }
     }
 
+    // Tick components
+    if (state.phase === 'prep') {
+        state.prepTimer -= dt;
+        if (state.prepTimer <= 0) {
+            startNextWave(state);
+            showWaveBanner(`Wave ${state.currentWave + 1}`);
+        }
+    }
+
+    if (state.phase === 'wave') {
+        tickWave(state, dt);
+        tickEnemies(state, dt);
+        tickTowers(state, dt);
+        tickCombat(state, dt);
+
+        // Skill cooldowns
+        for (const skill of state.skills) {
+            if (skill.remaining > 0) {
+                skill.remaining = Math.max(0, skill.remaining - dt);
+            }
+        }
+        updateSkillsHUD();
+    }
+
     // Wave banner
     if (state.currentWave !== lastWave && state.phase === 'wave') {
         lastWave = state.currentWave;
@@ -571,22 +850,10 @@ function gameLoop(time: number): void {
 
     // Render sync
     towerRenderer.animate(rawDt, state);
-    towerRenderer.sync(state);
     enemyRenderer.sync(state, 0, camera);  // C — pass camera for billboard bars
     fxRenderer.sync(state, dt);
     projectileRenderer.sync(state, dt);
     syncFloatingTexts(rawDt);
-
-    // O — Milestone banner
-    if (state.milestoneReached > 0) {
-        showMilestoneBanner(state.milestoneReached);
-        state.milestoneReached = 0;
-    }
-
-    // B — Streak banner (trigger on multiples of 5 when streak >= 5)
-    if (state.killStreak >= 5 && state.killStreak % 5 === 0 && state.killStreakTimer > 2.9) {
-        showStreakBanner(state.killStreak);
-    }
 
     // Update HUD
     updateHUD();

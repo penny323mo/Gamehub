@@ -4,6 +4,7 @@ import { TOWERS, SELL_REFUND_PCT } from '../config';
 import { cellToWorld } from '../path';
 import { MAP } from '../config';
 import { rebuildOccupied } from '../gameState';
+import { bus } from './eventBus';
 
 /** Check if a cell is valid for building */
 export function canBuild(state: GameState, col: number, row: number): boolean {
@@ -37,6 +38,15 @@ export function buildTower(state: GameState, type: TowerType, col: number, row: 
     state.gold -= cfg.buildCost;
     state.towers.push(tower);
     rebuildOccupied(state);
+    
+    bus.emit({
+        type: 'towerBuilt',
+        towerId: tower.id,
+        towerType: tower.type,
+        col: tower.col,
+        row: tower.row
+    });
+    
     return tower;
 }
 
@@ -54,6 +64,13 @@ export function upgradeTower(state: GameState, towerId: number): boolean {
     state.gold -= nextLevel.upgradeCost;
     tower.totalInvested += nextLevel.upgradeCost;
     tower.level++;
+    
+    bus.emit({
+        type: 'towerUpgraded',
+        towerId: tower.id,
+        newLevel: tower.level
+    });
+    
     return true;
 }
 
@@ -67,6 +84,15 @@ export function sellTower(state: GameState, towerId: number): number {
     state.gold += refund;
     state.towers.splice(idx, 1);
     rebuildOccupied(state);
+    
+    bus.emit({
+        type: 'towerSold',
+        towerId: tower.id,
+        refund: refund,
+        worldX: tower.worldX,
+        worldZ: tower.worldZ
+    });
+    
     return refund;
 }
 
@@ -80,4 +106,31 @@ export function canUpgrade(state: GameState, tower: Tower): boolean {
     const levels = TOWERS[tower.type].levels;
     if (tower.level >= levels.length - 1) return false;
     return state.gold >= levels[tower.level + 1].upgradeCost;
+}
+
+/** Evolve a max-level tower to a new type */
+export function evolveTower(state: GameState, towerId: number, targetType: string): boolean {
+    const tower = state.towers.find(t => t.id === towerId);
+    if (!tower) return false;
+
+    const towerCfg = TOWERS[tower.type];
+    if (!towerCfg.evolutions) return false;
+    
+    const evo = towerCfg.evolutions.find((e: any) => e.type === targetType);
+    if (!evo) return false;
+    
+    if (state.gold < evo.cost) return false;
+    
+    state.gold -= evo.cost;
+    tower.totalInvested += evo.cost;
+    tower.type = targetType as TowerType;
+    tower.level = 0; // The new evolved tower type starts at level 0
+    
+    bus.emit({
+        type: 'towerUpgraded',
+        towerId: tower.id,
+        newLevel: 0
+    });
+    
+    return true;
 }

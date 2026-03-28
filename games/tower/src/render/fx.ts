@@ -216,4 +216,40 @@ export class FxRenderer {
             size: 0.1 + Math.random() * 0.1,
         });
     }
+
+    addBuildEffect(x: number, z: number): void {
+        const count = 15;
+        const color = new THREE.Color(0x4ade80); // Greenish build color
+        for (let i = 0; i < count; i++) {
+            if (this.particles.length >= MAX_PARTICLES) break;
+            const angle = (i / count) * Math.PI * 2;
+            const speed = 1.0 + Math.random() * 1.5;
+            this.particles.push({
+                position: new THREE.Vector3(x, 0.2, z),
+                velocity: new THREE.Vector3(Math.cos(angle) * speed, 0.5 + Math.random(), Math.sin(angle) * speed),
+                life: 0.4 + Math.random() * 0.2,
+                maxLife: 0.6,
+                color: color.clone().offsetHSL(0, 0, Math.random() * 0.2),
+                size: 0.15 + Math.random() * 0.1,
+            });
+        }
+    }
+
+    addSellEffect(x: number, z: number): void {
+        const count = 15;
+        const color = new THREE.Color(0xfbbf24); // Golden sell color
+        for (let i = 0; i < count; i++) {
+            if (this.particles.length >= MAX_PARTICLES) break;
+            const angle = (i / count) * Math.PI * 2;
+            const speed = 1.5 + Math.random() * 2;
+            this.particles.push({
+                position: new THREE.Vector3(x, 0.5, z),
+                velocity: new THREE.Vector3(Math.cos(angle) * speed, 1.5 + Math.random() * 2, Math.sin(angle) * speed),
+                life: 0.3 + Math.random() * 0.2,
+                maxLife: 0.5,
+                color: color.clone().offsetHSL(0.05 * Math.random(), 0, Math.random() * 0.2),
+                size: 0.15 + Math.random() * 0.15,
+            });
+        }
+    }
 }

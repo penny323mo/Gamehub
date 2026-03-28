@@ -1,5 +1,6 @@
 import type { GameState, Enemy, DamageType } from '../types';
 import { ENEMIES } from '../config';
+import { killEnemy } from './killSystem';
 
 /** Move projectiles and resolve hits with counter system */
 export function tickCombat(state: GameState, dt: number): void {
@@ -183,37 +184,6 @@ function applyHit(state: GameState, enemy: Enemy, baseDmg: number, damageType: D
 
     enemy.hp -= dmg;
     if (enemy.hp <= 0) {
-        enemy.hp = 0;
-        enemy.alive = false;
-        state.gold += enemy.bounty;
-        state.totalKills++;
-
-        // B — Kill Streak
-        state.killStreak++;
-        state.killStreakTimer = 3.0;
-
-        // Streak milestone bonus at 10
-        if (state.killStreak === 10) {
-            state.gold += 50;
-            state.floatingTexts.push({
-                id: state.nextId++,
-                worldX: enemy.worldX,
-                worldZ: enemy.worldZ,
-                value: `⚡ x10 COMBO! +50g`,
-                color: '#ffee00',
-                life: 2.0,
-                maxLife: 2.0,
-            });
-        }
-
-        state.floatingTexts.push({
-            id: state.nextId++,
-            worldX: enemy.worldX,
-            worldZ: enemy.worldZ,
-            value: `+${enemy.bounty}g`,
-            color: '#ffd700',
-            life: 1.2,
-            maxLife: 1.2,
-        });
+        killEnemy(state, enemy);
     }
 }

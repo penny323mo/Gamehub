@@ -4,8 +4,10 @@ import { TOWERS, GRAPHICS } from '../core/config';
 import { cellToWorld } from '../core/path';
 
 // Colour palettes per tower type
-const TOWER_COLORS: Record<TowerType, number> = {
+const TOWER_COLORS: Record<string, number> = {
     arrow: 0x8b6914,
+    arrow_rapid: 0xa88532,
+    arrow_pierce: 0x6e520f,
     cannon: 0x555555,
     ice: 0x66ccff,
     fire: 0xff5500,
@@ -14,8 +16,10 @@ const TOWER_COLORS: Record<TowerType, number> = {
     sniper: 0x333399,
 };
 
-const ACCENT_COLORS: Record<TowerType, number> = {
+const ACCENT_COLORS: Record<string, number> = {
     arrow: 0xddaa33,
+    arrow_rapid: 0xffcc55,
+    arrow_pierce: 0xbb8822,
     cannon: 0x888888,
     ice: 0xaaeeff,
     fire: 0xff8844,
@@ -27,6 +31,7 @@ const ACCENT_COLORS: Record<TowerType, number> = {
 export class TowerRenderer {
     private scene: THREE.Scene;
     private meshes = new Map<number, THREE.Group>();
+    private sellingTowers = new Set<{ group: THREE.Group, timer: number, maxTimer: number }>();
     private rangeRing: THREE.Mesh | null = null;
     private time = 0;
 
@@ -37,18 +42,14 @@ export class TowerRenderer {
     sync(state: GameState): void {
         const activeTowerIds = new Set(state.towers.map(t => t.id));
 
-        // Remove towers no longer present
-        for (const [id, group] of this.meshes) {
-            if (!activeTowerIds.has(id)) {
-                this.scene.remove(group);
-                this.meshes.delete(id);
-            }
-        }
-
         // Add / update towers
         for (const tower of state.towers) {
             if (!this.meshes.has(tower.id)) {
                 const group = this.createTowerMesh(tower);
+                // Start scale at 0 for build animation
+                group.scale.set(0, 0, 0);
+                group.userData.buildProgress = 0;
+                
                 this.scene.add(group);
                 this.meshes.set(tower.id, group);
             }
@@ -58,18 +59,46 @@ export class TowerRenderer {
     removeTower(id: number): void {
         const group = this.meshes.get(id);
         if (group) {
-            this.scene.remove(group);
+            // Move to sellingTowers
+            this.sellingTowers.add({ group, timer: 0.25, maxTimer: 0.25 });
             this.meshes.delete(id);
         }
     }
 
     animate(dt: number, state: GameState): void {
         this.time += dt;
+        // Process selling animations
+        for (const sell of this.sellingTowers) {
+            sell.timer -= dt;
+            if (sell.timer <= 0) {
+                this.scene.remove(sell.group);
+                this.sellingTowers.delete(sell);
+            } else {
+                const t = sell.timer / sell.maxTimer;
+                // Easing out cubic
+                const ease = t * t * t;
+                sell.group.scale.set(ease, ease, ease);
+                
+                // Spin while selling
+                sell.group.rotation.y += dt * 10;
+            }
+        }
+
         for (const tower of state.towers) {
             const group = this.meshes.get(tower.id);
             if (!group) continue;
 
             const parts = group.userData;
+
+            // Build animation (pop in)
+            if (parts.buildProgress < 1.0) {
+                parts.buildProgress = Math.min(1.0, parts.buildProgress + dt * 3.0);
+                const t = parts.buildProgress;
+                // Elastic ease out
+                const c4 = (2 * Math.PI) / 3;
+                const bs = t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
+                group.scale.set(bs, bs, bs);
+            }
 
             // Detect attack for scale bump
             if (tower.cooldownRemaining > parts.lastCooldown) {
@@ -79,18 +108,20 @@ export class TowerRenderer {
             parts.lastCooldown = tower.cooldownRemaining;
 
             // Attack bump animation
-            if (parts.attackTimer > 0) {
-                parts.attackTimer -= dt;
-                const t = Math.max(0, parts.attackTimer / 0.15); // 1 to 0
-                const bump = 1.0 + t * 0.15; // 1.15 max
-                if (parts.turretGroup) {
-                    parts.turretGroup.scale.set(bump, bump, bump);
+            if (parts.buildProgress >= 1.0) {
+                if (parts.attackTimer > 0) {
+                    parts.attackTimer -= dt;
+                    const t = Math.max(0, parts.attackTimer / 0.15); // 1 to 0
+                    const bump = 1.0 + t * 0.15; // 1.15 max
+                    if (parts.turretGroup) {
+                        parts.turretGroup.scale.set(bump, bump, bump);
+                    } else {
+                        group.scale.set(bump, bump, bump);
+                    }
                 } else {
-                    group.scale.set(bump, bump, bump);
+                    if (parts.turretGroup) parts.turretGroup.scale.set(1, 1, 1);
+                    group.scale.set(1, 1, 1);
                 }
-            } else {
-                if (parts.turretGroup) parts.turretGroup.scale.set(1, 1, 1);
-                group.scale.set(1, 1, 1);
             }
 
             // Aiming
@@ -208,7 +239,9 @@ export class TowerRenderer {
 
         // Type-specific top
         switch (tower.type) {
-            case 'arrow': {
+            case 'arrow':
+            case 'arrow_rapid':
+            case 'arrow_pierce': {
                 const body = new THREE.CylinderGeometry(0.12 * scale, 0.2 * scale, 0.5, 6);
                 const m = new THREE.Mesh(body, new THREE.MeshStandardMaterial({ color: accentColor }));
                 m.position.y = 0.5;
@@ -226,7 +259,13 @@ export class TowerRenderer {
                 // Arrow
                 const arrGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.4, 4);
                 const arrGeoHead = new THREE.ConeGeometry(0.04, 0.1, 4);
-                const arrMat = new THREE.MeshStandardMaterial({ color: 0xcccccc });
+                
+                // Color differs slightly for evolutions
+                let arrowColor = 0xcccccc;
+                if (tower.type === 'arrow_rapid') arrowColor = 0xffffff;
+                if (tower.type === 'arrow_pierce') arrowColor = 0x8888ff;
+                
+                const arrMat = new THREE.MeshStandardMaterial({ color: arrowColor });
 
                 const arrowPole = new THREE.Mesh(arrGeo, arrMat);
                 arrowPole.rotation.x = Math.PI / 2;
@@ -238,6 +277,22 @@ export class TowerRenderer {
 
                 group.add(arrowPole);
                 group.add(arrowHead);
+                
+                // Special visual additions for evolutions
+                if (tower.type === 'arrow_rapid') {
+                    // Double crossbow arms
+                    const arms2 = new THREE.Mesh(armGeo, new THREE.MeshStandardMaterial({ color: 0x4a3227 }));
+                    arms2.position.y = 0.65;
+                    arms2.position.z = 0.1;
+                    group.add(arms2);
+                } else if (tower.type === 'arrow_pierce') {
+                    // Heavy crossbow body
+                    const heavyGeo = new THREE.BoxGeometry(0.25 * scale, 0.15 * scale, 0.5 * scale);
+                    const heavyBody = new THREE.Mesh(heavyGeo, new THREE.MeshStandardMaterial({ color: accentColor }));
+                    heavyBody.position.y = 0.5;
+                    group.add(heavyBody);
+                }
+                
                 break;
             }
             case 'cannon': {

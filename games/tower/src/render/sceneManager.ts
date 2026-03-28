@@ -156,5 +156,64 @@ export class SceneManager {
         );
         base.receiveShadow = true;
         this.scene.add(base);
+        this.buildScenery();
+    }
+
+    private buildScenery(): void {
+        const { cols, rows, cellSize, origin } = MAP;
+        
+        // Tree meshes
+        const trunkGeo = new THREE.CylinderGeometry(0.05, 0.08, 0.3, 5);
+        const leavesGeo = new THREE.ConeGeometry(0.3, 0.8, 6);
+        
+        const trunkMat = new THREE.MeshLambertMaterial({ color: 0x4a3b2c });
+        const leavesMat = new THREE.MeshLambertMaterial({ color: 0x2d4c1e });
+        
+        const instances = 400;
+        const trunkMesh = new THREE.InstancedMesh(trunkGeo, trunkMat, instances);
+        const leavesMesh = new THREE.InstancedMesh(leavesGeo, leavesMat, instances);
+        
+        if (GRAPHICS.enableShadows) {
+            trunkMesh.castShadow = true;
+            leavesMesh.castShadow = true;
+        }
+
+        const dummy = new THREE.Object3D();
+        let idx = 0;
+
+        // Border extension
+        const borderSize = 8;
+        for (let c = -borderSize; c < cols + borderSize; c++) {
+            for (let r = -borderSize; r < rows + borderSize; r++) {
+                if (c >= -1 && c <= cols && r >= -1 && r <= rows) continue; // Leave map area completely clear with a 1-tile buffer
+                
+                if (Math.random() < 0.4 && idx < instances) { // 40% chance
+                    const pos = cellToWorld(c, r);
+                    const xOff = (Math.random() - 0.5) * cellSize;
+                    const zOff = (Math.random() - 0.5) * cellSize;
+                    const scale = 0.8 + Math.random() * 0.6;
+                    
+                    // Trunk
+                    dummy.position.set(pos.x + xOff, 0.15 * scale, pos.z + zOff);
+                    dummy.scale.set(scale, scale, scale);
+                    dummy.rotation.set(0, Math.random() * Math.PI, 0);
+                    dummy.updateMatrix();
+                    trunkMesh.setMatrixAt(idx, dummy.matrix);
+                    
+                    // Leaves
+                    dummy.position.set(pos.x + xOff, 0.6 * scale, pos.z + zOff);
+                    dummy.updateMatrix();
+                    leavesMesh.setMatrixAt(idx, dummy.matrix);
+                    
+                    idx++;
+                }
+            }
+        }
+        
+        trunkMesh.count = idx;
+        leavesMesh.count = idx;
+        
+        this.scene.add(trunkMesh);
+        this.scene.add(leavesMesh);
     }
 }

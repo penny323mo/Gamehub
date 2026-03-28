@@ -1,7 +1,9 @@
 import type { GameState, Enemy, EnemyType, DamageType } from '../types';
+import { DIFFICULTIES } from '../types';
 import { WAVES, ENEMIES } from '../config';
 import { cellToWorld } from '../path';
 import { MAP } from '../config';
+import { bus } from './eventBus';
 
 /** Start the next wave (enters prep phase) */
 export function startNextWave(state: GameState): void {
@@ -98,11 +100,15 @@ export function tickWave(state: GameState, dt: number): void {
         state.gold += waveGoldBonus;
         state.lastWaveClearGold = waveGoldBonus;
 
+        const perfect = state.waveLivesLostThisWave === 0;
+        bus.emit({ type: 'waveCleared', wave, goldBonus: waveGoldBonus, perfect });
+
         // O — Milestone Wave bonus at Wave 25 / 50 / 75 / 99
         const MILESTONES = [25, 50, 75, 99];
         if (MILESTONES.includes(wave)) {
             state.gold += 500;
             state.milestoneReached = wave;
+            bus.emit({ type: 'milestone', wave });
         } else {
             state.milestoneReached = 0;
         }
@@ -115,6 +121,7 @@ export function tickWave(state: GameState, dt: number): void {
         if (state.currentWave >= WAVES.waves.length) {
             state.score += state.lives * 25; // lifeBonus
             state.phase = 'won';
+            bus.emit({ type: 'gameOver', won: true, score: state.score });
         } else {
             startNextWave(state);
         }
@@ -124,20 +131,21 @@ export function tickWave(state: GameState, dt: number): void {
 function spawnEnemy(state: GameState, type: EnemyType): void {
     const cfg = ENEMIES[type];
     const spawn = cellToWorld(MAP.path[0][0], MAP.path[0][1]);
+    const diffCfg = DIFFICULTIES[state.difficulty];
 
-    // Difficulty scaling: Linear 4% per wave + 1
-    // Wave 0: 1x
-    // Wave 50: 3x
-    // Wave 99: 5x
-    const difficultyMultiplier = 1 + (state.currentWave * 0.04);
+    // Difficulty scaling: Linear 4% per wave + difficulty multiplier
+    const waveScale = 1 + (state.currentWave * 0.04);
+    const hpMult = waveScale * diffCfg.enemyHpMult;
+    const spdMult = diffCfg.enemySpeedMult;
+    const bountyMult = Math.pow(waveScale, 0.5) * diffCfg.goldMult;
 
     const enemy: Enemy = {
         id: state.nextId++,
         type,
-        hp: Math.ceil(cfg.hp * difficultyMultiplier),
-        maxHp: Math.ceil(cfg.hp * difficultyMultiplier),
-        speed: cfg.speed,
-        bounty: Math.ceil(cfg.bounty * Math.pow(difficultyMultiplier, 0.5)),
+        hp: Math.ceil(cfg.hp * hpMult),
+        maxHp: Math.ceil(cfg.hp * hpMult),
+        speed: cfg.speed * spdMult,
+        bounty: Math.ceil(cfg.bounty * bountyMult),
         pathIndex: 0,
         pathProgress: 0,
         worldX: spawn.x,
@@ -148,8 +156,8 @@ function spawnEnemy(state: GameState, type: EnemyType): void {
         reached: false,
         slow: null,
         dots: [],
-        shield: cfg.shield ? Math.ceil(cfg.shield * difficultyMultiplier) : 0,
-        maxShield: cfg.shield ? Math.ceil(cfg.shield * difficultyMultiplier) : 0,
+        shield: cfg.shield ? Math.ceil(cfg.shield * hpMult) : 0,
+        maxShield: cfg.shield ? Math.ceil(cfg.shield * hpMult) : 0,
         armor: cfg.armor ?? 0,
         special: cfg.special ?? 'none',
         healCooldown: 0,

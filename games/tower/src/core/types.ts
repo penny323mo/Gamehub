@@ -1,9 +1,26 @@
 // ─── Core Types (no THREE imports) ───
 
-export type TowerType = 'arrow' | 'cannon' | 'ice' | 'fire' | 'lightning' | 'poison' | 'sniper';
+export type TowerType = 'arrow' | 'cannon' | 'ice' | 'fire' | 'lightning' | 'poison' | 'sniper' | string;
 export type EnemyType = 'grunt' | 'tank' | 'runner' | 'swarm' | 'shield' | 'healer' | 'boss';
 export type DamageType = 'physical' | 'fire' | 'ice' | 'lightning' | 'poison' | 'sniper';
 export type TargetingMode = 'first' | 'last' | 'strongest' | 'weakest';
+export type Difficulty = 'easy' | 'normal' | 'hard';
+
+export interface DifficultyConfig {
+    label: string;
+    emoji: string;
+    startGold: number;
+    startLives: number;
+    enemyHpMult: number;
+    enemySpeedMult: number;
+    goldMult: number;
+}
+
+export const DIFFICULTIES: Record<Difficulty, DifficultyConfig> = {
+    easy: { label: 'Easy', emoji: '🟢', startGold: 600, startLives: 30, enemyHpMult: 0.75, enemySpeedMult: 0.9, goldMult: 1.2 },
+    normal: { label: 'Normal', emoji: '🟡', startGold: 400, startLives: 20, enemyHpMult: 1.0, enemySpeedMult: 1.0, goldMult: 1.0 },
+    hard: { label: 'Hard', emoji: '🔴', startGold: 250, startLives: 10, enemyHpMult: 1.4, enemySpeedMult: 1.15, goldMult: 0.8 },
+};
 
 export interface Vec2 { x: number; z: number; }
 
@@ -34,10 +51,18 @@ export interface TowerLevelConfig {
     chain: ChainConfig | null;
 }
 
+export interface TowerEvolution {
+    type: string;
+    name: string;
+    cost: number;
+    desc: string;
+}
+
 export interface TowerConfig {
     name: string;
     damageType: DamageType;
     levels: TowerLevelConfig[];
+    evolutions?: TowerEvolution[];
 }
 
 export interface EnemyConfig {
@@ -178,6 +203,25 @@ export interface FloatingText {
     maxLife: number;
 }
 
+export interface Skill {
+    name: string;
+    emoji: string;
+    cooldown: number;     // total cooldown in seconds
+    remaining: number;    // seconds until ready (0 = ready)
+    description: string;
+}
+
+export interface GameStats {
+    totalDamageDealt: number;
+    damageByType: Record<string, number>;
+    killsByTower: Record<string, number>;
+    longestStreak: number;
+    towersBuilt: number;
+    towersSold: number;
+    goldEarned: number;
+    goldSpent: number;
+}
+
 export interface GameState {
     phase: GamePhase;
     gold: number;
@@ -189,6 +233,7 @@ export interface GameState {
     speedMultiplier: number;
     paused: boolean;
     totalKills: number;
+    difficulty: Difficulty;
 
     towers: Tower[];
     enemies: Enemy[];
@@ -212,6 +257,12 @@ export interface GameState {
 
     // Visual effects
     floatingTexts: FloatingText[];
+
+    // Skills
+    skills: Skill[];
+
+    // Stats tracking
+    stats: GameStats;
 
     // Derived (rebuilt each tick)
     pathWorld: Vec2[];

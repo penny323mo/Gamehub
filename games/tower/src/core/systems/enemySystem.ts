@@ -1,6 +1,7 @@
 import type { GameState, Enemy, DamageType } from '../types';
 import { ENEMIES } from '../config';
 import { dist } from '../path';
+import { killEnemy } from './killSystem';
 
 // Shield enemy type — regen after no-damage delay
 const SHIELD_REGEN_DELAY = 4.0;   // seconds of no damage before regen starts
@@ -175,35 +176,6 @@ function applyRawDamage(state: GameState, enemy: Enemy, baseDmg: number, damageT
 
     enemy.hp -= dmg;
     if (enemy.hp <= 0) {
-        enemy.hp = 0;
-        enemy.alive = false;
-        state.gold += enemy.bounty;
-        state.totalKills++;
-
-        // B — Kill Streak
-        state.killStreak++;
-        state.killStreakTimer = 3.0;
-        if (state.killStreak === 10) {
-            state.gold += 50;
-            state.floatingTexts.push({
-                id: state.nextId++,
-                worldX: enemy.worldX,
-                worldZ: enemy.worldZ,
-                value: `⚡ x10 COMBO! +50g`,
-                color: '#ffee00',
-                life: 2.0,
-                maxLife: 2.0,
-            });
-        }
-
-        state.floatingTexts.push({
-            id: state.nextId++,
-            worldX: enemy.worldX,
-            worldZ: enemy.worldZ,
-            value: `+${enemy.bounty}g`,
-            color: '#ffd700',
-            life: 1.2,
-            maxLife: 1.2,
-        });
+        killEnemy(state, enemy);
     }
 }
