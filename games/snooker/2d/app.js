@@ -941,12 +941,16 @@
           state.gamePhase = 'COLOUR';
         }
       } else if (requiredClear) {
-        points = colorPots[0].value;
-        state.clearanceIndex++;
-        if (state.clearanceIndex >= clearPhases.length) {
-          state.isComplete = true;
-        } else {
-          state.gamePhase = clearPhases[state.clearanceIndex];
+        // BUG FIX: guard against empty colorPots (no pot in clear phase = no points,
+        // not a foul). Accessing colorPots[0].value when empty would crash.
+        if (colorPots.length === 1) {
+          points = colorPots[0].value;
+          state.clearanceIndex++;
+          if (state.clearanceIndex >= clearPhases.length) {
+            state.isComplete = true;
+          } else {
+            state.gamePhase = clearPhases[state.clearanceIndex];
+          }
         }
       }
       state.scores[currentScorer] += points;
@@ -1022,8 +1026,12 @@
       state.aiThinking = true;
       state.aiTimer = setTimeout(aiDecide, 1500);
     } else if (state.turn === 'ai' && !state.isComplete && state.mode === 'online') {
-      // Online: opponent's turn – wait for remote (with or without cue placement)
-      state.aiming = false;
+      // Online: opponent's turn – wait for remote shot.
+      // BUG FIX: must set aiming = true (not false) to pause the physics loop.
+      // With aiming=false, step() keeps running, sees all balls stopped, and
+      // calls resolveTurn() again every frame → phantom fouls + wrong scores.
+      // snookerApplyRemoteShot sets aiming=true then calls shoot() to unblock.
+      state.aiming = true;
       state.phase = state.placingCue ? 'place' : 'aim';
       state.inputState = 'waiting_remote';
       state.aiThinking = false;
@@ -1503,8 +1511,12 @@
       document.getElementById('snooker-online-overlay').classList.add('hidden');
       updateStatus();
     } else if (status === 'finished') {
-      state.isComplete = true;
-      updateStatus('對手已離開，遊戲結束');
+      // BUG FIX: only show "opponent left" if game wasn't already complete
+      // locally. If natural clearance already set isComplete, keep that message.
+      if (!state.isComplete) {
+        state.isComplete = true;
+        updateStatus('對手已離開，遊戲結束');
+      }
     } else if (status === 'left') {
       // Reset to offline mode
       state.mode = 'practice';
@@ -1519,6 +1531,9 @@
    */
   window.snookerApplyRemoteShot = function(payload) {
     if (state.mode !== 'online' || state.isComplete) return;
+    // BUG FIX: guard against applying a shot when it's the local player's turn
+    // (e.g. duplicate delivery from shot poll + realtime).
+    if (state.turn !== 'ai') return;
     state.onlineShotOrigin = 'remote';
     // Apply received cue position (covers cue-in-hand placements)
     if (payload.cue_x != null) {
