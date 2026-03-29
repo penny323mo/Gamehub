@@ -388,6 +388,9 @@ async function joinFixedRoom(roomKey) {
     // reset when the opponent was still present, but that let a third player
     // drop into someone else's active game.
     if (conditionField && freshRoom.status !== 'waiting') {
+        // BUG FIX: increment round_id so old shots (with old round_id) are
+        // never re-applied in the new game via fetchMissingShotsOnce().
+        const newRoundId = (freshRoom.round_id || 0) + 1;
         await SnookerOnline.sbClient.from('snooker_rooms').update({
             status:          'waiting',
             player1_ready:   false,
@@ -396,7 +399,11 @@ async function joinFixedRoom(roomKey) {
             winner:          null,
             finished_reason: null,
             finished_at:     null,
+            round_id:        newRoundId,
         }).eq('id', room.id);
+        // Delete stale shots for this room so they cannot pollute a new game.
+        await SnookerOnline.sbClient.from('snooker_shots')
+            .delete().eq('room_id', room.id);
         const { data: resetRoom } = await SnookerOnline.sbClient
             .from('snooker_rooms').select('*').eq('id', room.id).single();
         if (resetRoom) Object.assign(freshRoom, resetRoom);
@@ -466,7 +473,9 @@ function renderRoomState(room) {
         const myReady = SnookerOnline.playerRole === 'player1' ? room.player1_ready
                       : SnookerOnline.playerRole === 'player2' ? room.player2_ready : false;
         readyBtn.textContent = myReady ? '取消準備' : '準備';
-        readyBtn.disabled    = !hasOpponent || !SnookerOnline.playerRole;
+        // UX FIX: allow pre-readying even before opponent joins.
+        // The game-start check still requires BOTH players ready, so this is safe.
+        readyBtn.disabled = !SnookerOnline.playerRole;
     }
 
     const readyArea = document.getElementById('snooker-ready-area');
@@ -568,8 +577,6 @@ async function toggleReady() {
 
     const { data: room } = await SnookerOnline.sbClient
         .from('snooker_rooms').select('*').eq('id', SnookerOnline.roomUuid).single();
-
-    if (!room?.player1_id || !room?.player2_id) { showOnlineToast('請等待對手加入', 'info'); _readyDebouncing = false; return; }
 
     const field    = SnookerOnline.playerRole === 'player1' ? 'player1_ready' : 'player2_ready';
     const newReady = !room[field];
@@ -939,4 +946,7 @@ async function snookerRematch() {
 
 window.initSnookerOnline  = initSnookerOnline;
 window.snookerRematch     = snookerRematch;
+// BUG FIX: expose SnookerOnline object so lobby inline scripts can set
+// _intentionalRedirect = true before redirecting (const is not on window).
+window.SnookerOnline      = SnookerOnline;
 Object.defineProperty(window, 'snookerPlayerRole', { get: () => SnookerOnline.playerRole });
