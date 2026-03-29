@@ -317,6 +317,21 @@ function updateRoomCardUI(roomKey, room) {
 
 // ─── Join ────────────────────────────────────────────────────────────────────
 
+/** Resolve the local player's display name for DB storage. Priority:
+ *  1. The #snooker-player-name input (2D lobby),
+ *  2. The #player1-name input (3D game page),
+ *  3. localStorage 'snooker_player_name',
+ *  4. Fallback 'Player'. */
+function resolveDisplayName() {
+    const lobbyInput  = document.getElementById('snooker-player-name');
+    const gameInput   = document.getElementById('player1-name');
+    const fromInput   = (lobbyInput?.value || gameInput?.value || '').trim();
+    if (fromInput) return fromInput;
+    const fromStore   = (localStorage.getItem('snooker_player_name') || '').trim();
+    if (fromStore)  return fromStore;
+    return 'Player';
+}
+
 async function joinFixedRoom(roomKey) {
     if (!SnookerOnline.sbClient) return;
 
@@ -343,11 +358,14 @@ async function joinFixedRoom(roomKey) {
         role = 'player1';
         updateData.player1_id      = SnookerOnline.clientId;
         updateData.p1_last_seen_at = now;
+        // Write display name — read from the lobby input, then localStorage fallback
+        updateData.player1_name    = resolveDisplayName();
         conditionField             = 'player1_id';
     } else if (!room.player2_id) {
         role = 'player2';
         updateData.player2_id      = SnookerOnline.clientId;
         updateData.p2_last_seen_at = now;
+        updateData.player2_name    = resolveDisplayName();
         conditionField             = 'player2_id';
     } else {
         showOnlineToast('房間已滿', 'warn'); return;
@@ -853,11 +871,20 @@ window.snookerSignalGameOver = async function({ winner = 0, scores = [] } = {}) 
 async function snookerRematch() {
     if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid) return;
 
-    await SnookerOnline.sbClient.rpc('cleanup_snooker_shots', { p_room_id: SnookerOnline.roomUuid, p_client_id: SnookerOnline.clientId });
+    // Try the RPC first; ignore failures (it's a convenience cleanup).
+    await SnookerOnline.sbClient.rpc('cleanup_snooker_shots', {
+        p_room_id: SnookerOnline.roomUuid, p_client_id: SnookerOnline.clientId,
+    });
+    // Direct delete as fallback so old shots are definitely gone
+    // even when the RPC is not deployed.  The round_id filter in
+    // applyIncomingShotEvent would also block them, but cleaning up is neat.
+    await SnookerOnline.sbClient.from('snooker_shots').delete().eq('room_id', SnookerOnline.roomUuid);
+
     SnookerOnline.gameStartedAt = null;
 
     // Guard: only reset if the room is genuinely finished.
     // Prevents a stale rematch click from resetting a game already in progress.
+    const newRoundId = (window.snookerCurrentRoom?.round_id || 0) + 1;
     await SnookerOnline.sbClient.from('snooker_rooms').update({
         status:          'waiting',
         player1_ready:   false,
@@ -866,8 +893,10 @@ async function snookerRematch() {
         winner:          null,
         finished_reason: null,
         finished_at:     null,
-        round_id:        (window.snookerCurrentRoom?.round_id || 0) + 1,
+        round_id:        newRoundId,
     }).eq('id', SnookerOnline.roomUuid).eq('status', 'finished');
+    // currentRoundId will be updated by the next renderRoomState()
+    // when the roomPoll detects the new round_id from the DB.
 }
 
 // ─── SQL Schema (for reference / first-time setup) ───────────────────────────

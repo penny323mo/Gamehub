@@ -5235,11 +5235,14 @@ window.snookerOnlineRoomUpdate = function ({ status, players, myRole } = {}) {
     // Collapse the overlay so the 3-D canvas is fully visible
     document.getElementById('snooker3d-online-overlay')?.classList.add('hidden');
   } else if (status === 'finished') {
-    gameStarted = false;
-    gameOver    = true;
-    window.isOnlineMode = false;
-    setStatus('對手已離開，遊戲結束。', 5);
-    updateUi();
+    // BUG FIX: only show "opponent left" if the game wasn't already over
+    // locally. Natural game-end already set gameOver = true via endGame().
+    if (!gameOver) {
+      gameOver    = true;
+      window.isOnlineMode = false;
+      setStatus('對手已離開，遊戲結束。', 5);
+      updateUi();
+    }
   } else if (status === 'left') {
     window.isOnlineMode        = false;
     window.onlineMyPlayerIndex = 0;

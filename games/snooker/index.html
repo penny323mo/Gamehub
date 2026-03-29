@@ -60,10 +60,19 @@
                         <!-- Injected by buildRoomCards() -->
                     </div>
 
+                    <div style="margin:10px 0 4px;display:flex;align-items:center;gap:8px;">
+                        <label style="font-size:0.8rem;color:var(--text-muted);white-space:nowrap;" for="snooker-player-name">我的名稱：</label>
+                        <input id="snooker-player-name" type="text" maxlength="12"
+                            placeholder="最多12字" autocomplete="off"
+                            style="flex:1;padding:5px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.18);background:#0d1a2e;color:#e7eefc;font-size:0.82rem;"
+                            oninput="localStorage.setItem('snooker_player_name', this.value.trim() || 'Player')" />
+                    </div>
+
                     <div class="controls-back">
                         <button class="pill-btn secondary" onclick="backToLanding()">← 返回選單</button>
                     </div>
                 </div>
+
 
                 <!-- Online Room View: ready / waiting state -->
                 <div id="snooker-online-room" class="hidden">
@@ -197,6 +206,12 @@
         // ── Init ───────────────────────────────────────────────────────
         buildRoomCards('2d');
         showView('landing-page');
+        // Restore the saved player name into the input field
+        const _savedName = localStorage.getItem('snooker_player_name');
+        if (_savedName) {
+            const _nameEl = document.getElementById('snooker-player-name');
+            if (_nameEl) _nameEl.value = _savedName;
+        }
     </script>
 </body>
 
