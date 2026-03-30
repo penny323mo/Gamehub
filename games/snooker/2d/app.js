@@ -694,7 +694,8 @@
       state.inputState = 'idle';
       updateStatus('清枱完成');
     } else if (state.turn === 'ai') {
-      state.aiming = false;
+      // BUG FIX: must set aiming = true (not false) to pause the physics loop locally.
+      state.aiming = true;
       state.phase = 'aim';
       state.inputState = 'waiting_remote';
       updateStatus('等待對手擊球...');
@@ -1511,12 +1512,16 @@
       document.getElementById('snooker-online-overlay').classList.add('hidden');
       updateStatus();
     } else if (status === 'finished') {
-      // BUG FIX: only show "opponent left" if game wasn't already complete
-      // locally. If natural clearance already set isComplete, keep that message.
+      // Game over state (either opponent left or natural finish)
       if (!state.isComplete) {
         state.isComplete = true;
-        updateStatus('對手已離開，遊戲結束');
       }
+      // Provide an accurate end message
+      const isOpponentLeft = room?.finished_reason === 'opponent_left';
+      updateStatus(isOpponentLeft ? '對手已離開，遊戲結束' : '對局結束');
+      
+      // Show the rematch overlay
+      document.getElementById('snooker-online-overlay')?.classList.remove('hidden');
     } else if (status === 'left') {
       // Reset to offline mode
       state.mode = 'practice';

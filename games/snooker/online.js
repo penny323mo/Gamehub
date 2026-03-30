@@ -219,15 +219,16 @@ function initSnookerOnline({ gameMode = '2d' } = {}) {
             const pendingTs = parseInt(sessionStorage.getItem('snooker_pending_ts') || '0', 10);
             if (sessionStorage.getItem('snooker_pending_room') && (Date.now() - pendingTs) < 10000) return;
             if (!SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
-            const isP1 = SnookerOnline.playerRole === 'player1';
+            // BUG FIX (P0 Lifecycle): If the room is playing, don't clear the seat so the player can rejoin
+            if (window.snookerCurrentRoom?.status === 'playing') return;
+
             const body = JSON.stringify({
-                [isP1 ? 'player1_id' : 'player2_id']: null,
-                [isP1 ? 'player1_ready' : 'player2_ready']: false,
-                last_activity_at: new Date().toISOString(),
+                p_room_id: SnookerOnline.roomUuid,
+                p_client_id: SnookerOnline.clientId
             });
             try {
-                fetch(`${SUPABASE_URL}/rest/v1/snooker_rooms?id=eq.${SnookerOnline.roomUuid}`, {
-                    method: 'PATCH', keepalive: true,
+                fetch(`${SUPABASE_URL}/rest/v1/rpc/exit_snooker_room`, {
+                    method: 'POST', keepalive: true,
                     headers: {
                         'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
                         'Content-Type': 'application/json', 'Prefer': 'return=minimal',
@@ -343,90 +344,26 @@ async function joinFixedRoom(roomKey) {
 
     if (error || !room) { showOnlineToast('房間不存在', 'error'); return; }
 
-    let role = null;
-    const now = new Date().toISOString();
-    const updateData = { last_activity_at: now };
-    let conditionField = null;
+    const playerName = resolveDisplayName();
+    const { data, error: rpcErr } = await SnookerOnline.sbClient.rpc('join_snooker_room', {
+        p_room_id: room.id,
+        p_client_id: SnookerOnline.clientId,
+        p_client_name: playerName
+    });
 
-    if (room.player1_id === SnookerOnline.clientId) {
-        role = 'player1';
-        updateData.p1_last_seen_at = now;
-    } else if (room.player2_id === SnookerOnline.clientId) {
-        role = 'player2';
-        updateData.p2_last_seen_at = now;
-    } else if (!room.player1_id) {
-        role = 'player1';
-        updateData.player1_id      = SnookerOnline.clientId;
-        updateData.p1_last_seen_at = now;
-        // Write display name — read from the lobby input, then localStorage fallback
-        updateData.player1_name    = resolveDisplayName();
-        conditionField             = 'player1_id';
-    } else if (!room.player2_id) {
-        role = 'player2';
-        updateData.player2_id      = SnookerOnline.clientId;
-        updateData.p2_last_seen_at = now;
-        updateData.player2_name    = resolveDisplayName();
-        conditionField             = 'player2_id';
-    } else {
-        showOnlineToast('房間已滿', 'warn'); return;
-    }
-
-    let query = SnookerOnline.sbClient.from('snooker_rooms').update(updateData).eq('id', room.id);
-    if (conditionField) query = query.is(conditionField, null);
-
-    const { error: updateErr } = await query;
-    if (updateErr) {
-        console.error('[SnookerOnline] join update error:', updateErr);
-        showOnlineToast('加入失敗: ' + (updateErr.message || '未知錯誤'), 'error');
+    if (rpcErr || !data || data.error) {
+        const errMsg = (rpcErr && rpcErr.message) || (data && data.error);
+        console.error('[SnookerOnline] join RPC error:', errMsg);
+        if (errMsg === 'room_full') {
+            showOnlineToast('房間已滿', 'warn');
+        } else {
+            showOnlineToast('加入失敗: ' + errMsg, 'error');
+        }
         fetchLobbyRooms();
         return;
     }
 
-    // Verify we actually got the slot (re-fetch is more reliable than checking updatedRows)
-    const { data: freshRoom, error: fetchErr } = await SnookerOnline.sbClient
-        .from('snooker_rooms').select('*').eq('id', room.id).single();
-
-    if (fetchErr || !freshRoom) {
-        showOnlineToast('加入失敗，讀取房間出錯', 'error');
-        fetchLobbyRooms();
-        return;
-    }
-
-    // If we tried to claim a slot, verify we actually got it
-    if (conditionField && freshRoom[conditionField] !== SnookerOnline.clientId) {
-        showOnlineToast('加入失敗，位置可能被搶走', 'warn');
-        fetchLobbyRooms();
-        return;
-    }
-
-    // If we claimed a NEW slot (conditionField set) in a non-waiting room,
-    // always reset to waiting.  During a lobby→game handoff the same clientId
-    // rejoins (conditionField is null), so this branch only fires for genuinely
-    // new players entering a stuck/finished room.  Previously we skipped the
-    // reset when the opponent was still present, but that let a third player
-    // drop into someone else's active game.
-    if (conditionField && freshRoom.status !== 'waiting') {
-        // BUG FIX: increment round_id so old shots (with old round_id) are
-        // never re-applied in the new game via fetchMissingShotsOnce().
-        const newRoundId = (freshRoom.round_id || 0) + 1;
-        await SnookerOnline.sbClient.from('snooker_rooms').update({
-            status:          'waiting',
-            player1_ready:   false,
-            player2_ready:   false,
-            current_turn:    null,
-            winner:          null,
-            finished_reason: null,
-            finished_at:     null,
-            round_id:        newRoundId,
-        }).eq('id', room.id);
-        // Delete stale shots for this room so they cannot pollute a new game.
-        await SnookerOnline.sbClient.from('snooker_shots')
-            .delete().eq('room_id', room.id);
-        const { data: resetRoom } = await SnookerOnline.sbClient
-            .from('snooker_rooms').select('*').eq('id', room.id).single();
-        if (resetRoom) Object.assign(freshRoom, resetRoom);
-    }
-
+    const { role, room: freshRoom } = data;
     Object.assign(room, freshRoom);
     SnookerOnline.hasSeat       = true;
     SnookerOnline.roomKey       = roomKey;
@@ -534,6 +471,7 @@ function renderRoomState(room) {
         const myRole = SnookerOnline.playerRole;
         const applyStart = () => {
             SnookerOnline.gameStartedAt = new Date().toISOString();
+            sessionStorage.setItem('snooker_active_room', SnookerOnline.roomKey); // Persist for auto-rejoin
             startShotPoll();
             fetchMissingShotsOnce();
             if (window.snookerOnlineRoomUpdate) {
@@ -541,6 +479,7 @@ function renderRoomState(room) {
                     status: 'playing',
                     players: [{ name: p1Name, role: 'player1' }, { name: p2Name, role: 'player2' }],
                     myRole,
+                    room
                 });
             }
         };
@@ -581,6 +520,7 @@ function renderRoomState(room) {
             status:  room.status,
             players: [{ name: p1Name, role: 'player1' }, { name: p2Name, role: 'player2' }],
             myRole:  SnookerOnline.playerRole,
+            room:    room
         });
     }
 }
@@ -593,18 +533,13 @@ async function toggleReady() {
     if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
     _readyDebouncing = true;
 
-    const { data: room } = await SnookerOnline.sbClient
-        .from('snooker_rooms').select('*').eq('id', SnookerOnline.roomUuid).single();
-
-    const field    = SnookerOnline.playerRole === 'player1' ? 'player1_ready' : 'player2_ready';
-    const newReady = !room[field];
-
-    const { error } = await SnookerOnline.sbClient
-        .from('snooker_rooms').update({ [field]: newReady }).eq('id', SnookerOnline.roomUuid);
+    const { error } = await SnookerOnline.sbClient.rpc('toggle_snooker_ready', {
+        p_room_id: SnookerOnline.roomUuid,
+        p_client_id: SnookerOnline.clientId
+    });
 
     if (error) { console.error('[SnookerOnline] toggleReady error:', error); _readyDebouncing = false; return; }
 
-    // Don't rely solely on realtime to drive the game-start check.
     // Re-fetch and run renderRoomState immediately so that whichever player
     // clicks ready last can trigger the transition without waiting for a
     // Supabase realtime delivery that may be slow or dropped.
@@ -648,10 +583,10 @@ function startHeartbeat() {
     stopHeartbeat();
     SnookerOnline.heartbeatInterval = setInterval(async () => {
         if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
-        const field = SnookerOnline.playerRole === 'player1' ? 'p1_last_seen_at' : 'p2_last_seen_at';
-        await SnookerOnline.sbClient
-            .from('snooker_rooms').update({ [field]: new Date().toISOString() })
-            .eq('id', SnookerOnline.roomUuid);
+        await SnookerOnline.sbClient.rpc('ping_snooker_room', {
+            p_room_id: SnookerOnline.roomUuid,
+            p_client_id: SnookerOnline.clientId
+        });
     }, 15000);
 }
 
@@ -774,48 +709,14 @@ async function exitFixedRoom() {
 
     stopHeartbeat();
 
-    const now = new Date().toISOString();
-    const updateData = { last_activity_at: now };
+    await SnookerOnline.sbClient.rpc('exit_snooker_room', {
+        p_room_id: SnookerOnline.roomUuid,
+        p_client_id: SnookerOnline.clientId
+    });
+    
+    // Also remove the active room from session storage so auto-rejoin doesn't fire
+    sessionStorage.removeItem('snooker_active_room');
 
-    if (SnookerOnline.playerRole === 'player1') {
-        updateData.player1_id    = null;
-        updateData.player1_ready = false;
-    } else {
-        updateData.player2_id    = null;
-        updateData.player2_ready = false;
-    }
-
-    // Check whether the opponent still occupies the other seat (using fresh state).
-    const otherIdField  = SnookerOnline.playerRole === 'player1' ? 'player2_id' : 'player1_id';
-    const otherPlayerId = room?.[otherIdField];
-
-    if (room?.status === 'playing') {
-        // Forfeit: leaving mid-game hands the win to the opponent.
-        updateData.status          = 'finished';
-        updateData.winner          = SnookerOnline.playerRole === 'player1' ? 'player2' : 'player1';
-        updateData.finished_reason = 'opponent_left';
-        updateData.finished_at     = now;
-    } else if (!otherPlayerId) {
-        // Last player to leave: reset the room completely so next visitors find
-        // it in a clean, joinable state.
-        updateData.status          = 'waiting';
-        updateData.player1_id      = null;
-        updateData.player1_ready   = false;
-        updateData.player2_id      = null;
-        updateData.player2_ready   = false;
-        updateData.current_turn    = null;
-        updateData.winner          = null;
-        updateData.finished_reason = null;
-        updateData.finished_at     = null;
-    } else {
-        // Opponent is still in the room (non-playing): clear our own ready flag
-        // AND the opponent's, so the next person who fills our seat must
-        // re-confirm readiness rather than triggering an instant game start.
-        updateData.player1_ready = false;
-        updateData.player2_ready = false;
-    }
-
-    await SnookerOnline.sbClient.from('snooker_rooms').update(updateData).eq('id', SnookerOnline.roomUuid);
     cleanupAndLobby();
 }
 
@@ -852,17 +753,11 @@ function cleanupAndLobby() {
 window.snookerSignalGameOver = async function({ winner = 0, scores = [] } = {}) {
     if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid) return;
     const winnerRole = winner === 1 ? 'player1' : winner === 2 ? 'player2' : null;
-    const { error } = await SnookerOnline.sbClient
-        .from('snooker_rooms')
-        .update({
-            status:          'finished',
-            winner:          winnerRole,
-            finished_reason: 'natural',
-            finished_at:     new Date().toISOString(),
-            current_turn:    null,
-        })
-        .eq('id', SnookerOnline.roomUuid)
-        .eq('status', 'playing'); // no-op if already finished (race-safe)
+    const { error } = await SnookerOnline.sbClient.rpc('signal_snooker_game_over', {
+        p_room_id: SnookerOnline.roomUuid,
+        p_client_id: SnookerOnline.clientId,
+        p_winner_role: winnerRole
+    });
     if (error) console.error('[SnookerOnline] signalGameOver error:', error);
 };
 
@@ -882,19 +777,10 @@ async function snookerRematch() {
 
     SnookerOnline.gameStartedAt = null;
 
-    // Guard: only reset if the room is genuinely finished.
-    // Prevents a stale rematch click from resetting a game already in progress.
-    const newRoundId = (window.snookerCurrentRoom?.round_id || 0) + 1;
-    await SnookerOnline.sbClient.from('snooker_rooms').update({
-        status:          'waiting',
-        player1_ready:   false,
-        player2_ready:   false,
-        current_turn:    null,
-        winner:          null,
-        finished_reason: null,
-        finished_at:     null,
-        round_id:        newRoundId,
-    }).eq('id', SnookerOnline.roomUuid).eq('status', 'finished');
+    await SnookerOnline.sbClient.rpc('reset_snooker_room', {
+        p_room_id: SnookerOnline.roomUuid,
+        p_client_id: SnookerOnline.clientId
+    });
     // currentRoundId will be updated by the next renderRoomState()
     // when the roomPoll detects the new round_id from the DB.
 }

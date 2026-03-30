@@ -5215,7 +5215,7 @@ window.snookerApplyRemoteStateSnapshot = function(snapshot, meta) {
 
 // Online multiplayer room update hook.
 // Called by online.js when the Supabase room state changes.
-window.snookerOnlineRoomUpdate = function ({ status, players, myRole } = {}) {
+window.snookerOnlineRoomUpdate = function ({ status, players, myRole, room } = {}) {
   if (status === 'playing') {
     // Guard against duplicate calls (direct callback + realtime both firing).
     if (gameStarted) return;
@@ -5235,14 +5235,14 @@ window.snookerOnlineRoomUpdate = function ({ status, players, myRole } = {}) {
     // Collapse the overlay so the 3-D canvas is fully visible
     document.getElementById('snooker3d-online-overlay')?.classList.add('hidden');
   } else if (status === 'finished') {
-    // BUG FIX: only show "opponent left" if the game wasn't already over
-    // locally. Natural game-end already set gameOver = true via endGame().
+    // Game over state
     if (!gameOver) {
       gameOver    = true;
-      window.isOnlineMode = false;
-      setStatus('對手已離開，遊戲結束。', 5);
+      const isOpponentLeft = room?.finished_reason === 'opponent_left';
+      setStatus(isOpponentLeft ? '對手已離開，遊戲結束' : '對局結束', 5);
       updateUi();
     }
+    document.getElementById('snooker3d-online-overlay')?.classList.remove('hidden');
   } else if (status === 'left') {
     window.isOnlineMode        = false;
     window.onlineMyPlayerIndex = 0;
