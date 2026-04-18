@@ -39,7 +39,7 @@ if (GRAPHICS.enableShadows) {
 }
 
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.1;
+renderer.toneMappingExposure = 1.28;
 
 const sm = new SceneManager();
 const camCtrl = new CameraController();

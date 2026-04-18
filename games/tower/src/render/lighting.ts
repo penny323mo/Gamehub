@@ -11,13 +11,13 @@ export function setupLighting(scene: THREE.Scene): LightingRig {
 
     scene.fog = new THREE.FogExp2(GRAPHICS.atmosphere.fogColor, GRAPHICS.atmosphere.fogDensity);
 
-    const hemi = new THREE.HemisphereLight(0xd7f0c1, 0x06150d, 0.8);
+    const hemi = new THREE.HemisphereLight(0xe0f5d0, 0x102417, 1.0);
     scene.add(hemi);
 
-    const ambient = new THREE.AmbientLight(0x173327, 0.24);
+    const ambient = new THREE.AmbientLight(0x244333, 0.36);
     scene.add(ambient);
 
-    const dir = new THREE.DirectionalLight(0xfff1cc, 1.5);
+    const dir = new THREE.DirectionalLight(0xfff1cc, 1.75);
     dir.position.set(cx + 10, 16, cz - 7);
     dir.target.position.set(cx, 0, cz);
     dir.castShadow = GRAPHICS.enableShadows;
@@ -35,13 +35,13 @@ export function setupLighting(scene: THREE.Scene): LightingRig {
     scene.add(dir);
     scene.add(dir.target);
 
-    const fill = new THREE.DirectionalLight(0x7aa7b6, 0.45);
+    const fill = new THREE.DirectionalLight(0x92bdd0, 0.58);
     fill.position.set(cx - 13, 10, cz + 9);
     fill.target.position.set(cx, 0, cz);
     scene.add(fill);
     scene.add(fill.target);
 
-    const rim = new THREE.DirectionalLight(0x8be2c6, 0.3);
+    const rim = new THREE.DirectionalLight(0x9ef3cf, 0.36);
     rim.position.set(cx, 6, cz + 18);
     rim.target.position.set(cx, 0.4, cz);
     scene.add(rim);

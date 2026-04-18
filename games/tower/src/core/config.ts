@@ -41,13 +41,13 @@ export const GRAPHICS = {
     },
     atmosphere: {
         fogColor: 0x102417,
-        fogDensity: isMobile() ? 0.016 : 0.021,
+        fogDensity: isMobile() ? 0.011 : 0.014,
         spawnPulseSpeed: 2.4,
         goalPulseSpeed: 1.7,
         bloomStrength: isMobile() ? 0.38 : 0.62,
         bloomRadius: isMobile() ? 0.28 : 0.45,
         bloomThreshold: isMobile() ? 0.9 : 0.82,
-        vignetteStrength: isMobile() ? 0.18 : 0.28,
+        vignetteStrength: isMobile() ? 0.1 : 0.16,
         grainAmount: isMobile() ? 0 : 0.018,
     },
 };

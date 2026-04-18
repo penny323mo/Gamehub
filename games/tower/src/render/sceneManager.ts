@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { MAP, GRAPHICS } from '../core/config';
 import { cellToWorld } from '../core/path';
 
-const COLOR_BUILDABLE = 0x315b3a;
-const COLOR_PATH = 0x987347;
-const COLOR_GRID_LINE = 0x24442c;
+const COLOR_BUILDABLE = 0x43774a;
+const COLOR_PATH = 0xb68856;
+const COLOR_GRID_LINE = 0x31573a;
 const COLOR_SPAWN = 0x63c8ff;
 const COLOR_GOAL = 0xff6e56;
 
@@ -14,7 +14,7 @@ export class SceneManager {
 
     constructor() {
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x06150d);
+        this.scene.background = new THREE.Color(0x123122);
     }
 
     buildGround(): void {
@@ -49,9 +49,9 @@ export class SceneManager {
                     roughness = 0.45;
                 } else if (pathCells.has(key)) {
                     color = COLOR_PATH;
-                    emissive = 0x46331e;
-                    emissiveIntensity = 0.18;
-                    roughness = 0.72;
+                    emissive = 0x5e4423;
+                    emissiveIntensity = 0.24;
+                    roughness = 0.68;
                 }
 
                 const material = GRAPHICS.isMobile
@@ -84,9 +84,9 @@ export class SceneManager {
             });
         const board = new THREE.Mesh(boardGeo, boardMat);
         board.position.set(
-            origin.x + cols * cellSize / 2 - 0.5,
+            origin.x + cols * cellSize / 2,
             -0.25,
-            origin.z + rows * cellSize / 2 - 0.5
+            origin.z + rows * cellSize / 2
         );
         board.receiveShadow = true;
         this.scene.add(board);
@@ -103,9 +103,9 @@ export class SceneManager {
             side: THREE.BackSide,
             depthWrite: false,
             uniforms: {
-                topColor: { value: new THREE.Color(0x0e2d20) },
-                midColor: { value: new THREE.Color(0x143f2e) },
-                bottomColor: { value: new THREE.Color(0x27401e) },
+                topColor: { value: new THREE.Color(0x1e4a35) },
+                midColor: { value: new THREE.Color(0x255a42) },
+                bottomColor: { value: new THREE.Color(0x446238) },
             },
             vertexShader: `
                 varying vec3 vWorldPosition;
@@ -140,8 +140,8 @@ export class SceneManager {
 
         const positions = terrainGeo.attributes.position as THREE.BufferAttribute;
         const colors = new Float32Array(positions.count * 3);
-        const centerX = MAP.origin.x + MAP.cols * MAP.cellSize / 2 - 0.5;
-        const centerZ = MAP.origin.z + MAP.rows * MAP.cellSize / 2 - 0.5;
+        const centerX = MAP.origin.x + MAP.cols * MAP.cellSize / 2;
+        const centerZ = MAP.origin.z + MAP.rows * MAP.cellSize / 2;
 
         for (let i = 0; i < positions.count; i++) {
             const x = positions.getX(i) + centerX;
@@ -158,8 +158,8 @@ export class SceneManager {
             positions.setY(i, height);
 
             const shade = THREE.MathUtils.clamp(0.42 + envelope * 0.22 + height * 0.12, 0, 1);
-            const low = new THREE.Color(0x102415);
-            const high = new THREE.Color(0x365a31);
+            const low = new THREE.Color(0x1b3320);
+            const high = new THREE.Color(0x4f7744);
             const color = low.lerp(high, shade);
             colors[i * 3] = color.r;
             colors[i * 3 + 1] = color.g;
@@ -345,8 +345,8 @@ export class SceneManager {
         });
         const radiusX = MAP.cols * 0.75;
         const radiusZ = MAP.rows * 0.95;
-        const centerX = MAP.origin.x + MAP.cols * MAP.cellSize / 2 - 0.5;
-        const centerZ = MAP.origin.z + MAP.rows * MAP.cellSize / 2 - 0.5;
+        const centerX = MAP.origin.x + MAP.cols * MAP.cellSize / 2;
+        const centerZ = MAP.origin.z + MAP.rows * MAP.cellSize / 2;
 
         for (let i = 0; i < 18; i++) {
             const t = (i / 18) * Math.PI * 2;
