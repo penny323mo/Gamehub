@@ -1,0 +1,24 @@
+[
+  {
+    "ts": "2026-03-30T14:19:27.191Z",
+    "kind": "monitor-initial-room-snapshot",
+    "3D-ROOM01": {
+      "status": "對戰中",
+      "players": "P1:有 / P2:有",
+      "joinText": "已滿",
+      "disabled": true
+    },
+    "3D-ROOM02": {
+      "status": "對戰中",
+      "players": "P1:有 / P2:有",
+      "joinText": "已滿",
+      "disabled": true
+    },
+    "3D-ROOM03": {
+      "status": "對戰中",
+      "players": "P1:有 / P2:有",
+      "joinText": "已滿",
+      "disabled": true
+    }
+  }
+]

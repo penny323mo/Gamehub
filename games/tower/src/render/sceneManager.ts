@@ -2,12 +2,11 @@ import * as THREE from 'three';
 import { MAP, GRAPHICS } from '../core/config';
 import { cellToWorld } from '../core/path';
 
-// ─── Colors ───
-const COLOR_BUILDABLE = 0x4a7c59;
-const COLOR_PATH = 0xc9a96e;
-const COLOR_GRID_LINE = 0x3a6a49;
-const COLOR_SPAWN = 0x5599ff;
-const COLOR_GOAL = 0xff5555;
+const COLOR_BUILDABLE = 0x315b3a;
+const COLOR_PATH = 0x987347;
+const COLOR_GRID_LINE = 0x24442c;
+const COLOR_SPAWN = 0x63c8ff;
+const COLOR_GOAL = 0xff6e56;
 
 export class SceneManager {
     scene: THREE.Scene;
@@ -15,20 +14,19 @@ export class SceneManager {
 
     constructor() {
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x1a2a1a);
+        this.scene.background = new THREE.Color(0x06150d);
     }
 
     buildGround(): void {
         const { cols, rows, cellSize, origin } = MAP;
-        const pathCells = new Set<string>();
-        for (const [c, r] of MAP.path) {
-            pathCells.add(`${c},${r}`);
-        }
-
+        const pathCells = new Set<string>(MAP.path.map(([c, r]) => `${c},${r}`));
         const spawnKey = `${MAP.spawnCell[0]},${MAP.spawnCell[1]}`;
         const goalKey = `${MAP.goalCell[0]},${MAP.goalCell[1]}`;
 
-        const geo = new THREE.BoxGeometry(cellSize * 0.96, 0.15, cellSize * 0.96);
+        this.buildSkyDome();
+        this.buildTerrainUnderlay();
+
+        const geo = new THREE.BoxGeometry(cellSize * 0.96, 0.16, cellSize * 0.96);
 
         for (let c = 0; c < cols; c++) {
             for (let r = 0; r < rows; r++) {
@@ -36,99 +34,39 @@ export class SceneManager {
                 let color = COLOR_BUILDABLE;
                 let emissive = 0x000000;
                 let emissiveIntensity = 0;
+                let roughness = 0.9;
+                let metalness = 0.04;
 
                 if (key === spawnKey) {
                     color = COLOR_SPAWN;
-                    emissive = COLOR_SPAWN;
-                    emissiveIntensity = 0.4;
-                }
-                else if (key === goalKey) {
+                    emissive = 0x2f91c7;
+                    emissiveIntensity = 0.5;
+                    roughness = 0.45;
+                } else if (key === goalKey) {
                     color = COLOR_GOAL;
-                    emissive = COLOR_GOAL;
-                    emissiveIntensity = 0.4;
-                }
-                else if (pathCells.has(key)) {
+                    emissive = 0xa93d33;
+                    emissiveIntensity = 0.45;
+                    roughness = 0.45;
+                } else if (pathCells.has(key)) {
                     color = COLOR_PATH;
-                    emissive = 0x554422;
-                    emissiveIntensity = 0.15;
+                    emissive = 0x46331e;
+                    emissiveIntensity = 0.18;
+                    roughness = 0.72;
                 }
 
-                const matArgs: any = { color, emissive };
-                if (emissiveIntensity > 0) matArgs.emissiveIntensity = emissiveIntensity;
+                const material = GRAPHICS.isMobile
+                    ? new THREE.MeshLambertMaterial({ color, emissive })
+                    : new THREE.MeshStandardMaterial({
+                        color,
+                        emissive,
+                        emissiveIntensity,
+                        roughness,
+                        metalness,
+                    });
 
-                let mat: THREE.Material;
-                if (GRAPHICS.isMobile) {
-                    mat = new THREE.MeshLambertMaterial(matArgs);
-                } else {
-                    matArgs.roughness = 0.8;
-                    matArgs.metalness = 0.1;
-                    mat = new THREE.MeshStandardMaterial(matArgs);
-                }
-
-                if (color === COLOR_BUILDABLE && !GRAPHICS.isMobile) {
-                    mat.onBeforeCompile = (shader) => {
-                        shader.vertexShader = shader.vertexShader.replace(
-                            '#include <common>',
-                            `#include <common>
-                            // Simple 2D noise
-                            vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-                            vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-                            vec3 permute(vec3 x) { return mod289(((x*34.0)+1.0)*x); }
-                            float snoise(vec2 v) {
-                              const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
-                              vec2 i  = floor(v + dot(v, C.yy) );
-                              vec2 x0 = v -   i + dot(i, C.xx);
-                              vec2 i1;
-                              i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-                              vec4 x12 = x0.xyxy + C.xxzz;
-                              x12.xy -= i1;
-                              i = mod289(i);
-                              vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 )) + i.x + vec3(0.0, i1.x, 1.0 ));
-                              vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
-                              m = m*m;
-                              m = m*m;
-                              vec3 x = 2.0 * fract(p * C.www) - 1.0;
-                              vec3 h = abs(x) - 0.5;
-                              vec3 ox = floor(x + 0.5);
-                              vec3 a0 = x - ox;
-                              m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
-                              vec3 g;
-                              g.x  = a0.x  * x0.x  + h.x  * x0.y;
-                              g.yz = a0.yz * x12.xz + h.yz * x12.yw;
-                              return 130.0 * dot(m, g);
-                            }
-                            `
-                        );
-                        shader.vertexShader = shader.vertexShader.replace(
-                            '#include <begin_vertex>',
-                            `#include <begin_vertex>
-                             // Add slight height variation based on world position
-                             vec4 worldPositionForNoise = modelMatrix * vec4(transformed, 1.0);
-                             float noiseVal = snoise(worldPositionForNoise.xz * 2.0) * 0.05;
-                             // Only perturb top face
-                             if (normal.y > 0.5) {
-                                transformed.y += noiseVal;
-                             }
-                            `
-                        );
-                        shader.fragmentShader = shader.fragmentShader.replace(
-                            '#include <common>',
-                            `#include <common>
-                            // Pass noise to fragment if wanted
-                            `
-                        );
-                        shader.fragmentShader = shader.fragmentShader.replace(
-                            '#include <color_fragment>',
-                            `#include <color_fragment>
-                            // Slightly vary color
-                            `
-                        );
-                    };
-                }
-
-                const mesh = new THREE.Mesh(geo, mat);
+                const mesh = new THREE.Mesh(geo, material);
                 const pos = cellToWorld(c, r);
-                mesh.position.set(pos.x, -0.075, pos.z);
+                mesh.position.set(pos.x, -0.08, pos.z);
                 mesh.receiveShadow = true;
                 mesh.userData = { col: c, row: r, type: 'ground' };
                 this.scene.add(mesh);
@@ -136,84 +74,293 @@ export class SceneManager {
             }
         }
 
-        const baseGeo = new THREE.PlaneGeometry(cols * cellSize + 1, rows * cellSize + 1);
-        let baseMat: THREE.Material;
-        if (GRAPHICS.isMobile) {
-            baseMat = new THREE.MeshBasicMaterial({ color: COLOR_GRID_LINE });
-        } else {
-            baseMat = new THREE.MeshStandardMaterial({
-                color: COLOR_GRID_LINE,
-                roughness: 0.9,
-                metalness: 0,
+        const boardGeo = new THREE.BoxGeometry(cols * cellSize + 0.9, 0.34, rows * cellSize + 0.9);
+        const boardMat = GRAPHICS.isMobile
+            ? new THREE.MeshBasicMaterial({ color: 0x17311d })
+            : new THREE.MeshStandardMaterial({
+                color: 0x17311d,
+                roughness: 0.95,
+                metalness: 0.02,
             });
-        }
-        const base = new THREE.Mesh(baseGeo, baseMat);
-        base.rotation.x = -Math.PI / 2;
-        base.position.set(
-            origin.x + cols * cellSize / 2,
-            -0.2,
-            origin.z + rows * cellSize / 2
+        const board = new THREE.Mesh(boardGeo, boardMat);
+        board.position.set(
+            origin.x + cols * cellSize / 2 - 0.5,
+            -0.25,
+            origin.z + rows * cellSize / 2 - 0.5
         );
-        base.receiveShadow = true;
-        this.scene.add(base);
+        board.receiveShadow = true;
+        this.scene.add(board);
+
+        this.buildBoardFrame(board.position);
+        this.buildPathRibbon();
         this.buildScenery();
+        this.buildDistantSilhouettes();
+    }
+
+    private buildSkyDome(): void {
+        const skyGeo = new THREE.SphereGeometry(80, 24, 24);
+        const skyMat = new THREE.ShaderMaterial({
+            side: THREE.BackSide,
+            depthWrite: false,
+            uniforms: {
+                topColor: { value: new THREE.Color(0x0e2d20) },
+                midColor: { value: new THREE.Color(0x143f2e) },
+                bottomColor: { value: new THREE.Color(0x27401e) },
+            },
+            vertexShader: `
+                varying vec3 vWorldPosition;
+                void main() {
+                    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                    vWorldPosition = worldPosition.xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 topColor;
+                uniform vec3 midColor;
+                uniform vec3 bottomColor;
+                varying vec3 vWorldPosition;
+                void main() {
+                    float h = normalize(vWorldPosition).y * 0.5 + 0.5;
+                    vec3 color = mix(bottomColor, midColor, smoothstep(0.05, 0.45, h));
+                    color = mix(color, topColor, smoothstep(0.5, 1.0, h));
+                    gl_FragColor = vec4(color, 1.0);
+                }
+            `,
+        });
+        this.scene.add(new THREE.Mesh(skyGeo, skyMat));
+    }
+
+    private buildTerrainUnderlay(): void {
+        const width = MAP.cols + GRAPHICS.terrain.underlayPadding * 2;
+        const depth = MAP.rows + GRAPHICS.terrain.underlayPadding * 2;
+        const segments = GRAPHICS.terrain.underlaySegments;
+        const terrainGeo = new THREE.PlaneGeometry(width, depth, segments, segments);
+        terrainGeo.rotateX(-Math.PI / 2);
+
+        const positions = terrainGeo.attributes.position as THREE.BufferAttribute;
+        const colors = new Float32Array(positions.count * 3);
+        const centerX = MAP.origin.x + MAP.cols * MAP.cellSize / 2 - 0.5;
+        const centerZ = MAP.origin.z + MAP.rows * MAP.cellSize / 2 - 0.5;
+
+        for (let i = 0; i < positions.count; i++) {
+            const x = positions.getX(i) + centerX;
+            const z = positions.getZ(i) + centerZ;
+
+            const boardDx = Math.max(0, Math.abs(x - centerX) - MAP.cols * 0.52);
+            const boardDz = Math.max(0, Math.abs(z - centerZ) - MAP.rows * 0.52);
+            const edgeDistance = Math.sqrt(boardDx * boardDx + boardDz * boardDz);
+            const envelope = THREE.MathUtils.smoothstep(edgeDistance, 0.25, GRAPHICS.terrain.underlayPadding);
+
+            const waveA = Math.sin(x * 0.22) * Math.cos(z * 0.18) * 0.16;
+            const waveB = Math.sin((x + z) * 0.11) * 0.12;
+            const height = (waveA + waveB) * envelope - 0.58;
+            positions.setY(i, height);
+
+            const shade = THREE.MathUtils.clamp(0.42 + envelope * 0.22 + height * 0.12, 0, 1);
+            const low = new THREE.Color(0x102415);
+            const high = new THREE.Color(0x365a31);
+            const color = low.lerp(high, shade);
+            colors[i * 3] = color.r;
+            colors[i * 3 + 1] = color.g;
+            colors[i * 3 + 2] = color.b;
+        }
+
+        terrainGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        terrainGeo.computeVertexNormals();
+
+        const terrainMat = GRAPHICS.isMobile
+            ? new THREE.MeshLambertMaterial({ vertexColors: true })
+            : new THREE.MeshStandardMaterial({
+                vertexColors: true,
+                roughness: 0.98,
+                metalness: 0.01,
+            });
+
+        const terrain = new THREE.Mesh(terrainGeo, terrainMat);
+        terrain.receiveShadow = true;
+        this.scene.add(terrain);
+    }
+
+    private buildBoardFrame(boardPosition: THREE.Vector3): void {
+        const frameGeo = new THREE.BoxGeometry(MAP.cols + 1.35, 0.2, MAP.rows + 1.35);
+        const frame = new THREE.Mesh(
+            frameGeo,
+            new THREE.MeshStandardMaterial({
+                color: 0x0d1b11,
+                roughness: 0.75,
+                metalness: 0.18,
+            })
+        );
+        frame.position.copy(boardPosition);
+        frame.position.y = -0.34;
+        frame.receiveShadow = true;
+        this.scene.add(frame);
+    }
+
+    private buildPathRibbon(): void {
+        const points = MAP.path.map(([c, r]) => {
+            const pos = cellToWorld(c, r);
+            return new THREE.Vector3(pos.x, 0.01, pos.z);
+        });
+
+        const shoulderMat = new THREE.MeshStandardMaterial({
+            color: 0x59422a,
+            roughness: 0.95,
+            metalness: 0.02,
+        });
+        const roadMat = new THREE.MeshStandardMaterial({
+            color: 0xb78b56,
+            roughness: 0.88,
+            metalness: 0.02,
+        });
+        const stripeMat = new THREE.MeshStandardMaterial({
+            color: 0xe2c08a,
+            roughness: 0.7,
+            metalness: 0.04,
+            emissive: 0x453318,
+            emissiveIntensity: 0.06,
+        });
+
+        for (let i = 0; i < points.length - 1; i++) {
+            const from = points[i];
+            const to = points[i + 1];
+            const dx = to.x - from.x;
+            const dz = to.z - from.z;
+            const length = Math.sqrt(dx * dx + dz * dz) + 0.12;
+            const angle = Math.atan2(dx, dz);
+            const mid = new THREE.Vector3().addVectors(from, to).multiplyScalar(0.5);
+
+            this.addRoadSegment(mid, length, 0.86, 0.05, -0.005, angle, shoulderMat);
+            this.addRoadSegment(mid, length, 0.64, 0.04, 0.015, angle, roadMat);
+            this.addRoadSegment(mid, length * 0.88, 0.12, 0.02, 0.04, angle, stripeMat);
+        }
+
+        for (const point of points) {
+            const shoulderCap = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.43, 0.43, 0.05, 18),
+                shoulderMat
+            );
+            shoulderCap.position.copy(point);
+            shoulderCap.position.y = -0.005;
+            shoulderCap.receiveShadow = true;
+            this.scene.add(shoulderCap);
+
+            const roadCap = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.32, 0.32, 0.04, 18),
+                roadMat
+            );
+            roadCap.position.copy(point);
+            roadCap.position.y = 0.015;
+            roadCap.receiveShadow = true;
+            this.scene.add(roadCap);
+        }
+    }
+
+    private addRoadSegment(
+        mid: THREE.Vector3,
+        length: number,
+        width: number,
+        height: number,
+        y: number,
+        angle: number,
+        material: THREE.Material
+    ): void {
+        const segment = new THREE.Mesh(new THREE.BoxGeometry(width, height, length), material);
+        segment.position.copy(mid);
+        segment.position.y = y;
+        segment.rotation.y = angle;
+        segment.receiveShadow = true;
+        this.scene.add(segment);
     }
 
     private buildScenery(): void {
-        const { cols, rows, cellSize, origin } = MAP;
-        
-        // Tree meshes
-        const trunkGeo = new THREE.CylinderGeometry(0.05, 0.08, 0.3, 5);
-        const leavesGeo = new THREE.ConeGeometry(0.3, 0.8, 6);
-        
-        const trunkMat = new THREE.MeshLambertMaterial({ color: 0x4a3b2c });
-        const leavesMat = new THREE.MeshLambertMaterial({ color: 0x2d4c1e });
-        
-        const instances = 400;
-        const trunkMesh = new THREE.InstancedMesh(trunkGeo, trunkMat, instances);
-        const leavesMesh = new THREE.InstancedMesh(leavesGeo, leavesMat, instances);
-        
-        if (GRAPHICS.enableShadows) {
-            trunkMesh.castShadow = true;
-            leavesMesh.castShadow = true;
-        }
+        const { cols, rows, cellSize } = MAP;
+        const trunkGeo = new THREE.CylinderGeometry(0.05, 0.08, 0.36, 6);
+        const leavesGeo = new THREE.ConeGeometry(0.32, 0.9, 7);
+        const rockGeo = new THREE.DodecahedronGeometry(0.18, 0);
 
-        const dummy = new THREE.Object3D();
-        let idx = 0;
+        const trunkMat = new THREE.MeshLambertMaterial({ color: 0x473425 });
+        const leavesPalette = [0x274d27, 0x1e3e21, 0x365c34, 0x204427];
+        const rockPalette = [0x3f4b3b, 0x4b5646, 0x303c31];
 
-        // Border extension
-        const borderSize = 8;
+        const borderSize = 9;
         for (let c = -borderSize; c < cols + borderSize; c++) {
             for (let r = -borderSize; r < rows + borderSize; r++) {
-                if (c >= -1 && c <= cols && r >= -1 && r <= rows) continue; // Leave map area completely clear with a 1-tile buffer
-                
-                if (Math.random() < 0.4 && idx < instances) { // 40% chance
-                    const pos = cellToWorld(c, r);
-                    const xOff = (Math.random() - 0.5) * cellSize;
-                    const zOff = (Math.random() - 0.5) * cellSize;
-                    const scale = 0.8 + Math.random() * 0.6;
-                    
-                    // Trunk
-                    dummy.position.set(pos.x + xOff, 0.15 * scale, pos.z + zOff);
-                    dummy.scale.set(scale, scale, scale);
-                    dummy.rotation.set(0, Math.random() * Math.PI, 0);
-                    dummy.updateMatrix();
-                    trunkMesh.setMatrixAt(idx, dummy.matrix);
-                    
-                    // Leaves
-                    dummy.position.set(pos.x + xOff, 0.6 * scale, pos.z + zOff);
-                    dummy.updateMatrix();
-                    leavesMesh.setMatrixAt(idx, dummy.matrix);
-                    
-                    idx++;
+                if (c >= -1 && c <= cols && r >= -1 && r <= rows) continue;
+
+                const pos = cellToWorld(c, r);
+                const xOff = (Math.random() - 0.5) * cellSize * 0.9;
+                const zOff = (Math.random() - 0.5) * cellSize * 0.9;
+
+                if (Math.random() < 0.34) {
+                    const scale = 0.75 + Math.random() * 0.8;
+                    const tree = new THREE.Group();
+                    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+                    const leaves = new THREE.Mesh(
+                        leavesGeo,
+                        new THREE.MeshLambertMaterial({ color: leavesPalette[(c + r + 16) % leavesPalette.length] })
+                    );
+                    trunk.position.y = 0.18 * scale;
+                    leaves.position.y = 0.75 * scale;
+                    trunk.scale.setScalar(scale);
+                    leaves.scale.setScalar(scale);
+                    tree.add(trunk);
+                    tree.add(leaves);
+                    tree.position.set(pos.x + xOff, 0, pos.z + zOff);
+                    tree.rotation.y = Math.random() * Math.PI * 2;
+                    tree.traverse((child) => {
+                        if (child instanceof THREE.Mesh && GRAPHICS.enableShadows) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                        }
+                    });
+                    this.scene.add(tree);
+                } else if (Math.random() < 0.12) {
+                    const rock = new THREE.Mesh(
+                        rockGeo,
+                        new THREE.MeshStandardMaterial({
+                            color: rockPalette[(c * 3 + r + 9) % rockPalette.length],
+                            roughness: 0.96,
+                            metalness: 0.03,
+                        })
+                    );
+                    rock.scale.setScalar(0.8 + Math.random() * 1.4);
+                    rock.position.set(pos.x + xOff, -0.15, pos.z + zOff);
+                    rock.rotation.set(Math.random(), Math.random() * Math.PI * 2, Math.random());
+                    rock.castShadow = GRAPHICS.enableShadows;
+                    rock.receiveShadow = true;
+                    this.scene.add(rock);
                 }
             }
         }
-        
-        trunkMesh.count = idx;
-        leavesMesh.count = idx;
-        
-        this.scene.add(trunkMesh);
-        this.scene.add(leavesMesh);
+    }
+
+    private buildDistantSilhouettes(): void {
+        const ridgeGeo = new THREE.ConeGeometry(2.8, 6.5, 4);
+        const ridgeMat = new THREE.MeshStandardMaterial({
+            color: 0x102318,
+            roughness: 0.95,
+            metalness: 0.01,
+        });
+        const radiusX = MAP.cols * 0.75;
+        const radiusZ = MAP.rows * 0.95;
+        const centerX = MAP.origin.x + MAP.cols * MAP.cellSize / 2 - 0.5;
+        const centerZ = MAP.origin.z + MAP.rows * MAP.cellSize / 2 - 0.5;
+
+        for (let i = 0; i < 18; i++) {
+            const t = (i / 18) * Math.PI * 2;
+            const ridge = new THREE.Mesh(ridgeGeo, ridgeMat);
+            ridge.position.set(
+                centerX + Math.cos(t) * (radiusX + 10 + Math.random() * 5),
+                1.8 + Math.random() * 0.9,
+                centerZ + Math.sin(t) * (radiusZ + 10 + Math.random() * 5)
+            );
+            ridge.scale.setScalar(0.8 + Math.random() * 1.2);
+            ridge.rotation.y = Math.random() * Math.PI * 2;
+            ridge.castShadow = false;
+            ridge.receiveShadow = true;
+            this.scene.add(ridge);
+        }
     }
 }

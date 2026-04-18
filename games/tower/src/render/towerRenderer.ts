@@ -32,7 +32,7 @@ export class TowerRenderer {
     private scene: THREE.Scene;
     private meshes = new Map<number, THREE.Group>();
     private sellingTowers = new Set<{ group: THREE.Group, timer: number, maxTimer: number }>();
-    private rangeRing: THREE.Mesh | null = null;
+    private rangeRing: THREE.Group | null = null;
     private time = 0;
 
     constructor(scene: THREE.Scene) {
@@ -115,12 +115,22 @@ export class TowerRenderer {
                     const bump = 1.0 + t * 0.15; // 1.15 max
                     if (parts.turretGroup) {
                         parts.turretGroup.scale.set(bump, bump, bump);
+                        parts.turretGroup.position.z = -0.09 * t;
                     } else {
                         group.scale.set(bump, bump, bump);
                     }
+                    if (parts.energyRingMaterial) {
+                        parts.energyRingMaterial.emissiveIntensity = 0.3 + t * 0.65;
+                    }
                 } else {
-                    if (parts.turretGroup) parts.turretGroup.scale.set(1, 1, 1);
+                    if (parts.turretGroup) {
+                        parts.turretGroup.scale.set(1, 1, 1);
+                        parts.turretGroup.position.z = 0;
+                    }
                     group.scale.set(1, 1, 1);
+                    if (parts.energyRingMaterial) {
+                        parts.energyRingMaterial.emissiveIntensity = 0.22 + Math.sin(this.time * 2.5) * 0.08;
+                    }
                 }
             }
 
@@ -182,20 +192,64 @@ export class TowerRenderer {
 
     showRange(tower: Tower, range: number): void {
         if (!this.rangeRing) {
-            const geo = new THREE.RingGeometry(0.95, 1.0, 48);
-            const mat = new THREE.MeshBasicMaterial({
-                color: 0xffffff,
-                transparent: true,
-                opacity: 0.2,
-                side: THREE.DoubleSide,
-                depthWrite: false,
-            });
-            this.rangeRing = new THREE.Mesh(geo, mat);
-            this.rangeRing.rotation.x = -Math.PI / 2;
+            this.rangeRing = new THREE.Group();
+
+            const outer = new THREE.Mesh(
+                new THREE.RingGeometry(0.92, 1.0, 64),
+                new THREE.MeshBasicMaterial({
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: 0.16,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
+                })
+            );
+            outer.rotation.x = -Math.PI / 2;
+
+            const inner = new THREE.Mesh(
+                new THREE.RingGeometry(0.6, 0.66, 64),
+                new THREE.MeshBasicMaterial({
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: 0.08,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
+                })
+            );
+            inner.rotation.x = -Math.PI / 2;
+
+            const pulse = new THREE.Mesh(
+                new THREE.CircleGeometry(0.98, 48),
+                new THREE.MeshBasicMaterial({
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: 0.04,
+                    side: THREE.DoubleSide,
+                    depthWrite: false,
+                })
+            );
+            pulse.rotation.x = -Math.PI / 2;
+            pulse.position.y = -0.002;
+            this.rangeRing.add(outer, inner, pulse);
+            this.rangeRing.userData = { outer, inner, pulse };
             this.scene.add(this.rangeRing);
         }
+
+        const rangeColor = ACCENT_COLORS[tower.type] ?? 0xffffff;
+        const userData = this.rangeRing.userData as {
+            outer: THREE.Mesh;
+            inner: THREE.Mesh;
+            pulse: THREE.Mesh;
+        };
+        (userData.outer.material as THREE.MeshBasicMaterial).color.setHex(rangeColor);
+        (userData.inner.material as THREE.MeshBasicMaterial).color.setHex(rangeColor);
+        (userData.pulse.material as THREE.MeshBasicMaterial).color.setHex(rangeColor);
+
+        const pulseScale = 1 + Math.sin(this.time * 3.2) * 0.06;
+        userData.pulse.scale.setScalar(pulseScale);
+        userData.pulse.position.y = 0.002;
         this.rangeRing.scale.set(range, range, 1);
-        this.rangeRing.position.set(tower.worldX, 0.02, tower.worldZ);
+        this.rangeRing.position.set(tower.worldX, 0.03, tower.worldZ);
         this.rangeRing.visible = true;
     }
 
@@ -212,6 +266,20 @@ export class TowerRenderer {
         const accentColor = ACCENT_COLORS[tower.type];
         const scale = 1 + tower.level * 0.15;
 
+        const shadow = new THREE.Mesh(
+            new THREE.CircleGeometry(0.46 * scale, 24),
+            new THREE.MeshBasicMaterial({
+                color: 0x000000,
+                transparent: true,
+                opacity: 0.18,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+            })
+        );
+        shadow.rotation.x = -Math.PI / 2;
+        shadow.position.y = 0.008;
+        group.add(shadow);
+
         // Base definition
         const baseGroup = new THREE.Group();
         const baseGeo = new THREE.CylinderGeometry(0.3 * scale, 0.38 * scale, 0.2, 8);
@@ -227,6 +295,24 @@ export class TowerRenderer {
         rimMesh.position.y = 0.225;
         if (GRAPHICS.enableShadows) rimMesh.castShadow = true;
         baseGroup.add(rimMesh);
+
+        const energyRingMaterial = new THREE.MeshStandardMaterial({
+            color: accentColor,
+            emissive: accentColor,
+            emissiveIntensity: 0.22,
+            transparent: true,
+            opacity: 0.9,
+            roughness: 0.35,
+            metalness: 0.2,
+        });
+        const energyRing = new THREE.Mesh(
+            new THREE.TorusGeometry(0.29 * scale, 0.03 * scale, 8, 24),
+            energyRingMaterial
+        );
+        energyRing.rotation.x = Math.PI / 2;
+        energyRing.position.y = 0.24;
+        baseGroup.add(energyRing);
+        group.userData.energyRingMaterial = energyRingMaterial;
 
         group.add(baseGroup);
 

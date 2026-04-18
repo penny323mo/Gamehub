@@ -1493,10 +1493,18 @@
    * Called by online.js when the room state changes.
    * myRole: 'player1' | 'player2'
    */
-  window.snookerOnlineRoomUpdate = function({ status, players, myRole } = {}) {
+  window.snookerOnlineRoomUpdate = function({ status, players, myRole, room } = {}) {
     if (status === 'playing') {
-      if (state.mode === 'online') return; // already started, prevent double reset
+      const incomingRoomId = room?.id || window.__snooker2dOnlineRoomId || null;
+      const incomingRoundId = Number.isFinite(room?.round_id) ? room.round_id : window.__snooker2dOnlineRoundId ?? null;
+      const alreadyStartedSameOnlineMatch = state.mode === 'online' &&
+        !state.isComplete &&
+        (!incomingRoomId || incomingRoomId === window.__snooker2dOnlineRoomId) &&
+        (incomingRoundId === null || incomingRoundId === window.__snooker2dOnlineRoundId);
+      if (alreadyStartedSameOnlineMatch) return;
       state.mode = 'online';
+      window.__snooker2dOnlineRoomId = incomingRoomId;
+      window.__snooker2dOnlineRoundId = incomingRoundId;
       // Map room roles to local/remote names
       const localIdx  = myRole === 'player2' ? 1 : 0;
       const remoteIdx = 1 - localIdx;
@@ -1525,6 +1533,8 @@
     } else if (status === 'left') {
       // Reset to offline mode
       state.mode = 'practice';
+      window.__snooker2dOnlineRoomId = null;
+      window.__snooker2dOnlineRoundId = null;
       modeSelect.value = 'practice';
       updateStatus();
     }

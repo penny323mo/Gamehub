@@ -7,7 +7,7 @@ import { tickEnemies } from './core/systems/enemySystem';
 import { tickTowers } from './core/systems/towerSystem';
 import { tickCombat } from './core/systems/combatSystem';
 import { buildTower, canBuild, upgradeTower, sellTower, getSellValue, canUpgrade, evolveTower } from './core/systems/economySystem';
-import type { GameState, TowerType, Tower, TargetingMode, Difficulty, Enemy } from './core/types';
+import type { GameState, TowerType, Tower, TargetingMode, Difficulty, Enemy, Projectile } from './core/types';
 import { killEnemy } from './core/systems/killSystem';
 import { bus } from './core/systems/eventBus';
 import { SceneManager } from './render/sceneManager';
@@ -44,7 +44,7 @@ renderer.toneMappingExposure = 1.1;
 const sm = new SceneManager();
 const camCtrl = new CameraController();
 const camera = camCtrl.cam;
-setupLighting(sm.scene);
+const lightingRig = setupLighting(sm.scene);
 sm.buildGround();
 
 const towerRenderer = new TowerRenderer(sm.scene);
@@ -96,6 +96,17 @@ bus.on('towerSold', e => {
     if (inspectedTower && inspectedTower.id === e.towerId) {
         hideTowerPanel();
     }
+});
+bus.on('enemyKilled', e => {
+    const killedEnemy = state.enemies.find(enemy => enemy.id === e.enemyId);
+    const deathColor = killedEnemy?.type === 'boss'
+        ? 0xff9a4d
+        : killedEnemy?.type === 'shield'
+            ? 0x6cd3ff
+            : killedEnemy?.type === 'healer'
+                ? 0xff9bd0
+                : 0xff8f59;
+    fxRenderer.addDeathEffect(e.worldX, e.worldZ, deathColor);
 });
 
 const goldEl = document.getElementById('gold-val')!;
@@ -737,7 +748,7 @@ let lastTime = 0;
 let accumulator = 0;
 let lastWave = -1;
 
-let prevProjectileIds = new Set<number>();
+type ProjectileSnapshot = Pick<Projectile, 'id' | 'targetX' | 'targetZ' | 'towerType'>;
 
 function renderScene() {
     if (postProcessor) {
@@ -752,8 +763,10 @@ function gameLoop(time: number): void {
 
     const rawDt = Math.min((time - lastTime) / 1000, 0.1);
     lastTime = time;
+    const elapsedSec = time * 0.001;
 
     if (state.phase === 'idle') {
+        lightingRig.update(elapsedSec);
         renderScene();
         return;
     }
@@ -762,12 +775,14 @@ function gameLoop(time: number): void {
         if (endScreen.classList.contains('hidden')) {
             showEndScreen();
         }
+        lightingRig.update(elapsedSec);
         renderScene();
         return;
     }
 
     // Pause gate
     if (state.paused) {
+        lightingRig.update(elapsedSec);
         renderScene();
         return;
     }
@@ -778,21 +793,22 @@ function gameLoop(time: number): void {
     const MAX_STEPS = 5;
     if (accumulator > LOGIC_DT * MAX_STEPS) accumulator = LOGIC_DT * MAX_STEPS;
 
+    const projectileSnapshot = new Map<number, ProjectileSnapshot>();
+    for (const projectile of state.projectiles) {
+        projectileSnapshot.set(projectile.id, {
+            id: projectile.id,
+            targetX: projectile.targetX,
+            targetZ: projectile.targetZ,
+            towerType: projectile.towerType,
+        });
+    }
+
     // Fixed-step logic
     while (accumulator >= LOGIC_DT) {
-        const currentProjIds = new Set(state.projectiles.map(p => p.id));
-
         tickWave(state, LOGIC_DT);
         tickEnemies(state, LOGIC_DT);
         tickTowers(state, LOGIC_DT);
         tickCombat(state, LOGIC_DT);
-
-        for (const id of prevProjectileIds) {
-            if (!state.projectiles.find(p => p.id === id)) {
-                // projectile hit — FX handled by fxRenderer
-            }
-        }
-        prevProjectileIds = new Set(state.projectiles.map(p => p.id));
 
         accumulator -= LOGIC_DT;
 
@@ -849,11 +865,17 @@ function gameLoop(time: number): void {
     }
 
     // Render sync
+    for (const [projectileId, snapshot] of projectileSnapshot.entries()) {
+        if (!state.projectiles.find(projectile => projectile.id === projectileId)) {
+            fxRenderer.addExplosion(snapshot.targetX, snapshot.targetZ, snapshot.towerType);
+        }
+    }
     towerRenderer.animate(rawDt, state);
     enemyRenderer.sync(state, 0, camera);  // C — pass camera for billboard bars
     fxRenderer.sync(state, dt);
     projectileRenderer.sync(state, dt);
     syncFloatingTexts(rawDt);
+    lightingRig.update(elapsedSec);
 
     // Update HUD
     updateHUD();

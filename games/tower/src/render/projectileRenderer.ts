@@ -26,6 +26,12 @@ export class ProjectileRenderer {
             // Update position
             mesh.position.set(proj.x, proj.y !== undefined ? proj.y : 0.8, proj.z);
 
+            const glow = (mesh.userData.glow as THREE.Mesh | undefined) ?? null;
+            if (glow) {
+                const pulse = 1 + Math.sin(performance.now() * 0.02 + proj.id) * 0.12;
+                glow.scale.setScalar(pulse);
+            }
+
             // Update rotation to look along the path of travel
             if (proj.towerType !== 'cannon' && proj.towerType !== 'fire' && proj.towerType !== 'poison') {
                 const totalDx = proj.targetX - proj.startX;
@@ -49,6 +55,10 @@ export class ProjectileRenderer {
                 mesh.rotation.x += dt * 5;
                 mesh.rotation.z += dt * 3;
             }
+
+            if (proj.towerType === 'sniper') {
+                mesh.scale.z = 1.15 + Math.sin(performance.now() * 0.03 + proj.id) * 0.08;
+            }
         }
 
         // Cleanup dead projectiles
@@ -62,8 +72,9 @@ export class ProjectileRenderer {
 
     private createProjectileMesh(type: TowerType): THREE.Object3D {
         const group = new THREE.Group();
+        const normalizedType = type === 'arrow_rapid' || type === 'arrow_pierce' ? 'arrow' : type;
 
-        switch (type) {
+        switch (normalizedType) {
             case 'arrow': {
                 // Wooden shaft
                 const shaftGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.6, 6);
@@ -86,10 +97,25 @@ export class ProjectileRenderer {
                 // Feathers (fletching)
                 const fletchGeo = new THREE.BoxGeometry(0.15, 0.15, 0.1);
                 fletchGeo.translate(0, 0, 0.3); // back
-                const fletchMat = new THREE.MeshLambertMaterial({ color: 0xdd2222 });
+                const fletchColor = type === 'arrow_pierce' ? 0x7d9cff : type === 'arrow_rapid' ? 0xfff4b0 : 0xdd2222;
+                const fletchMat = new THREE.MeshLambertMaterial({ color: fletchColor });
                 const fletch = new THREE.Mesh(fletchGeo, fletchMat);
 
                 group.add(shaft, head, fletch);
+
+                if (type === 'arrow_pierce' || type === 'arrow_rapid') {
+                    const glow = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.12, 8, 8),
+                        new THREE.MeshBasicMaterial({
+                            color: type === 'arrow_pierce' ? 0x98aaff : 0xffee99,
+                            transparent: true,
+                            opacity: 0.22,
+                        })
+                    );
+                    glow.position.z = 0.08;
+                    group.add(glow);
+                    group.userData.glow = glow;
+                }
                 break;
             }
             case 'cannon': {
@@ -112,6 +138,7 @@ export class ProjectileRenderer {
                 const glowGeo = new THREE.SphereGeometry(0.25, 8, 8);
                 const glow = new THREE.Mesh(glowGeo, glowMat);
                 group.add(glow);
+                group.userData.glow = glow;
                 break;
             }
             case 'poison': {
@@ -130,6 +157,13 @@ export class ProjectileRenderer {
                 geo.rotateX(-Math.PI / 2); // point along -Z
                 const mesh = new THREE.Mesh(geo, mat);
                 group.add(mesh);
+
+                const halo = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.18, 8, 8),
+                    new THREE.MeshBasicMaterial({ color: 0xbef3ff, transparent: true, opacity: 0.16 })
+                );
+                group.add(halo);
+                group.userData.glow = halo;
                 break;
             }
             case 'sniper': {
@@ -139,15 +173,32 @@ export class ProjectileRenderer {
                 geo.rotateX(Math.PI / 2); // along Z
                 const mesh = new THREE.Mesh(geo, mat);
                 group.add(mesh);
+
+                const tracer = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.06, 0.06, 1.6, 8),
+                    new THREE.MeshBasicMaterial({ color: 0x88bbff, transparent: true, opacity: 0.14 })
+                );
+                tracer.rotateX(Math.PI / 2);
+                tracer.position.z = 0.08;
+                group.add(tracer);
+                group.userData.glow = tracer;
                 break;
             }
             case 'lightning': {
-                // Basic white needle
-                const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-                const geo = new THREE.CylinderGeometry(0.015, 0.015, 0.8, 4);
-                geo.rotateX(Math.PI / 2); // along Z
-                const mesh = new THREE.Mesh(geo, mat);
-                group.add(mesh);
+                const core = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.018, 0.018, 0.9, 5),
+                    new THREE.MeshBasicMaterial({ color: 0xffffff })
+                );
+                core.rotateX(Math.PI / 2);
+                group.add(core);
+
+                const halo = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.065, 0.065, 1.1, 8),
+                    new THREE.MeshBasicMaterial({ color: 0xfff5a5, transparent: true, opacity: 0.18 })
+                );
+                halo.rotateX(Math.PI / 2);
+                group.add(halo);
+                group.userData.glow = halo;
                 break;
             }
         }

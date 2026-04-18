@@ -28,14 +28,44 @@ const forceMobile = urlParams.get('mobile') === '1' || urlParams.get('forceMobil
 const isTouchDevice = forceMobile || 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 console.log('[Device] isTouchDevice:', isTouchDevice, 'forceMobile:', forceMobile);
 
+function announce3dRuntimeIssue(message, type = 'error') {
+  if (window.showOnlineToast) {
+    window.showOnlineToast(message, type, 4500);
+  } else {
+    console[type === 'info' ? 'log' : 'error'](message);
+  }
+}
+
+function createRendererWithFallback(canvasEl) {
+  const candidates = [
+    { antialias: true, alpha: false, powerPreference: 'high-performance' },
+    { antialias: false, alpha: false, powerPreference: 'low-power', failIfMajorPerformanceCaveat: false, stencil: false },
+  ];
+  let lastError = null;
+  for (const options of candidates) {
+    try {
+      return new THREE.WebGLRenderer({ canvas: canvasEl, ...options });
+    } catch (error) {
+      lastError = error;
+      console.warn('[Snooker3D] WebGL renderer init failed, retrying with safer settings:', error);
+    }
+  }
+  announce3dRuntimeIssue('3D 初始化失敗，請重新整理或改用 2D 版');
+  throw lastError;
+}
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x20242a);
 
-const renderer = new THREE.WebGLRenderer({
-  canvas,
-  antialias: true,
-  alpha: false,
-});
+const renderer = createRendererWithFallback(canvas);
+canvas.addEventListener('webglcontextlost', (event) => {
+  event.preventDefault();
+  announce3dRuntimeIssue('3D 畫面失去連線，請重新整理頁面');
+}, false);
+canvas.addEventListener('webglcontextrestored', () => {
+  announce3dRuntimeIssue('3D 畫面已恢復，正在重新載入', 'info');
+  window.location.reload();
+}, false);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputEncoding = THREE.sRGBEncoding;
@@ -5217,8 +5247,13 @@ window.snookerApplyRemoteStateSnapshot = function(snapshot, meta) {
 // Called by online.js when the Supabase room state changes.
 window.snookerOnlineRoomUpdate = function ({ status, players, myRole, room } = {}) {
   if (status === 'playing') {
-    // Guard against duplicate calls (direct callback + realtime both firing).
-    if (gameStarted) return;
+    const incomingRoomId = room?.id || window.__snookerOnlineRoomId || null;
+    const incomingRoundId = Number.isFinite(room?.round_id) ? room.round_id : window.__snookerOnlineRoundId ?? null;
+    const alreadyStartedSameOnlineMatch = window.isOnlineMode && gameStarted &&
+      !gameOver &&
+      (!incomingRoomId || incomingRoomId === window.__snookerOnlineRoomId) &&
+      (incomingRoundId === null || incomingRoundId === window.__snookerOnlineRoundId);
+    if (alreadyStartedSameOnlineMatch) return;
     const localP1Name = Array.isArray(players) && players[0]?.name ? players[0].name : null;
     const localP2Name = Array.isArray(players) && players[1]?.name ? players[1].name : null;
     if (Array.isArray(players)) {
@@ -5228,6 +5263,8 @@ window.snookerOnlineRoomUpdate = function ({ status, players, myRole, room } = {
     // Set online flags before resetGame so canTakeShot() guards correctly
     window.isOnlineMode       = true;
     window.onlineMyPlayerIndex = myRole === 'player2' ? 1 : 0;
+    window.__snookerOnlineRoomId = incomingRoomId;
+    window.__snookerOnlineRoundId = incomingRoundId;
     resetGame({ startNow: true, aiMode: false });
     if (localP1Name) playerNames[0] = localP1Name;
     if (localP2Name) playerNames[1] = localP2Name;
@@ -5246,6 +5283,8 @@ window.snookerOnlineRoomUpdate = function ({ status, players, myRole, room } = {
   } else if (status === 'left') {
     window.isOnlineMode        = false;
     window.onlineMyPlayerIndex = 0;
+    window.__snookerOnlineRoomId = null;
+    window.__snookerOnlineRoundId = null;
     gameStarted                = false;
     gameOver                   = false;
     setStatus('已返回離線模式。', 3);

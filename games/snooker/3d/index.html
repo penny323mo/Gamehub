@@ -133,6 +133,12 @@
     // Init online module immediately (scripts are sync, DOM is ready at this point)
     if (window.initSnookerOnline) window.initSnookerOnline({ gameMode: '3d' });
 
+    const clearPendingJoinFlags = () => {
+      sessionStorage.removeItem('snooker_pending_room');
+      sessionStorage.removeItem('snooker_pending_mode');
+      sessionStorage.removeItem('snooker_pending_ts');
+    };
+
     // "線上對戰" button opens the lobby overlay
     document.getElementById('online-battle-btn').addEventListener('click', () => {
       document.getElementById('snooker3d-online-overlay').classList.remove('hidden');
@@ -140,16 +146,21 @@
 
     // Auto-connect when redirected from the snooker lobby (index.html)
     const _pendingRoom = sessionStorage.getItem('snooker_pending_room');
-    if (_pendingRoom && sessionStorage.getItem('snooker_pending_mode') === '3d') {
+    const _activeRoom = sessionStorage.getItem('snooker_active_room');
+    const _autoJoinRoom = (_pendingRoom && sessionStorage.getItem('snooker_pending_mode') === '3d')
+      ? _pendingRoom
+      : _activeRoom;
+    if (_autoJoinRoom) {
       // Show the overlay so the user sees the room state while the game
       // initialises, then snookerOnlineRoomUpdate('playing') hides it.
       document.getElementById('snooker3d-online-overlay').classList.remove('hidden');
-      setTimeout(() => {
-        // Clear ALL handoff flags AFTER join starts — also suppresses old page beforeunload
-        sessionStorage.removeItem('snooker_pending_room');
-        sessionStorage.removeItem('snooker_pending_mode');
-        sessionStorage.removeItem('snooker_pending_ts');
-        if (window.snookerJoinRoom) window.snookerJoinRoom(_pendingRoom);
+      setTimeout(async () => {
+        if (!window.snookerJoinRoom) return;
+        const joined = await window.snookerJoinRoom(_autoJoinRoom);
+        if (joined && _pendingRoom && _autoJoinRoom === _pendingRoom) {
+          // Clear the redirect handoff only after the target page has rejoined.
+          clearPendingJoinFlags();
+        }
       }, 300);
     }
   </script>

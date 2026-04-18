@@ -27,6 +27,8 @@ let FIXED_ROOMS = FIXED_ROOMS_MAP['2d'];
 const SHOT_POLL_MS = 1500;
 const ROOM_POLL_MS = 1000;
 const MAX_APPLIED_EVENT_IDS = 500;
+const WAITING_ROOM_STALE_MS = 90_000;
+const ACTIVE_ROOM_STALE_MS = 5 * 60_000;
 
 const SnookerOnline = {
     sbClient:        null,
@@ -46,6 +48,8 @@ const SnookerOnline = {
     currentRoundId:  null,
     hasSeat:         false,
     gameMode:        '2d',
+    tabId:           null,
+    clientClaimInterval: null,
 };
 
 function buildShotEnvelope(kind, payload) {
@@ -75,6 +79,433 @@ function isShotPayloadForCurrentRound(payload) {
 
 function getShotPayload(rawShot) {
     return rawShot?.payload || rawShot || null;
+}
+
+function isRpcMissing(error) {
+    return error?.code === 'PGRST202' || error?.message?.includes('Could not find');
+}
+
+function parseTimestampMs(value) {
+    if (!value) return null;
+    const ts = new Date(value).getTime();
+    return Number.isFinite(ts) ? ts : null;
+}
+
+function isTimestampOlderThan(value, thresholdMs) {
+    const ts = parseTimestampMs(value);
+    return ts !== null && (Date.now() - ts) > thresholdMs;
+}
+
+function isSeatHeartbeatStale(room, role, thresholdMs = WAITING_ROOM_STALE_MS) {
+    if (!room) return false;
+    const isP1 = role === 'player1';
+    const seatId = isP1 ? room.player1_id : room.player2_id;
+    const lastSeen = isP1 ? room.p1_last_seen_at : room.p2_last_seen_at;
+    return Boolean(seatId) && isTimestampOlderThan(lastSeen, thresholdMs);
+}
+
+function isRoomAbandoned(room, thresholdMs = ACTIVE_ROOM_STALE_MS) {
+    if (!room || room.status === 'waiting') return false;
+    const lastActivityStale = isTimestampOlderThan(room.last_activity_at, thresholdMs);
+    const p1Stale = !room.player1_id || isSeatHeartbeatStale(room, 'player1', thresholdMs);
+    const p2Stale = !room.player2_id || isSeatHeartbeatStale(room, 'player2', thresholdMs);
+    return lastActivityStale && p1Stale && p2Stale;
+}
+
+async function fetchRoomById(roomId) {
+    if (!SnookerOnline.sbClient || !roomId) {
+        return { ok: false, reason: 'not_connected' };
+    }
+    const { data, error } = await SnookerOnline.sbClient
+        .from('snooker_rooms')
+        .select('*')
+        .eq('id', roomId)
+        .single();
+    if (error || !data) {
+        return { ok: false, reason: error?.message || 'room_not_found' };
+    }
+    return { ok: true, room: data };
+}
+
+async function deleteRoomShotsDirect(roomId) {
+    if (!SnookerOnline.sbClient || !roomId) return;
+    const { error } = await SnookerOnline.sbClient.from('snooker_shots')
+        .delete()
+        .eq('room_id', roomId);
+    if (error) {
+        console.warn('[SnookerOnline] direct shot cleanup skipped:', error.message);
+    }
+}
+
+async function reclaimAbandonedRoomDirect(room) {
+    if (!SnookerOnline.sbClient || !room?.id || !isRoomAbandoned(room)) {
+        return { ok: false, reason: 'not_abandoned' };
+    }
+
+    const staleCutoffIso = new Date(Date.now() - ACTIVE_ROOM_STALE_MS).toISOString();
+    const nextRoundId = (room.round_id || 0) + 1;
+    const resetPayload = {
+        status: 'waiting',
+        player1_id: null,
+        player2_id: null,
+        player1_name: null,
+        player2_name: null,
+        player1_ready: false,
+        player2_ready: false,
+        p1_last_seen_at: null,
+        p2_last_seen_at: null,
+        current_turn: null,
+        winner: null,
+        finished_reason: null,
+        finished_at: null,
+        round_id: nextRoundId,
+        last_activity_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await SnookerOnline.sbClient.from('snooker_rooms')
+        .update(resetPayload)
+        .eq('id', room.id)
+        .lt('last_activity_at', staleCutoffIso)
+        .select();
+
+    if (error) {
+        return { ok: false, reason: error.message || 'reset_failed' };
+    }
+    if (!data?.length) {
+        return { ok: false, reason: 'stale_guard_rejected' };
+    }
+
+    await deleteRoomShotsDirect(room.id);
+    return { ok: true, room: data[0] };
+}
+
+async function joinRoomDirect(room, playerName) {
+    if (!SnookerOnline.sbClient || !room?.id) {
+        return { ok: false, reason: 'not_connected' };
+    }
+
+    let freshRoom = room;
+    if (isRoomAbandoned(freshRoom)) {
+        const reclaimed = await reclaimAbandonedRoomDirect(freshRoom);
+        if (reclaimed.ok) {
+            freshRoom = reclaimed.room;
+        } else {
+            const refetched = await fetchRoomById(room.id);
+            if (refetched.ok) freshRoom = refetched.room;
+        }
+    }
+
+    const nowIso = new Date().toISOString();
+    const wasAlreadyMember = freshRoom.player1_id === SnookerOnline.clientId ||
+        freshRoom.player2_id === SnookerOnline.clientId;
+    const originalStatus = freshRoom.status;
+    let role = null;
+    let claimedRoom = null;
+
+    if (freshRoom.player1_id === SnookerOnline.clientId) {
+        role = 'player1';
+        const { data, error } = await SnookerOnline.sbClient.from('snooker_rooms')
+            .update({
+                player1_name: playerName,
+                p1_last_seen_at: nowIso,
+                last_activity_at: nowIso,
+            })
+            .eq('id', freshRoom.id)
+            .eq('player1_id', SnookerOnline.clientId)
+            .select();
+        if (error || !data?.length) {
+            return { ok: false, reason: error?.message || 'rejoin_failed' };
+        }
+        claimedRoom = data[0];
+    } else if (freshRoom.player2_id === SnookerOnline.clientId) {
+        role = 'player2';
+        const { data, error } = await SnookerOnline.sbClient.from('snooker_rooms')
+            .update({
+                player2_name: playerName,
+                p2_last_seen_at: nowIso,
+                last_activity_at: nowIso,
+            })
+            .eq('id', freshRoom.id)
+            .eq('player2_id', SnookerOnline.clientId)
+            .select();
+        if (error || !data?.length) {
+            return { ok: false, reason: error?.message || 'rejoin_failed' };
+        }
+        claimedRoom = data[0];
+    } else if (!freshRoom.player1_id) {
+        role = 'player1';
+        const { data, error } = await SnookerOnline.sbClient.from('snooker_rooms')
+            .update({
+                player1_id: SnookerOnline.clientId,
+                player1_name: playerName,
+                player1_ready: false,
+                p1_last_seen_at: nowIso,
+                last_activity_at: nowIso,
+            })
+            .eq('id', freshRoom.id)
+            .is('player1_id', null)
+            .select();
+        if (error) {
+            return { ok: false, reason: error.message || 'claim_failed' };
+        }
+        if (!data?.length) {
+            return { ok: false, reason: 'room_full' };
+        }
+        claimedRoom = data[0];
+    } else if (!freshRoom.player2_id) {
+        role = 'player2';
+        const { data, error } = await SnookerOnline.sbClient.from('snooker_rooms')
+            .update({
+                player2_id: SnookerOnline.clientId,
+                player2_name: playerName,
+                player2_ready: false,
+                p2_last_seen_at: nowIso,
+                last_activity_at: nowIso,
+            })
+            .eq('id', freshRoom.id)
+            .is('player2_id', null)
+            .select();
+        if (error) {
+            return { ok: false, reason: error.message || 'claim_failed' };
+        }
+        if (!data?.length) {
+            return { ok: false, reason: 'room_full' };
+        }
+        claimedRoom = data[0];
+    } else {
+        return { ok: false, reason: 'room_full' };
+    }
+
+    if (!claimedRoom) {
+        return { ok: false, reason: 'claim_failed' };
+    }
+
+    if (!wasAlreadyMember && originalStatus !== 'waiting') {
+        const { data, error } = await SnookerOnline.sbClient.from('snooker_rooms')
+            .update({
+                status: 'waiting',
+                player1_ready: false,
+                player2_ready: false,
+                current_turn: null,
+                winner: null,
+                finished_reason: null,
+                finished_at: null,
+                round_id: (claimedRoom.round_id || 0) + 1,
+                last_activity_at: nowIso,
+            })
+            .eq('id', claimedRoom.id)
+            .select();
+        if (!error && data?.length) {
+            claimedRoom = data[0];
+        }
+        await deleteRoomShotsDirect(claimedRoom.id);
+    }
+
+    return { ok: true, role, room: claimedRoom };
+}
+
+async function toggleReadyDirect() {
+    const fresh = await fetchRoomById(SnookerOnline.roomUuid);
+    if (!fresh.ok) return fresh;
+
+    const room = fresh.room;
+    const nowIso = new Date().toISOString();
+    let readyColumn = null;
+    let seatColumn = null;
+    let seenColumn = null;
+
+    if (room.player1_id === SnookerOnline.clientId) {
+        readyColumn = 'player1_ready';
+        seatColumn = 'player1_id';
+        seenColumn = 'p1_last_seen_at';
+    } else if (room.player2_id === SnookerOnline.clientId) {
+        readyColumn = 'player2_ready';
+        seatColumn = 'player2_id';
+        seenColumn = 'p2_last_seen_at';
+    } else {
+        return { ok: false, reason: 'unauthorized' };
+    }
+
+    const nextReady = !Boolean(room[readyColumn]);
+    const { data, error } = await SnookerOnline.sbClient.from('snooker_rooms')
+        .update({
+            [readyColumn]: nextReady,
+            [seenColumn]: nowIso,
+            last_activity_at: nowIso,
+        })
+        .eq('id', room.id)
+        .eq(seatColumn, SnookerOnline.clientId)
+        .eq(readyColumn, room[readyColumn])
+        .select();
+
+    if (error) {
+        return { ok: false, reason: error.message || 'toggle_ready_failed' };
+    }
+    return { ok: true, room: data?.[0] || room };
+}
+
+async function pingRoomDirect() {
+    if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid || !SnookerOnline.playerRole) {
+        return { ok: false, reason: 'not_connected' };
+    }
+
+    const nowIso = new Date().toISOString();
+    const isP1 = SnookerOnline.playerRole === 'player1';
+    const seatColumn = isP1 ? 'player1_id' : 'player2_id';
+    const seenColumn = isP1 ? 'p1_last_seen_at' : 'p2_last_seen_at';
+    const { error } = await SnookerOnline.sbClient.from('snooker_rooms')
+        .update({
+            [seenColumn]: nowIso,
+            last_activity_at: nowIso,
+        })
+        .eq('id', SnookerOnline.roomUuid)
+        .eq(seatColumn, SnookerOnline.clientId);
+
+    if (error) {
+        return { ok: false, reason: error.message || 'ping_failed' };
+    }
+    return { ok: true };
+}
+
+async function exitRoomDirect(room) {
+    if (!SnookerOnline.sbClient || !room?.id) {
+        return { ok: false, reason: 'not_connected' };
+    }
+
+    const nowIso = new Date().toISOString();
+    let role = null;
+    if (room.player1_id === SnookerOnline.clientId) role = 'player1';
+    else if (room.player2_id === SnookerOnline.clientId) role = 'player2';
+    if (!role) {
+        return { ok: false, reason: 'unauthorized' };
+    }
+
+    if (room.status === 'playing') {
+        const { error } = await SnookerOnline.sbClient.from('snooker_rooms')
+            .update({
+                status: 'finished',
+                winner: role === 'player1' ? 'player2' : 'player1',
+                finished_reason: 'opponent_left',
+                finished_at: nowIso,
+                last_activity_at: nowIso,
+            })
+            .eq('id', room.id)
+            .eq('status', 'playing');
+        if (error) {
+            return { ok: false, reason: error.message || 'exit_failed' };
+        }
+        return { ok: true };
+    }
+
+    const seatReset = role === 'player1'
+        ? {
+            player1_id: null,
+            player1_name: null,
+            player1_ready: false,
+            p1_last_seen_at: null,
+            last_activity_at: nowIso,
+        }
+        : {
+            player2_id: null,
+            player2_name: null,
+            player2_ready: false,
+            p2_last_seen_at: null,
+            last_activity_at: nowIso,
+        };
+    const { data, error } = await SnookerOnline.sbClient.from('snooker_rooms')
+        .update(seatReset)
+        .eq('id', room.id)
+        .select();
+    if (error) {
+        return { ok: false, reason: error.message || 'exit_failed' };
+    }
+
+    let updatedRoom = data?.[0] || null;
+    if ((!updatedRoom || (!updatedRoom.player1_id && !updatedRoom.player2_id)) && room.status !== 'waiting') {
+        const nextRoundId = ((updatedRoom?.round_id ?? room.round_id) || 0) + 1;
+        const { data: resetRows, error: resetError } = await SnookerOnline.sbClient.from('snooker_rooms')
+            .update({
+                status: 'waiting',
+                current_turn: null,
+                winner: null,
+                finished_reason: null,
+                finished_at: null,
+                round_id: nextRoundId,
+                last_activity_at: nowIso,
+            })
+            .eq('id', room.id)
+            .select();
+        if (!resetError && resetRows?.length) {
+            updatedRoom = resetRows[0];
+        }
+        await deleteRoomShotsDirect(room.id);
+    }
+
+    return { ok: true, room: updatedRoom };
+}
+
+async function signalGameOverDirect(winnerRole) {
+    const fresh = await fetchRoomById(SnookerOnline.roomUuid);
+    if (!fresh.ok) return fresh;
+    const room = fresh.room;
+    if (room.player1_id !== SnookerOnline.clientId && room.player2_id !== SnookerOnline.clientId) {
+        return { ok: false, reason: 'unauthorized' };
+    }
+    if (room.status !== 'playing') {
+        return { ok: true, skipped: true };
+    }
+
+    const { error } = await SnookerOnline.sbClient.from('snooker_rooms')
+        .update({
+            status: 'finished',
+            winner: winnerRole,
+            finished_reason: 'completed',
+            finished_at: new Date().toISOString(),
+            last_activity_at: new Date().toISOString(),
+        })
+        .eq('id', room.id)
+        .eq('status', 'playing');
+
+    if (error) {
+        return { ok: false, reason: error.message || 'game_over_failed' };
+    }
+    return { ok: true };
+}
+
+async function resetSnookerRoomDirect() {
+    const fresh = await fetchRoomById(SnookerOnline.roomUuid);
+    if (!fresh.ok) return fresh;
+    const room = fresh.room;
+    if (room.player1_id !== SnookerOnline.clientId && room.player2_id !== SnookerOnline.clientId) {
+        return { ok: false, reason: 'unauthorized' };
+    }
+    if (room.status !== 'finished') {
+        return { ok: true, skipped: true, room };
+    }
+
+    const nextRoundId = (room.round_id || 0) + 1;
+    const { data, error } = await SnookerOnline.sbClient.from('snooker_rooms')
+        .update({
+            status: 'waiting',
+            player1_ready: false,
+            player2_ready: false,
+            current_turn: null,
+            winner: null,
+            finished_reason: null,
+            finished_at: null,
+            round_id: nextRoundId,
+            last_activity_at: new Date().toISOString(),
+        })
+        .eq('id', room.id)
+        .eq('status', 'finished')
+        .select();
+
+    if (error) {
+        return { ok: false, reason: error.message || 'reset_failed' };
+    }
+
+    await deleteRoomShotsDirect(room.id);
+    return { ok: true, room: data?.[0] || room };
 }
 
 function applyIncomingShotEvent(rawShot) {
@@ -141,7 +572,7 @@ async function persistShotPayload(payload, { label = 'SnookerShot', strictPlayin
         return { ok: false, reason: data.error };
     }
 
-    const rpcMissing = error?.code === 'PGRST202' || error?.message?.includes('Could not find');
+    const rpcMissing = isRpcMissing(error);
     if (!rpcMissing) {
         console.error(`[${label}] RPC error:`, error);
         showOnlineToast('同步失敗，請重新整理後再試', 'error');
@@ -172,10 +603,40 @@ function initSnookerOnline({ gameMode = '2d' } = {}) {
     FIXED_ROOMS = FIXED_ROOMS_MAP[gameMode] ?? FIXED_ROOMS_MAP['2d'];
     // Use sessionStorage so each browser tab gets its own ID,
     // allowing two tabs on the same device to be different players.
+    const tabId = sessionStorage.getItem('snooker_tab_id') || crypto.randomUUID();
+    sessionStorage.setItem('snooker_tab_id', tabId);
+    SnookerOnline.tabId = tabId;
     SnookerOnline.clientId = sessionStorage.getItem('snooker_clientId');
     if (!SnookerOnline.clientId) {
         SnookerOnline.clientId = crypto.randomUUID();
         sessionStorage.setItem('snooker_clientId', SnookerOnline.clientId);
+    }
+    try {
+        const claimKey = `snooker_client_claim:${SnookerOnline.clientId}`;
+        const existingClaim = JSON.parse(localStorage.getItem(claimKey) || 'null');
+        const claimAgeMs = existingClaim?.ts ? (Date.now() - existingClaim.ts) : null;
+        if (existingClaim && existingClaim.tabId !== tabId && claimAgeMs !== null && claimAgeMs < ACTIVE_ROOM_STALE_MS) {
+            SnookerOnline.clientId = crypto.randomUUID();
+            sessionStorage.setItem('snooker_clientId', SnookerOnline.clientId);
+            showOnlineToast('偵測到重複分頁，已為新分頁分配新身份', 'info', 2600);
+        }
+        localStorage.setItem(`snooker_client_claim:${SnookerOnline.clientId}`, JSON.stringify({
+            tabId,
+            ts: Date.now(),
+        }));
+        clearInterval(SnookerOnline.clientClaimInterval);
+        SnookerOnline.clientClaimInterval = setInterval(() => {
+            try {
+                localStorage.setItem(`snooker_client_claim:${SnookerOnline.clientId}`, JSON.stringify({
+                    tabId: SnookerOnline.tabId,
+                    ts: Date.now(),
+                }));
+            } catch (_) {
+                // Best effort only; online play still works without the duplicate-tab hint.
+            }
+        }, 30_000);
+    } catch (error) {
+        console.warn('[SnookerOnline] client claim sync skipped:', error?.message || error);
     }
     console.log('[SnookerOnline] clientId:', SnookerOnline.clientId);
 
@@ -258,7 +719,7 @@ async function fetchLobbyRooms() {
     if (!SnookerOnline.sbClient) return;
 
     // Evict seats that haven't sent a heartbeat in 90 s (waiting rooms only).
-    const stale = new Date(Date.now() - 90_000).toISOString();
+    const stale = new Date(Date.now() - WAITING_ROOM_STALE_MS).toISOString();
     await Promise.all([
         SnookerOnline.sbClient.from('snooker_rooms')
             .update({ player1_id: null, player1_ready: false, p1_last_seen_at: null })
@@ -272,7 +733,7 @@ async function fetchLobbyRooms() {
 
     const { data: rooms, error } = await SnookerOnline.sbClient
         .from('snooker_rooms')
-        .select('room_code, player1_id, player2_id, status, player1_ready, player2_ready, p1_last_seen_at, p2_last_seen_at')
+        .select('room_code, player1_id, player2_id, status, player1_ready, player2_ready, p1_last_seen_at, p2_last_seen_at, last_activity_at')
         .in('room_code', FIXED_ROOMS);
 
     if (error) { console.error('[SnookerLobby]', error); return; }
@@ -296,14 +757,9 @@ function updateRoomCardUI(roomKey, room) {
     statusEl.textContent  = map[room.status] || room.status;
 
     // Show each seat's state; mark as disconnected if heartbeat is stale (>90s)
-    const staleMs = 90_000;
-    const now = Date.now();
-    const p1Stale = room.player1_id && room.status === 'waiting' &&
-                    room.p1_last_seen_at &&
-                    (now - new Date(room.p1_last_seen_at).getTime()) > staleMs;
-    const p2Stale = room.player2_id && room.status === 'waiting' &&
-                    room.p2_last_seen_at &&
-                    (now - new Date(room.p2_last_seen_at).getTime()) > staleMs;
+    const p1Stale = room.status === 'waiting' && isSeatHeartbeatStale(room, 'player1', WAITING_ROOM_STALE_MS);
+    const p2Stale = room.status === 'waiting' && isSeatHeartbeatStale(room, 'player2', WAITING_ROOM_STALE_MS);
+    const abandoned = isRoomAbandoned(room, ACTIVE_ROOM_STALE_MS);
     const p1Label = !room.player1_id ? 'P1:空' : p1Stale ? 'P1:離' : 'P1:有';
     const p2Label = !room.player2_id ? 'P2:空' : p2Stale ? 'P2:離' : 'P2:有';
     playersEl.textContent = `${p1Label} / ${p2Label}`;
@@ -312,8 +768,12 @@ function updateRoomCardUI(roomKey, room) {
     const amIIn  = room.player1_id === SnookerOnline.clientId ||
                    room.player2_id === SnookerOnline.clientId;
 
-    joinBtn.disabled    = isFull && !amIIn;
-    joinBtn.textContent = amIIn ? '返回' : isFull ? '已滿' : '加入';
+    if (abandoned) {
+        statusEl.textContent = '房間逾時';
+    }
+
+    joinBtn.disabled    = (isFull && !amIIn && !abandoned);
+    joinBtn.textContent = amIIn ? '返回' : abandoned ? '接管' : isFull ? '已滿' : '加入';
 }
 
 // ─── Join ────────────────────────────────────────────────────────────────────
@@ -334,15 +794,22 @@ function resolveDisplayName() {
 }
 
 async function joinFixedRoom(roomKey) {
-    if (!SnookerOnline.sbClient) return;
+    if (!SnookerOnline.sbClient) return false;
 
-    const { data: room, error } = await SnookerOnline.sbClient
+    const { data: initialRoom, error } = await SnookerOnline.sbClient
         .from('snooker_rooms')
         .select('*')
         .eq('room_code', roomKey)
         .single();
 
-    if (error || !room) { showOnlineToast('房間不存在', 'error'); return; }
+    if (error || !initialRoom) { showOnlineToast('房間不存在', 'error'); return false; }
+
+    let room = initialRoom;
+    const recovered = await reclaimAbandonedRoomDirect(room);
+    if (recovered.ok) {
+        room = recovered.room;
+        fetchLobbyRooms();
+    }
 
     const playerName = resolveDisplayName();
     const { data, error: rpcErr } = await SnookerOnline.sbClient.rpc('join_snooker_room', {
@@ -351,7 +818,7 @@ async function joinFixedRoom(roomKey) {
         p_client_name: playerName
     });
 
-    if (rpcErr || !data || data.error) {
+    if ((rpcErr && !isRpcMissing(rpcErr)) || data?.error) {
         const errMsg = (rpcErr && rpcErr.message) || (data && data.error);
         console.error('[SnookerOnline] join RPC error:', errMsg);
         if (errMsg === 'room_full') {
@@ -360,10 +827,24 @@ async function joinFixedRoom(roomKey) {
             showOnlineToast('加入失敗: ' + errMsg, 'error');
         }
         fetchLobbyRooms();
-        return;
+        return false;
     }
 
-    const { role, room: freshRoom } = data;
+    let joined = data;
+    if (rpcErr && isRpcMissing(rpcErr)) {
+        console.warn('[SnookerOnline] join RPC missing; falling back to direct room claim');
+        const fallback = await joinRoomDirect(room, playerName);
+        if (!fallback.ok) {
+            const errMsg = fallback.reason || 'fallback_join_failed';
+            console.error('[SnookerOnline] join fallback error:', errMsg);
+            showOnlineToast(errMsg === 'room_full' ? '房間已滿' : ('加入失敗: ' + errMsg), errMsg === 'room_full' ? 'warn' : 'error');
+            fetchLobbyRooms();
+            return false;
+        }
+        joined = fallback;
+    }
+
+    const { role, room: freshRoom } = joined;
     Object.assign(room, freshRoom);
     SnookerOnline.hasSeat       = true;
     SnookerOnline.roomKey       = roomKey;
@@ -380,6 +861,7 @@ async function joinFixedRoom(roomKey) {
     subscribeToShots();
     startHeartbeat();
     startRoomPoll();
+    return true;
 }
 
 // ─── Room View ───────────────────────────────────────────────────────────────
@@ -538,13 +1020,28 @@ async function toggleReady() {
         p_client_id: SnookerOnline.clientId
     });
 
-    if (error) { console.error('[SnookerOnline] toggleReady error:', error); _readyDebouncing = false; return; }
+    let directRoom = null;
+    if (error) {
+        if (!isRpcMissing(error)) {
+            console.error('[SnookerOnline] toggleReady error:', error);
+            _readyDebouncing = false;
+            return;
+        }
+        console.warn('[SnookerOnline] toggle_snooker_ready RPC missing; falling back to direct update');
+        const fallback = await toggleReadyDirect();
+        if (!fallback.ok) {
+            console.error('[SnookerOnline] toggleReady fallback error:', fallback.reason);
+            _readyDebouncing = false;
+            return;
+        }
+        directRoom = fallback.room || null;
+    }
 
     // Re-fetch and run renderRoomState immediately so that whichever player
     // clicks ready last can trigger the transition without waiting for a
     // Supabase realtime delivery that may be slow or dropped.
-    const { data: fresh } = await SnookerOnline.sbClient
-        .from('snooker_rooms').select('*').eq('id', SnookerOnline.roomUuid).single();
+    const fresh = directRoom || (await SnookerOnline.sbClient
+        .from('snooker_rooms').select('*').eq('id', SnookerOnline.roomUuid).single()).data;
     if (fresh) renderRoomState(fresh);
 
     setTimeout(() => { _readyDebouncing = false; }, 1000);
@@ -583,10 +1080,13 @@ function startHeartbeat() {
     stopHeartbeat();
     SnookerOnline.heartbeatInterval = setInterval(async () => {
         if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
-        await SnookerOnline.sbClient.rpc('ping_snooker_room', {
+        const { error } = await SnookerOnline.sbClient.rpc('ping_snooker_room', {
             p_room_id: SnookerOnline.roomUuid,
             p_client_id: SnookerOnline.clientId
         });
+        if (error && isRpcMissing(error)) {
+            await pingRoomDirect();
+        }
     }, 15000);
 }
 
@@ -709,10 +1209,16 @@ async function exitFixedRoom() {
 
     stopHeartbeat();
 
-    await SnookerOnline.sbClient.rpc('exit_snooker_room', {
+    const { error } = await SnookerOnline.sbClient.rpc('exit_snooker_room', {
         p_room_id: SnookerOnline.roomUuid,
         p_client_id: SnookerOnline.clientId
     });
+    if (error && isRpcMissing(error)) {
+        const fallback = await exitRoomDirect(room || { id: SnookerOnline.roomUuid, status: 'waiting' });
+        if (!fallback.ok) {
+            console.error('[SnookerOnline] exit fallback error:', fallback.reason);
+        }
+    }
     
     // Also remove the active room from session storage so auto-rejoin doesn't fire
     sessionStorage.removeItem('snooker_active_room');
@@ -758,7 +1264,16 @@ window.snookerSignalGameOver = async function({ winner = 0, scores = [] } = {}) 
         p_client_id: SnookerOnline.clientId,
         p_winner_role: winnerRole
     });
-    if (error) console.error('[SnookerOnline] signalGameOver error:', error);
+    if (error) {
+        if (isRpcMissing(error)) {
+            const fallback = await signalGameOverDirect(winnerRole);
+            if (!fallback.ok) {
+                console.error('[SnookerOnline] signalGameOver fallback error:', fallback.reason);
+            }
+        } else {
+            console.error('[SnookerOnline] signalGameOver error:', error);
+        }
+    }
 };
 
 // ─── Rematch ─────────────────────────────────────────────────────────────────
@@ -777,10 +1292,16 @@ async function snookerRematch() {
 
     SnookerOnline.gameStartedAt = null;
 
-    await SnookerOnline.sbClient.rpc('reset_snooker_room', {
+    const { error } = await SnookerOnline.sbClient.rpc('reset_snooker_room', {
         p_room_id: SnookerOnline.roomUuid,
         p_client_id: SnookerOnline.clientId
     });
+    if (error && isRpcMissing(error)) {
+        const fallback = await resetSnookerRoomDirect();
+        if (!fallback.ok) {
+            console.error('[SnookerOnline] rematch fallback error:', fallback.reason);
+        }
+    }
     // currentRoundId will be updated by the next renderRoomState()
     // when the roomPoll detects the new round_id from the DB.
 }

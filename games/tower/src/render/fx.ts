@@ -4,6 +4,8 @@ import { GRAPHICS } from '../core/config';
 
 const PROJ_COLORS: Record<TowerType, number> = {
     arrow: 0xffdd44,
+    arrow_rapid: 0xffef99,
+    arrow_pierce: 0x8ea6ff,
     cannon: 0xff6633,
     ice: 0x88ddff,
     fire: 0xff4400,
@@ -96,10 +98,17 @@ export class FxRenderer {
         for (const proj of state.projectiles) {
             if (!proj.alive) continue;
 
-            if (proj.towerType === 'fire' || Math.random() < 0.3) {
-                if (proj.towerType === 'fire' || proj.towerType === 'poison' || proj.towerType === 'ice') {
-                    this.addTrailParticle(proj.x, proj.y !== undefined ? proj.y : 0.8, proj.z, PROJ_COLORS[proj.towerType]);
-                }
+            const trailColor = PROJ_COLORS[proj.towerType] ?? PROJ_COLORS.arrow;
+            if (
+                proj.towerType === 'fire' ||
+                proj.towerType === 'poison' ||
+                proj.towerType === 'ice' ||
+                proj.towerType === 'sniper' ||
+                proj.towerType === 'lightning' ||
+                proj.towerType === 'arrow_rapid' ||
+                Math.random() < 0.28
+            ) {
+                this.addTrailParticle(proj.x, proj.y !== undefined ? proj.y : 0.8, proj.z, trailColor);
             }
         }
 
@@ -142,7 +151,7 @@ export class FxRenderer {
 
     addExplosion(x: number, z: number, type: TowerType): void {
         const color = new THREE.Color(PROJ_COLORS[type]);
-        const count = 12 + Math.floor(Math.random() * 8);
+        const count = 16 + Math.floor(Math.random() * 10);
 
         for (let i = 0; i < count && this.particles.length < MAX_PARTICLES; i++) {
             const angle = Math.random() * Math.PI * 2;
@@ -166,7 +175,7 @@ export class FxRenderer {
 
     addDeathEffect(x: number, z: number, color: number): void {
         const baseColor = new THREE.Color(color);
-        const count = 18 + Math.floor(Math.random() * 8);
+        const count = 22 + Math.floor(Math.random() * 10);
 
         for (let i = 0; i < count && this.particles.length < MAX_PARTICLES; i++) {
             const angle = Math.random() * Math.PI * 2;

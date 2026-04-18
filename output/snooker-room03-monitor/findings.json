@@ -1,0 +1,90 @@
+[
+  {
+    "ts": "2026-03-30T14:19:27.191Z",
+    "severity": "medium",
+    "title": "ROOM01 lobby state requires attention",
+    "detail": {
+      "status": "對戰中",
+      "players": "P1:有 / P2:有",
+      "joinText": "已滿",
+      "disabled": true
+    }
+  },
+  {
+    "ts": "2026-03-30T14:19:27.191Z",
+    "severity": "medium",
+    "title": "ROOM02 lobby state requires attention",
+    "detail": {
+      "status": "對戰中",
+      "players": "P1:有 / P2:有",
+      "joinText": "已滿",
+      "disabled": true
+    }
+  },
+  {
+    "ts": "2026-03-30T14:19:27.484Z",
+    "severity": "high",
+    "title": "p2 console error",
+    "detail": "THREE.WebGLRenderer: Error creating WebGL context."
+  },
+  {
+    "ts": "2026-03-30T14:19:27.485Z",
+    "severity": "high",
+    "title": "p2 pageerror",
+    "detail": "Error: Error creating WebGL context.\n    at new ws (http://127.0.0.1:4173/games/snooker/3d/assets/three/three.min.js?v=20260207b:6:337663)\n    at http://127.0.0.1:4173/games/snooker/3d/main.js?v=20260207b:34:18"
+  },
+  {
+    "ts": "2026-03-30T14:19:27.499Z",
+    "severity": "high",
+    "title": "p1 console error",
+    "detail": "THREE.WebGLRenderer: Error creating WebGL context."
+  },
+  {
+    "ts": "2026-03-30T14:19:27.499Z",
+    "severity": "high",
+    "title": "p1 pageerror",
+    "detail": "Error: Error creating WebGL context.\n    at new ws (http://127.0.0.1:4173/games/snooker/3d/assets/three/three.min.js?v=20260207b:6:337663)\n    at http://127.0.0.1:4173/games/snooker/3d/main.js?v=20260207b:34:18"
+  },
+  {
+    "ts": "2026-03-30T14:19:28.067Z",
+    "severity": "medium",
+    "title": "p1 HTTP 404",
+    "detail": "404 https://djbhipofzbonxfqriovi.supabase.co/rest/v1/rpc/join_snooker_room"
+  },
+  {
+    "ts": "2026-03-30T14:19:28.067Z",
+    "severity": "high",
+    "title": "p1 console error",
+    "detail": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "ts": "2026-03-30T14:19:28.068Z",
+    "severity": "high",
+    "title": "p1 console error",
+    "detail": "[SnookerOnline] join RPC error: Could not find the function public.join_snooker_room(p_client_id, p_client_name, p_room_id) in the schema cache"
+  },
+  {
+    "ts": "2026-03-30T14:19:28.111Z",
+    "severity": "medium",
+    "title": "p2 HTTP 404",
+    "detail": "404 https://djbhipofzbonxfqriovi.supabase.co/rest/v1/rpc/join_snooker_room"
+  },
+  {
+    "ts": "2026-03-30T14:19:28.111Z",
+    "severity": "high",
+    "title": "p2 console error",
+    "detail": "Failed to load resource: the server responded with a status of 404 ()"
+  },
+  {
+    "ts": "2026-03-30T14:19:28.111Z",
+    "severity": "high",
+    "title": "p2 console error",
+    "detail": "[SnookerOnline] join RPC error: Could not find the function public.join_snooker_room(p_client_id, p_client_name, p_room_id) in the schema cache"
+  },
+  {
+    "ts": "2026-03-30T14:19:42.753Z",
+    "severity": "critical",
+    "title": "Automation crashed",
+    "detail": "page.waitForFunction: Timeout 15000ms exceeded.\n    at setupPlayer (/private/tmp/pw-snooker/playtest.cjs:89:14)\n    at async /private/tmp/pw-snooker/playtest.cjs:204:30"
+  }
+]

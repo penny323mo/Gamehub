@@ -103,6 +103,8 @@ export class EnemyRenderer {
     private hpBars: THREE.Mesh[] = [];
     private shieldBars: THREE.Mesh[] = [];
     private hpBarBg: THREE.Mesh[] = [];
+    private contactShadows: THREE.Mesh[] = [];
+    private statusHalos: THREE.Mesh[] = [];
     private dummy = new THREE.Object3D();
 
     constructor(scene: THREE.Scene) {
@@ -144,9 +146,13 @@ export class EnemyRenderer {
         for (const bar of this.hpBars) this.scene.remove(bar);
         for (const bar of this.shieldBars) this.scene.remove(bar);
         for (const bar of this.hpBarBg) this.scene.remove(bar);
+        for (const shadow of this.contactShadows) this.scene.remove(shadow);
+        for (const halo of this.statusHalos) this.scene.remove(halo);
         this.hpBars = [];
         this.shieldBars = [];
         this.hpBarBg = [];
+        this.contactShadows = [];
+        this.statusHalos = [];
 
         // Update each type's instanced mesh
         const allTypes: EnemyType[] = ['grunt', 'tank', 'runner', 'swarm', 'shield', 'healer', 'boss'];
@@ -175,8 +181,14 @@ export class EnemyRenderer {
 
                 for (let p = 0; p < parts.length; p++) {
                     const part = parts[p];
+                    const hoverBob = type === 'swarm'
+                        ? Math.sin(performance.now() * 0.01 + e.id) * 0.08
+                        : type === 'healer'
+                            ? Math.sin(performance.now() * 0.004 + e.id) * 0.03
+                            : 0;
                     this.dummy.position.set(e.worldX, 0, e.worldZ);
                     this.dummy.position.add(part.offset);
+                    this.dummy.position.y += hoverBob;
 
                     this.dummy.rotation.set(0, moveRot, 0); // Face movement direction
                     if (part.rotation) {
@@ -213,6 +225,45 @@ export class EnemyRenderer {
                 };
 
                 // HP bar background
+                const contactShadow = new THREE.Mesh(
+                    new THREE.CircleGeometry(type === 'boss' ? 0.42 : 0.26, 24),
+                    new THREE.MeshBasicMaterial({
+                        color: 0x000000,
+                        transparent: true,
+                        opacity: type === 'boss' ? 0.28 : 0.18,
+                        side: THREE.DoubleSide,
+                        depthWrite: false,
+                    })
+                );
+                contactShadow.rotation.x = -Math.PI / 2;
+                contactShadow.position.set(e.worldX, 0.01, e.worldZ);
+                this.scene.add(contactShadow);
+                this.contactShadows.push(contactShadow);
+
+                if (e.slow || e.dots.length > 0 || e.shield > 0 || type === 'boss') {
+                    const statusColor = type === 'boss'
+                        ? 0xff9e57
+                        : e.shield > 0
+                            ? 0x6ccfff
+                            : e.slow
+                                ? 0x8de8ff
+                                : 0x74ff6a;
+                    const halo = new THREE.Mesh(
+                        new THREE.RingGeometry(0.18, 0.24, 24),
+                        new THREE.MeshBasicMaterial({
+                            color: statusColor,
+                            transparent: true,
+                            opacity: 0.5,
+                            side: THREE.DoubleSide,
+                            depthWrite: false,
+                        })
+                    );
+                    halo.rotation.x = -Math.PI / 2;
+                    halo.position.set(e.worldX, 0.045, e.worldZ);
+                    this.scene.add(halo);
+                    this.statusHalos.push(halo);
+                }
+
                 const bg = buildBar(0.9, HP_BAR_WIDTH, 0x333333, 0.06);
                 bg.position.set(e.worldX, 0.9, e.worldZ);  // centre align bg
                 if (camera) bg.lookAt(camera.position); else bg.rotation.x = -Math.PI / 4;

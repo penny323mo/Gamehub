@@ -1,0 +1,124 @@
+{
+  "p1": [
+    {
+      "ts": "2026-03-30T14:19:27.485Z",
+      "type": "console",
+      "level": "log",
+      "text": "[Device] isTouchDevice: false forceMobile: false"
+    },
+    {
+      "ts": "2026-03-30T14:19:27.499Z",
+      "type": "console",
+      "level": "error",
+      "text": "THREE.WebGLRenderer: Error creating WebGL context."
+    },
+    {
+      "ts": "2026-03-30T14:19:27.499Z",
+      "type": "pageerror",
+      "text": "Error: Error creating WebGL context.\n    at new ws (http://127.0.0.1:4173/games/snooker/3d/assets/three/three.min.js?v=20260207b:6:337663)\n    at http://127.0.0.1:4173/games/snooker/3d/main.js?v=20260207b:34:18"
+    },
+    {
+      "ts": "2026-03-30T14:19:27.499Z",
+      "type": "console",
+      "level": "log",
+      "text": "[SnookerOnline] clientId: 70ba2c89-e4d2-42d1-a43a-1ae104b8b1bd"
+    },
+    {
+      "ts": "2026-03-30T14:19:27.500Z",
+      "type": "console",
+      "level": "log",
+      "text": "[SnookerOnline] Supabase initialized"
+    },
+    {
+      "ts": "2026-03-30T14:19:28.067Z",
+      "type": "badresponse",
+      "text": "404 https://djbhipofzbonxfqriovi.supabase.co/rest/v1/rpc/join_snooker_room"
+    },
+    {
+      "ts": "2026-03-30T14:19:28.067Z",
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 ()"
+    },
+    {
+      "ts": "2026-03-30T14:19:28.068Z",
+      "type": "console",
+      "level": "error",
+      "text": "[SnookerOnline] join RPC error: Could not find the function public.join_snooker_room(p_client_id, p_client_name, p_room_id) in the schema cache"
+    }
+  ],
+  "p2": [
+    {
+      "ts": "2026-03-30T14:19:27.477Z",
+      "type": "console",
+      "level": "log",
+      "text": "[Device] isTouchDevice: false forceMobile: false"
+    },
+    {
+      "ts": "2026-03-30T14:19:27.484Z",
+      "type": "console",
+      "level": "error",
+      "text": "THREE.WebGLRenderer: Error creating WebGL context."
+    },
+    {
+      "ts": "2026-03-30T14:19:27.485Z",
+      "type": "pageerror",
+      "text": "Error: Error creating WebGL context.\n    at new ws (http://127.0.0.1:4173/games/snooker/3d/assets/three/three.min.js?v=20260207b:6:337663)\n    at http://127.0.0.1:4173/games/snooker/3d/main.js?v=20260207b:34:18"
+    },
+    {
+      "ts": "2026-03-30T14:19:27.485Z",
+      "type": "console",
+      "level": "log",
+      "text": "[SnookerOnline] clientId: 63f8feee-e1e2-4070-8536-69b6a90c3b4d"
+    },
+    {
+      "ts": "2026-03-30T14:19:27.485Z",
+      "type": "console",
+      "level": "log",
+      "text": "[SnookerOnline] Supabase initialized"
+    },
+    {
+      "ts": "2026-03-30T14:19:28.111Z",
+      "type": "badresponse",
+      "text": "404 https://djbhipofzbonxfqriovi.supabase.co/rest/v1/rpc/join_snooker_room"
+    },
+    {
+      "ts": "2026-03-30T14:19:28.111Z",
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 ()"
+    },
+    {
+      "ts": "2026-03-30T14:19:28.111Z",
+      "type": "console",
+      "level": "error",
+      "text": "[SnookerOnline] join RPC error: Could not find the function public.join_snooker_room(p_client_id, p_client_name, p_room_id) in the schema cache"
+    }
+  ],
+  "monitor": [
+    {
+      "ts": "2026-03-30T14:19:24.672Z",
+      "type": "console",
+      "level": "log",
+      "text": "[SnookerOnline] clientId: f775fbdc-1108-437d-a3c3-054c25ba6158"
+    },
+    {
+      "ts": "2026-03-30T14:19:24.675Z",
+      "type": "console",
+      "level": "log",
+      "text": "[SnookerOnline] Supabase initialized"
+    },
+    {
+      "ts": "2026-03-30T14:19:24.678Z",
+      "type": "console",
+      "level": "log",
+      "text": "[SnookerOnline] clientId: f775fbdc-1108-437d-a3c3-054c25ba6158"
+    },
+    {
+      "ts": "2026-03-30T14:19:24.678Z",
+      "type": "console",
+      "level": "log",
+      "text": "[SnookerOnline] reusing existing client"
+    }
+  ]
+}
