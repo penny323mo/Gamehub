@@ -26,6 +26,9 @@ interface Particle {
 
 const MAX_PARTICLES = GRAPHICS.maxParticles;
 const MAX_PROJECTILES = 100;
+const MOTE_COUNT = GRAPHICS.isMobile ? 35 : 80;
+const MOTE_AREA = { minX: -6, maxX: 16, minZ: -6, maxZ: 16 };
+const MOTE_HEIGHT = { min: 0.4, max: 4.5 };
 
 export class FxRenderer {
     private scene: THREE.Scene;
@@ -40,6 +43,13 @@ export class FxRenderer {
     private particleSizes: Float32Array;
     private particleAlphas: Float32Array;
     private particlePoints: THREE.Points;
+
+    // ── Ambient dust motes ──
+    private moteGeo!: THREE.BufferGeometry;
+    private motePositions!: Float32Array;
+    private moteVelocities!: Float32Array;
+    private motePhase!: Float32Array;
+    private motePoints!: THREE.Points;
 
     constructor(scene: THREE.Scene) {
         this.scene = scene;
@@ -91,6 +101,83 @@ export class FxRenderer {
         this.particlePoints = new THREE.Points(this.particleGeo, particleMat);
         this.particlePoints.frustumCulled = false;
         scene.add(this.particlePoints);
+
+        this.initMotes();
+    }
+
+    private initMotes(): void {
+        this.motePositions = new Float32Array(MOTE_COUNT * 3);
+        this.moteVelocities = new Float32Array(MOTE_COUNT * 3);
+        this.motePhase = new Float32Array(MOTE_COUNT);
+
+        for (let i = 0; i < MOTE_COUNT; i++) {
+            const i3 = i * 3;
+            this.motePositions[i3]     = MOTE_AREA.minX + Math.random() * (MOTE_AREA.maxX - MOTE_AREA.minX);
+            this.motePositions[i3 + 1] = MOTE_HEIGHT.min + Math.random() * (MOTE_HEIGHT.max - MOTE_HEIGHT.min);
+            this.motePositions[i3 + 2] = MOTE_AREA.minZ + Math.random() * (MOTE_AREA.maxZ - MOTE_AREA.minZ);
+
+            this.moteVelocities[i3]     = (Math.random() - 0.5) * 0.25;
+            this.moteVelocities[i3 + 1] = 0.08 + Math.random() * 0.18;
+            this.moteVelocities[i3 + 2] = (Math.random() - 0.5) * 0.25;
+
+            this.motePhase[i] = Math.random() * Math.PI * 2;
+        }
+
+        this.moteGeo = new THREE.BufferGeometry();
+        this.moteGeo.setAttribute('position', new THREE.BufferAttribute(this.motePositions, 3));
+        this.moteGeo.setAttribute('aPhase', new THREE.BufferAttribute(this.motePhase, 1));
+
+        const moteMat = new THREE.ShaderMaterial({
+            uniforms: { uTime: { value: 0 } },
+            vertexShader: `
+                attribute float aPhase;
+                uniform float uTime;
+                varying float vAlpha;
+                void main() {
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    float twinkle = 0.55 + 0.45 * sin(uTime * 1.4 + aPhase * 2.0);
+                    vAlpha = twinkle * 0.55;
+                    gl_PointSize = max(2.5, 3.5 * (300.0 / -mvPosition.z));
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `,
+            fragmentShader: `
+                varying float vAlpha;
+                void main() {
+                    vec2 c = gl_PointCoord - vec2(0.5);
+                    float d = length(c);
+                    if (d > 0.5) discard;
+                    float soft = 1.0 - smoothstep(0.15, 0.5, d);
+                    gl_FragColor = vec4(vec3(0.95, 1.0, 0.92) * soft, vAlpha * soft);
+                }
+            `,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
+
+        this.motePoints = new THREE.Points(this.moteGeo, moteMat);
+        this.motePoints.frustumCulled = false;
+        this.scene.add(this.motePoints);
+    }
+
+    private tickMotes(dt: number, time: number): void {
+        for (let i = 0; i < MOTE_COUNT; i++) {
+            const i3 = i * 3;
+            const sway = Math.sin(time * 0.8 + this.motePhase[i]) * 0.08;
+            this.motePositions[i3]     += (this.moteVelocities[i3] + sway) * dt;
+            this.motePositions[i3 + 1] += this.moteVelocities[i3 + 1] * dt;
+            this.motePositions[i3 + 2] += (this.moteVelocities[i3 + 2] - sway * 0.5) * dt;
+
+            // Reset when motes drift too high or out of area
+            if (this.motePositions[i3 + 1] > MOTE_HEIGHT.max) {
+                this.motePositions[i3]     = MOTE_AREA.minX + Math.random() * (MOTE_AREA.maxX - MOTE_AREA.minX);
+                this.motePositions[i3 + 1] = MOTE_HEIGHT.min;
+                this.motePositions[i3 + 2] = MOTE_AREA.minZ + Math.random() * (MOTE_AREA.maxZ - MOTE_AREA.minZ);
+            }
+        }
+        (this.moteGeo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+        (this.motePoints.material as THREE.ShaderMaterial).uniforms.uTime.value = time;
     }
 
     sync(state: GameState, dt: number): void {
@@ -147,6 +234,8 @@ export class FxRenderer {
         (this.particleGeo.attributes.aColor as THREE.BufferAttribute).needsUpdate = true;
         (this.particleGeo.attributes.aSize as THREE.BufferAttribute).needsUpdate = true;
         (this.particleGeo.attributes.aAlpha as THREE.BufferAttribute).needsUpdate = true;
+
+        this.tickMotes(dt, performance.now() * 0.001);
     }
 
     addExplosion(x: number, z: number, type: TowerType): void {

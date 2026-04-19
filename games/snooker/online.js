@@ -56,7 +56,9 @@ function buildShotEnvelope(kind, payload) {
     return {
         ...(payload || {}),
         kind,
-        round_id: SnookerOnline.currentRoundId || 0,
+        // round_id starts at 1 for the first match; a 0 here would collide
+        // with the "missing round_id" fallback in isShotPayloadForCurrentRound.
+        round_id: SnookerOnline.currentRoundId || 1,
         event_id: crypto.randomUUID(),
         sender_role: SnookerOnline.playerRole,
         sent_at: new Date().toISOString(),
@@ -71,9 +73,12 @@ function trimAppliedEventIds() {
 
 function isShotPayloadForCurrentRound(payload) {
     const payloadRoundId = payload?.round_id;
-    if (payloadRoundId == null) {
-        return (SnookerOnline.currentRoundId || 0) === 0;
-    }
+    // Every envelope built by buildShotEnvelope tags round_id, so a missing one
+    // can only come from legacy or malformed rows — never accept those. This
+    // also removes the `(currentRoundId||0)===0` escape hatch that allowed
+    // cross-match leakage when a freshly joined client hadn't yet synced
+    // currentRoundId from the DB.
+    if (payloadRoundId == null) return false;
     return payloadRoundId === (SnookerOnline.currentRoundId || 0);
 }
 
@@ -129,11 +134,24 @@ async function fetchRoomById(roomId) {
 
 async function deleteRoomShotsDirect(roomId) {
     if (!SnookerOnline.sbClient || !roomId) return;
-    const { error } = await SnookerOnline.sbClient.from('snooker_shots')
+    // Post-RLS-lockdown (migration 011) the snooker_shots table has no client
+    // DELETE policy. Prefer cleanup_snooker_shots RPC (SECURITY DEFINER, checks
+    // membership + not playing). The direct DELETE below is a legacy fallback
+    // that will no-op under RLS; correctness is preserved because round_id
+    // filtering in isShotPayloadForCurrentRound rejects old-round rows anyway.
+    if (SnookerOnline.clientId) {
+        const { data, error } = await SnookerOnline.sbClient.rpc('cleanup_snooker_shots', {
+            p_room_id: roomId,
+            p_client_id: SnookerOnline.clientId,
+        });
+        if (!error && data?.ok) return;
+        if (data?.error === 'not_a_member') return;
+    }
+    const { error: directErr } = await SnookerOnline.sbClient.from('snooker_shots')
         .delete()
         .eq('room_id', roomId);
-    if (error) {
-        console.warn('[SnookerOnline] direct shot cleanup skipped:', error.message);
+    if (directErr) {
+        console.warn('[SnookerOnline] direct shot cleanup skipped:', directErr.message);
     }
 }
 
@@ -513,10 +531,15 @@ function applyIncomingShotEvent(rawShot) {
 
     const payload = getShotPayload(rawShot);
     if (!payload || !isShotPayloadForCurrentRound(payload)) return;
-    if (SnookerOnline.appliedShotIds.has(rawShot.id)) return;
+    // Prefer the envelope's event_id (stable across realtime + poll paths even
+    // if the sender ever constructs an event without a DB row), fall back to
+    // the DB row's primary key for rows that predate the event_id field.
+    const dedupKey = payload.event_id || rawShot.id;
+    if (!dedupKey) return;
+    if (SnookerOnline.appliedShotIds.has(dedupKey)) return;
 
     trimAppliedEventIds();
-    SnookerOnline.appliedShotIds.add(rawShot.id);
+    SnookerOnline.appliedShotIds.add(dedupKey);
 
     if (payload.kind === 'state_sync') {
         console.log('[SnookerShot] Remote snapshot received:', payload.snapshot?.format || 'unknown');
@@ -534,6 +557,9 @@ function applyIncomingShotEvent(rawShot) {
 
 async function fetchMissingShotsOnce() {
     if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
+    // Filtering by client-side gameStartedAt risks clock skew dropping valid
+    // shots; round_id matching in isShotPayloadForCurrentRound is authoritative
+    // and applied inside applyIncomingShotEvent.
     const { data: shots, error } = await SnookerOnline.sbClient
         .from('snooker_shots')
         .select('*')
@@ -572,28 +598,14 @@ async function persistShotPayload(payload, { label = 'SnookerShot', strictPlayin
         return { ok: false, reason: data.error };
     }
 
-    const rpcMissing = isRpcMissing(error);
-    if (!rpcMissing) {
-        console.error(`[${label}] RPC error:`, error);
-        showOnlineToast('同步失敗，請重新整理後再試', 'error');
-        return { ok: false, reason: error?.message || 'rpc_error' };
-    }
-
-    if (!SnookerOnline.fallbackInsertWarned) {
-        SnookerOnline.fallbackInsertWarned = true;
-        console.warn(`[${label}] submit_snooker_shot RPC missing; falling back to direct insert`);
-    }
-
-    const { error: insertError } = await SnookerOnline.sbClient.from('snooker_shots')
-        .insert({ room_id: SnookerOnline.roomUuid, player_role: SnookerOnline.playerRole, payload });
-    if (insertError) {
-        console.error(`[${label}] Direct insert error:`, insertError);
-        showOnlineToast('同步失敗，請檢查 Supabase migration', 'error');
-        return { ok: false, reason: insertError?.message || 'insert_error' };
-    }
-
-    console.log(`[${label}] Sent via direct insert:`, payload);
-    return { ok: true, transport: 'direct_insert' };
+    // The submit_snooker_shot RPC is the only permitted insert path (RLS
+    // blocks direct inserts). If the RPC is missing, the deployment is
+    // broken — surface it clearly rather than failing silently.
+    console.error(`[${label}] RPC error:`, error);
+    showOnlineToast(isRpcMissing(error)
+        ? 'submit_snooker_shot RPC 未部署，請檢查 Supabase migration'
+        : '同步失敗，請重新整理後再試', 'error');
+    return { ok: false, reason: error?.message || 'rpc_error' };
 }
 
 // ─── Init ────────────────────────────────────────────────────────────────────
@@ -925,7 +937,11 @@ function renderRoomState(room) {
     // (round_id > 0), bring the room panel back into view so both players
     // can click Ready again.  The overlay IDs differ between 2D and 3D pages
     // but the inner room / lobby panel IDs are normalised by each page.
-    if (room.status === 'waiting' && newRoundId > 0) {
+    // Guard with lastObservedStatus so a late/duplicate 'waiting' update that
+    // arrives after we've already transitioned to 'playing' does NOT hide the
+    // live game canvas.
+    const lastStatus = SnookerOnline.lastObservedStatus || null;
+    if (room.status === 'waiting' && newRoundId > 0 && lastStatus !== 'playing') {
         const overlayId = SnookerOnline.gameMode === '3d'
             ? 'snooker3d-online-overlay'
             : 'snooker-online-overlay';
@@ -939,6 +955,7 @@ function renderRoomState(room) {
         // the previous game transitioned away from waiting.
         if (!SnookerOnline.roomPollInterval) startRoomPoll();
     }
+    SnookerOnline.lastObservedStatus = room.status;
 
     // ── Both players ready → transition to 'playing' ──────────────────────────
     // Either player can trigger this; eq('status','waiting') makes it race-safe
@@ -974,9 +991,19 @@ function renderRoomState(room) {
             // Fallback if RPC not deployed
             if (error?.code === 'PGRST202' || error?.message?.includes('Could not find')) {
                 SnookerOnline.sbClient.from('snooker_rooms')
-                    .update({ status: 'playing', current_turn: 'player1' })
+                    .update({
+                        status: 'playing',
+                        current_turn: 'player1',
+                        last_activity_at: new Date().toISOString(),
+                    })
                     .eq('id', SnookerOnline.roomUuid).eq('status', 'waiting')
-                    .then(({ error: e2 }) => { if (!e2) applyStart(); });
+                    .select()
+                    .then(({ data, error: e2 }) => {
+                        // Only one of the two racing clients wins the .eq(status,waiting)
+                        // guard; the loser gets an empty array. Treat empty data as
+                        // "someone else already started" and skip the start callback.
+                        if (!e2 && data?.length) applyStart();
+                    });
             }
         });
         return; // skip the generic notify below; we'll notify via the async callback
@@ -1230,6 +1257,10 @@ function cleanupAndLobby() {
     stopHeartbeat();
     stopShotPoll();
     stopRoomPoll();
+    // Reset the ready-debounce latch so a stale setTimeout doesn't re-enable
+    // it against a fresh session after navigating back into a room.
+    _readyDebouncing = false;
+    SnookerOnline.lastObservedStatus = null;
     SnookerOnline.sbClient?.removeChannel(SnookerOnline.roomChannel);
     SnookerOnline.sbClient?.removeChannel(SnookerOnline.shotsChannel);
 
@@ -1259,6 +1290,13 @@ function cleanupAndLobby() {
 window.snookerSignalGameOver = async function({ winner = 0, scores = [] } = {}) {
     if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid) return;
     const winnerRole = winner === 1 ? 'player1' : winner === 2 ? 'player2' : null;
+    // Only one client must write the result — otherwise the two peers can race
+    // with divergent `winner` values if their scores briefly differ due to a
+    // dropped snapshot. Rule: the winner writes, or on draw player1 writes.
+    const iAmAuthoritative =
+        (winnerRole && SnookerOnline.playerRole === winnerRole) ||
+        (!winnerRole && SnookerOnline.playerRole === 'player1');
+    if (!iAmAuthoritative) return;
     const { error } = await SnookerOnline.sbClient.rpc('signal_snooker_game_over', {
         p_room_id: SnookerOnline.roomUuid,
         p_client_id: SnookerOnline.clientId,
@@ -1281,27 +1319,36 @@ window.snookerSignalGameOver = async function({ winner = 0, scores = [] } = {}) 
 async function snookerRematch() {
     if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid) return;
 
-    // Try the RPC first; ignore failures (it's a convenience cleanup).
-    await SnookerOnline.sbClient.rpc('cleanup_snooker_shots', {
-        p_room_id: SnookerOnline.roomUuid, p_client_id: SnookerOnline.clientId,
-    });
-    // Direct delete as fallback so old shots are definitely gone
-    // even when the RPC is not deployed.  The round_id filter in
-    // applyIncomingShotEvent would also block them, but cleaning up is neat.
-    await SnookerOnline.sbClient.from('snooker_shots').delete().eq('room_id', SnookerOnline.roomUuid);
-
-    SnookerOnline.gameStartedAt = null;
-
+    // Order matters: bump round_id FIRST via reset RPC, then delete shot rows.
+    // If we delete first then bump, a stray INSERT (carrying the OLD round_id)
+    // landing in the gap would still pass isShotPayloadForCurrentRound on peers
+    // that haven't re-rendered yet, leaking across rounds.
     const { error } = await SnookerOnline.sbClient.rpc('reset_snooker_room', {
         p_room_id: SnookerOnline.roomUuid,
         p_client_id: SnookerOnline.clientId
     });
+    let resetOk = !error;
     if (error && isRpcMissing(error)) {
         const fallback = await resetSnookerRoomDirect();
         if (!fallback.ok) {
             console.error('[SnookerOnline] rematch fallback error:', fallback.reason);
+        } else {
+            resetOk = true;
         }
     }
+    if (!resetOk) return;
+
+    SnookerOnline.appliedShotIds.clear();
+    SnookerOnline.gameStartedAt = null;
+
+    // Best-effort cleanup of the previous round's shot rows. Correctness does
+    // NOT depend on this — round_id filtering already rejects stale rows — so
+    // ignore failures.
+    await SnookerOnline.sbClient.rpc('cleanup_snooker_shots', {
+        p_room_id: SnookerOnline.roomUuid, p_client_id: SnookerOnline.clientId,
+    });
+    await SnookerOnline.sbClient.from('snooker_shots')
+        .delete().eq('room_id', SnookerOnline.roomUuid);
     // currentRoundId will be updated by the next renderRoomState()
     // when the roomPoll detects the new round_id from the DB.
 }

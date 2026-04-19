@@ -89,6 +89,58 @@ body {
 
 #hud-wave {
   color: var(--info);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 158px;
+  padding: 7px 12px 8px !important;
+}
+
+#hud-wave .wave-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+}
+
+#hud-wave .wave-label {
+  color: var(--info);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+#hud-wave .wave-remain {
+  font-family: 'Oxanium', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(232, 245, 247, 0.68);
+  letter-spacing: 0.06em;
+}
+
+#hud-wave .wave-progress-track {
+  position: relative;
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(143, 215, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(143, 215, 255, 0.12);
+}
+
+#hud-wave .wave-progress-fill {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  background: linear-gradient(90deg, #8fd7ff, #7ef5c3);
+  border-radius: inherit;
+  box-shadow: 0 0 10px rgba(143, 215, 255, 0.55);
+  transition: width 0.25s ease-out;
+}
+
+#hud-wave.prep .wave-progress-fill {
+  background: linear-gradient(90deg, #f7d36e, #ff9a4d);
+  box-shadow: 0 0 10px rgba(247, 196, 107, 0.55);
 }
 
 #hud-kills {
@@ -575,9 +627,74 @@ body {
   justify-content: center;
   align-items: center;
   z-index: 100;
+  overflow: hidden;
+}
+
+.start-aurora {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 45% 35% at 30% 35%, rgba(111, 217, 255, 0.18), transparent 60%),
+    radial-gradient(ellipse 40% 30% at 70% 60%, rgba(245, 196, 107, 0.14), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 55% 80%, rgba(93, 180, 134, 0.14), transparent 65%);
+  filter: blur(6px);
+  animation: auroraDrift 26s ease-in-out infinite alternate;
+}
+
+@keyframes auroraDrift {
+  0%   { transform: translate3d(-4%, -3%, 0) rotate(0deg);   opacity: 0.8; }
+  50%  { transform: translate3d(3%, 2%, 0)  rotate(6deg);    opacity: 1;   }
+  100% { transform: translate3d(2%, -4%, 0) rotate(-5deg);   opacity: 0.85;}
+}
+
+.start-embers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.ember {
+  position: absolute;
+  bottom: -20px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 225, 160, 0.95), rgba(255, 170, 80, 0.55) 55%, transparent 75%);
+  box-shadow: 0 0 10px rgba(255, 205, 130, 0.6);
+  opacity: 0;
+  animation: emberRise 9s linear infinite;
+}
+
+.ember.e1  { left: 8%;  animation-duration: 11s; animation-delay: 0s; }
+.ember.e2  { left: 18%; animation-duration: 14s; animation-delay: 2s; width: 4px; height: 4px; }
+.ember.e3  { left: 28%; animation-duration: 9s;  animation-delay: 4s; }
+.ember.e4  { left: 40%; animation-duration: 12s; animation-delay: 1s; width: 8px; height: 8px; }
+.ember.e5  { left: 52%; animation-duration: 16s; animation-delay: 3s; }
+.ember.e6  { left: 62%; animation-duration: 10s; animation-delay: 5s; width: 5px; height: 5px;
+  background: radial-gradient(circle, rgba(180, 235, 255, 0.95), rgba(100, 190, 255, 0.45) 55%, transparent 75%);
+  box-shadow: 0 0 10px rgba(150, 215, 255, 0.55);
+}
+.ember.e7  { left: 72%; animation-duration: 13s; animation-delay: 6s; }
+.ember.e8  { left: 82%; animation-duration: 11s; animation-delay: 2.5s; width: 4px; height: 4px; }
+.ember.e9  { left: 90%; animation-duration: 15s; animation-delay: 7s; width: 6px; height: 6px;
+  background: radial-gradient(circle, rgba(175, 255, 210, 0.9), rgba(120, 210, 150, 0.4) 55%, transparent 75%);
+  box-shadow: 0 0 10px rgba(150, 235, 180, 0.5);
+}
+.ember.e10 { left: 46%; animation-duration: 17s; animation-delay: 8s; width: 3px; height: 3px; }
+
+@keyframes emberRise {
+  0%   { transform: translate3d(0, 0, 0) scale(0.8);       opacity: 0; }
+  12%  { opacity: 0.9; }
+  55%  { transform: translate3d(20px, -60vh, 0) scale(1.1); opacity: 0.95; }
+  90%  { opacity: 0.4; }
+  100% { transform: translate3d(-15px, -112vh, 0) scale(0.6); opacity: 0; }
 }
 
 .start-content {
+  position: relative;
+  z-index: 2;
   text-align: center;
   width: min(620px, calc(100vw - 40px));
   padding: 34px 30px;
@@ -588,6 +705,12 @@ body {
   border: 1px solid rgba(214, 245, 219, 0.12);
   box-shadow: var(--shadow-lg);
   backdrop-filter: blur(18px);
+  animation: startPanelIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes startPanelIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
 }
 
 .intro-kicker {
@@ -611,6 +734,13 @@ body {
   background-clip: text;
   margin-bottom: 12px;
   text-shadow: none;
+  filter: drop-shadow(0 0 18px rgba(247, 182, 90, 0.25));
+  animation: titleGlow 4.5s ease-in-out infinite;
+}
+
+@keyframes titleGlow {
+  0%, 100% { filter: drop-shadow(0 0 12px rgba(247, 182, 90, 0.2));  transform: translateY(0); }
+  50%      { filter: drop-shadow(0 0 22px rgba(247, 182, 90, 0.45)); transform: translateY(-2px); }
 }
 
 .game-subtitle {
@@ -774,14 +904,45 @@ body {
 }
 
 .rank {
+  position: relative;
   display: inline-block;
   font-size: 64px;
   font-weight: 900;
-  width: 90px;
-  height: 90px;
-  line-height: 90px;
+  width: 110px;
+  height: 110px;
+  line-height: 110px;
   border-radius: 50%;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
+  animation: rankPop 0.85s cubic-bezier(0.175, 0.885, 0.32, 1.4) both,
+             rankPulseRing 2.2s ease-out 0.8s infinite;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.05), 0 12px 38px rgba(0, 0, 0, 0.4);
+}
+
+.rank::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(255, 255, 255, 0.28) 40deg, transparent 80deg);
+  animation: rankShine 2.6s linear infinite;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+
+@keyframes rankPop {
+  0%   { opacity: 0; transform: scale(0.4) rotate(-20deg); }
+  60%  { opacity: 1; transform: scale(1.12) rotate(4deg);  }
+  100% { opacity: 1; transform: scale(1)    rotate(0deg);  }
+}
+
+@keyframes rankShine {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes rankPulseRing {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.28), 0 12px 38px rgba(0, 0, 0, 0.4); }
+  70%  { box-shadow: 0 0 0 22px rgba(255, 255, 255, 0),   0 12px 38px rgba(0, 0, 0, 0.4); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0),      0 12px 38px rgba(0, 0, 0, 0.4); }
 }
 
 .rank-S {

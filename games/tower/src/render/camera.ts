@@ -25,6 +25,10 @@ export class CameraController {
     private lastRotAngle = 0;
     private isTwoFinger = false;
 
+    // shake state
+    private shakeAmount = 0;
+    private shakeOffset = { x: 0, y: 0, z: 0 };
+
     constructor() {
         const aspect = window.innerWidth / window.innerHeight;
 
@@ -55,6 +59,32 @@ export class CameraController {
     resize(renderer: THREE.WebGLRenderer): void {
         this.rebuildProjection();
         renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    /** Trigger a camera shake. amount ≈ world-units of displacement. */
+    shake(amount: number): void {
+        this.shakeAmount = Math.max(this.shakeAmount, amount);
+    }
+
+    /** Call once per frame to decay + apply shake offset. */
+    tickShake(dt: number): void {
+        if (this.shakeAmount <= 0.001) {
+            if (this.shakeOffset.x !== 0 || this.shakeOffset.y !== 0 || this.shakeOffset.z !== 0) {
+                this.shakeOffset.x = 0;
+                this.shakeOffset.y = 0;
+                this.shakeOffset.z = 0;
+                this.applyTransform();
+            }
+            this.shakeAmount = 0;
+            return;
+        }
+        const a = this.shakeAmount;
+        this.shakeOffset.x = (Math.random() - 0.5) * a;
+        this.shakeOffset.y = (Math.random() - 0.5) * a * 0.45;
+        this.shakeOffset.z = (Math.random() - 0.5) * a;
+        this.applyTransform();
+        // Decay: ~full decay in 0.45s
+        this.shakeAmount = Math.max(0, this.shakeAmount - dt * 2.2 * (0.2 + this.shakeAmount));
     }
 
     /* ── Touch handlers (attach these to canvas) ── */
@@ -114,11 +144,11 @@ export class CameraController {
 
     private applyTransform(): void {
         this.cam.position.set(
-            this.cx + DIST * Math.sin(this.yaw) * Math.cos(this.tilt),
-            DIST * Math.sin(this.tilt),
-            this.cz + DIST * Math.cos(this.yaw) * Math.cos(this.tilt)
+            this.cx + DIST * Math.sin(this.yaw) * Math.cos(this.tilt) + this.shakeOffset.x,
+            DIST * Math.sin(this.tilt) + this.shakeOffset.y,
+            this.cz + DIST * Math.cos(this.yaw) * Math.cos(this.tilt) + this.shakeOffset.z
         );
-        this.cam.lookAt(this.cx, 0, this.cz);
+        this.cam.lookAt(this.cx + this.shakeOffset.x * 0.3, 0, this.cz + this.shakeOffset.z * 0.3);
     }
 }
 

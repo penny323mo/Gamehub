@@ -1496,11 +1496,15 @@
   window.snookerOnlineRoomUpdate = function({ status, players, myRole, room } = {}) {
     if (status === 'playing') {
       const incomingRoomId = room?.id || window.__snooker2dOnlineRoomId || null;
-      const incomingRoundId = Number.isFinite(room?.round_id) ? room.round_id : window.__snooker2dOnlineRoundId ?? null;
+      const incomingRoundId = Number.isFinite(room?.round_id)
+        ? room.round_id
+        : (Number.isFinite(window.__snooker2dOnlineRoundId) ? window.__snooker2dOnlineRoundId : 0);
+      const storedRoundId = Number.isFinite(window.__snooker2dOnlineRoundId) ? window.__snooker2dOnlineRoundId : null;
+      const roundChanged = storedRoundId !== null && incomingRoundId !== storedRoundId;
       const alreadyStartedSameOnlineMatch = state.mode === 'online' &&
-        !state.isComplete &&
+        !state.isComplete && !roundChanged &&
         (!incomingRoomId || incomingRoomId === window.__snooker2dOnlineRoomId) &&
-        (incomingRoundId === null || incomingRoundId === window.__snooker2dOnlineRoundId);
+        (storedRoundId === null || incomingRoundId === storedRoundId);
       if (alreadyStartedSameOnlineMatch) return;
       state.mode = 'online';
       window.__snooker2dOnlineRoomId = incomingRoomId;

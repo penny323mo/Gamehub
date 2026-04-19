@@ -1,0 +1,33 @@
+{
+  "startedAt": "2026-04-19T15:13:54.658Z",
+  "roomKey": "3D-ROOM03",
+  "steps": [
+    {
+      "step": "join_room",
+      "joins": [
+        true,
+        true
+      ]
+    },
+    {
+      "step": "started",
+      "db": {
+        "room_code": "3D-ROOM03",
+        "status": "playing",
+        "round_id": 2,
+        "winner": null,
+        "player1_id": "af5aacf4-0b26-402f-916f-07bd148643bd",
+        "player2_id": "b19f74b2-17c9-485d-877d-374ad082a583",
+        "last_activity_at": "2026-04-19T15:14:01.742701+00:00"
+      },
+      "p1Role": "player1",
+      "p2Role": "player2"
+    }
+  ],
+  "ok": false,
+  "error": {
+    "message": "Timed out waiting for DB room finished",
+    "stack": "Error: Timed out waiting for DB room finished\n    at waitFor ([stdin]:21:9)\n    at async [stdin]:102:24"
+  },
+  "failedAt": "2026-04-19T15:14:17.316Z"
+}

@@ -107,12 +107,18 @@ bus.on('enemyKilled', e => {
                 ? 0xff9bd0
                 : 0xff8f59;
     fxRenderer.addDeathEffect(e.worldX, e.worldZ, deathColor);
+    if (killedEnemy?.type === 'boss') camCtrl.shake(0.55);
 });
+bus.on('milestone', () => camCtrl.shake(0.35));
+bus.on('streakBonus', ev => { if (ev.streak >= 10) camCtrl.shake(0.25); });
 
 const goldEl = document.getElementById('gold-val')!;
 const livesEl = document.getElementById('lives-val')!;
 const waveEl = document.getElementById('wave-val')!;
 const killsEl = document.getElementById('kills-val')!;
+const hudWaveEl = document.getElementById('hud-wave')!;
+const waveRemainEl = document.getElementById('wave-remain')!;
+const waveProgressFillEl = document.getElementById('wave-progress-fill') as HTMLDivElement;
 const skipPrepBtn = document.getElementById('skip-prep-btn') as HTMLButtonElement;
 const pauseBtn = document.getElementById('pause-btn') as HTMLButtonElement;
 const speedBtn = document.getElementById('speed-btn') as HTMLButtonElement;
@@ -166,6 +172,27 @@ function updateHUD(): void {
     livesEl.textContent = String(state.lives);
     waveEl.textContent = `${Math.min(state.currentWave + 1, TOTAL_WAVES)}/${TOTAL_WAVES}`;
     killsEl.textContent = String(state.totalKills);
+
+    // Wave progress bar
+    const aliveInWave = state.enemies.filter(e => e.alive).length;
+    const total = state.waveEnemiesTotal || 0;
+    if (state.phase === 'prep') {
+        hudWaveEl.classList.add('prep');
+        const prepMax = WAVES.prepSec || 8;
+        const prepPct = Math.max(0, Math.min(1, 1 - state.prepTimer / prepMax));
+        waveRemainEl.textContent = `⏳ ${Math.max(0, Math.ceil(state.prepTimer))}s`;
+        waveProgressFillEl.style.width = `${Math.round(prepPct * 100)}%`;
+    } else if (state.phase === 'wave' && total > 0) {
+        hudWaveEl.classList.remove('prep');
+        const killedInWave = Math.max(0, state.waveEnemiesSpawned - aliveInWave);
+        const pct = Math.max(0, Math.min(1, killedInWave / total));
+        waveRemainEl.textContent = `${aliveInWave} / ${total}`;
+        waveProgressFillEl.style.width = `${Math.round(pct * 100)}%`;
+    } else {
+        hudWaveEl.classList.remove('prep');
+        waveRemainEl.textContent = '—';
+        waveProgressFillEl.style.width = '0%';
+    }
 
     // Skip prep button visibility
     skipPrepBtn.classList.toggle('hidden', state.phase !== 'prep');
@@ -820,22 +847,8 @@ function gameLoop(time: number): void {
         }
     }
 
-    // Tick components
-    if (state.phase === 'prep') {
-        state.prepTimer -= dt;
-        if (state.prepTimer <= 0) {
-            startNextWave(state);
-            showWaveBanner(`Wave ${state.currentWave + 1}`);
-        }
-    }
-
-    if (state.phase === 'wave') {
-        tickWave(state, dt);
-        tickEnemies(state, dt);
-        tickTowers(state, dt);
-        tickCombat(state, dt);
-
-        // Skill cooldowns
+    // Skill cooldowns tick in real (variable) time — fixed step loop ticks game systems only.
+    if (state.phase === 'wave' || state.phase === 'prep') {
         for (const skill of state.skills) {
             if (skill.remaining > 0) {
                 skill.remaining = Math.max(0, skill.remaining - dt);
@@ -876,6 +889,7 @@ function gameLoop(time: number): void {
     projectileRenderer.sync(state, dt);
     syncFloatingTexts(rawDt);
     lightingRig.update(elapsedSec);
+    camCtrl.tickShake(rawDt);
 
     // Update HUD
     updateHUD();

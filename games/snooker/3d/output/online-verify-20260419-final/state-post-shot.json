@@ -1,0 +1,406 @@
+{
+  "p1": {
+    "href": "http://127.0.0.1:4173/games/snooker/3d/index.html",
+    "room": {
+      "status": "playing",
+      "room_code": "3D-ROOM01",
+      "round_id": 1,
+      "winner": null,
+      "player1_ready": true,
+      "player2_ready": true
+    },
+    "online": true,
+    "myRole": "player2",
+    "myIndex": 1,
+    "overlayHidden": true,
+    "rematchHidden": true,
+    "render": {
+      "mode": "shot",
+      "coordinate": "x right, z forward (toward top pockets), y up",
+      "player": 1,
+      "shotSerial": 1,
+      "shotOrigin": "remote",
+      "lastCompletedShotOrigin": null,
+      "lastAppliedSnapshotSerial": 0,
+      "scores": [
+        0,
+        0
+      ],
+      "target": "Red",
+      "freeBallAvailable": false,
+      "snookered": true,
+      "turnState": "PLACE_CUE",
+      "foulDecisionPending": false,
+      "foulDecisionContext": null,
+      "actionRequired": "PLACE_CUE_IN_D",
+      "cuePlacementMode": "D",
+      "aiming": false,
+      "power": 0,
+      "cueBallSpeed": 0,
+      "cueVisible": false,
+      "aiEnabled": false,
+      "aiQueued": false,
+      "aimDir": {
+        "x": 0,
+        "z": 1
+      },
+      "guide": {
+        "extended": true,
+        "primaryVisible": false,
+        "extendedVisible": false,
+        "ghostVisible": false,
+        "objectPathVisible": false,
+        "railReflectVisible": false,
+        "firstCollision": null
+      },
+      "redsRemaining": 15,
+      "expectingColor": false,
+      "cue": {
+        "x": 0,
+        "z": -1.1480000000000001
+      },
+      "balls": [
+        {
+          "type": "cue",
+          "x": 0,
+          "z": -1.1480000000000001,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": 0,
+          "z": 0.864,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": -0.3944545061409278,
+          "z": 0.6969172860938838,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": 0.030346726124424225,
+          "z": 0.9537581430687041,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": -0.5724039371212216,
+          "z": 0.8713514363876533,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": -0.15871967768935696,
+          "z": 1.0171058230290733,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": 0.17086727844668795,
+          "z": 0.9723369889392236,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": -0.21635308841900913,
+          "z": 1.0596031141302766,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": -0.0871686880197461,
+          "z": 1.0836294285792132,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": 0.03158870857873655,
+          "z": 1.072224085928668,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": 0.11074551619383063,
+          "z": 1.067124574974792,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": -0.3853084806424826,
+          "z": 1.3175154002592318,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": -0.09579030121144165,
+          "z": 1.4327890346104077,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": 0.01021693247657616,
+          "z": 1.227308789430585,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": 0.09760595587980499,
+          "z": 1.1621437794749405,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": 0.27161910440019393,
+          "z": 1.3655363528052962,
+          "pocketed": false
+        },
+        {
+          "type": "yellow",
+          "x": -0.41400000000000003,
+          "z": -1.0080000000000002,
+          "pocketed": false
+        },
+        {
+          "type": "green",
+          "x": 0.41400000000000003,
+          "z": -1.0080000000000002,
+          "pocketed": false
+        },
+        {
+          "type": "brown",
+          "x": 0,
+          "z": -1.0080000000000002,
+          "pocketed": false
+        },
+        {
+          "type": "blue",
+          "x": 0,
+          "z": 0,
+          "pocketed": false
+        },
+        {
+          "type": "pink",
+          "x": 0,
+          "z": 0.756,
+          "pocketed": false
+        },
+        {
+          "type": "black",
+          "x": -0.024871986123315953,
+          "z": 1.4713782268497881,
+          "pocketed": false
+        }
+      ],
+      "inputDebug": {
+        "lastMouseDown": "",
+        "lastMouseUp": "",
+        "lastMouseMove": "",
+        "lastBlockReason": ""
+      }
+    }
+  },
+  "p2": {
+    "href": "http://127.0.0.1:4173/games/snooker/3d/index.html",
+    "room": {
+      "status": "playing",
+      "room_code": "3D-ROOM01",
+      "round_id": 1,
+      "winner": null,
+      "player1_ready": true,
+      "player2_ready": true
+    },
+    "online": true,
+    "myRole": "player1",
+    "myIndex": 0,
+    "overlayHidden": true,
+    "rematchHidden": true,
+    "render": {
+      "mode": "shot",
+      "coordinate": "x right, z forward (toward top pockets), y up",
+      "player": 1,
+      "shotSerial": 1,
+      "shotOrigin": "local",
+      "lastCompletedShotOrigin": null,
+      "lastAppliedSnapshotSerial": 0,
+      "scores": [
+        0,
+        0
+      ],
+      "target": "Red",
+      "freeBallAvailable": false,
+      "snookered": true,
+      "turnState": "PLACE_CUE",
+      "foulDecisionPending": false,
+      "foulDecisionContext": null,
+      "actionRequired": "PLACE_CUE_IN_D",
+      "cuePlacementMode": "D",
+      "aiming": false,
+      "power": 0,
+      "cueBallSpeed": 0,
+      "cueVisible": false,
+      "aiEnabled": false,
+      "aiQueued": false,
+      "aimDir": {
+        "x": 0,
+        "z": 1
+      },
+      "guide": {
+        "extended": true,
+        "primaryVisible": false,
+        "extendedVisible": false,
+        "ghostVisible": false,
+        "objectPathVisible": false,
+        "railReflectVisible": false,
+        "firstCollision": null
+      },
+      "redsRemaining": 15,
+      "expectingColor": false,
+      "cue": {
+        "x": 0,
+        "z": -1.1480000000000001
+      },
+      "balls": [
+        {
+          "type": "cue",
+          "x": 0,
+          "z": -1.1480000000000001,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": 0,
+          "z": 0.864,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": -0.24405280294734466,
+          "z": 0.6683505762232859,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": 0.030346726124424225,
+          "z": 0.9537581430687041,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": -0.5803056709762335,
+          "z": 0.869291361098671,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": -0.15871967768935696,
+          "z": 1.0171058230290733,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": 0.17086727844668795,
+          "z": 0.9723369889392236,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": -0.21635308841900913,
+          "z": 1.0596031141302766,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": -0.0871686880197461,
+          "z": 1.0836294285792132,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": 0.03158870857873655,
+          "z": 1.072224085928668,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": 0.11074551619383063,
+          "z": 1.067124574974792,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": -0.3853084806424826,
+          "z": 1.3175154002592318,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": -0.09579030121144165,
+          "z": 1.4327890346104077,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": 0.01021693247657616,
+          "z": 1.227308789430585,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": 0.09760595587980499,
+          "z": 1.1621437794749405,
+          "pocketed": false
+        },
+        {
+          "type": "red",
+          "x": 0.27161910440019393,
+          "z": 1.3655363528052962,
+          "pocketed": false
+        },
+        {
+          "type": "yellow",
+          "x": -0.41400000000000003,
+          "z": -1.0080000000000002,
+          "pocketed": false
+        },
+        {
+          "type": "green",
+          "x": 0.41400000000000003,
+          "z": -1.0080000000000002,
+          "pocketed": false
+        },
+        {
+          "type": "brown",
+          "x": 0,
+          "z": -1.0080000000000002,
+          "pocketed": false
+        },
+        {
+          "type": "blue",
+          "x": 0,
+          "z": 0,
+          "pocketed": false
+        },
+        {
+          "type": "pink",
+          "x": 0,
+          "z": 0.756,
+          "pocketed": false
+        },
+        {
+          "type": "black",
+          "x": -0.024871986123315953,
+          "z": 1.4713782268497881,
+          "pocketed": false
+        }
+      ],
+      "inputDebug": {
+        "lastMouseDown": "",
+        "lastMouseUp": "",
+        "lastMouseMove": "",
+        "lastBlockReason": ""
+      }
+    }
+  }
+}

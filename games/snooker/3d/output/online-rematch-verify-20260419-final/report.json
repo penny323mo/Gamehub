@@ -1,0 +1,76 @@
+{
+  "startedAt": "2026-04-19T15:17:08.519Z",
+  "roomKey": "3D-ROOM03",
+  "steps": [
+    {
+      "step": "started",
+      "db": {
+        "id": "ee1c8bc0-154b-421d-814e-82896bf1e4f4",
+        "room_code": "3D-ROOM03",
+        "status": "playing",
+        "round_id": 3,
+        "winner": null,
+        "player1_id": "4edca787-e232-4aab-84fd-3698edf2aed9",
+        "player2_id": "15f8d33d-e02d-4479-a6bd-5d99b18e2e4d",
+        "last_activity_at": "2026-04-19T15:17:15.473795+00:00"
+      },
+      "p1Role": "player1",
+      "p2Role": "player2"
+    },
+    {
+      "step": "rpc_signal_game_over",
+      "response": {
+        "ok": true
+      }
+    },
+    {
+      "step": "db_finished",
+      "room": {
+        "id": "ee1c8bc0-154b-421d-814e-82896bf1e4f4",
+        "room_code": "3D-ROOM03",
+        "status": "finished",
+        "round_id": 3,
+        "winner": "player1",
+        "player1_id": "4edca787-e232-4aab-84fd-3698edf2aed9",
+        "player2_id": "15f8d33d-e02d-4479-a6bd-5d99b18e2e4d",
+        "last_activity_at": "2026-04-19T15:17:15.879386+00:00"
+      }
+    },
+    {
+      "step": "db_waiting_after_rematch",
+      "room": {
+        "id": "ee1c8bc0-154b-421d-814e-82896bf1e4f4",
+        "room_code": "3D-ROOM03",
+        "status": "waiting",
+        "round_id": 4,
+        "winner": null,
+        "player1_id": "4edca787-e232-4aab-84fd-3698edf2aed9",
+        "player2_id": "15f8d33d-e02d-4479-a6bd-5d99b18e2e4d",
+        "last_activity_at": "2026-04-19T15:17:16.196666+00:00"
+      }
+    },
+    {
+      "step": "clean_playing_after_rematch",
+      "db": {
+        "id": "ee1c8bc0-154b-421d-814e-82896bf1e4f4",
+        "room_code": "3D-ROOM03",
+        "status": "playing",
+        "round_id": 4,
+        "winner": null,
+        "player1_id": "4edca787-e232-4aab-84fd-3698edf2aed9",
+        "player2_id": "15f8d33d-e02d-4479-a6bd-5d99b18e2e4d",
+        "last_activity_at": "2026-04-19T15:17:16.954022+00:00"
+      },
+      "p1Serials": {
+        "shotSerial": 0,
+        "lastApplied": 0
+      },
+      "p2Serials": {
+        "shotSerial": 0,
+        "lastApplied": 0
+      }
+    }
+  ],
+  "ok": true,
+  "finishedAt": "2026-04-19T15:20:21.609Z"
+}

@@ -2462,13 +2462,21 @@ function applyGameStateSnapshot(rawPayload) {
     return false;
   }
 
+  const snapshotReason = typeof snapshot.reason === 'string' ? snapshot.reason : null;
+  const snapshotPhase = typeof snapshot.phase === 'string' ? snapshot.phase : null;
+  const isAuthoritativePostShot =
+    snapshotPhase === 'final' ||
+    snapshotReason === 'foul_decision' ||
+    snapshotReason === 'shot_resolved' ||
+    snapshotReason === 'game_over';
+
   const snapshotSerial = Number.isFinite(snapshot.shotSerial) ? snapshot.shotSerial : null;
   if (snapshotSerial !== null) {
     if (snapshotSerial < currentShotSerial) return false;
     if (snapshotSerial === lastAppliedSnapshotSerial && snapshot.snapshotId && snapshot.snapshotId === lastAppliedSnapshotId) {
       return false;
     }
-    if (snapshotSerial === currentShotSerial && shotInProgress && activeShotOrigin === 'local') {
+    if (snapshotSerial === currentShotSerial && shotInProgress && !isAuthoritativePostShot) {
       return false;
     }
   }
@@ -2508,7 +2516,19 @@ function applyGameStateSnapshot(rawPayload) {
   expectingColor = snapshot.expectingColor !== undefined ? !!snapshot.expectingColor : expectingColor;
   freeBallAvailable = snapshot.freeBallAvailable !== undefined ? !!snapshot.freeBallAvailable : freeBallAvailable;
   colorClearIndex = Number.isFinite(snapshot.colorClearIndex) ? snapshot.colorClearIndex : colorClearIndex;
+  const previousCueBallInHand = cueBallInHand;
   cueBallInHand = snapshot.cueBallInHand !== undefined ? !!snapshot.cueBallInHand : cueBallInHand;
+  if (previousCueBallInHand && !cueBallInHand) {
+    isDraggingCueBall = false;
+    // If the local user was mid-drag when the remote snapshot cleared
+    // cueBallInHand, the captured pointer must also be released — otherwise
+    // subsequent pointerup events on the canvas never match the stale
+    // activePointerId and the canvas swallows clicks on other UI elements.
+    if (activePointerId !== null && typeof canvas?.releasePointerCapture === 'function') {
+      try { canvas.releasePointerCapture(activePointerId); } catch (_) { /* ignore */ }
+    }
+    activePointerId = null;
+  }
   breakShotPending = snapshot.breakShotPending !== undefined ? !!snapshot.breakShotPending : breakShotPending;
   foulDecisionPending = snapshot.foulDecisionPending !== undefined ? !!snapshot.foulDecisionPending : foulDecisionPending;
   foulDecisionContext = cloneFoulDecisionContext(snapshot.foulDecisionContext);
@@ -2556,14 +2576,18 @@ function applyGameStateSnapshot(rawPayload) {
   return true;
 }
 
-function broadcastSettledStateSnapshot({ force = false, reason = 'shot_resolved' } = {}) {
+function broadcastSettledStateSnapshot({ force = false, reason = 'shot_resolved', completedShotOrigin } = {}) {
   if (!window.isOnlineMode) return false;
   if (!force && activeShotOrigin !== 'local') return false;
   if (typeof window.snookerSendStateSnapshot !== 'function') return false;
 
-  const snapshot = serializeGameStateSnapshot({
-    reason,
-  });
+  // Tag authoritative post-shot snapshots so receivers accept same-serial updates.
+  const extra = { reason, phase: 'final' };
+  if (typeof completedShotOrigin === 'string') {
+    extra.completedShotOrigin = completedShotOrigin;
+    extra.shotOrigin = completedShotOrigin;
+  }
+  const snapshot = serializeGameStateSnapshot(extra);
 
   lastAppliedSnapshotSerial = Number.isFinite(snapshot.shotSerial) ? snapshot.shotSerial : lastAppliedSnapshotSerial;
   lastAppliedSnapshotId = snapshot.snapshotId || lastAppliedSnapshotId;
@@ -2750,7 +2774,10 @@ function updateUi() {
 
 function updateDecisionPanel() {
   if (!decisionPanelEl || !decisionTextEl) return;
-  if (!foulDecisionPending || !foulDecisionContext || foulDecisionContext.beneficiary !== 0) {
+  // The decision belongs to the fouled-against (beneficiary) player only.
+  // Offline: human is always P1 (index 0). Online: compare to my seat.
+  const myIndex = window.isOnlineMode ? (window.onlineMyPlayerIndex ?? 0) : 0;
+  if (!foulDecisionPending || !foulDecisionContext || foulDecisionContext.beneficiary !== myIndex) {
     decisionPanelEl.classList.remove('show');
     decisionPanelEl.hidden = true;
     return;
@@ -2760,6 +2787,12 @@ function updateDecisionPanel() {
   decisionTextEl.textContent =
     `P${foulDecisionContext.fouler + 1} 犯規（${foulDecisionContext.reason}），` +
     `你獲 +${foulDecisionContext.points} 分。要接手，或要求對手續打？`;
+}
+
+function canApplyFoulDecisionLocally() {
+  if (!foulDecisionPending || !foulDecisionContext) return false;
+  const myIndex = window.isOnlineMode ? (window.onlineMyPlayerIndex ?? 0) : 0;
+  return foulDecisionContext.beneficiary === myIndex;
 }
 
 function allStopped() {
@@ -2823,6 +2856,13 @@ function resetGame({ startNow = true, aiMode = aiEnabled } = {}) {
   currentShotSerial = 0;
   lastAppliedSnapshotSerial = 0;
   lastAppliedSnapshotId = null;
+  // Reset aim / charge / spin so a rematch begins from a deterministic state
+  // instead of inheriting the previous match's in-flight input.
+  shotElapsed = 0;
+  aimDirection.set(0, 0, 1);
+  chargeLockedAimDirection.set(0, 0, 1);
+  spin.x = 0;
+  spin.y = 0;
   statusEl.textContent = '';
 
   balls.forEach((ball) => {
@@ -3418,7 +3458,17 @@ function applyFoulDecision(forceFoulerContinue) {
   updateAimLine();
   updateUi();
   if (window.isOnlineMode) {
-    broadcastSettledStateSnapshot({ force: true, reason: 'foul_decision' });
+    // The beneficiary is authoritative for the decision. Set the origins to
+    // 'local' BEFORE serialising the snapshot so serializeGameStateSnapshot's
+    // default origin reflects our authority (and a stale remote origin from
+    // the prior shot doesn't leak into this authoritative decision snapshot).
+    activeShotOrigin = 'local';
+    lastCompletedShotOrigin = 'local';
+    broadcastSettledStateSnapshot({
+      force: true,
+      reason: 'foul_decision',
+      completedShotOrigin: 'local',
+    });
     activeShotOrigin = null;
   }
 }
@@ -3427,8 +3477,26 @@ function endShot() {
   shotInProgress = false;
   const completedShotOrigin = activeShotOrigin || 'offline';
   lastCompletedShotOrigin = completedShotOrigin;
+  // Consume the break flag unconditionally so the receiver side doesn't leak
+  // it across shots (the shooter's snapshot will re-authoritate score state).
   const wasBreakShot = breakShotPending;
   breakShotPending = false;
+  // In online mode, the shooter is authoritative. Receivers must NOT mutate
+  // score/turn/foul state locally — they wait for the shooter's final snapshot.
+  if (window.isOnlineMode && completedShotOrigin === 'remote') {
+    // Clear per-shot transient flags so a fast next LOCAL shot does not
+    // inherit leftover physics-derived firstHitType / foulThisShot / shotPotted
+    // from the replayed remote simulation. The shooter's final snapshot has
+    // already written the authoritative post-shot state.
+    firstHitType = null;
+    shotPotted = [];
+    foulThisShot = false;
+    foulReason = '';
+    cueBallPottedThisShot = false;
+    activeShotOrigin = null;
+    updateUi();
+    return;
+  }
   const reds = redsRemaining();
 
   const scored = shotPotted.map((ball) => ball.type);
@@ -3618,6 +3686,13 @@ function showGameOverPanel(winnerText, finalScore) {
   document.getElementById('restart-btn').addEventListener('click', () => {
     panel.style.display = 'none';
     gameOver = false;
+    // In online mode, a local-only resetGame() would desync the peer. Route
+    // through the server-side rematch flow so round_id bumps and both sides
+    // re-enter the ready screen coherently.
+    if (window.isOnlineMode && typeof window.snookerRematch === 'function') {
+      window.snookerRematch();
+      return;
+    }
     resetGame();
   });
 }
@@ -4285,11 +4360,13 @@ canvas.addEventListener('dblclick', (e) => {
 
 if (decisionTakeBtn) {
   decisionTakeBtn.addEventListener('click', () => {
+    if (!canApplyFoulDecisionLocally()) return;
     applyFoulDecision(false);
   });
 }
 if (decisionForceBtn) {
   decisionForceBtn.addEventListener('click', () => {
+    if (!canApplyFoulDecisionLocally()) return;
     applyFoulDecision(true);
   });
 }
@@ -4475,11 +4552,11 @@ if (spinResetBtn) {
 
 window.addEventListener('keydown', (e) => {
   if (foulDecisionPending && (e.code === 'KeyY' || e.code === 'Enter' || e.code === 'Space')) {
-    applyFoulDecision(false);
+    if (canApplyFoulDecisionLocally()) applyFoulDecision(false);
     return;
   }
   if (foulDecisionPending && e.code === 'KeyN') {
-    applyFoulDecision(true);
+    if (canApplyFoulDecisionLocally()) applyFoulDecision(true);
     return;
   }
   if (e.code === 'KeyR') {
@@ -5033,7 +5110,6 @@ window.render_game_to_text = () => {
 window.snookerSerializeStateSnapshot = serializeGameStateSnapshot;
 window.snookerSerializeGameStateSnapshot = serializeGameStateSnapshot;
 window.snookerSerializeSnapshot = serializeGameStateSnapshot;
-window.snookerApplyRemoteStateSnapshot = applyGameStateSnapshot;
 window.snookerApplyStateSnapshot = applyGameStateSnapshot;
 window.snookerApplyGameStateSnapshot = applyGameStateSnapshot;
 window.snookerApplySnapshot = applyGameStateSnapshot;
@@ -5199,19 +5275,30 @@ window.snookerApplyRemoteShot = function(payload) {
       if (activeShotOrigin === 'local') return;
       if (activeShotOrigin === 'remote') return;
     }
-    if (!shotInProgress && incomingSerial <= lastAppliedSnapshotSerial) return;
+    // If the authoritative final snapshot for this (or a newer) serial already
+    // landed, replaying the shot envelope would re-start physics on top of the
+    // already-applied final state and teleport balls. Skip — the snapshot wins.
+    if (incomingSerial <= lastAppliedSnapshotSerial) return;
     beginShotSession('remote', incomingSerial);
   } else {
     if (shotInProgress && (activeShotOrigin === 'local' || activeShotOrigin === 'remote')) return;
     beginShotSession('remote');
   }
 
-  // Apply cue ball position when it was placed in hand
-  if (cueBallInHand && normalized.cue_x != null) {
-    cueBall.position.set(normalized.cue_x, cueBall.position.y, normalized.cue_z ?? 0);
+  // Sync cue ball position from the shooter, regardless of cueBallInHand state.
+  // A prior snapshot may have cleared cueBallInHand locally while the shooter's
+  // physical position wasn't yet applied — without this, physics diverges on
+  // the first cushion/collision.
+  if (normalized.cue_x != null) {
+    const cueZ = normalized.cue_z != null ? normalized.cue_z : cueBall.position.z;
+    cueBall.position.set(normalized.cue_x, cueBall.position.y, cueZ);
     cueBall.group.position.copy(cueBall.position);
-    cueBallInHand = false;
-    stationaryTime = settledDuration; // allow immediate shot
+    if (cueBallInHand) {
+      cueBallInHand = false;
+      isDraggingCueBall = false;
+      activePointerId = null;
+      stationaryTime = settledDuration;
+    }
   }
 
   // Set aim direction
@@ -5248,11 +5335,17 @@ window.snookerApplyRemoteStateSnapshot = function(snapshot, meta) {
 window.snookerOnlineRoomUpdate = function ({ status, players, myRole, room } = {}) {
   if (status === 'playing') {
     const incomingRoomId = room?.id || window.__snookerOnlineRoomId || null;
-    const incomingRoundId = Number.isFinite(room?.round_id) ? room.round_id : window.__snookerOnlineRoundId ?? null;
+    // Normalise round_id to a finite number. Server always provides one (default 0).
+    const incomingRoundId = Number.isFinite(room?.round_id)
+      ? room.round_id
+      : (Number.isFinite(window.__snookerOnlineRoundId) ? window.__snookerOnlineRoundId : 0);
+    const storedRoundId = Number.isFinite(window.__snookerOnlineRoundId) ? window.__snookerOnlineRoundId : null;
+    // Rematch: if we have a stored round_id and the incoming one is different, force reset.
+    const roundChanged = storedRoundId !== null && incomingRoundId !== storedRoundId;
     const alreadyStartedSameOnlineMatch = window.isOnlineMode && gameStarted &&
-      !gameOver &&
+      !gameOver && !roundChanged &&
       (!incomingRoomId || incomingRoomId === window.__snookerOnlineRoomId) &&
-      (incomingRoundId === null || incomingRoundId === window.__snookerOnlineRoundId);
+      (storedRoundId === null || incomingRoundId === storedRoundId);
     if (alreadyStartedSameOnlineMatch) return;
     const localP1Name = Array.isArray(players) && players[0]?.name ? players[0].name : null;
     const localP2Name = Array.isArray(players) && players[1]?.name ? players[1].name : null;
@@ -5279,6 +5372,23 @@ window.snookerOnlineRoomUpdate = function ({ status, players, myRole, room } = {
       setStatus(isOpponentLeft ? '對手已離開，遊戲結束' : '對局結束', 5);
       updateUi();
     }
+    document.getElementById('snooker3d-online-overlay')?.classList.remove('hidden');
+  } else if (status === 'waiting') {
+    // After rematch the server flips the room back to 'waiting' before both
+    // players re-ready. Clear the prior finished overlay + game-over panel so
+    // the next 'playing' transition can open a clean slate.
+    if (gameOver) {
+      gameOver = false;
+      document.getElementById('game-over-panel')?.remove();
+    }
+    // Defensive reset of snapshot/shot serials so a late cross-round state_sync
+    // from the PREVIOUS round cannot mutate fresh state between 'waiting' and
+    // 'playing'. resetGame() on the next 'playing' will reset again; harmless.
+    lastAppliedSnapshotSerial = 0;
+    lastAppliedSnapshotId = null;
+    currentShotSerial = 0;
+    activeShotOrigin = null;
+    lastCompletedShotOrigin = null;
     document.getElementById('snooker3d-online-overlay')?.classList.remove('hidden');
   } else if (status === 'left') {
     window.isOnlineMode        = false;

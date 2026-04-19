@@ -99,8 +99,11 @@ export function tickCombat(state: GameState, dt: number): void {
                     }
                 }
             }
-            proj.x += (dx / d) * step;
-            proj.z += (dz / d) * step;
+        } else {
+            // Still in flight — advance position toward target
+            const inv = 1 / d;
+            proj.x += dx * inv * step;
+            proj.z += dz * inv * step;
 
             // Recalculate horizontal progress to apply vertical arcs accurately
             const totalDx = proj.targetX - proj.startX;

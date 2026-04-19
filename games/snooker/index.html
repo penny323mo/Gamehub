@@ -194,7 +194,14 @@
                 // Suppress beforeunload seat-clearing during intentional redirect.
                 // Use window.SnookerOnline (now exposed) instead of the const
                 // which is not on window and was always 'undefined' here.
-                if (window.SnookerOnline) window.SnookerOnline._intentionalRedirect = true;
+                if (window.SnookerOnline) {
+                    window.SnookerOnline._intentionalRedirect = true;
+                    // Auto-clear after 10 s so a failed redirect doesn't permanently
+                    // suppress future seat cleanup from this tab.
+                    setTimeout(() => {
+                        if (window.SnookerOnline) window.SnookerOnline._intentionalRedirect = false;
+                    }, 10000);
+                }
                 const dest = currentOnlineMode === '3d' ? './3d/index.html' : './2d/index.html';
                 location.href = dest;
             } else if (status === 'left') {

@@ -1,0 +1,27 @@
+{
+  "startedAt": "2026-04-19T15:06:36.071Z",
+  "steps": [
+    {
+      "step": "open_hub",
+      "ok": true
+    },
+    {
+      "step": "join_room",
+      "roomKey": "3D-ROOM03",
+      "joinResults": [
+        true,
+        true
+      ]
+    },
+    {
+      "step": "ready_clicked",
+      "ok": true
+    }
+  ],
+  "ok": false,
+  "error": {
+    "message": "Execution context was destroyed, most likely because of a navigation.",
+    "stack": "Error: Execution context was destroyed, most likely because of a navigation.\n    at rewriteError (/Users/a123/AI/antigravity/Gamehub/games/big2/node_modules/puppeteer-core/lib/cjs/puppeteer/cdp/ExecutionContext.js:457:15)\n    at async #evaluate (/Users/a123/AI/antigravity/Gamehub/games/big2/node_modules/puppeteer-core/lib/cjs/puppeteer/cdp/ExecutionContext.js:389:60)\n    at async ExecutionContext.evaluate (/Users/a123/AI/antigravity/Gamehub/games/big2/node_modules/puppeteer-core/lib/cjs/puppeteer/cdp/ExecutionContext.js:277:16)\n    at async IsolatedWorld.evaluate (/Users/a123/AI/antigravity/Gamehub/games/big2/node_modules/puppeteer-core/lib/cjs/puppeteer/cdp/IsolatedWorld.js:100:16)\n    at async CdpFrame.evaluate (/Users/a123/AI/antigravity/Gamehub/games/big2/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Frame.js:362:20)\n    at async CdpPage.evaluate (/Users/a123/AI/antigravity/Gamehub/games/big2/node_modules/puppeteer-core/lib/cjs/puppeteer/api/Page.js:830:20)\n    at async Promise.all.waitFor.timeout ([stdin]:117:28)\n    at async waitFor ([stdin]:15:19)\n    at async Promise.all (index 0)\n    at async [stdin]:116:5"
+  },
+  "failedAt": "2026-04-19T15:06:39.566Z"
+}

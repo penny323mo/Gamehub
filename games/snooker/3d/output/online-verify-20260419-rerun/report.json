@@ -1,0 +1,232 @@
+{
+  "startedAt": "2026-04-19T15:08:01.153Z",
+  "steps": [
+    {
+      "step": "open_hub",
+      "ok": true
+    },
+    {
+      "step": "join_room",
+      "roomKey": "3D-ROOM02",
+      "joinResults": [
+        true,
+        true
+      ]
+    },
+    {
+      "step": "ready_clicked",
+      "ok": true
+    },
+    {
+      "step": "match_started",
+      "p1Role": "player2",
+      "p2Role": "player1",
+      "p1Action": "PLACE_CUE_IN_D",
+      "p2Action": "PLACE_CUE_IN_D"
+    },
+    {
+      "step": "shot_triggered",
+      "shotPrep": {
+        "placed": {
+          "ok": true,
+          "x": 0.084,
+          "z": -1.008
+        },
+        "confirmed": true,
+        "before": {
+          "mode": "aim",
+          "coordinate": "x right, z forward (toward top pockets), y up",
+          "player": 1,
+          "shotSerial": 0,
+          "shotOrigin": null,
+          "lastCompletedShotOrigin": null,
+          "lastAppliedSnapshotSerial": 0,
+          "scores": [
+            0,
+            0
+          ],
+          "target": "Red",
+          "freeBallAvailable": false,
+          "snookered": true,
+          "turnState": "AIMING",
+          "foulDecisionPending": false,
+          "foulDecisionContext": null,
+          "actionRequired": "WAIT",
+          "cuePlacementMode": "NONE",
+          "aiming": false,
+          "power": 0,
+          "cueBallSpeed": 0,
+          "cueVisible": false,
+          "aiEnabled": false,
+          "aiQueued": false,
+          "aimDir": {
+            "x": 0,
+            "z": 1
+          },
+          "guide": {
+            "extended": true,
+            "primaryVisible": false,
+            "extendedVisible": false,
+            "ghostVisible": false,
+            "objectPathVisible": false,
+            "railReflectVisible": false,
+            "firstCollision": null
+          },
+          "redsRemaining": 15,
+          "expectingColor": false,
+          "cue": {
+            "x": 0.08400000000000002,
+            "z": -1.0080000000000002
+          },
+          "balls": [
+            {
+              "type": "cue",
+              "x": 0.08400000000000002,
+              "z": -1.0080000000000002,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0,
+              "z": 0.864,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": -0.035875,
+              "z": 0.93001,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0.035875,
+              "z": 0.93001,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": -0.07175,
+              "z": 0.99602,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0,
+              "z": 0.99602,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0.07175,
+              "z": 0.99602,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": -0.107625,
+              "z": 1.06203,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": -0.035875,
+              "z": 1.06203,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0.035875,
+              "z": 1.06203,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0.107625,
+              "z": 1.06203,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": -0.1435,
+              "z": 1.12804,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": -0.07175,
+              "z": 1.12804,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0,
+              "z": 1.12804,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0.07175,
+              "z": 1.12804,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0.1435,
+              "z": 1.12804,
+              "pocketed": false
+            },
+            {
+              "type": "yellow",
+              "x": -0.41400000000000003,
+              "z": -1.0080000000000002,
+              "pocketed": false
+            },
+            {
+              "type": "green",
+              "x": 0.41400000000000003,
+              "z": -1.0080000000000002,
+              "pocketed": false
+            },
+            {
+              "type": "brown",
+              "x": 0,
+              "z": -1.0080000000000002,
+              "pocketed": false
+            },
+            {
+              "type": "blue",
+              "x": 0,
+              "z": 0,
+              "pocketed": false
+            },
+            {
+              "type": "pink",
+              "x": 0,
+              "z": 0.756,
+              "pocketed": false
+            },
+            {
+              "type": "black",
+              "x": 0,
+              "z": 1.296,
+              "pocketed": false
+            }
+          ],
+          "inputDebug": {
+            "lastMouseDown": "",
+            "lastMouseUp": "",
+            "lastMouseMove": "",
+            "lastBlockReason": ""
+          }
+        },
+        "shot": true
+      }
+    }
+  ],
+  "ok": false,
+  "error": {
+    "message": "Timed out waiting for P1 shot serial >= 1",
+    "stack": "Error: Timed out waiting for P1 shot serial >= 1\n    at waitFor ([stdin]:20:9)\n    at async [stdin]:134:5"
+  },
+  "failedAt": "2026-04-19T15:08:30.421Z"
+}

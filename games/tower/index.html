@@ -16,7 +16,13 @@
     <div id="hud">
         <div id="hud-gold">💰 <span id="gold-val">400</span></div>
         <div id="hud-lives">❤️ <span id="lives-val">20</span></div>
-        <div id="hud-wave">Wave <span id="wave-val">0</span>/99</div>
+        <div id="hud-wave">
+          <div class="wave-top">
+            <span class="wave-label">Wave <span id="wave-val">0</span>/99</span>
+            <span class="wave-remain" id="wave-remain">—</span>
+          </div>
+          <div class="wave-progress-track"><div class="wave-progress-fill" id="wave-progress-fill"></div></div>
+        </div>
         <div id="hud-kills">🗡️ <span id="kills-val">0</span></div>
         <button id="skip-prep-btn" class="hidden">⏩ Skip</button>
         <button id="pause-btn" style="margin-left:auto">⏸</button>
@@ -189,6 +195,19 @@
 
   <!-- Start Screen -->
   <div id="start-screen">
+    <div class="start-aurora"></div>
+    <div class="start-embers">
+      <span class="ember e1"></span>
+      <span class="ember e2"></span>
+      <span class="ember e3"></span>
+      <span class="ember e4"></span>
+      <span class="ember e5"></span>
+      <span class="ember e6"></span>
+      <span class="ember e7"></span>
+      <span class="ember e8"></span>
+      <span class="ember e9"></span>
+      <span class="ember e10"></span>
+    </div>
     <div class="start-content">
       <div class="intro-kicker">Frontier Bastion Protocol</div>
       <h1 class="game-title">⚔️ Tower Defense</h1>

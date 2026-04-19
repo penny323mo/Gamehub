@@ -1,0 +1,271 @@
+{
+  "startedAt": "2026-04-19T15:10:13.632Z",
+  "steps": [
+    {
+      "step": "open_hub",
+      "ok": true
+    },
+    {
+      "step": "join_room",
+      "roomKey": "3D-ROOM01",
+      "joinResults": [
+        true,
+        true
+      ]
+    },
+    {
+      "step": "ready_clicked",
+      "ok": true
+    },
+    {
+      "step": "match_started",
+      "roomKey": "3D-ROOM01",
+      "p1Role": "player2",
+      "p2Role": "player1",
+      "shooterLabel": "p2",
+      "shooterRole": "player1",
+      "currentPlayer": 1
+    },
+    {
+      "step": "shot_triggered",
+      "shooterLabel": "p2",
+      "shotPrep": {
+        "placed": {
+          "ok": true,
+          "x": 0.084,
+          "z": -1.008
+        },
+        "confirmed": true,
+        "before": {
+          "mode": "aim",
+          "coordinate": "x right, z forward (toward top pockets), y up",
+          "player": 1,
+          "shotSerial": 0,
+          "shotOrigin": null,
+          "lastCompletedShotOrigin": null,
+          "lastAppliedSnapshotSerial": 0,
+          "scores": [
+            0,
+            0
+          ],
+          "target": "Red",
+          "freeBallAvailable": false,
+          "snookered": true,
+          "turnState": "AIMING",
+          "foulDecisionPending": false,
+          "foulDecisionContext": null,
+          "actionRequired": "CAN_SHOOT",
+          "cuePlacementMode": "NONE",
+          "aiming": false,
+          "power": 0,
+          "cueBallSpeed": 0,
+          "cueVisible": true,
+          "aiEnabled": false,
+          "aiQueued": false,
+          "aimDir": {
+            "x": 0,
+            "z": 1
+          },
+          "guide": {
+            "extended": true,
+            "primaryVisible": true,
+            "extendedVisible": true,
+            "ghostVisible": true,
+            "objectPathVisible": false,
+            "railReflectVisible": false,
+            "firstCollision": {
+              "kind": "ball",
+              "x": 0.084,
+              "z": 0.8792,
+              "targetType": "red"
+            }
+          },
+          "redsRemaining": 15,
+          "expectingColor": false,
+          "cue": {
+            "x": 0.08400000000000002,
+            "z": -1.0080000000000002
+          },
+          "balls": [
+            {
+              "type": "cue",
+              "x": 0.08400000000000002,
+              "z": -1.0080000000000002,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0,
+              "z": 0.864,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": -0.035875,
+              "z": 0.93001,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0.035875,
+              "z": 0.93001,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": -0.07175,
+              "z": 0.99602,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0,
+              "z": 0.99602,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0.07175,
+              "z": 0.99602,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": -0.107625,
+              "z": 1.06203,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": -0.035875,
+              "z": 1.06203,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0.035875,
+              "z": 1.06203,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0.107625,
+              "z": 1.06203,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": -0.1435,
+              "z": 1.12804,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": -0.07175,
+              "z": 1.12804,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0,
+              "z": 1.12804,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0.07175,
+              "z": 1.12804,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0.1435,
+              "z": 1.12804,
+              "pocketed": false
+            },
+            {
+              "type": "yellow",
+              "x": -0.41400000000000003,
+              "z": -1.0080000000000002,
+              "pocketed": false
+            },
+            {
+              "type": "green",
+              "x": 0.41400000000000003,
+              "z": -1.0080000000000002,
+              "pocketed": false
+            },
+            {
+              "type": "brown",
+              "x": 0,
+              "z": -1.0080000000000002,
+              "pocketed": false
+            },
+            {
+              "type": "blue",
+              "x": 0,
+              "z": 0,
+              "pocketed": false
+            },
+            {
+              "type": "pink",
+              "x": 0,
+              "z": 0.756,
+              "pocketed": false
+            },
+            {
+              "type": "black",
+              "x": 0,
+              "z": 1.296,
+              "pocketed": false
+            }
+          ],
+          "inputDebug": {
+            "lastMouseDown": "",
+            "lastMouseUp": "",
+            "lastMouseMove": "",
+            "lastBlockReason": ""
+          }
+        },
+        "shot": true,
+        "myIndex": 0
+      }
+    },
+    {
+      "step": "shot_synced",
+      "shooterLabel": "p2",
+      "p1": {
+        "shotSerial": 1,
+        "lastApplied": 0,
+        "currentPlayer": 1,
+        "cue": {
+          "x": 0,
+          "z": -1.1480000000000001
+        },
+        "scores": [
+          0,
+          0
+        ]
+      },
+      "p2": {
+        "shotSerial": 1,
+        "lastApplied": 0,
+        "currentPlayer": 1,
+        "cue": {
+          "x": 0,
+          "z": -1.1480000000000001
+        },
+        "scores": [
+          0,
+          0
+        ]
+      }
+    }
+  ],
+  "ok": false,
+  "error": {
+    "message": "Timed out waiting for P1 finished",
+    "stack": "Error: Timed out waiting for P1 finished\n    at waitFor ([stdin]:20:9)\n    at runNextTicks (node:internal/process/task_queues:65:5)\n    at listOnTimeout (node:internal/timers:567:9)\n    at process.processTimers (node:internal/timers:541:7)\n    at async Promise.all (index 0)\n    at async [stdin]:174:5"
+  },
+  "failedAt": "2026-04-19T15:11:05.017Z"
+}
