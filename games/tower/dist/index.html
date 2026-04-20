@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Tower Defense</title>
-   defer src="./assets/index-sAVlX6Jj.js"></script>
+   defer src="./assets/index-BE5d4ed9.js"></script>
 </head>
 
 <body>
@@ -111,6 +111,9 @@
 
   <!-- Floating Text Layer -->
   <div id="floating-text-layer"></div>
+
+  <!-- Achievement Toast Layer -->
+  <div id="achievement-toasts"></div>
 
   <!-- Tower Tooltip -->
   <div id="tower-tooltip" class="hidden">
@@ -259,6 +262,11 @@
         </div>
         <div class="difficulty-desc" id="diff-desc">Standard difficulty — 400g, 20 lives</div>
       </div>
+      <div class="high-score-row" id="high-score-row">
+        <span class="hs-label">Best:</span>
+        <span class="hs-val" id="hs-score">—</span>
+        <span class="hs-sub" id="hs-sub"></span>
+      </div>
       <button id="start-btn" class="big-btn">▶ START</button>
       <button class="big-btn secondary" onclick="window.location.href='../../../index.html'" style="margin-top:10px">🏠
         返回 Game Hub</button>
@@ -271,6 +279,7 @@
       <div class="end-kicker">Defense Report</div>
       <h1 id="end-title">Victory!</h1>
       <div id="end-score">Score: 0</div>
+      <div id="end-best-badge" class="hidden">🏅 NEW BEST!</div>
       <div id="end-rank" class="rank">S</div>
       <!-- Stats Summary -->
       <div id="end-stats" class="end-stats">

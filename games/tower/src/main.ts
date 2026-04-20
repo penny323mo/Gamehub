@@ -20,12 +20,21 @@ import { ProjectileRenderer } from './render/projectileRenderer';
 import { Picking } from './render/picking';
 import { PostProcessor } from './render/postProcessing';
 import { audioSystem } from './core/systems/audioSystem';
+import {
+    loadPersisted,
+    savePersisted,
+    recordHighScore,
+    unlockAchievement,
+    type PersistedData,
+} from './core/storage';
+import { ACHIEVEMENTS, type Achievement } from './core/achievements';
 
 // ─── State ───
+const persisted: PersistedData = loadPersisted();
 let state: GameState;
 let selectedTowerType: TowerType | null = null;
 let inspectedTower: Tower | null = null;
-let currentDifficulty: Difficulty = 'normal';
+let currentDifficulty: Difficulty = persisted.prefs.difficulty;
 
 // ─── Renderer setup ───
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -98,6 +107,7 @@ function applyAtmosphere(wave: number): void {
 }
 
 state = createInitialState(currentDifficulty);
+state.speedMultiplier = persisted.prefs.speedMultiplier;
 
 // ─── EventBus Listeners ───
 bus.on('streakBonus', e => showStreakBanner(e.streak));
@@ -421,6 +431,58 @@ function showMilestoneBanner(waveNum: number): void {
     }, 3500);
 }
 
+// ─── E17: Achievement Toasts ───
+const achToastsEl = document.getElementById('achievement-toasts')!;
+function spawnAchievementToast(a: Achievement): void {
+    const el = document.createElement('div');
+    el.className = 'ach-toast';
+    el.innerHTML =
+        `<div class="ach-emoji">${a.emoji}</div>` +
+        `<div class="ach-body">` +
+        `<div class="ach-kicker">Achievement Unlocked</div>` +
+        `<div class="ach-name">${a.name}</div>` +
+        `<div class="ach-desc">${a.desc}</div>` +
+        `</div>`;
+    achToastsEl.appendChild(el);
+    setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 4400);
+}
+
+function checkAchievements(event: string, payload: Record<string, unknown>): void {
+    const ctx = { event, payload };
+    for (const a of ACHIEVEMENTS) {
+        if (persisted.achievements.includes(a.id)) continue;
+        try {
+            if (a.check(state, ctx)) {
+                if (unlockAchievement(persisted, a.id)) {
+                    spawnAchievementToast(a);
+                }
+            }
+        } catch {
+            // defensive — skip bad check
+        }
+    }
+}
+
+bus.on('enemyKilled', e => checkAchievements('enemyKilled', { enemyId: e.enemyId, bounty: e.bounty }));
+bus.on('streakBonus', e => checkAchievements('streakBonus', { streak: e.streak }));
+bus.on('waveCleared', e => checkAchievements('waveCleared', { wave: e.wave, perfect: e.perfect }));
+bus.on('milestone', e => checkAchievements('milestone', { wave: e.wave }));
+bus.on('gameOver', e => checkAchievements('gameOver', { won: e.won, score: e.score }));
+
+// ─── E16: High Score display on start screen ───
+const hsScoreEl = document.getElementById('hs-score')!;
+const hsSubEl = document.getElementById('hs-sub')!;
+function refreshHighScoreDisplay(): void {
+    const rec = persisted.highScores[currentDifficulty];
+    if (rec) {
+        hsScoreEl.textContent = String(rec.score);
+        hsSubEl.textContent = `Wave ${rec.wave} · ${rec.rank} · ${currentDifficulty}`;
+    } else {
+        hsScoreEl.textContent = '—';
+        hsSubEl.textContent = `No record on ${currentDifficulty}`;
+    }
+}
+
 // ─── C10: Milestone Buff Choice Modal ───
 interface BuffCard {
     id: string;
@@ -646,6 +708,7 @@ function hideTowerPanel(): void {
 }
 
 // ─── End Screen ───
+const endBestBadge = document.getElementById('end-best-badge')!;
 function showEndScreen(): void {
     const won = state.phase === 'won';
     endTitle.textContent = won ? '🎉 Victory!' : '💀 Defeat';
@@ -658,6 +721,17 @@ function showEndScreen(): void {
     }
     endRank.textContent = rank;
     endRank.className = `rank rank-${rank}`;
+
+    // E16 — record high score + show NEW BEST badge if beaten
+    const isNewBest = recordHighScore(
+        persisted,
+        state.difficulty,
+        state.score,
+        Math.min(state.currentWave + 1, WAVES.waves.length),
+        rank,
+    );
+    endBestBadge.classList.toggle('hidden', !isNewBest);
+    refreshHighScoreDisplay();
 
     // Populate stats
     document.getElementById('stat-kills')!.textContent = state.totalKills.toString();
@@ -744,6 +818,8 @@ cancelBuildBtn.addEventListener('click', (e) => {
 speedBtn.addEventListener('click', () => {
     state.speedMultiplier = state.speedMultiplier === 1 ? 2 : state.speedMultiplier === 2 ? 4 : 1;
     speedBtn.textContent = state.speedMultiplier + '×';
+    persisted.prefs.speedMultiplier = state.speedMultiplier;
+    savePersisted(persisted);
 });
 
 soundBtn.addEventListener('click', () => {
@@ -751,6 +827,8 @@ soundBtn.addEventListener('click', () => {
     const isEnabled = audioSystem.toggle();
     soundBtn.textContent = isEnabled ? '🔊' : '🔇';
     soundBtn.style.opacity = isEnabled ? '1' : '0.5';
+    persisted.prefs.soundEnabled = isEnabled;
+    savePersisted(persisted);
 });
 
 // Pause toggle
@@ -920,12 +998,32 @@ diffBtns.forEach(btn => {
         btn.classList.add('active');
         currentDifficulty = btn.getAttribute('data-diff') as Difficulty;
         diffDesc.textContent = diffNames[currentDifficulty];
-        
+        persisted.prefs.difficulty = currentDifficulty;
+        savePersisted(persisted);
+
         // Re-init state to apply gold/lives BEFORE starting
         state = createInitialState(currentDifficulty);
+        state.speedMultiplier = persisted.prefs.speedMultiplier;
         updateHUD();
+        refreshHighScoreDisplay();
     });
 });
+
+// F21 — Apply persisted prefs to UI after handlers are wired
+(function applyPersistedUI(): void {
+    diffBtns.forEach(b => {
+        b.classList.toggle('active', b.getAttribute('data-diff') === currentDifficulty);
+    });
+    diffDesc.textContent = diffNames[currentDifficulty];
+    speedBtn.textContent = state.speedMultiplier + '×';
+    if (!persisted.prefs.soundEnabled) {
+        // audioSystem defaults to enabled=true; toggle once off (no AudioContext created yet)
+        audioSystem.toggle();
+        soundBtn.textContent = '🔇';
+        soundBtn.style.opacity = '0.5';
+    }
+    refreshHighScoreDisplay();
+})();
 
 // Help overlay
 helpBtn.addEventListener('click', () => {
@@ -942,6 +1040,7 @@ helpOverlay.addEventListener('click', (e) => {
 document.getElementById('restart-btn')!.addEventListener('click', () => {
     endScreen.classList.add('hidden');
     state = createInitialState(currentDifficulty);
+    state.speedMultiplier = persisted.prefs.speedMultiplier;
     resetRunLocals();
     towerRenderer.sync(state);
     updateHUD();
