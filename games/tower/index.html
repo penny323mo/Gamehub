@@ -86,6 +86,21 @@
     <div id="milestone-banner-text"></div>
   </div>
 
+  <!-- Achievements Panel -->
+  <div id="achievements-modal" class="hidden">
+    <div class="ach-backdrop"></div>
+    <div class="ach-dialog">
+      <div class="ach-head">
+        <div>
+          <div class="ach-kick">Progress</div>
+          <div class="ach-ttl">Achievements <span id="ach-count">0/0</span></div>
+        </div>
+        <button id="ach-close-btn">✕</button>
+      </div>
+      <div class="ach-grid" id="ach-grid"></div>
+    </div>
+  </div>
+
   <!-- Milestone Buff Choice Modal -->
   <div id="buff-modal" class="hidden">
     <div class="buff-backdrop"></div>
@@ -267,6 +282,13 @@
         <span class="hs-val" id="hs-score">—</span>
         <span class="hs-sub" id="hs-sub"></span>
       </div>
+      <label class="endless-toggle">
+        <input type="checkbox" id="endless-toggle" />
+        <span class="endless-box"></span>
+        <span class="endless-text">♾ Endless Mode</span>
+        <span class="endless-sub">No end after Wave 99 — waves loop with growing stats</span>
+      </label>
+      <button id="achievements-btn" class="link-btn">🏆 Achievements</button>
       <button id="start-btn" class="big-btn">▶ START</button>
       <button class="big-btn secondary" onclick="window.location.href='../../../index.html'" style="margin-top:10px">🏠
         返回 Game Hub</button>

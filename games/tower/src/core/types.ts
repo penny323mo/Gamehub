@@ -257,6 +257,9 @@ export interface GameState {
     buffRangeMult: number;      // multiplies tower targeting range
     buffChoicePending: boolean; // true while milestone card modal is open
 
+    // G24 — Endless mode
+    endlessMode: boolean;       // if true, never transitions to 'won' phase
+
     nextId: number;
 
     // Kill Streak

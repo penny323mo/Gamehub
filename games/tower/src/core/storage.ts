@@ -14,6 +14,7 @@ export interface PersistedData {
         difficulty: Difficulty;
         soundEnabled: boolean;
         speedMultiplier: number;
+        endlessMode: boolean;
     };
     highScores: Partial<Record<Difficulty, HighScoreRecord>>;
     achievements: string[];
@@ -24,6 +25,7 @@ const DEFAULTS: PersistedData = {
         difficulty: 'normal',
         soundEnabled: true,
         speedMultiplier: 1,
+        endlessMode: false,
     },
     highScores: {},
     achievements: [],

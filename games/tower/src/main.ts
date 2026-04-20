@@ -301,7 +301,11 @@ const ENEMY_EMOJI: Record<string, string> = {
 function updateHUD(): void {
     goldEl.textContent = String(state.gold);
     livesEl.textContent = String(state.lives);
-    waveEl.textContent = `${Math.min(state.currentWave + 1, TOTAL_WAVES)}/${TOTAL_WAVES}`;
+    if (state.endlessMode && state.currentWave >= TOTAL_WAVES) {
+        waveEl.textContent = `${state.currentWave + 1} ♾`;
+    } else {
+        waveEl.textContent = `${Math.min(state.currentWave + 1, TOTAL_WAVES)}/${TOTAL_WAVES}`;
+    }
     killsEl.textContent = String(state.totalKills);
 
     // Wave progress bar
@@ -977,6 +981,7 @@ document.getElementById('panel-close-btn')!.addEventListener('click', () => {
 document.getElementById('start-btn')!.addEventListener('click', () => {
     startScreen.classList.add('hidden');
     resetRunLocals();
+    state.endlessMode = persisted.prefs.endlessMode;
     audioSystem.init();
     audioSystem.startMusic();
     startNextWave(state);
@@ -1009,6 +1014,13 @@ diffBtns.forEach(btn => {
     });
 });
 
+// G24 — Endless toggle
+const endlessCheckbox = document.getElementById('endless-toggle') as HTMLInputElement;
+endlessCheckbox.addEventListener('change', () => {
+    persisted.prefs.endlessMode = endlessCheckbox.checked;
+    savePersisted(persisted);
+});
+
 // F21 — Apply persisted prefs to UI after handlers are wired
 (function applyPersistedUI(): void {
     diffBtns.forEach(b => {
@@ -1022,8 +1034,41 @@ diffBtns.forEach(btn => {
         soundBtn.textContent = '🔇';
         soundBtn.style.opacity = '0.5';
     }
+    endlessCheckbox.checked = persisted.prefs.endlessMode;
     refreshHighScoreDisplay();
 })();
+
+// ─── E17: Achievements Viewer ───
+const achModal = document.getElementById('achievements-modal')!;
+const achGridEl = document.getElementById('ach-grid')!;
+const achCountEl = document.getElementById('ach-count')!;
+document.getElementById('achievements-btn')!.addEventListener('click', () => {
+    achGridEl.innerHTML = '';
+    let unlocked = 0;
+    for (const a of ACHIEVEMENTS) {
+        const isUnlocked = persisted.achievements.includes(a.id);
+        if (isUnlocked) unlocked++;
+        const row = document.createElement('div');
+        row.className = `ach-row ${isUnlocked ? 'unlocked' : 'locked'}`;
+        row.innerHTML =
+            `<div class="row-emoji">${isUnlocked ? a.emoji : '🔒'}</div>` +
+            `<div class="row-body">` +
+            `<div class="row-name">${a.name}</div>` +
+            `<div class="row-desc">${a.desc}</div>` +
+            `</div>`;
+        achGridEl.appendChild(row);
+    }
+    achCountEl.textContent = `${unlocked}/${ACHIEVEMENTS.length}`;
+    achModal.classList.remove('hidden');
+});
+document.getElementById('ach-close-btn')!.addEventListener('click', () => {
+    achModal.classList.add('hidden');
+});
+achModal.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).classList.contains('ach-backdrop')) {
+        achModal.classList.add('hidden');
+    }
+});
 
 // Help overlay
 helpBtn.addEventListener('click', () => {
@@ -1041,6 +1086,7 @@ document.getElementById('restart-btn')!.addEventListener('click', () => {
     endScreen.classList.add('hidden');
     state = createInitialState(currentDifficulty);
     state.speedMultiplier = persisted.prefs.speedMultiplier;
+    state.endlessMode = persisted.prefs.endlessMode;
     resetRunLocals();
     towerRenderer.sync(state);
     updateHUD();

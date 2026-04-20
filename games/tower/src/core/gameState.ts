@@ -65,6 +65,8 @@ export function createInitialState(difficulty: Difficulty = 'normal'): GameState
         buffRangeMult: 1.0,
         buffChoicePending: false,
 
+        endlessMode: false,
+
         nextId: 1,
 
         killStreak: 0,

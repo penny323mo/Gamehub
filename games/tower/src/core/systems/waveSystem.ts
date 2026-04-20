@@ -32,14 +32,22 @@ function rollModifier(waveNumber1Based: number): string | null {
     return MODIFIER_KEYS[Math.floor(Math.random() * MODIFIER_KEYS.length)];
 }
 
+/** G24 — Map absolute wave index to a template index, wrapping in endless mode. */
+function templateIndex(state: GameState): number {
+    if (state.currentWave < WAVES.waves.length) return state.currentWave;
+    // Endless: loop through back half of the wave list for variety + scale.
+    const loopLen = Math.max(1, WAVES.waves.length - 40); // reuse waves 40..98
+    return 40 + (state.currentWave - WAVES.waves.length) % loopLen;
+}
+
 /** Start the next wave (enters prep phase) */
 export function startNextWave(state: GameState): void {
-    if (state.currentWave >= WAVES.waves.length) return;
+    if (state.currentWave >= WAVES.waves.length && !state.endlessMode) return;
     state.phase = 'prep';
     state.prepTimer = WAVES.prepSec;
     state.waveLivesLostThisWave = 0;
 
-    const wave = WAVES.waves[state.currentWave];
+    const wave = WAVES.waves[templateIndex(state)];
     state.spawnTimers = wave.groups.map(() => 0);
     state.spawnCounts = wave.groups.map(() => 0);
     state.waveEnemiesSpawned = 0;
@@ -91,7 +99,7 @@ export function tickWave(state: GameState, dt: number): void {
         }
     }
 
-    const wave = WAVES.waves[state.currentWave];
+    const wave = WAVES.waves[templateIndex(state)];
     if (!wave) return;
 
     // Spawn enemies
@@ -148,7 +156,7 @@ export function tickWave(state: GameState, dt: number): void {
         state.enemies = state.enemies.filter(e => e.alive && !e.reached);
         state.projectiles = state.projectiles.filter(p => p.alive);
 
-        if (state.currentWave >= WAVES.waves.length) {
+        if (state.currentWave >= WAVES.waves.length && !state.endlessMode) {
             state.score += state.lives * 25; // lifeBonus
             state.phase = 'won';
             bus.emit({ type: 'gameOver', won: true, score: state.score });
