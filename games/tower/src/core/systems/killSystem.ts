@@ -8,7 +8,8 @@ import { bus } from './eventBus';
 export function killEnemy(state: GameState, enemy: Enemy): void {
     enemy.hp = 0;
     enemy.alive = false;
-    state.gold += enemy.bounty;
+    const bounty = Math.ceil(enemy.bounty * state.buffGoldMult);
+    state.gold += bounty;
     state.totalKills++;
 
     // Kill Streak
@@ -36,7 +37,7 @@ export function killEnemy(state: GameState, enemy: Enemy): void {
         id: state.nextId++,
         worldX: enemy.worldX,
         worldZ: enemy.worldZ,
-        value: `+${enemy.bounty}g`,
+        value: `+${bounty}g`,
         color: '#ffd700',
         life: 1.2,
         maxLife: 1.2,

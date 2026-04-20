@@ -9,7 +9,7 @@ export function tickTowers(state: GameState, dt: number): void {
 
         const towerCfg = TOWERS[tower.type];
         const cfg = towerCfg.levels[tower.level];
-        const range = cfg.range;
+        const range = cfg.range * state.buffRangeMult;
 
         // Find best enemy in range based on targetingMode
         let bestEnemy = null;
@@ -70,7 +70,7 @@ export function tickTowers(state: GameState, dt: number): void {
                 targetEnemyId: bestEnemy.id,
                 towerType: tower.type,
                 damageType: towerCfg.damageType,
-                damage: cfg.damage,
+                damage: cfg.damage * state.buffDamageMult,
                 aoeRadius: cfg.aoeRadius,
                 slow: cfg.slow,
                 dot: cfg.dot,

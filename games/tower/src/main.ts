@@ -101,7 +101,13 @@ state = createInitialState(currentDifficulty);
 
 // ─── EventBus Listeners ───
 bus.on('streakBonus', e => showStreakBanner(e.streak));
-bus.on('milestone', e => showMilestoneBanner(e.wave));
+bus.on('milestone', e => {
+    showMilestoneBanner(e.wave);
+    // C10 — open buff choice modal at 25 / 50 / 75 (skip 99 final)
+    if (e.wave === 25 || e.wave === 50 || e.wave === 75) {
+        openBuffModal(e.wave);
+    }
+});
 bus.on('towerBuilt', e => {
     const pos = cellToWorld(e.col, e.row);
     fxRenderer.addBuildEffect(pos.x, pos.z);
@@ -413,6 +419,107 @@ function showMilestoneBanner(waveNum: number): void {
     milestoneTimeout = window.setTimeout(() => {
         milestoneBanner.classList.add('hidden');
     }, 3500);
+}
+
+// ─── C10: Milestone Buff Choice Modal ───
+interface BuffCard {
+    id: string;
+    emoji: string;
+    name: string;
+    desc: string;
+    apply: () => void;
+}
+const BUFF_POOL: BuffCard[] = [
+    {
+        id: 'damage',
+        emoji: '🗡',
+        name: 'Overcharge',
+        desc: '+20% tower damage (stacks)',
+        apply: () => { state.buffDamageMult *= 1.20; },
+    },
+    {
+        id: 'range',
+        emoji: '🎯',
+        name: 'Long Sight',
+        desc: '+15% tower range (stacks)',
+        apply: () => { state.buffRangeMult *= 1.15; },
+    },
+    {
+        id: 'gold',
+        emoji: '💰',
+        name: 'Gold Rush',
+        desc: '+25% gold from kills (stacks)',
+        apply: () => { state.buffGoldMult *= 1.25; },
+    },
+    {
+        id: 'fortify',
+        emoji: '❤',
+        name: 'Fortify',
+        desc: '+5 lives and +5 max lives',
+        apply: () => {
+            state.maxLives += 5;
+            state.lives = Math.min(state.maxLives, state.lives + 5);
+        },
+    },
+    {
+        id: 'bounty',
+        emoji: '🏦',
+        name: 'War Chest',
+        desc: 'Instant +300 gold',
+        apply: () => { state.gold += 300; },
+    },
+];
+const buffModal = document.getElementById('buff-modal')!;
+const buffCardsEl = document.getElementById('buff-cards')!;
+const buffWaveEl = document.getElementById('buff-wave')!;
+
+function pickThreeBuffs(): BuffCard[] {
+    const pool = BUFF_POOL.slice();
+    const chosen: BuffCard[] = [];
+    while (chosen.length < 3 && pool.length) {
+        const i = Math.floor(Math.random() * pool.length);
+        chosen.push(pool.splice(i, 1)[0]);
+    }
+    return chosen;
+}
+
+function openBuffModal(wave: number): void {
+    if (state.buffChoicePending) return;
+    state.buffChoicePending = true;
+    state.paused = true;
+    buffWaveEl.textContent = String(wave);
+
+    const cards = pickThreeBuffs();
+    buffCardsEl.innerHTML = '';
+    for (const c of cards) {
+        const el = document.createElement('button');
+        el.className = 'buff-card';
+        el.innerHTML =
+            `<span class="card-emoji">${c.emoji}</span>` +
+            `<span class="card-name">${c.name}</span>` +
+            `<span class="card-desc">${c.desc}</span>`;
+        el.addEventListener('click', () => {
+            c.apply();
+            state.floatingTexts.push({
+                id: state.nextId++,
+                worldX: 0,
+                worldZ: 0,
+                value: `${c.emoji} ${c.name}`,
+                color: '#ffd486',
+                life: 2.5,
+                maxLife: 2.5,
+            });
+            closeBuffModal();
+        });
+        buffCardsEl.appendChild(el);
+    }
+    buffModal.classList.remove('hidden');
+}
+
+function closeBuffModal(): void {
+    buffModal.classList.add('hidden');
+    state.buffChoicePending = false;
+    state.paused = false;
 }
 
 // ─── Floating Texts (K) ───
@@ -792,6 +899,8 @@ document.getElementById('panel-close-btn')!.addEventListener('click', () => {
 document.getElementById('start-btn')!.addEventListener('click', () => {
     startScreen.classList.add('hidden');
     resetRunLocals();
+    audioSystem.init();
+    audioSystem.startMusic();
     startNextWave(state);
     showWaveBanner(`Wave 1`);
 });
@@ -917,6 +1026,7 @@ window.addEventListener('resize', () => {
 let lastTime = 0;
 let accumulator = 0;
 let lastWave = -1;
+let lastMusicPhase: 'prep' | 'wave' | 'off' | null = null;
 
 /** Reset module-level run state so restart/new-run starts clean. */
 function resetRunLocals(): void {
@@ -925,6 +1035,8 @@ function resetRunLocals(): void {
     lastAtmosphereWave = -1;
     lastPreviewWave = -2;
     lastModifierShown = '__init__';
+    lastMusicPhase = null;
+    buffModal.classList.add('hidden');
     if (bannerTimeout) { clearTimeout(bannerTimeout); bannerTimeout = null; }
     if (streakBannerTimeout) { clearTimeout(streakBannerTimeout); streakBannerTimeout = null; }
     if (milestoneTimeout) { clearTimeout(milestoneTimeout); milestoneTimeout = null; }
@@ -961,6 +1073,10 @@ function gameLoop(time: number): void {
     if (state.phase === 'won' || state.phase === 'lost') {
         if (endScreen.classList.contains('hidden')) {
             showEndScreen();
+        }
+        if (lastMusicPhase !== 'off') {
+            audioSystem.setMusicPhase('off');
+            lastMusicPhase = 'off';
         }
         lightingRig.update(elapsedSec);
         renderScene();
@@ -1015,6 +1131,15 @@ function gameLoop(time: number): void {
             }
         }
         updateSkillsHUD();
+    }
+
+    // D13 — Music phase crossfade based on game phase
+    if (state.phase === 'prep' && lastMusicPhase !== 'prep') {
+        audioSystem.setMusicPhase('prep');
+        lastMusicPhase = 'prep';
+    } else if (state.phase === 'wave' && lastMusicPhase !== 'wave') {
+        audioSystem.setMusicPhase('wave');
+        lastMusicPhase = 'wave';
     }
 
     // Wave banner

@@ -251,6 +251,12 @@ export interface GameState {
     milestoneReached: number;   // O — wave number of milestone (0 = none)
     waveModifier: string | null; // e.g. 'BLITZ' | 'ARMORED' | 'FRENZY'
 
+    // C10 — Milestone buff multipliers (apply globally)
+    buffGoldMult: number;       // multiplies enemy bounty on kill
+    buffDamageMult: number;     // multiplies tower damage on projectile fire
+    buffRangeMult: number;      // multiplies tower targeting range
+    buffChoicePending: boolean; // true while milestone card modal is open
+
     nextId: number;
 
     // Kill Streak

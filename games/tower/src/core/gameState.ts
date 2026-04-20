@@ -60,6 +60,11 @@ export function createInitialState(difficulty: Difficulty = 'normal'): GameState
         milestoneReached: 0,
         waveModifier: null,
 
+        buffGoldMult: 1.0,
+        buffDamageMult: 1.0,
+        buffRangeMult: 1.0,
+        buffChoicePending: false,
+
         nextId: 1,
 
         killStreak: 0,

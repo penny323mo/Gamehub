@@ -1,6 +1,16 @@
+export type MusicPhase = 'prep' | 'wave' | 'off';
+
 export class AudioSystem {
     private ctx: AudioContext | null = null;
     private enabled = true;
+
+    // D13 — persistent background music nodes
+    private musicStarted = false;
+    private musicMaster: GainNode | null = null;
+    private prepGain: GainNode | null = null;
+    private waveGain: GainNode | null = null;
+    private musicPhase: MusicPhase = 'off';
+    private waveBeatTimer: number | null = null;
 
     init() {
         if (!this.ctx) {
@@ -13,6 +23,12 @@ export class AudioSystem {
 
     toggle() {
         this.enabled = !this.enabled;
+        if (this.musicMaster && this.ctx) {
+            this.musicMaster.gain.linearRampToValueAtTime(
+                this.enabled ? 1 : 0,
+                this.ctx.currentTime + 0.2
+            );
+        }
         return this.enabled;
     }
 
@@ -117,6 +133,127 @@ export class AudioSystem {
         notes.forEach((f, i) => {
             setTimeout(() => this.playTone(f, 'sawtooth', 0.4, 0.08), i * 150);
         });
+    }
+
+    /** D13 — Start adaptive ambient music (idempotent). */
+    startMusic() {
+        if (this.musicStarted || !this.ctx) return;
+        this.musicStarted = true;
+        const ctx = this.ctx;
+
+        const master = ctx.createGain();
+        master.gain.value = this.enabled ? 1 : 0;
+        master.connect(ctx.destination);
+        this.musicMaster = master;
+
+        // Shared drone — slow detuned pair on A1/E2 through lowpass
+        const drone = ctx.createGain();
+        drone.gain.value = 0.035;
+        const lp = ctx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = 420;
+        lp.Q.value = 0.4;
+        drone.connect(lp);
+        lp.connect(master);
+        for (const f of [55, 82]) {
+            const o = ctx.createOscillator();
+            o.type = 'sine';
+            o.frequency.value = f;
+            // slow detune for movement
+            const lfo = ctx.createOscillator();
+            lfo.frequency.value = 0.07;
+            const lfoG = ctx.createGain();
+            lfoG.gain.value = 2.5;
+            lfo.connect(lfoG);
+            lfoG.connect(o.frequency);
+            o.connect(drone);
+            o.start();
+            lfo.start();
+        }
+
+        // Prep layer: slow triangle pad, fades in during prep
+        const prepGain = ctx.createGain();
+        prepGain.gain.value = 0;
+        prepGain.connect(master);
+        this.prepGain = prepGain;
+        for (const f of [220, 329.63, 440]) { // A3 E4 A4
+            const o = ctx.createOscillator();
+            o.type = 'triangle';
+            o.frequency.value = f;
+            const g = ctx.createGain();
+            g.gain.value = 0.02;
+            o.connect(g);
+            g.connect(prepGain);
+            o.start();
+        }
+
+        // Wave layer: higher detuned saw through bandpass, fades in during wave
+        const waveGain = ctx.createGain();
+        waveGain.gain.value = 0;
+        waveGain.connect(master);
+        this.waveGain = waveGain;
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.value = 600;
+        bp.Q.value = 1.4;
+        bp.connect(waveGain);
+        for (const f of [110, 164.81, 220]) { // A2 E3 A3
+            const o = ctx.createOscillator();
+            o.type = 'sawtooth';
+            o.frequency.value = f;
+            const g = ctx.createGain();
+            g.gain.value = 0.018;
+            o.connect(g);
+            g.connect(bp);
+            o.start();
+        }
+    }
+
+    /** D13 — Crossfade into target phase. */
+    setMusicPhase(phase: MusicPhase) {
+        if (!this.ctx) return;
+        if (!this.musicStarted) this.startMusic();
+        if (this.musicPhase === phase) return;
+        this.musicPhase = phase;
+        const now = this.ctx.currentTime;
+        const fade = 1.4;
+
+        const prepTarget = phase === 'prep' ? 0.7 : 0;
+        const waveTarget = phase === 'wave' ? 0.85 : 0;
+        if (this.prepGain) {
+            this.prepGain.gain.cancelScheduledValues(now);
+            this.prepGain.gain.setValueAtTime(this.prepGain.gain.value, now);
+            this.prepGain.gain.linearRampToValueAtTime(prepTarget, now + fade);
+        }
+        if (this.waveGain) {
+            this.waveGain.gain.cancelScheduledValues(now);
+            this.waveGain.gain.setValueAtTime(this.waveGain.gain.value, now);
+            this.waveGain.gain.linearRampToValueAtTime(waveTarget, now + fade);
+        }
+
+        // Percussive pulses during wave phase only
+        if (this.waveBeatTimer !== null) {
+            clearInterval(this.waveBeatTimer);
+            this.waveBeatTimer = null;
+        }
+        if (phase === 'wave') {
+            this.waveBeatTimer = window.setInterval(() => {
+                if (!this.enabled || !this.ctx || this.musicPhase !== 'wave') return;
+                const c = this.ctx;
+                const t0 = c.currentTime;
+                const o = c.createOscillator();
+                o.type = 'sine';
+                o.frequency.setValueAtTime(90, t0);
+                o.frequency.exponentialRampToValueAtTime(40, t0 + 0.18);
+                const g = c.createGain();
+                g.gain.setValueAtTime(0.08, t0);
+                g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.2);
+                o.connect(g);
+                if (this.musicMaster) g.connect(this.musicMaster);
+                o.start(t0);
+                o.stop(t0 + 0.22);
+            }, 620);
+        }
     }
 }
 
