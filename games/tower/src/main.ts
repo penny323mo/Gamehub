@@ -58,6 +58,45 @@ if (GRAPHICS.enablePostProcessing) {
     postProcessor = new PostProcessor(renderer, sm.scene, camera);
 }
 
+// ─── Day/Night atmosphere anchors (by wave) ───
+const ATMOSPHERE_ANCHORS: { wave: number; tint: [number, number, number]; fog: number }[] = [
+    { wave: 1,  tint: [1.06, 1.00, 0.93], fog: 0x1b2d22 }, // dawn
+    { wave: 30, tint: [0.98, 1.02, 0.98], fog: 0x102417 }, // noon
+    { wave: 60, tint: [1.08, 0.94, 0.82], fog: 0x1c1510 }, // dusk
+    { wave: 90, tint: [0.84, 0.90, 1.12], fog: 0x0c1020 }, // night
+];
+let lastAtmosphereWave = -1;
+const fogColorTmp = new THREE.Color();
+function applyAtmosphere(wave: number): void {
+    if (wave === lastAtmosphereWave) return;
+    lastAtmosphereWave = wave;
+
+    const w = Math.max(1, wave + 1); // 0-based → 1-based
+    // Find anchor pair
+    let lo = ATMOSPHERE_ANCHORS[0];
+    let hi = ATMOSPHERE_ANCHORS[ATMOSPHERE_ANCHORS.length - 1];
+    for (let i = 0; i < ATMOSPHERE_ANCHORS.length - 1; i++) {
+        if (w >= ATMOSPHERE_ANCHORS[i].wave && w <= ATMOSPHERE_ANCHORS[i + 1].wave) {
+            lo = ATMOSPHERE_ANCHORS[i];
+            hi = ATMOSPHERE_ANCHORS[i + 1];
+            break;
+        }
+    }
+    const t = hi.wave === lo.wave ? 0 : (w - lo.wave) / (hi.wave - lo.wave);
+    const k = Math.max(0, Math.min(1, t));
+    const r = lo.tint[0] + (hi.tint[0] - lo.tint[0]) * k;
+    const g = lo.tint[1] + (hi.tint[1] - lo.tint[1]) * k;
+    const b = lo.tint[2] + (hi.tint[2] - lo.tint[2]) * k;
+    if (postProcessor) postProcessor.setTint(r, g, b);
+
+    const loC = new THREE.Color(lo.fog);
+    const hiC = new THREE.Color(hi.fog);
+    fogColorTmp.copy(loC).lerp(hiC, k);
+    if (sm.scene.fog && 'color' in sm.scene.fog) {
+        (sm.scene.fog as THREE.FogExp2).color.copy(fogColorTmp);
+    }
+}
+
 state = createInitialState(currentDifficulty);
 
 // ─── EventBus Listeners ───
@@ -112,6 +151,17 @@ bus.on('enemyKilled', e => {
 bus.on('milestone', () => camCtrl.shake(0.35));
 bus.on('streakBonus', ev => { if (ev.streak >= 10) camCtrl.shake(0.25); });
 
+bus.on('towerFired', e => {
+    fxRenderer.addMuzzleFlash(e.worldX, e.worldZ, e.towerType);
+});
+bus.on('aoeImpact', e => {
+    fxRenderer.addImpactFlash(e.worldX, e.worldZ, e.radius, e.towerType);
+});
+bus.on('bossSpawned', () => {
+    camCtrl.shake(0.6);
+    showBossCinematic();
+});
+
 const goldEl = document.getElementById('gold-val')!;
 const livesEl = document.getElementById('lives-val')!;
 const waveEl = document.getElementById('wave-val')!;
@@ -134,6 +184,7 @@ const waveBanner = document.getElementById('wave-banner')!;
 const waveBannerText = document.getElementById('wave-banner-text')!;
 const milestoneBanner = document.getElementById('milestone-banner')!;
 const milestoneBannerText = document.getElementById('milestone-banner-text')!;
+const bossCinematic = document.getElementById('boss-cinematic')!;
 
 bus.on('towerBuilt', () => audioSystem.playBuild());
 bus.on('towerSold', () => audioSystem.playSell());
@@ -239,6 +290,10 @@ let bannerTimeout: number | null = null;
 function showWaveBanner(text: string): void {
     waveBannerText.textContent = text;
     waveBanner.classList.remove('hidden');
+    // Force animation restart on re-show
+    waveBannerText.style.animation = 'none';
+    void waveBannerText.offsetWidth;
+    waveBannerText.style.animation = '';
     if (bannerTimeout) clearTimeout(bannerTimeout);
     bannerTimeout = window.setTimeout(() => {
         waveBanner.classList.add('hidden');
@@ -258,6 +313,21 @@ function showStreakBanner(streak: number): void {
     streakBannerTimeout = window.setTimeout(() => {
         streakBanner.classList.add('hidden');
     }, 1800);
+}
+
+// ─── Boss Cinematic ───
+let bossCinematicTimeout: number | null = null;
+function showBossCinematic(): void {
+    if (bossCinematicTimeout) clearTimeout(bossCinematicTimeout);
+    bossCinematic.classList.remove('hidden');
+    // Force animation restart
+    bossCinematic.style.animation = 'none';
+    void bossCinematic.offsetWidth;
+    bossCinematic.style.animation = '';
+    bossCinematicTimeout = window.setTimeout(() => {
+        bossCinematic.classList.add('hidden');
+        bossCinematicTimeout = null;
+    }, 2400);
 }
 
 // ─── Milestone Banner ───
@@ -650,6 +720,7 @@ document.getElementById('panel-close-btn')!.addEventListener('click', () => {
 // Start button
 document.getElementById('start-btn')!.addEventListener('click', () => {
     startScreen.classList.add('hidden');
+    resetRunLocals();
     startNextWave(state);
     showWaveBanner(`Wave 1`);
 });
@@ -691,6 +762,7 @@ helpOverlay.addEventListener('click', (e) => {
 document.getElementById('restart-btn')!.addEventListener('click', () => {
     endScreen.classList.add('hidden');
     state = createInitialState(currentDifficulty);
+    resetRunLocals();
     towerRenderer.sync(state);
     updateHUD();
     updateSkillsHUD();
@@ -774,6 +846,21 @@ window.addEventListener('resize', () => {
 let lastTime = 0;
 let accumulator = 0;
 let lastWave = -1;
+
+/** Reset module-level run state so restart/new-run starts clean. */
+function resetRunLocals(): void {
+    accumulator = 0;
+    lastWave = -1;
+    lastAtmosphereWave = -1;
+    if (bannerTimeout) { clearTimeout(bannerTimeout); bannerTimeout = null; }
+    if (streakBannerTimeout) { clearTimeout(streakBannerTimeout); streakBannerTimeout = null; }
+    if (milestoneTimeout) { clearTimeout(milestoneTimeout); milestoneTimeout = null; }
+    if (bossCinematicTimeout) { clearTimeout(bossCinematicTimeout); bossCinematicTimeout = null; }
+    waveBanner.classList.add('hidden');
+    streakBanner.classList.add('hidden');
+    milestoneBanner.classList.add('hidden');
+    bossCinematic.classList.add('hidden');
+}
 
 type ProjectileSnapshot = Pick<Projectile, 'id' | 'targetX' | 'targetZ' | 'towerType'>;
 
@@ -890,6 +977,7 @@ function gameLoop(time: number): void {
     syncFloatingTexts(rawDt);
     lightingRig.update(elapsedSec);
     camCtrl.tickShake(rawDt);
+    applyAtmosphere(state.currentWave);
 
     // Update HUD
     updateHUD();

@@ -1,5 +1,6 @@
 import type { GameState, Projectile } from '../types';
 import { TOWERS, PROJECTILE_SPEED } from '../config';
+import { bus } from './eventBus';
 
 /** Tower targeting and firing */
 export function tickTowers(state: GameState, dt: number): void {
@@ -91,6 +92,14 @@ export function tickTowers(state: GameState, dt: number): void {
             state.projectiles.push(proj);
             tower.cooldownRemaining = cfg.cooldownSec;
             tower.aimAngle = Math.atan2(bestEnemy.worldX - tower.worldX, bestEnemy.worldZ - tower.worldZ);
+            bus.emit({
+                type: 'towerFired',
+                towerId: tower.id,
+                towerType: tower.type,
+                worldX: tower.worldX,
+                worldZ: tower.worldZ,
+                aimAngle: tower.aimAngle,
+            });
         }
     }
 }

@@ -333,6 +333,74 @@ export class FxRenderer {
         }
     }
 
+    /** Short upward burst at tower muzzle when firing. */
+    addMuzzleFlash(x: number, z: number, towerType: TowerType): void {
+        const baseColor = new THREE.Color(PROJ_COLORS[towerType] ?? PROJ_COLORS.arrow);
+        // 1 bright central flash
+        if (this.particles.length < MAX_PARTICLES) {
+            this.particles.push({
+                position: new THREE.Vector3(x, 1.0, z),
+                velocity: new THREE.Vector3(0, 0.4, 0),
+                life: 0.14,
+                maxLife: 0.14,
+                color: new THREE.Color(0xffffff),
+                size: 0.45,
+            });
+        }
+        // 4-6 spark streaks
+        const count = 5;
+        for (let i = 0; i < count && this.particles.length < MAX_PARTICLES; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 1.4 + Math.random() * 1.2;
+            this.particles.push({
+                position: new THREE.Vector3(x, 0.9, z),
+                velocity: new THREE.Vector3(
+                    Math.cos(angle) * speed * 0.4,
+                    1.2 + Math.random() * 0.6,
+                    Math.sin(angle) * speed * 0.4
+                ),
+                life: 0.22 + Math.random() * 0.14,
+                maxLife: 0.36,
+                color: baseColor.clone().offsetHSL(Math.random() * 0.08 - 0.04, 0, Math.random() * 0.2),
+                size: 0.14 + Math.random() * 0.1,
+            });
+        }
+    }
+
+    /** Ground-level ring burst at AOE impact. Uses existing particle pool. */
+    addImpactFlash(x: number, z: number, radius: number, towerType: TowerType): void {
+        const baseColor = new THREE.Color(PROJ_COLORS[towerType] ?? PROJ_COLORS.cannon);
+        // White core flash
+        for (let i = 0; i < 3 && this.particles.length < MAX_PARTICLES; i++) {
+            this.particles.push({
+                position: new THREE.Vector3(x, 0.35, z),
+                velocity: new THREE.Vector3(0, 0.6, 0),
+                life: 0.16,
+                maxLife: 0.16,
+                color: new THREE.Color(0xffffff),
+                size: 0.5 + radius * 0.1,
+            });
+        }
+        // Radial ring of particles (flat disc, minimal upward velocity)
+        const ringCount = Math.min(24, 12 + Math.floor(radius * 4));
+        for (let i = 0; i < ringCount && this.particles.length < MAX_PARTICLES; i++) {
+            const angle = (i / ringCount) * Math.PI * 2 + Math.random() * 0.2;
+            const speed = radius * (1.6 + Math.random() * 0.8);
+            this.particles.push({
+                position: new THREE.Vector3(x, 0.2, z),
+                velocity: new THREE.Vector3(
+                    Math.cos(angle) * speed,
+                    0.4 + Math.random() * 0.5,
+                    Math.sin(angle) * speed
+                ),
+                life: 0.32 + Math.random() * 0.2,
+                maxLife: 0.52,
+                color: baseColor.clone().offsetHSL(Math.random() * 0.1 - 0.05, 0, Math.random() * 0.2),
+                size: 0.18 + Math.random() * 0.12,
+            });
+        }
+    }
+
     addSellEffect(x: number, z: number): void {
         const count = 15;
         const color = new THREE.Color(0xfbbf24); // Golden sell color

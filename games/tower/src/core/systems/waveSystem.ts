@@ -164,4 +164,13 @@ function spawnEnemy(state: GameState, type: EnemyType): void {
     };
 
     state.enemies.push(enemy);
+
+    if (type === 'boss') {
+        bus.emit({
+            type: 'bossSpawned',
+            enemyId: enemy.id,
+            worldX: enemy.worldX,
+            worldZ: enemy.worldZ,
+        });
+    }
 }

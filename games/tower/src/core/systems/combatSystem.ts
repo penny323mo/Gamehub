@@ -1,6 +1,7 @@
 import type { GameState, Enemy, DamageType } from '../types';
 import { ENEMIES } from '../config';
 import { killEnemy } from './killSystem';
+import { bus } from './eventBus';
 
 /** Move projectiles and resolve hits with counter system */
 export function tickCombat(state: GameState, dt: number): void {
@@ -26,6 +27,13 @@ export function tickCombat(state: GameState, dt: number): void {
             proj.alive = false;
 
             if (proj.aoeRadius > 0) {
+                bus.emit({
+                    type: 'aoeImpact',
+                    worldX: proj.targetX,
+                    worldZ: proj.targetZ,
+                    radius: proj.aoeRadius,
+                    towerType: proj.towerType,
+                });
                 // AOE damage
                 for (const enemy of state.enemies) {
                     if (!enemy.alive || enemy.reached) continue;

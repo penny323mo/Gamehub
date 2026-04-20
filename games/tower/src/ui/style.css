@@ -1341,3 +1341,82 @@ body {
     height: 48px;
   }
 }
+
+/* ── Boss Cinematic ────────────────────────────────── */
+#boss-cinematic {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 90;
+  animation: bossCinematicFade 2.4s ease-out forwards;
+}
+#boss-cinematic.hidden { display: none; }
+
+#boss-cinematic .boss-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at center,
+      rgba(255, 30, 30, 0) 30%,
+      rgba(180, 10, 10, 0.55) 90%,
+      rgba(60, 0, 0, 0.85) 100%);
+  mix-blend-mode: multiply;
+  animation: bossVignettePulse 2.4s ease-out forwards;
+}
+
+#boss-cinematic .boss-banner {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.4);
+  text-align: center;
+  font-family: 'Oxanium', sans-serif;
+  color: #ffe1d0;
+  text-shadow:
+    0 0 18px rgba(255, 60, 40, 0.9),
+    0 0 42px rgba(255, 20, 20, 0.55);
+  animation: bossBannerIn 2.4s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+}
+
+#boss-cinematic .boss-sub {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.4em;
+  color: #ffb080;
+  margin-bottom: 6px;
+  opacity: 0.9;
+}
+
+#boss-cinematic .boss-title {
+  font-size: 56px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+
+@keyframes bossCinematicFade {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes bossVignettePulse {
+  0% { opacity: 0; }
+  20% { opacity: 1; }
+  50% { opacity: 0.85; }
+  80% { opacity: 0.7; }
+  100% { opacity: 0; }
+}
+
+@keyframes bossBannerIn {
+  0%   { transform: translate(-50%, -50%) scale(0.2); opacity: 0; }
+  18%  { transform: translate(-50%, -50%) scale(1.12); opacity: 1; }
+  28%  { transform: translate(-50%, -50%) scale(1.00); opacity: 1; }
+  80%  { transform: translate(-50%, -50%) scale(1.02); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1.10); opacity: 0; }
+}
+
+@media (max-width: 600px) {
+  #boss-cinematic .boss-title { font-size: 36px; letter-spacing: 0.12em; }
+  #boss-cinematic .boss-sub { font-size: 16px; }
+}

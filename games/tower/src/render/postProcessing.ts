@@ -90,4 +90,10 @@ export class PostProcessor {
         this.composer.setSize(width, height);
         this.bloomPass.setSize(width, height);
     }
+
+    /** Update color grading tint (r/g/b around 1.0). */
+    setTint(r: number, g: number, b: number): void {
+        const v = this.gradePass.uniforms.uTint.value as THREE.Vector3;
+        v.set(r, g, b);
+    }
 }

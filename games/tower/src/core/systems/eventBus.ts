@@ -5,6 +5,9 @@ export type GameEvent =
     | { type: 'towerBuilt'; towerId: number; towerType: string; col: number; row: number }
     | { type: 'towerSold'; towerId: number; refund: number; worldX: number; worldZ: number }
     | { type: 'towerUpgraded'; towerId: number; newLevel: number }
+    | { type: 'towerFired'; towerId: number; towerType: string; worldX: number; worldZ: number; aimAngle: number }
+    | { type: 'aoeImpact'; worldX: number; worldZ: number; radius: number; towerType: string }
+    | { type: 'bossSpawned'; enemyId: number; worldX: number; worldZ: number }
     | { type: 'waveStarted'; wave: number }
     | { type: 'waveCleared'; wave: number; goldBonus: number; perfect: boolean }
     | { type: 'milestone'; wave: number }
