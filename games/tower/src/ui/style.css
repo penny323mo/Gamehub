@@ -1342,6 +1342,114 @@ body {
   }
 }
 
+/* ── Wave Modifier Badge ───────────────────────────── */
+#wave-modifier {
+  position: fixed;
+  top: 82px;
+  right: 12px;
+  z-index: 16;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 90, 60, 0.25), rgba(255, 180, 60, 0.2));
+  border: 1px solid rgba(255, 160, 90, 0.4);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 20px rgba(255, 120, 60, 0.35), var(--shadow-lg);
+  color: #fff2e0;
+  font-family: 'Oxanium', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  animation: modBadgeIn 0.5s cubic-bezier(0.2, 0.9, 0.3, 1),
+             modBadgePulse 2.2s ease-in-out infinite 0.6s;
+}
+#wave-modifier.hidden { display: none; }
+#wave-modifier .mod-emoji { font-size: 18px; }
+#wave-modifier .mod-label { font-size: 14px; text-shadow: 0 0 10px rgba(255, 120, 60, 0.8); }
+#wave-modifier .mod-desc  { font-size: 11px; opacity: 0.82; font-weight: 500; letter-spacing: 0.04em; }
+
+@keyframes modBadgeIn {
+  0%   { transform: translateX(40px) scale(0.6); opacity: 0; }
+  60%  { transform: translateX(-6px) scale(1.08); opacity: 1; }
+  100% { transform: translateX(0)    scale(1);    opacity: 1; }
+}
+@keyframes modBadgePulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(255, 120, 60, 0.35), var(--shadow-lg); }
+  50%      { box-shadow: 0 0 32px rgba(255, 160, 90, 0.7),  var(--shadow-lg); }
+}
+
+@media (max-width: 600px) {
+  #wave-modifier {
+    top: 68px;
+    right: 8px;
+    padding: 5px 10px;
+    gap: 5px;
+  }
+  #wave-modifier .mod-desc { display: none; }
+  #wave-modifier .mod-label { font-size: 12px; }
+}
+
+/* ── Next Wave Preview ─────────────────────────────── */
+#next-wave-preview {
+  position: fixed;
+  right: 12px;
+  bottom: 120px;
+  z-index: 15;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(10, 22, 17, 0.74);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(190, 239, 199, 0.12);
+  box-shadow: var(--shadow-lg);
+  color: #f7fbf7;
+  font-family: 'Oxanium', sans-serif;
+  animation: previewIn 0.35s ease-out;
+}
+#next-wave-preview.hidden { display: none; }
+#next-wave-preview .preview-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: #9ed4ad;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  text-align: center;
+}
+#next-wave-preview .preview-icons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+#next-wave-preview .preview-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+  font-size: 14px;
+  font-weight: 700;
+}
+#next-wave-preview .preview-chip .ico { font-size: 16px; }
+#next-wave-preview .preview-chip .cnt { color: #cfe6d6; font-size: 12px; }
+
+@keyframes previewIn {
+  from { transform: translateY(10px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@media (max-width: 600px) {
+  #next-wave-preview {
+    right: 8px;
+    bottom: 180px;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  #next-wave-preview .preview-chip { padding: 3px 6px; font-size: 12px; }
+}
+
 /* ── Boss Cinematic ────────────────────────────────── */
 #boss-cinematic {
   position: fixed;

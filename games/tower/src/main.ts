@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createInitialState } from './core/gameState';
 import { LOGIC_DT, MAP, TOWERS, SCORING, WAVES, GRAPHICS, ENEMIES } from './core/config';
-import { tickWave, startNextWave } from './core/systems/waveSystem';
+import { tickWave, startNextWave, MODIFIERS } from './core/systems/waveSystem';
 import { cellToWorld } from './core/path';
 import { tickEnemies } from './core/systems/enemySystem';
 import { tickTowers } from './core/systems/towerSystem';
@@ -160,6 +160,15 @@ bus.on('aoeImpact', e => {
 bus.on('bossSpawned', () => {
     camCtrl.shake(0.6);
     showBossCinematic();
+    audioSystem.playBossRoar();
+});
+bus.on('streakBonus', ev => {
+    if (ev.streak >= 10) audioSystem.playMegaStingerHit();
+    else audioSystem.playStreakStinger();
+});
+bus.on('gameOver', ev => {
+    if (ev.won) audioSystem.playVictory();
+    else audioSystem.playDefeat();
 });
 
 const goldEl = document.getElementById('gold-val')!;
@@ -185,6 +194,61 @@ const waveBannerText = document.getElementById('wave-banner-text')!;
 const milestoneBanner = document.getElementById('milestone-banner')!;
 const milestoneBannerText = document.getElementById('milestone-banner-text')!;
 const bossCinematic = document.getElementById('boss-cinematic')!;
+const nextWavePreview = document.getElementById('next-wave-preview')!;
+const previewIconsEl = document.getElementById('preview-icons')!;
+let lastPreviewWave = -2;
+
+const waveModifierEl = document.getElementById('wave-modifier')!;
+const modEmojiEl = document.getElementById('mod-emoji')!;
+const modLabelEl = document.getElementById('mod-label')!;
+const modDescEl = document.getElementById('mod-desc')!;
+let lastModifierShown: string | null = '__init__';
+function updateModifierBadge(): void {
+    const key = state.waveModifier;
+    if (key === lastModifierShown) return;
+    lastModifierShown = key;
+    if (!key || !MODIFIERS[key]) {
+        waveModifierEl.classList.add('hidden');
+        return;
+    }
+    const m = MODIFIERS[key];
+    modEmojiEl.textContent = m.emoji;
+    modLabelEl.textContent = m.label;
+    modDescEl.textContent = m.desc;
+    waveModifierEl.classList.remove('hidden');
+    // Force animation restart
+    waveModifierEl.style.animation = 'none';
+    void waveModifierEl.offsetWidth;
+    waveModifierEl.style.animation = '';
+}
+
+function updateNextWavePreview(): void {
+    if (state.phase !== 'prep') {
+        nextWavePreview.classList.add('hidden');
+        lastPreviewWave = -2;
+        return;
+    }
+    // During prep, the "upcoming" wave is state.currentWave (0-based) — that's the one being prepped
+    const upcoming = WAVES.waves[state.currentWave];
+    if (!upcoming) {
+        nextWavePreview.classList.add('hidden');
+        return;
+    }
+    if (lastPreviewWave === state.currentWave) return;
+    lastPreviewWave = state.currentWave;
+
+    // Aggregate groups by enemy type
+    const counts: Record<string, number> = {};
+    for (const g of upcoming.groups) {
+        counts[g.type] = (counts[g.type] || 0) + g.count;
+    }
+    const chips = Object.entries(counts).map(([type, n]) => {
+        const ico = ENEMY_EMOJI[type] || '❓';
+        return `<span class="preview-chip"><span class="ico">${ico}</span><span class="cnt">×${n}</span></span>`;
+    }).join('');
+    previewIconsEl.innerHTML = chips;
+    nextWavePreview.classList.remove('hidden');
+}
 
 bus.on('towerBuilt', () => audioSystem.playBuild());
 bus.on('towerSold', () => audioSystem.playSell());
@@ -247,6 +311,12 @@ function updateHUD(): void {
 
     // Skip prep button visibility
     skipPrepBtn.classList.toggle('hidden', state.phase !== 'prep');
+
+    // Next wave preview (prep only)
+    updateNextWavePreview();
+
+    // Wave modifier badge
+    updateModifierBadge();
 
     // Update build button affordance
     buildBtns.forEach(btn => {
@@ -405,7 +475,8 @@ function showTowerPanel(tower: Tower): void {
     if (cfg.slow) specials.push(`Slow ${Math.round(cfg.slow.pct * 100)}%`);
     if (cfg.dot) specials.push(`DOT ${cfg.dot.dps}/s ${cfg.dot.durationSec}s`);
     if (cfg.chain) specials.push(`Chain ×${cfg.chain.targets}`);
-    specialEl.textContent = specials.length > 0 ? specials.join(' | ') : '—';
+    specials.push(`🗡 ${tower.kills}`);
+    specialEl.textContent = specials.join(' | ');
 
     // Targeting mode buttons
     document.querySelectorAll('.target-btn').forEach(btn => {
@@ -852,6 +923,8 @@ function resetRunLocals(): void {
     accumulator = 0;
     lastWave = -1;
     lastAtmosphereWave = -1;
+    lastPreviewWave = -2;
+    lastModifierShown = '__init__';
     if (bannerTimeout) { clearTimeout(bannerTimeout); bannerTimeout = null; }
     if (streakBannerTimeout) { clearTimeout(streakBannerTimeout); streakBannerTimeout = null; }
     if (milestoneTimeout) { clearTimeout(milestoneTimeout); milestoneTimeout = null; }

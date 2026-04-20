@@ -5,6 +5,33 @@ import { cellToWorld } from '../path';
 import { MAP } from '../config';
 import { bus } from './eventBus';
 
+export interface ModifierEffect {
+    key: string;
+    label: string;
+    emoji: string;
+    desc: string;
+    spdMult: number;
+    hpMult: number;
+    armorBonus: number;
+    bountyMult: number;
+}
+
+export const MODIFIERS: Record<string, ModifierEffect> = {
+    BLITZ:   { key: 'BLITZ',   label: 'BLITZ',   emoji: '⚡', desc: '+25% SPD, +30% gold',        spdMult: 1.25, hpMult: 1.00, armorBonus: 0, bountyMult: 1.30 },
+    ARMORED: { key: 'ARMORED', label: 'ARMORED', emoji: '🛡', desc: '+3 armor, +20% gold',        spdMult: 1.00, hpMult: 1.00, armorBonus: 3, bountyMult: 1.20 },
+    FRENZY:  { key: 'FRENZY',  label: 'FRENZY',  emoji: '🔥', desc: '+15% HP, +15% SPD, +25% gold', spdMult: 1.15, hpMult: 1.15, armorBonus: 0, bountyMult: 1.25 },
+};
+
+const MODIFIER_KEYS = Object.keys(MODIFIERS);
+
+/** Roll a modifier for the given wave number (1-based). Returns null if no modifier. */
+function rollModifier(waveNumber1Based: number): string | null {
+    // Every 5 waves, except on milestone waves (25/50/75/99 keep their own flavor)
+    if (waveNumber1Based % 5 !== 0) return null;
+    if (waveNumber1Based === 25 || waveNumber1Based === 50 || waveNumber1Based === 75 || waveNumber1Based === 99) return null;
+    return MODIFIER_KEYS[Math.floor(Math.random() * MODIFIER_KEYS.length)];
+}
+
 /** Start the next wave (enters prep phase) */
 export function startNextWave(state: GameState): void {
     if (state.currentWave >= WAVES.waves.length) return;
@@ -17,6 +44,9 @@ export function startNextWave(state: GameState): void {
     state.spawnCounts = wave.groups.map(() => 0);
     state.waveEnemiesSpawned = 0;
     state.waveEnemiesTotal = wave.groups.reduce((s, g) => s + g.count, 0);
+
+    // Roll wave modifier (1-based wave number)
+    state.waveModifier = rollModifier(state.currentWave + 1);
 }
 
 /** Tick the wave system */
@@ -135,9 +165,11 @@ function spawnEnemy(state: GameState, type: EnemyType): void {
 
     // Difficulty scaling: Linear 4% per wave + difficulty multiplier
     const waveScale = 1 + (state.currentWave * 0.04);
-    const hpMult = waveScale * diffCfg.enemyHpMult;
-    const spdMult = diffCfg.enemySpeedMult;
-    const bountyMult = Math.pow(waveScale, 0.5) * diffCfg.goldMult;
+    const mod = state.waveModifier ? MODIFIERS[state.waveModifier] : null;
+    const hpMult = waveScale * diffCfg.enemyHpMult * (mod?.hpMult ?? 1);
+    const spdMult = diffCfg.enemySpeedMult * (mod?.spdMult ?? 1);
+    const bountyMult = Math.pow(waveScale, 0.5) * diffCfg.goldMult * (mod?.bountyMult ?? 1);
+    const armorBonus = mod?.armorBonus ?? 0;
 
     const enemy: Enemy = {
         id: state.nextId++,
@@ -158,7 +190,7 @@ function spawnEnemy(state: GameState, type: EnemyType): void {
         dots: [],
         shield: cfg.shield ? Math.ceil(cfg.shield * hpMult) : 0,
         maxShield: cfg.shield ? Math.ceil(cfg.shield * hpMult) : 0,
-        armor: cfg.armor ?? 0,
+        armor: (cfg.armor ?? 0) + armorBonus,
         special: cfg.special ?? 'none',
         healCooldown: 0,
     };

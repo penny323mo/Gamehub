@@ -169,7 +169,8 @@ function showItem(category: 'tower' | 'enemy', name: string) {
             damage: 10,
             targetId: null,
             totalInvested: 100,
-            targetingMode: 'first'
+            targetingMode: 'first',
+            kills: 0
         } as Tower);
         camera.position.set(2, 3, 3);
     } else {

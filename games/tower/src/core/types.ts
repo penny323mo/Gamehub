@@ -128,6 +128,7 @@ export interface Tower {
     targetingMode: TargetingMode;
     aimAngle?: number;
     targetId?: number | null;
+    kills: number;
 }
 
 export interface SlowEffect {
@@ -248,6 +249,7 @@ export interface GameState {
     waveLivesLostThisWave: number;
     lastWaveClearGold: number;  // M — gold bonus awarded on last wave clear
     milestoneReached: number;   // O — wave number of milestone (0 = none)
+    waveModifier: string | null; // e.g. 'BLITZ' | 'ARMORED' | 'FRENZY'
 
     nextId: number;
 

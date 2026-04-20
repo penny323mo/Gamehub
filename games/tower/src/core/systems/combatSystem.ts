@@ -41,7 +41,7 @@ export function tickCombat(state: GameState, dt: number): void {
                     const ez = enemy.worldZ - proj.targetZ;
                     const ed = Math.sqrt(ex * ex + ez * ez);
                     if (ed <= proj.aoeRadius) {
-                        applyHit(state, enemy, proj.damage, proj.damageType);
+                        applyHit(state, enemy, proj.damage, proj.damageType, proj.fromTowerId);
                         if (proj.slow) {
                             enemy.slow = { pct: proj.slow.pct, remaining: proj.slow.durationSec };
                         }
@@ -59,7 +59,7 @@ export function tickCombat(state: GameState, dt: number): void {
                 // Chain lightning — hit primary + jump to nearby
                 const hitEnemies: Enemy[] = [];
                 if (target && target.alive && !target.reached) {
-                    applyHit(state, target, proj.damage, proj.damageType);
+                    applyHit(state, target, proj.damage, proj.damageType, proj.fromTowerId);
                     hitEnemies.push(target);
                     if (proj.slow) {
                         target.slow = { pct: proj.slow.pct, remaining: proj.slow.durationSec };
@@ -84,7 +84,7 @@ export function tickCombat(state: GameState, dt: number): void {
                     }
 
                     if (nearest) {
-                        applyHit(state, nearest, proj.damage * 0.7, proj.damageType); // 70% for chain
+                        applyHit(state, nearest, proj.damage * 0.7, proj.damageType, proj.fromTowerId); // 70% for chain
                         hitEnemies.push(nearest);
                         lastHit = nearest;
                     } else {
@@ -94,7 +94,7 @@ export function tickCombat(state: GameState, dt: number): void {
             } else {
                 // Single target
                 if (target && target.alive && !target.reached) {
-                    applyHit(state, target, proj.damage, proj.damageType);
+                    applyHit(state, target, proj.damage, proj.damageType, proj.fromTowerId);
                     if (proj.slow) {
                         target.slow = { pct: proj.slow.pct, remaining: proj.slow.durationSec };
                     }
@@ -138,7 +138,7 @@ export function tickCombat(state: GameState, dt: number): void {
 }
 
 /** Apply damage with shield + counter system */
-function applyHit(state: GameState, enemy: Enemy, baseDmg: number, damageType: DamageType): void {
+function applyHit(state: GameState, enemy: Enemy, baseDmg: number, damageType: DamageType, killerTowerId?: number): void {
     const cfg = ENEMIES[enemy.type];
     let dmg = baseDmg;
 
@@ -195,6 +195,10 @@ function applyHit(state: GameState, enemy: Enemy, baseDmg: number, damageType: D
 
     enemy.hp -= dmg;
     if (enemy.hp <= 0) {
+        if (killerTowerId !== undefined) {
+            const killerTower = state.towers.find(t => t.id === killerTowerId);
+            if (killerTower) killerTower.kills++;
+        }
         killEnemy(state, enemy);
     }
 }

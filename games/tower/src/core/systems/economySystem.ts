@@ -33,6 +33,7 @@ export function buildTower(state: GameState, type: TowerType, col: number, row: 
         cooldownRemaining: 0,
         totalInvested: cfg.buildCost,
         targetingMode: 'first',
+        kills: 0,
     };
 
     state.gold -= cfg.buildCost;

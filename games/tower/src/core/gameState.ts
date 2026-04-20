@@ -58,6 +58,7 @@ export function createInitialState(difficulty: Difficulty = 'normal'): GameState
         waveLivesLostThisWave: 0,
         lastWaveClearGold: 0,
         milestoneReached: 0,
+        waveModifier: null,
 
         nextId: 1,
 
