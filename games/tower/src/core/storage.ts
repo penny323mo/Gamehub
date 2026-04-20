@@ -9,6 +9,15 @@ export interface HighScoreRecord {
     date: number;
 }
 
+export interface LifetimeStats {
+    runs: number;
+    victories: number;
+    totalKills: number;
+    totalWavesCleared: number;
+    totalTowersBuilt: number;
+    highestWaveReached: number;
+}
+
 export interface PersistedData {
     prefs: {
         difficulty: Difficulty;
@@ -18,7 +27,17 @@ export interface PersistedData {
     };
     highScores: Partial<Record<Difficulty, HighScoreRecord>>;
     achievements: string[];
+    lifetime: LifetimeStats;
 }
+
+const DEFAULT_LIFETIME: LifetimeStats = {
+    runs: 0,
+    victories: 0,
+    totalKills: 0,
+    totalWavesCleared: 0,
+    totalTowersBuilt: 0,
+    highestWaveReached: 0,
+};
 
 const DEFAULTS: PersistedData = {
     prefs: {
@@ -29,6 +48,7 @@ const DEFAULTS: PersistedData = {
     },
     highScores: {},
     achievements: [],
+    lifetime: { ...DEFAULT_LIFETIME },
 };
 
 export function loadPersisted(): PersistedData {
@@ -40,6 +60,7 @@ export function loadPersisted(): PersistedData {
             prefs: { ...DEFAULTS.prefs, ...(parsed.prefs ?? {}) },
             highScores: parsed.highScores ?? {},
             achievements: parsed.achievements ?? [],
+            lifetime: { ...DEFAULT_LIFETIME, ...(parsed.lifetime ?? {}) },
         };
     } catch {
         return structuredClone(DEFAULTS);
@@ -76,4 +97,30 @@ export function unlockAchievement(data: PersistedData, id: string): boolean {
     data.achievements.push(id);
     savePersisted(data);
     return true;
+}
+
+export function recordRunComplete(
+    data: PersistedData,
+    won: boolean,
+    kills: number,
+    wavesCleared: number,
+    towersBuilt: number,
+    highestWave: number,
+): void {
+    data.lifetime.runs += 1;
+    if (won) data.lifetime.victories += 1;
+    data.lifetime.totalKills += kills;
+    data.lifetime.totalWavesCleared += wavesCleared;
+    data.lifetime.totalTowersBuilt += towersBuilt;
+    if (highestWave > data.lifetime.highestWaveReached) {
+        data.lifetime.highestWaveReached = highestWave;
+    }
+    savePersisted(data);
+}
+
+export function resetProgress(data: PersistedData): void {
+    data.highScores = {};
+    data.achievements = [];
+    data.lifetime = { ...DEFAULT_LIFETIME };
+    savePersisted(data);
 }

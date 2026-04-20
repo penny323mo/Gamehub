@@ -141,9 +141,9 @@ export function tickWave(state: GameState, dt: number): void {
         const perfect = state.waveLivesLostThisWave === 0;
         bus.emit({ type: 'waveCleared', wave, goldBonus: waveGoldBonus, perfect });
 
-        // O — Milestone Wave bonus at Wave 25 / 50 / 75 / 99
-        const MILESTONES = [25, 50, 75, 99];
-        if (MILESTONES.includes(wave)) {
+        // O — Milestone Wave bonus every 25 waves (25 / 50 / 75 / 99 + endless 100+)
+        const isMilestone = wave === 99 || (wave > 0 && wave % 25 === 0);
+        if (isMilestone) {
             state.gold += 500;
             state.milestoneReached = wave;
             bus.emit({ type: 'milestone', wave });

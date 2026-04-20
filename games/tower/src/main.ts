@@ -25,6 +25,8 @@ import {
     savePersisted,
     recordHighScore,
     unlockAchievement,
+    recordRunComplete,
+    resetProgress,
     type PersistedData,
 } from './core/storage';
 import { ACHIEVEMENTS, type Achievement } from './core/achievements';
@@ -113,8 +115,8 @@ state.speedMultiplier = persisted.prefs.speedMultiplier;
 bus.on('streakBonus', e => showStreakBanner(e.streak));
 bus.on('milestone', e => {
     showMilestoneBanner(e.wave);
-    // C10 — open buff choice modal at 25 / 50 / 75 (skip 99 final)
-    if (e.wave === 25 || e.wave === 50 || e.wave === 75) {
+    // C10 — open buff choice modal at every 25-wave milestone (skip the 99 finale)
+    if (e.wave !== 99 && e.wave > 0 && e.wave % 25 === 0) {
         openBuffModal(e.wave);
     }
 });
@@ -485,6 +487,16 @@ function refreshHighScoreDisplay(): void {
         hsScoreEl.textContent = '—';
         hsSubEl.textContent = `No record on ${currentDifficulty}`;
     }
+    refreshLifetimeDisplay();
+}
+
+const ltRunsEl = document.getElementById('lt-runs')!;
+const ltKillsEl = document.getElementById('lt-kills')!;
+const ltBestWaveEl = document.getElementById('lt-best-wave')!;
+function refreshLifetimeDisplay(): void {
+    ltRunsEl.textContent = String(persisted.lifetime.runs);
+    ltKillsEl.textContent = String(persisted.lifetime.totalKills);
+    ltBestWaveEl.textContent = String(persisted.lifetime.highestWaveReached);
 }
 
 // ─── C10: Milestone Buff Choice Modal ───
@@ -727,14 +739,27 @@ function showEndScreen(): void {
     endRank.className = `rank rank-${rank}`;
 
     // E16 — record high score + show NEW BEST badge if beaten
+    const wavesReached = state.endlessMode
+        ? state.currentWave + 1
+        : Math.min(state.currentWave + 1, WAVES.waves.length);
     const isNewBest = recordHighScore(
         persisted,
         state.difficulty,
         state.score,
-        Math.min(state.currentWave + 1, WAVES.waves.length),
+        wavesReached,
         rank,
     );
     endBestBadge.classList.toggle('hidden', !isNewBest);
+
+    // Lifetime stats
+    recordRunComplete(
+        persisted,
+        won,
+        state.totalKills,
+        state.currentWave,            // 0-based currentWave == waves fully cleared
+        state.stats.towersBuilt,
+        wavesReached,
+    );
     refreshHighScoreDisplay();
 
     // Populate stats
@@ -1042,7 +1067,7 @@ endlessCheckbox.addEventListener('change', () => {
 const achModal = document.getElementById('achievements-modal')!;
 const achGridEl = document.getElementById('ach-grid')!;
 const achCountEl = document.getElementById('ach-count')!;
-document.getElementById('achievements-btn')!.addEventListener('click', () => {
+function renderAchievementGrid(): void {
     achGridEl.innerHTML = '';
     let unlocked = 0;
     for (const a of ACHIEVEMENTS) {
@@ -1059,6 +1084,9 @@ document.getElementById('achievements-btn')!.addEventListener('click', () => {
         achGridEl.appendChild(row);
     }
     achCountEl.textContent = `${unlocked}/${ACHIEVEMENTS.length}`;
+}
+document.getElementById('achievements-btn')!.addEventListener('click', () => {
+    renderAchievementGrid();
     achModal.classList.remove('hidden');
 });
 document.getElementById('ach-close-btn')!.addEventListener('click', () => {
@@ -1068,6 +1096,32 @@ achModal.addEventListener('click', (e) => {
     if ((e.target as HTMLElement).classList.contains('ach-backdrop')) {
         achModal.classList.add('hidden');
     }
+});
+
+const achResetBtn = document.getElementById('ach-reset-btn')! as HTMLButtonElement;
+let resetArmed = false;
+let resetArmTimeout: number | null = null;
+achResetBtn.addEventListener('click', () => {
+    if (!resetArmed) {
+        resetArmed = true;
+        achResetBtn.classList.add('confirming');
+        achResetBtn.textContent = '⚠ Click again to confirm reset';
+        if (resetArmTimeout) clearTimeout(resetArmTimeout);
+        resetArmTimeout = window.setTimeout(() => {
+            resetArmed = false;
+            achResetBtn.classList.remove('confirming');
+            achResetBtn.textContent = '⟲ Reset Progress';
+        }, 4000);
+        return;
+    }
+    resetProgress(persisted);
+    resetArmed = false;
+    if (resetArmTimeout) { clearTimeout(resetArmTimeout); resetArmTimeout = null; }
+    achResetBtn.classList.remove('confirming');
+    achResetBtn.textContent = '✓ Reset';
+    setTimeout(() => { achResetBtn.textContent = '⟲ Reset Progress'; }, 1400);
+    renderAchievementGrid();
+    refreshHighScoreDisplay();
 });
 
 // Help overlay
