@@ -982,6 +982,15 @@ skipPrepBtn.addEventListener('click', () => {
     if (state.phase !== 'prep') return;
     // Give Gold bonus for skipping prep
     state.gold += 50;
+    state.floatingTexts.push({
+        id: state.nextId++,
+        worldX: 0,
+        worldZ: 0,
+        value: '⏩ +50g Skip',
+        color: '#aaff55',
+        life: 1.6,
+        maxLife: 1.6,
+    });
     state.prepTimer = 0;
     skipPrepBtn.classList.add('hidden');
     updateHUD();

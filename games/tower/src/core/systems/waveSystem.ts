@@ -201,6 +201,7 @@ function spawnEnemy(state: GameState, type: EnemyType): void {
         armor: (cfg.armor ?? 0) + armorBonus,
         special: cfg.special ?? 'none',
         healCooldown: 0,
+        shieldRegenTimer: 0,
     };
 
     state.enemies.push(enemy);

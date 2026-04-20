@@ -1,6 +1,7 @@
 import type { GameState, Enemy, DamageType } from '../types';
 import { ENEMIES } from '../config';
 import { killEnemy } from './killSystem';
+import { SHIELD_REGEN_DELAY } from './enemySystem';
 import { bus } from './eventBus';
 
 /** Move projectiles and resolve hits with counter system */
@@ -148,6 +149,11 @@ function applyHit(state: GameState, enemy: Enemy, baseDmg: number, damageType: D
 
     // Armor
     dmg = Math.max(1, dmg - enemy.armor);
+
+    // Reset shield regen delay on any direct damage
+    if (enemy.maxShield > 0) {
+        enemy.shieldRegenTimer = SHIELD_REGEN_DELAY;
+    }
 
     // Shield absorb first
     if (enemy.shield > 0) {

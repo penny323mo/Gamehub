@@ -164,6 +164,7 @@ export interface Enemy {
     armor: number;
     special: string;
     healCooldown: number;
+    shieldRegenTimer: number;
 }
 
 export interface Projectile {

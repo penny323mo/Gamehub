@@ -4,7 +4,7 @@ import { dist } from '../path';
 import { killEnemy } from './killSystem';
 
 // Shield enemy type — regen after no-damage delay
-const SHIELD_REGEN_DELAY = 4.0;   // seconds of no damage before regen starts
+export const SHIELD_REGEN_DELAY = 4.0;   // seconds of no damage before regen starts
 const SHIELD_REGEN_RATE = 20;    // hp/sec
 
 // Speed scaling thresholds
@@ -74,24 +74,15 @@ export function tickEnemies(state: GameState, dt: number): void {
             }
         }
 
-        // Shield Regen — only for shield-type enemies
+        // Shield Regen — tick down delay then regen; any active DOT pauses it.
         if (enemy.maxShield > 0 && enemy.shield < enemy.maxShield) {
-            // Track last-hit using shieldRegenTimer (stored in healCooldown for shield enemies)
-            // We use a separate field; if enemy has no specialty, we use dots check
-            // Simple approach: check if shieldRegenDelay elapsed (tracked implicitly)
-            // Use enemy.healCooldown as shield regen timer for shield-type enemies
-            if (enemy.special === 'none' && enemy.dots.length === 0) {
-                // Only regen when not taking damage (no active DOTs)
-                enemy.healCooldown -= dt;
-                if (enemy.healCooldown <= 0) {
-                    enemy.shield = Math.min(enemy.maxShield, enemy.shield + SHIELD_REGEN_RATE * dt);
-                    // don't reset timer; continuously regen once started
-                } else {
-                    // waiting for regen delay
-                }
+            if (enemy.dots.length > 0) {
+                enemy.shieldRegenTimer = SHIELD_REGEN_DELAY;
             } else {
-                // Reset regen timer on taking dot damage
-                enemy.healCooldown = SHIELD_REGEN_DELAY;
+                enemy.shieldRegenTimer -= dt;
+                if (enemy.shieldRegenTimer <= 0) {
+                    enemy.shield = Math.min(enemy.maxShield, enemy.shield + SHIELD_REGEN_RATE * dt);
+                }
             }
         }
 
@@ -156,9 +147,9 @@ function applyRawDamage(state: GameState, enemy: Enemy, baseDmg: number, damageT
     // Armor reduces damage (flat)
     dmg = Math.max(1, dmg - enemy.armor);
 
-    // Reset shield regen timer on damage
-    if (enemy.maxShield > 0 && enemy.special === 'none') {
-        enemy.healCooldown = SHIELD_REGEN_DELAY;
+    // Reset shield regen delay on damage
+    if (enemy.maxShield > 0) {
+        enemy.shieldRegenTimer = SHIELD_REGEN_DELAY;
     }
 
     // DOT damage float (green, only show if >= 2 to avoid spam)

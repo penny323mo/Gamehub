@@ -199,7 +199,8 @@ function showItem(category: 'tower' | 'enemy', name: string) {
             dots: [],
             armor: 0,
             special: '',
-            healCooldown: 0
+            healCooldown: 0,
+            shieldRegenTimer: 0,
         } as Enemy);
         camera.position.set(1.5, 2, 2.5);
     }
