@@ -74,12 +74,12 @@ function trimAppliedEventIds() {
 function isShotPayloadForCurrentRound(payload) {
     const payloadRoundId = payload?.round_id;
     // Every envelope built by buildShotEnvelope tags round_id, so a missing one
-    // can only come from legacy or malformed rows — never accept those. This
-    // also removes the `(currentRoundId||0)===0` escape hatch that allowed
-    // cross-match leakage when a freshly joined client hadn't yet synced
-    // currentRoundId from the DB.
+    // can only come from legacy or malformed rows — never accept those.
     if (payloadRoundId == null) return false;
-    return payloadRoundId === (SnookerOnline.currentRoundId || 0);
+    // Use || 1 to match buildShotEnvelope's round_id: currentRoundId || 1.
+    // A fresh room has round_id=0 in the DB; the first match's envelopes carry
+    // round_id=1 while currentRoundId is still 0, so we need the same fallback.
+    return payloadRoundId === (SnookerOnline.currentRoundId || 1);
 }
 
 function getShotPayload(rawShot) {
@@ -970,9 +970,13 @@ function renderRoomState(room) {
         const myRole = SnookerOnline.playerRole;
         const applyStart = () => {
             SnookerOnline.gameStartedAt = new Date().toISOString();
+            // Clear dedup set so any shots that arrived (via realtime) before the game
+            // was initialised — and were silently dropped because isOnlineMode/gameStarted
+            // were false — are not permanently blacklisted. fetchMissingShotsOnce() below
+            // will re-fetch and correctly apply them after the game is live.
+            SnookerOnline.appliedShotIds.clear();
             sessionStorage.setItem('snooker_active_room', SnookerOnline.roomKey); // Persist for auto-rejoin
             startShotPoll();
-            fetchMissingShotsOnce();
             if (window.snookerOnlineRoomUpdate) {
                 window.snookerOnlineRoomUpdate({
                     status: 'playing',
@@ -981,6 +985,10 @@ function renderRoomState(room) {
                     room
                 });
             }
+            // Fetch missed shots AFTER snookerOnlineRoomUpdate sets isOnlineMode=true
+            // and gameStarted=true so applyIncomingShotEvent doesn't silently dedup shots
+            // that it then drops because the game hasn't started yet.
+            fetchMissingShotsOnce();
         };
         // Use server-validated RPC, fall back to direct UPDATE if not deployed
         SnookerOnline.sbClient.rpc('start_snooker_game', {
@@ -1011,10 +1019,17 @@ function renderRoomState(room) {
 
     // Start shot recovery polling when we see the playing state
     // (covers the non-trigger player who receives it via realtime/poll)
-    if (room.status === 'playing' && !SnookerOnline.shotPollInterval) {
+    // Track first transition to 'playing' so we defer fetchMissingShotsOnce()
+    // until AFTER snookerOnlineRoomUpdate sets isOnlineMode/gameStarted = true.
+    const isFirstPlayingTransition = room.status === 'playing' && !SnookerOnline.shotPollInterval;
+    if (isFirstPlayingTransition) {
         if (!SnookerOnline.gameStartedAt) SnookerOnline.gameStartedAt = new Date().toISOString();
+        // Clear dedup set so shots that arrived via realtime before the game was
+        // initialised (and were dropped because isOnlineMode/gameStarted were false)
+        // are not permanently blacklisted. fetchMissingShotsOnce() below re-fetches.
+        SnookerOnline.appliedShotIds.clear();
         startShotPoll();
-        fetchMissingShotsOnce();
+        // fetchMissingShotsOnce() intentionally deferred to after snookerOnlineRoomUpdate
     }
     // Stop shot polling when game is no longer playing
     if (room.status !== 'playing' && SnookerOnline.shotPollInterval) {
@@ -1031,6 +1046,12 @@ function renderRoomState(room) {
             myRole:  SnookerOnline.playerRole,
             room:    room
         });
+    }
+
+    // Fetch missed shots AFTER snookerOnlineRoomUpdate so isOnlineMode/gameStarted
+    // are true and applyIncomingShotEvent can actually apply (not just dedup) them.
+    if (isFirstPlayingTransition) {
+        fetchMissingShotsOnce();
     }
 }
 
