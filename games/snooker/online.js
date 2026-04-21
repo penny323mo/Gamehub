@@ -996,6 +996,12 @@ function renderRoomState(room) {
         }).then(({ data, error }) => {
             if (!error && data?.ok) { applyStart(); return; }
             if (data?.skipped) return;
+            if (data?.error) {
+                // Server rejected explicitly (e.g. not_all_ready, not_a_member).
+                // Stay at waiting screen — do not start the game.
+                console.warn('[SnookerOnline] start_snooker_game rejected:', data.error);
+                return;
+            }
             // Fallback if RPC not deployed
             if (error?.code === 'PGRST202' || error?.message?.includes('Could not find')) {
                 SnookerOnline.sbClient.from('snooker_rooms')
@@ -1012,6 +1018,8 @@ function renderRoomState(room) {
                         // "someone else already started" and skip the start callback.
                         if (!e2 && data?.length) applyStart();
                     });
+            } else if (error) {
+                console.error('[SnookerOnline] start_snooker_game unexpected error:', error);
             }
         });
         return; // skip the generic notify below; we'll notify via the async callback
@@ -1256,6 +1264,11 @@ async function exitFixedRoom() {
     }
 
     stopHeartbeat();
+    // Stop polls before calling the exit RPC so no shot/room tick fires after
+    // we've committed to leaving (avoids phantom renderRoomState calls on the
+    // outgoing session).
+    stopShotPoll();
+    stopRoomPoll();
 
     const { error } = await SnookerOnline.sbClient.rpc('exit_snooker_room', {
         p_room_id: SnookerOnline.roomUuid,

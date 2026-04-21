@@ -3629,6 +3629,15 @@ function endGame() {
 
   logRule('game_over', { winner, scores: [...scores] });
 
+  // Snapshot MUST go before signalGameOver: signalGameOver sets room to
+  // 'finished', and submit_snooker_shot rejects inserts into non-playing rooms.
+  // If reversed, the final-state snapshot never reaches the DB and the receiver
+  // misses the last ball positions / scores.
+  if (window.isOnlineMode && activeShotOrigin === 'local') {
+    broadcastSettledStateSnapshot({ reason: 'game_over' });
+    activeShotOrigin = null;
+  }
+
   // Persist the result to the server so both players and the DB agree.
   if (window.isOnlineMode && window.snookerSignalGameOver) {
     window.snookerSignalGameOver({ winner, scores: [...scores] });
@@ -3639,10 +3648,6 @@ function endGame() {
 
   // 顯示重新開始按鈕
   showGameOverPanel(winnerText, finalScore);
-  if (window.isOnlineMode && activeShotOrigin === 'local') {
-    broadcastSettledStateSnapshot({ reason: 'game_over' });
-    activeShotOrigin = null;
-  }
 }
 
 function showGameOverPanel(winnerText, finalScore) {
