@@ -22,6 +22,13 @@
     #snooker-waiting-msg{color:#ffd66a;font-size:12px;margin:6px 0}
     .s3d-hidden{display:none!important}
     .hidden{display:none!important}
+    /* Online active: hide offline setup controls, show online player info bar */
+    body.online-active #player-names{display:none!important}
+    #online-info{display:none;align-items:center;gap:10px;font-size:12px;font-family:system-ui,sans-serif}
+    body.online-active #online-info{display:flex!important}
+    #online-info .oi-you{color:#4ade80;font-weight:600}
+    #online-info .oi-opp{color:#a9b6d6}
+    #online-info .oi-sep{color:#334155}
   </style>
 </head>
 
@@ -82,6 +89,12 @@
           </label>
           <button id="start-game-btn" type="button">開始遊戲</button>
           <button id="online-battle-btn" type="button" style="background:#2563eb;border:1px solid #3b82f6;color:#fff;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px">🌐 線上對戰</button>
+        </div>
+        <!-- Shown only during active online match, replaces #player-names -->
+        <div id="online-info">
+          <span class="oi-you" id="oi-you-label"></span>
+          <span class="oi-sep">vs</span>
+          <span class="oi-opp" id="oi-opp-label"></span>
         </div>
         <div id="score">Score: 0</div>
         <div id="turn">Turn: 1</div>

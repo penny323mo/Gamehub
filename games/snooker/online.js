@@ -745,7 +745,7 @@ async function fetchLobbyRooms() {
 
     const { data: rooms, error } = await SnookerOnline.sbClient
         .from('snooker_rooms')
-        .select('room_code, player1_id, player2_id, status, player1_ready, player2_ready, p1_last_seen_at, p2_last_seen_at, last_activity_at')
+        .select('room_code, player1_id, player2_id, player1_name, player2_name, status, player1_ready, player2_ready, p1_last_seen_at, p2_last_seen_at, last_activity_at')
         .in('room_code', FIXED_ROOMS);
 
     if (error) { console.error('[SnookerLobby]', error); return; }
@@ -772,8 +772,10 @@ function updateRoomCardUI(roomKey, room) {
     const p1Stale = room.status === 'waiting' && isSeatHeartbeatStale(room, 'player1', WAITING_ROOM_STALE_MS);
     const p2Stale = room.status === 'waiting' && isSeatHeartbeatStale(room, 'player2', WAITING_ROOM_STALE_MS);
     const abandoned = isRoomAbandoned(room, ACTIVE_ROOM_STALE_MS);
-    const p1Label = !room.player1_id ? 'P1:空' : p1Stale ? 'P1:離' : 'P1:有';
-    const p2Label = !room.player2_id ? 'P2:空' : p2Stale ? 'P2:離' : 'P2:有';
+    const p1Name = (room.player1_name || '').trim() || 'P1';
+    const p2Name = (room.player2_name || '').trim() || 'P2';
+    const p1Label = !room.player1_id ? '空位' : p1Stale ? `${p1Name}(離線)` : p1Name;
+    const p2Label = !room.player2_id ? '空位' : p2Stale ? `${p2Name}(離線)` : p2Name;
     playersEl.textContent = `${p1Label} / ${p2Label}`;
 
     const isFull = (room.player1_id && !p1Stale) && (room.player2_id && !p2Stale);
@@ -914,8 +916,10 @@ function renderRoomState(room) {
     // Ready status
     const p1ReadyEl = document.getElementById('snooker-p1-ready');
     const p2ReadyEl = document.getElementById('snooker-p2-ready');
-    if (p1ReadyEl) p1ReadyEl.textContent = `P1: ${room.player1_id ? (room.player1_ready ? '✓ 已準備' : '等待準備') : '空位'}`;
-    if (p2ReadyEl) p2ReadyEl.textContent = `P2: ${room.player2_id ? (room.player2_ready ? '✓ 已準備' : '等待準備') : '空位'}`;
+    const p1DisplayName = (room.player1_name || '').trim() || 'P1';
+    const p2DisplayName = (room.player2_name || '').trim() || 'P2';
+    if (p1ReadyEl) p1ReadyEl.textContent = `${p1DisplayName}: ${room.player1_id ? (room.player1_ready ? '✓ 已準備' : '等待準備') : '空位'}`;
+    if (p2ReadyEl) p2ReadyEl.textContent = `${p2DisplayName}: ${room.player2_id ? (room.player2_ready ? '✓ 已準備' : '等待準備') : '空位'}`;
 
     const readyBtn = document.getElementById('snooker-ready-btn');
     if (readyBtn) {

@@ -2760,6 +2760,15 @@ function updateUi() {
 
   updateDecisionPanel();
   document.body.classList.toggle('cue-placement', cueBallInHand);
+  // Show compact online player info bar; hide offline setup controls.
+  document.body.classList.toggle('online-active', !!(window.isOnlineMode && gameStarted));
+  if (window.isOnlineMode && gameStarted) {
+    const myIdx = window.onlineMyPlayerIndex ?? 0;
+    const youEl = document.getElementById('oi-you-label');
+    const oppEl = document.getElementById('oi-opp-label');
+    if (youEl) youEl.textContent = `🟢 ${playerNames[myIdx]} (你)`;
+    if (oppEl) oppEl.textContent = playerNames[1 - myIdx];
+  }
   refreshStartButtonUi();
   if (mobileControlsEl) {
     if (isTouchDevice && (turnState === 'AIMING' || turnState === 'AIMING_DRAG')) {
