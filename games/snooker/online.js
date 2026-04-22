@@ -968,8 +968,21 @@ function renderRoomState(room) {
         const p1Name = room.player1_name || 'P1';
         const p2Name = room.player2_name || 'P2';
         const myRole = SnookerOnline.playerRole;
+        const primePlayingTransition = () => {
+            // Mark the client as logically in-play before the authoritative
+            // 'playing' row reaches us. This blocks stale 'waiting' updates
+            // from reopening the overlay during start-game races.
+            SnookerOnline.lastObservedStatus = 'playing';
+            stopRoomPoll();
+        };
         const applyStart = () => {
+            const startedRoom = {
+                ...room,
+                status: 'playing',
+                current_turn: room.current_turn || 'player1',
+            };
             SnookerOnline.gameStartedAt = new Date().toISOString();
+            primePlayingTransition();
             // Clear dedup set so any shots that arrived (via realtime) before the game
             // was initialised — and were silently dropped because isOnlineMode/gameStarted
             // were false — are not permanently blacklisted. fetchMissingShotsOnce() below
@@ -982,7 +995,7 @@ function renderRoomState(room) {
                     status: 'playing',
                     players: [{ name: p1Name, role: 'player1' }, { name: p2Name, role: 'player2' }],
                     myRole,
-                    room
+                    room: startedRoom,
                 });
             }
             // Fetch missed shots AFTER snookerOnlineRoomUpdate sets isOnlineMode=true
@@ -995,7 +1008,13 @@ function renderRoomState(room) {
             p_room_id: SnookerOnline.roomUuid, p_client_id: SnookerOnline.clientId,
         }).then(({ data, error }) => {
             if (!error && data?.ok) { applyStart(); return; }
-            if (data?.skipped) return;
+            if (data?.skipped) {
+                primePlayingTransition();
+                SnookerOnline.sbClient.from('snooker_rooms').select('*')
+                    .eq('id', SnookerOnline.roomUuid).single()
+                    .then(({ data: freshRoom }) => { if (freshRoom) renderRoomState(freshRoom); });
+                return;
+            }
             if (data?.error) {
                 // Server rejected explicitly (e.g. not_all_ready, not_a_member).
                 // Stay at waiting screen — do not start the game.
@@ -1014,9 +1033,18 @@ function renderRoomState(room) {
                     .select()
                     .then(({ data, error: e2 }) => {
                         // Only one of the two racing clients wins the .eq(status,waiting)
-                        // guard; the loser gets an empty array. Treat empty data as
-                        // "someone else already started" and skip the start callback.
-                        if (!e2 && data?.length) applyStart();
+                        // guard; if we lost the race, prime the local client as
+                        // logically playing and refetch the authoritative room row.
+                        if (!e2 && data?.length) {
+                            applyStart();
+                            return;
+                        }
+                        if (!e2 && !data?.length) {
+                            primePlayingTransition();
+                            SnookerOnline.sbClient.from('snooker_rooms').select('*')
+                                .eq('id', SnookerOnline.roomUuid).single()
+                                .then(({ data: freshRoom }) => { if (freshRoom) renderRoomState(freshRoom); });
+                        }
                     });
             } else if (error) {
                 console.error('[SnookerOnline] start_snooker_game unexpected error:', error);
