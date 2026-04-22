@@ -96,19 +96,60 @@ const ENEMY_PARTS = buildEnemyConfigs();
 
 const MAX_PER_TYPE = 100;
 const HP_BAR_WIDTH = 0.5;
+const POOL_SIZE = 100;
+
+// Shared unit-scale geometries — use mesh.scale.x to resize width
+const GEO_BAR    = new THREE.PlaneGeometry(1, 0.06);
+const GEO_SHIELD = new THREE.PlaneGeometry(1, 0.04);
+const GEO_SHADOW = new THREE.CircleGeometry(0.26, 12);
+const GEO_HALO   = new THREE.RingGeometry(0.18, 0.24, 12);
 
 export class EnemyRenderer {
     private scene: THREE.Scene;
     private instancedMeshGroups = new Map<EnemyType, THREE.InstancedMesh[]>();
-    private hpBars: THREE.Mesh[] = [];
-    private shieldBars: THREE.Mesh[] = [];
-    private hpBarBg: THREE.Mesh[] = [];
-    private contactShadows: THREE.Mesh[] = [];
-    private statusHalos: THREE.Mesh[] = [];
     private dummy = new THREE.Object3D();
+
+    // Shared materials (created once, reused every frame)
+    private readonly mHpBg      = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide, depthWrite: false });
+    private readonly mHpGreen   = new THREE.MeshBasicMaterial({ color: 0x44ff44, side: THREE.DoubleSide, depthWrite: false });
+    private readonly mHpYellow  = new THREE.MeshBasicMaterial({ color: 0xffaa00, side: THREE.DoubleSide, depthWrite: false });
+    private readonly mHpRed     = new THREE.MeshBasicMaterial({ color: 0xff3333, side: THREE.DoubleSide, depthWrite: false });
+    private readonly mShield    = new THREE.MeshBasicMaterial({ color: 0x4488ff, side: THREE.DoubleSide, depthWrite: false });
+    private readonly mShadow    = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false });
+    private readonly mHaloBoss  = new THREE.MeshBasicMaterial({ color: 0xff9e57, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
+    private readonly mHaloShield = new THREE.MeshBasicMaterial({ color: 0x6ccfff, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
+    private readonly mHaloSlow  = new THREE.MeshBasicMaterial({ color: 0x8de8ff, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
+    private readonly mHaloDot   = new THREE.MeshBasicMaterial({ color: 0x74ff6a, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
+
+    // Scene-persistent pooled meshes — never added/removed, just shown/hidden
+    private readonly poolHpBg   : THREE.Mesh[] = [];
+    private readonly poolHpFill : THREE.Mesh[] = [];
+    private readonly poolShield : THREE.Mesh[] = [];
+    private readonly poolShadow : THREE.Mesh[] = [];   // desktop only
+    private readonly poolHalo   : THREE.Mesh[] = [];   // desktop only
 
     constructor(scene: THREE.Scene) {
         this.scene = scene;
+        this.initPool();
+    }
+
+    private initPool(): void {
+        const add = (geo: THREE.BufferGeometry, mat: THREE.Material, order: number): THREE.Mesh => {
+            const m = new THREE.Mesh(geo, mat);
+            m.visible = false;
+            m.renderOrder = order;
+            this.scene.add(m);
+            return m;
+        };
+        for (let i = 0; i < POOL_SIZE; i++) {
+            this.poolHpBg.push(add(GEO_BAR, this.mHpBg, 1));
+            this.poolHpFill.push(add(GEO_BAR, this.mHpGreen, 2));
+            this.poolShield.push(add(GEO_SHIELD, this.mShield, 2));
+            if (!GRAPHICS.isMobile) {
+                this.poolShadow.push(add(GEO_SHADOW, this.mShadow, 0));
+                this.poolHalo.push(add(GEO_HALO, this.mHaloDot, 0));
+            }
+        }
     }
 
     private getOrCreate(type: EnemyType): THREE.InstancedMesh[] {
@@ -131,44 +172,29 @@ export class EnemyRenderer {
         return meshes;
     }
 
-    // C — Accept camera for billboard lookAt
     sync(state: GameState, _interpolation: number, camera?: THREE.Camera): void {
-        // Group living enemies by type
+        // Group living enemies by type and build ordered list for pool slots
         const byType = new Map<EnemyType, Enemy[]>();
+        const living: Enemy[] = [];
         for (const e of state.enemies) {
             if (!e.alive || e.reached) continue;
             let arr = byType.get(e.type);
             if (!arr) { arr = []; byType.set(e.type, arr); }
             arr.push(e);
+            living.push(e);
         }
 
-        // Clean old HP bars
-        for (const bar of this.hpBars) this.scene.remove(bar);
-        for (const bar of this.shieldBars) this.scene.remove(bar);
-        for (const bar of this.hpBarBg) this.scene.remove(bar);
-        for (const shadow of this.contactShadows) this.scene.remove(shadow);
-        for (const halo of this.statusHalos) this.scene.remove(halo);
-        this.hpBars = [];
-        this.shieldBars = [];
-        this.hpBarBg = [];
-        this.contactShadows = [];
-        this.statusHalos = [];
-
-        // Update each type's instanced mesh
+        // Update instanced meshes (enemy bodies — already efficient)
         const allTypes: EnemyType[] = ['grunt', 'tank', 'runner', 'swarm', 'shield', 'healer', 'boss'];
         for (const type of allTypes) {
             const meshes = this.getOrCreate(type);
             const enemies = byType.get(type) || [];
-
             for (const mesh of meshes) {
                 mesh.count = enemies.length;
             }
-
             const parts = ENEMY_PARTS[type];
-
             for (let i = 0; i < enemies.length; i++) {
                 const e = enemies[i];
-
                 const dx = e.worldX - e.prevWorldX;
                 const dz = e.worldZ - e.prevWorldZ;
                 let moveRot = 0;
@@ -178,7 +204,6 @@ export class EnemyRenderer {
                 } else if ((e as any).displayRot !== undefined) {
                     moveRot = (e as any).displayRot;
                 }
-
                 for (let p = 0; p < parts.length; p++) {
                     const part = parts[p];
                     const hoverBob = type === 'swarm'
@@ -189,14 +214,13 @@ export class EnemyRenderer {
                     this.dummy.position.set(e.worldX, 0, e.worldZ);
                     this.dummy.position.add(part.offset);
                     this.dummy.position.y += hoverBob;
-
-                    this.dummy.rotation.set(0, moveRot, 0); // Face movement direction
+                    this.dummy.rotation.set(0, moveRot, 0);
                     if (part.rotation) {
                         this.dummy.rotation.x += part.rotation.x;
                         this.dummy.rotation.y += part.rotation.y;
                         this.dummy.rotation.z += part.rotation.z;
                     }
-                    if (type === 'swarm' && p === 1) { // wing part
+                    if (type === 'swarm' && p === 1) {
                         const time = performance.now() * 0.001;
                         this.dummy.rotation.z += Math.sin(time * 30 + e.id) * 0.5;
                     }
@@ -205,90 +229,89 @@ export class EnemyRenderer {
                     } else {
                         this.dummy.scale.set(1, 1, 1);
                     }
-
                     this.dummy.updateMatrix();
                     meshes[p].setMatrixAt(i, this.dummy.matrix);
-                }
-
-                // C — Billboard bars: face camera if available
-                const buildBar = (y: number, width: number, color: number, height: number): THREE.Mesh => {
-                    const geo = new THREE.PlaneGeometry(width, height);
-                    const mat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, depthWrite: false });
-                    const bar = new THREE.Mesh(geo, mat);
-                    bar.position.set(e.worldX - (HP_BAR_WIDTH - width) / 2, y, e.worldZ);
-                    if (camera) {
-                        bar.lookAt(camera.position);
-                    } else {
-                        bar.rotation.x = -Math.PI / 4;
-                    }
-                    return bar;
-                };
-
-                // HP bar background
-                const contactShadow = new THREE.Mesh(
-                    new THREE.CircleGeometry(type === 'boss' ? 0.42 : 0.26, 24),
-                    new THREE.MeshBasicMaterial({
-                        color: 0x000000,
-                        transparent: true,
-                        opacity: type === 'boss' ? 0.28 : 0.18,
-                        side: THREE.DoubleSide,
-                        depthWrite: false,
-                    })
-                );
-                contactShadow.rotation.x = -Math.PI / 2;
-                contactShadow.position.set(e.worldX, 0.01, e.worldZ);
-                this.scene.add(contactShadow);
-                this.contactShadows.push(contactShadow);
-
-                if (e.slow || e.dots.length > 0 || e.shield > 0 || type === 'boss') {
-                    const statusColor = type === 'boss'
-                        ? 0xff9e57
-                        : e.shield > 0
-                            ? 0x6ccfff
-                            : e.slow
-                                ? 0x8de8ff
-                                : 0x74ff6a;
-                    const halo = new THREE.Mesh(
-                        new THREE.RingGeometry(0.18, 0.24, 24),
-                        new THREE.MeshBasicMaterial({
-                            color: statusColor,
-                            transparent: true,
-                            opacity: 0.5,
-                            side: THREE.DoubleSide,
-                            depthWrite: false,
-                        })
-                    );
-                    halo.rotation.x = -Math.PI / 2;
-                    halo.position.set(e.worldX, 0.045, e.worldZ);
-                    this.scene.add(halo);
-                    this.statusHalos.push(halo);
-                }
-
-                const bg = buildBar(0.9, HP_BAR_WIDTH, 0x333333, 0.06);
-                bg.position.set(e.worldX, 0.9, e.worldZ);  // centre align bg
-                if (camera) bg.lookAt(camera.position); else bg.rotation.x = -Math.PI / 4;
-                this.scene.add(bg);
-                this.hpBarBg.push(bg);
-
-                // HP bar fill
-                const hpRatio = Math.max(0, e.hp / e.maxHp);
-                const hpW = HP_BAR_WIDTH * hpRatio;
-                const hpColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffaa00 : 0xff3333;
-                const hpBar = buildBar(0.9, hpW, hpColor, 0.06);
-                this.scene.add(hpBar);
-                this.hpBars.push(hpBar);
-
-                // Shield bar (if any)
-                if (e.maxShield > 0 && e.shield > 0) {
-                    const shieldRatio = e.shield / e.maxShield;
-                    const sW = HP_BAR_WIDTH * shieldRatio;
-                    const sBar = buildBar(0.97, sW, 0x4488ff, 0.04);
-                    this.scene.add(sBar);
-                    this.shieldBars.push(sBar);
                 }
             }
             for (const mesh of meshes) {
                 mesh.instanceMatrix.needsUpdate = true;
+            }
+        }
+
+        // ─── Pool-based HP bars (no per-frame allocation) ─────────────────────
+        const n = Math.min(living.length, POOL_SIZE);
+
+        for (let i = 0; i < n; i++) {
+            const e = living[i];
+            const isBoss = e.type === 'boss';
+            const barY = isBoss ? 1.2 : 0.9;
+
+            const hpRatio = Math.max(0, e.hp / e.maxHp);
+            const hpW = HP_BAR_WIDTH * hpRatio;
+
+            // Background bar — full width, centred on enemy
+            const bg = this.poolHpBg[i];
+            bg.scale.set(HP_BAR_WIDTH, 1, 1);
+            bg.position.set(e.worldX, barY, e.worldZ);
+            bg.visible = true;
+            if (camera) bg.lookAt(camera.position); else bg.rotation.x = -Math.PI / 4;
+
+            // Fill bar — left-aligned, scales with HP ratio
+            const fill = this.poolHpFill[i];
+            if (hpW > 0.001) {
+                (fill as THREE.Mesh).material = hpRatio > 0.5 ? this.mHpGreen
+                    : hpRatio > 0.25 ? this.mHpYellow : this.mHpRed;
+                fill.scale.set(hpW, 1, 1);
+                fill.position.set(e.worldX - (HP_BAR_WIDTH - hpW) / 2, barY, e.worldZ);
+                fill.visible = true;
+                if (camera) fill.lookAt(camera.position); else fill.rotation.x = -Math.PI / 4;
+            } else {
+                fill.visible = false;
+            }
+
+            // Shield bar
+            const shield = this.poolShield[i];
+            if (e.maxShield > 0 && e.shield > 0) {
+                const sRatio = e.shield / e.maxShield;
+                const sW = HP_BAR_WIDTH * sRatio;
+                shield.scale.set(sW, 1, 1);
+                shield.position.set(e.worldX - (HP_BAR_WIDTH - sW) / 2, barY + 0.07, e.worldZ);
+                shield.visible = true;
+                if (camera) shield.lookAt(camera.position); else shield.rotation.x = -Math.PI / 4;
+            } else {
+                shield.visible = false;
+            }
+
+            // Contact shadow + status halo — desktop only (skip on mobile to save draw calls)
+            if (!GRAPHICS.isMobile && i < this.poolShadow.length) {
+                const shadow = this.poolShadow[i];
+                shadow.scale.setScalar(isBoss ? 1.62 : 1); // boss shadow ~0.42 vs normal 0.26
+                shadow.position.set(e.worldX, 0.01, e.worldZ);
+                shadow.visible = true;
+
+                const halo = this.poolHalo[i];
+                const hasStatus = e.slow || e.dots.length > 0 || e.shield > 0 || isBoss;
+                if (hasStatus) {
+                    (halo as THREE.Mesh).material = isBoss ? this.mHaloBoss
+                        : e.shield > 0 ? this.mHaloShield
+                        : e.slow ? this.mHaloSlow
+                        : this.mHaloDot;
+                    halo.position.set(e.worldX, 0.045, e.worldZ);
+                    halo.visible = true;
+                } else {
+                    halo.visible = false;
+                }
+            }
+        }
+
+        // Hide unused pool slots
+        for (let i = n; i < POOL_SIZE; i++) {
+            this.poolHpBg[i].visible = false;
+            this.poolHpFill[i].visible = false;
+            this.poolShield[i].visible = false;
+            if (!GRAPHICS.isMobile && i < this.poolShadow.length) {
+                this.poolShadow[i].visible = false;
+                this.poolHalo[i].visible = false;
             }
         }
     }

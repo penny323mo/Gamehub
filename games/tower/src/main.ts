@@ -40,7 +40,7 @@ let currentDifficulty: Difficulty = persisted.prefs.difficulty;
 
 // ─── Renderer setup ───
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !GRAPHICS.isMobile, powerPreference: 'high-performance' });
 renderer.setPixelRatio(GRAPHICS.pixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 
@@ -49,8 +49,8 @@ if (GRAPHICS.enableShadows) {
     renderer.shadowMap.type = THREE.PCFShadowMap;
 }
 
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.28;
+renderer.toneMapping = GRAPHICS.isMobile ? THREE.LinearToneMapping : THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = GRAPHICS.isMobile ? 1.0 : 1.28;
 
 const sm = new SceneManager();
 const camCtrl = new CameraController();
@@ -1235,6 +1235,7 @@ let lastTime = 0;
 let accumulator = 0;
 let lastWave = -1;
 let lastMusicPhase: 'prep' | 'wave' | 'off' | null = null;
+let hudFrameTick = 0;
 
 /** Reset module-level run state so restart/new-run starts clean. */
 function resetRunLocals(): void {
@@ -1385,8 +1386,12 @@ function gameLoop(time: number): void {
     camCtrl.tickShake(rawDt);
     applyAtmosphere(state.currentWave);
 
-    // Update HUD
-    updateHUD();
+    // Update HUD (throttled on mobile to reduce DOM work)
+    if (GRAPHICS.isMobile) {
+        if (++hudFrameTick >= 4) { hudFrameTick = 0; updateHUD(); }
+    } else {
+        updateHUD();
+    }
 
     // Update tower panel if open
     if (inspectedTower) {

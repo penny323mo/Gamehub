@@ -98,7 +98,8 @@ export class SceneManager {
     }
 
     private buildSkyDome(): void {
-        const skyGeo = new THREE.SphereGeometry(80, 24, 24);
+        const seg = GRAPHICS.isMobile ? 8 : 24;
+        const skyGeo = new THREE.SphereGeometry(80, seg, seg);
         const skyMat = new THREE.ShaderMaterial({
             side: THREE.BackSide,
             depthWrite: false,
@@ -184,14 +185,10 @@ export class SceneManager {
 
     private buildBoardFrame(boardPosition: THREE.Vector3): void {
         const frameGeo = new THREE.BoxGeometry(MAP.cols + 1.35, 0.2, MAP.rows + 1.35);
-        const frame = new THREE.Mesh(
-            frameGeo,
-            new THREE.MeshStandardMaterial({
-                color: 0x0d1b11,
-                roughness: 0.75,
-                metalness: 0.18,
-            })
-        );
+        const frameMat = GRAPHICS.isMobile
+            ? new THREE.MeshLambertMaterial({ color: 0x0d1b11 })
+            : new THREE.MeshStandardMaterial({ color: 0x0d1b11, roughness: 0.75, metalness: 0.18 });
+        const frame = new THREE.Mesh(frameGeo, frameMat);
         frame.position.copy(boardPosition);
         frame.position.y = -0.34;
         frame.receiveShadow = true;
@@ -204,23 +201,15 @@ export class SceneManager {
             return new THREE.Vector3(pos.x, 0.01, pos.z);
         });
 
-        const shoulderMat = new THREE.MeshStandardMaterial({
-            color: 0x59422a,
-            roughness: 0.95,
-            metalness: 0.02,
-        });
-        const roadMat = new THREE.MeshStandardMaterial({
-            color: 0xb78b56,
-            roughness: 0.88,
-            metalness: 0.02,
-        });
-        const stripeMat = new THREE.MeshStandardMaterial({
-            color: 0xe2c08a,
-            roughness: 0.7,
-            metalness: 0.04,
-            emissive: 0x453318,
-            emissiveIntensity: 0.06,
-        });
+        const shoulderMat = GRAPHICS.isMobile
+            ? new THREE.MeshLambertMaterial({ color: 0x59422a })
+            : new THREE.MeshStandardMaterial({ color: 0x59422a, roughness: 0.95, metalness: 0.02 });
+        const roadMat = GRAPHICS.isMobile
+            ? new THREE.MeshLambertMaterial({ color: 0xb78b56 })
+            : new THREE.MeshStandardMaterial({ color: 0xb78b56, roughness: 0.88, metalness: 0.02 });
+        const stripeMat = GRAPHICS.isMobile
+            ? new THREE.MeshLambertMaterial({ color: 0xe2c08a, emissive: 0x453318 })
+            : new THREE.MeshStandardMaterial({ color: 0xe2c08a, roughness: 0.7, metalness: 0.04, emissive: 0x453318, emissiveIntensity: 0.06 });
 
         for (let i = 0; i < points.length - 1; i++) {
             const from = points[i];
@@ -284,7 +273,10 @@ export class SceneManager {
         const leavesPalette = [0x274d27, 0x1e3e21, 0x365c34, 0x204427];
         const rockPalette = [0x3f4b3b, 0x4b5646, 0x303c31];
 
-        const borderSize = 9;
+        const borderSize = GRAPHICS.isMobile ? 5 : 9;
+        const treeDensity  = GRAPHICS.isMobile ? 0.18 : 0.34;
+        const rockDensity  = GRAPHICS.isMobile ? 0    : 0.12;
+
         for (let c = -borderSize; c < cols + borderSize; c++) {
             for (let r = -borderSize; r < rows + borderSize; r++) {
                 if (c >= -1 && c <= cols && r >= -1 && r <= rows) continue;
@@ -293,7 +285,7 @@ export class SceneManager {
                 const xOff = (Math.random() - 0.5) * cellSize * 0.9;
                 const zOff = (Math.random() - 0.5) * cellSize * 0.9;
 
-                if (Math.random() < 0.34) {
+                if (Math.random() < treeDensity) {
                     const scale = 0.75 + Math.random() * 0.8;
                     const tree = new THREE.Group();
                     const trunk = new THREE.Mesh(trunkGeo, trunkMat);
@@ -316,14 +308,10 @@ export class SceneManager {
                         }
                     });
                     this.scene.add(tree);
-                } else if (Math.random() < 0.12) {
+                } else if (rockDensity > 0 && Math.random() < rockDensity) {
                     const rock = new THREE.Mesh(
                         rockGeo,
-                        new THREE.MeshStandardMaterial({
-                            color: rockPalette[(c * 3 + r + 9) % rockPalette.length],
-                            roughness: 0.96,
-                            metalness: 0.03,
-                        })
+                        new THREE.MeshLambertMaterial({ color: rockPalette[(c * 3 + r + 9) % rockPalette.length] })
                     );
                     rock.scale.setScalar(0.8 + Math.random() * 1.4);
                     rock.position.set(pos.x + xOff, -0.15, pos.z + zOff);
@@ -338,18 +326,17 @@ export class SceneManager {
 
     private buildDistantSilhouettes(): void {
         const ridgeGeo = new THREE.ConeGeometry(2.8, 6.5, 4);
-        const ridgeMat = new THREE.MeshStandardMaterial({
-            color: 0x102318,
-            roughness: 0.95,
-            metalness: 0.01,
-        });
+        const ridgeMat = GRAPHICS.isMobile
+            ? new THREE.MeshLambertMaterial({ color: 0x102318 })
+            : new THREE.MeshStandardMaterial({ color: 0x102318, roughness: 0.95, metalness: 0.01 });
         const radiusX = MAP.cols * 0.75;
         const radiusZ = MAP.rows * 0.95;
         const centerX = MAP.origin.x + MAP.cols * MAP.cellSize / 2;
         const centerZ = MAP.origin.z + MAP.rows * MAP.cellSize / 2;
+        const count = GRAPHICS.isMobile ? 8 : 18;
 
-        for (let i = 0; i < 18; i++) {
-            const t = (i / 18) * Math.PI * 2;
+        for (let i = 0; i < count; i++) {
+            const t = (i / count) * Math.PI * 2;
             const ridge = new THREE.Mesh(ridgeGeo, ridgeMat);
             ridge.position.set(
                 centerX + Math.cos(t) * (radiusX + 10 + Math.random() * 5),
