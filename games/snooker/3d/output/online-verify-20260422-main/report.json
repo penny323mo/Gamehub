@@ -1,0 +1,1334 @@
+{
+  "startedAt": "2026-04-22T13:11:03.842Z",
+  "roomKey": "3D-ROOM02",
+  "steps": [
+    {
+      "step": "open_pages",
+      "ok": true
+    }
+  ],
+  "consoles": {
+    "p1": [
+      {
+        "type": "log",
+        "text": "[Device] isTouchDevice: false forceMobile: false"
+      },
+      {
+        "type": "log",
+        "text": "[CLOTH_EXIST] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[CLOTH_BBOX] [object Pt]"
+      },
+      {
+        "type": "log",
+        "text": "[POCKET_VISUAL_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[INNER_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[HOLE_TOPO_V4] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[INNER_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[RAIL_BBOX] [object Pt]"
+      },
+      {
+        "type": "log",
+        "text": "[PARENTS] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[BBOX] rail y -1.1920928966180355e-9 0.10000000029802333 cloth y 0.0049999999999996 0.0050000000000004"
+      },
+      {
+        "type": "log",
+        "text": "[POCKETS] [array Array]"
+      },
+      {
+        "type": "log",
+        "text": "[RAIL] holes: 7"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] clientId: a4866c24-0d27-41e2-8681-78121f2591d1"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] Supabase initialized"
+      }
+    ],
+    "p2": [
+      {
+        "type": "log",
+        "text": "[Device] isTouchDevice: false forceMobile: false"
+      },
+      {
+        "type": "log",
+        "text": "[CLOTH_EXIST] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[CLOTH_BBOX] [object Pt]"
+      },
+      {
+        "type": "log",
+        "text": "[POCKET_VISUAL_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[INNER_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[HOLE_TOPO_V4] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[INNER_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[RAIL_BBOX] [object Pt]"
+      },
+      {
+        "type": "log",
+        "text": "[PARENTS] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[BBOX] rail y -1.1920928966180355e-9 0.10000000029802333 cloth y 0.0049999999999996 0.0050000000000004"
+      },
+      {
+        "type": "log",
+        "text": "[POCKETS] [array Array]"
+      },
+      {
+        "type": "log",
+        "text": "[RAIL] holes: 7"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] clientId: a98648dd-1107-4231-99d8-e3f1ec8d5a39"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] Supabase initialized"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      }
+    ]
+  },
+  "ok": false,
+  "error": {
+    "message": "Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
+    "stack": "ProtocolError: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.\n    at <instance_members_initializer> (/Users/a123/AI/antigravity/Gamehub/games/big2/node_modules/puppeteer-core/lib/cjs/puppeteer/common/CallbackRegistry.js:103:14)\n    at new Callback (/Users/a123/AI/antigravity/Gamehub/games/big2/node_modules/puppeteer-core/lib/cjs/puppeteer/common/CallbackRegistry.js:107:16)\n    at CallbackRegistry.create (/Users/a123/AI/antigravity/Gamehub/games/big2/node_modules/puppeteer-core/lib/cjs/puppeteer/common/CallbackRegistry.js:25:26)\n    at Connection._rawSend (/Users/a123/AI/antigravity/Gamehub/games/big2/node_modules/puppeteer-core/lib/cjs/puppeteer/cdp/Connection.js:108:26)\n    at CdpCDPSession.send (/Users/a123/AI/antigravity/Gamehub/games/big2/node_modules/puppeteer-core/lib/cjs/puppeteer/cdp/CdpSession.js:74:33)\n    at #evaluate (/Users/a123/AI/antigravity/Gamehub/games/big2/node_modules/puppeteer-core/lib/cjs/puppeteer/cdp/ExecutionContext.js:363:50)\n    at ExecutionContext.evaluate (/Users/a123/AI/antigravity/Gamehub/games/big2/node_modules/puppeteer-core/lib/cjs/puppeteer/cdp/ExecutionContext.js:277:36)\n    at IsolatedWorld.evaluate (/Users/a123/AI/antigravity/Gamehub/games/big2/node_modules/puppeteer-core/lib/cjs/puppeteer/cdp/IsolatedWorld.js:100:30)\n    at CdpJSHandle.evaluate (/Users/a123/AI/antigravity/Gamehub/games/big2/node_modules/puppeteer-core/lib/cjs/puppeteer/api/JSHandle.js:149:37)\n    at CdpElementHandle.evaluate (/Users/a123/AI/antigravity/Gamehub/games/big2/node_modules/puppeteer-core/lib/cjs/puppeteer/api/ElementHandle.js:347:38)"
+  },
+  "failedAt": "2026-04-22T13:14:12.279Z"
+}

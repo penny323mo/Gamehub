@@ -1,0 +1,47 @@
+{
+  "startedAt": "2026-04-19T15:33:42.046Z",
+  "roomKey": "ROOM01",
+  "steps": [
+    {
+      "step": "started",
+      "p1Role": "player1",
+      "p2Role": "player2",
+      "db": {
+        "id": "c026d6f2-c9c8-4c85-8f23-f0cfdd47466d",
+        "room_code": "ROOM01",
+        "status": "playing",
+        "round_id": 2,
+        "winner": null,
+        "player1_id": "cb74d9fd-d6f6-4816-92ce-a17aae601bfe",
+        "player2_id": "8ef4987d-f5a5-442d-ac83-36c3083ac3d6",
+        "last_activity_at": "2026-04-19T15:33:45.851586+00:00"
+      },
+      "statusMsgs": {
+        "p1": "▶ 你的回合 | 擺放白球\n目標: 紅球 | 紅球: 15 | 剩餘: 147",
+        "p2": "⏳ 對手回合 | 對手擺放白球中...\n目標: 紅球 | 紅球: 15 | 剩餘: 147"
+      }
+    },
+    {
+      "step": "restart_button_probe",
+      "lateLabel": "p2",
+      "before": {
+        "lateStatus": "⏳ 對手回合 | 對手擺放白球中...\n目標: 紅球 | 紅球: 15 | 剩餘: 147",
+        "otherStatus": "▶ 你的回合 | 擺放白球\n目標: 紅球 | 紅球: 15 | 剩餘: 147",
+        "dbStatus": "playing"
+      },
+      "after": {
+        "lateStatus": "▶ 你的回合 | 準備開始\n目標: 紅球 | 紅球: 15 | 剩餘: 147",
+        "otherStatus": "▶ 你的回合 | 擺放白球\n目標: 紅球 | 紅球: 15 | 剩餘: 147",
+        "dbStatus": "playing",
+        "lateAimDisabled": false,
+        "otherAimDisabled": false
+      }
+    }
+  ],
+  "ok": false,
+  "error": {
+    "message": "Timed out waiting for 2D restarted playing",
+    "stack": "Error: Timed out waiting for 2D restarted playing\n    at waitFor ([stdin]:11:206)\n    at async [stdin]:62:21"
+  },
+  "failedAt": "2026-04-19T15:34:14.221Z"
+}

@@ -1,0 +1,1167 @@
+{
+  "startedAt": "2026-04-22T13:19:27.051Z",
+  "roomKey": "3D-ROOM02",
+  "steps": [
+    {
+      "step": "open_pages",
+      "ok": true
+    },
+    {
+      "step": "set_names",
+      "ok": true
+    },
+    {
+      "step": "joined_room",
+      "joined": [
+        {
+          "roomKey": "3D-ROOM02",
+          "role": "player2",
+          "roomUuid": "5fac9f30-b7de-444c-a21b-fb1c98df05c2",
+          "hasSeat": true,
+          "waitText": ""
+        },
+        {
+          "roomKey": "3D-ROOM02",
+          "role": "player1",
+          "roomUuid": "5fac9f30-b7de-444c-a21b-fb1c98df05c2",
+          "hasSeat": true,
+          "waitText": "等待對手加入..."
+        }
+      ]
+    },
+    {
+      "step": "clicked_ready",
+      "ok": true
+    },
+    {
+      "step": "match_started",
+      "started": [
+        {
+          "overlayHidden": true,
+          "online": true,
+          "myIndex": 1,
+          "roomId": "5fac9f30-b7de-444c-a21b-fb1c98df05c2",
+          "roundId": 2,
+          "statusText": "P1 vs P2: drag cue ball in D, then double-click to confirm break",
+          "state": {
+            "mode": "aim",
+            "coordinate": "x right, z forward (toward top pockets), y up",
+            "player": 1,
+            "shotSerial": 0,
+            "shotOrigin": null,
+            "lastCompletedShotOrigin": null,
+            "lastAppliedSnapshotSerial": 0,
+            "scores": [
+              0,
+              0
+            ],
+            "target": "Red",
+            "freeBallAvailable": false,
+            "snookered": true,
+            "turnState": "PLACE_CUE",
+            "foulDecisionPending": false,
+            "foulDecisionContext": null,
+            "actionRequired": "PLACE_CUE_IN_D",
+            "cuePlacementMode": "D",
+            "aiming": false,
+            "power": 0,
+            "cueBallSpeed": 0,
+            "cueVisible": false,
+            "aiEnabled": false,
+            "aiQueued": false,
+            "aimDir": {
+              "x": 0,
+              "z": 1
+            },
+            "guide": {
+              "extended": true,
+              "primaryVisible": false,
+              "extendedVisible": false,
+              "ghostVisible": false,
+              "objectPathVisible": false,
+              "railReflectVisible": false,
+              "firstCollision": null
+            },
+            "redsRemaining": 15,
+            "expectingColor": false,
+            "cue": {
+              "x": 0,
+              "z": -1.1480000000000001
+            },
+            "balls": [
+              {
+                "type": "cue",
+                "x": 0,
+                "z": -1.1480000000000001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.864,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "yellow",
+                "x": -0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "green",
+                "x": 0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "brown",
+                "x": 0,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "blue",
+                "x": 0,
+                "z": 0,
+                "pocketed": false
+              },
+              {
+                "type": "pink",
+                "x": 0,
+                "z": 0.756,
+                "pocketed": false
+              },
+              {
+                "type": "black",
+                "x": 0,
+                "z": 1.296,
+                "pocketed": false
+              }
+            ],
+            "inputDebug": {
+              "lastMouseDown": "",
+              "lastMouseUp": "btn=0 x=454 y=472.75 state=PLACE_CUE charging=false",
+              "lastMouseMove": "x=454 y=472.75 dragCue=false cueInHand=true",
+              "lastBlockReason": ""
+            }
+          }
+        },
+        {
+          "overlayHidden": true,
+          "online": true,
+          "myIndex": 0,
+          "roomId": "5fac9f30-b7de-444c-a21b-fb1c98df05c2",
+          "roundId": 2,
+          "statusText": "P1 vs P2: drag cue ball in D, then double-click to confirm break",
+          "state": {
+            "mode": "aim",
+            "coordinate": "x right, z forward (toward top pockets), y up",
+            "player": 1,
+            "shotSerial": 0,
+            "shotOrigin": null,
+            "lastCompletedShotOrigin": null,
+            "lastAppliedSnapshotSerial": 0,
+            "scores": [
+              0,
+              0
+            ],
+            "target": "Red",
+            "freeBallAvailable": false,
+            "snookered": true,
+            "turnState": "PLACE_CUE",
+            "foulDecisionPending": false,
+            "foulDecisionContext": null,
+            "actionRequired": "PLACE_CUE_IN_D",
+            "cuePlacementMode": "D",
+            "aiming": false,
+            "power": 0,
+            "cueBallSpeed": 0,
+            "cueVisible": false,
+            "aiEnabled": false,
+            "aiQueued": false,
+            "aimDir": {
+              "x": 0,
+              "z": 1
+            },
+            "guide": {
+              "extended": true,
+              "primaryVisible": false,
+              "extendedVisible": false,
+              "ghostVisible": false,
+              "objectPathVisible": false,
+              "railReflectVisible": false,
+              "firstCollision": null
+            },
+            "redsRemaining": 15,
+            "expectingColor": false,
+            "cue": {
+              "x": 0,
+              "z": -1.1480000000000001
+            },
+            "balls": [
+              {
+                "type": "cue",
+                "x": 0,
+                "z": -1.1480000000000001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.864,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "yellow",
+                "x": -0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "green",
+                "x": 0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "brown",
+                "x": 0,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "blue",
+                "x": 0,
+                "z": 0,
+                "pocketed": false
+              },
+              {
+                "type": "pink",
+                "x": 0,
+                "z": 0.756,
+                "pocketed": false
+              },
+              {
+                "type": "black",
+                "x": 0,
+                "z": 1.296,
+                "pocketed": false
+              }
+            ],
+            "inputDebug": {
+              "lastMouseDown": "",
+              "lastMouseUp": "btn=0 x=454 y=485 state=PLACE_CUE charging=false",
+              "lastMouseMove": "x=454 y=485 dragCue=false cueInHand=true",
+              "lastBlockReason": ""
+            }
+          }
+        }
+      ]
+    },
+    {
+      "step": "shot_triggered",
+      "shooterLabel": "p2",
+      "shotPrep": {
+        "placed": {
+          "ok": true,
+          "x": 0.084,
+          "z": -1.008
+        },
+        "confirmed": true,
+        "before": {
+          "mode": "aim",
+          "coordinate": "x right, z forward (toward top pockets), y up",
+          "player": 1,
+          "shotSerial": 0,
+          "shotOrigin": null,
+          "lastCompletedShotOrigin": null,
+          "lastAppliedSnapshotSerial": 0,
+          "scores": [
+            0,
+            0
+          ],
+          "target": "Red",
+          "freeBallAvailable": false,
+          "snookered": true,
+          "turnState": "AIMING",
+          "foulDecisionPending": false,
+          "foulDecisionContext": null,
+          "actionRequired": "CAN_SHOOT",
+          "cuePlacementMode": "NONE",
+          "aiming": false,
+          "power": 0,
+          "cueBallSpeed": 0,
+          "cueVisible": true,
+          "aiEnabled": false,
+          "aiQueued": false,
+          "aimDir": {
+            "x": 0,
+            "z": 1
+          },
+          "guide": {
+            "extended": true,
+            "primaryVisible": true,
+            "extendedVisible": true,
+            "ghostVisible": true,
+            "objectPathVisible": false,
+            "railReflectVisible": false,
+            "firstCollision": {
+              "kind": "ball",
+              "x": 0.084,
+              "z": 0.8792,
+              "targetType": "red"
+            }
+          },
+          "redsRemaining": 15,
+          "expectingColor": false,
+          "cue": {
+            "x": 0.08400000000000002,
+            "z": -1.0080000000000002
+          },
+          "balls": [
+            {
+              "type": "cue",
+              "x": 0.08400000000000002,
+              "z": -1.0080000000000002,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0,
+              "z": 0.864,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": -0.035875,
+              "z": 0.93001,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0.035875,
+              "z": 0.93001,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": -0.07175,
+              "z": 0.99602,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0,
+              "z": 0.99602,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0.07175,
+              "z": 0.99602,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": -0.107625,
+              "z": 1.06203,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": -0.035875,
+              "z": 1.06203,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0.035875,
+              "z": 1.06203,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0.107625,
+              "z": 1.06203,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": -0.1435,
+              "z": 1.12804,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": -0.07175,
+              "z": 1.12804,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0,
+              "z": 1.12804,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0.07175,
+              "z": 1.12804,
+              "pocketed": false
+            },
+            {
+              "type": "red",
+              "x": 0.1435,
+              "z": 1.12804,
+              "pocketed": false
+            },
+            {
+              "type": "yellow",
+              "x": -0.41400000000000003,
+              "z": -1.0080000000000002,
+              "pocketed": false
+            },
+            {
+              "type": "green",
+              "x": 0.41400000000000003,
+              "z": -1.0080000000000002,
+              "pocketed": false
+            },
+            {
+              "type": "brown",
+              "x": 0,
+              "z": -1.0080000000000002,
+              "pocketed": false
+            },
+            {
+              "type": "blue",
+              "x": 0,
+              "z": 0,
+              "pocketed": false
+            },
+            {
+              "type": "pink",
+              "x": 0,
+              "z": 0.756,
+              "pocketed": false
+            },
+            {
+              "type": "black",
+              "x": 0,
+              "z": 1.296,
+              "pocketed": false
+            }
+          ],
+          "inputDebug": {
+            "lastMouseDown": "",
+            "lastMouseUp": "btn=0 x=454 y=485 state=PLACE_CUE charging=false",
+            "lastMouseMove": "x=454 y=485 dragCue=false cueInHand=true",
+            "lastBlockReason": ""
+          }
+        },
+        "shot": true,
+        "myIndex": 0
+      }
+    }
+  ],
+  "consoles": {
+    "p1": [
+      {
+        "type": "log",
+        "text": "[Device] isTouchDevice: false forceMobile: false"
+      },
+      {
+        "type": "log",
+        "text": "[CLOTH_EXIST] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[CLOTH_BBOX] [object Pt]"
+      },
+      {
+        "type": "log",
+        "text": "[POCKET_VISUAL_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[INNER_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[HOLE_TOPO_V4] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[INNER_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[RAIL_BBOX] [object Pt]"
+      },
+      {
+        "type": "log",
+        "text": "[PARENTS] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[BBOX] rail y -1.1920928966180355e-9 0.10000000029802333 cloth y 0.0049999999999996 0.0050000000000004"
+      },
+      {
+        "type": "log",
+        "text": "[POCKETS] [array Array]"
+      },
+      {
+        "type": "log",
+        "text": "[RAIL] holes: 7"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] clientId: 93fdcf25-a17f-4f88-bccc-3423b054fd8b"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] Supabase initialized"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] Joined as player2 in room 3D-ROOM02"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] subscribe status: SUBSCRIBED"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-SHOTS] subscribe status: SUBSCRIBED"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerShot] Remote shot received: [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[RULE] shot_start [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=4.972 turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=2.392 turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[RULE] cue_pocketed [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] UPDATE playing"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] UPDATE playing"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      }
+    ],
+    "p2": [
+      {
+        "type": "log",
+        "text": "[Device] isTouchDevice: false forceMobile: false"
+      },
+      {
+        "type": "log",
+        "text": "[CLOTH_EXIST] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[CLOTH_BBOX] [object Pt]"
+      },
+      {
+        "type": "log",
+        "text": "[POCKET_VISUAL_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[INNER_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[HOLE_TOPO_V4] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[INNER_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[RAIL_BBOX] [object Pt]"
+      },
+      {
+        "type": "log",
+        "text": "[PARENTS] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[BBOX] rail y -1.1920928966180355e-9 0.10000000029802333 cloth y 0.0049999999999996 0.0050000000000004"
+      },
+      {
+        "type": "log",
+        "text": "[POCKETS] [array Array]"
+      },
+      {
+        "type": "log",
+        "text": "[RAIL] holes: 7"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] clientId: fd8c0a8c-13db-4534-a89e-a037d6e5728c"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] Supabase initialized"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] Joined as player1 in room 3D-ROOM02"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[RULE] shot_start [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerShot] Sent via RPC: [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] subscribe status: SUBSCRIBED"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-SHOTS] subscribe status: SUBSCRIBED"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] UPDATE playing"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] UPDATE playing"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=NaN turnState=BALLS_MOVING foulDecision=false"
+      }
+    ]
+  },
+  "ok": false,
+  "error": {
+    "message": "Timed out waiting for shot sync",
+    "stack": "Error: Timed out waiting for shot sync\n    at waitFor ([stdin]:23:9)\n    at async [stdin]:144:20"
+  },
+  "failedAt": "2026-04-22T13:20:03.439Z"
+}

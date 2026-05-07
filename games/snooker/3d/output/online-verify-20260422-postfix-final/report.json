@@ -1,0 +1,2360 @@
+{
+  "startedAt": "2026-04-22T13:39:17.116Z",
+  "roomKey": "3D-ROOM01",
+  "steps": [
+    {
+      "step": "open_pages",
+      "ok": true
+    },
+    {
+      "step": "set_names",
+      "ok": true
+    },
+    {
+      "step": "joined_room",
+      "joined": [
+        {
+          "overlayHidden": false,
+          "rematchHidden": true,
+          "readyHidden": false,
+          "roomKey": "3D-ROOM01",
+          "roomUuid": "27cd1b0c-4b30-4387-baca-c85807bea501",
+          "hasSeat": true,
+          "state": {
+            "mode": "aim",
+            "coordinate": "x right, z forward (toward top pockets), y up",
+            "player": 1,
+            "shotSerial": 0,
+            "shotOrigin": null,
+            "lastCompletedShotOrigin": null,
+            "lastAppliedSnapshotSerial": 0,
+            "scores": [
+              0,
+              0
+            ],
+            "target": "Red",
+            "freeBallAvailable": false,
+            "snookered": true,
+            "turnState": "PLACE_CUE",
+            "foulDecisionPending": false,
+            "foulDecisionContext": null,
+            "actionRequired": "PLACE_CUE_IN_D",
+            "cuePlacementMode": "D",
+            "aiming": false,
+            "power": 0,
+            "cueBallSpeed": 0,
+            "cueVisible": false,
+            "aiEnabled": true,
+            "aiQueued": false,
+            "aimDir": {
+              "x": -0.3168,
+              "z": 0.9485
+            },
+            "guide": {
+              "extended": true,
+              "primaryVisible": false,
+              "extendedVisible": false,
+              "ghostVisible": false,
+              "objectPathVisible": false,
+              "railReflectVisible": false,
+              "firstCollision": null
+            },
+            "redsRemaining": 15,
+            "expectingColor": false,
+            "cue": {
+              "x": 0,
+              "z": -1.1480000000000001
+            },
+            "balls": [
+              {
+                "type": "cue",
+                "x": 0,
+                "z": -1.1480000000000001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.864,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "yellow",
+                "x": -0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "green",
+                "x": 0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "brown",
+                "x": 0,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "blue",
+                "x": 0,
+                "z": 0,
+                "pocketed": false
+              },
+              {
+                "type": "pink",
+                "x": 0,
+                "z": 0.756,
+                "pocketed": false
+              },
+              {
+                "type": "black",
+                "x": 0,
+                "z": 1.296,
+                "pocketed": false
+              }
+            ],
+            "inputDebug": {
+              "lastMouseDown": "",
+              "lastMouseUp": "btn=0 x=645 y=329.5 state=PLACE_CUE charging=false",
+              "lastMouseMove": "x=645 y=329.5 dragCue=false cueInHand=true",
+              "lastBlockReason": ""
+            }
+          }
+        },
+        {
+          "overlayHidden": false,
+          "rematchHidden": true,
+          "readyHidden": false,
+          "roomKey": "3D-ROOM01",
+          "roomUuid": "27cd1b0c-4b30-4387-baca-c85807bea501",
+          "hasSeat": true,
+          "state": {
+            "mode": "aim",
+            "coordinate": "x right, z forward (toward top pockets), y up",
+            "player": 1,
+            "shotSerial": 0,
+            "shotOrigin": null,
+            "lastCompletedShotOrigin": null,
+            "lastAppliedSnapshotSerial": 0,
+            "scores": [
+              0,
+              0
+            ],
+            "target": "Red",
+            "freeBallAvailable": false,
+            "snookered": true,
+            "turnState": "PLACE_CUE",
+            "foulDecisionPending": false,
+            "foulDecisionContext": null,
+            "actionRequired": "PLACE_CUE_IN_D",
+            "cuePlacementMode": "D",
+            "aiming": false,
+            "power": 0,
+            "cueBallSpeed": 0,
+            "cueVisible": false,
+            "aiEnabled": true,
+            "aiQueued": false,
+            "aimDir": {
+              "x": -0.3168,
+              "z": 0.9485
+            },
+            "guide": {
+              "extended": true,
+              "primaryVisible": false,
+              "extendedVisible": false,
+              "ghostVisible": false,
+              "objectPathVisible": false,
+              "railReflectVisible": false,
+              "firstCollision": null
+            },
+            "redsRemaining": 15,
+            "expectingColor": false,
+            "cue": {
+              "x": 0,
+              "z": -1.1480000000000001
+            },
+            "balls": [
+              {
+                "type": "cue",
+                "x": 0,
+                "z": -1.1480000000000001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.864,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "yellow",
+                "x": -0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "green",
+                "x": 0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "brown",
+                "x": 0,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "blue",
+                "x": 0,
+                "z": 0,
+                "pocketed": false
+              },
+              {
+                "type": "pink",
+                "x": 0,
+                "z": 0.756,
+                "pocketed": false
+              },
+              {
+                "type": "black",
+                "x": 0,
+                "z": 1.296,
+                "pocketed": false
+              }
+            ],
+            "inputDebug": {
+              "lastMouseDown": "",
+              "lastMouseUp": "btn=0 x=645 y=329.5 state=PLACE_CUE charging=false",
+              "lastMouseMove": "x=645 y=329.5 dragCue=false cueInHand=true",
+              "lastBlockReason": ""
+            }
+          }
+        }
+      ]
+    },
+    {
+      "step": "clicked_ready",
+      "ok": true
+    },
+    {
+      "step": "match_started",
+      "started": [
+        {
+          "overlayHidden": true,
+          "rematchHidden": true,
+          "readyHidden": true,
+          "roomKey": "3D-ROOM01",
+          "roomUuid": "27cd1b0c-4b30-4387-baca-c85807bea501",
+          "hasSeat": true,
+          "myIndex": 0,
+          "roundId": 2,
+          "state": {
+            "mode": "aim",
+            "coordinate": "x right, z forward (toward top pockets), y up",
+            "player": 1,
+            "shotSerial": 0,
+            "shotOrigin": null,
+            "lastCompletedShotOrigin": null,
+            "lastAppliedSnapshotSerial": 0,
+            "scores": [
+              0,
+              0
+            ],
+            "target": "Red",
+            "freeBallAvailable": false,
+            "snookered": true,
+            "turnState": "PLACE_CUE",
+            "foulDecisionPending": false,
+            "foulDecisionContext": null,
+            "actionRequired": "PLACE_CUE_IN_D",
+            "cuePlacementMode": "D",
+            "aiming": false,
+            "power": 0,
+            "cueBallSpeed": 0,
+            "cueVisible": false,
+            "aiEnabled": false,
+            "aiQueued": false,
+            "aimDir": {
+              "x": 0,
+              "z": 1
+            },
+            "guide": {
+              "extended": true,
+              "primaryVisible": false,
+              "extendedVisible": false,
+              "ghostVisible": false,
+              "objectPathVisible": false,
+              "railReflectVisible": false,
+              "firstCollision": null
+            },
+            "redsRemaining": 15,
+            "expectingColor": false,
+            "cue": {
+              "x": 0,
+              "z": -1.1480000000000001
+            },
+            "balls": [
+              {
+                "type": "cue",
+                "x": 0,
+                "z": -1.1480000000000001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.864,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "yellow",
+                "x": -0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "green",
+                "x": 0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "brown",
+                "x": 0,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "blue",
+                "x": 0,
+                "z": 0,
+                "pocketed": false
+              },
+              {
+                "type": "pink",
+                "x": 0,
+                "z": 0.756,
+                "pocketed": false
+              },
+              {
+                "type": "black",
+                "x": 0,
+                "z": 1.296,
+                "pocketed": false
+              }
+            ],
+            "inputDebug": {
+              "lastMouseDown": "",
+              "lastMouseUp": "btn=0 x=366 y=418.5 state=PLACE_CUE charging=false",
+              "lastMouseMove": "x=366 y=418.5 dragCue=false cueInHand=true",
+              "lastBlockReason": ""
+            }
+          }
+        },
+        {
+          "overlayHidden": true,
+          "rematchHidden": true,
+          "readyHidden": true,
+          "roomKey": "3D-ROOM01",
+          "roomUuid": "27cd1b0c-4b30-4387-baca-c85807bea501",
+          "hasSeat": true,
+          "myIndex": 1,
+          "roundId": 2,
+          "state": {
+            "mode": "aim",
+            "coordinate": "x right, z forward (toward top pockets), y up",
+            "player": 1,
+            "shotSerial": 0,
+            "shotOrigin": null,
+            "lastCompletedShotOrigin": null,
+            "lastAppliedSnapshotSerial": 0,
+            "scores": [
+              0,
+              0
+            ],
+            "target": "Red",
+            "freeBallAvailable": false,
+            "snookered": true,
+            "turnState": "PLACE_CUE",
+            "foulDecisionPending": false,
+            "foulDecisionContext": null,
+            "actionRequired": "PLACE_CUE_IN_D",
+            "cuePlacementMode": "D",
+            "aiming": false,
+            "power": 0,
+            "cueBallSpeed": 0,
+            "cueVisible": false,
+            "aiEnabled": false,
+            "aiQueued": false,
+            "aimDir": {
+              "x": 0,
+              "z": 1
+            },
+            "guide": {
+              "extended": true,
+              "primaryVisible": false,
+              "extendedVisible": false,
+              "ghostVisible": false,
+              "objectPathVisible": false,
+              "railReflectVisible": false,
+              "firstCollision": null
+            },
+            "redsRemaining": 15,
+            "expectingColor": false,
+            "cue": {
+              "x": 0,
+              "z": -1.1480000000000001
+            },
+            "balls": [
+              {
+                "type": "cue",
+                "x": 0,
+                "z": -1.1480000000000001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.864,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "yellow",
+                "x": -0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "green",
+                "x": 0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "brown",
+                "x": 0,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "blue",
+                "x": 0,
+                "z": 0,
+                "pocketed": false
+              },
+              {
+                "type": "pink",
+                "x": 0,
+                "z": 0.756,
+                "pocketed": false
+              },
+              {
+                "type": "black",
+                "x": 0,
+                "z": 1.296,
+                "pocketed": false
+              }
+            ],
+            "inputDebug": {
+              "lastMouseDown": "",
+              "lastMouseUp": "btn=0 x=366 y=406.25 state=PLACE_CUE charging=false",
+              "lastMouseMove": "x=366 y=406.25 dragCue=false cueInHand=true",
+              "lastBlockReason": ""
+            }
+          }
+        }
+      ]
+    },
+    {
+      "step": "shot_synced",
+      "shotSynced": [
+        {
+          "overlayHidden": true,
+          "rematchHidden": true,
+          "readyHidden": true,
+          "roomKey": "3D-ROOM01",
+          "roomUuid": "27cd1b0c-4b30-4387-baca-c85807bea501",
+          "hasSeat": true,
+          "myIndex": 0,
+          "roundId": 2,
+          "state": {
+            "mode": "shot",
+            "coordinate": "x right, z forward (toward top pockets), y up",
+            "player": 1,
+            "shotSerial": 1,
+            "shotOrigin": "local",
+            "lastCompletedShotOrigin": null,
+            "lastAppliedSnapshotSerial": 0,
+            "scores": [
+              0,
+              0
+            ],
+            "target": "Red",
+            "freeBallAvailable": false,
+            "snookered": true,
+            "turnState": "BALLS_MOVING",
+            "foulDecisionPending": false,
+            "foulDecisionContext": null,
+            "actionRequired": "WAIT",
+            "cuePlacementMode": "NONE",
+            "aiming": false,
+            "power": 0,
+            "cueBallSpeed": 2.9762,
+            "cueVisible": false,
+            "aiEnabled": false,
+            "aiQueued": false,
+            "aimDir": {
+              "x": 0,
+              "z": 1
+            },
+            "guide": {
+              "extended": true,
+              "primaryVisible": false,
+              "extendedVisible": false,
+              "ghostVisible": false,
+              "objectPathVisible": false,
+              "railReflectVisible": false,
+              "firstCollision": null
+            },
+            "redsRemaining": 15,
+            "expectingColor": false,
+            "cue": {
+              "x": 0.08400000000000002,
+              "z": 0.8070375661786119
+            },
+            "balls": [
+              {
+                "type": "cue",
+                "x": 0.08400000000000002,
+                "z": 0.8070375661786119,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.864,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "yellow",
+                "x": -0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "green",
+                "x": 0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "brown",
+                "x": 0,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "blue",
+                "x": 0,
+                "z": 0,
+                "pocketed": false
+              },
+              {
+                "type": "pink",
+                "x": 0,
+                "z": 0.756,
+                "pocketed": false
+              },
+              {
+                "type": "black",
+                "x": 0,
+                "z": 1.296,
+                "pocketed": false
+              }
+            ],
+            "inputDebug": {
+              "lastMouseDown": "",
+              "lastMouseUp": "btn=0 x=366 y=418.5 state=PLACE_CUE charging=false",
+              "lastMouseMove": "x=366 y=418.5 dragCue=false cueInHand=true",
+              "lastBlockReason": ""
+            }
+          }
+        },
+        {
+          "overlayHidden": true,
+          "rematchHidden": true,
+          "readyHidden": true,
+          "roomKey": "3D-ROOM01",
+          "roomUuid": "27cd1b0c-4b30-4387-baca-c85807bea501",
+          "hasSeat": true,
+          "myIndex": 1,
+          "roundId": 2,
+          "state": {
+            "mode": "shot",
+            "coordinate": "x right, z forward (toward top pockets), y up",
+            "player": 1,
+            "shotSerial": 1,
+            "shotOrigin": "remote",
+            "lastCompletedShotOrigin": null,
+            "lastAppliedSnapshotSerial": 0,
+            "scores": [
+              0,
+              0
+            ],
+            "target": "Red",
+            "freeBallAvailable": false,
+            "snookered": true,
+            "turnState": "BALLS_MOVING",
+            "foulDecisionPending": false,
+            "foulDecisionContext": null,
+            "actionRequired": "WAIT",
+            "cuePlacementMode": "NONE",
+            "aiming": false,
+            "power": 0,
+            "cueBallSpeed": 3.926,
+            "cueVisible": false,
+            "aiEnabled": false,
+            "aiQueued": false,
+            "aimDir": {
+              "x": 0,
+              "z": 1
+            },
+            "guide": {
+              "extended": true,
+              "primaryVisible": false,
+              "extendedVisible": false,
+              "ghostVisible": false,
+              "objectPathVisible": false,
+              "railReflectVisible": false,
+              "firstCollision": null
+            },
+            "redsRemaining": 15,
+            "expectingColor": false,
+            "cue": {
+              "x": 0.08400000000000002,
+              "z": -0.740144345214417
+            },
+            "balls": [
+              {
+                "type": "cue",
+                "x": 0.08400000000000002,
+                "z": -0.740144345214417,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.864,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "yellow",
+                "x": -0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "green",
+                "x": 0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "brown",
+                "x": 0,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "blue",
+                "x": 0,
+                "z": 0,
+                "pocketed": false
+              },
+              {
+                "type": "pink",
+                "x": 0,
+                "z": 0.756,
+                "pocketed": false
+              },
+              {
+                "type": "black",
+                "x": 0,
+                "z": 1.296,
+                "pocketed": false
+              }
+            ],
+            "inputDebug": {
+              "lastMouseDown": "",
+              "lastMouseUp": "btn=0 x=366 y=406.25 state=PLACE_CUE charging=false",
+              "lastMouseMove": "x=366 y=406.25 dragCue=false cueInHand=true",
+              "lastBlockReason": ""
+            }
+          }
+        }
+      ]
+    },
+    {
+      "step": "backend_after_shot",
+      "room": {
+        "id": "27cd1b0c-4b30-4387-baca-c85807bea501",
+        "room_code": "3D-ROOM01",
+        "status": "playing",
+        "round_id": 2,
+        "current_turn": "player1",
+        "last_activity_at": "2026-04-22T13:39:23.130282+00:00",
+        "player1_ready": true,
+        "player2_ready": true,
+        "winner": null,
+        "finished_reason": null
+      },
+      "latestShots": [
+        {
+          "id": "f1af774f-68c8-4b7c-a3e3-c415ab60242c",
+          "created_at": "2026-04-22T13:39:23.130282+00:00",
+          "payload": {
+            "kind": "shot",
+            "cue_x": 0.08400000000000002,
+            "cue_z": -1.0080000000000002,
+            "power": 0.48,
+            "aim_dx": 0,
+            "aim_dz": 1,
+            "spin_x": 0,
+            "spin_y": 0,
+            "sent_at": "2026-04-22T13:39:22.863Z",
+            "event_id": "940ff325-0818-48ca-b94f-272549094686",
+            "round_id": 2,
+            "shotOrigin": "local",
+            "shotSerial": 1,
+            "sender_role": "player1"
+          },
+          "room_id": "27cd1b0c-4b30-4387-baca-c85807bea501"
+        }
+      ]
+    },
+    {
+      "step": "finished",
+      "room": {
+        "id": "27cd1b0c-4b30-4387-baca-c85807bea501",
+        "room_code": "3D-ROOM01",
+        "status": "finished",
+        "round_id": 2,
+        "current_turn": "player1",
+        "last_activity_at": "2026-04-22T13:39:24.244073+00:00",
+        "player1_ready": true,
+        "player2_ready": true,
+        "winner": "player2",
+        "finished_reason": "completed"
+      }
+    },
+    {
+      "step": "waiting_after_rematch",
+      "room": {
+        "id": "27cd1b0c-4b30-4387-baca-c85807bea501",
+        "room_code": "3D-ROOM01",
+        "status": "waiting",
+        "round_id": 3,
+        "current_turn": null,
+        "last_activity_at": "2026-04-22T13:39:24.773021+00:00",
+        "player1_ready": false,
+        "player2_ready": false,
+        "winner": null,
+        "finished_reason": null
+      },
+      "states": [
+        {
+          "overlayHidden": false,
+          "rematchHidden": true,
+          "readyHidden": false,
+          "roomKey": "3D-ROOM01",
+          "roomUuid": "27cd1b0c-4b30-4387-baca-c85807bea501",
+          "hasSeat": true,
+          "myIndex": 0,
+          "roundId": 2,
+          "state": {
+            "mode": "shot",
+            "coordinate": "x right, z forward (toward top pockets), y up",
+            "player": 1,
+            "shotSerial": 0,
+            "shotOrigin": null,
+            "lastCompletedShotOrigin": null,
+            "lastAppliedSnapshotSerial": 0,
+            "scores": [
+              0,
+              0
+            ],
+            "target": "Red",
+            "freeBallAvailable": false,
+            "snookered": true,
+            "turnState": "PLACE_CUE",
+            "foulDecisionPending": false,
+            "foulDecisionContext": null,
+            "actionRequired": "PLACE_CUE_IN_D",
+            "cuePlacementMode": "D",
+            "aiming": false,
+            "power": 0,
+            "cueBallSpeed": 0,
+            "cueVisible": false,
+            "aiEnabled": false,
+            "aiQueued": false,
+            "aimDir": {
+              "x": 0,
+              "z": 1
+            },
+            "guide": {
+              "extended": true,
+              "primaryVisible": false,
+              "extendedVisible": false,
+              "ghostVisible": false,
+              "objectPathVisible": false,
+              "railReflectVisible": false,
+              "firstCollision": null
+            },
+            "redsRemaining": 15,
+            "expectingColor": false,
+            "cue": {
+              "x": 0,
+              "z": -1.1480000000000001
+            },
+            "balls": [
+              {
+                "type": "cue",
+                "x": 0,
+                "z": -1.1480000000000001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.864,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.6769020931603263,
+                "z": 0.7150799803019723,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.06511479466210766,
+                "z": 0.9232677058823368,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.6551869897227212,
+                "z": 0.875537316549466,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.031966038900938146,
+                "z": 0.9867975480695637,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.1275035423489407,
+                "z": 1.0781197985950326,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.6816959866793374,
+                "z": 0.9900552869860006,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.050216842332540215,
+                "z": 1.0615265312709707,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.039469472128851435,
+                "z": 1.0745594394238585,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.4956985891558457,
+                "z": 0.975176122216568,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.30345571894954587,
+                "z": 1.1540725146799014,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.24975892349039233,
+                "z": 1.6450593870655283,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.10593300856593443,
+                "z": 1.2794311957866673,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.14914940639760801,
+                "z": 1.6441281736006572,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.40355484327897095,
+                "z": 1.314493540164886,
+                "pocketed": false
+              },
+              {
+                "type": "yellow",
+                "x": -0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "green",
+                "x": 0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "brown",
+                "x": 0,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "blue",
+                "x": 0,
+                "z": 0,
+                "pocketed": false
+              },
+              {
+                "type": "pink",
+                "x": 0,
+                "z": 0.756,
+                "pocketed": false
+              },
+              {
+                "type": "black",
+                "x": -0.032953145815581376,
+                "z": 1.3555469528804616,
+                "pocketed": false
+              }
+            ],
+            "inputDebug": {
+              "lastMouseDown": "",
+              "lastMouseUp": "btn=0 x=512 y=399 state=PLACE_CUE charging=false",
+              "lastMouseMove": "x=512 y=399 dragCue=false cueInHand=true",
+              "lastBlockReason": ""
+            }
+          }
+        },
+        {
+          "overlayHidden": false,
+          "rematchHidden": true,
+          "readyHidden": false,
+          "roomKey": "3D-ROOM01",
+          "roomUuid": "27cd1b0c-4b30-4387-baca-c85807bea501",
+          "hasSeat": true,
+          "myIndex": 1,
+          "roundId": 2,
+          "state": {
+            "mode": "shot",
+            "coordinate": "x right, z forward (toward top pockets), y up",
+            "player": 1,
+            "shotSerial": 0,
+            "shotOrigin": null,
+            "lastCompletedShotOrigin": null,
+            "lastAppliedSnapshotSerial": 0,
+            "scores": [
+              0,
+              0
+            ],
+            "target": "Red",
+            "freeBallAvailable": false,
+            "snookered": true,
+            "turnState": "PLACE_CUE",
+            "foulDecisionPending": false,
+            "foulDecisionContext": null,
+            "actionRequired": "PLACE_CUE_IN_D",
+            "cuePlacementMode": "D",
+            "aiming": false,
+            "power": 0,
+            "cueBallSpeed": 0,
+            "cueVisible": false,
+            "aiEnabled": false,
+            "aiQueued": false,
+            "aimDir": {
+              "x": -0.3932,
+              "z": -0.9194
+            },
+            "guide": {
+              "extended": true,
+              "primaryVisible": false,
+              "extendedVisible": false,
+              "ghostVisible": false,
+              "objectPathVisible": false,
+              "railReflectVisible": false,
+              "firstCollision": null
+            },
+            "redsRemaining": 15,
+            "expectingColor": false,
+            "cue": {
+              "x": 0,
+              "z": -1.1480000000000001
+            },
+            "balls": [
+              {
+                "type": "cue",
+                "x": 0,
+                "z": -1.1480000000000001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.864,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.8438885092865329,
+                "z": 0.7526538906577411,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.06511479466210766,
+                "z": 0.9232677058823368,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.5511324795295244,
+                "z": 0.8980644314567563,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.031966038900938146,
+                "z": 0.9867975480695637,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.1275035423489407,
+                "z": 1.0781197985950326,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.5775193294082702,
+                "z": 1.0031051563023405,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.050216842332540215,
+                "z": 1.0615265312709707,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.039469472128851435,
+                "z": 1.0745594394238585,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.42673947344163465,
+                "z": 0.991463004091966,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.30345571894954587,
+                "z": 1.1540725146799014,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.2186497993443482,
+                "z": 1.7609930377208975,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.10593300856593443,
+                "z": 1.2794311957866673,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.13553646257720375,
+                "z": 1.5506512504270196,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.3668548672316499,
+                "z": 1.2877531128572055,
+                "pocketed": false
+              },
+              {
+                "type": "yellow",
+                "x": -0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "green",
+                "x": 0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "brown",
+                "x": 0,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "blue",
+                "x": 0,
+                "z": 0,
+                "pocketed": false
+              },
+              {
+                "type": "pink",
+                "x": 0,
+                "z": 0.756,
+                "pocketed": false
+              },
+              {
+                "type": "black",
+                "x": -0.032953145815581376,
+                "z": 1.3555469528804616,
+                "pocketed": false
+              }
+            ],
+            "inputDebug": {
+              "lastMouseDown": "",
+              "lastMouseUp": "btn=0 x=512 y=399 state=BALLS_MOVING charging=false",
+              "lastMouseMove": "x=512 y=399 dragCue=false cueInHand=false",
+              "lastBlockReason": ""
+            }
+          }
+        }
+      ]
+    },
+    {
+      "step": "restarted",
+      "room": {
+        "id": "27cd1b0c-4b30-4387-baca-c85807bea501",
+        "room_code": "3D-ROOM01",
+        "status": "playing",
+        "round_id": 3,
+        "current_turn": "player1",
+        "last_activity_at": "2026-04-22T13:39:25.86675+00:00",
+        "player1_ready": true,
+        "player2_ready": true,
+        "winner": null,
+        "finished_reason": null
+      },
+      "states": [
+        {
+          "overlayHidden": true,
+          "rematchHidden": true,
+          "readyHidden": true,
+          "roomKey": "3D-ROOM01",
+          "roomUuid": "27cd1b0c-4b30-4387-baca-c85807bea501",
+          "hasSeat": true,
+          "myIndex": 0,
+          "roundId": 3,
+          "state": {
+            "mode": "aim",
+            "coordinate": "x right, z forward (toward top pockets), y up",
+            "player": 1,
+            "shotSerial": 0,
+            "shotOrigin": null,
+            "lastCompletedShotOrigin": null,
+            "lastAppliedSnapshotSerial": 0,
+            "scores": [
+              0,
+              0
+            ],
+            "target": "Red",
+            "freeBallAvailable": false,
+            "snookered": true,
+            "turnState": "PLACE_CUE",
+            "foulDecisionPending": false,
+            "foulDecisionContext": null,
+            "actionRequired": "PLACE_CUE_IN_D",
+            "cuePlacementMode": "D",
+            "aiming": false,
+            "power": 0,
+            "cueBallSpeed": 0,
+            "cueVisible": false,
+            "aiEnabled": false,
+            "aiQueued": false,
+            "aimDir": {
+              "x": 0,
+              "z": 1
+            },
+            "guide": {
+              "extended": true,
+              "primaryVisible": false,
+              "extendedVisible": false,
+              "ghostVisible": false,
+              "objectPathVisible": false,
+              "railReflectVisible": false,
+              "firstCollision": null
+            },
+            "redsRemaining": 15,
+            "expectingColor": false,
+            "cue": {
+              "x": 0,
+              "z": -1.1480000000000001
+            },
+            "balls": [
+              {
+                "type": "cue",
+                "x": 0,
+                "z": -1.1480000000000001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.864,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "yellow",
+                "x": -0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "green",
+                "x": 0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "brown",
+                "x": 0,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "blue",
+                "x": 0,
+                "z": 0,
+                "pocketed": false
+              },
+              {
+                "type": "pink",
+                "x": 0,
+                "z": 0.756,
+                "pocketed": false
+              },
+              {
+                "type": "black",
+                "x": 0,
+                "z": 1.296,
+                "pocketed": false
+              }
+            ],
+            "inputDebug": {
+              "lastMouseDown": "",
+              "lastMouseUp": "btn=0 x=366 y=406.25 state=PLACE_CUE charging=false",
+              "lastMouseMove": "x=366 y=406.25 dragCue=false cueInHand=true",
+              "lastBlockReason": ""
+            }
+          }
+        },
+        {
+          "overlayHidden": true,
+          "rematchHidden": true,
+          "readyHidden": true,
+          "roomKey": "3D-ROOM01",
+          "roomUuid": "27cd1b0c-4b30-4387-baca-c85807bea501",
+          "hasSeat": true,
+          "myIndex": 1,
+          "roundId": 3,
+          "state": {
+            "mode": "aim",
+            "coordinate": "x right, z forward (toward top pockets), y up",
+            "player": 1,
+            "shotSerial": 0,
+            "shotOrigin": null,
+            "lastCompletedShotOrigin": null,
+            "lastAppliedSnapshotSerial": 0,
+            "scores": [
+              0,
+              0
+            ],
+            "target": "Red",
+            "freeBallAvailable": false,
+            "snookered": true,
+            "turnState": "PLACE_CUE",
+            "foulDecisionPending": false,
+            "foulDecisionContext": null,
+            "actionRequired": "PLACE_CUE_IN_D",
+            "cuePlacementMode": "D",
+            "aiming": false,
+            "power": 0,
+            "cueBallSpeed": 0,
+            "cueVisible": false,
+            "aiEnabled": false,
+            "aiQueued": false,
+            "aimDir": {
+              "x": 0,
+              "z": 1
+            },
+            "guide": {
+              "extended": true,
+              "primaryVisible": false,
+              "extendedVisible": false,
+              "ghostVisible": false,
+              "objectPathVisible": false,
+              "railReflectVisible": false,
+              "firstCollision": null
+            },
+            "redsRemaining": 15,
+            "expectingColor": false,
+            "cue": {
+              "x": 0,
+              "z": -1.1480000000000001
+            },
+            "balls": [
+              {
+                "type": "cue",
+                "x": 0,
+                "z": -1.1480000000000001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.864,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 0.93001,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 0.99602,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.035875,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.107625,
+                "z": 1.06203,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": -0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.07175,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "red",
+                "x": 0.1435,
+                "z": 1.12804,
+                "pocketed": false
+              },
+              {
+                "type": "yellow",
+                "x": -0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "green",
+                "x": 0.41400000000000003,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "brown",
+                "x": 0,
+                "z": -1.0080000000000002,
+                "pocketed": false
+              },
+              {
+                "type": "blue",
+                "x": 0,
+                "z": 0,
+                "pocketed": false
+              },
+              {
+                "type": "pink",
+                "x": 0,
+                "z": 0.756,
+                "pocketed": false
+              },
+              {
+                "type": "black",
+                "x": 0,
+                "z": 1.296,
+                "pocketed": false
+              }
+            ],
+            "inputDebug": {
+              "lastMouseDown": "",
+              "lastMouseUp": "btn=0 x=366 y=406.25 state=PLACE_CUE charging=false",
+              "lastMouseMove": "x=366 y=406.25 dragCue=false cueInHand=true",
+              "lastBlockReason": ""
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "consoles": {
+    "p1": [
+      {
+        "type": "log",
+        "text": "[Device] isTouchDevice: false forceMobile: false"
+      },
+      {
+        "type": "log",
+        "text": "[CLOTH_EXIST] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[CLOTH_BBOX] [object Pt]"
+      },
+      {
+        "type": "log",
+        "text": "[POCKET_VISUAL_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[INNER_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[HOLE_TOPO_V4] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[INNER_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[RAIL_BBOX] [object Pt]"
+      },
+      {
+        "type": "log",
+        "text": "[PARENTS] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[BBOX] rail y -1.1920928966180355e-9 0.10000000029802333 cloth y 0.0049999999999996 0.0050000000000004"
+      },
+      {
+        "type": "log",
+        "text": "[POCKETS] [array Array]"
+      },
+      {
+        "type": "log",
+        "text": "[RAIL] holes: 7"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] clientId: 4dbc5ede-2af5-4c27-b7d5-e2c353a22e92"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] Supabase initialized"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] Joined as player1 in room 3D-ROOM01"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] subscribe status: SUBSCRIBED"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-SHOTS] subscribe status: SUBSCRIBED"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[RULE] shot_start [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerShot] Sent via RPC: [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] UPDATE playing"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=3.038 turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=1.462 turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[RULE] cue_pocketed [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] UPDATE finished"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] UPDATE waiting"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] New round detected: 2 -> 3"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] UPDATE waiting"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] UPDATE waiting"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] UPDATE playing"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      }
+    ],
+    "p2": [
+      {
+        "type": "log",
+        "text": "[Device] isTouchDevice: false forceMobile: false"
+      },
+      {
+        "type": "log",
+        "text": "[CLOTH_EXIST] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[CLOTH_BBOX] [object Pt]"
+      },
+      {
+        "type": "log",
+        "text": "[POCKET_VISUAL_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[INNER_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[HOLE_TOPO_V4] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[INNER_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[RAIL_BBOX] [object Pt]"
+      },
+      {
+        "type": "log",
+        "text": "[PARENTS] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[BBOX] rail y -1.1920928966180355e-9 0.10000000029802333 cloth y 0.0049999999999996 0.0050000000000004"
+      },
+      {
+        "type": "log",
+        "text": "[POCKETS] [array Array]"
+      },
+      {
+        "type": "log",
+        "text": "[RAIL] holes: 7"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] clientId: 440b2bd6-bb6a-4b82-9eb8-8b624a418d67"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] Supabase initialized"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] Joined as player2 in room 3D-ROOM01"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] subscribe status: SUBSCRIBED"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-SHOTS] subscribe status: SUBSCRIBED"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] UPDATE playing"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerShot] Remote shot received: [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[RULE] shot_start [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=3.730 turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=1.800 turnState=BALLS_MOVING foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] UPDATE finished"
+      },
+      {
+        "type": "log",
+        "text": "[RULE] cue_pocketed [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] UPDATE waiting"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] New round detected: 2 -> 3"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] UPDATE waiting"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] UPDATE waiting"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] UPDATE playing"
+      }
+    ]
+  },
+  "ok": true,
+  "finishedAt": "2026-04-22T13:39:26.788Z"
+}

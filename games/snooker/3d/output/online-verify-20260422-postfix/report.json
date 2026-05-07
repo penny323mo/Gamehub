@@ -1,0 +1,362 @@
+{
+  "startedAt": "2026-04-22T13:32:28.028Z",
+  "roomKey": "3D-ROOM03",
+  "steps": [
+    {
+      "step": "open_pages",
+      "ok": true
+    },
+    {
+      "step": "set_names",
+      "ok": true
+    }
+  ],
+  "consoles": {
+    "p1": [
+      {
+        "type": "log",
+        "text": "[Device] isTouchDevice: false forceMobile: false"
+      },
+      {
+        "type": "log",
+        "text": "[CLOTH_EXIST] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[CLOTH_BBOX] [object Pt]"
+      },
+      {
+        "type": "log",
+        "text": "[POCKET_VISUAL_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[INNER_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[HOLE_TOPO_V4] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[INNER_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[RAIL_BBOX] [object Pt]"
+      },
+      {
+        "type": "log",
+        "text": "[PARENTS] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[BBOX] rail y -1.1920928966180355e-9 0.10000000029802333 cloth y 0.0049999999999996 0.0050000000000004"
+      },
+      {
+        "type": "log",
+        "text": "[POCKETS] [array Array]"
+      },
+      {
+        "type": "log",
+        "text": "[RAIL] holes: 7"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] clientId: ff1d3a58-6413-4cca-b358-950191b0c48b"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] Supabase initialized"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] Joined as player2 in room 3D-ROOM03"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] subscribe status: SUBSCRIBED"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-SHOTS] subscribe status: SUBSCRIBED"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      }
+    ],
+    "p2": [
+      {
+        "type": "log",
+        "text": "[Device] isTouchDevice: false forceMobile: false"
+      },
+      {
+        "type": "log",
+        "text": "[CLOTH_EXIST] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[CLOTH_BBOX] [object Pt]"
+      },
+      {
+        "type": "log",
+        "text": "[POCKET_VISUAL_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[INNER_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[HOLE_TOPO_V4] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[INNER_MATCH] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[RAIL_BBOX] [object Pt]"
+      },
+      {
+        "type": "log",
+        "text": "[PARENTS] [object Object]"
+      },
+      {
+        "type": "log",
+        "text": "[BBOX] rail y -1.1920928966180355e-9 0.10000000029802333 cloth y 0.0049999999999996 0.0050000000000004"
+      },
+      {
+        "type": "log",
+        "text": "[POCKETS] [array Array]"
+      },
+      {
+        "type": "log",
+        "text": "[RAIL] holes: 7"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] clientId: 60fb7ba3-ab8a-404f-97fd-89217cf292b6"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] Supabase initialized"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerOnline] Joined as player1 in room 3D-ROOM03"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-ROOM] subscribe status: SUBSCRIBED"
+      },
+      {
+        "type": "log",
+        "text": "[SnookerRT-SHOTS] subscribe status: SUBSCRIBED"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      },
+      {
+        "type": "log",
+        "text": "[STATE] aiming=false power=0.00 cueSpeed=0.000 turnState=PLACE_CUE foulDecision=false"
+      }
+    ]
+  },
+  "ok": false,
+  "error": {
+    "message": "Timed out waiting for join room",
+    "stack": "Error: Timed out waiting for join room\n    at waitFor ([stdin]:16:192)\n    at async [stdin]:40:20"
+  },
+  "failedAt": "2026-04-22T13:32:47.688Z"
+}

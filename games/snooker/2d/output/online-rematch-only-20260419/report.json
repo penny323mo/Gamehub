@@ -1,0 +1,58 @@
+{
+  "startedAt": "2026-04-19T15:35:35.667Z",
+  "roomKey": "ROOM02",
+  "steps": [
+    {
+      "step": "started",
+      "db": {
+        "id": "7485120d-bd5d-44f4-8be2-3af37a7d2274",
+        "room_code": "ROOM02",
+        "status": "playing",
+        "round_id": 1,
+        "winner": null,
+        "player1_id": "3079e173-683a-4f9d-bc49-a37d1432e72a",
+        "player2_id": "525f9d2f-1c94-491d-bc35-c57ac87415d2",
+        "last_activity_at": "2026-04-19T15:35:39.090006+00:00"
+      },
+      "statusMsgs": {
+        "p1": "▶ 你的回合 | 擺放白球\n目標: 紅球 | 紅球: 15 | 剩餘: 147",
+        "p2": "⏳ 對手回合 | 對手擺放白球中...\n目標: 紅球 | 紅球: 15 | 剩餘: 147"
+      }
+    },
+    {
+      "step": "db_finished",
+      "rpc": {
+        "ok": true
+      },
+      "room": {
+        "id": "7485120d-bd5d-44f4-8be2-3af37a7d2274",
+        "room_code": "ROOM02",
+        "status": "finished",
+        "round_id": 1,
+        "winner": "player1",
+        "player1_id": "3079e173-683a-4f9d-bc49-a37d1432e72a",
+        "player2_id": "525f9d2f-1c94-491d-bc35-c57ac87415d2",
+        "last_activity_at": "2026-04-19T15:35:39.570478+00:00"
+      }
+    },
+    {
+      "step": "db_waiting_after_rematch",
+      "room": {
+        "id": "7485120d-bd5d-44f4-8be2-3af37a7d2274",
+        "room_code": "ROOM02",
+        "status": "waiting",
+        "round_id": 2,
+        "winner": null,
+        "player1_id": "3079e173-683a-4f9d-bc49-a37d1432e72a",
+        "player2_id": "525f9d2f-1c94-491d-bc35-c57ac87415d2",
+        "last_activity_at": "2026-04-19T15:35:39.890207+00:00"
+      }
+    }
+  ],
+  "ok": false,
+  "error": {
+    "message": "Timed out waiting for 2D restarted playing",
+    "stack": "Error: Timed out waiting for 2D restarted playing\n    at waitFor ([stdin]:11:206)\n    at async [stdin]:54:19"
+  },
+  "failedAt": "2026-04-19T15:36:05.393Z"
+}

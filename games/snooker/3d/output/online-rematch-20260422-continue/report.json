@@ -1,0 +1,7 @@
+{
+  "ok": false,
+  "error": {
+    "message": "Failed to parse URL from https://djbhipofzbonxfqriovi.supabase.co/rest/v1/snooker_rooms?select=id,room_code,status,round_id,current_turn,last_activity_at,winner,finished_reason&room_code=eq.3D-ROOM02",
+    "stack": "TypeError: Failed to parse URL from https://djbhipofzbonxfqriovi.supabase.co/rest/v1/snooker_rooms?select=id,room_code,status,round_id,current_turn,last_activity_at,winner,finished_reason&room_code=eq.3D-ROOM02\n    at new Request (node:internal/deps/undici/undici:11065:19)\n    at fetch (node:internal/deps/undici/undici:11988:25)\n    at fetch (node:internal/deps/undici/undici:16555:10)\n    at fetch (node:internal/bootstrap/web/exposed-window-or-worker:83:12)\n    at room ([stdin]:14:161)\n    at [stdin]:24:61\n    at waitFor ([stdin]:13:112)\n    at [stdin]:24:28"
+  }
+}

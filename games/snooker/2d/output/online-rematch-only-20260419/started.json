@@ -1,0 +1,36 @@
+{
+  "p1": {
+    "room": {
+      "status": "playing",
+      "room_code": "ROOM02",
+      "round_id": 1,
+      "winner": null
+    },
+    "myRole": "player1",
+    "overlayHidden": true,
+    "rematchHidden": true,
+    "statusMsg": "▶ 你的回合 | 擺放白球\n目標: 紅球 | 紅球: 15 | 剩餘: 147"
+  },
+  "p2": {
+    "room": {
+      "status": "playing",
+      "room_code": "ROOM02",
+      "round_id": 1,
+      "winner": null
+    },
+    "myRole": "player2",
+    "overlayHidden": true,
+    "rematchHidden": true,
+    "statusMsg": "⏳ 對手回合 | 對手擺放白球中...\n目標: 紅球 | 紅球: 15 | 剩餘: 147"
+  },
+  "db": {
+    "id": "7485120d-bd5d-44f4-8be2-3af37a7d2274",
+    "room_code": "ROOM02",
+    "status": "playing",
+    "round_id": 1,
+    "winner": null,
+    "player1_id": "3079e173-683a-4f9d-bc49-a37d1432e72a",
+    "player2_id": "525f9d2f-1c94-491d-bc35-c57ac87415d2",
+    "last_activity_at": "2026-04-19T15:35:39.090006+00:00"
+  }
+}

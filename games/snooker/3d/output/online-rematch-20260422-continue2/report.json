@@ -1,0 +1,7 @@
+{
+  "ok": false,
+  "error": {
+    "message": "URL is not a constructor",
+    "stack": "TypeError: URL is not a constructor\n    at room ([stdin]:15:32)\n    at [stdin]:25:61\n    at waitFor ([stdin]:13:112)\n    at [stdin]:25:28"
+  }
+}

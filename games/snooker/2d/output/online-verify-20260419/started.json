@@ -1,0 +1,44 @@
+{
+  "p1": {
+    "href": "http://127.0.0.1:4173/games/snooker/2d/index.html",
+    "room": {
+      "status": "playing",
+      "room_code": "ROOM01",
+      "round_id": 2,
+      "winner": null
+    },
+    "myRole": "player1",
+    "overlayHidden": true,
+    "rematchHidden": true,
+    "scoreLeft": "TwoD-A: 0",
+    "scoreRight": "TwoD-B: 0",
+    "statusMsg": "▶ 你的回合 | 擺放白球\n目標: 紅球 | 紅球: 15 | 剩餘: 147",
+    "aimDisabled": false
+  },
+  "p2": {
+    "href": "http://127.0.0.1:4173/games/snooker/2d/index.html",
+    "room": {
+      "status": "playing",
+      "room_code": "ROOM01",
+      "round_id": 2,
+      "winner": null
+    },
+    "myRole": "player2",
+    "overlayHidden": true,
+    "rematchHidden": true,
+    "scoreLeft": "TwoD-B: 0",
+    "scoreRight": "TwoD-A: 0",
+    "statusMsg": "⏳ 對手回合 | 對手擺放白球中...\n目標: 紅球 | 紅球: 15 | 剩餘: 147",
+    "aimDisabled": true
+  },
+  "db": {
+    "id": "c026d6f2-c9c8-4c85-8f23-f0cfdd47466d",
+    "room_code": "ROOM01",
+    "status": "playing",
+    "round_id": 2,
+    "winner": null,
+    "player1_id": "cb74d9fd-d6f6-4816-92ce-a17aae601bfe",
+    "player2_id": "8ef4987d-f5a5-442d-ac83-36c3083ac3d6",
+    "last_activity_at": "2026-04-19T15:33:45.851586+00:00"
+  }
+}
