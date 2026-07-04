@@ -6,7 +6,7 @@
     "scripts": {
         "dev": "vite",
         "dev:viewer": "vite --open viewer.html",
-        "build": "tsc && vite build && node -e \"const fs=require('fs'),p='dist/index.html';let h=fs.readFileSync(p,'utf8');h=h.replace(/ type=\\\"module\\\" crossorigin/g,'').replace(/(<script) src=/g,'$1 defer src=');fs.writeFileSync(p,h);\"",
+        "build": "tsc && vite build && node scripts/postbuild.mjs",
         "preview": "vite preview"
     },
     "dependencies": {

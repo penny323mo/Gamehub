@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import type { GameState, TowerType, Tower } from '../core/types';
-import { TOWERS, GRAPHICS } from '../core/config';
+import type { GameState, Tower } from '../core/types';
+import { GRAPHICS } from '../core/config';
 import { cellToWorld } from '../core/path';
 
 // Colour palettes per tower type
@@ -28,6 +28,95 @@ const ACCENT_COLORS: Record<string, number> = {
     sniper: 0x6666cc,
 };
 
+// Segment counts scale down on mobile
+const SEG_HI = GRAPHICS.isMobile ? 8 : 16;
+const SEG_MID = GRAPHICS.isMobile ? 6 : 12;
+const SEG_LO = GRAPHICS.isMobile ? 5 : 8;
+
+interface MatOpts {
+    color: number;
+    roughness?: number;
+    metalness?: number;
+    emissive?: number;
+    emissiveIntensity?: number;
+    transparent?: boolean;
+    opacity?: number;
+    flatShading?: boolean;
+    side?: THREE.Side;
+}
+
+/** Standard material on desktop, cheaper Lambert on mobile. */
+function mat(opts: MatOpts): THREE.Material {
+    if (GRAPHICS.isMobile) {
+        return new THREE.MeshLambertMaterial({
+            color: opts.color,
+            emissive: opts.emissive ?? 0x000000,
+            emissiveIntensity: opts.emissiveIntensity ?? 1,
+            transparent: opts.transparent,
+            opacity: opts.opacity,
+            side: opts.side,
+        });
+    }
+    return new THREE.MeshStandardMaterial(opts as THREE.MeshStandardMaterialParameters);
+}
+
+/** Glass-like material — physical transmission on desktop, translucent Lambert on mobile. */
+function glassMat(color: number): THREE.Material {
+    if (GRAPHICS.isMobile) {
+        return new THREE.MeshLambertMaterial({ color, transparent: true, opacity: 0.55 });
+    }
+    return new THREE.MeshPhysicalMaterial({
+        color,
+        transmission: 0.88,
+        roughness: 0.08,
+        metalness: 0,
+        ior: 1.45,
+        thickness: 0.4,
+    });
+}
+
+// ─── Generic animation channel types (populated per tower, driven in animate) ───
+interface SpinChannel { node: THREE.Object3D; speed: number; axis: 'x' | 'y' | 'z' }
+interface BobChannel { node: THREE.Object3D; baseY: number; amp: number; speed: number; phase: number }
+interface PulseScaleChannel { node: THREE.Object3D; base: number; amp: number; speed: number; phase: number; yOnly?: boolean }
+interface PulseEmissiveChannel { mat: THREE.MeshStandardMaterial | THREE.MeshLambertMaterial; base: number; amp: number; speed: number; phase: number }
+interface OrbitChannel { pivot: THREE.Object3D; speed: number }
+interface RiseChannel { node: THREE.Object3D; baseY: number; height: number; speed: number; phase: number }
+
+interface TowerParts {
+    buildProgress: number;
+    lastCooldown: number;
+    attackTimer: number;
+    turretGroup?: THREE.Group;
+    recoilNode?: THREE.Object3D;
+    recoilAmount?: number;
+    energyRingMaterial?: THREE.MeshStandardMaterial | THREE.MeshLambertMaterial;
+    spin?: SpinChannel[];
+    bob?: BobChannel[];
+    pulseScale?: PulseScaleChannel[];
+    pulseEmissive?: PulseEmissiveChannel[];
+    orbit?: OrbitChannel[];
+    rise?: RiseChannel[];
+    arcs?: THREE.Line[];
+    arcTimer?: number;
+    arcOrigin?: THREE.Vector3;
+}
+
+/** Helper: create a mesh, position it, optionally cast shadow, add to parent. */
+function addMesh(
+    parent: THREE.Object3D,
+    geo: THREE.BufferGeometry,
+    material: THREE.Material,
+    x = 0, y = 0, z = 0,
+    noShadow = false
+): THREE.Mesh {
+    const m = new THREE.Mesh(geo, material);
+    m.position.set(x, y, z);
+    if (GRAPHICS.enableShadows && !noShadow) m.castShadow = true;
+    parent.add(m);
+    return m;
+}
+
 export class TowerRenderer {
     private scene: THREE.Scene;
     private meshes = new Map<number, THREE.Group>();
@@ -40,16 +129,21 @@ export class TowerRenderer {
     }
 
     sync(state: GameState): void {
+        // Drop meshes for towers no longer in state (restart / external removal).
+        // Sold/upgraded towers go through removeTower() first and animate out instead.
         const activeTowerIds = new Set(state.towers.map(t => t.id));
+        for (const [id, group] of this.meshes) {
+            if (!activeTowerIds.has(id)) {
+                this.scene.remove(group);
+                this.meshes.delete(id);
+            }
+        }
 
-        // Add / update towers
         for (const tower of state.towers) {
             if (!this.meshes.has(tower.id)) {
                 const group = this.createTowerMesh(tower);
-                // Start scale at 0 for build animation
                 group.scale.set(0, 0, 0);
                 group.userData.buildProgress = 0;
-                
                 this.scene.add(group);
                 this.meshes.set(tower.id, group);
             }
@@ -59,7 +153,6 @@ export class TowerRenderer {
     removeTower(id: number): void {
         const group = this.meshes.get(id);
         if (group) {
-            // Move to sellingTowers
             this.sellingTowers.add({ group, timer: 0.25, maxTimer: 0.25 });
             this.meshes.delete(id);
         }
@@ -67,7 +160,9 @@ export class TowerRenderer {
 
     animate(dt: number, state: GameState): void {
         this.time += dt;
-        // Process selling animations
+        const time = this.time;
+
+        // Selling shrink-spin
         for (const sell of this.sellingTowers) {
             sell.timer -= dt;
             if (sell.timer <= 0) {
@@ -75,11 +170,8 @@ export class TowerRenderer {
                 this.sellingTowers.delete(sell);
             } else {
                 const t = sell.timer / sell.maxTimer;
-                // Easing out cubic
                 const ease = t * t * t;
                 sell.group.scale.set(ease, ease, ease);
-                
-                // Spin while selling
                 sell.group.rotation.y += dt * 10;
             }
         }
@@ -87,105 +179,130 @@ export class TowerRenderer {
         for (const tower of state.towers) {
             const group = this.meshes.get(tower.id);
             if (!group) continue;
+            const parts = group.userData as TowerParts;
 
-            const parts = group.userData;
-
-            // Build animation (pop in)
+            // Build pop-in (elastic)
             if (parts.buildProgress < 1.0) {
                 parts.buildProgress = Math.min(1.0, parts.buildProgress + dt * 3.0);
                 const t = parts.buildProgress;
-                // Elastic ease out
                 const c4 = (2 * Math.PI) / 3;
                 const bs = t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
                 group.scale.set(bs, bs, bs);
             }
 
-            // Detect attack for scale bump
+            // Detect attack (cooldown reset)
             if (tower.cooldownRemaining > parts.lastCooldown) {
-                // Cooldown reset usually means it fired
                 parts.attackTimer = 0.15;
             }
             parts.lastCooldown = tower.cooldownRemaining;
 
-            // Attack bump animation
+            // Attack bump + recoil
             if (parts.buildProgress >= 1.0) {
                 if (parts.attackTimer > 0) {
                     parts.attackTimer -= dt;
-                    const t = Math.max(0, parts.attackTimer / 0.15); // 1 to 0
-                    const bump = 1.0 + t * 0.15; // 1.15 max
+                    const t = Math.max(0, parts.attackTimer / 0.15); // 1→0
+                    const bump = 1.0 + t * 0.12;
                     if (parts.turretGroup) {
                         parts.turretGroup.scale.set(bump, bump, bump);
-                        parts.turretGroup.position.z = -0.09 * t;
                     } else {
                         group.scale.set(bump, bump, bump);
                     }
+                    if (parts.recoilNode) {
+                        parts.recoilNode.position.z = -(parts.recoilAmount ?? 0.08) * t;
+                    }
                     if (parts.energyRingMaterial) {
-                        parts.energyRingMaterial.emissiveIntensity = 0.3 + t * 0.65;
+                        parts.energyRingMaterial.emissiveIntensity = 0.3 + t * 0.75;
                     }
                 } else {
-                    if (parts.turretGroup) {
-                        parts.turretGroup.scale.set(1, 1, 1);
-                        parts.turretGroup.position.z = 0;
-                    }
+                    if (parts.turretGroup) parts.turretGroup.scale.set(1, 1, 1);
+                    if (parts.recoilNode) parts.recoilNode.position.z = 0;
                     group.scale.set(1, 1, 1);
                     if (parts.energyRingMaterial) {
-                        parts.energyRingMaterial.emissiveIntensity = 0.22 + Math.sin(this.time * 2.5) * 0.08;
+                        parts.energyRingMaterial.emissiveIntensity = 0.22 + Math.sin(time * 2.5) * 0.08;
                     }
                 }
             }
 
-            // Aiming
+            // Turret aiming
             let targetAngle: number | null = null;
             if (tower.targetId !== null && tower.targetId !== undefined) {
                 const target = state.enemies.find(e => e.id === tower.targetId);
                 if (target) {
                     const dx = target.worldX - tower.worldX;
                     const dz = target.worldZ - tower.worldZ;
-                    if (dx !== 0 || dz !== 0) {
-                        targetAngle = Math.atan2(dx, dz);
-                    }
+                    if (dx !== 0 || dz !== 0) targetAngle = Math.atan2(dx, dz);
                 }
             }
             if (targetAngle === null && tower.aimAngle !== undefined) {
                 targetAngle = tower.aimAngle;
             }
-
             if (targetAngle !== null && parts.turretGroup) {
                 let diff = targetAngle - parts.turretGroup.rotation.y;
                 diff = Math.atan2(Math.sin(diff), Math.cos(diff));
                 parts.turretGroup.rotation.y += diff * 10 * dt;
             }
 
-            // Idle animations based on type
-            switch (tower.type) {
-                case 'ice':
-                    if (parts.crystal) parts.crystal.rotation.y += dt * 0.8;
-                    break;
-                case 'lightning':
-                    if (parts.top) {
-                        parts.top.rotation.y += dt * 2.0;
-                        parts.top.position.y = 0.65 + Math.sin(this.time * 5) * 0.05;
+            // ─── Generic idle animation channels ───
+            if (parts.spin) {
+                for (const s of parts.spin) s.node.rotation[s.axis] += dt * s.speed;
+            }
+            if (parts.bob) {
+                for (const b of parts.bob) {
+                    b.node.position.y = b.baseY + Math.sin(time * b.speed + b.phase) * b.amp;
+                }
+            }
+            if (parts.pulseScale) {
+                for (const p of parts.pulseScale) {
+                    const s = p.base + Math.sin(time * p.speed + p.phase) * p.amp;
+                    if (p.yOnly) p.node.scale.y = s;
+                    else p.node.scale.set(s, s, s);
+                }
+            }
+            if (parts.pulseEmissive) {
+                for (const p of parts.pulseEmissive) {
+                    p.mat.emissiveIntensity = p.base + Math.sin(time * p.speed + p.phase) * p.amp;
+                }
+            }
+            if (parts.orbit) {
+                for (const o of parts.orbit) o.pivot.rotation.y += dt * o.speed;
+            }
+            if (parts.rise) {
+                for (const r of parts.rise) {
+                    const cycle = (time * r.speed + r.phase) % 1;
+                    r.node.position.y = r.baseY + cycle * r.height;
+                    const fade = 1 - cycle;
+                    r.node.scale.setScalar(0.4 + fade * 0.6);
+                }
+            }
+            // Plasma arcs (lightning) — re-jitter a few times per second
+            if (parts.arcs && parts.arcOrigin) {
+                parts.arcTimer = (parts.arcTimer ?? 0) - dt;
+                if (parts.arcTimer <= 0) {
+                    parts.arcTimer = 0.06;
+                    for (const arc of parts.arcs) {
+                        const posAttr = (arc.geometry as THREE.BufferGeometry).attributes.position as THREE.BufferAttribute;
+                        const o = parts.arcOrigin;
+                        const theta = Math.random() * Math.PI * 2;
+                        const reach = 0.22 + Math.random() * 0.16;
+                        const ex = o.x + Math.cos(theta) * reach;
+                        const ey = o.y - 0.1 - Math.random() * 0.25;
+                        const ez = o.z + Math.sin(theta) * reach;
+                        const n = posAttr.count;
+                        for (let i = 0; i < n; i++) {
+                            const f = i / (n - 1);
+                            const jx = (Math.random() - 0.5) * 0.08 * (i > 0 && i < n - 1 ? 1 : 0);
+                            const jy = (Math.random() - 0.5) * 0.08 * (i > 0 && i < n - 1 ? 1 : 0);
+                            posAttr.setXYZ(
+                                i,
+                                o.x + (ex - o.x) * f + jx,
+                                o.y + (ey - o.y) * f + jy,
+                                o.z + (ez - o.z) * f + jx
+                            );
+                        }
+                        posAttr.needsUpdate = true;
+                        arc.visible = Math.random() > 0.25;
                     }
-                    break;
-                case 'fire':
-                    if (parts.cone1 && parts.cone2) {
-                        parts.cone1.rotation.y += dt * 1.5;
-                        parts.cone2.rotation.y -= dt * 2.0;
-                        const pulse = 1.0 + Math.sin(this.time * 8) * 0.05;
-                        parts.cone1.scale.set(pulse, 1, pulse);
-                    }
-                    break;
-                case 'poison':
-                    if (parts.sphere) {
-                        const pulse = 1.0 + Math.sin(this.time * 3) * 0.1;
-                        parts.sphere.scale.set(pulse, pulse, pulse);
-                    }
-                    break;
-                case 'sniper':
-                    if (parts.scope) {
-                        parts.scope.position.y = 1.0 + Math.sin(this.time * 2) * 0.02;
-                    }
-                    break;
+                }
             }
         }
     }
@@ -257,21 +374,32 @@ export class TowerRenderer {
         if (this.rangeRing) this.rangeRing.visible = false;
     }
 
+    // ─── Model construction ─────────────────────────────────────────────────
+
     private createTowerMesh(tower: Tower): THREE.Group {
         const group = new THREE.Group();
         const pos = cellToWorld(tower.col, tower.row);
         group.position.set(pos.x, 0, pos.z);
 
+        const parts = group.userData as TowerParts;
+        parts.spin = [];
+        parts.bob = [];
+        parts.pulseScale = [];
+        parts.pulseEmissive = [];
+        parts.orbit = [];
+        parts.rise = [];
+
         const baseColor = TOWER_COLORS[tower.type];
         const accentColor = ACCENT_COLORS[tower.type];
         const scale = 1 + tower.level * 0.15;
 
+        // Soft contact shadow
         const shadow = new THREE.Mesh(
-            new THREE.CircleGeometry(0.46 * scale, 24),
+            new THREE.CircleGeometry(0.48 * scale, 24),
             new THREE.MeshBasicMaterial({
                 color: 0x000000,
                 transparent: true,
-                opacity: 0.18,
+                opacity: 0.2,
                 side: THREE.DoubleSide,
                 depthWrite: false,
             })
@@ -280,288 +408,516 @@ export class TowerRenderer {
         shadow.position.y = 0.008;
         group.add(shadow);
 
-        // Base definition
-        const baseGroup = new THREE.Group();
-        const baseGeo = new THREE.CylinderGeometry(0.3 * scale, 0.38 * scale, 0.2, 8);
-        const baseMat = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.7 });
-        const baseMesh = new THREE.Mesh(baseGeo, baseMat);
-        baseMesh.position.y = 0.1;
-        if (GRAPHICS.enableShadows) baseMesh.castShadow = true;
-        baseGroup.add(baseMesh);
+        // Stone plinth base (shared architecture across all towers)
+        this.buildStoneBase(group, parts, scale, baseColor, accentColor);
 
-        const rimGeo = new THREE.CylinderGeometry(0.32 * scale, 0.32 * scale, 0.05, 8);
-        const rimMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9, metalness: 0.5 });
-        const rimMesh = new THREE.Mesh(rimGeo, rimMat);
-        rimMesh.position.y = 0.225;
-        if (GRAPHICS.enableShadows) rimMesh.castShadow = true;
-        baseGroup.add(rimMesh);
+        // Rotating head
+        const turret = new THREE.Group();
+        turret.position.y = 0;
+        group.add(turret);
+        parts.turretGroup = turret;
 
-        const energyRingMaterial = new THREE.MeshStandardMaterial({
+        switch (tower.type) {
+            case 'arrow':
+            case 'arrow_rapid':
+            case 'arrow_pierce':
+                this.buildBallista(turret, parts, scale, tower.type, accentColor);
+                break;
+            case 'cannon':
+                this.buildCannon(group, turret, parts, scale, accentColor);
+                break;
+            case 'ice':
+                this.buildIceSpire(group, turret, parts, scale, accentColor);
+                break;
+            case 'fire':
+                this.buildFireBrazier(turret, parts, scale);
+                break;
+            case 'lightning':
+                this.buildTeslaCoil(turret, parts, scale, accentColor);
+                break;
+            case 'poison':
+                this.buildAlchemyStill(turret, parts, scale);
+                break;
+            case 'sniper':
+                this.buildRailgunNest(group, turret, parts, scale, accentColor);
+                break;
+        }
+
+        parts.lastCooldown = tower.cooldownRemaining;
+        parts.attackTimer = 0;
+        parts.buildProgress = parts.buildProgress ?? 0;
+
+        // Level gems floating around the front rim of the base
+        const gemGeo = new THREE.OctahedronGeometry(0.045);
+        for (let i = 0; i <= tower.level; i++) {
+            const gem = new THREE.Mesh(gemGeo, mat({
+                color: 0xffd76a,
+                emissive: 0xcc9a2a,
+                emissiveIntensity: 0.8,
+                metalness: 0.6,
+                roughness: 0.25,
+            }));
+            const a = (-0.35 + i * 0.35);
+            gem.position.set(Math.sin(a) * 0.42 * scale, 0.34, Math.cos(a) * 0.42 * scale);
+            group.add(gem);
+            parts.spin!.push({ node: gem, speed: 2.2, axis: 'y' });
+            parts.bob!.push({ node: gem, baseY: 0.34, amp: 0.025, speed: 3, phase: i * 1.3 });
+        }
+
+        return group;
+    }
+
+    /** Octagonal stepped stone plinth with corner buttresses + glowing rune ring. */
+    private buildStoneBase(group: THREE.Group, parts: TowerParts, scale: number, baseColor: number, accentColor: number): void {
+        const stone = mat({ color: 0x6a6f78, roughness: 0.92, metalness: 0.05, flatShading: true });
+        const stoneDark = mat({ color: 0x4b5058, roughness: 0.95, metalness: 0.04, flatShading: true });
+
+        // Two stepped octagonal slabs
+        addMesh(group, new THREE.CylinderGeometry(0.42 * scale, 0.46 * scale, 0.1, 8), stoneDark, 0, 0.05, 0);
+        addMesh(group, new THREE.CylinderGeometry(0.34 * scale, 0.4 * scale, 0.12, 8), stone, 0, 0.16, 0);
+
+        // Corner buttress blocks
+        const buttressGeo = new THREE.BoxGeometry(0.1 * scale, 0.18, 0.1 * scale);
+        for (let i = 0; i < 4; i++) {
+            const a = i * Math.PI / 2 + Math.PI / 4;
+            const b = addMesh(group, buttressGeo, stoneDark, Math.cos(a) * 0.38 * scale, 0.13, Math.sin(a) * 0.38 * scale);
+            b.rotation.y = -a;
+        }
+
+        // Tinted collar in the tower's colour
+        addMesh(group, new THREE.CylinderGeometry(0.28 * scale, 0.32 * scale, 0.08, 8),
+            mat({ color: baseColor, roughness: 0.6, metalness: 0.25 }), 0, 0.26, 0);
+
+        // Glowing rune ring
+        const energyRingMaterial = mat({
             color: accentColor,
             emissive: accentColor,
             emissiveIntensity: 0.22,
             transparent: true,
-            opacity: 0.9,
+            opacity: 0.92,
             roughness: 0.35,
             metalness: 0.2,
-        });
+        }) as THREE.MeshStandardMaterial;
         const energyRing = new THREE.Mesh(
-            new THREE.TorusGeometry(0.29 * scale, 0.03 * scale, 8, 24),
+            new THREE.TorusGeometry(0.3 * scale, 0.025 * scale, 8, 32),
             energyRingMaterial
         );
         energyRing.rotation.x = Math.PI / 2;
-        energyRing.position.y = 0.24;
-        baseGroup.add(energyRing);
-        group.userData.energyRingMaterial = energyRingMaterial;
+        energyRing.position.y = 0.31;
+        group.add(energyRing);
+        parts.energyRingMaterial = energyRingMaterial;
+    }
 
-        group.add(baseGroup);
+    /** Arrow family — timber watchtower with a detailed ballista on top. */
+    private buildBallista(turret: THREE.Group, parts: TowerParts, scale: number, type: string, accentColor: number): void {
+        const wood = mat({ color: 0x7a5230, roughness: 0.85 });
+        const woodDark = mat({ color: 0x54371f, roughness: 0.9 });
+        const iron = mat({ color: 0x3c3f45, roughness: 0.4, metalness: 0.75 });
 
-        const turretGroup = new THREE.Group();
-        group.add(turretGroup);
-        group.userData.turretGroup = turretGroup;
-
-        const _trueGroupAdd = group.add.bind(group);
-        group.add = (...args: any[]) => turretGroup.add(...args);
-
-        // Type-specific top
-        switch (tower.type) {
-            case 'arrow':
-            case 'arrow_rapid':
-            case 'arrow_pierce': {
-                const body = new THREE.CylinderGeometry(0.12 * scale, 0.2 * scale, 0.5, 6);
-                const m = new THREE.Mesh(body, new THREE.MeshStandardMaterial({ color: accentColor }));
-                m.position.y = 0.5;
-                if (GRAPHICS.enableShadows) m.castShadow = true;
-                group.add(m);
-
-                // Crossbow arms
-                const armGeo = new THREE.BoxGeometry(0.6 * scale, 0.04 * scale, 0.08 * scale);
-                const arms = new THREE.Mesh(armGeo, new THREE.MeshStandardMaterial({ color: 0x5c4033 }));
-                arms.position.y = 0.75;
-                arms.position.z = 0.1;
-                if (GRAPHICS.enableShadows) arms.castShadow = true;
-                group.add(arms);
-
-                // Arrow
-                const arrGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.4, 4);
-                const arrGeoHead = new THREE.ConeGeometry(0.04, 0.1, 4);
-                
-                // Color differs slightly for evolutions
-                let arrowColor = 0xcccccc;
-                if (tower.type === 'arrow_rapid') arrowColor = 0xffffff;
-                if (tower.type === 'arrow_pierce') arrowColor = 0x8888ff;
-                
-                const arrMat = new THREE.MeshStandardMaterial({ color: arrowColor });
-
-                const arrowPole = new THREE.Mesh(arrGeo, arrMat);
-                arrowPole.rotation.x = Math.PI / 2;
-                arrowPole.position.set(0, 0.8, 0);
-
-                const arrowHead = new THREE.Mesh(arrGeoHead, arrMat);
-                arrowHead.rotation.x = Math.PI / 2;
-                arrowHead.position.set(0, 0.8, 0.25);
-
-                group.add(arrowPole);
-                group.add(arrowHead);
-                
-                // Special visual additions for evolutions
-                if (tower.type === 'arrow_rapid') {
-                    // Double crossbow arms
-                    const arms2 = new THREE.Mesh(armGeo, new THREE.MeshStandardMaterial({ color: 0x4a3227 }));
-                    arms2.position.y = 0.65;
-                    arms2.position.z = 0.1;
-                    group.add(arms2);
-                } else if (tower.type === 'arrow_pierce') {
-                    // Heavy crossbow body
-                    const heavyGeo = new THREE.BoxGeometry(0.25 * scale, 0.15 * scale, 0.5 * scale);
-                    const heavyBody = new THREE.Mesh(heavyGeo, new THREE.MeshStandardMaterial({ color: accentColor }));
-                    heavyBody.position.y = 0.5;
-                    group.add(heavyBody);
-                }
-                
-                break;
-            }
-            case 'cannon': {
-                const turretGeo = new THREE.SphereGeometry(0.25 * scale, 12, 12, 0, Math.PI * 2, 0, Math.PI / 2);
-                const turret = new THREE.Mesh(turretGeo, new THREE.MeshStandardMaterial({ color: accentColor, metalness: 0.6, roughness: 0.4 }));
-                turret.position.y = 0.25;
-                if (GRAPHICS.enableShadows) turret.castShadow = true;
-                group.add(turret);
-
-                // Barrel
-                const barrelGeo = new THREE.CylinderGeometry(0.08 * scale, 0.12 * scale, 0.6 * scale, 8);
-                const barrel = new THREE.Mesh(barrelGeo, new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8, roughness: 0.3 }));
-                barrel.position.set(0, 0.45, 0.25);
-                barrel.rotation.x = Math.PI / 4;
-                if (GRAPHICS.enableShadows) barrel.castShadow = true;
-                group.add(barrel);
-
-                // Muzzle ring
-                const ringGeo = new THREE.TorusGeometry(0.1 * scale, 0.03 * scale, 6, 12);
-                const ring = new THREE.Mesh(ringGeo, new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9 }));
-                ring.position.set(0, 0.65, 0.45);
-                ring.rotation.x = Math.PI / 4;
-                group.add(ring);
-                break;
-            }
-            case 'ice': {
-                const crystalMat = new THREE.MeshPhysicalMaterial({
-                    color: accentColor,
-                    transmission: 0.9,
-                    opacity: 1,
-                    metalness: 0,
-                    roughness: 0.1,
-                    ior: 1.5,
-                    thickness: 0.5,
-                });
-                const crystal = new THREE.OctahedronGeometry(0.25 * scale);
-                const m = new THREE.Mesh(crystal, crystalMat);
-                m.position.y = 0.7;
-                if (GRAPHICS.enableShadows) m.castShadow = true;
-
-                const innerCrystal = new THREE.OctahedronGeometry(0.12 * scale);
-                const mInner = new THREE.Mesh(innerCrystal, new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x88ccff }));
-                m.add(mInner);
-
-                group.add(m);
-                group.userData.crystal = m;
-                break;
-            }
-            case 'fire': {
-                const bowlPts = [];
-                for (let i = 0; i < 5; i++) {
-                    bowlPts.push(new THREE.Vector2(0.25 * scale + Math.sin(i * 0.5) * 0.05, i * 0.1));
-                }
-                const bowlGeo = new THREE.LatheGeometry(bowlPts, 8);
-                const bowl = new THREE.Mesh(bowlGeo, new THREE.MeshStandardMaterial({ color: 0x331100, roughness: 0.9 }));
-                bowl.position.y = 0.25;
-                if (GRAPHICS.enableShadows) bowl.castShadow = true;
-                group.add(bowl);
-
-                const cone = new THREE.ConeGeometry(0.2 * scale, 0.6, 6);
-                const m = new THREE.Mesh(cone, new THREE.MeshStandardMaterial({
-                    color: 0xff3300, emissive: 0xff2200, emissiveIntensity: 0.5, transparent: true, opacity: 0.9
-                }));
-                m.position.y = 0.65;
-                if (GRAPHICS.enableShadows) m.castShadow = true;
-                group.add(m);
-
-                // Inner flame
-                const inner = new THREE.ConeGeometry(0.1 * scale, 0.4, 6);
-                const m2 = new THREE.Mesh(inner, new THREE.MeshStandardMaterial({
-                    color: 0xffaa00, emissive: 0xffdd00, emissiveIntensity: 0.8
-                }));
-                m2.position.y = 0.6;
-                group.add(m2);
-                group.userData.cone1 = m;
-                group.userData.cone2 = m2;
-                break;
-            }
-            case 'lightning': {
-                // Coil body
-                const coilGeo = new THREE.CylinderGeometry(0.08 * scale, 0.15 * scale, 0.5 * scale, 8);
-                const coil = new THREE.Mesh(coilGeo, new THREE.MeshStandardMaterial({ color: 0x222233, metalness: 0.8 }));
-                coil.position.y = 0.5;
-                group.add(coil);
-
-                // Rings
-                for (let r = 0; r < 3; r++) {
-                    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.15 * scale, 0.02 * scale, 4, 12), new THREE.MeshStandardMaterial({ color: 0xaaaaaa, metalness: 0.9 }));
-                    ring.position.y = 0.4 + r * 0.15;
-                    ring.rotation.x = Math.PI / 2;
-                    group.add(ring);
-                }
-
-                const top = new THREE.IcosahedronGeometry(0.2 * scale);
-                const m = new THREE.Mesh(top, new THREE.MeshStandardMaterial({
-                    color: accentColor, emissive: 0xffee00, emissiveIntensity: 0.6, wireframe: true
-                }));
-                m.position.y = 0.85;
-                group.add(m);
-
-                const innerTop = new THREE.Mesh(new THREE.IcosahedronGeometry(0.1 * scale), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1 }));
-                m.add(innerTop);
-
-                group.userData.top = m;
-                break;
-            }
-            case 'poison': {
-                const flaskPts = [
-                    new THREE.Vector2(0.15 * scale, 0),
-                    new THREE.Vector2(0.25 * scale, 0.2 * scale),
-                    new THREE.Vector2(0.25 * scale, 0.4 * scale),
-                    new THREE.Vector2(0.1 * scale, 0.6 * scale),
-                    new THREE.Vector2(0.1 * scale, 0.8 * scale),
-                    new THREE.Vector2(0.15 * scale, 0.85 * scale)
-                ];
-                const flaskGeo = new THREE.LatheGeometry(flaskPts, 12);
-                const flaskMat = new THREE.MeshPhysicalMaterial({
-                    color: 0xffffff, transmission: 0.8, opacity: 1, roughness: 0.1, ior: 1.5, side: THREE.DoubleSide
-                });
-                const flask = new THREE.Mesh(flaskGeo, flaskMat);
-                flask.position.y = 0.25;
-                group.add(flask);
-
-                // Liquid inside
-                const liquidGeo = new THREE.CylinderGeometry(0.2 * scale, 0.22 * scale, 0.4 * scale, 12);
-                const m = new THREE.Mesh(liquidGeo, new THREE.MeshStandardMaterial({
-                    color: 0x33cc11, transparent: true, opacity: 0.85, emissive: 0x22aa00, emissiveIntensity: 0.3
-                }));
-                m.position.y = 0.45;
-                group.add(m);
-                group.userData.sphere = m; // keep name 'sphere' so animation works
-                break;
-            }
-            case 'sniper': {
-                const legsGroup = new THREE.Group();
-                for (let i = 0; i < 3; i++) {
-                    const legGeo = new THREE.CylinderGeometry(0.02 * scale, 0.02 * scale, 0.6 * scale, 4);
-                    const leg = new THREE.Mesh(legGeo, new THREE.MeshStandardMaterial({ color: 0x555555 }));
-                    leg.position.set(Math.cos(i * Math.PI * 2 / 3) * 0.15, 0.3, Math.sin(i * Math.PI * 2 / 3) * 0.15);
-                    leg.rotation.x = -Math.sin(i * Math.PI * 2 / 3) * 0.3;
-                    leg.rotation.z = Math.cos(i * Math.PI * 2 / 3) * 0.3;
-                    legsGroup.add(leg);
-                }
-                legsGroup.position.y = 0.25;
-                _trueGroupAdd(legsGroup);
-
-                const body = new THREE.BoxGeometry(0.1 * scale, 0.15 * scale, 0.4 * scale);
-                const m = new THREE.Mesh(body, new THREE.MeshStandardMaterial({ color: accentColor, metalness: 0.7 }));
-                m.position.set(0, 0.7, 0);
-                group.add(m);
-
-                // Barrel
-                const barrelGeo = new THREE.CylinderGeometry(0.03 * scale, 0.04 * scale, 0.8 * scale, 6);
-                const barrel = new THREE.Mesh(barrelGeo, new THREE.MeshStandardMaterial({ color: 0x222222 }));
-                barrel.rotation.x = Math.PI / 2;
-                barrel.position.set(0, 0.7, 0.4);
-                group.add(barrel);
-
-                // Scope
-                const scopeGeo = new THREE.CylinderGeometry(0.04 * scale, 0.04 * scale, 0.3 * scale, 8);
-                const scope = new THREE.Mesh(scopeGeo, new THREE.MeshStandardMaterial({ color: 0x111111 }));
-                scope.rotation.x = Math.PI / 2;
-                scope.position.set(0.08 * scale, 0.8, 0.1);
-                group.add(scope);
-
-                group.userData.scope = scope;
-                break;
-            }
+        // Timber mast + cross-braced legs
+        addMesh(turret, new THREE.CylinderGeometry(0.09 * scale, 0.13 * scale, 0.42, SEG_LO), wood, 0, 0.5, 0);
+        const legGeo = new THREE.BoxGeometry(0.05 * scale, 0.4, 0.05 * scale);
+        for (let i = 0; i < 4; i++) {
+            const a = i * Math.PI / 2 + Math.PI / 4;
+            const leg = addMesh(turret, legGeo, woodDark, Math.cos(a) * 0.2 * scale, 0.46, Math.sin(a) * 0.2 * scale);
+            leg.rotation.z = Math.cos(a) * 0.28;
+            leg.rotation.x = -Math.sin(a) * 0.28;
         }
 
-        group.add = _trueGroupAdd; // Restore
+        // Platform deck + rim
+        addMesh(turret, new THREE.CylinderGeometry(0.26 * scale, 0.26 * scale, 0.045, 8), wood, 0, 0.7, 0);
+        addMesh(turret, new THREE.TorusGeometry(0.25 * scale, 0.018 * scale, 6, 16),
+            woodDark, 0, 0.73, 0).rotation.x = Math.PI / 2;
 
-        group.userData.lastCooldown = tower.cooldownRemaining;
-        group.userData.attackTimer = 0;
+        // Ballista assembly (recoil node so the whole weapon kicks back)
+        const weapon = new THREE.Group();
+        weapon.position.y = 0.78;
+        turret.add(weapon);
+        parts.recoilNode = weapon;
+        parts.recoilAmount = 0.07;
 
-        // Level indicator pips on base
-        for (let i = 0; i <= tower.level; i++) {
-            const pip = new THREE.SphereGeometry(0.04, 4, 4);
-            const pm = new THREE.Mesh(pip, new THREE.MeshBasicMaterial({ color: 0xffffff }));
-            pm.position.set(-0.15 + i * 0.15, 0.32, 0.35);
-            group.add(pm);
+        // Stock
+        addMesh(weapon, new THREE.BoxGeometry(0.08 * scale, 0.07 * scale, 0.52 * scale), woodDark, 0, 0, -0.02);
+        // Yoke plates
+        addMesh(weapon, new THREE.BoxGeometry(0.03 * scale, 0.12 * scale, 0.2 * scale), iron, 0.055 * scale, -0.02, -0.1);
+        addMesh(weapon, new THREE.BoxGeometry(0.03 * scale, 0.12 * scale, 0.2 * scale), iron, -0.055 * scale, -0.02, -0.1);
+
+        const buildBowPair = (y: number, limbMat: THREE.Material, span: number): void => {
+            // Curved limbs — swept-back angled arms with tips
+            for (const side of [-1, 1]) {
+                const limb = addMesh(weapon, new THREE.BoxGeometry(span * scale, 0.03 * scale, 0.05 * scale), limbMat, side * span * 0.5 * scale, y, 0.12 * scale);
+                limb.rotation.y = side * 0.35;
+                const tip = addMesh(weapon, new THREE.ConeGeometry(0.02 * scale, 0.08 * scale, 4), iron,
+                    side * span * 0.92 * scale, y, 0.12 * scale - Math.abs(side) * span * 0.32 * scale);
+                tip.rotation.z = side * Math.PI / 2;
+            }
+            // String
+            const stringMesh = addMesh(weapon, new THREE.CylinderGeometry(0.006, 0.006, span * 1.9 * scale, 3),
+                mat({ color: 0xd9cfa8, roughness: 0.6 }), 0, y, 0.12 * scale - span * 0.3 * scale, true);
+            stringMesh.rotation.z = Math.PI / 2;
+        };
+
+        const limbMat = type === 'arrow_pierce' ? iron : mat({ color: accentColor, roughness: 0.55, metalness: 0.3 });
+        buildBowPair(0.02, limbMat, 0.3);
+        if (type === 'arrow_rapid') buildBowPair(0.09, limbMat, 0.26);
+        if (type === 'arrow_pierce') {
+            // Heavy reinforced receiver
+            addMesh(weapon, new THREE.BoxGeometry(0.14 * scale, 0.08 * scale, 0.3 * scale), iron, 0, -0.005, -0.08);
         }
 
-        return group;
+        // Loaded bolt
+        let boltColor = 0xcccccc;
+        if (type === 'arrow_rapid') boltColor = 0xffffff;
+        if (type === 'arrow_pierce') boltColor = 0x8888ff;
+        const boltMat = mat({ color: boltColor, metalness: 0.5, roughness: 0.4, emissive: boltColor, emissiveIntensity: 0.12 });
+        const bolt = addMesh(weapon, new THREE.CylinderGeometry(0.012, 0.012, 0.4 * scale, 4), boltMat, 0, 0.045, 0.06, true);
+        bolt.rotation.x = Math.PI / 2;
+        const boltHead = addMesh(weapon, new THREE.ConeGeometry(0.035, 0.09, 4), boltMat, 0, 0.045, 0.28 * scale, true);
+        boltHead.rotation.x = Math.PI / 2;
+
+        // Quiver with arrows on the deck
+        const quiver = new THREE.Group();
+        quiver.position.set(0.19 * scale, 0.72, -0.14 * scale);
+        quiver.rotation.z = -0.18;
+        turret.add(quiver);
+        addMesh(quiver, new THREE.CylinderGeometry(0.05 * scale, 0.04 * scale, 0.16, SEG_LO), woodDark, 0, 0.06, 0);
+        for (let i = 0; i < 3; i++) {
+            const fletch = addMesh(quiver, new THREE.ConeGeometry(0.018, 0.05, 4),
+                mat({ color: [0xcc4444, 0x44aa66, 0xd9cfa8][i], roughness: 0.7 }),
+                (i - 1) * 0.025, 0.19 + (i % 2) * 0.02, 0, true);
+            fletch.rotation.x = Math.PI;
+        }
+    }
+
+    /** Cannon — riveted armored dome with recoiling barrel + ammo pile. */
+    private buildCannon(group: THREE.Group, turret: THREE.Group, parts: TowerParts, scale: number, accentColor: number): void {
+        const armor = mat({ color: accentColor, metalness: 0.65, roughness: 0.38 });
+        const armorDark = mat({ color: 0x2e3136, metalness: 0.8, roughness: 0.3 });
+        const rivetMat = mat({ color: 0x15171a, metalness: 0.9, roughness: 0.35 });
+
+        // Turret ring + dome
+        addMesh(turret, new THREE.CylinderGeometry(0.27 * scale, 0.29 * scale, 0.1, SEG_MID), armorDark, 0, 0.36, 0);
+        addMesh(turret, new THREE.SphereGeometry(0.26 * scale, SEG_MID, SEG_LO, 0, Math.PI * 2, 0, Math.PI / 2), armor, 0, 0.4, 0);
+
+        // Rivets around the dome skirt
+        const rivetGeo = new THREE.SphereGeometry(0.018 * scale, 5, 5);
+        for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * Math.PI * 2;
+            addMesh(turret, rivetGeo, rivetMat, Math.cos(a) * 0.25 * scale, 0.42, Math.sin(a) * 0.25 * scale, true);
+        }
+
+        // Hatch on top
+        addMesh(turret, new THREE.CylinderGeometry(0.07 * scale, 0.08 * scale, 0.04, SEG_LO), armorDark, 0.08 * scale, 0.63, -0.06 * scale);
+
+        // Barrel assembly with recoil
+        const barrelGroup = new THREE.Group();
+        barrelGroup.position.set(0, 0.5, 0.05);
+        barrelGroup.rotation.x = -Math.PI / 12;
+        turret.add(barrelGroup);
+        parts.recoilNode = barrelGroup;
+        parts.recoilAmount = 0.12;
+
+        const barrel = addMesh(barrelGroup, new THREE.CylinderGeometry(0.075 * scale, 0.1 * scale, 0.62 * scale, SEG_MID), armorDark, 0, 0, 0.28 * scale);
+        barrel.rotation.x = Math.PI / 2;
+        // Muzzle brake
+        const brake = addMesh(barrelGroup, new THREE.CylinderGeometry(0.1 * scale, 0.1 * scale, 0.1 * scale, SEG_MID), armor, 0, 0, 0.56 * scale);
+        brake.rotation.x = Math.PI / 2;
+        // Bore (dark inner disc)
+        const bore = addMesh(barrelGroup, new THREE.CircleGeometry(0.06 * scale, SEG_LO),
+            new THREE.MeshBasicMaterial({ color: 0x000000 }), 0, 0, 0.612 * scale, true);
+        bore.rotation.y = 0;
+        // Recoil pistons under barrel
+        for (const side of [-1, 1]) {
+            const piston = addMesh(barrelGroup, new THREE.CylinderGeometry(0.02 * scale, 0.02 * scale, 0.3 * scale, 6), rivetMat, side * 0.09 * scale, -0.07 * scale, 0.1 * scale, true);
+            piston.rotation.x = Math.PI / 2;
+        }
+
+        // Cannonball pile on the base (static, outside turret)
+        const ballGeo = new THREE.SphereGeometry(0.055 * scale, SEG_LO, SEG_LO);
+        const px = -0.3 * scale, pz = 0.26 * scale;
+        addMesh(group, ballGeo, armorDark, px, 0.36, pz);
+        addMesh(group, ballGeo, armorDark, px + 0.09 * scale, 0.36, pz - 0.03 * scale);
+        addMesh(group, ballGeo, armorDark, px + 0.045 * scale, 0.44, pz - 0.015 * scale);
+    }
+
+    /** Ice — frost spire: crystal cluster + orbiting shards. */
+    private buildIceSpire(group: THREE.Group, turret: THREE.Group, parts: TowerParts, scale: number, accentColor: number): void {
+        const crystalMat = glassMat(accentColor);
+        const frost = mat({ color: 0xd9f2ff, roughness: 0.4, metalness: 0.05, emissive: 0x5599cc, emissiveIntensity: 0.12 });
+
+        // Frost-covered pedestal
+        addMesh(group, new THREE.CylinderGeometry(0.2 * scale, 0.26 * scale, 0.16, 6), frost, 0, 0.38, 0);
+
+        // Main crystal — tall stretched octahedron
+        const main = new THREE.Mesh(new THREE.OctahedronGeometry(0.22 * scale), crystalMat);
+        main.scale.set(0.8, 1.7, 0.8);
+        main.position.y = 0.85;
+        if (GRAPHICS.enableShadows) main.castShadow = true;
+        turret.add(main);
+        parts.spin!.push({ node: main, speed: 0.8, axis: 'y' });
+
+        // Glowing core inside
+        const core = new THREE.Mesh(
+            new THREE.OctahedronGeometry(0.09 * scale),
+            mat({ color: 0xffffff, emissive: 0x88ccff, emissiveIntensity: 1.0 })
+        );
+        core.scale.set(0.8, 1.7, 0.8);
+        main.add(core);
+        parts.pulseEmissive!.push({ mat: core.material as THREE.MeshStandardMaterial, base: 0.9, amp: 0.35, speed: 2.2, phase: 0 });
+
+        // Tilted side shards
+        const shardGeo = new THREE.OctahedronGeometry(0.09 * scale);
+        for (let i = 0; i < 4; i++) {
+            const a = (i / 4) * Math.PI * 2 + 0.5;
+            const shard = new THREE.Mesh(shardGeo, crystalMat);
+            shard.position.set(Math.cos(a) * 0.17 * scale, 0.52, Math.sin(a) * 0.17 * scale);
+            shard.scale.set(0.7, 1.5 + (i % 2) * 0.5, 0.7);
+            shard.rotation.set(Math.sin(a) * 0.45, a, Math.cos(a) * 0.45);
+            if (GRAPHICS.enableShadows) shard.castShadow = true;
+            turret.add(shard);
+        }
+
+        // Orbiting ice shards
+        if (!GRAPHICS.isMobile) {
+            const pivot = new THREE.Group();
+            pivot.position.y = 0.85;
+            turret.add(pivot);
+            for (let i = 0; i < 3; i++) {
+                const a = (i / 3) * Math.PI * 2;
+                const orbiter = new THREE.Mesh(new THREE.OctahedronGeometry(0.045 * scale), crystalMat);
+                orbiter.position.set(Math.cos(a) * 0.34 * scale, Math.sin(a * 2) * 0.08, Math.sin(a) * 0.34 * scale);
+                pivot.add(orbiter);
+            }
+            parts.orbit!.push({ pivot, speed: 1.6 });
+        }
+    }
+
+    /** Fire — obsidian brazier with layered living flame + rising embers. */
+    private buildFireBrazier(turret: THREE.Group, parts: TowerParts, scale: number): void {
+        const obsidian = mat({ color: 0x1c1416, roughness: 0.35, metalness: 0.25, flatShading: true });
+        const lava = mat({ color: 0xff4400, emissive: 0xff3300, emissiveIntensity: 0.85 });
+
+        // Chalice bowl
+        const bowlPts: THREE.Vector2[] = [];
+        for (let i = 0; i <= 6; i++) {
+            const t = i / 6;
+            bowlPts.push(new THREE.Vector2((0.1 + Math.pow(t, 1.6) * 0.18) * scale, t * 0.3));
+        }
+        addMesh(turret, new THREE.LatheGeometry(bowlPts, SEG_LO), obsidian, 0, 0.32, 0);
+
+        // Lava crack ring around the bowl lip
+        const lavaRing = addMesh(turret, new THREE.TorusGeometry(0.24 * scale, 0.02 * scale, 6, SEG_MID), lava, 0, 0.6, 0, true);
+        lavaRing.rotation.x = Math.PI / 2;
+        parts.pulseEmissive!.push({ mat: lavaRing.material as THREE.MeshStandardMaterial, base: 0.85, amp: 0.35, speed: 6, phase: 0 });
+
+        // Charred rim spikes
+        const spikeGeo = new THREE.ConeGeometry(0.03 * scale, 0.1 * scale, 4);
+        for (let i = 0; i < 5; i++) {
+            const a = (i / 5) * Math.PI * 2;
+            const spike = addMesh(turret, spikeGeo, obsidian, Math.cos(a) * 0.24 * scale, 0.65, Math.sin(a) * 0.24 * scale);
+            spike.rotation.set(Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35);
+        }
+
+        // Layered flame cones
+        const flameOuter = new THREE.Mesh(
+            new THREE.ConeGeometry(0.18 * scale, 0.55, SEG_LO),
+            mat({ color: 0xff3300, emissive: 0xff2200, emissiveIntensity: 0.6, transparent: true, opacity: 0.85 })
+        );
+        flameOuter.position.y = 0.9;
+        turret.add(flameOuter);
+        const flameMid = new THREE.Mesh(
+            new THREE.ConeGeometry(0.11 * scale, 0.42, SEG_LO),
+            mat({ color: 0xff8800, emissive: 0xff7700, emissiveIntensity: 0.9, transparent: true, opacity: 0.92 })
+        );
+        flameMid.position.y = 0.88;
+        turret.add(flameMid);
+        const flameCore = new THREE.Mesh(
+            new THREE.ConeGeometry(0.055 * scale, 0.28, SEG_LO),
+            mat({ color: 0xffdd66, emissive: 0xffee88, emissiveIntensity: 1.2 })
+        );
+        flameCore.position.y = 0.84;
+        turret.add(flameCore);
+
+        parts.spin!.push({ node: flameOuter, speed: 1.5, axis: 'y' });
+        parts.spin!.push({ node: flameMid, speed: -2.2, axis: 'y' });
+        parts.pulseScale!.push({ node: flameOuter, base: 1.0, amp: 0.08, speed: 8, phase: 0 });
+        parts.pulseScale!.push({ node: flameMid, base: 1.0, amp: 0.1, speed: 11, phase: 1.4 });
+        parts.bob!.push({ node: flameCore, baseY: 0.84, amp: 0.03, speed: 9, phase: 0.6 });
+
+        // Rising embers
+        if (!GRAPHICS.isMobile) {
+            const emberGeo = new THREE.SphereGeometry(0.02, 5, 5);
+            for (let i = 0; i < 4; i++) {
+                const ember = new THREE.Mesh(emberGeo, mat({
+                    color: 0xffaa33, emissive: 0xff9922, emissiveIntensity: 1.1, transparent: true, opacity: 0.9,
+                }));
+                const a = (i / 4) * Math.PI * 2;
+                ember.position.set(Math.cos(a) * 0.1 * scale, 0.9, Math.sin(a) * 0.1 * scale);
+                turret.add(ember);
+                parts.rise!.push({ node: ember, baseY: 0.85, height: 0.55, speed: 0.45 + i * 0.08, phase: i * 0.27 });
+            }
+        }
+    }
+
+    /** Lightning — proper tesla coil with winding, insulators and live plasma arcs. */
+    private buildTeslaCoil(turret: THREE.Group, parts: TowerParts, scale: number, accentColor: number): void {
+        const copper = mat({ color: 0xb0672d, metalness: 0.85, roughness: 0.3 });
+        const darkMetal = mat({ color: 0x23252e, metalness: 0.8, roughness: 0.35 });
+        const ceramic = mat({ color: 0xd8d4c8, roughness: 0.5 });
+
+        // Insulator stack base
+        addMesh(turret, new THREE.CylinderGeometry(0.16 * scale, 0.2 * scale, 0.08, SEG_LO), darkMetal, 0, 0.36, 0);
+        for (let i = 0; i < 3; i++) {
+            addMesh(turret, new THREE.CylinderGeometry((0.13 - i * 0.015) * scale, (0.14 - i * 0.015) * scale, 0.035, SEG_LO), ceramic, 0, 0.44 + i * 0.05, 0);
+        }
+
+        // Coil column with copper winding rings
+        addMesh(turret, new THREE.CylinderGeometry(0.07 * scale, 0.1 * scale, 0.42 * scale, SEG_LO), darkMetal, 0, 0.76, 0);
+        for (let r = 0; r < 6; r++) {
+            const ring = addMesh(turret, new THREE.TorusGeometry((0.085 + (5 - r) * 0.004) * scale, 0.014 * scale, 5, SEG_MID), copper, 0, 0.6 + r * 0.065, 0, true);
+            ring.rotation.x = Math.PI / 2;
+        }
+
+        // Toroid electrode + emitter sphere
+        const toroid = addMesh(turret, new THREE.TorusGeometry(0.13 * scale, 0.045 * scale, 8, SEG_HI),
+            mat({ color: 0xcfd6dd, metalness: 0.95, roughness: 0.15 }), 0, 1.02, 0);
+        toroid.rotation.x = Math.PI / 2;
+
+        const emitterMat = mat({ color: accentColor, emissive: 0xffee55, emissiveIntensity: 0.9 }) as THREE.MeshStandardMaterial;
+        const emitter = addMesh(turret, new THREE.SphereGeometry(0.07 * scale, SEG_MID, SEG_LO), emitterMat, 0, 1.02, 0, true);
+        parts.pulseEmissive!.push({ mat: emitterMat, base: 0.9, amp: 0.45, speed: 7, phase: 0 });
+        parts.bob!.push({ node: emitter, baseY: 1.02, amp: 0.02, speed: 5, phase: 0 });
+
+        // Wireframe energy cage
+        const cage = new THREE.Mesh(
+            new THREE.IcosahedronGeometry(0.17 * scale),
+            new THREE.MeshBasicMaterial({ color: 0xfff9a8, wireframe: true, transparent: true, opacity: 0.5 })
+        );
+        cage.position.y = 1.02;
+        turret.add(cage);
+        parts.spin!.push({ node: cage, speed: 2.0, axis: 'y' });
+
+        // Live plasma arcs
+        if (!GRAPHICS.isMobile) {
+            parts.arcs = [];
+            parts.arcOrigin = new THREE.Vector3(0, 1.02, 0);
+            const arcMat = new THREE.LineBasicMaterial({ color: 0xccf2ff, transparent: true, opacity: 0.85 });
+            for (let i = 0; i < 3; i++) {
+                const geo = new THREE.BufferGeometry();
+                geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(5 * 3), 3));
+                const arc = new THREE.Line(geo, arcMat);
+                arc.frustumCulled = false;
+                turret.add(arc);
+                parts.arcs.push(arc);
+            }
+        }
+    }
+
+    /** Poison — alchemist's still: cauldron, glass retort, copper piping, rising bubbles. */
+    private buildAlchemyStill(turret: THREE.Group, parts: TowerParts, scale: number): void {
+        const ironPot = mat({ color: 0x2c3130, metalness: 0.55, roughness: 0.5, flatShading: true });
+        const copper = mat({ color: 0x9c5a28, metalness: 0.8, roughness: 0.35 });
+        const toxinMat = mat({ color: 0x39d411, emissive: 0x2bb400, emissiveIntensity: 0.5, transparent: true, opacity: 0.9 }) as THREE.MeshStandardMaterial;
+
+        // Cauldron
+        const potPts: THREE.Vector2[] = [];
+        for (let i = 0; i <= 7; i++) {
+            const t = i / 7;
+            potPts.push(new THREE.Vector2(Math.sin(t * Math.PI * 0.82) * 0.24 * scale + 0.02, t * 0.3));
+        }
+        addMesh(turret, new THREE.LatheGeometry(potPts, SEG_MID), ironPot, 0, 0.32, 0);
+        // Rim
+        const rim = addMesh(turret, new THREE.TorusGeometry(0.185 * scale, 0.022 * scale, 6, SEG_MID), ironPot, 0, 0.62, 0);
+        rim.rotation.x = Math.PI / 2;
+        // Toxic liquid surface
+        const liquid = addMesh(turret, new THREE.CylinderGeometry(0.17 * scale, 0.17 * scale, 0.03, SEG_MID), toxinMat, 0, 0.6, 0, true);
+        parts.pulseEmissive!.push({ mat: toxinMat, base: 0.5, amp: 0.25, speed: 3, phase: 0 });
+        parts.pulseScale!.push({ node: liquid, base: 1.0, amp: 0.03, speed: 3.4, phase: 1 });
+
+        // Glass retort flask above, held by a copper stand
+        addMesh(turret, new THREE.CylinderGeometry(0.015 * scale, 0.015 * scale, 0.5, 5), copper, 0.16 * scale, 0.62, 0);
+        const retort = new THREE.Mesh(new THREE.SphereGeometry(0.11 * scale, SEG_MID, SEG_MID), glassMat(0xbfffb0));
+        retort.position.set(0, 0.95, 0);
+        turret.add(retort);
+        parts.bob!.push({ node: retort, baseY: 0.95, amp: 0.02, speed: 2.4, phase: 0.4 });
+        // Toxin swirling inside the retort
+        const swirl = new THREE.Mesh(new THREE.SphereGeometry(0.06 * scale, SEG_LO, SEG_LO), toxinMat);
+        retort.add(swirl);
+        parts.pulseScale!.push({ node: swirl, base: 1.0, amp: 0.12, speed: 4, phase: 2 });
+
+        // Copper pipe from retort down to cauldron
+        const pipe = addMesh(turret, new THREE.TorusGeometry(0.14 * scale, 0.018 * scale, 5, SEG_MID, Math.PI * 0.9), copper, 0.1 * scale, 0.8, 0);
+        pipe.rotation.z = -0.5;
+
+        // Bubbles rising from the cauldron
+        const bubbleCount = GRAPHICS.isMobile ? 2 : 4;
+        const bubbleGeo = new THREE.SphereGeometry(0.025, 6, 6);
+        for (let i = 0; i < bubbleCount; i++) {
+            const bubble = new THREE.Mesh(bubbleGeo, toxinMat);
+            const a = (i / bubbleCount) * Math.PI * 2;
+            bubble.position.set(Math.cos(a) * 0.08 * scale, 0.62, Math.sin(a) * 0.08 * scale);
+            turret.add(bubble);
+            parts.rise!.push({ node: bubble, baseY: 0.62, height: 0.4, speed: 0.35 + i * 0.09, phase: i * 0.31 });
+        }
+    }
+
+    /** Sniper — elevated railgun nest with charged rails and glowing optics. */
+    private buildRailgunNest(group: THREE.Group, turret: THREE.Group, parts: TowerParts, scale: number, accentColor: number): void {
+        const gunmetal = mat({ color: 0x2a2d3a, metalness: 0.8, roughness: 0.3 });
+        const alloy = mat({ color: accentColor, metalness: 0.7, roughness: 0.35 });
+        const railGlowMat = mat({ color: 0x7f9dff, emissive: 0x5f80ff, emissiveIntensity: 0.7 }) as THREE.MeshStandardMaterial;
+
+        // Tripod legs (static, on the base)
+        for (let i = 0; i < 3; i++) {
+            const a = i * Math.PI * 2 / 3;
+            const leg = addMesh(group, new THREE.CylinderGeometry(0.022 * scale, 0.028 * scale, 0.62 * scale, 5), gunmetal,
+                Math.cos(a) * 0.17, 0.58, Math.sin(a) * 0.17);
+            leg.rotation.x = -Math.sin(a) * 0.3;
+            leg.rotation.z = Math.cos(a) * 0.3;
+            // Foot pads
+            addMesh(group, new THREE.CylinderGeometry(0.04 * scale, 0.05 * scale, 0.03, 6), gunmetal,
+                Math.cos(a) * 0.26, 0.31, Math.sin(a) * 0.26);
+        }
+        // Gimbal hub
+        addMesh(group, new THREE.SphereGeometry(0.09 * scale, SEG_LO, SEG_LO), gunmetal, 0, 0.88, 0);
+
+        // Weapon body on the rotating turret with recoil
+        const weapon = new THREE.Group();
+        weapon.position.y = 0.9;
+        turret.add(weapon);
+        parts.recoilNode = weapon;
+        parts.recoilAmount = 0.14;
+
+        // Receiver
+        addMesh(weapon, new THREE.BoxGeometry(0.12 * scale, 0.14 * scale, 0.34 * scale), alloy, 0, 0.02, -0.05);
+        // Stock / counterweight
+        addMesh(weapon, new THREE.BoxGeometry(0.09 * scale, 0.1 * scale, 0.14 * scale), gunmetal, 0, 0, -0.28 * scale);
+
+        // Twin rails with glowing accelerator strip between them
+        const railGeo = new THREE.BoxGeometry(0.025 * scale, 0.05 * scale, 0.85 * scale);
+        addMesh(weapon, railGeo, gunmetal, 0.032 * scale, 0.02, 0.45 * scale);
+        addMesh(weapon, railGeo, gunmetal, -0.032 * scale, 0.02, 0.45 * scale);
+        addMesh(weapon, new THREE.BoxGeometry(0.02 * scale, 0.02 * scale, 0.8 * scale), railGlowMat, 0, 0.02, 0.44 * scale, true);
+        parts.pulseEmissive!.push({ mat: railGlowMat, base: 0.65, amp: 0.35, speed: 4.5, phase: 0 });
+        // Muzzle housing
+        addMesh(weapon, new THREE.BoxGeometry(0.09 * scale, 0.09 * scale, 0.07 * scale), alloy, 0, 0.02, 0.86 * scale);
+
+        // Scope with glowing lens
+        const scope = new THREE.Group();
+        scope.position.set(0, 0.13, -0.02);
+        weapon.add(scope);
+        const scopeBody = addMesh(scope, new THREE.CylinderGeometry(0.035 * scale, 0.035 * scale, 0.24 * scale, SEG_LO), gunmetal, 0, 0, 0);
+        scopeBody.rotation.x = Math.PI / 2;
+        const lensMat = mat({ color: 0xff4d4d, emissive: 0xff2222, emissiveIntensity: 0.9 }) as THREE.MeshStandardMaterial;
+        const lens = addMesh(scope, new THREE.CircleGeometry(0.028 * scale, SEG_LO), lensMat, 0, 0, 0.125 * scale, true);
+        lens.rotation.y = 0;
+        parts.pulseEmissive!.push({ mat: lensMat, base: 0.8, amp: 0.4, speed: 2.2, phase: 1 });
+        parts.bob!.push({ node: scope, baseY: 0.13, amp: 0.008, speed: 2, phase: 0 });
+
+        // Side capacitor cells
+        for (const side of [-1, 1]) {
+            const cellMat = mat({ color: 0x3648b8, emissive: 0x2233aa, emissiveIntensity: 0.35 }) as THREE.MeshStandardMaterial;
+            addMesh(weapon, new THREE.BoxGeometry(0.035 * scale, 0.08 * scale, 0.12 * scale), cellMat, side * 0.085 * scale, 0.01, -0.16 * scale, true);
+        }
     }
 }
