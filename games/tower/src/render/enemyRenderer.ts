@@ -25,15 +25,38 @@ interface EnemyPartDef {
     anim?: AnimFn;
 }
 
-// Reusable anim helpers
+// ─── Reusable anim helpers ───────────────────────────────────────────────────
 const walkBob = (amp: number, speed = 10): AnimFn => (out, t, ph) => {
     out.oy += Math.abs(Math.sin(t * speed + ph)) * amp;
 };
 const hover = (amp: number, speed: number): AnimFn => (out, t, ph) => {
     out.oy += Math.sin(t * speed + ph) * amp;
 };
-const spinY = (speed: number): AnimFn => (out, t) => {
-    out.ry += t * speed;
+/** Limb swing around its pivot (rotation.x), forward/back relative to facing. */
+const swing = (speed: number, amp: number, offset = 0, bobAmp = 0, bobSpeed = 10): AnimFn => (out, t, ph) => {
+    out.rx += Math.sin(t * speed + ph + offset) * amp;
+    if (bobAmp > 0) out.oy += Math.abs(Math.sin(t * bobSpeed + ph)) * bobAmp;
+};
+
+/**
+ * Capsule limb whose pivot sits at the top (hip/shoulder joint) so a
+ * rotation.x swing reads as a walking limb, not a spinning stick.
+ */
+function limbGeo(r: number, len: number): THREE.BufferGeometry {
+    const g = new THREE.CapsuleGeometry(r, len, 3, 6);
+    g.translate(0, -len / 2, 0);
+    return g;
+}
+
+/** Per-type display metadata: HP-bar height & ground shadow size. */
+export const ENEMY_META: Record<EnemyType, { barY: number; shadowScale: number }> = {
+    grunt:  { barY: 0.95, shadowScale: 1.0 },
+    tank:   { barY: 1.05, shadowScale: 1.55 },
+    runner: { barY: 0.9,  shadowScale: 0.95 },
+    swarm:  { barY: 0.72, shadowScale: 0.65 },
+    shield: { barY: 1.1,  shadowScale: 1.1 },
+    healer: { barY: 1.15, shadowScale: 1.0 },
+    boss:   { barY: 2.1,  shadowScale: 1.95 },
 };
 
 function buildEnemyConfigs(): Record<EnemyType, EnemyPartDef[]> {
@@ -47,224 +70,259 @@ function buildEnemyConfigs(): Record<EnemyType, EnemyPartDef[]> {
         return new THREE.MeshStandardMaterial(opts as THREE.MeshStandardMaterialParameters);
     };
 
-    // ─── Grunt: goblin raider — body, head, ears, glowing eyes, swinging arms ───
+    // Size hierarchy (world units, head height):
+    //   swarm ~0.45 < grunt ~0.7 < runner ~0.75 < shield ~0.85 < healer ~0.9 < tank ~0.6 wide < boss ~1.9
+
+    // ─── Grunt: goblin footsoldier — pointy ears, red eyes, club, marching gait ───
     {
-        const bodyMat = std({ color: 0xee8833, roughness: 0.8 });
-        const skinMat = std({ color: 0xffaa55, roughness: 0.6 });
-        const eyeMat = std({ color: 0x331100, emissive: 0xffdd33, emissiveIntensity: 0.9 });
-        const bodyBob = walkBob(0.035);
-        const earGeo = new THREE.ConeGeometry(0.045, 0.14, 4);
-        const armGeo = new THREE.CapsuleGeometry(0.035, 0.12, 3, 5);
+        const skin = std({ color: 0x7fa03a, roughness: 0.75, flatShading: true });
+        const skinDark = std({ color: 0x5c7a28, roughness: 0.8 });
+        const cloth = std({ color: 0x6b4a2b, roughness: 0.9 });
+        const eye = std({ color: 0x330000, emissive: 0xff3322, emissiveIntensity: 1.0 });
+        const bob = walkBob(0.03, 11);
+        const legL = limbGeo(0.038, 0.13);
+        const legR = limbGeo(0.038, 0.13);
+        const armL = limbGeo(0.03, 0.12);
+        const armR = limbGeo(0.03, 0.12);
+        const earGeo = new THREE.ConeGeometry(0.038, 0.15, 4);
         configs.grunt = [
-            { geo: new THREE.CapsuleGeometry(0.12, 0.2, 4, 8), mat: bodyMat, offset: new THREE.Vector3(0, 0.2, 0), anim: bodyBob },
-            { geo: new THREE.SphereGeometry(0.13, 8, 8), mat: skinMat, offset: new THREE.Vector3(0, 0.45, 0.05), anim: bodyBob },
-            // Ears — swept back cones
+            // Torso with loincloth
+            { geo: new THREE.CapsuleGeometry(0.105, 0.13, 4, 8), mat: skin, offset: new THREE.Vector3(0, 0.36, 0), anim: bob },
+            { geo: new THREE.CylinderGeometry(0.115, 0.09, 0.1, 7), mat: cloth, offset: new THREE.Vector3(0, 0.28, 0), anim: bob },
+            // Head + snout
+            { geo: new THREE.SphereGeometry(0.115, 9, 8), mat: skin, offset: new THREE.Vector3(0, 0.58, 0.03), anim: bob },
+            { geo: new THREE.ConeGeometry(0.035, 0.09, 5), mat: skinDark, offset: new THREE.Vector3(0, 0.55, 0.13), rotation: new THREE.Euler(Math.PI / 2, 0, 0), anim: bob, desktopOnly: true },
+            // Pointy ears, swept outward
+            { geo: earGeo, mat: skinDark, offset: new THREE.Vector3(0.115, 0.63, 0.0), rotation: new THREE.Euler(0, 0, -2.0), anim: bob },
+            { geo: earGeo, mat: skinDark, offset: new THREE.Vector3(-0.115, 0.63, 0.0), rotation: new THREE.Euler(0, 0, 2.0), anim: bob },
+            // Glowing eyes
+            { geo: new THREE.SphereGeometry(0.024, 5, 5), mat: eye, offset: new THREE.Vector3(0.048, 0.6, 0.125), anim: bob, desktopOnly: true },
+            { geo: new THREE.SphereGeometry(0.024, 5, 5), mat: eye, offset: new THREE.Vector3(-0.048, 0.6, 0.125), anim: bob, desktopOnly: true },
+            // Legs — opposite swing
+            { geo: legL, mat: skinDark, offset: new THREE.Vector3(0.058, 0.26, 0), anim: swing(11, 0.75) },
+            { geo: legR, mat: skinDark, offset: new THREE.Vector3(-0.058, 0.26, 0), anim: swing(11, 0.75, Math.PI) },
+            // Arms — counter-swing to legs
+            { geo: armL, mat: skin, offset: new THREE.Vector3(0.13, 0.47, 0), anim: swing(11, 0.55, Math.PI, 0.03, 11) },
+            { geo: armR, mat: skin, offset: new THREE.Vector3(-0.13, 0.47, 0), anim: swing(11, 0.55, 0, 0.03, 11) },
+            // Club carried in the right hand — swings with the arm
             {
-                geo: earGeo, mat: skinMat, offset: new THREE.Vector3(0.11, 0.52, 0.0),
-                rotation: new THREE.Euler(0, 0, -1.9), anim: bodyBob, desktopOnly: true,
-            },
-            {
-                geo: earGeo, mat: skinMat, offset: new THREE.Vector3(-0.11, 0.52, 0.0),
-                rotation: new THREE.Euler(0, 0, 1.9), anim: bodyBob, desktopOnly: true,
-            },
-            // Eye band
-            { geo: new THREE.BoxGeometry(0.14, 0.035, 0.04), mat: eyeMat, offset: new THREE.Vector3(0, 0.46, 0.16), anim: bodyBob },
-            // Swinging arms
-            {
-                geo: armGeo, mat: bodyMat, offset: new THREE.Vector3(0.15, 0.24, 0), desktopOnly: true,
-                anim: (out, t, ph) => { out.rx += Math.sin(t * 10 + ph) * 0.7; },
-            },
-            {
-                geo: armGeo, mat: bodyMat, offset: new THREE.Vector3(-0.15, 0.24, 0), desktopOnly: true,
-                anim: (out, t, ph) => { out.rx += Math.sin(t * 10 + ph + Math.PI) * 0.7; },
+                geo: (() => { const g = new THREE.CylinderGeometry(0.045, 0.028, 0.2, 6); g.translate(0, -0.26, 0.04); return g; })(),
+                mat: cloth, offset: new THREE.Vector3(-0.13, 0.47, 0), anim: swing(11, 0.55, 0, 0.03, 11), desktopOnly: true,
             },
         ];
     }
 
-    // ─── Tank: armored siege beetle — spiked shell, rim plating, head ───
+    // ─── Tank: siege tortoise — spiked shell, four stomping legs, jutting head, tail ───
     {
-        const shellMat = std({ color: 0x9944cc, roughness: 0.85, metalness: 0.25, flatShading: true });
-        const plateMat = std({ color: 0x5e2a80, roughness: 0.6, metalness: 0.45 });
-        const headMat = std({ color: 0x7722aa, roughness: 0.7 });
-        const sway: AnimFn = (out, t, ph) => { out.rz += Math.sin(t * 4 + ph) * 0.05; };
-        const spikeGeo = new THREE.ConeGeometry(0.05, 0.14, 5);
+        const shellMat = std({ color: 0x8a3fc0, roughness: 0.85, metalness: 0.2, flatShading: true });
+        const plateMat = std({ color: 0x531f78, roughness: 0.6, metalness: 0.4 });
+        const hideMat = std({ color: 0xb07acb, roughness: 0.8 });
+        const sway: AnimFn = (out, t, ph) => {
+            out.rz += Math.sin(t * 5 + ph) * 0.04;
+            out.oy += Math.abs(Math.sin(t * 5 + ph)) * 0.02;
+        };
+        const legGeo = () => limbGeo(0.055, 0.1);
+        const spikeGeo = new THREE.ConeGeometry(0.055, 0.16, 5);
         configs.tank = [
+            // Shell
             {
-                geo: new THREE.SphereGeometry(0.3, 12, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-                mat: shellMat, offset: new THREE.Vector3(0, 0.2, 0),
-                scale: new THREE.Vector3(1, 0.62, 1.2), anim: sway,
+                geo: new THREE.SphereGeometry(0.32, 12, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+                mat: shellMat, offset: new THREE.Vector3(0, 0.28, 0),
+                scale: new THREE.Vector3(1, 0.66, 1.25), anim: sway,
             },
             // Armored rim skirt
             {
-                geo: new THREE.TorusGeometry(0.28, 0.045, 6, 14), mat: plateMat,
-                offset: new THREE.Vector3(0, 0.16, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0),
-                scale: new THREE.Vector3(1, 1.18, 1), anim: sway,
+                geo: new THREE.TorusGeometry(0.3, 0.05, 6, 14), mat: plateMat,
+                offset: new THREE.Vector3(0, 0.26, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0),
+                scale: new THREE.Vector3(1, 1.22, 1), anim: sway,
             },
             // Spine spikes
-            { geo: spikeGeo, mat: plateMat, offset: new THREE.Vector3(0, 0.42, 0), anim: sway, desktopOnly: true },
+            { geo: spikeGeo, mat: plateMat, offset: new THREE.Vector3(0, 0.5, 0), anim: sway },
+            { geo: spikeGeo, mat: plateMat, offset: new THREE.Vector3(0, 0.44, -0.2), rotation: new THREE.Euler(-0.55, 0, 0), anim: sway, desktopOnly: true },
+            { geo: spikeGeo, mat: plateMat, offset: new THREE.Vector3(0, 0.44, 0.2), rotation: new THREE.Euler(0.55, 0, 0), anim: sway, desktopOnly: true },
+            // Head jutting forward on a thick neck, nodding with the gait
             {
-                geo: spikeGeo, mat: plateMat, offset: new THREE.Vector3(0, 0.36, -0.18),
-                rotation: new THREE.Euler(-0.5, 0, 0), anim: sway, desktopOnly: true,
+                geo: new THREE.SphereGeometry(0.135, 9, 8), mat: hideMat, offset: new THREE.Vector3(0, 0.24, 0.44),
+                anim: (out, t, ph) => { out.oy += Math.sin(t * 5 + ph) * 0.02; out.rx += Math.sin(t * 5 + ph) * 0.06; },
             },
+            // Four legs — diagonal pairs alternate (real quadruped gait)
+            { geo: legGeo(), mat: hideMat, offset: new THREE.Vector3(0.21, 0.2, 0.19), anim: swing(5, 0.5) },
+            { geo: legGeo(), mat: hideMat, offset: new THREE.Vector3(-0.21, 0.2, -0.19), anim: swing(5, 0.5) },
+            { geo: legGeo(), mat: hideMat, offset: new THREE.Vector3(-0.21, 0.2, 0.19), anim: swing(5, 0.5, Math.PI) },
+            { geo: legGeo(), mat: hideMat, offset: new THREE.Vector3(0.21, 0.2, -0.19), anim: swing(5, 0.5, Math.PI) },
+            // Stubby tail
             {
-                geo: spikeGeo, mat: plateMat, offset: new THREE.Vector3(0, 0.36, 0.18),
-                rotation: new THREE.Euler(0.5, 0, 0), anim: sway, desktopOnly: true,
-            },
-            // Head with slight nod
-            {
-                geo: new THREE.SphereGeometry(0.14, 8, 8), mat: headMat, offset: new THREE.Vector3(0, 0.18, 0.36),
-                anim: (out, t, ph) => { out.oy += Math.sin(t * 6 + ph) * 0.015; },
+                geo: new THREE.ConeGeometry(0.05, 0.16, 5), mat: hideMat, offset: new THREE.Vector3(0, 0.22, -0.42),
+                rotation: new THREE.Euler(-Math.PI / 2.4, 0, 0),
+                anim: (out, t, ph) => { out.rz += Math.sin(t * 4 + ph) * 0.2; }, desktopOnly: true,
             },
         ];
     }
 
-    // ─── Runner: velociraptor drone — sleek dart with fins and exhaust glow ───
+    // ─── Runner: raptor — horizontal body, sprinting legs, whipping tail, head crest ───
     {
-        const bodyMat = std({ color: 0x33cc55, roughness: 0.45, metalness: 0.2 });
-        const finMat = std({ color: 0x1e8f38, roughness: 0.5, side: THREE.DoubleSide });
-        const glowMat = std({ color: 0xbbffcc, emissive: 0x66ff88, emissiveIntensity: 1.0 });
-        const dash: AnimFn = (out, t, ph) => {
-            out.oy += Math.abs(Math.sin(t * 14 + ph)) * 0.05;
-            out.rx += Math.sin(t * 14 + ph) * 0.06;
+        const hide = std({ color: 0x2fbf4e, roughness: 0.5, flatShading: true });
+        const hideDark = std({ color: 0x1d8f36, roughness: 0.55 });
+        const eye = std({ color: 0x111100, emissive: 0xffee44, emissiveIntensity: 0.9 });
+        const gallop: AnimFn = (out, t, ph) => {
+            out.oy += Math.abs(Math.sin(t * 15 + ph)) * 0.05;
+            out.rx += Math.sin(t * 15 + ph) * 0.05;
         };
-        const finGeo = new THREE.PlaneGeometry(0.16, 0.1);
         configs.runner = [
+            // Horizontal body, leaning into the run
             {
-                geo: new THREE.ConeGeometry(0.13, 0.44, 6), mat: bodyMat,
-                offset: new THREE.Vector3(0, 0.2, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0), anim: dash,
+                geo: new THREE.CapsuleGeometry(0.09, 0.24, 4, 8), mat: hide,
+                offset: new THREE.Vector3(0, 0.34, 0), rotation: new THREE.Euler(Math.PI / 2 - 0.12, 0, 0), anim: gallop,
             },
-            // Dorsal tail fin
+            // Neck + head raised at the front
+            { geo: new THREE.SphereGeometry(0.075, 8, 7), mat: hide, offset: new THREE.Vector3(0, 0.5, 0.22), anim: gallop },
+            { geo: new THREE.ConeGeometry(0.045, 0.14, 5), mat: hideDark, offset: new THREE.Vector3(0, 0.48, 0.32), rotation: new THREE.Euler(Math.PI / 2, 0, 0), anim: gallop },
+            // Eyes
+            { geo: new THREE.SphereGeometry(0.02, 5, 5), mat: eye, offset: new THREE.Vector3(0.045, 0.52, 0.26), anim: gallop, desktopOnly: true },
+            { geo: new THREE.SphereGeometry(0.02, 5, 5), mat: eye, offset: new THREE.Vector3(-0.045, 0.52, 0.26), anim: gallop, desktopOnly: true },
+            // Head crest fin
             {
-                geo: new THREE.PlaneGeometry(0.22, 0.14), mat: finMat,
-                offset: new THREE.Vector3(0, 0.3, -0.16), rotation: new THREE.Euler(0.35, Math.PI / 2, 0),
-                anim: dash, desktopOnly: true,
+                geo: new THREE.ConeGeometry(0.05, 0.16, 4), mat: hideDark,
+                offset: new THREE.Vector3(0, 0.58, 0.16), rotation: new THREE.Euler(-0.6, 0, 0), anim: gallop, desktopOnly: true,
             },
-            // Side fins, swept back
+            // Long balancing tail, whipping side to side
             {
-                geo: finGeo, mat: finMat, offset: new THREE.Vector3(0.12, 0.2, -0.08),
-                rotation: new THREE.Euler(0, -0.7, -0.5), anim: dash, desktopOnly: true,
+                geo: (() => { const g = new THREE.ConeGeometry(0.055, 0.4, 6); g.translate(0, 0.2, 0); return g; })(),
+                mat: hideDark, offset: new THREE.Vector3(0, 0.36, -0.14),
+                rotation: new THREE.Euler(-Math.PI / 2 - 0.25, 0, 0),
+                anim: (out, t, ph) => { out.rz += Math.sin(t * 9 + ph) * 0.25; out.oy += Math.abs(Math.sin(t * 15 + ph)) * 0.04; },
             },
-            {
-                geo: finGeo, mat: finMat, offset: new THREE.Vector3(-0.12, 0.2, -0.08),
-                rotation: new THREE.Euler(0, 0.7, 0.5), anim: dash, desktopOnly: true,
-            },
-            // Exhaust glow at the tail
-            {
-                geo: new THREE.SphereGeometry(0.05, 6, 6), mat: glowMat, offset: new THREE.Vector3(0, 0.2, -0.22),
-                anim: (out, t, ph) => { out.s *= 0.85 + Math.abs(Math.sin(t * 18 + ph)) * 0.45; },
-            },
+            // Sprinting legs — big stride, opposite phase
+            { geo: limbGeo(0.04, 0.17), mat: hideDark, offset: new THREE.Vector3(0.075, 0.32, 0.02), anim: swing(15, 1.0) },
+            { geo: limbGeo(0.04, 0.17), mat: hideDark, offset: new THREE.Vector3(-0.075, 0.32, 0.02), anim: swing(15, 1.0, Math.PI) },
+            // Tiny forearms tucked in
+            { geo: limbGeo(0.022, 0.07), mat: hide, offset: new THREE.Vector3(0.08, 0.4, 0.16), rotation: new THREE.Euler(-0.5, 0, 0), anim: gallop, desktopOnly: true },
+            { geo: limbGeo(0.022, 0.07), mat: hide, offset: new THREE.Vector3(-0.08, 0.4, 0.16), rotation: new THREE.Euler(-0.5, 0, 0), anim: gallop, desktopOnly: true },
         ];
     }
 
-    // ─── Swarm: hornet — body, two flapping wings, stinger, eyes ───
+    // ─── Swarm: hornet — flapping wings, dangling legs, stinger, compound eyes ───
     {
-        const bodyMat = std({ color: 0xa8742f, roughness: 0.6 });
-        const stripeMat = std({ color: 0x3a2a10, roughness: 0.7 });
-        const wingMat = std({ color: 0xdddddd, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
-        const eyeMat = std({ color: 0x220000, emissive: 0xff4444, emissiveIntensity: 0.8 });
-        const buzz = hover(0.08, 10);
-        const wingGeo = new THREE.PlaneGeometry(0.17, 0.09);
+        const bodyMat = std({ color: 0xb8842f, roughness: 0.6, flatShading: true });
+        const stripeMat = std({ color: 0x33250d, roughness: 0.7 });
+        const wingMat = std({ color: 0xdddddd, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+        const eye = std({ color: 0x220000, emissive: 0xff4444, emissiveIntensity: 0.9 });
+        const buzz = hover(0.07, 9);
+        const wingGeo = () => { const g = new THREE.PlaneGeometry(0.2, 0.085); g.translate(0.1, 0, 0); return g; };
         configs.swarm = [
+            // Thorax + abdomen
             {
-                geo: new THREE.CapsuleGeometry(0.06, 0.16, 4, 6), mat: bodyMat,
-                offset: new THREE.Vector3(0, 0.32, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0), anim: buzz,
+                geo: new THREE.CapsuleGeometry(0.06, 0.14, 4, 6), mat: bodyMat,
+                offset: new THREE.Vector3(0, 0.34, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0), anim: buzz,
             },
-            // Abdomen stripe ring
+            { geo: new THREE.TorusGeometry(0.058, 0.02, 4, 8), mat: stripeMat, offset: new THREE.Vector3(0, 0.34, -0.045), anim: buzz, desktopOnly: true },
+            // Head with two compound eyes
+            { geo: new THREE.SphereGeometry(0.048, 7, 6), mat: stripeMat, offset: new THREE.Vector3(0, 0.36, 0.12), anim: buzz },
+            { geo: new THREE.SphereGeometry(0.026, 5, 5), mat: eye, offset: new THREE.Vector3(0.033, 0.375, 0.14), anim: buzz },
+            { geo: new THREE.SphereGeometry(0.026, 5, 5), mat: eye, offset: new THREE.Vector3(-0.033, 0.375, 0.14), anim: buzz },
+            // Wings — rooted at the body, flapping fast in opposite phase
             {
-                geo: new THREE.TorusGeometry(0.058, 0.018, 4, 8), mat: stripeMat,
-                offset: new THREE.Vector3(0, 0.32, -0.05), anim: buzz, desktopOnly: true,
+                geo: wingGeo(), mat: wingMat, offset: new THREE.Vector3(0.045, 0.4, 0.0),
+                rotation: new THREE.Euler(Math.PI / 2, 0, 0.2),
+                anim: (out, t, ph) => { out.oy += Math.sin(t * 9 + ph) * 0.07; out.rz += Math.sin(t * 34 + ph) * 0.7; },
             },
-            // Wings flapping in opposite phase
             {
-                geo: wingGeo, mat: wingMat, offset: new THREE.Vector3(0.09, 0.37, 0.02),
-                rotation: new THREE.Euler(Math.PI / 2, 0, 0.25),
-                anim: (out, t, ph) => { out.oy += Math.sin(t * 10 + ph) * 0.08; out.rz += Math.sin(t * 32 + ph) * 0.6; },
-            },
-            {
-                geo: wingGeo, mat: wingMat, offset: new THREE.Vector3(-0.09, 0.37, 0.02),
-                rotation: new THREE.Euler(Math.PI / 2, 0, -0.25),
-                anim: (out, t, ph) => { out.oy += Math.sin(t * 10 + ph) * 0.08; out.rz -= Math.sin(t * 32 + ph) * 0.6; },
+                geo: (() => { const g = new THREE.PlaneGeometry(0.2, 0.085); g.translate(-0.1, 0, 0); return g; })(),
+                mat: wingMat, offset: new THREE.Vector3(-0.045, 0.4, 0.0),
+                rotation: new THREE.Euler(Math.PI / 2, 0, -0.2),
+                anim: (out, t, ph) => { out.oy += Math.sin(t * 9 + ph) * 0.07; out.rz -= Math.sin(t * 34 + ph) * 0.7; },
             },
             // Stinger
-            {
-                geo: new THREE.ConeGeometry(0.03, 0.1, 5), mat: stripeMat,
-                offset: new THREE.Vector3(0, 0.32, -0.14), rotation: new THREE.Euler(-Math.PI / 2, 0, 0),
-                anim: buzz, desktopOnly: true,
-            },
-            // Eyes
-            { geo: new THREE.SphereGeometry(0.028, 5, 5), mat: eyeMat, offset: new THREE.Vector3(0.035, 0.34, 0.12), anim: buzz },
-            { geo: new THREE.SphereGeometry(0.028, 5, 5), mat: eyeMat, offset: new THREE.Vector3(-0.035, 0.34, 0.12), anim: buzz },
+            { geo: new THREE.ConeGeometry(0.028, 0.1, 5), mat: stripeMat, offset: new THREE.Vector3(0, 0.33, -0.13), rotation: new THREE.Euler(-Math.PI / 2 - 0.3, 0, 0), anim: buzz },
+            // Dangling legs
+            { geo: limbGeo(0.012, 0.07), mat: stripeMat, offset: new THREE.Vector3(0.045, 0.31, 0.04), rotation: new THREE.Euler(0.3, 0, 0.35), anim: buzz, desktopOnly: true },
+            { geo: limbGeo(0.012, 0.07), mat: stripeMat, offset: new THREE.Vector3(-0.045, 0.31, 0.04), rotation: new THREE.Euler(0.3, 0, -0.35), anim: buzz, desktopOnly: true },
         ];
     }
 
-    // ─── Shield: gyro sentinel — spinning core inside counter-rotating rings ───
+    // ─── Shield: rune golem — stone body with heavy arms, marching legs, energy ring ───
     {
-        const coreMat = std({ color: 0x1155cc, roughness: 0.35, metalness: 0.5, flatShading: true });
-        const glowMat = std({ color: 0x66bbff, emissive: 0x3388ff, emissiveIntensity: 0.9 });
-        const ringMat = std({ color: 0x3388ff, transparent: true, opacity: 0.7, emissive: 0x114488 });
-        const float = hover(0.03, 3);
+        const stone = std({ color: 0x2a4a8f, roughness: 0.85, metalness: 0.25, flatShading: true });
+        const stoneDark = std({ color: 0x1b3263, roughness: 0.9, flatShading: true });
+        const glow = std({ color: 0x66bbff, emissive: 0x3388ff, emissiveIntensity: 0.9 });
+        const ringMat = std({ color: 0x3388ff, transparent: true, opacity: 0.65, emissive: 0x114488 });
+        const march = walkBob(0.03, 7);
         configs.shield = [
+            // Rocky torso
+            { geo: new THREE.DodecahedronGeometry(0.17), mat: stone, offset: new THREE.Vector3(0, 0.52, 0), scale: new THREE.Vector3(1, 1.15, 0.85), anim: march },
+            // Head
+            { geo: new THREE.DodecahedronGeometry(0.08), mat: stoneDark, offset: new THREE.Vector3(0, 0.76, 0.02), anim: march },
+            // Glowing core set into the chest
             {
-                geo: new THREE.DodecahedronGeometry(0.15), mat: coreMat, offset: new THREE.Vector3(0, 0.32, 0),
-                anim: (out, t, ph) => { out.ry += t * 1.6; out.oy += Math.sin(t * 3 + ph) * 0.03; },
+                geo: new THREE.SphereGeometry(0.06, 7, 7), mat: glow, offset: new THREE.Vector3(0, 0.54, 0.13),
+                anim: (out, t, ph) => { out.s *= 0.9 + Math.sin(t * 5 + ph) * 0.15; out.oy += Math.abs(Math.sin(t * 7 + ph)) * 0.03; },
             },
-            // Inner energy core
+            // Heavy stone arms
+            { geo: limbGeo(0.055, 0.16), mat: stoneDark, offset: new THREE.Vector3(0.21, 0.62, 0), anim: swing(7, 0.35, Math.PI, 0.03, 7) },
+            { geo: limbGeo(0.055, 0.16), mat: stoneDark, offset: new THREE.Vector3(-0.21, 0.62, 0), anim: swing(7, 0.35, 0, 0.03, 7) },
+            // Short marching legs
+            { geo: limbGeo(0.05, 0.1), mat: stoneDark, offset: new THREE.Vector3(0.09, 0.32, 0), anim: swing(7, 0.5) },
+            { geo: limbGeo(0.05, 0.1), mat: stoneDark, offset: new THREE.Vector3(-0.09, 0.32, 0), anim: swing(7, 0.5, Math.PI) },
+            // Orbiting energy shield ring
             {
-                geo: new THREE.SphereGeometry(0.07, 8, 8), mat: glowMat, offset: new THREE.Vector3(0, 0.32, 0),
-                anim: (out, t, ph) => { out.s *= 0.9 + Math.sin(t * 5 + ph) * 0.15; out.oy += Math.sin(t * 3 + ph) * 0.03; },
+                geo: new THREE.TorusGeometry(0.29, 0.035, 6, 16), mat: ringMat,
+                offset: new THREE.Vector3(0, 0.55, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0),
+                anim: (out, t, ph) => { out.rz += t * 2.4; out.oy += Math.abs(Math.sin(t * 7 + ph)) * 0.03; },
             },
-            // Horizontal ring
+            // Second gyro ring
             {
-                geo: new THREE.TorusGeometry(0.25, 0.04, 6, 14), mat: ringMat,
-                offset: new THREE.Vector3(0, 0.32, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0),
-                anim: (out, t, ph) => { out.rz += t * 2.4; out.oy += Math.sin(t * 3 + ph) * 0.03; },
-            },
-            // Vertical counter-rotating ring
-            {
-                geo: new THREE.TorusGeometry(0.25, 0.028, 6, 14), mat: ringMat,
-                offset: new THREE.Vector3(0, 0.32, 0),
-                anim: (out, t, ph) => { out.ry -= t * 3.0; out.oy += Math.sin(t * 3 + ph) * 0.03; },
+                geo: new THREE.TorusGeometry(0.29, 0.022, 6, 16), mat: ringMat,
+                offset: new THREE.Vector3(0, 0.55, 0),
+                anim: (out, t, ph) => { out.ry -= t * 3.0; out.oy += Math.abs(Math.sin(t * 7 + ph)) * 0.03; },
                 desktopOnly: true,
             },
         ];
     }
 
-    // ─── Healer: shrine spirit — robed figure with spinning halo and orbiting orbs ───
+    // ─── Healer: shrine priestess — robed figure, waving sleeves, halo, orbiting orbs ───
     {
-        const robeMat = std({ color: 0xff77aa, roughness: 0.7 });
-        const skinMat = std({ color: 0xffe3ec, roughness: 0.5 });
-        const haloMat = std({ color: 0xfff6d8, emissive: 0xffcc88, emissiveIntensity: 0.9 });
-        const orbMat = std({ color: 0xbaffc9, emissive: 0x66ff99, emissiveIntensity: 0.9 });
+        const robe = std({ color: 0xe8608f, roughness: 0.7 });
+        const robeDark = std({ color: 0xb44068, roughness: 0.75 });
+        const skin = std({ color: 0xffe3ec, roughness: 0.5 });
+        const holy = std({ color: 0xfff6d8, emissive: 0xffcc88, emissiveIntensity: 0.9 });
+        const orb = std({ color: 0xbaffc9, emissive: 0x66ff99, emissiveIntensity: 0.9 });
         const drift = hover(0.035, 4);
         configs.healer = [
-            // Robe — tapered cone body
-            { geo: new THREE.ConeGeometry(0.17, 0.42, 8), mat: robeMat, offset: new THREE.Vector3(0, 0.24, 0), anim: drift },
-            // Head
-            { geo: new THREE.SphereGeometry(0.09, 8, 8), mat: skinMat, offset: new THREE.Vector3(0, 0.5, 0), anim: drift },
-            // Chest sigil (cross)
-            { geo: new THREE.BoxGeometry(0.05, 0.14, 0.03), mat: haloMat, offset: new THREE.Vector3(0, 0.3, 0.12), anim: drift },
-            { geo: new THREE.BoxGeometry(0.12, 0.05, 0.03), mat: haloMat, offset: new THREE.Vector3(0, 0.31, 0.12), anim: drift },
+            // Robe body swaying gently
+            {
+                geo: new THREE.ConeGeometry(0.17, 0.46, 8), mat: robe, offset: new THREE.Vector3(0, 0.27, 0),
+                anim: (out, t, ph) => { out.oy += Math.sin(t * 4 + ph) * 0.035; out.rz += Math.sin(t * 3 + ph) * 0.04; },
+            },
+            // Hood + head
+            { geo: new THREE.ConeGeometry(0.1, 0.16, 7), mat: robeDark, offset: new THREE.Vector3(0, 0.58, 0), anim: drift },
+            { geo: new THREE.SphereGeometry(0.075, 8, 7), mat: skin, offset: new THREE.Vector3(0, 0.53, 0.035), anim: drift },
+            // Outstretched sleeve arms, waving as if casting
+            { geo: limbGeo(0.035, 0.13), mat: robe, offset: new THREE.Vector3(0.14, 0.48, 0.04), rotation: new THREE.Euler(-0.9, 0, -0.5), anim: swing(4, 0.25, 0) },
+            { geo: limbGeo(0.035, 0.13), mat: robe, offset: new THREE.Vector3(-0.14, 0.48, 0.04), rotation: new THREE.Euler(-0.9, 0, 0.5), anim: swing(4, 0.25, Math.PI) },
+            // Chest sigil
+            { geo: new THREE.BoxGeometry(0.05, 0.13, 0.03), mat: holy, offset: new THREE.Vector3(0, 0.36, 0.13), anim: drift, desktopOnly: true },
+            { geo: new THREE.BoxGeometry(0.11, 0.05, 0.03), mat: holy, offset: new THREE.Vector3(0, 0.37, 0.13), anim: drift, desktopOnly: true },
             // Spinning halo
             {
-                geo: new THREE.TorusGeometry(0.12, 0.02, 5, 12), mat: haloMat,
-                offset: new THREE.Vector3(0, 0.66, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0),
+                geo: new THREE.TorusGeometry(0.11, 0.018, 5, 14), mat: holy,
+                offset: new THREE.Vector3(0, 0.72, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0),
                 anim: (out, t, ph) => { out.rz += t * 2.2; out.oy += Math.sin(t * 4 + ph) * 0.045; },
             },
             // Orbiting heal orbs
             {
-                geo: new THREE.SphereGeometry(0.035, 6, 6), mat: orbMat, offset: new THREE.Vector3(0, 0.36, 0),
+                geo: new THREE.SphereGeometry(0.033, 6, 6), mat: orb, offset: new THREE.Vector3(0, 0.42, 0),
                 anim: (out, t, ph) => {
-                    out.ox += Math.cos(t * 2.6 + ph) * 0.24;
-                    out.oz += Math.sin(t * 2.6 + ph) * 0.24;
+                    out.ox += Math.cos(t * 2.6 + ph) * 0.25;
+                    out.oz += Math.sin(t * 2.6 + ph) * 0.25;
                     out.oy += Math.sin(t * 5 + ph) * 0.05;
                 },
                 desktopOnly: true,
             },
             {
-                geo: new THREE.SphereGeometry(0.035, 6, 6), mat: orbMat, offset: new THREE.Vector3(0, 0.36, 0),
+                geo: new THREE.SphereGeometry(0.033, 6, 6), mat: orb, offset: new THREE.Vector3(0, 0.42, 0),
                 anim: (out, t, ph) => {
-                    out.ox += Math.cos(t * 2.6 + ph + Math.PI) * 0.24;
-                    out.oz += Math.sin(t * 2.6 + ph + Math.PI) * 0.24;
+                    out.ox += Math.cos(t * 2.6 + ph + Math.PI) * 0.25;
+                    out.oz += Math.sin(t * 2.6 + ph + Math.PI) * 0.25;
                     out.oy += Math.sin(t * 5 + ph + 1.5) * 0.05;
                 },
                 desktopOnly: true,
@@ -272,58 +330,59 @@ function buildEnemyConfigs(): Record<EnemyType, EnemyPartDef[]> {
         ];
     }
 
-    // ─── Boss: warlord — horned juggernaut with pauldrons, visor and floating crown ───
+    // ─── Boss: demon warlord — towering biped, stomping gait, fists, horns, crown ───
     {
-        const bodyMat = std({ color: 0xaa1111, metalness: 0.5, roughness: 0.55, flatShading: true });
-        const armorMat = std({ color: 0x4a0d0d, metalness: 0.7, roughness: 0.4 });
-        const eyeMat = std({ color: 0x220000, emissive: 0xffaa00, emissiveIntensity: 1 });
-        const hornMat = std({ color: 0xe8e0d0, roughness: 0.5 });
-        const coreMat = std({ color: 0xff5522, emissive: 0xff3300, emissiveIntensity: 0.9 });
+        const flesh = std({ color: 0x9e1414, metalness: 0.35, roughness: 0.6, flatShading: true });
+        const armor = std({ color: 0x3a0a0a, metalness: 0.7, roughness: 0.4 });
+        const bone = std({ color: 0xe8e0d0, roughness: 0.5 });
+        const eye = std({ color: 0x220000, emissive: 0xffaa00, emissiveIntensity: 1 });
+        const core = std({ color: 0xff5522, emissive: 0xff3300, emissiveIntensity: 0.9 });
+        const STOMP = 4.5;
         const stomp: AnimFn = (out, t, ph) => {
-            out.oy += Math.abs(Math.sin(t * 5 + ph)) * 0.04;
-            out.rz += Math.sin(t * 5 + ph) * 0.03;
+            out.oy += Math.abs(Math.sin(t * STOMP + ph)) * 0.05;
+            out.rz += Math.sin(t * STOMP + ph) * 0.035;
+        };
+        const fistGeo = (side: number) => {
+            const g = new THREE.SphereGeometry(0.115, 7, 7);
+            g.translate(side * 0.04, -0.52, 0);
+            return g;
         };
         configs.boss = [
-            { geo: new THREE.CapsuleGeometry(0.3, 0.5, 6, 12), mat: bodyMat, offset: new THREE.Vector3(0, 0.5, 0), anim: stomp },
-            // Shoulder pauldrons
-            {
-                geo: new THREE.SphereGeometry(0.16, 8, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat: armorMat,
-                offset: new THREE.Vector3(0.3, 0.72, 0), rotation: new THREE.Euler(0, 0, -0.35), anim: stomp,
-            },
-            {
-                geo: new THREE.SphereGeometry(0.16, 8, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat: armorMat,
-                offset: new THREE.Vector3(-0.3, 0.72, 0), rotation: new THREE.Euler(0, 0, 0.35), anim: stomp,
-            },
-            // Belt plate
-            {
-                geo: new THREE.TorusGeometry(0.31, 0.045, 6, 12), mat: armorMat,
-                offset: new THREE.Vector3(0, 0.42, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0),
-                anim: stomp, desktopOnly: true,
-            },
+            // Massive torso
+            { geo: new THREE.CapsuleGeometry(0.32, 0.4, 6, 12), mat: flesh, offset: new THREE.Vector3(0, 1.02, 0), anim: stomp },
+            // Waist armor
+            { geo: new THREE.TorusGeometry(0.32, 0.055, 6, 12), mat: armor, offset: new THREE.Vector3(0, 0.82, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0), anim: stomp, desktopOnly: true },
+            // Head with jaw
+            { geo: new THREE.SphereGeometry(0.16, 9, 8), mat: flesh, offset: new THREE.Vector3(0, 1.48, 0.05), anim: stomp },
             // Glowing eye visor
-            { geo: new THREE.BoxGeometry(0.3, 0.07, 0.1), mat: eyeMat, offset: new THREE.Vector3(0, 0.68, 0.3), anim: stomp },
-            // Chest core
+            { geo: new THREE.BoxGeometry(0.24, 0.055, 0.08), mat: eye, offset: new THREE.Vector3(0, 1.5, 0.17), anim: stomp },
+            // Bone horns
+            { geo: new THREE.ConeGeometry(0.07, 0.34, 5), mat: bone, offset: new THREE.Vector3(0.15, 1.66, 0.1), rotation: new THREE.Euler(Math.PI / 5, 0, -Math.PI / 6), anim: stomp },
+            { geo: new THREE.ConeGeometry(0.07, 0.34, 5), mat: bone, offset: new THREE.Vector3(-0.15, 1.66, 0.1), rotation: new THREE.Euler(Math.PI / 5, 0, Math.PI / 6), anim: stomp },
+            // Shoulder pauldrons
+            { geo: new THREE.SphereGeometry(0.17, 8, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat: armor, offset: new THREE.Vector3(0.36, 1.3, 0), rotation: new THREE.Euler(0, 0, -0.35), anim: stomp },
+            { geo: new THREE.SphereGeometry(0.17, 8, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat: armor, offset: new THREE.Vector3(-0.36, 1.3, 0), rotation: new THREE.Euler(0, 0, 0.35), anim: stomp },
+            // Massive arms + fists (fist shares the shoulder pivot so it swings with the arm)
+            { geo: limbGeo(0.095, 0.34), mat: flesh, offset: new THREE.Vector3(0.4, 1.26, 0), anim: swing(STOMP, 0.4, Math.PI, 0.05, STOMP) },
+            { geo: limbGeo(0.095, 0.34), mat: flesh, offset: new THREE.Vector3(-0.4, 1.26, 0), anim: swing(STOMP, 0.4, 0, 0.05, STOMP) },
+            { geo: fistGeo(1), mat: armor, offset: new THREE.Vector3(0.4, 1.26, 0), anim: swing(STOMP, 0.4, Math.PI, 0.05, STOMP), desktopOnly: true },
+            { geo: fistGeo(-1), mat: armor, offset: new THREE.Vector3(-0.4, 1.26, 0), anim: swing(STOMP, 0.4, 0, 0.05, STOMP), desktopOnly: true },
+            // Thick stomping legs
+            { geo: limbGeo(0.115, 0.3), mat: armor, offset: new THREE.Vector3(0.17, 0.66, 0), anim: swing(STOMP, 0.5) },
+            { geo: limbGeo(0.115, 0.3), mat: armor, offset: new THREE.Vector3(-0.17, 0.66, 0), anim: swing(STOMP, 0.5, Math.PI) },
+            // Burning chest core
             {
-                geo: new THREE.SphereGeometry(0.08, 8, 8), mat: coreMat, offset: new THREE.Vector3(0, 0.52, 0.3),
+                geo: new THREE.SphereGeometry(0.085, 8, 8), mat: core, offset: new THREE.Vector3(0, 1.12, 0.3),
                 anim: (out, t, ph) => {
                     out.s *= 0.9 + Math.sin(t * 6 + ph) * 0.18;
-                    out.oy += Math.abs(Math.sin(t * 5 + ph)) * 0.04;
+                    out.oy += Math.abs(Math.sin(t * STOMP + ph)) * 0.05;
                 },
-            },
-            // Horns
-            {
-                geo: new THREE.ConeGeometry(0.08, 0.32, 5), mat: hornMat,
-                offset: new THREE.Vector3(0.17, 0.9, 0.12), rotation: new THREE.Euler(Math.PI / 5, 0, -Math.PI / 6), anim: stomp,
-            },
-            {
-                geo: new THREE.ConeGeometry(0.08, 0.32, 5), mat: hornMat,
-                offset: new THREE.Vector3(-0.17, 0.9, 0.12), rotation: new THREE.Euler(Math.PI / 5, 0, Math.PI / 6), anim: stomp,
             },
             // Floating crown ring
             {
-                geo: new THREE.TorusGeometry(0.17, 0.025, 5, 12), mat: coreMat,
-                offset: new THREE.Vector3(0, 1.14, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0),
-                anim: (out, t, ph) => { out.rz += t * 1.8; out.oy += Math.sin(t * 2.4 + ph) * 0.05; },
+                geo: new THREE.TorusGeometry(0.17, 0.024, 5, 12), mat: core,
+                offset: new THREE.Vector3(0, 1.92, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0),
+                anim: (out, t, ph) => { out.rz += t * 1.8; out.oy += Math.sin(t * 2.4 + ph) * 0.06; },
                 desktopOnly: true,
             },
         ];
@@ -378,6 +437,10 @@ export class EnemyRenderer {
 
     constructor(scene: THREE.Scene) {
         this.scene = scene;
+        // Yaw-first rotation order so facing (Y) composes with limb pitch (X)
+        // and static part tilts in the enemy's own frame — with the default
+        // XYZ order, any part with an X rotation stopped following the path.
+        this.dummy.rotation.order = 'YXZ';
         this.initPool();
     }
 
@@ -492,7 +555,7 @@ export class EnemyRenderer {
         for (let i = 0; i < n; i++) {
             const e = living[i];
             const isBoss = e.type === 'boss';
-            const barY = isBoss ? 1.2 : 0.9;
+            const barY = ENEMY_META[e.type].barY;
 
             const hpRatio = Math.max(0, e.hp / e.maxHp);
             const hpW = HP_BAR_WIDTH * hpRatio;
@@ -533,7 +596,7 @@ export class EnemyRenderer {
             // Contact shadow + status halo — desktop only (skip on mobile to save draw calls)
             if (!GRAPHICS.isMobile && i < this.poolShadow.length) {
                 const shadow = this.poolShadow[i];
-                shadow.scale.setScalar(isBoss ? 1.62 : 1); // boss shadow ~0.42 vs normal 0.26
+                shadow.scale.setScalar(ENEMY_META[e.type].shadowScale);
                 shadow.position.set(e.worldX, 0.01, e.worldZ);
                 shadow.visible = true;
 
