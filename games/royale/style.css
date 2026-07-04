@@ -1,0 +1,562 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #1a2a12;
+    font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+#game-root {
+    position: fixed;
+    inset: 0;
+}
+
+#canvas-holder,
+#canvas-holder canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* ---------- HUD ---------- */
+#hud {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+#hud-top {
+    position: absolute;
+    top: max(8px, env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    pointer-events: none;
+}
+
+.crown-box {
+    padding: 4px 12px;
+    border-radius: 10px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .6);
+    border: 2px solid rgba(255, 255, 255, .25);
+}
+
+.crown-box.enemy {
+    background: rgba(160, 40, 30, .8);
+}
+
+.crown-box.player {
+    background: rgba(35, 90, 160, .8);
+}
+
+#timer-box {
+    text-align: center;
+}
+
+#timer {
+    font-size: 24px;
+    font-weight: 800;
+    color: #ffe9b0;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, .7);
+    letter-spacing: 1px;
+}
+
+#timer.urgent {
+    color: #ff7a5a;
+}
+
+#phase-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #c99aff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .8);
+    min-height: 14px;
+}
+
+#mute-btn,
+#quit-btn {
+    position: absolute;
+    top: max(8px, env(safe-area-inset-top));
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    border: 2px solid rgba(255, 255, 255, .3);
+    background: rgba(20, 30, 15, .65);
+    font-size: 18px;
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+#mute-btn {
+    right: 10px;
+}
+
+#quit-btn {
+    left: 10px;
+}
+
+/* ---------- 手牌區 ---------- */
+#hand-area {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: max(6px, env(safe-area-inset-bottom));
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    gap: 6px 8px;
+    padding: 8px;
+    background: rgba(18, 26, 12, .82);
+    border: 2px solid #6a5230;
+    border-radius: 14px;
+    pointer-events: auto;
+    width: min(96vw, 460px);
+}
+
+#next-box {
+    grid-row: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+}
+
+.next-label {
+    font-size: 10px;
+    color: #b8a888;
+}
+
+#cards {
+    grid-row: 1;
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+
+.card {
+    position: relative;
+    width: 76px;
+    height: 92px;
+    border-radius: 10px;
+    border: 2px solid #8a6a3a;
+    background: linear-gradient(180deg, #3a4a2a, #2a3620);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    cursor: grab;
+    transition: transform .12s, box-shadow .12s;
+    color: #fff;
+}
+
+.card .icon {
+    font-size: 30px;
+    line-height: 1;
+}
+
+.card .name {
+    font-size: 12px;
+    font-weight: 700;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .7);
+}
+
+.card .cost {
+    position: absolute;
+    top: -7px;
+    left: -7px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #e07aff, #9a2ad8);
+    border: 2px solid #fff;
+    font-size: 13px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, .5);
+}
+
+.card.unaffordable {
+    filter: grayscale(.7) brightness(.6);
+    cursor: not-allowed;
+}
+
+.card.selected,
+.card:not(.unaffordable):active {
+    transform: translateY(-8px) scale(1.06);
+    box-shadow: 0 6px 18px rgba(255, 220, 120, .35);
+    border-color: #ffd870;
+}
+
+.card.mini {
+    width: 46px;
+    height: 56px;
+    cursor: default;
+    opacity: .85;
+}
+
+.card.mini .icon {
+    font-size: 20px;
+}
+
+.card.mini .name {
+    font-size: 9px;
+}
+
+.card.mini .cost {
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
+    top: -5px;
+    left: -5px;
+}
+
+/* ---------- 聖水條 ---------- */
+#elixir-row {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#elixir-num {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #e07aff, #8a1ac8);
+    border: 2px solid #fff;
+    color: #fff;
+    font-weight: 800;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+#elixir-bar {
+    position: relative;
+    flex: 1;
+    height: 18px;
+    border-radius: 9px;
+    background: #241830;
+    border: 2px solid #5a3a78;
+    overflow: hidden;
+}
+
+#elixir-fill {
+    position: absolute;
+    inset: 0;
+    width: 50%;
+    background: linear-gradient(90deg, #b04ae0, #e07aff);
+    border-radius: 7px;
+    transition: width .15s linear;
+}
+
+#elixir-fill.boost {
+    background: linear-gradient(90deg, #e0489a, #ff8ac8);
+}
+
+#elixir-ticks {
+    position: absolute;
+    inset: 0;
+    display: flex;
+}
+
+#elixir-ticks span {
+    flex: 1;
+    border-right: 1px solid rgba(0, 0, 0, .35);
+}
+
+#elixir-ticks span:last-child {
+    border-right: none;
+}
+
+/* ---------- 橫額 ---------- */
+#banner {
+    position: absolute;
+    top: 34%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 12px 34px;
+    font-size: clamp(22px, 5vw, 40px);
+    font-weight: 900;
+    color: #ffe9b0;
+    background: rgba(20, 14, 6, .82);
+    border: 3px solid #c8a050;
+    border-radius: 16px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, .8);
+    pointer-events: none;
+    animation: bannerPop .35s ease-out;
+    white-space: nowrap;
+    z-index: 30;
+}
+
+@keyframes bannerPop {
+    from {
+        transform: translate(-50%, -50%) scale(.5);
+        opacity: 0;
+    }
+
+    to {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+    }
+}
+
+/* ---------- 畫面（開始/結算） ---------- */
+.screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10, 16, 6, .78);
+    z-index: 50;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.panel {
+    background: linear-gradient(180deg, #35482a, #243418);
+    border: 3px solid #8a6a3a;
+    border-radius: 20px;
+    padding: clamp(16px, 4vw, 32px);
+    max-width: 560px;
+    width: 100%;
+    text-align: center;
+    color: #f0e8d0;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .6);
+    max-height: 96vh;
+    overflow-y: auto;
+}
+
+.panel h1 {
+    font-size: clamp(26px, 6vw, 40px);
+    color: #ffe9b0;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, .6);
+    margin-bottom: 6px;
+}
+
+.subtitle {
+    font-size: 14px;
+    color: #c8bc9a;
+    margin-bottom: 14px;
+}
+
+.section-label {
+    font-size: 14px;
+    font-weight: 700;
+    color: #d8cca8;
+    margin: 14px 0 8px;
+    text-align: left;
+}
+
+#deck-count {
+    float: right;
+    color: #8fd86a;
+}
+
+#deck-count.bad {
+    color: #ff8a6a;
+}
+
+#difficulty-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+
+.diff-btn {
+    flex: 1;
+    padding: 10px 6px;
+    font-size: 15px;
+    font-weight: 700;
+    border-radius: 12px;
+    border: 2px solid #6a5230;
+    background: #2a3620;
+    color: #d8cca8;
+    cursor: pointer;
+}
+
+.diff-btn.selected {
+    background: #5a7a38;
+    border-color: #ffd870;
+    color: #fff;
+}
+
+#deck-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.deck-card {
+    position: relative;
+    border-radius: 10px;
+    border: 2px solid #55452a;
+    background: #222c18;
+    padding: 8px 4px 6px;
+    cursor: pointer;
+    color: #9a927e;
+    transition: transform .1s;
+}
+
+.deck-card .icon {
+    font-size: 26px;
+}
+
+.deck-card .name {
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.deck-card .desc {
+    font-size: 9px;
+    line-height: 1.25;
+    min-height: 24px;
+    margin-top: 2px;
+    color: #8a8270;
+}
+
+.deck-card .cost {
+    position: absolute;
+    top: -6px;
+    left: -6px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #e07aff, #9a2ad8);
+    border: 2px solid #fff;
+    font-size: 12px;
+    font-weight: 800;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.deck-card.picked {
+    border-color: #ffd870;
+    background: #3a4a28;
+    color: #fff;
+    transform: scale(1.03);
+}
+
+.deck-card.picked .desc {
+    color: #c8bc9a;
+}
+
+.big-btn {
+    display: block;
+    width: 100%;
+    margin-top: 16px;
+    padding: 14px;
+    font-size: 20px;
+    font-weight: 800;
+    color: #3a2a10;
+    background: linear-gradient(180deg, #ffd870, #d8a038);
+    border: 3px solid #8a6a3a;
+    border-radius: 14px;
+    cursor: pointer;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, .4);
+}
+
+.big-btn:active {
+    transform: scale(.97);
+}
+
+.big-btn.secondary {
+    background: linear-gradient(180deg, #7a8a68, #55663f);
+    color: #f0e8d0;
+    font-size: 16px;
+    padding: 10px;
+    text-shadow: none;
+}
+
+.big-btn:disabled {
+    filter: grayscale(.8) brightness(.7);
+    cursor: not-allowed;
+}
+
+.hint {
+    margin-top: 12px;
+    font-size: 12px;
+    color: #a89c7e;
+    line-height: 1.5;
+}
+
+#end-crowns {
+    font-size: 20px;
+    margin: 12px 0;
+    line-height: 1.8;
+}
+
+/* ---------- 細螢幕適配 ---------- */
+@media (max-width: 480px) {
+    .card {
+        width: 64px;
+        height: 80px;
+    }
+
+    .card .icon {
+        font-size: 25px;
+    }
+
+    .card .name {
+        font-size: 11px;
+    }
+
+    #deck-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+    }
+
+    .deck-card .desc {
+        display: none;
+    }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+    #hand-area {
+        left: auto;
+        right: 8px;
+        transform: none;
+        width: auto;
+    }
+
+    .card {
+        width: 58px;
+        height: 72px;
+    }
+
+    .card .icon {
+        font-size: 22px;
+    }
+}

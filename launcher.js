@@ -58,6 +58,14 @@ const games = [
         playable: true
     },
     {
+        id: 'royale',
+        title: '帝國皇家戰',
+        subtitle: '⚔️ 即時對戰 3D 塔防！出兵過河攻陷敵方城堡',
+        icon: '🏯',
+        link: 'games/royale/index.html',
+        playable: true
+    },
+    {
         id: 'xiangqi',
         title: '中國象棋',
         subtitle: '中國象棋！挑戰進階 AI',
