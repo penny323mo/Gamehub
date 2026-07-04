@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2a4a1e">
+    <title>帝國皇家戰 Empire Royale</title>
+    <link rel="stylesheet" href="style.css">
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "./vendor/three.module.min.js"
+        }
+    }
+    </script>
+</head>
+
+<body>
+    <div id="game-root">
+        <div id="canvas-holder"></div>
+
+        <!-- 對戰 HUD -->
+        <div id="hud" class="hidden">
+            <div id="hud-top">
+                <div class="crown-box enemy">👑 <span id="crowns-enemy">0</span></div>
+                <div id="timer-box">
+                    <div id="timer">3:00</div>
+                    <div id="phase-label"></div>
+                </div>
+                <div class="crown-box player">👑 <span id="crowns-player">0</span></div>
+            </div>
+            <button id="mute-btn" title="靜音">🔊</button>
+            <button id="quit-btn" title="投降離開">🏳️</button>
+
+            <div id="hand-area">
+                <div id="next-box">
+                    <div class="next-label">下一張</div>
+                    <div id="next-card" class="card mini"></div>
+                </div>
+                <div id="cards"></div>
+                <div id="elixir-row">
+                    <div id="elixir-num">5</div>
+                    <div id="elixir-bar"><div id="elixir-fill"></div><div id="elixir-ticks"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 中央橫額提示 -->
+        <div id="banner" class="hidden"></div>
+
+        <!-- 開始畫面 -->
+        <div id="screen-start" class="screen">
+            <div class="panel">
+                <h1>⚔️ 帝國皇家戰</h1>
+                <p class="subtitle">即時戰略塔防 — 派兵過河，攻陷敵方城堡！</p>
+                <div class="section-label">難度</div>
+                <div id="difficulty-row">
+                    <button class="diff-btn" data-diff="easy">🙂 簡單</button>
+                    <button class="diff-btn selected" data-diff="normal">😐 普通</button>
+                    <button class="diff-btn" data-diff="hard">😈 困難</button>
+                </div>
+                <div class="section-label">你嘅卡組（揀 8 張）<span id="deck-count">8/8</span></div>
+                <div id="deck-grid"></div>
+                <button id="start-btn" class="big-btn">開戰！</button>
+                <p class="hint">💡 拖卡落戰場出兵 · 聖水會自動回復 · 3 分鐘內攻陷更多城塔就贏</p>
+            </div>
+        </div>
+
+        <!-- 結算畫面 -->
+        <div id="screen-end" class="screen hidden">
+            <div class="panel">
+                <h1 id="end-title">勝利！</h1>
+                <div id="end-crowns"></div>
+                <button id="again-btn" class="big-btn">再嚟一局</button>
+                <button id="menu-btn" class="big-btn secondary">返回選單</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="src/main.js"></script>
+</body>
+
+</html>
