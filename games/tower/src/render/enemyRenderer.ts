@@ -2,92 +2,339 @@ import * as THREE from 'three';
 import type { GameState, EnemyType, Enemy } from '../core/types';
 import { GRAPHICS } from '../core/config';
 
+/**
+ * Per-part animation output — offsets are applied on top of the part's static
+ * offset/rotation, `s` is a uniform scale multiplier.
+ */
+interface AnimResult {
+    ox: number; oy: number; oz: number;
+    rx: number; ry: number; rz: number;
+    s: number;
+}
+
+type AnimFn = (out: AnimResult, time: number, phase: number) => void;
+
 interface EnemyPartDef {
     geo: THREE.BufferGeometry;
     mat: THREE.Material;
     offset: THREE.Vector3;
     rotation?: THREE.Euler;
     scale?: THREE.Vector3;
+    /** Decorative part — skipped on mobile to save draw calls. */
+    desktopOnly?: boolean;
+    anim?: AnimFn;
 }
 
+// Reusable anim helpers
+const walkBob = (amp: number, speed = 10): AnimFn => (out, t, ph) => {
+    out.oy += Math.abs(Math.sin(t * speed + ph)) * amp;
+};
+const hover = (amp: number, speed: number): AnimFn => (out, t, ph) => {
+    out.oy += Math.sin(t * speed + ph) * amp;
+};
+const spinY = (speed: number): AnimFn => (out, t) => {
+    out.ry += t * speed;
+};
+
 function buildEnemyConfigs(): Record<EnemyType, EnemyPartDef[]> {
-    const configs: Record<EnemyType, EnemyPartDef[]> = {} as any;
+    const configs: Record<EnemyType, EnemyPartDef[]> = {} as Record<EnemyType, EnemyPartDef[]>;
 
-    // Helpers to swap materials on mobile
-    const MaterialClass = GRAPHICS.isMobile ? THREE.MeshLambertMaterial : THREE.MeshStandardMaterial;
+    const std = (opts: Record<string, unknown>): THREE.Material => {
+        if (GRAPHICS.isMobile) {
+            const { roughness: _r, metalness: _m, flatShading: _f, ...rest } = opts;
+            return new THREE.MeshLambertMaterial(rest as THREE.MeshLambertMaterialParameters);
+        }
+        return new THREE.MeshStandardMaterial(opts as THREE.MeshStandardMaterialParameters);
+    };
 
-    // Grunt: 身體（capsule）+ 頭（sphere）
-    const gruntBody = new THREE.CapsuleGeometry(0.12, 0.2, 4, 8);
-    const gruntHead = new THREE.SphereGeometry(0.14, 8, 8);
-    const gruntMat = new MaterialClass({ color: 0xee8833, ...(GRAPHICS.isMobile ? {} : { roughness: 0.8 }) });
-    const gruntHeadMat = new MaterialClass({ color: 0xffaa55, ...(GRAPHICS.isMobile ? {} : { roughness: 0.6 }) });
-    configs.grunt = [
-        { geo: gruntBody, mat: gruntMat, offset: new THREE.Vector3(0, 0.2, 0) },
-        { geo: gruntHead, mat: gruntHeadMat, offset: new THREE.Vector3(0, 0.45, 0.05) }
-    ];
+    // ─── Grunt: goblin raider — body, head, ears, glowing eyes, swinging arms ───
+    {
+        const bodyMat = std({ color: 0xee8833, roughness: 0.8 });
+        const skinMat = std({ color: 0xffaa55, roughness: 0.6 });
+        const eyeMat = std({ color: 0x331100, emissive: 0xffdd33, emissiveIntensity: 0.9 });
+        const bodyBob = walkBob(0.035);
+        const earGeo = new THREE.ConeGeometry(0.045, 0.14, 4);
+        const armGeo = new THREE.CapsuleGeometry(0.035, 0.12, 3, 5);
+        configs.grunt = [
+            { geo: new THREE.CapsuleGeometry(0.12, 0.2, 4, 8), mat: bodyMat, offset: new THREE.Vector3(0, 0.2, 0), anim: bodyBob },
+            { geo: new THREE.SphereGeometry(0.13, 8, 8), mat: skinMat, offset: new THREE.Vector3(0, 0.45, 0.05), anim: bodyBob },
+            // Ears — swept back cones
+            {
+                geo: earGeo, mat: skinMat, offset: new THREE.Vector3(0.11, 0.52, 0.0),
+                rotation: new THREE.Euler(0, 0, -1.9), anim: bodyBob, desktopOnly: true,
+            },
+            {
+                geo: earGeo, mat: skinMat, offset: new THREE.Vector3(-0.11, 0.52, 0.0),
+                rotation: new THREE.Euler(0, 0, 1.9), anim: bodyBob, desktopOnly: true,
+            },
+            // Eye band
+            { geo: new THREE.BoxGeometry(0.14, 0.035, 0.04), mat: eyeMat, offset: new THREE.Vector3(0, 0.46, 0.16), anim: bodyBob },
+            // Swinging arms
+            {
+                geo: armGeo, mat: bodyMat, offset: new THREE.Vector3(0.15, 0.24, 0), desktopOnly: true,
+                anim: (out, t, ph) => { out.rx += Math.sin(t * 10 + ph) * 0.7; },
+            },
+            {
+                geo: armGeo, mat: bodyMat, offset: new THREE.Vector3(-0.15, 0.24, 0), desktopOnly: true,
+                anim: (out, t, ph) => { out.rx += Math.sin(t * 10 + ph + Math.PI) * 0.7; },
+            },
+        ];
+    }
 
-    // Tank: 龜殼（半球扁平）+ 腳 + 頭
-    const tankShell = new THREE.SphereGeometry(0.3, 12, 12, 0, Math.PI * 2, 0, Math.PI / 2);
-    const tankMat = new MaterialClass({ color: 0x9944cc, ...(GRAPHICS.isMobile ? {} : { roughness: 0.9, metalness: 0.2 }) });
-    const tankHeadMat = new MaterialClass({ color: 0x7722aa });
-    const tankHead = new THREE.SphereGeometry(0.15, 8, 8);
-    configs.tank = [
-        { geo: tankShell, mat: tankMat, offset: new THREE.Vector3(0, 0.2, 0), scale: new THREE.Vector3(1, 0.6, 1.2) },
-        { geo: tankHead, mat: tankHeadMat, offset: new THREE.Vector3(0, 0.2, 0.35) }
-    ];
+    // ─── Tank: armored siege beetle — spiked shell, rim plating, head ───
+    {
+        const shellMat = std({ color: 0x9944cc, roughness: 0.85, metalness: 0.25, flatShading: true });
+        const plateMat = std({ color: 0x5e2a80, roughness: 0.6, metalness: 0.45 });
+        const headMat = std({ color: 0x7722aa, roughness: 0.7 });
+        const sway: AnimFn = (out, t, ph) => { out.rz += Math.sin(t * 4 + ph) * 0.05; };
+        const spikeGeo = new THREE.ConeGeometry(0.05, 0.14, 5);
+        configs.tank = [
+            {
+                geo: new THREE.SphereGeometry(0.3, 12, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+                mat: shellMat, offset: new THREE.Vector3(0, 0.2, 0),
+                scale: new THREE.Vector3(1, 0.62, 1.2), anim: sway,
+            },
+            // Armored rim skirt
+            {
+                geo: new THREE.TorusGeometry(0.28, 0.045, 6, 14), mat: plateMat,
+                offset: new THREE.Vector3(0, 0.16, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0),
+                scale: new THREE.Vector3(1, 1.18, 1), anim: sway,
+            },
+            // Spine spikes
+            { geo: spikeGeo, mat: plateMat, offset: new THREE.Vector3(0, 0.42, 0), anim: sway, desktopOnly: true },
+            {
+                geo: spikeGeo, mat: plateMat, offset: new THREE.Vector3(0, 0.36, -0.18),
+                rotation: new THREE.Euler(-0.5, 0, 0), anim: sway, desktopOnly: true,
+            },
+            {
+                geo: spikeGeo, mat: plateMat, offset: new THREE.Vector3(0, 0.36, 0.18),
+                rotation: new THREE.Euler(0.5, 0, 0), anim: sway, desktopOnly: true,
+            },
+            // Head with slight nod
+            {
+                geo: new THREE.SphereGeometry(0.14, 8, 8), mat: headMat, offset: new THREE.Vector3(0, 0.18, 0.36),
+                anim: (out, t, ph) => { out.oy += Math.sin(t * 6 + ph) * 0.015; },
+            },
+        ];
+    }
 
-    // Runner: 流線形身體 (Cone)
-    const runnerBody = new THREE.ConeGeometry(0.15, 0.4, 6);
-    const runnerMat = new MaterialClass({ color: 0x33cc55, ...(GRAPHICS.isMobile ? {} : { roughness: 0.5 }) });
-    configs.runner = [
-        { geo: runnerBody, mat: runnerMat, offset: new THREE.Vector3(0, 0.2, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0) }
-    ];
+    // ─── Runner: velociraptor drone — sleek dart with fins and exhaust glow ───
+    {
+        const bodyMat = std({ color: 0x33cc55, roughness: 0.45, metalness: 0.2 });
+        const finMat = std({ color: 0x1e8f38, roughness: 0.5, side: THREE.DoubleSide });
+        const glowMat = std({ color: 0xbbffcc, emissive: 0x66ff88, emissiveIntensity: 1.0 });
+        const dash: AnimFn = (out, t, ph) => {
+            out.oy += Math.abs(Math.sin(t * 14 + ph)) * 0.05;
+            out.rx += Math.sin(t * 14 + ph) * 0.06;
+        };
+        const finGeo = new THREE.PlaneGeometry(0.16, 0.1);
+        configs.runner = [
+            {
+                geo: new THREE.ConeGeometry(0.13, 0.44, 6), mat: bodyMat,
+                offset: new THREE.Vector3(0, 0.2, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0), anim: dash,
+            },
+            // Dorsal tail fin
+            {
+                geo: new THREE.PlaneGeometry(0.22, 0.14), mat: finMat,
+                offset: new THREE.Vector3(0, 0.3, -0.16), rotation: new THREE.Euler(0.35, Math.PI / 2, 0),
+                anim: dash, desktopOnly: true,
+            },
+            // Side fins, swept back
+            {
+                geo: finGeo, mat: finMat, offset: new THREE.Vector3(0.12, 0.2, -0.08),
+                rotation: new THREE.Euler(0, -0.7, -0.5), anim: dash, desktopOnly: true,
+            },
+            {
+                geo: finGeo, mat: finMat, offset: new THREE.Vector3(-0.12, 0.2, -0.08),
+                rotation: new THREE.Euler(0, 0.7, 0.5), anim: dash, desktopOnly: true,
+            },
+            // Exhaust glow at the tail
+            {
+                geo: new THREE.SphereGeometry(0.05, 6, 6), mat: glowMat, offset: new THREE.Vector3(0, 0.2, -0.22),
+                anim: (out, t, ph) => { out.s *= 0.85 + Math.abs(Math.sin(t * 18 + ph)) * 0.45; },
+            },
+        ];
+    }
 
-    // Swarm: 小蟲形：翅膀（plane）+ 身體（小 capsule）
-    const swarmBody = new THREE.CapsuleGeometry(0.06, 0.15, 4, 6);
-    const swarmWing = new THREE.PlaneGeometry(0.3, 0.15);
-    const swarmMat = new MaterialClass({ color: 0x996633 });
-    const wingMat = new MaterialClass({ color: 0xdddddd, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
-    configs.swarm = [
-        { geo: swarmBody, mat: swarmMat, offset: new THREE.Vector3(0, 0.3, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0) },
-        { geo: swarmWing, mat: wingMat, offset: new THREE.Vector3(0, 0.35, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0) }
-    ];
+    // ─── Swarm: hornet — body, two flapping wings, stinger, eyes ───
+    {
+        const bodyMat = std({ color: 0xa8742f, roughness: 0.6 });
+        const stripeMat = std({ color: 0x3a2a10, roughness: 0.7 });
+        const wingMat = std({ color: 0xdddddd, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+        const eyeMat = std({ color: 0x220000, emissive: 0xff4444, emissiveIntensity: 0.8 });
+        const buzz = hover(0.08, 10);
+        const wingGeo = new THREE.PlaneGeometry(0.17, 0.09);
+        configs.swarm = [
+            {
+                geo: new THREE.CapsuleGeometry(0.06, 0.16, 4, 6), mat: bodyMat,
+                offset: new THREE.Vector3(0, 0.32, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0), anim: buzz,
+            },
+            // Abdomen stripe ring
+            {
+                geo: new THREE.TorusGeometry(0.058, 0.018, 4, 8), mat: stripeMat,
+                offset: new THREE.Vector3(0, 0.32, -0.05), anim: buzz, desktopOnly: true,
+            },
+            // Wings flapping in opposite phase
+            {
+                geo: wingGeo, mat: wingMat, offset: new THREE.Vector3(0.09, 0.37, 0.02),
+                rotation: new THREE.Euler(Math.PI / 2, 0, 0.25),
+                anim: (out, t, ph) => { out.oy += Math.sin(t * 10 + ph) * 0.08; out.rz += Math.sin(t * 32 + ph) * 0.6; },
+            },
+            {
+                geo: wingGeo, mat: wingMat, offset: new THREE.Vector3(-0.09, 0.37, 0.02),
+                rotation: new THREE.Euler(Math.PI / 2, 0, -0.25),
+                anim: (out, t, ph) => { out.oy += Math.sin(t * 10 + ph) * 0.08; out.rz -= Math.sin(t * 32 + ph) * 0.6; },
+            },
+            // Stinger
+            {
+                geo: new THREE.ConeGeometry(0.03, 0.1, 5), mat: stripeMat,
+                offset: new THREE.Vector3(0, 0.32, -0.14), rotation: new THREE.Euler(-Math.PI / 2, 0, 0),
+                anim: buzz, desktopOnly: true,
+            },
+            // Eyes
+            { geo: new THREE.SphereGeometry(0.028, 5, 5), mat: eyeMat, offset: new THREE.Vector3(0.035, 0.34, 0.12), anim: buzz },
+            { geo: new THREE.SphereGeometry(0.028, 5, 5), mat: eyeMat, offset: new THREE.Vector3(-0.035, 0.34, 0.12), anim: buzz },
+        ];
+    }
 
-    // Shield: 核心球 + 外層半透明能量盾 ring
-    const shieldCore = new THREE.DodecahedronGeometry(0.15);
-    const shieldRing = new THREE.TorusGeometry(0.25, 0.05, 6, 12);
-    const shieldCoreMat = new MaterialClass({ color: 0x1155cc });
-    const shieldRingMat = new MaterialClass({ color: 0x3388ff, transparent: true, opacity: 0.7, emissive: 0x114488 });
-    configs.shield = [
-        { geo: shieldCore, mat: shieldCoreMat, offset: new THREE.Vector3(0, 0.3, 0) },
-        { geo: shieldRing, mat: shieldRingMat, offset: new THREE.Vector3(0, 0.3, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0) }
-    ];
+    // ─── Shield: gyro sentinel — spinning core inside counter-rotating rings ───
+    {
+        const coreMat = std({ color: 0x1155cc, roughness: 0.35, metalness: 0.5, flatShading: true });
+        const glowMat = std({ color: 0x66bbff, emissive: 0x3388ff, emissiveIntensity: 0.9 });
+        const ringMat = std({ color: 0x3388ff, transparent: true, opacity: 0.7, emissive: 0x114488 });
+        const float = hover(0.03, 3);
+        configs.shield = [
+            {
+                geo: new THREE.DodecahedronGeometry(0.15), mat: coreMat, offset: new THREE.Vector3(0, 0.32, 0),
+                anim: (out, t, ph) => { out.ry += t * 1.6; out.oy += Math.sin(t * 3 + ph) * 0.03; },
+            },
+            // Inner energy core
+            {
+                geo: new THREE.SphereGeometry(0.07, 8, 8), mat: glowMat, offset: new THREE.Vector3(0, 0.32, 0),
+                anim: (out, t, ph) => { out.s *= 0.9 + Math.sin(t * 5 + ph) * 0.15; out.oy += Math.sin(t * 3 + ph) * 0.03; },
+            },
+            // Horizontal ring
+            {
+                geo: new THREE.TorusGeometry(0.25, 0.04, 6, 14), mat: ringMat,
+                offset: new THREE.Vector3(0, 0.32, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0),
+                anim: (out, t, ph) => { out.rz += t * 2.4; out.oy += Math.sin(t * 3 + ph) * 0.03; },
+            },
+            // Vertical counter-rotating ring
+            {
+                geo: new THREE.TorusGeometry(0.25, 0.028, 6, 14), mat: ringMat,
+                offset: new THREE.Vector3(0, 0.32, 0),
+                anim: (out, t, ph) => { out.ry -= t * 3.0; out.oy += Math.sin(t * 3 + ph) * 0.03; },
+                desktopOnly: true,
+            },
+        ];
+    }
 
-    // Healer: 十字形 + 光環
-    const healerV = new THREE.BoxGeometry(0.1, 0.3, 0.1);
-    const healerH = new THREE.BoxGeometry(0.3, 0.1, 0.1);
-    const healerRing = new THREE.TorusGeometry(0.2, 0.03, 6, 12);
-    const healerMat = new MaterialClass({ color: 0xff77aa });
-    const healerRingMat = new MaterialClass({ color: 0xffffee, emissive: 0xffaaaa });
-    configs.healer = [
-        { geo: healerV, mat: healerMat, offset: new THREE.Vector3(0, 0.3, 0) },
-        { geo: healerH, mat: healerMat, offset: new THREE.Vector3(0, 0.3, 0) },
-        { geo: healerRing, mat: healerRingMat, offset: new THREE.Vector3(0, 0.5, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0) }
-    ];
+    // ─── Healer: shrine spirit — robed figure with spinning halo and orbiting orbs ───
+    {
+        const robeMat = std({ color: 0xff77aa, roughness: 0.7 });
+        const skinMat = std({ color: 0xffe3ec, roughness: 0.5 });
+        const haloMat = std({ color: 0xfff6d8, emissive: 0xffcc88, emissiveIntensity: 0.9 });
+        const orbMat = std({ color: 0xbaffc9, emissive: 0x66ff99, emissiveIntensity: 0.9 });
+        const drift = hover(0.035, 4);
+        configs.healer = [
+            // Robe — tapered cone body
+            { geo: new THREE.ConeGeometry(0.17, 0.42, 8), mat: robeMat, offset: new THREE.Vector3(0, 0.24, 0), anim: drift },
+            // Head
+            { geo: new THREE.SphereGeometry(0.09, 8, 8), mat: skinMat, offset: new THREE.Vector3(0, 0.5, 0), anim: drift },
+            // Chest sigil (cross)
+            { geo: new THREE.BoxGeometry(0.05, 0.14, 0.03), mat: haloMat, offset: new THREE.Vector3(0, 0.3, 0.12), anim: drift },
+            { geo: new THREE.BoxGeometry(0.12, 0.05, 0.03), mat: haloMat, offset: new THREE.Vector3(0, 0.31, 0.12), anim: drift },
+            // Spinning halo
+            {
+                geo: new THREE.TorusGeometry(0.12, 0.02, 5, 12), mat: haloMat,
+                offset: new THREE.Vector3(0, 0.66, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0),
+                anim: (out, t, ph) => { out.rz += t * 2.2; out.oy += Math.sin(t * 4 + ph) * 0.045; },
+            },
+            // Orbiting heal orbs
+            {
+                geo: new THREE.SphereGeometry(0.035, 6, 6), mat: orbMat, offset: new THREE.Vector3(0, 0.36, 0),
+                anim: (out, t, ph) => {
+                    out.ox += Math.cos(t * 2.6 + ph) * 0.24;
+                    out.oz += Math.sin(t * 2.6 + ph) * 0.24;
+                    out.oy += Math.sin(t * 5 + ph) * 0.05;
+                },
+                desktopOnly: true,
+            },
+            {
+                geo: new THREE.SphereGeometry(0.035, 6, 6), mat: orbMat, offset: new THREE.Vector3(0, 0.36, 0),
+                anim: (out, t, ph) => {
+                    out.ox += Math.cos(t * 2.6 + ph + Math.PI) * 0.24;
+                    out.oz += Math.sin(t * 2.6 + ph + Math.PI) * 0.24;
+                    out.oy += Math.sin(t * 5 + ph + 1.5) * 0.05;
+                },
+                desktopOnly: true,
+            },
+        ];
+    }
 
-    // Boss: 巨大複合體：帶角頭盔 + 厚甲 + 發光眼
-    const bossBody = new THREE.CapsuleGeometry(0.3, 0.5, 6, 12);
-    const bossMat = new MaterialClass({ color: 0xaa1111, ...(GRAPHICS.isMobile ? {} : { metalness: 0.5, roughness: 0.6 }) });
-    const bossEye = new THREE.BoxGeometry(0.3, 0.08, 0.1);
-    const bossEyeMat = new MaterialClass({ color: 0x222222, emissive: 0xffaa00, ...(GRAPHICS.isMobile ? {} : { emissiveIntensity: 1 }) });
-    const bossHorn = new THREE.ConeGeometry(0.08, 0.3, 4);
-    const bossHornMat = new MaterialClass({ color: 0xeeeeee });
-    configs.boss = [
-        { geo: bossBody, mat: bossMat, offset: new THREE.Vector3(0, 0.5, 0) },
-        { geo: bossEye, mat: bossEyeMat, offset: new THREE.Vector3(0, 0.65, 0.3) },
-        { geo: bossHorn, mat: bossHornMat, offset: new THREE.Vector3(0.15, 0.85, 0.15), rotation: new THREE.Euler(Math.PI / 4, 0, -Math.PI / 6) },
-        { geo: bossHorn, mat: bossHornMat, offset: new THREE.Vector3(-0.15, 0.85, 0.15), rotation: new THREE.Euler(Math.PI / 4, 0, Math.PI / 6) },
-    ];
+    // ─── Boss: warlord — horned juggernaut with pauldrons, visor and floating crown ───
+    {
+        const bodyMat = std({ color: 0xaa1111, metalness: 0.5, roughness: 0.55, flatShading: true });
+        const armorMat = std({ color: 0x4a0d0d, metalness: 0.7, roughness: 0.4 });
+        const eyeMat = std({ color: 0x220000, emissive: 0xffaa00, emissiveIntensity: 1 });
+        const hornMat = std({ color: 0xe8e0d0, roughness: 0.5 });
+        const coreMat = std({ color: 0xff5522, emissive: 0xff3300, emissiveIntensity: 0.9 });
+        const stomp: AnimFn = (out, t, ph) => {
+            out.oy += Math.abs(Math.sin(t * 5 + ph)) * 0.04;
+            out.rz += Math.sin(t * 5 + ph) * 0.03;
+        };
+        configs.boss = [
+            { geo: new THREE.CapsuleGeometry(0.3, 0.5, 6, 12), mat: bodyMat, offset: new THREE.Vector3(0, 0.5, 0), anim: stomp },
+            // Shoulder pauldrons
+            {
+                geo: new THREE.SphereGeometry(0.16, 8, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat: armorMat,
+                offset: new THREE.Vector3(0.3, 0.72, 0), rotation: new THREE.Euler(0, 0, -0.35), anim: stomp,
+            },
+            {
+                geo: new THREE.SphereGeometry(0.16, 8, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat: armorMat,
+                offset: new THREE.Vector3(-0.3, 0.72, 0), rotation: new THREE.Euler(0, 0, 0.35), anim: stomp,
+            },
+            // Belt plate
+            {
+                geo: new THREE.TorusGeometry(0.31, 0.045, 6, 12), mat: armorMat,
+                offset: new THREE.Vector3(0, 0.42, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0),
+                anim: stomp, desktopOnly: true,
+            },
+            // Glowing eye visor
+            { geo: new THREE.BoxGeometry(0.3, 0.07, 0.1), mat: eyeMat, offset: new THREE.Vector3(0, 0.68, 0.3), anim: stomp },
+            // Chest core
+            {
+                geo: new THREE.SphereGeometry(0.08, 8, 8), mat: coreMat, offset: new THREE.Vector3(0, 0.52, 0.3),
+                anim: (out, t, ph) => {
+                    out.s *= 0.9 + Math.sin(t * 6 + ph) * 0.18;
+                    out.oy += Math.abs(Math.sin(t * 5 + ph)) * 0.04;
+                },
+            },
+            // Horns
+            {
+                geo: new THREE.ConeGeometry(0.08, 0.32, 5), mat: hornMat,
+                offset: new THREE.Vector3(0.17, 0.9, 0.12), rotation: new THREE.Euler(Math.PI / 5, 0, -Math.PI / 6), anim: stomp,
+            },
+            {
+                geo: new THREE.ConeGeometry(0.08, 0.32, 5), mat: hornMat,
+                offset: new THREE.Vector3(-0.17, 0.9, 0.12), rotation: new THREE.Euler(Math.PI / 5, 0, Math.PI / 6), anim: stomp,
+            },
+            // Floating crown ring
+            {
+                geo: new THREE.TorusGeometry(0.17, 0.025, 5, 12), mat: coreMat,
+                offset: new THREE.Vector3(0, 1.14, 0), rotation: new THREE.Euler(Math.PI / 2, 0, 0),
+                anim: (out, t, ph) => { out.rz += t * 1.8; out.oy += Math.sin(t * 2.4 + ph) * 0.05; },
+                desktopOnly: true,
+            },
+        ];
+    }
+
+    // Strip desktop-only parts on mobile
+    if (GRAPHICS.isMobile) {
+        for (const key of Object.keys(configs) as EnemyType[]) {
+            configs[key] = configs[key].filter(p => !p.desktopOnly);
+        }
+    }
 
     return configs;
 }
@@ -108,6 +355,7 @@ export class EnemyRenderer {
     private scene: THREE.Scene;
     private instancedMeshGroups = new Map<EnemyType, THREE.InstancedMesh[]>();
     private dummy = new THREE.Object3D();
+    private animOut: AnimResult = { ox: 0, oy: 0, oz: 0, rx: 0, ry: 0, rz: 0, s: 1 };
 
     // Shared materials (created once, reused every frame)
     private readonly mHpBg      = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide, depthWrite: false });
@@ -184,7 +432,10 @@ export class EnemyRenderer {
             living.push(e);
         }
 
-        // Update instanced meshes (enemy bodies — already efficient)
+        const time = performance.now() * 0.001;
+        const out = this.animOut;
+
+        // Update instanced meshes (enemy bodies)
         const allTypes: EnemyType[] = ['grunt', 'tank', 'runner', 'swarm', 'shield', 'healer', 'boss'];
         for (const type of allTypes) {
             const meshes = this.getOrCreate(type);
@@ -204,30 +455,27 @@ export class EnemyRenderer {
                 } else if ((e as any).displayRot !== undefined) {
                     moveRot = (e as any).displayRot;
                 }
+                const phase = e.id * 0.7;
                 for (let p = 0; p < parts.length; p++) {
                     const part = parts[p];
-                    const hoverBob = type === 'swarm'
-                        ? Math.sin(performance.now() * 0.01 + e.id) * 0.08
-                        : type === 'healer'
-                            ? Math.sin(performance.now() * 0.004 + e.id) * 0.03
-                            : 0;
-                    this.dummy.position.set(e.worldX, 0, e.worldZ);
+
+                    out.ox = 0; out.oy = 0; out.oz = 0;
+                    out.rx = 0; out.ry = 0; out.rz = 0;
+                    out.s = 1;
+                    if (part.anim) part.anim(out, time, phase);
+
+                    this.dummy.position.set(e.worldX + out.ox, out.oy, e.worldZ + out.oz);
                     this.dummy.position.add(part.offset);
-                    this.dummy.position.y += hoverBob;
-                    this.dummy.rotation.set(0, moveRot, 0);
+                    this.dummy.rotation.set(out.rx, moveRot + out.ry, out.rz);
                     if (part.rotation) {
                         this.dummy.rotation.x += part.rotation.x;
                         this.dummy.rotation.y += part.rotation.y;
                         this.dummy.rotation.z += part.rotation.z;
                     }
-                    if (type === 'swarm' && p === 1) {
-                        const time = performance.now() * 0.001;
-                        this.dummy.rotation.z += Math.sin(time * 30 + e.id) * 0.5;
-                    }
                     if (part.scale) {
-                        this.dummy.scale.copy(part.scale);
+                        this.dummy.scale.copy(part.scale).multiplyScalar(out.s);
                     } else {
-                        this.dummy.scale.set(1, 1, 1);
+                        this.dummy.scale.set(out.s, out.s, out.s);
                     }
                     this.dummy.updateMatrix();
                     meshes[p].setMatrixAt(i, this.dummy.matrix);

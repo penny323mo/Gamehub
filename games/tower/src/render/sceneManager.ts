@@ -93,8 +93,131 @@ export class SceneManager {
 
         this.buildBoardFrame(board.position);
         this.buildPathRibbon();
+        this.buildSpawnPortal();
+        this.buildGoalKeep();
         this.buildScenery();
         this.buildDistantSilhouettes();
+    }
+
+    /** Ancient portal ruin at the enemy spawn cell — arch, swirling disc, braziers. */
+    private buildSpawnPortal(): void {
+        const pos = cellToWorld(MAP.spawnCell[0], MAP.spawnCell[1]);
+        const portal = new THREE.Group();
+        portal.position.set(pos.x, 0, pos.z);
+
+        // Face the arch across the path's first travel direction
+        const next = MAP.path[1] ?? MAP.path[0];
+        const nextPos = cellToWorld(next[0], next[1]);
+        portal.rotation.y = Math.atan2(nextPos.x - pos.x, nextPos.z - pos.z);
+
+        const stoneMat = GRAPHICS.isMobile
+            ? new THREE.MeshLambertMaterial({ color: 0x3d4a55 })
+            : new THREE.MeshStandardMaterial({ color: 0x3d4a55, roughness: 0.9, metalness: 0.08, flatShading: true });
+        const glowMat = GRAPHICS.isMobile
+            ? new THREE.MeshLambertMaterial({ color: 0x63c8ff, emissive: 0x2f91c7 })
+            : new THREE.MeshStandardMaterial({ color: 0x63c8ff, emissive: 0x2f91c7, emissiveIntensity: 1.1, roughness: 0.3 });
+
+        // Weathered pillars with capstones
+        for (const side of [-1, 1]) {
+            const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 1.0, 6), stoneMat);
+            pillar.position.set(side * 0.45, 0.5, 0);
+            pillar.rotation.z = side * 0.06;
+            if (GRAPHICS.enableShadows) pillar.castShadow = true;
+            portal.add(pillar);
+
+            const cap = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.12, 0.24), stoneMat);
+            cap.position.set(side * 0.42, 1.05, 0);
+            if (GRAPHICS.enableShadows) cap.castShadow = true;
+            portal.add(cap);
+        }
+
+        // Glowing arch ring
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.05, 8, GRAPHICS.isMobile ? 12 : 24), glowMat);
+        ring.position.y = 0.85;
+        portal.add(ring);
+
+        // Swirling portal disc
+        const disc = new THREE.Mesh(
+            new THREE.CircleGeometry(0.42, GRAPHICS.isMobile ? 12 : 24),
+            new THREE.MeshBasicMaterial({
+                color: 0x63c8ff,
+                transparent: true,
+                opacity: 0.4,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+            })
+        );
+        disc.position.y = 0.85;
+        portal.add(disc);
+
+        // Rune stones scattered at the foot
+        const runeGeo = new THREE.OctahedronGeometry(0.07, 0);
+        for (let i = 0; i < 3; i++) {
+            const rune = new THREE.Mesh(runeGeo, glowMat);
+            const a = (i / 3) * Math.PI * 2 + 0.4;
+            rune.position.set(Math.cos(a) * 0.55, 0.07, Math.sin(a) * 0.4);
+            rune.rotation.set(Math.random(), Math.random() * Math.PI, Math.random());
+            portal.add(rune);
+        }
+
+        this.scene.add(portal);
+    }
+
+    /** Fortified keep with a floating heart crystal at the goal cell. */
+    private buildGoalKeep(): void {
+        const pos = cellToWorld(MAP.goalCell[0], MAP.goalCell[1]);
+        const keep = new THREE.Group();
+        keep.position.set(pos.x, 0, pos.z);
+
+        const wallMat = GRAPHICS.isMobile
+            ? new THREE.MeshLambertMaterial({ color: 0x8a7f70 })
+            : new THREE.MeshStandardMaterial({ color: 0x8a7f70, roughness: 0.85, metalness: 0.05, flatShading: true });
+        const roofMat = GRAPHICS.isMobile
+            ? new THREE.MeshLambertMaterial({ color: 0x91362e })
+            : new THREE.MeshStandardMaterial({ color: 0x91362e, roughness: 0.7, metalness: 0.08 });
+        const crystalMat = GRAPHICS.isMobile
+            ? new THREE.MeshLambertMaterial({ color: 0xff8866, emissive: 0xa93d33 })
+            : new THREE.MeshStandardMaterial({ color: 0xff8866, emissive: 0xff5c42, emissiveIntensity: 0.9, roughness: 0.25 });
+
+        // Corner watchtowers
+        for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+            const turret = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.5, 6), wallMat);
+            turret.position.set(sx * 0.34, 0.25, sz * 0.34);
+            if (GRAPHICS.enableShadows) turret.castShadow = true;
+            keep.add(turret);
+
+            const roof = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.22, 6), roofMat);
+            roof.position.set(sx * 0.34, 0.6, sz * 0.34);
+            if (GRAPHICS.enableShadows) roof.castShadow = true;
+            keep.add(roof);
+        }
+
+        // Low crenellated walls between towers — leave the side the path enters from open
+        const prev = MAP.path[MAP.path.length - 2] ?? MAP.goalCell;
+        const prevPos = cellToWorld(prev[0], prev[1]);
+        const entryX = Math.sign(Math.round(prevPos.x - pos.x));
+        const entryZ = Math.sign(Math.round(prevPos.z - pos.z));
+        for (const [x, z, ry] of [[0, -0.34, 0], [0, 0.34, 0], [-0.34, 0, Math.PI / 2], [0.34, 0, Math.PI / 2]] as const) {
+            if (Math.sign(x) === entryX && Math.sign(z) === entryZ) continue;
+            const wall = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.22, 0.08), wallMat);
+            wall.position.set(x, 0.11, z);
+            wall.rotation.y = ry;
+            keep.add(wall);
+        }
+
+        // Floating heart crystal (what the enemies are after)
+        const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.16, 0), crystalMat);
+        crystal.scale.set(0.85, 1.4, 0.85);
+        crystal.position.y = 0.85;
+        if (GRAPHICS.enableShadows) crystal.castShadow = true;
+        keep.add(crystal);
+
+        // Pedestal under the crystal
+        const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 0.3, 6), wallMat);
+        pedestal.position.y = 0.15;
+        keep.add(pedestal);
+
+        this.scene.add(keep);
     }
 
     private buildSkyDome(): void {
