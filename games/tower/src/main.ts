@@ -30,6 +30,7 @@ import {
     type PersistedData,
 } from './core/storage';
 import { ACHIEVEMENTS, type Achievement } from './core/achievements';
+import { makeDraggable, resetUiLayout } from './ui/draggable';
 
 // ─── State ───
 const persisted: PersistedData = loadPersisted();
@@ -1131,6 +1132,28 @@ achResetBtn.addEventListener('click', () => {
     setTimeout(() => { achResetBtn.textContent = '⟲ Reset Progress'; }, 1400);
     renderAchievementGrid();
     refreshHighScoreDisplay();
+});
+
+// ─── Draggable floating panels — long-press to pick up, release to place ───
+makeDraggable(document.getElementById('hud'), 'hud');
+makeDraggable(document.getElementById('skill-bar'), 'skillBar');
+makeDraggable(document.getElementById('build-menu'), 'buildMenu');
+makeDraggable(document.getElementById('next-wave-preview'), 'nextWavePreview');
+makeDraggable(document.getElementById('tower-panel'), 'towerPanel');
+makeDraggable(document.getElementById('enemy-panel'), 'enemyPanel');
+makeDraggable(document.getElementById('wave-modifier'), 'waveModifier');
+
+document.getElementById('reset-layout-btn')!.addEventListener('click', () => {
+    resetUiLayout();
+    state.floatingTexts.push({
+        id: state.nextId++,
+        worldX: 0,
+        worldZ: 0,
+        value: '🔁 介面位置已重設',
+        color: '#9be8ff',
+        life: 1.6,
+        maxLife: 1.6,
+    });
 });
 
 // Help overlay

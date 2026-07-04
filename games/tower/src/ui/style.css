@@ -1210,6 +1210,41 @@ body {
   box-shadow: 0 4px 12px rgba(68, 170, 221, 0.4);
 }
 
+#reset-layout-btn {
+  margin-top: 20px;
+  margin-right: 10px;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(190, 239, 199, 0.25);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #d9f2df;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+#reset-layout-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
+}
+
+/* ─── Draggable floating panels (long-press to pick up) ─── */
+.draggable-panel {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.ui-dragging {
+  opacity: 0.92;
+  cursor: grabbing;
+  z-index: 99 !important;
+  box-shadow: 0 0 0 2px rgba(120, 220, 255, 0.85), 0 12px 34px rgba(0, 0, 0, 0.55) !important;
+  transition: none !important;
+}
+
 /* ─── Utility ─── */
 .hidden {
   display: none !important;
@@ -1317,7 +1352,7 @@ body {
   #tower-panel {
     width: 180px;
     right: 8px;
-    bottom: 120px;
+    bottom: calc(170px + env(safe-area-inset-bottom, 0px));
   }
 
   #wave-banner-text {
@@ -1325,13 +1360,45 @@ body {
     padding: 10px 14px;
   }
 
+  /* Build menu becomes a compact single-row bar, scrollable sideways,
+     pinned across the bottom so nothing overlaps it by default. */
   #build-menu {
-    padding: 8px 10px;
+    left: 8px;
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    transform: none;
+    max-width: none;
+    padding: 8px 8px 10px;
+    gap: 4px;
   }
 
+  .build-title,
+  .build-subtitle {
+    display: none;
+  }
+
+  .build-grid {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    width: 100%;
+    padding: 6px 2px 2px;
+  }
+
+  .build-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .build-btn {
+    flex: 0 0 auto;
+  }
+
+  /* Skill bar sits above the build bar instead of on top of it */
   #skill-bar {
-    left: 12px;
-    bottom: 120px;
+    left: 8px;
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
     gap: 8px;
     padding: 8px 10px;
   }
@@ -1443,7 +1510,7 @@ body {
 @media (max-width: 600px) {
   #next-wave-preview {
     right: 8px;
-    bottom: 180px;
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
     padding: 6px 10px;
     font-size: 12px;
   }
