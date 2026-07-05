@@ -2,7 +2,7 @@
 // 攻城器械（攻城槌/投石車/戰象/火槍兵）用程序化幾何體砌
 import * as THREE from 'three';
 import { TEAM_COLORS } from './constants.js';
-import { instantiate, normalizeHeight, scaleToHeight, findBone, getClip, ASSETS } from './assets.js';
+import { instantiate, normalizeHeight, scaleToHeight, scaleToFit, findBone, getClip, ASSETS } from './assets.js';
 
 const matCache = new Map();
 export function mat(color) {
@@ -48,6 +48,17 @@ function makeFlag(w, h, color) {
 
 function mixColor(a, b, t) {
     return new THREE.Color(a).lerp(new THREE.Color(b), t).getHex();
+}
+
+// Meshy 素模冇 material，整個 Lambert 上色
+export function meshyTint(obj, color) {
+    obj.traverse((o) => {
+        if (o.isMesh) {
+            o.material = new THREE.MeshLambertMaterial({ color });
+            o.castShadow = true;
+        }
+    });
+    return obj;
 }
 
 // ---------- Mixer 動畫控制 ----------
@@ -300,191 +311,116 @@ function makeKnight(team) {
     return g;
 }
 
-// ---------- 攻城槌（程序化）----------
+// ---------- 攻城槌（Meshy AI 模型）----------
 function makeRam(team) {
     const c = TEAM_COLORS[team];
     const g = new THREE.Group();
-    const roof = box(0.55, 0.08, 1.1, WOOD);
-    roof.position.y = 0.72;
-    g.add(roof);
-    const roofTop = box(0.4, 0.08, 1.1, WOOD_DARK);
-    roofTop.position.y = 0.8;
-    g.add(roofTop);
-    for (const [x, z] of [[-0.24, -0.45], [0.24, -0.45], [-0.24, 0.45], [0.24, 0.45]]) {
-        const post = box(0.07, 0.7, 0.07, WOOD_DARK);
-        post.position.set(x, 0.38, z);
-        g.add(post);
-    }
-    const ram = cyl(0.11, 0.11, 1.2, 0x8a6238, 8);
-    ram.rotation.x = Math.PI / 2;
-    ram.position.y = 0.45;
-    const ramHead = cyl(0.13, 0.11, 0.15, STEEL, 8);
-    ramHead.position.y = -0.65;
-    ram.add(ramHead);
+    const ram = meshyTint(instantiate('meshyRam'), 0x8a6238);
+    scaleToFit('meshyRam', ram, 1.5);
+    ram.rotation.y = -Math.PI / 2; // 模型圓木沿 x 軸，轉去沿 z（攻擊方向）
     g.add(ram);
-    const wheels = [];
-    for (const [x, z] of [[-0.3, -0.4], [0.3, -0.4], [-0.3, 0.4], [0.3, 0.4]]) {
-        const wheel = cyl(0.16, 0.16, 0.07, WOOD_DARK, 10);
-        wheel.rotation.z = Math.PI / 2;
-        wheel.position.set(x, 0.16, z);
-        g.add(wheel);
-        wheels.push(wheel);
-    }
     const banner = makeFlag(0.3, 0.18, c.flag);
-    banner.position.set(0, 0.95, 0.3);
-    banner.rotation.y = Math.PI / 2;
+    banner.position.set(0, 1.25, 0.2);
     g.add(banner);
 
     g.userData.animate = (t, state) => {
+        banner.rotation.y = Math.sin(t * 2.6) * 0.35;
         if (state.moving) {
-            for (const w of wheels) w.rotation.x = t * 6;
+            g.position.y = Math.abs(Math.sin(t * 7)) * 0.03;
         }
         if (state.attackT >= 0) {
             const p = state.attackT;
-            ram.position.z = -(p < 0.4 ? (p / 0.4) * 0.25 : 0.25 - ((p - 0.4) / 0.6) * 0.25);
+            // 成架車向前撞
+            ram.position.z = p < 0.4 ? (p / 0.4) * 0.22 : 0.22 - ((p - 0.4) / 0.6) * 0.22;
         } else {
             ram.position.z *= 0.8;
         }
     };
-    // 模型砌嗰陣槌頭朝 -z，包一層轉返向 +z
-    const ramFlip = new THREE.Group();
-    ramFlip.rotation.y = Math.PI;
-    while (g.children.length) ramFlip.add(g.children[0]);
-    g.add(ramFlip);
     return g;
 }
 
-// ---------- 投石車（程序化）----------
+// ---------- 投石車（Meshy AI 模型；投石由引擎 projectile 負責）----------
 function makeCatapult(team) {
     const c = TEAM_COLORS[team];
     const g = new THREE.Group();
-    const base = box(0.7, 0.14, 1.0, WOOD);
-    base.position.y = 0.22;
-    g.add(base);
-    const wheels = [];
-    for (const [x, z] of [[-0.38, -0.35], [0.38, -0.35], [-0.38, 0.35], [0.38, 0.35]]) {
-        const wheel = cyl(0.17, 0.17, 0.08, WOOD_DARK, 10);
-        wheel.rotation.z = Math.PI / 2;
-        wheel.position.set(x, 0.17, z);
-        g.add(wheel);
-        wheels.push(wheel);
-    }
-    const frameL = box(0.06, 0.5, 0.06, WOOD_DARK);
-    frameL.position.set(-0.2, 0.5, 0.1);
-    frameL.rotation.x = 0.35;
-    const frameR = frameL.clone();
-    frameR.position.x = 0.2;
-    g.add(frameL, frameR);
-    const arm = box(0.08, 0.08, 1.1, WOOD);
-    arm.geometry = arm.geometry.clone();
-    arm.geometry.translate(0, 0, -0.4);
-    arm.position.set(0, 0.55, 0.25);
-    arm.rotation.x = -0.9;
-    const bucket = cyl(0.12, 0.09, 0.1, WOOD_DARK, 8);
-    bucket.position.set(0, 0.05, -0.85);
-    arm.add(bucket);
-    const rock = sphere(0.08, STONE);
-    rock.position.y = 0.07;
-    bucket.add(rock);
-    g.add(arm);
+    const cat = meshyTint(instantiate('meshyCatapult'), 0x8a6238);
+    scaleToFit('meshyCatapult', cat, 1.5);
+    cat.rotation.y = -Math.PI / 2; // 同攻城槌一樣沿 x 軸砌
+    g.add(cat);
     const banner = makeFlag(0.25, 0.16, c.flag);
-    banner.position.set(0.3, 0.75, 0.4);
+    banner.position.set(0.35, 1.1, 0.3);
     g.add(banner);
 
     g.userData.animate = (t, state) => {
+        banner.rotation.y = Math.sin(t * 2.6) * 0.35;
         if (state.moving) {
-            for (const w of wheels) w.rotation.x = t * 4;
+            g.position.y = Math.abs(Math.sin(t * 6)) * 0.025;
         }
         if (state.attackT >= 0) {
+            // fake 後座力：向後一縮再回彈
             const p = state.attackT;
-            arm.rotation.x = p < 0.25 ? -0.9 - (p / 0.25) * 0.3 : -1.2 + ((p - 0.25) / 0.3) * 1.5;
-            if (arm.rotation.x > 0.3) arm.rotation.x = 0.3;
-            rock.visible = p < 0.5;
+            cat.position.z = p < 0.3 ? -(p / 0.3) * 0.12 : -0.12 + ((p - 0.3) / 0.7) * 0.12;
         } else {
-            arm.rotation.x += (-0.9 - arm.rotation.x) * 0.15;
-            rock.visible = true;
+            cat.position.z *= 0.8;
         }
     };
     return g;
 }
 
-// ---------- 戰象（程序化）----------
+// ---------- 戰象（Meshy AI 模型 + 程序化戰塔）----------
 function makeElephant(team) {
     const c = TEAM_COLORS[team];
     const g = new THREE.Group();
-    const bodyC = 0x8a8078;
-    const body = box(0.8, 0.7, 1.15, bodyC);
-    body.position.y = 0.8;
-    g.add(body);
-    const head = box(0.5, 0.45, 0.4, bodyC);
-    head.position.set(0, 0.95, -0.72);
-    g.add(head);
-    const trunk = cyl(0.07, 0.1, 0.55, bodyC, 8);
-    trunk.geometry = trunk.geometry.clone();
-    trunk.geometry.translate(0, -0.25, 0);
-    trunk.position.set(0, 0.85, -0.92);
-    trunk.rotation.x = 0.25;
-    g.add(trunk);
-    for (const s of [-1, 1]) {
-        const tusk = cyl(0.025, 0.045, 0.4, 0xf0ead8, 6);
-        tusk.position.set(s * 0.16, 0.72, -0.92);
-        tusk.rotation.x = 1.2;
-        g.add(tusk);
-        const ear = box(0.06, 0.32, 0.28, 0x7a7068);
-        ear.position.set(s * 0.28, 1.05, -0.6);
-        g.add(ear);
-    }
-    const legs = [];
-    for (const [x, z] of [[-0.26, -0.4], [0.26, -0.4], [-0.26, 0.4], [0.26, 0.4]]) {
-        const leg = cyl(0.13, 0.15, 0.5, 0x7a7068, 8);
-        leg.geometry = leg.geometry.clone();
-        leg.geometry.translate(0, -0.25, 0);
-        leg.position.set(x, 0.5, z);
-        g.add(leg);
-        legs.push(leg);
-    }
-    const howdah = box(0.55, 0.3, 0.55, WOOD);
-    howdah.position.y = 1.35;
-    g.add(howdah);
-    const drape = box(0.85, 0.35, 1.2, c.main);
-    drape.position.y = 1.0;
+    const ele = meshyTint(instantiate('meshyElephant'), 0x968f88);
+    scaleToHeight('meshyElephant', ele, 1.9);
+    g.add(ele);
+
+    // 隊色披布 + 戰塔 + 旗
+    const drape = box(0.8, 0.32, 1.05, c.main);
+    drape.position.y = 1.05;
     g.add(drape);
-    const trim = box(0.87, 0.08, 1.22, GOLD);
-    trim.position.y = 0.86;
+    const trim = box(0.82, 0.07, 1.07, GOLD);
+    trim.position.y = 0.92;
     g.add(trim);
+    const howdah = box(0.52, 0.28, 0.52, WOOD);
+    howdah.position.y = 1.32;
+    g.add(howdah);
     const flagPole = cyl(0.02, 0.02, 0.5, WOOD_DARK, 6);
-    flagPole.position.set(0, 1.7, 0.2);
+    flagPole.position.set(0, 1.65, 0.15);
     g.add(flagPole);
     const flag = makeFlag(0.3, 0.16, c.flag);
-    flag.position.set(0, 1.88, 0.2);
+    flag.position.set(0, 1.82, 0.15);
     g.add(flag);
 
+    // 動畫：得一條 walk clip，行嗰陣先播
+    const mixer = new THREE.AnimationMixer(ele);
+    const clip = ASSETS.meshyElephant.animations[0];
+    const walkA = clip ? mixer.clipAction(clip) : null;
+    if (walkA) {
+        walkA.play();
+        mixer.update(Math.random());
+    }
+    let lastT = null;
     g.userData.animate = (t, state) => {
         flag.rotation.y = Math.sin(t * 2.4) * 0.35;
-        if (state.moving) {
-            const s = Math.sin(t * 5);
-            legs[0].rotation.x = s * 0.4;
-            legs[1].rotation.x = -s * 0.4;
-            legs[2].rotation.x = -s * 0.4;
-            legs[3].rotation.x = s * 0.4;
-            trunk.rotation.x = 0.25 + Math.sin(t * 5) * 0.15;
-        } else {
-            for (const l of legs) l.rotation.x *= 0.85;
+        if (lastT === null) lastT = t;
+        let dt = t - lastT;
+        lastT = t;
+        if (dt < 0 || dt > 0.2) dt = 1 / 60;
+        if (walkA) {
+            // 靜止時放慢到停
+            const target = state.moving ? 1 : 0;
+            walkA.timeScale += (target - walkA.timeScale) * Math.min(1, dt * 8);
+            mixer.update(dt);
         }
         if (state.attackT >= 0) {
             const p = state.attackT;
             const a = p < 0.4 ? (p / 0.4) : 1 - (p - 0.4) / 0.6;
-            trunk.rotation.x = 0.25 - a * 1.0;
-            g.rotation.x = a * 0.08;
+            g.rotation.x = a * 0.1; // 向前撞
         } else {
             g.rotation.x *= 0.8;
         }
     };
-    // 模型砌嗰陣頭朝 -z，包一層轉返向 +z
-    const eleFlip = new THREE.Group();
-    eleFlip.rotation.y = Math.PI;
-    while (g.children.length) eleFlip.add(g.children[0]);
-    g.add(eleFlip);
     return g;
 }
 
@@ -506,10 +442,10 @@ function addTowerFlag(g, team, y, size = 1) {
 export function makeWatchtower(team) {
     const c = TEAM_COLORS[team];
     const g = new THREE.Group();
-    const t = instantiate('towerSmall', { tint: { Main: c.main }, cloneMaterials: true });
-    normalizeHeight(t, 2.6);
+    const t = meshyTint(instantiate('meshyTower'), 0xa8a196);
+    const sc = scaleToFit('meshyTower', t, 1.4, { byFootprint: true });
     g.add(t);
-    const flag = addTowerFlag(g, team, 2.6, 0.8);
+    const flag = addTowerFlag(g, team, ASSETS.meshyTower.rawSize.y * sc, 0.8);
     g.userData.animate = (t2) => {
         flag.rotation.y = Math.sin(t2 * 2.2) * 0.35;
     };
@@ -519,10 +455,11 @@ export function makeWatchtower(team) {
 export function makePrincessTower(team) {
     const c = TEAM_COLORS[team];
     const g = new THREE.Group();
-    const t = instantiate('towerBig', { tint: { Main: c.main }, cloneMaterials: true });
-    normalizeHeight(t, 3.7);
+    const t = meshyTint(instantiate('meshySideTower'), mixColor(0xaaa294, c.main, 0.14));
+    const sc = scaleToFit('meshySideTower', t, 2.7, { byFootprint: true });
     g.add(t);
-    const flag = addTowerFlag(g, team, 3.7, 1);
+    const topY = ASSETS.meshySideTower.rawSize.y * sc;
+    const flag = addTowerFlag(g, team, topY, 1);
     g.userData.animate = (t2) => {
         flag.rotation.y = Math.sin(t2 * 2) * 0.4;
     };
@@ -532,13 +469,11 @@ export function makePrincessTower(team) {
 export function makeKingTower(team) {
     const c = TEAM_COLORS[team];
     const g = new THREE.Group();
-    const t = instantiate('kingCastle', {
-        tint: { Main: c.main },
-        cloneMaterials: true,
-    });
-    normalizeHeight(t, 4.4);
+    const t = meshyTint(instantiate('meshyMainBase'), mixColor(0xaaa294, c.main, 0.14));
+    const sc = scaleToFit('meshyMainBase', t, 3.8, { byFootprint: true });
     g.add(t);
-    const flag = addTowerFlag(g, team, 4.4, 1.3);
+    const topY = ASSETS.meshyMainBase.rawSize.y * sc;
+    const flag = addTowerFlag(g, team, topY, 1.3);
     g.userData.animate = (t2) => {
         flag.rotation.y = Math.sin(t2 * 1.8) * 0.45;
     };
@@ -565,15 +500,22 @@ export function makeUnitModel(cardId, team) {
 // ---------- 投射物 ----------
 export function makeProjectile(kind) {
     if (kind === 'arrow') {
-        // Quaternius 箭本身沿 z 軸擺放
+        // Meshy 箭：normalize 做 0.55 長、轉去指向 +z
         const g = new THREE.Group();
-        const a = instantiate('arrow');
-        a.scale.setScalar(0.2);
+        const a = meshyTint(instantiate('meshyArrow'), 0x9a7a4a);
+        const s = ASSETS.meshyArrow.rawSize;
+        const longest = Math.max(s.x, s.y, s.z);
+        a.scale.setScalar(0.55 / longest);
+        if (longest === s.x) a.rotation.y = Math.PI / 2;
+        else if (longest === s.y) a.rotation.x = Math.PI / 2;
         g.add(a);
         return g;
     }
     if (kind === 'stone') {
-        return sphere(0.16, STONE, 6);
+        const st = meshyTint(instantiate('meshyStone'), 0x8f8a80);
+        const s = ASSETS.meshyStone.rawSize;
+        st.scale.setScalar(0.34 / Math.max(s.x, s.y, s.z));
+        return st;
     }
     if (kind === 'bullet') {
         return sphere(0.06, 0x333333, 6);

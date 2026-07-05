@@ -2,7 +2,9 @@
 import * as THREE from 'three';
 import { ARENA } from './constants.js';
 import { mat } from './models.js';
-import { instantiate, normalizeHeight } from './assets.js';
+import { instantiate, normalizeHeight, scaleToFit, ASSETS } from './assets.js';
+import { meshyTint } from './models.js';
+import { TEAM_COLORS, TEAM } from './constants.js';
 
 function rng(seed) {
     let s = seed;
@@ -380,6 +382,38 @@ export function buildArena(scene) {
         mtn.rotation.y = random() * Math.PI * 2;
         scene.add(mtn);
     }
+
+    // ----- Meshy 場景件（玩家提供）-----
+    function placeMeshy(key, color, x, z, size, rotY = 0) {
+        const m = meshyTint(instantiate(key), color);
+        scaleToFit(key, m, size);
+        m.position.x = x;
+        m.position.z = z;
+        m.rotation.y = rotY;
+        scene.add(m);
+        return m;
+    }
+    // 軍旗：兩邊橋頭各插一支（隊色）
+    for (const bs of [-1, 1]) {
+        const bx = bs * ARENA.bridgeX;
+        placeMeshy('meshyBanner', TEAM_COLORS[TEAM.PLAYER].main, bx + 1.9, ARENA.riverHalf + 1.1, 1.6, Math.PI);
+        placeMeshy('meshyBanner', TEAM_COLORS[TEAM.ENEMY].main, bx - 1.9, -(ARENA.riverHalf + 1.1), 1.6, 0);
+    }
+    // 橋頭石：橋兩邊河岸散石
+    for (const bs of [-1, 1]) {
+        for (const side of [-1, 1]) {
+            placeMeshy('meshyBridgeStones', 0x9a948a,
+                bs * ARENA.bridgeX + bs * 1.4, side * (ARENA.riverHalf + 0.7), 0.8, random() * Math.PI);
+        }
+    }
+    // 雜物堆：兩邊王塔側
+    for (const s of [-1, 1]) {
+        placeMeshy('meshyProps', 0x8a6f47, -3.4, s * 13.6, 1.6, random() * Math.PI);
+    }
+    // 燒焦木材：戰場中路開戰痕跡
+    placeMeshy('meshyDebris', 0x4a413a, -1.8, 4.2, 1.1, random() * Math.PI);
+    placeMeshy('meshyDebris', 0x4a413a, 2.2, -4.6, 1.1, random() * Math.PI);
+    placeMeshy('meshyDebris', 0x453c35, 7.4, 2.6, 0.9, random() * Math.PI);
 
     // ----- 木箱酒桶（王塔附近軍營味）-----
     for (const s of [-1, 1]) {

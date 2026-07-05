@@ -2,7 +2,8 @@
 import * as THREE from 'three';
 import { ARENA, TEAM, TOWERS, GAME_RULES, teamDir } from './constants.js';
 import { CARDS } from './cards.js';
-import { makeUnitModel, makePrincessTower, makeKingTower, makeProjectile, mat } from './models.js';
+import { makeUnitModel, makePrincessTower, makeKingTower, makeProjectile, mat, meshyTint } from './models.js';
+import { instantiate, ASSETS } from './assets.js';
 
 let nextId = 1;
 
@@ -136,6 +137,8 @@ export class Game {
     }
 
     #spawnTowers() {
+        // 血條擺喺模型實際最高點上少少
+        const towerTop = (m) => new THREE.Box3().setFromObject(m).max.y + 0.35;
         for (const team of [TEAM.PLAYER, TEAM.ENEMY]) {
             const sz = teamDir(team) > 0 ? -1 : 1; // 玩家塔喺 z>0
             for (const side of [-1, 1]) {
@@ -144,7 +147,7 @@ export class Game {
                     x: side * TOWERS.princess.x, z: sz * TOWERS.princess.z,
                 });
                 t.model = makePrincessTower(team);
-                this.#addEntity(t, 4.2);
+                this.#addEntity(t, towerTop(t.model));
                 this.towers[team][side === -1 ? 'left' : 'right'] = t;
             }
             const k = new Entity({
@@ -152,7 +155,7 @@ export class Game {
                 x: 0, z: sz * TOWERS.king.z,
             });
             k.model = makeKingTower(team);
-            this.#addEntity(k, 5.2);
+            this.#addEntity(k, towerTop(k.model));
             this.towers[team].king = k;
         }
     }
@@ -341,6 +344,24 @@ export class Game {
                 ring.material.opacity = 0.8 * (1 - p);
             },
         });
+        // Meshy「出兵點」圓盤，淡出
+        const marker = instantiate('meshySpawnMarker');
+        const ms = ASSETS.meshySpawnMarker.rawSize;
+        const markerMat = new THREE.MeshLambertMaterial({
+            color: team === TEAM.PLAYER ? 0x6aa8e8 : 0xe88a7a,
+            transparent: true, opacity: 0.9,
+        });
+        marker.traverse((o) => { if (o.isMesh) o.material = markerMat; });
+        const mScale = (r * 2.4) / (Math.max(ms.x, ms.z) || 1);
+        marker.scale.set(mScale, mScale * 0.6, mScale);
+        marker.position.set(x, 0.02, z);
+        this.scene.add(marker);
+        this.effects.push({
+            t: 0, dur: 1.1, mesh: marker,
+            update: (ef) => {
+                markerMat.opacity = 0.9 * (1 - ef.t / ef.dur);
+            },
+        });
     }
 
     // 粒子飛濺
@@ -459,21 +480,16 @@ export class Game {
             onEnd: () => {
                 this.scene.remove(model);
                 this.scene.remove(t.hpBar);
-                // 瓦礫堆
+                // 瓦礫：Meshy「破塔」模型
                 const rubble = new THREE.Group();
                 rubble.userData.isRubble = true;
-                for (let i = 0; i < 7; i++) {
-                    const s = 0.25 + Math.random() * 0.35;
-                    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), mat(0x8a857c));
-                    rock.position.set(
-                        t.x + (Math.random() - 0.5) * 1.6,
-                        s * 0.5,
-                        t.z + (Math.random() - 0.5) * 1.6
-                    );
-                    rock.rotation.set(Math.random(), Math.random(), Math.random());
-                    rock.castShadow = true;
-                    rubble.add(rock);
-                }
+                const broken = meshyTint(instantiate('meshyRubble'), 0x8f887c);
+                const s = ASSETS.meshyRubble.rawSize;
+                const sc = (t.towerKind === 'king' ? 2.6 : 2.0) / (Math.max(s.x, s.z) || 1);
+                broken.scale.setScalar(sc);
+                broken.position.set(t.x, -ASSETS.meshyRubble.rawMin.y * sc, t.z);
+                broken.rotation.y = Math.random() * Math.PI * 2;
+                rubble.add(broken);
                 this.scene.add(rubble);
             },
         });
