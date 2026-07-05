@@ -2,14 +2,15 @@
 import { CARDS, CARD_POOL, DEFAULT_DECK } from './cards.js';
 import { TEAM } from './constants.js';
 
-function cardInnerHtml(card) {
-    return `<div class="cost">${card.cost}</div>
-        <div class="icon">${card.icon}</div>
-        <div class="name">${card.name}</div>`;
-}
-
 export class UI {
-    constructor(callbacks) {
+    constructor(callbacks, thumbs = {}) {
+        this.thumbs = thumbs;
+        this.cardInnerHtml = (card) => {
+            const art = this.thumbs[card.id]
+                ? `<img class="art" src="${this.thumbs[card.id]}" draggable="false" alt="">`
+                : `<div class="icon">${card.icon}</div>`;
+            return `<div class="cost">${card.cost}</div>${art}<div class="name">${card.name}</div>`;
+        };
         this.cb = callbacks; // { onStart, onDrop(idx,x,y), onDragMove(idx,x,y), onDragEnd, onQuit, onAgain }
         this.$ = (id) => document.getElementById(id);
         this.game = null;
@@ -35,8 +36,10 @@ export class UI {
             const el = document.createElement('div');
             el.className = 'deck-card' + (this.deck.includes(id) ? ' picked' : '');
             el.dataset.id = id;
-            el.innerHTML = `<div class="cost">${c.cost}</div>
-                <div class="icon">${c.icon}</div>
+            const art = this.thumbs[id]
+                ? `<img class="art" src="${this.thumbs[id]}" draggable="false" alt="">`
+                : `<div class="icon">${c.icon}</div>`;
+            el.innerHTML = `<div class="cost">${c.cost}</div>${art}
                 <div class="name">${c.name}</div>
                 <div class="desc">${c.desc}</div>`;
             el.addEventListener('click', () => {
@@ -203,11 +206,11 @@ export class UI {
                 const el = document.createElement('div');
                 el.className = 'card';
                 el.dataset.idx = i;
-                el.innerHTML = cardInnerHtml(CARDS[id]);
+                el.innerHTML = this.cardInnerHtml(CARDS[id]);
                 cardsEl.appendChild(el);
             });
             const next = this.$('next-card');
-            next.innerHTML = cardInnerHtml(CARDS[p.next]);
+            next.innerHTML = this.cardInnerHtml(CARDS[p.next]);
             this.#refreshSelection();
         }
 

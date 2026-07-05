@@ -144,7 +144,7 @@ export class Game {
                     x: side * TOWERS.princess.x, z: sz * TOWERS.princess.z,
                 });
                 t.model = makePrincessTower(team);
-                this.#addEntity(t, 3.6);
+                this.#addEntity(t, 4.2);
                 this.towers[team][side === -1 ? 'left' : 'right'] = t;
             }
             const k = new Entity({
@@ -152,7 +152,7 @@ export class Game {
                 x: 0, z: sz * TOWERS.king.z,
             });
             k.model = makeKingTower(team);
-            this.#addEntity(k, 4.6);
+            this.#addEntity(k, 5.2);
             this.towers[team].king = k;
         }
     }
@@ -173,12 +173,12 @@ export class Game {
     }
 
     #modelHeight(e) {
-        if (e.isTower) return e.towerKind === 'king' ? 4.6 : 3.6;
-        if (e.cardId === 'elephant') return 2.2;
-        if (e.cardId === 'watchtower') return 2.5;
-        if (e.cardId === 'knight') return 1.5;
-        if (e.cardId === 'catapult' || e.cardId === 'ram') return 1.3;
-        return 1.15;
+        if (e.isTower) return e.towerKind === 'king' ? 5.2 : 4.2;
+        if (e.cardId === 'elephant') return 2.4;
+        if (e.cardId === 'watchtower') return 3.0;
+        if (e.cardId === 'knight') return 2.1;
+        if (e.cardId === 'catapult' || e.cardId === 'ram') return 1.5;
+        return 1.7;
     }
 
     // ---------- 部署驗證 ----------
@@ -343,6 +343,36 @@ export class Game {
         });
     }
 
+    // 粒子飛濺
+    #particles(x, z, color, n = 8, power = 3.5, y0 = 0.4) {
+        const geo = new THREE.SphereGeometry(0.09, 5, 4);
+        const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1 });
+        for (let i = 0; i < n; i++) {
+            const p = new THREE.Mesh(geo, material.clone());
+            p.position.set(x, y0, z);
+            const ang = Math.random() * Math.PI * 2;
+            const sp = power * (0.4 + Math.random() * 0.6);
+            const vel = {
+                x: Math.cos(ang) * sp,
+                y: 2.5 + Math.random() * 2.5,
+                z: Math.sin(ang) * sp,
+            };
+            this.scene.add(p);
+            this.effects.push({
+                t: 0, dur: 0.55 + Math.random() * 0.25, mesh: p,
+                update: (ef, dt) => {
+                    vel.y -= 14 * dt;
+                    p.position.x += vel.x * dt;
+                    p.position.y += vel.y * dt;
+                    p.position.z += vel.z * dt;
+                    if (p.position.y < 0.05) p.position.y = 0.05;
+                    p.material.opacity = 1 - ef.t / ef.dur;
+                    p.scale.setScalar(1 - ef.t / ef.dur * 0.5);
+                },
+            });
+        }
+    }
+
     #explosion(x, z, r, color) {
         const ring = new THREE.Mesh(
             new THREE.RingGeometry(0.1, 0.4, 24),
@@ -373,6 +403,7 @@ export class Game {
                 flash.material.opacity = 0.8 * (1 - p);
             },
         });
+        this.#particles(x, z, color, Math.min(14, 6 + Math.round(r * 3)), 2.5 + r);
     }
 
     // ---------- 傷害 / 死亡 ----------
@@ -395,7 +426,8 @@ export class Game {
         if (e.isTower) {
             this.#towerFall(e);
         } else {
-            // 陣亡動畫：沉落地下
+            // 陣亡動畫：沉落地下 + 塵埃
+            this.#particles(e.x, e.z, 0xcfc8b8, 6, 2, 0.3);
             const model = e.model;
             this.effects.push({
                 t: 0, dur: 0.7, mesh: null,
@@ -767,7 +799,7 @@ export class Game {
     #updateEffects(dt) {
         for (const ef of this.effects) {
             ef.t += dt;
-            ef.update(ef);
+            ef.update(ef, dt);
             if (ef.t >= ef.dur) {
                 ef.done = true;
                 if (ef.mesh) this.scene.remove(ef.mesh);

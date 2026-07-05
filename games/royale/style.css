@@ -35,6 +35,67 @@ body {
     display: none !important;
 }
 
+/* ---------- 載入畫面 ---------- */
+#loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 50% 40%, #35482a, #16210f);
+    z-index: 100;
+}
+
+.loading-box {
+    text-align: center;
+    color: #ffe9b0;
+}
+
+.loading-label {
+    font-size: 20px;
+    font-weight: 800;
+    margin-bottom: 14px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, .6);
+}
+
+#load-bar {
+    width: min(70vw, 320px);
+    height: 14px;
+    border-radius: 7px;
+    background: #241c10;
+    border: 2px solid #8a6a3a;
+    overflow: hidden;
+}
+
+#load-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #d8a038, #ffd870);
+    border-radius: 5px;
+    transition: width .2s;
+}
+
+/* 卡面 3D 圖 */
+.card img.art {
+    width: 84%;
+    height: 52px;
+    object-fit: contain;
+    pointer-events: none;
+    filter: drop-shadow(0 3px 3px rgba(0, 0, 0, .45));
+}
+
+.card.mini img.art {
+    height: 30px;
+}
+
+.deck-card img.art {
+    width: 90%;
+    height: 56px;
+    object-fit: contain;
+    pointer-events: none;
+    filter: drop-shadow(0 3px 3px rgba(0, 0, 0, .4));
+}
+
 /* ---------- HUD ---------- */
 #hud {
     position: absolute;
