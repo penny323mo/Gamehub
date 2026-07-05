@@ -23,6 +23,24 @@ const FILES = {
     crate: 'Crate.glb',
     barrel: 'Barrel.glb',
     mountain: 'Mountain_Single.glb',
+    // ---- Meshy.ai 生成模型（玩家提供）----
+    meshyElephant: 'units/war_elephant.glb',
+    meshyRam: 'siege/siege_ram.glb',
+    meshyCatapult: 'siege/catapult.glb',
+    meshyTower: 'buildings/watchtower.glb',
+    meshyMainBase: 'buildings/main_base.glb',
+    meshySideTower: 'buildings/side_tower.glb',
+    meshyRubble: 'buildings/tower_rubble.glb',
+    meshyArrow: 'projectiles/arrow_projectile.glb',
+    meshyStone: 'projectiles/stone_projectile.glb',
+    meshyBanner: 'environment/team_banner.glb',
+    meshyBridgeStones: 'environment/bridge_stones.glb',
+    meshyProps: 'environment/props_pack.glb',
+    meshyDebris: 'environment/burnt_debris.glb',
+    meshySpawnMarker: 'effects/spawn_marker.glb',
+    // 未接入（optional，見 ASSET_MAPPING.md）：
+    // units/militia|swordsman|pikeman|archer|musketeer|cavalry.glb（3MB+ 高面數素模、無動畫）
+    // environment/bridge.glb（比例似長凳）、tree_pack.glb（連地台）、fence_segment.glb
 };
 
 export const ASSETS = {}; // { key: { scene, animations, rawSize, rawHeight } }
@@ -37,14 +55,19 @@ export async function loadAssets(onProgress) {
             if (o.isMesh) {
                 o.castShadow = true;
                 o.frustumCulled = false; // skinned mesh 郁動時容易被錯誤剔除
+                // Meshy 素模有啲冇 normals，補返
+                if (!o.geometry.attributes.normal) o.geometry.computeVertexNormals();
             }
         });
         // 載入時（未 pose 過）量原始大細 — 動畫 rig 嘅 scale 軌會令事後量度唔準
         const box = new THREE.Box3().setFromObject(gltf.scene);
         const rawSize = box.getSize(new THREE.Vector3());
+        let hasSkin = false;
+        gltf.scene.traverse((o) => { if (o.isSkinnedMesh) hasSkin = true; });
         ASSETS[key] = {
-            scene: gltf.scene, animations: gltf.animations,
-            rawSize, rawHeight: rawSize.y || 1,
+            scene: gltf.scene, animations: gltf.animations, hasSkin,
+            rawSize, rawMin: box.min.clone(),
+            rawHeight: rawSize.y || 1,
             rawLen: Math.max(rawSize.x, rawSize.y, rawSize.z) || 1,
         };
         done++;
@@ -60,10 +83,23 @@ export function scaleToHeight(key, obj, targetHeight) {
     return s;
 }
 
+// 按最大呎吋縮放並將模型底部貼返地面（適合 pivot 亂嘅靜態模型）
+export function scaleToFit(key, obj, targetSize, { byFootprint = false } = {}) {
+    const a = ASSETS[key];
+    const base = byFootprint
+        ? Math.max(a.rawSize.x, a.rawSize.z)
+        : Math.max(a.rawSize.x, a.rawSize.y, a.rawSize.z);
+    const s = targetSize / (base || 1);
+    obj.scale.multiplyScalar(s);
+    obj.position.y = -a.rawMin.y * s;
+    return s;
+}
+
 // 複製一份模型（支援 skinned mesh），可以逐個染色
 export function instantiate(key, { tint = null, cloneMaterials = false } = {}) {
     const src = ASSETS[key];
-    const obj = src.animations.length ? skeletonClone(src.scene) : src.scene.clone(true);
+    // 有 skinned mesh（就算冇動畫）都要用 SkeletonUtils clone，否則骨架斷開會隱形
+    const obj = (src.animations.length || src.hasSkin) ? skeletonClone(src.scene) : src.scene.clone(true);
     if (cloneMaterials || tint) {
         const cache = new Map();
         obj.traverse((o) => {
