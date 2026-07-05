@@ -50,6 +50,60 @@ function mixColor(a, b, t) {
     return new THREE.Color(a).lerp(new THREE.Color(b), t).getHex();
 }
 
+// 城堡素模按幾何上色：底座深石、牆身淺石、屋頂斜面/塔尖髹隊色
+// （Meshy 模型節點有旋轉，要用 world space 高度／法線取樣）
+function paintCastle(obj, teamColor) {
+    const cStoneLight = new THREE.Color(0xb5aea1);
+    const cStoneDark = new THREE.Color(0x7e776b);
+    const cTeam = new THREE.Color(teamColor);
+    const tmp = new THREE.Color();
+    const v = new THREE.Vector3();
+    const n = new THREE.Vector3();
+    const nm = new THREE.Matrix3();
+
+    obj.updateMatrixWorld(true);
+    const wbox = new THREE.Box3().setFromObject(obj);
+    const minY = wbox.min.y, span = (wbox.max.y - wbox.min.y) || 1;
+
+    obj.traverse((o) => {
+        if (!o.isMesh) return;
+        o.geometry = o.geometry.clone(); // 每座塔獨立染色
+        const geo = o.geometry;
+        const pos = geo.attributes.position;
+        const nor = geo.attributes.normal;
+        nm.getNormalMatrix(o.matrixWorld);
+        const colors = new Float32Array(pos.count * 3);
+        for (let i = 0; i < pos.count; i++) {
+            v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+            const h = (v.y - minY) / span;
+            let ny = 0;
+            if (nor) {
+                n.fromBufferAttribute(nor, i).applyMatrix3(nm).normalize();
+                ny = n.y;
+            }
+            if (h < 0.08) {
+                tmp.copy(cStoneDark); // 底座
+            } else if (h > 0.88) {
+                tmp.copy(cTeam).lerp(cStoneLight, 0.12); // 塔尖
+            } else {
+                let roofiness = 0;
+                if (h > 0.5 && ny > 0.35 && ny < 0.92) {
+                    roofiness = Math.min(1, (h - 0.5) / 0.12);
+                }
+                tmp.copy(cStoneLight).lerp(cTeam, roofiness * 0.92);
+            }
+            tmp.multiplyScalar(0.9 + h * 0.16);
+            colors[i * 3] = tmp.r;
+            colors[i * 3 + 1] = tmp.g;
+            colors[i * 3 + 2] = tmp.b;
+        }
+        geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        o.material = new THREE.MeshLambertMaterial({ vertexColors: true });
+        o.castShadow = true;
+    });
+    return obj;
+}
+
 // Meshy 素模冇 material，整個 Lambert 上色
 export function meshyTint(obj, color) {
     obj.traverse((o) => {
@@ -425,9 +479,10 @@ function makeElephant(team) {
 }
 
 // ---------- 建築（Quaternius RTS pack）----------
-function addTowerFlag(g, team, y, size = 1) {
+function addTowerFlag(g, team, y0, size = 1) {
     const c = TEAM_COLORS[team];
-    const pole = cyl(0.025 * size, 0.025 * size, 0.7 * size, WOOD_DARK, 6);
+    const y = y0 - 0.3 * size; // 插入塔頂
+    const pole = cyl(0.025 * size, 0.025 * size, 0.9 * size, WOOD_DARK, 6);
     pole.position.y = y + 0.3 * size;
     g.add(pole);
     const tip = sphere(0.06 * size, GOLD, 8);
@@ -455,7 +510,7 @@ export function makeWatchtower(team) {
 export function makePrincessTower(team) {
     const c = TEAM_COLORS[team];
     const g = new THREE.Group();
-    const t = meshyTint(instantiate('meshySideTower'), mixColor(0xaaa294, c.main, 0.14));
+    const t = paintCastle(instantiate('meshySideTower'), c.main);
     const sc = scaleToFit('meshySideTower', t, 2.7, { byFootprint: true });
     g.add(t);
     const topY = ASSETS.meshySideTower.rawSize.y * sc;
@@ -469,7 +524,7 @@ export function makePrincessTower(team) {
 export function makeKingTower(team) {
     const c = TEAM_COLORS[team];
     const g = new THREE.Group();
-    const t = meshyTint(instantiate('meshyMainBase'), mixColor(0xaaa294, c.main, 0.14));
+    const t = paintCastle(instantiate('meshyMainBase'), c.main);
     const sc = scaleToFit('meshyMainBase', t, 3.8, { byFootprint: true });
     g.add(t);
     const topY = ASSETS.meshyMainBase.rawSize.y * sc;
