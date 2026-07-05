@@ -13,26 +13,80 @@ function dist(a, b) {
 }
 
 // ---------- 血條 ----------
+// 圓角膠囊邊框（透明中空）貼喺前面，遮走軌道／填充嘅方角，睇落似圓角血條
+let _barFrameTex = null;
+function barFrameTexture() {
+    if (_barFrameTex) return _barFrameTex;
+    const W = 256, H = 64;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    const rr = (x, y, w, h, r) => {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+    };
+    ctx.clearRect(0, 0, W, H);
+    // 外圈：實色膠囊（連陰影）
+    ctx.fillStyle = 'rgba(20,14,8,0.95)';
+    rr(0, 0, W, H, H / 2);
+    ctx.fill();
+    // 挖空內圈 → 露出後面嘅軌道/填充
+    const pad = 7;
+    ctx.globalCompositeOperation = 'destination-out';
+    rr(pad, pad, W - pad * 2, H - pad * 2, (H - pad * 2) / 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    // 頂部高光細線，加少少立體感
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1.5;
+    rr(pad + 1, pad + 1, W - pad * 2 - 2, (H - pad * 2) * 0.4, (H - pad * 2) / 2);
+    ctx.stroke();
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    _barFrameTex = tex;
+    return tex;
+}
+
 function makeHpBar(width, team) {
+    const height = 0.16;
+    const pad = 0.028; // 邊框留位
     const g = new THREE.Group();
-    const bg = new THREE.Mesh(
-        new THREE.PlaneGeometry(width, 0.12),
-        new THREE.MeshBasicMaterial({ color: 0x222222, depthTest: false, transparent: true, opacity: 0.85 })
+
+    // 三個 mesh 全部要標 transparent:true，先會跌入同一個 render queue，
+    // 令 renderOrder（20/21/22）實際生效 — 否則 opaque 嘅 fill 會喺
+    // transparent 嘅 track 之前畫，然後即刻俾 track 蓋咗，睇落成塊變晒暗色。
+    const track = new THREE.Mesh(
+        new THREE.PlaneGeometry(width - pad * 2, height - pad * 2),
+        new THREE.MeshBasicMaterial({ color: 0x2a1c14, depthTest: false, depthWrite: false, transparent: true, opacity: 0.92 })
     );
-    const fg = new THREE.Mesh(
-        new THREE.PlaneGeometry(width, 0.09),
+    const fill = new THREE.Mesh(
+        new THREE.PlaneGeometry(width - pad * 2, height - pad * 2),
         new THREE.MeshBasicMaterial({
             color: team === TEAM.PLAYER ? 0x3ba2ff : 0xff5544,
-            depthTest: false,
+            depthTest: false, depthWrite: false, transparent: true,
         })
     );
-    fg.position.z = 0.001;
-    bg.renderOrder = 20;
-    fg.renderOrder = 21;
-    g.add(bg, fg);
+    const frame = new THREE.Mesh(
+        new THREE.PlaneGeometry(width, height),
+        new THREE.MeshBasicMaterial({ map: barFrameTexture(), transparent: true, depthTest: false, depthWrite: false })
+    );
+    fill.position.z = 0.001;
+    frame.position.z = 0.002;
+    track.renderOrder = 20;
+    fill.renderOrder = 21;
+    frame.renderOrder = 22;
+    g.add(track, fill, frame);
+
+    const fillW = width - pad * 2;
     g.userData.setRatio = (r) => {
-        fg.scale.x = Math.max(r, 0.001);
-        fg.position.x = -width * (1 - fg.scale.x) / 2;
+        const ratio = Math.max(r, 0.001);
+        fill.scale.x = ratio;
+        fill.position.x = -fillW * (1 - ratio) / 2;
     };
     return g;
 }
@@ -164,7 +218,7 @@ export class Game {
         e.model.position.set(e.x, 0, e.z);
         e.model.rotation.y = e.facing;
         this.scene.add(e.model);
-        const barW = e.isTower ? 1.8 : Math.max(0.7, e.radius * 1.8);
+        const barW = e.isTower ? 2.1 : Math.max(0.85, e.radius * 2.1);
         e.hpBar = makeHpBar(barW, e.team);
         e.hpBar.position.set(e.x, (hpBarHeight ?? this.#modelHeight(e)) , e.z);
         e.hpBar.userData.h = hpBarHeight ?? this.#modelHeight(e);
@@ -433,6 +487,7 @@ export class Game {
         e.hp -= dmg;
         e.hpBar.visible = true;
         e.hpBar.userData.setRatio(Math.max(0, e.hp / e.maxHp));
+        e.model.userData.onHit?.(this.simTime);
         // 王塔被打會醒
         if (e.isTower && e.towerKind === 'king' && !e.active) {
             e.active = true;

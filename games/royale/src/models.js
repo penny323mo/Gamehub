@@ -2,7 +2,7 @@
 // 攻城器械（攻城槌/投石車/戰象/火槍兵）用程序化幾何體砌
 import * as THREE from 'three';
 import { TEAM_COLORS } from './constants.js';
-import { instantiate, normalizeHeight, scaleToHeight, scaleToFit, findBone, getClip, ASSETS } from './assets.js';
+import { instantiate, normalizeHeight, scaleToHeight, scaleToHeightGrounded, scaleToFit, ASSETS } from './assets.js';
 
 const matCache = new Map();
 export function mat(color) {
@@ -104,6 +104,62 @@ function paintCastle(obj, teamColor) {
     return obj;
 }
 
+// 人形素模冇材質分區，用世界高度／離中軸距離近似分區上色
+// （頭=膚色、腳=靴色、伸出去嘅武器/配件=皮革木色、身軀=隊色）
+function paintSoldier(obj, tunicColor) {
+    const cSkin = new THREE.Color(0xd9a679);
+    const cBoot = new THREE.Color(0x2a2018);
+    const cAccessory = new THREE.Color(0x6b5030);
+    const cTunic = new THREE.Color(tunicColor);
+    const tmp = new THREE.Color();
+    const v = new THREE.Vector3();
+
+    obj.updateMatrixWorld(true);
+    const wbox = new THREE.Box3().setFromObject(obj);
+    const minY = wbox.min.y, spanY = (wbox.max.y - wbox.min.y) || 1;
+    const cx = (wbox.min.x + wbox.max.x) / 2;
+    const cz = (wbox.min.z + wbox.max.z) / 2;
+
+    let maxRad = 0.001;
+    obj.traverse((o) => {
+        if (!o.isMesh) return;
+        const pos = o.geometry.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+            v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+            maxRad = Math.max(maxRad, Math.hypot(v.x - cx, v.z - cz));
+        }
+    });
+
+    obj.traverse((o) => {
+        if (!o.isMesh) return;
+        o.geometry = o.geometry.clone();
+        const geo = o.geometry;
+        const pos = geo.attributes.position;
+        const colors = new Float32Array(pos.count * 3);
+        for (let i = 0; i < pos.count; i++) {
+            v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+            const h = (v.y - minY) / spanY;
+            const rad = Math.hypot(v.x - cx, v.z - cz) / maxRad;
+            if (h > 0.85) {
+                tmp.copy(cSkin); // 頭
+            } else if (h < 0.1) {
+                tmp.copy(cBoot); // 靴
+            } else if (rad > 0.48) {
+                tmp.copy(cAccessory); // 伸出嘅武器/披風/配件
+            } else {
+                tmp.copy(cTunic); // 身軀 = 隊色
+            }
+            colors[i * 3] = tmp.r;
+            colors[i * 3 + 1] = tmp.g;
+            colors[i * 3 + 2] = tmp.b;
+        }
+        geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        o.material = new THREE.MeshLambertMaterial({ vertexColors: true });
+        o.castShadow = true;
+    });
+    return obj;
+}
+
 // Meshy 素模冇 material，整個 Lambert 上色
 export function meshyTint(obj, color) {
     obj.traverse((o) => {
@@ -115,254 +171,91 @@ export function meshyTint(obj, color) {
     return obj;
 }
 
-// ---------- Mixer 動畫控制 ----------
-// 將 AnimationMixer 包裝成 game.js 嘅 animate(t, state) 介面
-function makeMixerAnimator(root, key, { idle = 'Idle', walk = 'Walking', attack = null, walkSpeed = 1 }) {
-    const mixer = new THREE.AnimationMixer(root);
-    const idleA = mixer.clipAction(getClip(key, idle));
-    const walkClip = getClip(key, walk);
-    const walkA = mixer.clipAction(walkClip);
-    walkA.timeScale = walkSpeed;
-    idleA.play();
-    walkA.play();
-    walkA.setEffectiveWeight(0);
-    let attackA = null;
-    if (attack) {
-        const clip = getClip(key, attack);
-        if (clip) {
-            attackA = mixer.clipAction(clip);
-            attackA.setLoop(THREE.LoopOnce);
-            attackA.timeScale = clip.duration / 0.5; // 攻擊窗口 ~0.5 秒
-        }
-    }
-    // 隨機起始相位，唔好成隊齊步
-    mixer.update(Math.random() * 2);
-
-    let lastT = null;
-    let prevAtk = -1;
-    return (t, state) => {
-        if (lastT === null) lastT = t;
-        let dt = t - lastT;
-        lastT = t;
-        if (dt < 0 || dt > 0.2) dt = 1 / 60;
-        const target = state.moving ? 1 : 0;
-        const w = walkA.getEffectiveWeight();
-        walkA.setEffectiveWeight(w + (target - w) * Math.min(1, dt * 10));
-        idleA.setEffectiveWeight(1 - walkA.getEffectiveWeight());
-        if (attackA && state.attackT >= 0 && prevAtk < 0) {
-            attackA.reset();
-            attackA.setEffectiveWeight(1);
-            attackA.play();
-        }
-        prevAtk = state.attackT;
-        mixer.update(dt);
+// 掛受傷閃白：回傳 { onHit(t), update(t) }，畀無骨架素模嘅 animate 埋齊調用
+function makeHitFlash(model) {
+    const mats = [];
+    model.traverse((o) => { if (o.isMesh) mats.push(o.material); });
+    let lastHit = -999;
+    let wasFlashing = false;
+    return {
+        onHit: (t) => { lastHit = t; },
+        update: (t) => {
+            const flash = Math.max(0, 1 - (t - lastHit) / 0.16);
+            if (flash > 0.01) {
+                for (const m of mats) m.emissive?.setScalar(flash * 0.85);
+                wasFlashing = true;
+            } else if (wasFlashing) {
+                for (const m of mats) m.emissive?.setScalar(0);
+                wasFlashing = false;
+            }
+        },
     };
 }
 
-// ---------- 步兵（Quaternius 騎士 + 武器）----------
-// 武器掛喺右手骨，盾掛左前臂
-function attachToBone(body, bonePattern, item, { pos = [0, 0, 0], rot = [0, 0, 0] } = {}) {
-    const bone = findBone(body, bonePattern);
-    if (!bone) return null;
-    item.position.set(...pos);
-    item.rotation.set(...rot);
-    bone.add(item);
-    return { bone, item };
+// ---------- Fake 動畫（畀冇骨架嘅 Meshy 素模用）----------
+// 移動時輕微浮動、攻擊時前撲、受傷時閃白
+function makeFakeAnimator(model, { bobAmount = 0.045, bobSpeed = 8, lungeAmount = 0.14, forwardSign = 1 } = {}) {
+    const baseY = model.position.y;
+    const flash = makeHitFlash(model);
+    model.userData.onHit = flash.onHit;
+    return (t, state) => {
+        model.position.y = baseY + (state.moving ? Math.abs(Math.sin(t * bobSpeed)) * bobAmount : 0);
+        if (state.attackT >= 0) {
+            const p = state.attackT;
+            const lunge = p < 0.35 ? (p / 0.35) : Math.max(0, 1 - (p - 0.35) / 0.4);
+            model.position.z = forwardSign * lunge * lungeAmount;
+        } else {
+            model.position.z *= 0.75;
+        }
+        flash.update(t);
+    };
 }
 
-// pose 完之後按骨骼實際 world scale 校準武器大細同偏移
-const _ws = new THREE.Vector3();
-function calibrateAttachments(root, attachments) {
-    root.updateMatrixWorld(true);
-    for (const { att, rawLen, targetLen, pos } of attachments) {
-        if (!att) continue;
-        att.bone.getWorldScale(_ws);
-        const boneScale = _ws.x || 1;
-        att.item.scale.setScalar(targetLen / (rawLen * boneScale));
-        if (pos) att.item.position.set(pos[0] / boneScale, pos[1] / boneScale, pos[2] / boneScale);
-    }
-}
-
-// 程序化頭盔 — 掛喺 Head 骨，raw 尺寸 ~1，由 calibrateAttachments 校準
-function makeHeadgear(kind, c) {
-    const g = new THREE.Group();
-    if (kind === 'cap') {
-        const capTop = cyl(0.48, 0.54, 0.26, 0x6a5334, 8);
-        capTop.position.y = 0.1;
-        g.add(capTop);
-    } else if (kind === 'helm') {
-        const dome = cyl(0.5, 0.56, 0.4, STEEL, 8);
-        dome.position.y = 0.12;
-        g.add(dome);
-        const plume = cone(0.16, 0.5, c.accent, 6);
-        plume.position.y = 0.55;
-        g.add(plume);
-    } else if (kind === 'hood') {
-        const hood = cone(0.58, 0.62, 0x3d5c2e, 7);
-        hood.position.y = 0.2;
-        g.add(hood);
-    } else if (kind === 'spike') {
-        const band = cyl(0.5, 0.56, 0.22, STEEL, 8);
-        band.position.y = 0.05;
-        g.add(band);
-        const spike = cone(0.42, 0.62, STEEL, 8);
-        spike.position.y = 0.44;
-        g.add(spike);
-    } else if (kind === 'hat') {
-        const brim = cyl(0.78, 0.78, 0.08, 0x33302c, 10);
-        brim.position.y = 0.02;
-        g.add(brim);
-        const top = cyl(0.4, 0.46, 0.42, 0x3d3a35, 8);
-        top.position.y = 0.26;
-        g.add(top);
-    }
-    return g;
-}
-
-function makeGLBHuman(team, {
-    armor = null, height = 1.35, weapon = null, weaponLen = 0.95, weaponRot = [0, 0, 0],
-    shield = false, headgear = null, attack = 'Run_swordAttack', walkSpeed = 1.4,
-}) {
+// Meshy 人形素模：貼地、染色、包一層轉向（若模型原本面向 -z）、掛 fake 動畫
+function makeMeshyUnit(key, team, { height, tint, flip = true, ...animOpts } = {}) {
     const c = TEAM_COLORS[team];
+    const model = paintSoldier(instantiate(key), tint ?? c.main);
+    scaleToHeightGrounded(key, model, height);
     const g = new THREE.Group();
-    const body = instantiate('knight', {
-        tint: { Armor: armor ?? c.main },
-        cloneMaterials: true,
-    });
-    scaleToHeight('knight', body, height);
-    g.add(body);
-
-    const attachments = [];
-    if (weapon) {
-        const w = instantiate(weapon, { cloneMaterials: false });
-        const att = attachToBone(body, /MiddleHandR/i, w, { rot: weaponRot });
-        attachments.push({ att, rawLen: ASSETS[weapon].rawLen, targetLen: weaponLen });
-    }
-    if (shield) {
-        const s = instantiate('shield');
-        const att = attachToBone(body, /LowerArmL/i, s, { rot: [0, Math.PI / 2, 0] });
-        attachments.push({ att, rawLen: ASSETS.shield.rawLen, targetLen: 0.6, pos: [0, 0.12, 0.06] });
-    }
-    if (headgear) {
-        const h = makeHeadgear(headgear, c);
-        const att = attachToBone(body, /^Head$/, h, {});
-        attachments.push({ att, rawLen: 1.1, targetLen: 0.46, pos: [0, 0.16, 0] });
-    }
-    const animate = makeMixerAnimator(body, 'knight', { attack, walkSpeed });
-    // 行一格 pose 然後校準武器
-    animate(0.01, { moving: false, attackT: -1 });
-    animate(0.05, { moving: false, attackT: -1 });
-    calibrateAttachments(g, attachments);
-    g.userData.animate = animate;
+    g.add(model);
+    if (flip) model.rotation.y = Math.PI;
+    // 注意：model.position 係喺 g（未旋轉）嘅本地空間度郁，同 model 自身
+    // 有冇 flip 過方向無關 —— flip 之後個模型已經統一面向 +z，向前撲永遠都係 +z
+    g.userData.animate = makeFakeAnimator(model, animOpts);
     return g;
 }
 
 function makeMilitia(team) {
     const c = TEAM_COLORS[team];
-    return makeGLBHuman(team, {
-        armor: mixColor(c.main, 0x9a8560, 0.55),
-        height: 1.28,
-        weapon: 'axe', weaponLen: 0.75,
-        headgear: 'cap',
-    });
+    return makeMeshyUnit('meshyMilitia', team, { height: 1.3, tint: mixColor(c.main, 0x9a8560, 0.5) });
 }
 
 function makeSwordsman(team) {
-    return makeGLBHuman(team, {
-        height: 1.4,
-        weapon: 'sword', weaponLen: 0.95,
-        shield: true, headgear: 'helm',
-    });
+    const c = TEAM_COLORS[team];
+    return makeMeshyUnit('meshySwordsman', team, { height: 1.45, tint: mixColor(c.main, 0xb8b0a0, 0.2) });
 }
 
 function makeArcher(team) {
     const c = TEAM_COLORS[team];
-    return makeGLBHuman(team, {
-        armor: mixColor(c.main, 0x4a7a3a, 0.35),
-        height: 1.32,
-        weapon: 'bow', weaponLen: 1.05, weaponRot: [Math.PI / 2, 0, 0],
-        headgear: 'hood',
-    });
+    return makeMeshyUnit('meshyArcher', team, { height: 1.35, tint: mixColor(c.main, 0x4a7a3a, 0.3) });
 }
 
 function makePikeman(team) {
     const c = TEAM_COLORS[team];
-    return makeGLBHuman(team, {
-        armor: mixColor(c.main, 0x6a7078, 0.25),
-        height: 1.34,
-        weapon: 'spear', weaponLen: 1.5,
-        headgear: 'spike',
-    });
+    return makeMeshyUnit('meshyPikeman', team, { height: 1.4, tint: mixColor(c.main, 0x6a7078, 0.25), lungeAmount: 0.2 });
 }
 
 function makeHandCannoneer(team) {
     const c = TEAM_COLORS[team];
-    const g = makeGLBHuman(team, {
-        armor: mixColor(c.main, 0x50555c, 0.45),
-        height: 1.36,
-        headgear: 'hat',
-    });
-    // 自製火槍掛手（起 1 單位長，再校準）
-    const gun = new THREE.Group();
-    const barrel = cyl(0.06, 0.08, 0.75, 0x2a2a2a, 8);
-    barrel.rotation.x = Math.PI / 2;
-    barrel.position.z = 0.28;
-    gun.add(barrel);
-    const stockM = box(0.09, 0.12, 0.35, WOOD_DARK);
-    stockM.position.z = -0.15;
-    gun.add(stockM);
-    const body = g.children[0];
-    const att = attachToBone(body, /MiddleHandR/i, gun, { rot: [0, 0, 0] });
-    g.userData.animate(0.11, { moving: false, attackT: -1 });
-    calibrateAttachments(g, [{ att, rawLen: 1.05, targetLen: 0.9 }]);
-    return g;
+    return makeMeshyUnit('meshyMusketeer', team, { height: 1.4, tint: mixColor(c.main, 0x50555c, 0.4) });
 }
 
-// ---------- 騎士（真馬 + 騎手）----------
 function makeKnight(team) {
     const c = TEAM_COLORS[team];
-    const g = new THREE.Group();
-    const horse = instantiate('horse', { cloneMaterials: true });
-    scaleToHeight('horse', horse, 1.75);
-    g.add(horse);
-    // 馬鞍布
-    const caparison = box(0.42, 0.3, 0.85, c.main);
-    caparison.position.set(0, 0.8, 0.12);
-    caparison.castShadow = true;
-    g.add(caparison);
-    // 騎手
-    const rider = instantiate('knight', { tint: { Armor: c.main }, cloneMaterials: true });
-    scaleToHeight('knight', rider, 1.05);
-    rider.position.set(0, 0.95, 0.15);
-    g.add(rider);
-    const spear = instantiate('spear');
-    const spearAtt = attachToBone(rider, /MiddleHandR/i, spear, {
-        rot: [Math.PI / 2 + 0.45, 0, 0],
+    return makeMeshyUnit('meshyCavalry', team, {
+        height: 1.85, tint: mixColor(c.main, 0x8a7050, 0.35),
+        bobAmount: 0.07, bobSpeed: 6, lungeAmount: 0.22,
     });
-    const riderHelm = makeHeadgear('helm', c);
-    const helmAtt = attachToBone(rider, /^Head$/, riderHelm, {});
-
-    const horseAnim = makeMixerAnimator(horse, 'horse', {
-        idle: 'Idle', walk: 'Gallop', attack: 'Attack_Headbutt', walkSpeed: 1.1,
-    });
-    const riderMixer = new THREE.AnimationMixer(rider);
-    const riderIdle = riderMixer.clipAction(getClip('knight', 'Idle_swordRight') ?? getClip('knight', 'Idle'));
-    riderIdle.play();
-    riderMixer.update(Math.random() * 2);
-    calibrateAttachments(g, [
-        { att: spearAtt, rawLen: ASSETS.spear.rawLen, targetLen: 1.05, pos: [0, 0, 0.06] },
-        { att: helmAtt, rawLen: 1.1, targetLen: 0.42, pos: [0, 0.14, 0] },
-    ]);
-    let lastT = null;
-    g.userData.animate = (t, state) => {
-        horseAnim(t, state);
-        if (lastT === null) lastT = t;
-        let dt = t - lastT;
-        lastT = t;
-        if (dt < 0 || dt > 0.2) dt = 1 / 60;
-        riderMixer.update(dt * 0.5);
-    };
-    return g;
 }
 
 // ---------- 攻城槌（Meshy AI 模型）----------
@@ -376,6 +269,8 @@ function makeRam(team) {
     const banner = makeFlag(0.3, 0.18, c.flag);
     banner.position.set(0, 1.25, 0.2);
     g.add(banner);
+    const flash = makeHitFlash(ram);
+    g.userData.onHit = flash.onHit;
 
     g.userData.animate = (t, state) => {
         banner.rotation.y = Math.sin(t * 2.6) * 0.35;
@@ -389,6 +284,7 @@ function makeRam(team) {
         } else {
             ram.position.z *= 0.8;
         }
+        flash.update(t);
     };
     return g;
 }
@@ -404,6 +300,8 @@ function makeCatapult(team) {
     const banner = makeFlag(0.25, 0.16, c.flag);
     banner.position.set(0.35, 1.1, 0.3);
     g.add(banner);
+    const flash = makeHitFlash(cat);
+    g.userData.onHit = flash.onHit;
 
     g.userData.animate = (t, state) => {
         banner.rotation.y = Math.sin(t * 2.6) * 0.35;
@@ -417,6 +315,7 @@ function makeCatapult(team) {
         } else {
             cat.position.z *= 0.8;
         }
+        flash.update(t);
     };
     return g;
 }
@@ -445,6 +344,8 @@ function makeElephant(team) {
     const flag = makeFlag(0.3, 0.16, c.flag);
     flag.position.set(0, 1.82, 0.15);
     g.add(flag);
+    const eleFlash = makeHitFlash(ele);
+    g.userData.onHit = eleFlash.onHit;
 
     // 動畫：得一條 walk clip，行嗰陣先播
     const mixer = new THREE.AnimationMixer(ele);
@@ -474,6 +375,7 @@ function makeElephant(team) {
         } else {
             g.rotation.x *= 0.8;
         }
+        eleFlash.update(t);
     };
     return g;
 }

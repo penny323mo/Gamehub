@@ -4,14 +4,6 @@ import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { clone as skeletonClone } from '../vendor/SkeletonUtils.js';
 
 const FILES = {
-    knight: 'KnightCharacter.glb',
-    horse: 'Horse.glb',
-    sword: 'Sword.glb',
-    spear: 'Spear.glb',
-    bow: 'Bow_Wooden.glb',
-    shield: 'Shield_Heater.glb',
-    axe: 'Axe_Small.glb',
-    arrow: 'Arrow.glb',
     towerSmall: 'TowerHouse_FirstAge.glb',
     towerBig: 'TowerHouse_SecondAge.glb',
     kingCastle: 'Barracks_SecondAge_Level3.glb',
@@ -38,8 +30,13 @@ const FILES = {
     meshyProps: 'environment/props_pack.glb',
     meshyDebris: 'environment/burnt_debris.glb',
     meshySpawnMarker: 'effects/spawn_marker.glb',
+    meshyMilitia: 'units/militia.glb',
+    meshySwordsman: 'units/swordsman.glb',
+    meshyPikeman: 'units/pikeman.glb',
+    meshyArcher: 'units/archer.glb',
+    meshyMusketeer: 'units/musketeer.glb',
+    meshyCavalry: 'units/cavalry.glb',
     // 未接入（optional，見 ASSET_MAPPING.md）：
-    // units/militia|swordsman|pikeman|archer|musketeer|cavalry.glb（3MB+ 高面數素模、無動畫）
     // environment/bridge.glb（比例似長凳）、tree_pack.glb（連地台）、fence_segment.glb
 };
 
@@ -117,6 +114,15 @@ export function instantiate(key, { tint = null, cloneMaterials = false } = {}) {
         });
     }
     return obj;
+}
+
+// 按載入時量得嘅 Y 高度縮放＋貼地（用於冇骨架嘅靜態人形素模）
+export function scaleToHeightGrounded(key, obj, targetHeight) {
+    const a = ASSETS[key];
+    const s = targetHeight / (a.rawSize.y || 1);
+    obj.scale.multiplyScalar(s);
+    obj.position.y = -a.rawMin.y * s;
+    return s;
 }
 
 // 統一縮放：將模型最高點縮到 targetHeight
