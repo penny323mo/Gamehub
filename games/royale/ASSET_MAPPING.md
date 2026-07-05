@@ -12,12 +12,12 @@
 | 原始檔名 | 新檔名 | 路徑 | 對應遊戲單位 | 已載入 | 備註 |
 |---|---|---|---|---|---|
 | Meshy_AI_戰象.glb | war_elephant.glb | assets/models/units/ | 戰象 | ✅ 已接入 | rigged + 1 條 walk 動畫；灰色象皮上色，隊色披布/戰塔/旗由程式加 |
-| Meshy_AI_Character_民兵.glb | militia.glb | assets/models/units/ | 民兵 | ⏸ optional | 3.0MB 高面數素模、無動畫、無材質 — 建議 Meshy re-export（見下） |
-| Meshy_AI_盾劍兵.glb | swordsman.glb | assets/models/units/ | 長劍士 | ⏸ optional | 3.0MB，同上 |
-| Meshy_AI_長槍兵.glb | pikeman.glb | assets/models/units/ | 長槍兵 | ⏸ optional | 3.1MB，同上 |
-| Meshy_AI_弓兵.glb | archer.glb | assets/models/units/ | 弓箭手 | ⏸ optional | 2.8MB，有骨架但無動畫 clip |
-| Meshy_AI_火槍.glb | musketeer.glb | assets/models/units/ | 火槍兵 | ⏸ optional | 3.5MB，同上 |
-| Meshy_AI_騎兵.glb | cavalry.glb | assets/models/units/ | 騎士 | ⏸ optional | 3.8MB，同上 |
+| Meshy_AI_Character_民兵.glb | militia.glb | assets/models/units/ | 民兵 | ✅ 已接入 | 無動畫、無材質 → fake 動畫（移動浮動/攻擊前撲/受傷閃白）+ 按高度/半徑近似上色 |
+| Meshy_AI_盾劍兵.glb | swordsman.glb | assets/models/units/ | 長劍士 | ✅ 已接入 | 同上 |
+| Meshy_AI_長槍兵.glb | pikeman.glb | assets/models/units/ | 長槍兵 | ✅ 已接入 | 同上 |
+| Meshy_AI_弓兵.glb | archer.glb | assets/models/units/ | 弓箭手 | ✅ 已接入 | 同上 |
+| Meshy_AI_火槍.glb | musketeer.glb | assets/models/units/ | 火槍兵 | ✅ 已接入 | 同上 |
+| Meshy_AI_騎兵.glb | cavalry.glb | assets/models/units/ | 騎士 | ✅ 已接入 | 取代原本 Quaternius 真馬+rigged 騎手（動畫由真實 gallop 變 fake bob，換嚟一致嘅玩家素材） |
 
 ## Buildings 建築
 
@@ -66,15 +66,16 @@
 - 路徑全部相對（`assets/models/...`），適合 GitHub Pages。
 - 素模冇 material → 用 `meshyTint()` 程式上色；冇 normals → 載入時 `computeVertexNormals()` 補返。
 
-## Optional assets 未接入原因＋建議
+## 六個人形兵種點樣冧位／上色（`paintSoldier` 啟發式）
 
-6 個人形兵種（militia/swordsman/pikeman/archer/musketeer/cavalry）合共 **~19MB**、
-每個 3MB 級高面數、**無動畫**、無材質。直接換入會：
+呢 6 個 Meshy 素模冇材質、冇 vertex color、冇骨架動畫 clip（雖然有 skin/joints 但冇 animation
+data）。用同 `paintCastle`（塔）同一套手法：逐頂點按世界座標高度／離中軸半徑分類上色 ——
+頭頂 15% 高度 → 膚色；底部 10% → 靴色；離軀幹中軸較遠（武器/披風/伸出嘅手臂）→ 皮革木色；
+其餘（軀幹主體）→ 隊色。無動畫就用 fake animator：移動時輕微浮動、攻擊時前撲、受傷時
+emissive 閃白（0.16 秒），死亡沿用全遊戲統一嘅下沉+傾側動畫。
 
-1. 開場載入由 ~10MB 變 ~29MB（手機好慢）
-2. 兵種由「有骨骼行走／攻擊動畫」變「定格滑行」
-3. 全灰色，兩隊難分
+## Optional assets 未接入原因
 
-**建議**：喺 Meshy 對呢 6 個角色 re-export —
-① 開埋 texture（有色版）② 用 Meshy 嘅 rig + animation（行路/攻擊）③ 揀低 poly 輸出。
-再upload 我即刻替換。橋／樹／圍欄同理，textured 版就可以直接用。
+橋（`environment/bridge.glb`，比例似長凳）、樹（`tree_pack.glb`，連正方形地台）、
+圍欄（`fence_segment.glb`，現有 InstancedMesh 柵欄已圍晒全場）暫不接入 — 換咗會令
+場景一致性變差，屬於「形狀本身唔啱用」而非「未處理」，留返日後可選。
