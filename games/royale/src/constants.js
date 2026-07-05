@@ -33,6 +33,6 @@ export const GAME_RULES = {
 };
 
 export const TEAM_COLORS = {
-    [TEAM.PLAYER]: { main: 0x2b6cb8, accent: 0x8fc1ee, flag: 0x1d4e8f },
-    [TEAM.ENEMY]: { main: 0xb83030, accent: 0xeea08f, flag: 0x8f1d1d },
+    [TEAM.PLAYER]: { main: 0x2e6fc4, accent: 0x9cc8ff, flag: 0x1d4e9f },
+    [TEAM.ENEMY]: { main: 0xc43a2e, accent: 0xffb09c, flag: 0x9f1d1d },
 };

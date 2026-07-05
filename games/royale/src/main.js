@@ -1,13 +1,14 @@
-// 入口 — Three.js 場景、鏡頭、遊戲循環、拖放落卡
+// 入口 — Three.js 場景、鏡頭、資產載入、遊戲循環、拖放落卡
 import * as THREE from 'three';
 import { ARENA, TEAM } from './constants.js';
-import { CARDS } from './cards.js';
+import { CARDS, randomDeck } from './cards.js';
+import { loadAssets } from './assets.js';
 import { buildArena } from './arena.js';
 import { Game } from './game.js';
 import { AIController } from './ai.js';
 import { UI } from './ui.js';
 import { sfx } from './sfx.js';
-import { randomDeck } from './cards.js';
+import { generateCardThumbs } from './thumbs.js';
 
 // ---------- Renderer / Scene ----------
 const holder = document.getElementById('canvas-holder');
@@ -15,22 +16,38 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.18;
 holder.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x9fc4e0);
-scene.fog = new THREE.Fog(0x9fc4e0, 60, 110);
+// 漸變天空
+{
+    const c = document.createElement('canvas');
+    c.width = 16; c.height = 512;
+    const g = c.getContext('2d');
+    const grad = g.createLinearGradient(0, 0, 0, 512);
+    grad.addColorStop(0, '#5f9fd8');
+    grad.addColorStop(0.55, '#a8cce8');
+    grad.addColorStop(1, '#dcecd2');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 16, 512);
+    const sky = new THREE.CanvasTexture(c);
+    sky.colorSpace = THREE.SRGBColorSpace;
+    scene.background = sky;
+}
+scene.fog = new THREE.Fog(0xc2dcda, 62, 120);
 
 const camera = new THREE.PerspectiveCamera(52, 1, 0.5, 200);
-const arena = buildArena(scene);
+let arena = { zones: null, update: () => {} }; // loadAssets 之後先起
 
-// ---------- 鏡頭自動適配（handset 直向 / 橫向都睇到全場） ----------
+// ---------- 鏡頭自動適配 ----------
 const fitPoints = [
     new THREE.Vector3(-ARENA.halfW - 0.8, 0, ARENA.halfL + 0.8),
     new THREE.Vector3(ARENA.halfW + 0.8, 0, ARENA.halfL + 0.8),
     new THREE.Vector3(-ARENA.halfW - 0.8, 0, -ARENA.halfL - 0.8),
     new THREE.Vector3(ARENA.halfW + 0.8, 0, -ARENA.halfL - 0.8),
-    new THREE.Vector3(0, 5, -ARENA.halfL),   // 敵方王塔頂
+    new THREE.Vector3(0, 5, -ARENA.halfL),
     new THREE.Vector3(0, 4, ARENA.halfL),
 ];
 const tmpV = new THREE.Vector3();
@@ -47,7 +64,7 @@ function fitCamera() {
     outer:
     for (let d = 24; d < 90; d += 1.0) {
         for (let iter = 0; iter < 10; iter++) {
-            camera.position.set(0, d * 0.82, d * 0.60 + 5);
+            camera.position.set(0, d * 0.76, d * 0.66 + 5);
             camera.lookAt(0, 0, targetZ);
             camera.updateProjectionMatrix();
             camera.updateMatrixWorld();
@@ -60,7 +77,6 @@ function fitCamera() {
             }
             const mid = (minY + maxY) / 2;
             if (Math.abs(mid - Y_MID) > 0.02) {
-                // 上下唔平均 → 校鏡頭望向邊個 z 位置
                 targetZ += (Y_MID - mid) * 6;
                 continue;
             }
@@ -111,16 +127,17 @@ function screenToWorld(clientX, clientY) {
 // ---------- 遊戲狀態 ----------
 let game = null;
 let ai = null;
+let ui = null;
 let running = false;
 
 function showZones(show) {
-    if (!game) return;
+    if (!game || !arena.zones) return;
     arena.zones.own.visible = show;
     arena.zones.pocketL.visible = show && game.towers[TEAM.ENEMY].left.dead;
     arena.zones.pocketR.visible = show && game.towers[TEAM.ENEMY].right.dead;
 }
 
-const ui = new UI({
+const uiCallbacks = {
     onStart(deck, difficulty) {
         startMatch(deck, difficulty);
     },
@@ -129,7 +146,6 @@ const ui = new UI({
     },
     onQuit() {
         if (game && game.phase !== 'ended') {
-            // 投降 = 對方三冠
             game.crowns[TEAM.ENEMY] = 3;
             game.phase = 'ended';
         }
@@ -177,18 +193,16 @@ const ui = new UI({
         ghost.visible = false;
         showZones(false);
     },
-});
+};
 
 function cleanupMatch() {
     if (!game) return;
-    // 清走所有戰鬥物件（保留戰場本身）
     for (const e of game.entities) {
         scene.remove(e.model);
         scene.remove(e.hpBar);
     }
     for (const pr of game.projectiles) scene.remove(pr.model);
     for (const ef of game.effects) if (ef.mesh) scene.remove(ef.mesh);
-    // 瓦礫係 effect onEnd 加落 scene 嘅獨立物件，用名搵唔到，索性重建個場
     const toRemove = [];
     scene.traverse((o) => {
         if (o.userData?.isRubble) toRemove.push(o);
@@ -220,7 +234,7 @@ function startMatch(deck, difficulty) {
             ui.showEnd(result);
         },
         onImpact() { sfx.explosion(); },
-        onSpawn() { /* 部署音效已喺 onDrop 處理，AI 出兵靜啲 */ },
+        onSpawn() {},
     });
     ai = new AIController(game, difficulty);
     window.__royale = { game, ai }; // 畀自動化測試用
@@ -230,7 +244,7 @@ function startMatch(deck, difficulty) {
     running = true;
 }
 
-// ---------- 主循環（固定時步模擬） ----------
+// ---------- 主循環 ----------
 let last = performance.now();
 let acc = 0;
 const STEP = 1 / 60;
@@ -239,7 +253,7 @@ function loop(now) {
     requestAnimationFrame(loop);
     let dt = (now - last) / 1000;
     last = now;
-    if (dt > 0.25) dt = 0.25; // switch tab 返嚟唔好爆 step
+    if (dt > 0.25) dt = 0.25;
 
     if (running && game) {
         acc += dt;
@@ -251,8 +265,28 @@ function loop(now) {
         game.updateHpBarOrientation(camera.quaternion);
         ui.update();
     }
+    arena.update(dt);
     renderer.render(scene, camera);
 }
-requestAnimationFrame(loop);
 
-ui.showStart();
+// ---------- 啟動 ----------
+async function init() {
+    const loadFill = document.getElementById('load-fill');
+    try {
+        await loadAssets((p) => {
+            if (loadFill) loadFill.style.width = `${Math.round(p * 100)}%`;
+        });
+    } catch (err) {
+        const label = document.querySelector('#loading .loading-label');
+        if (label) label.textContent = '載入失敗，請重新整理 ⚠️';
+        throw err;
+    }
+    arena = buildArena(scene);
+    fitCamera();
+    const cardThumbs = generateCardThumbs();
+    ui = new UI(uiCallbacks, cardThumbs);
+    ui.showStart();
+    document.getElementById('loading')?.remove();
+    requestAnimationFrame(loop);
+}
+init();

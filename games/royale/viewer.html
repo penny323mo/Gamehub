@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <title>模型 Viewer（開發用）</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #444; }
+        canvas { display: block; }
+    </style>
+    <script type="importmap">
+    { "imports": { "three": "./vendor/three.module.min.js" } }
+    </script>
+</head>
+
+<body>
+    <script type="module">
+        import * as THREE from 'three';
+        import { loadAssets } from './src/assets.js';
+        import { makeUnitModel, makePrincessTower, makeKingTower, makeProjectile } from './src/models.js';
+        import { CARDS } from './src/cards.js';
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(innerWidth, innerHeight);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.18;
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x9fb8cc);
+        scene.add(new THREE.HemisphereLight(0xcfe4f5, 0x8aa060, 0.9));
+        const sun = new THREE.DirectionalLight(0xffeecf, 1.8);
+        sun.position.set(-6, 12, 8);
+        sun.castShadow = true;
+        scene.add(sun);
+        const ground = new THREE.Mesh(
+            new THREE.PlaneGeometry(60, 30),
+            new THREE.MeshLambertMaterial({ color: 0x71a350 })
+        );
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        await loadAssets();
+
+        // 一行單位 + 一行塔
+        const unitIds = ['militia', 'swordsman', 'archers', 'pikemen', 'knight', 'ram', 'handcannon', 'catapult', 'elephant', 'watchtower'];
+        const models = [];
+        unitIds.forEach((id, i) => {
+            const m = makeUnitModel(id, i % 2);
+            m.position.set((i - unitIds.length / 2) * 2.2 + 1.1, 0, 2);
+            scene.add(m);
+            models.push(m);
+        });
+        const pt = makePrincessTower(0);
+        pt.position.set(-6, 0, -3.5);
+        scene.add(pt);
+        models.push(pt);
+        const kt = makeKingTower(1);
+        kt.position.set(0, 0, -4);
+        scene.add(kt);
+        models.push(kt);
+        const arrow = makeProjectile('arrow');
+        arrow.position.set(6, 1.2, -3);
+        scene.add(arrow);
+
+        const params = new URLSearchParams(location.search);
+        const mode = params.get('mode') ?? 'idle';
+        const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 100);
+        if (params.get('cam') === 'close') {
+            camera.position.set(0, 2.2, 7.5);
+            camera.lookAt(0, 0.9, 1);
+        } else {
+            camera.position.set(0, 5.5, 12);
+            camera.lookAt(0, 1, -1);
+        }
+
+        let t = 0;
+        function loop() {
+            requestAnimationFrame(loop);
+            t += 1 / 60;
+            const state = mode === 'walk'
+                ? { moving: true, attackT: -1 }
+                : mode === 'attack'
+                    ? { moving: false, attackT: (t % 0.6) / 0.6 }
+                    : { moving: false, attackT: -1 };
+            for (const m of models) m.userData.animate?.(t, state);
+            renderer.render(scene, camera);
+        }
+        loop();
+        window.__viewerReady = true;
+    </script>
+</body>
+
+</html>

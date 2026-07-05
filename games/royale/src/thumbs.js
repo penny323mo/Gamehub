@@ -1,0 +1,72 @@
+// 3D 卡面 — 開波時離屏影低每張卡嘅模型，做卡牌圖示
+import * as THREE from 'three';
+import { TEAM } from './constants.js';
+import { CARDS } from './cards.js';
+import { makeUnitModel, makeProjectile } from './models.js';
+
+export function generateCardThumbs() {
+    const SIZE = 220;
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setSize(SIZE, SIZE);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.25;
+
+    const scene = new THREE.Scene();
+    scene.add(new THREE.HemisphereLight(0xdfeaf5, 0x9a9a80, 1.0));
+    const key = new THREE.DirectionalLight(0xfff2d8, 2.2);
+    key.position.set(2.5, 3.5, 3);
+    scene.add(key);
+    const rim = new THREE.DirectionalLight(0xbcd8ff, 0.9);
+    rim.position.set(-2.5, 2, -2.5);
+    scene.add(rim);
+
+    const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 60);
+    const thumbs = {};
+    const box = new THREE.Box3();
+    const sphere = new THREE.Sphere();
+    const viewDir = new THREE.Vector3(0.62, 0.5, 1).normalize();
+
+    function buildSubject(id) {
+        const card = CARDS[id];
+        if (card.kind === 'spell') {
+            if (id === 'fireball') {
+                const g = makeProjectile('fireball');
+                g.scale.setScalar(1.5);
+                return g;
+            }
+            // 箭雨：三支箭散開
+            const g = new THREE.Group();
+            for (let i = -1; i <= 1; i++) {
+                const a = makeProjectile('arrow');
+                a.scale.setScalar(2.2);
+                a.position.set(i * 0.35, i === 0 ? 0.25 : 0, 0);
+                a.rotation.set(Math.PI / 2.6, 0, i * 0.28);
+                g.add(a);
+            }
+            return g;
+        }
+        return makeUnitModel(id, TEAM.PLAYER);
+    }
+
+    for (const id of Object.keys(CARDS)) {
+        const subject = buildSubject(id);
+        subject.rotation.y = Math.PI * 0.82; // 側少少面向鏡頭
+        // 行兩次令 mixer 有 dt 可以套用 idle pose
+        subject.userData.animate?.(0.1, { moving: false, attackT: -1 });
+        subject.userData.animate?.(0.65, { moving: false, attackT: -1 });
+        scene.add(subject);
+
+        box.setFromObject(subject);
+        box.getBoundingSphere(sphere);
+        camera.position.copy(viewDir).multiplyScalar(sphere.radius * 2.05).add(sphere.center);
+        camera.lookAt(sphere.center);
+
+        renderer.render(scene, camera);
+        thumbs[id] = renderer.domElement.toDataURL('image/png');
+        scene.remove(subject);
+    }
+
+    renderer.dispose();
+    renderer.forceContextLoss?.();
+    return thumbs;
+}
