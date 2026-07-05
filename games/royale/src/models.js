@@ -259,7 +259,6 @@ function makeKnight(team) {
     const g = new THREE.Group();
     const horse = instantiate('horse', { cloneMaterials: true });
     scaleToHeight('horse', horse, 1.75);
-    horse.rotation.y = Math.PI; // 馬 rest 朝 -z，轉返做 +z
     g.add(horse);
     // 馬鞍布
     const caparison = box(0.42, 0.3, 0.85, c.main);
@@ -347,6 +346,11 @@ function makeRam(team) {
             ram.position.z *= 0.8;
         }
     };
+    // 模型砌嗰陣槌頭朝 -z，包一層轉返向 +z
+    const ramFlip = new THREE.Group();
+    ramFlip.rotation.y = Math.PI;
+    while (g.children.length) ramFlip.add(g.children[0]);
+    g.add(ramFlip);
     return g;
 }
 
@@ -471,11 +475,16 @@ function makeElephant(team) {
             const p = state.attackT;
             const a = p < 0.4 ? (p / 0.4) : 1 - (p - 0.4) / 0.6;
             trunk.rotation.x = 0.25 - a * 1.0;
-            g.rotation.x = -a * 0.08;
+            g.rotation.x = a * 0.08;
         } else {
             g.rotation.x *= 0.8;
         }
     };
+    // 模型砌嗰陣頭朝 -z，包一層轉返向 +z
+    const eleFlip = new THREE.Group();
+    eleFlip.rotation.y = Math.PI;
+    while (g.children.length) eleFlip.add(g.children[0]);
+    g.add(eleFlip);
     return g;
 }
 
