@@ -107,9 +107,11 @@ function paintCastle(obj, teamColor) {
 // 人形素模冇材質分區，用世界高度／離中軸距離近似分區上色
 // （頭=膚色、腳=靴色、伸出去嘅武器/配件=皮革木色、身軀=隊色）
 function paintSoldier(obj, tunicColor) {
+    // 淨用高度分區：頭=膚色、腳=靴色、其餘（軀幹/四肢/武器/披風全部）= 隊色。
+    // 之前加埋「離軀幹半徑」判斷，會將闊身斗篷／長袍嘅大半面積誤判做
+    // 皮革配件色，令件衫睇落好唔自然、隊色淨返返個頭肩，所以去咗。
     const cSkin = new THREE.Color(0xd9a679);
-    const cBoot = new THREE.Color(0x2a2018);
-    const cAccessory = new THREE.Color(0x6b5030);
+    const cBoot = new THREE.Color(0x241a14);
     const cTunic = new THREE.Color(tunicColor);
     const tmp = new THREE.Color();
     const v = new THREE.Vector3();
@@ -117,18 +119,6 @@ function paintSoldier(obj, tunicColor) {
     obj.updateMatrixWorld(true);
     const wbox = new THREE.Box3().setFromObject(obj);
     const minY = wbox.min.y, spanY = (wbox.max.y - wbox.min.y) || 1;
-    const cx = (wbox.min.x + wbox.max.x) / 2;
-    const cz = (wbox.min.z + wbox.max.z) / 2;
-
-    let maxRad = 0.001;
-    obj.traverse((o) => {
-        if (!o.isMesh) return;
-        const pos = o.geometry.attributes.position;
-        for (let i = 0; i < pos.count; i++) {
-            v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
-            maxRad = Math.max(maxRad, Math.hypot(v.x - cx, v.z - cz));
-        }
-    });
 
     obj.traverse((o) => {
         if (!o.isMesh) return;
@@ -139,15 +129,12 @@ function paintSoldier(obj, tunicColor) {
         for (let i = 0; i < pos.count; i++) {
             v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
             const h = (v.y - minY) / spanY;
-            const rad = Math.hypot(v.x - cx, v.z - cz) / maxRad;
-            if (h > 0.85) {
+            if (h > 0.86) {
                 tmp.copy(cSkin); // 頭
-            } else if (h < 0.1) {
+            } else if (h < 0.09) {
                 tmp.copy(cBoot); // 靴
-            } else if (rad > 0.48) {
-                tmp.copy(cAccessory); // 伸出嘅武器/披風/配件
             } else {
-                tmp.copy(cTunic); // 身軀 = 隊色
+                tmp.copy(cTunic); // 軀幹/四肢/武器/披風 = 隊色
             }
             colors[i * 3] = tmp.r;
             colors[i * 3 + 1] = tmp.g;
@@ -194,18 +181,23 @@ function makeHitFlash(model) {
 
 // ---------- Fake 動畫（畀冇骨架嘅 Meshy 素模用）----------
 // 移動時輕微浮動、攻擊時前撲、受傷時閃白
-function makeFakeAnimator(model, { bobAmount = 0.045, bobSpeed = 8, lungeAmount = 0.14, forwardSign = 1 } = {}) {
+function makeFakeAnimator(model, { bobAmount = 0.045, bobSpeed = 8, lungeAmount = 0.32, forwardSign = 1 } = {}) {
     const baseY = model.position.y;
     const flash = makeHitFlash(model);
     model.userData.onHit = flash.onHit;
     return (t, state) => {
         model.position.y = baseY + (state.moving ? Math.abs(Math.sin(t * bobSpeed)) * bobAmount : 0);
+        // 行走時身體輕微前傾，令移動方向一眼睇得出（冇步姿動畫，用傾側代替）
+        const walkTilt = state.moving ? 0.12 : 0;
         if (state.attackT >= 0) {
             const p = state.attackT;
-            const lunge = p < 0.35 ? (p / 0.35) : Math.max(0, 1 - (p - 0.35) / 0.4);
+            // 前撲＋前傾大幅加大，令攻擊一睇就知
+            const lunge = p < 0.3 ? (p / 0.3) : Math.max(0, 1 - (p - 0.3) / 0.55);
             model.position.z = forwardSign * lunge * lungeAmount;
+            model.rotation.x = -forwardSign * lunge * 0.5;
         } else {
-            model.position.z *= 0.75;
+            model.position.z *= 0.7;
+            model.rotation.x += (walkTilt - model.rotation.x) * 0.2;
         }
         flash.update(t);
     };
