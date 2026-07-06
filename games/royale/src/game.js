@@ -52,7 +52,7 @@ function barFrameTexture() {
     return tex;
 }
 
-function makeHpBar(width, team) {
+export function makeHpBar(width, team) {
     const height = 0.16;
     const pad = 0.028; // 邊框留位
     const g = new THREE.Group();
@@ -1091,5 +1091,37 @@ export class Game {
     }
     updateHpBarOrientation(quaternion) {
         for (const bar of this.hpBars) bar.quaternion.copy(quaternion);
+    }
+
+    // ---------- PvP：序列化戰場快照畀 host-relay 廣播（guest 淨係接收呢啲嚟渲染）----------
+    serialize() {
+        return {
+            time: this.time, phase: this.phase, mult: this.elixirMultiplier(),
+            winner: this.phase === 'ended' ? (this.result?.winner ?? null) : undefined,
+            crowns: { ...this.crowns },
+            playedCards: { [TEAM.PLAYER]: this.playedCards[TEAM.PLAYER].slice(-8), [TEAM.ENEMY]: this.playedCards[TEAM.ENEMY].slice(-8) },
+            players: {
+                [TEAM.PLAYER]: {
+                    elixir: this.players[TEAM.PLAYER].elixir,
+                    hand: [...this.players[TEAM.PLAYER].hand],
+                    next: this.players[TEAM.PLAYER].next,
+                },
+                [TEAM.ENEMY]: {
+                    elixir: this.players[TEAM.ENEMY].elixir,
+                    hand: [...this.players[TEAM.ENEMY].hand],
+                    next: this.players[TEAM.ENEMY].next,
+                },
+            },
+            // 塔就算冧咗都要留低（用 dead 標記），guest 先知道公主塔倒咗、可以出袋位；
+            // 普通兵死咗就冇謂再送，guest 見唔到就自己拆走個 model
+            entities: this.entities.filter(e => e.isTower || !e.dead).map(e => ({
+                id: e.id, team: e.team, cardId: e.cardId,
+                isTower: e.isTower, towerKind: e.towerKind,
+                x: +e.x.toFixed(2), z: +e.z.toFixed(2),
+                hp: Math.round(e.hp), maxHp: e.maxHp, dead: e.dead,
+                facing: +e.model.rotation.y.toFixed(3),
+                moving: !!e.moving, attackT: +(e.attackAnimT ?? -1).toFixed(2),
+            })),
+        };
     }
 }

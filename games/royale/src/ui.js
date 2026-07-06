@@ -150,9 +150,13 @@ export class UI {
                 document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('selected'));
                 btn.classList.add('selected');
                 this.mode = btn.dataset.mode;
-                // 連勝挑戰難度自動遞增，唔使揀
-                this.$('difficulty-row').style.display = this.mode === 'gauntlet' ? 'none' : '';
-                this.$('difficulty-label').style.display = this.mode === 'gauntlet' ? 'none' : '';
+                // 連勝挑戰難度自動遞增、PvP 冇難度揀，唔使顯示嗰行
+                const hideDiff = this.mode === 'gauntlet' || this.mode === 'pvp';
+                this.$('difficulty-row').style.display = hideDiff ? 'none' : '';
+                this.$('difficulty-label').style.display = hideDiff ? 'none' : '';
+                this.$('pvp-panel').classList.toggle('hidden', this.mode !== 'pvp');
+                this.$('single-hint').classList.toggle('hidden', this.mode === 'pvp');
+                this.$('start-btn').textContent = this.mode === 'pvp' ? '🌐 快速配對' : '開戰！';
             });
         }
         for (const btn of document.querySelectorAll('.deck-tab')) {
@@ -161,6 +165,11 @@ export class UI {
         this.$('start-btn').addEventListener('click', () => {
             this.cb.onStart(this.deck, this.difficulty, this.mode);
         });
+        this.$('pvp-join-btn').addEventListener('click', () => {
+            const code = this.$('pvp-code-input').value.trim();
+            if (code) this.cb.onJoinRoom(this.deck, code);
+        });
+        this.$('matching-cancel-btn').addEventListener('click', () => this.cb.onCancelMatching());
         this.$('again-btn').addEventListener('click', () => this.cb.onAgain());
         this.$('next-stage-btn').addEventListener('click', () => this.cb.onNextStage());
         this.$('menu-btn').addEventListener('click', () => this.showStart());
@@ -171,16 +180,39 @@ export class UI {
         });
     }
 
+    // ---------- PvP 配對畫面 ----------
+    showMatching(status) {
+        this.$('screen-start').classList.add('hidden');
+        this.$('screen-matching').classList.remove('hidden');
+        this.$('matching-status').textContent = status;
+        this.$('matching-code-box').classList.add('hidden');
+    }
+
+    setMatchingStatus(status) {
+        this.$('matching-status').textContent = status;
+    }
+
+    showRoomCode(code) {
+        this.$('matching-code-box').classList.remove('hidden');
+        this.$('matching-code').textContent = code;
+    }
+
+    hideMatching() {
+        this.$('screen-matching').classList.add('hidden');
+    }
+
     showStart() {
         this.refreshProfile();
         this.$('screen-start').classList.remove('hidden');
         this.$('screen-end').classList.add('hidden');
+        this.$('screen-matching').classList.add('hidden');
         this.$('hud').classList.add('hidden');
     }
 
     showGame() {
         this.$('screen-start').classList.add('hidden');
         this.$('screen-end').classList.add('hidden');
+        this.$('screen-matching').classList.add('hidden');
         this.$('hud').classList.remove('hidden');
         this.lastHandKey = '';
         this.lastPlayedKey = '';
@@ -220,6 +252,7 @@ export class UI {
             gEl.classList.add('hidden');
             nextBtn.classList.add('hidden');
             this.$('again-btn').classList.remove('hidden');
+            this.$('again-btn').textContent = extra.mode === 'pvp' ? '🌐 返回選單再配對' : '再嚟一局';
         }
 
         // 傷害榜（自己卡組頭 4 名）

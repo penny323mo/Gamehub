@@ -251,6 +251,8 @@ function makeMeshyUnit(key, team, {
     const g = new THREE.Group();
     g.add(model);
     g.userData.animate = makeFakeAnimator(model, animOpts);
+    // makeFakeAnimator 將 onHit 掛咗喺內層 model 度，但 game.js 攞返出面個 group 嚟叫 —— 轉駁一下
+    g.userData.onHit = (t) => model.userData.onHit?.(t);
     return g;
 }
 

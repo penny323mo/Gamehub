@@ -10,6 +10,8 @@ import { UI } from './ui.js';
 import { sfx } from './sfx.js';
 import { generateCardThumbs } from './thumbs.js';
 import { playerLevels, avgDeckLevel, recordMatch } from './storage.js';
+import { GuestGame, attachHostRelay, sendGuestPlay } from './pvp.js';
+import * as Net from './net.js';
 
 // ---------- Renderer / Scene ----------
 const holder = document.getElementById('canvas-holder');
@@ -56,7 +58,8 @@ const tmpV = new THREE.Vector3();
 let fitD = 40;       // 自動適配搵到嘅基準距離
 let fitTargetZ = -1.2; // 自動適配嘅 lookAt 基準點
 let zoom = 1;        // >1 = 拉近，<1 = 拉遠
-let orbit = 0;        // 鏡頭繞 lookAt 點嘅水平旋轉角（radian）
+let orbitBase = 0;    // 鏡頭基準朝向（PvP guest 要企喺對面望返嚟，基準轉 180°）
+let orbit = 0;        // 鏡頭繞 lookAt 點嘅水平旋轉角（radian，喺 orbitBase 上面疊加）
 const ZOOM_MIN = 0.55, ZOOM_MAX = 2.3;
 
 const camTarget = new THREE.Vector3();
@@ -171,7 +174,15 @@ window.addEventListener('pointercancel', releasePointer);
 
 function resetCameraView() {
     zoom = 1;
-    orbit = 0;
+    orbit = orbitBase;
+    applyCameraView();
+}
+
+// PvP guest 專用：鏡頭基準轉 180°，令佢企喺自己嗰陣（實質係 TEAM.ENEMY）背後望返去，
+// 唔使郁半分戰場座標／隊伍資料，淨係換個睇法
+function setViewFlip(flipped) {
+    orbitBase = flipped ? Math.PI : 0;
+    orbit = orbitBase;
     applyCameraView();
 }
 
@@ -227,25 +238,41 @@ let ai = null;
 let ui = null;
 let running = false;
 
+// ---------- PvP 狀態 ----------
+let netRole = null; // null | 'host' | 'guest'
+let hostRelay = null;
+let matchmakingActive = false;
+
 function showZones(show) {
     if (!game || !arena.zones) return;
     arena.zones.own.visible = show;
-    arena.zones.pocketL.visible = show && game.towers[TEAM.ENEMY].left.dead;
-    arena.zones.pocketR.visible = show && game.towers[TEAM.ENEMY].right.dead;
+    arena.zones.pocketL.visible = show && !!game.towers[TEAM.ENEMY].left?.dead;
+    arena.zones.pocketR.visible = show && !!game.towers[TEAM.ENEMY].right?.dead;
 }
 
 const uiCallbacks = {
     onStart(deck, difficulty, mode = 'single') {
+        if (mode === 'pvp') { startQuickMatch(deck); return; }
         startMatch(deck, difficulty, mode, 1);
     },
+    onJoinRoom(deck, code) {
+        startJoinRoom(deck, code);
+    },
+    onCancelMatching() {
+        cancelMatchmaking();
+    },
     onAgain() {
+        if (matchMode === 'pvp') { ui.showStart(); return; } // PvP 唔支援即刻再嚟一局，返選單再配對
         startMatch(ui.deck, ui.difficulty, matchMode, matchMode === 'gauntlet' ? 1 : gauntletStage);
     },
     onNextStage() {
         startMatch(ui.deck, ui.difficulty, 'gauntlet', gauntletStage + 1);
     },
     onQuit() {
-        if (game && game.phase !== 'ended') {
+        if (netRole && game && game.phase !== 'ended') {
+            Net.leaveAsLoser();
+        }
+        if (game && game.phase !== 'ended' && !netRole) {
             game.crowns[TEAM.ENEMY] = 3;
             game.phase = 'ended';
         }
@@ -284,6 +311,18 @@ const uiCallbacks = {
         if (!p) return;
         const cardId = game.players[TEAM.PLAYER].hand[handIdx];
         const card = CARDS[cardId];
+        if (netRole === 'guest') {
+            // Guest 冇話事權：只係送叫牌指令畀 host，用本機 validPlacement 做樂觀預判
+            const pos = game.validPlacement(TEAM.PLAYER, cardId, p.x, p.z);
+            const canAfford = game.players[TEAM.PLAYER].elixir >= card.cost;
+            if (pos && canAfford) {
+                sendGuestPlay(handIdx, pos.x, pos.z);
+                card.kind === 'spell' ? sfx.spell() : sfx.deploy();
+            } else {
+                sfx.error();
+            }
+            return;
+        }
         const ok = game.playCard(TEAM.PLAYER, handIdx, p.x, p.z);
         if (ok) {
             card.kind === 'spell' ? sfx.spell() : sfx.deploy();
@@ -299,6 +338,20 @@ const uiCallbacks = {
 };
 
 function cleanupMatch() {
+    stopMatchmaking();
+    if (netRole) {
+        Net.teardown();
+        netRole = null;
+    }
+    if (hostRelay) { hostRelay.stop(); hostRelay = null; }
+    setViewFlip(false);
+    if (game instanceof GuestGame) {
+        game.dispose();
+        game = null;
+        ai = null;
+        running = false;
+        return;
+    }
     if (!game) return;
     for (const e of game.entities) {
         scene.remove(e.model);
@@ -315,6 +368,72 @@ function cleanupMatch() {
     game = null;
     ai = null;
     running = false;
+}
+
+// ---------- PvP 配對流程 ----------
+function stopMatchmaking() {
+    matchmakingActive = false;
+    if (matchPollT) { clearInterval(matchPollT); matchPollT = null; }
+}
+let matchPollT = null;
+let pvpDeck = null;
+
+async function startQuickMatch(deck) {
+    if (matchmakingActive) return;
+    matchmakingActive = true;
+    pvpDeck = deck;
+    ui.showMatching('搜尋緊對手…');
+    try {
+        const room = await Net.quickMatch(deck);
+        await afterJoinedRoom(room);
+    } catch (err) {
+        if (!matchmakingActive) return;
+        ui.setMatchingStatus('配對失敗：' + (err?.message ?? err));
+    }
+}
+
+async function startJoinRoom(deck, code) {
+    if (matchmakingActive) return;
+    matchmakingActive = true;
+    pvpDeck = deck;
+    ui.showMatching('加入緊房間…');
+    try {
+        const room = await Net.joinRoomByCode(code, deck);
+        await afterJoinedRoom(room);
+    } catch (err) {
+        if (!matchmakingActive) return;
+        ui.setMatchingStatus('加入失敗：' + (err?.message ?? err));
+    }
+}
+
+function cancelMatchmaking() {
+    if (!matchmakingActive) return;
+    Net.cancelWaiting();
+    stopMatchmaking();
+    ui.hideMatching();
+    ui.showStart();
+}
+
+async function afterJoinedRoom(room) {
+    if (!matchmakingActive) return;
+    if (room.guest_id && room.host_id) {
+        if (Net.NetState.role === 'host') beginAsHost(room.host_deck ?? pvpDeck, room.guest_deck);
+        else beginAsGuest();
+        return;
+    }
+    // 淨係得自己一個，做咗 host，等緊人（房號畀朋友輸入加入；同時亦會俾人隨機配對搵到）
+    ui.setMatchingStatus('等待對手加入…');
+    ui.showRoomCode(room.room_code);
+    Net.on('roomUpdate', (updated) => {
+        if (matchmakingActive && updated.guest_id && updated.host_id) {
+            beginAsHost(updated.host_deck ?? pvpDeck, updated.guest_deck);
+        }
+    });
+    matchPollT = setInterval(async () => {
+        if (!matchmakingActive) return;
+        const r = await Net.pollRoom();
+        if (r && r.guest_id && r.host_id) beginAsHost(r.host_deck ?? pvpDeck, r.guest_deck);
+    }, 2500);
 }
 
 let matchMode = 'single';
@@ -413,6 +532,113 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
     running = true;
 }
 
+// ---------- PvP：Host 開波（跑晒真正 Game 模擬，冇 AI，由遠端玩家輸入代替）----------
+function beginAsHost(hostDeck, guestDeck) {
+    stopMatchmaking();
+    ui.hideMatching();
+    netRole = 'host';
+    matchMode = 'pvp';
+    gauntletStage = 0;
+    setViewFlip(false);
+
+    matchStats = {
+        difficulty: 'pvp', deck: [...hostDeck],
+        avgCost: hostDeck.reduce((s, id) => s + CARDS[id].cost, 0) / hostDeck.length,
+        towersDestroyed: 0, bestSpellHit: 0, cardsPlayed: 0, gauntletStage: 0,
+    };
+
+    game = new Game(scene, hostDeck, guestDeck, {
+        onTowerDestroyed(t) {
+            sfx.towerDown();
+            if (t.team === TEAM.ENEMY) matchStats.towersDestroyed += 1;
+            ui.banner(t.team === TEAM.PLAYER ? '💥 你嘅城塔冧咗！' : '🎉 攻陷敵方城塔！');
+        },
+        onKingActivated(team) {
+            sfx.kingWake();
+            if (team === TEAM.ENEMY) ui.banner('👑 對手王塔參戰！', 1400);
+        },
+        onOvertime() { sfx.overtime(); ui.banner('⚡ 加時！河心聖水泉開通', 2200); },
+        onOvertimeExtend(n) { sfx.overtime(); ui.banner(`⚡ 加時再嚟！第 ${n} 節突然死亡`, 2200); },
+        onClimax() { sfx.kingWake(); ui.banner('🔥 決勝一刻！傷害提升', 1800); },
+        onSpellHit(team, cardId, count) {
+            if (team === TEAM.PLAYER) matchStats.bestSpellHit = Math.max(matchStats.bestSpellHit, count);
+        },
+        onCardPlayed(team) {
+            if (team === TEAM.PLAYER) matchStats.cardsPlayed += 1;
+        },
+        onGameOver(result) {
+            if (result.winner === TEAM.PLAYER) sfx.win();
+            else if (result.winner === TEAM.ENEMY) sfx.lose();
+            matchStats.win = result.winner === TEAM.PLAYER;
+            matchStats.draw = result.winner == null;
+            matchStats.crowns = result.crowns[TEAM.PLAYER];
+            matchStats.matchSeconds = game.simTime;
+            const rewards = recordMatch(matchStats);
+            Net.reportResult(result.winner === TEAM.PLAYER ? 'host' : result.winner === TEAM.ENEMY ? 'guest' : 'draw', 'crowns');
+            ui.showEnd(result, { rewards, damage: game.damageByCard[TEAM.PLAYER], mode: 'pvp', stage: 0 });
+        },
+        onImpact() { sfx.explosion(); },
+        onSpawn() {},
+    }, {
+        levels: { [TEAM.PLAYER]: playerLevels(), [TEAM.ENEMY]: playerLevels() },
+    });
+    hostRelay = attachHostRelay(game);
+    Net.on('opponentLeft', () => {
+        if (game && game.phase !== 'ended') {
+            game.crowns[TEAM.ENEMY] = 0; game.crowns[TEAM.PLAYER] = Math.max(game.crowns[TEAM.PLAYER], 1);
+            game.phase = 'ended';
+            game.result = { winner: TEAM.PLAYER, crowns: { ...game.crowns } };
+            game.hooks.onGameOver?.(game.result);
+        }
+    });
+    Net.markPlaying();
+    window.__royale = { game };
+    ui.bindGame(game);
+    ui.showGame();
+    ui.banner('⚔️ 對手已連線，開波！', 1400);
+    running = true;
+}
+
+// ---------- PvP：Guest 開波（唔跑本機模擬，淨係接收 host 廣播嘅快照嚟渲染）----------
+function beginAsGuest() {
+    stopMatchmaking();
+    ui.hideMatching();
+    netRole = 'guest';
+    matchMode = 'pvp';
+    gauntletStage = 0;
+    setViewFlip(true);
+
+    const g = new GuestGame(scene);
+    let recorded = false;
+    Net.on('state', (snap) => {
+        g.applySnapshot(snap);
+        if (g.phase === 'ended' && g.result && !recorded) {
+            recorded = true;
+            if (g.result.winner === TEAM.PLAYER) sfx.win();
+            else if (g.result.winner === TEAM.ENEMY) sfx.lose();
+            const rewards = recordMatch({
+                difficulty: 'pvp', deck: [...pvpDeck], win: g.result.winner === TEAM.PLAYER,
+                draw: g.result.winner == null, crowns: g.result.crowns[TEAM.PLAYER],
+                towersDestroyed: 0, bestSpellHit: 0, cardsPlayed: 0, gauntletStage: 0,
+                matchSeconds: g._clock, avgCost: pvpDeck.reduce((s, id) => s + CARDS[id].cost, 0) / pvpDeck.length,
+            });
+            ui.showEnd({ winner: g.result.winner, crowns: g.result.crowns }, { rewards, damage: {}, mode: 'pvp', stage: 0 });
+        }
+    });
+    Net.on('opponentLeft', () => {
+        if (g.phase !== 'ended') {
+            g.phase = 'ended';
+            g.result = { winner: TEAM.PLAYER, crowns: { ...g.crowns } };
+        }
+    });
+    game = g;
+    window.__royale = { game };
+    ui.bindGame(game);
+    ui.showGame();
+    ui.banner('⚔️ 對手已連線，開波！你操控嘅係企喺對面嗰隊', 2200);
+    running = true;
+}
+
 // ---------- 主循環 ----------
 let last = performance.now();
 let acc = 0;
@@ -425,11 +651,17 @@ function loop(now) {
     if (dt > 0.25) dt = 0.25;
 
     if (running && game) {
-        acc += dt;
-        while (acc >= STEP) {
-            game.update(STEP);
-            ai?.update(STEP);
-            acc -= STEP;
+        if (netRole === 'guest') {
+            // Guest 唔跑本機模擬，淨係推動渲染用嘅本地時鐘（bob/攻擊動畫）
+            game.tick(dt);
+        } else {
+            acc += dt;
+            while (acc >= STEP) {
+                game.update(STEP);
+                ai?.update(STEP);
+                hostRelay?.tick(STEP);
+                acc -= STEP;
+            }
         }
         game.updateHpBarOrientation(camera.quaternion);
         ui.update();

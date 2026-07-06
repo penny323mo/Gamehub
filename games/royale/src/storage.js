@@ -180,6 +180,7 @@ const TROPHY_DELTA = {
     easy: { win: 15, loss: -8, draw: 3 },
     normal: { win: 30, loss: -14, draw: 5 },
     hard: { win: 45, loss: -18, draw: 8 },
+    pvp: { win: 40, loss: -20, draw: 8 }, // 打真人贏輸都計多啲，夠刺激
 };
 
 function grantShards(id, n) {
