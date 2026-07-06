@@ -212,8 +212,8 @@ function makeHitFlash(model) {
 }
 
 // ---------- Fake 動畫（畀冇骨架嘅 Meshy 素模用）----------
-// 移動時輕微浮動、攻擊時前撲、受傷時閃白
-function makeFakeAnimator(model, { bobAmount = 0.045, bobSpeed = 8, lungeAmount = 0.32, forwardSign = 1 } = {}) {
+// 移動時輕微浮動、攻擊時前撲＋揮動、受傷時閃白
+function makeFakeAnimator(model, { bobAmount = 0.045, bobSpeed = 8, lungeAmount = 0.5, forwardSign = 1 } = {}) {
     const baseY = model.position.y;
     const baseScale = model.scale.x;
     const flash = makeHitFlash(model);
@@ -222,23 +222,25 @@ function makeFakeAnimator(model, { bobAmount = 0.045, bobSpeed = 8, lungeAmount 
         model.position.y = baseY + (state.moving ? Math.abs(Math.sin(t * bobSpeed)) * bobAmount : 0);
         if (state.attackT >= 0) {
             const p = state.attackT;
-            // 前撲（實質位移，唔靠旋轉）＋命中一刻膨脹一下，喺呢種頂視鏡頭
-            // 底下都清楚睇到「撲緊向邊」，唔會再有方向歧義
+            // 前撲（實質位移，唔靠旋轉，方向由 group 嘅 facing 決定，冇歧義）
+            // ＋側揮（rotation.z 唔涉及前後方向，純粹畀個「郁緊」嘅視覺回饋）＋命中膨脹
             const lunge = p < 0.3 ? (p / 0.3) : Math.max(0, 1 - (p - 0.3) / 0.55);
             model.position.z = forwardSign * lunge * lungeAmount;
             const punch = p < 0.32 ? (p / 0.32) : Math.max(0, 1 - (p - 0.32) / 0.5);
-            model.scale.setScalar(baseScale * (1 + punch * 0.16));
+            model.scale.setScalar(baseScale * (1 + punch * 0.28));
+            model.rotation.z = Math.sin(p * Math.PI) * 0.32;
         } else {
             model.position.z *= 0.7;
             model.scale.setScalar(model.scale.x + (baseScale - model.scale.x) * 0.3);
+            model.rotation.z *= 0.6;
         }
         flash.update(t);
     };
 }
 
-// Meshy 人形素模：貼地、染色、包一層轉向（若模型原本面向 -z）、掛 fake 動畫
+// Meshy 人形素模：貼地、染色、掛 fake 動畫（模型原生已面向 +z，唔使額外轉向）
 function makeMeshyUnit(key, team, {
-    height, tint, flip = true, armor: armorOpt = true, accent = null, accentBand, propColor, ...animOpts
+    height, tint, armor: armorOpt = true, accent = null, accentBand, propColor, ...animOpts
 } = {}) {
     const c = TEAM_COLORS[team];
     const paintOpts = { armor: armorOpt, accent };
@@ -248,9 +250,6 @@ function makeMeshyUnit(key, team, {
     scaleToHeightGrounded(key, model, height);
     const g = new THREE.Group();
     g.add(model);
-    if (flip) model.rotation.y = Math.PI;
-    // 注意：model.position 係喺 g（未旋轉）嘅本地空間度郁，同 model 自身
-    // 有冇 flip 過方向無關 —— flip 之後個模型已經統一面向 +z，向前撲永遠都係 +z
     g.userData.animate = makeFakeAnimator(model, animOpts);
     return g;
 }
@@ -282,7 +281,7 @@ function makeArcher(team) {
 function makePikeman(team) {
     const c = TEAM_COLORS[team];
     return makeMeshyUnit('meshyPikeman', team, {
-        height: 1.68, tint: mixColor(c.main, 0x6a7078, 0.2), lungeAmount: 0.2,
+        height: 1.68, tint: mixColor(c.main, 0x6a7078, 0.2), lungeAmount: 0.32,
         accent: 0x2f4a35, accentBand: [0.58, 0.63], propColor: 0x5a3d20, // 墨綠色軍帶＋木桿
     });
 }
@@ -299,7 +298,7 @@ function makeKnight(team) {
     const c = TEAM_COLORS[team];
     return makeMeshyUnit('meshyCavalry', team, {
         height: 2.22, tint: mixColor(c.main, 0x8a7050, 0.35),
-        bobAmount: 0.07, bobSpeed: 6, lungeAmount: 0.22,
+        bobAmount: 0.07, bobSpeed: 6, lungeAmount: 0.35,
         accent: 0xd4af37, accentBand: [0.42, 0.48], propColor: 0x5a3d20, // 金色馬鞍飾邊
     });
 }
