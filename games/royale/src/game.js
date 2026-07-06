@@ -197,6 +197,8 @@ export class Game {
         this.damageByCard = { [TEAM.PLAYER]: {}, [TEAM.ENEMY]: {} };
         this.playedCards = { [TEAM.PLAYER]: [], [TEAM.ENEMY]: [] };
         this.fountainT = 0;
+        this.overtimeExtensions = 0;
+        this.climaxNotified = false;
         this.fountain = null;
 
         this.towers = { [TEAM.PLAYER]: {}, [TEAM.ENEMY]: {} };
@@ -708,9 +710,15 @@ export class Game {
 
     // ---------- 聖水倍率 ----------
     elixirMultiplier() {
-        if (this.phase === 'overtime') return 3;
+        if (this.phase === 'overtime') return GAME_RULES.overtimeElixirMult;
         if (this.time <= GAME_RULES.doubleElixirAt) return 2;
         return 1;
+    }
+
+    // ---------- 決勝加成：加時最後幾秒雙方攻擊力提升，谷落決勝負 ----------
+    #climaxMult() {
+        return (this.phase === 'overtime' && this.time <= GAME_RULES.climaxWindow)
+            ? GAME_RULES.climaxDmgMult : 1;
     }
 
     // ---------- 尋路 ----------
@@ -771,20 +779,21 @@ export class Game {
         e.attackCd = e.hitSpeed * berserk;
         e.attackAnimT = 0;
         const src = { team: e.team, cardId: e.isTower ? 'tower' : e.cardId };
+        const dmg = e.dmg * this.#climaxMult();
         if (e.projectile) {
-            this.#fireProjectile(e, target);
+            this.#fireProjectile(e, target, dmg);
         } else {
-            this.#damage(target, e.dmg, src);
+            this.#damage(target, dmg, src);
             if (e.splash) {
                 for (const o of this.entities) {
                     if (o.dead || o.team === e.team || o === target) continue;
-                    if (dist(o, target) <= e.splash + o.radius) this.#damage(o, e.dmg, src);
+                    if (dist(o, target) <= e.splash + o.radius) this.#damage(o, dmg, src);
                 }
             }
         }
     }
 
-    #fireProjectile(e, target) {
+    #fireProjectile(e, target, dmg = e.dmg) {
         const kind = e.projectile;
         const model = makeProjectile(kind);
         const y0 = e.isTower ? (e.towerKind === 'king' ? 3.5 : 3.0)
@@ -795,7 +804,7 @@ export class Game {
         const speed = kind === 'stone' ? 9 : kind === 'bullet' ? 22 : 16;
         this.projectiles.push({
             kind, model, x: e.x, y: y0, z: e.z,
-            target, team: e.team, dmg: e.dmg, splash: e.splash ?? 0,
+            target, team: e.team, dmg, splash: e.splash ?? 0,
             srcCardId: e.isTower ? 'tower' : e.cardId,
             speed, lob: kind === 'stone',
             travel: 0,
@@ -865,20 +874,41 @@ export class Game {
                 }
                 this.phase = 'overtime';
                 this.time = GAME_RULES.overtimeTime;
+                this.overtimeExtensions = 0;
+                this.climaxNotified = false;
                 this.hooks.onOvertime?.();
             } else {
-                // 加時完：比最殘塔
-                const lowest = (team) => {
-                    let min = Infinity;
-                    for (const t of Object.values(this.towers[team])) {
-                        if (!t.dead) min = Math.min(min, t.hp / t.maxHp);
-                    }
-                    return min;
-                };
-                const lp = lowest(TEAM.PLAYER), le = lowest(TEAM.ENEMY);
-                this.#endGame(lp > le ? TEAM.PLAYER : le > lp ? TEAM.ENEMY : null);
-                return;
+                const pc = this.crowns[TEAM.PLAYER], ec = this.crowns[TEAM.ENEMY];
+                if (pc !== ec) {
+                    this.#endGame(pc > ec ? TEAM.PLAYER : TEAM.ENEMY);
+                    return;
+                }
+                // 加時完仲打和：唔好即刻靠塔血比大細完場，再延長一節（有次數上限保證一定完結）
+                if (this.overtimeExtensions < GAME_RULES.maxOvertimeExtensions) {
+                    this.overtimeExtensions += 1;
+                    this.time = GAME_RULES.overtimeExtension;
+                    this.climaxNotified = false;
+                    this.hooks.onOvertimeExtend?.(this.overtimeExtensions);
+                } else {
+                    // 比最殘塔分勝負
+                    const lowest = (team) => {
+                        let min = Infinity;
+                        for (const t of Object.values(this.towers[team])) {
+                            if (!t.dead) min = Math.min(min, t.hp / t.maxHp);
+                        }
+                        return min;
+                    };
+                    const lp = lowest(TEAM.PLAYER), le = lowest(TEAM.ENEMY);
+                    this.#endGame(lp > le ? TEAM.PLAYER : le > lp ? TEAM.ENEMY : null);
+                    return;
+                }
             }
+        }
+
+        // 加時決勝一刻：淨係通知一次
+        if (this.phase === 'overtime' && !this.climaxNotified && this.time <= GAME_RULES.climaxWindow) {
+            this.climaxNotified = true;
+            this.hooks.onClimax?.();
         }
 
         // 聖水

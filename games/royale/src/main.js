@@ -365,6 +365,14 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
             sfx.overtime();
             ui.banner('⚡ 加時！河心聖水泉開通', 2200);
         },
+        onOvertimeExtend(n) {
+            sfx.overtime();
+            ui.banner(`⚡ 加時再嚟！第 ${n} 節突然死亡`, 2200);
+        },
+        onClimax() {
+            sfx.kingWake();
+            ui.banner('🔥 決勝一刻！傷害提升', 1800);
+        },
         onSpellHit(team, cardId, count) {
             if (team === TEAM.PLAYER) {
                 matchStats.bestSpellHit = Math.max(matchStats.bestSpellHit, count);

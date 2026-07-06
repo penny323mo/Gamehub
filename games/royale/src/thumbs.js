@@ -97,7 +97,11 @@ export function generateCardThumbs() {
 
         box.setFromObject(subject);
         box.getBoundingSphere(sphere);
-        camera.position.copy(viewDir).multiplyScalar(sphere.radius * 2.05).add(sphere.center);
+        // 距離要夠遠先可以完整擺低個 bounding sphere（半頂角 fov/2），
+        // 唔係好似之前咁 sphere 半徑大過個視錐可視範圍，令高瘦/闊嘅模型（例如戰象嘅戰塔／旗）批去畫面外
+        const halfFov = THREE.MathUtils.degToRad(camera.fov / 2);
+        const dist = sphere.radius / Math.sin(halfFov) * 1.14; // 加 14% 邊界緩衝
+        camera.position.copy(viewDir).multiplyScalar(dist).add(sphere.center);
         camera.lookAt(sphere.center);
 
         renderer.render(scene, camera);

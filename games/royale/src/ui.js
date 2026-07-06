@@ -1,6 +1,6 @@
 // UI — 手牌、聖水、計時、畫面切換、拖放操作（滑鼠 + 觸控）、進度/卡組/挑戰/結算
 import { CARDS, CARD_POOL } from './cards.js';
-import { TEAM } from './constants.js';
+import { TEAM, GAME_RULES } from './constants.js';
 import {
     getStats, getDailyChallenges, getDecks, setDeck, getActiveDeck, setActiveDeck,
     cardLevel, cardShards, SHARDS_PER_LEVEL, MAX_LEVEL,
@@ -337,7 +337,7 @@ export class UI {
 
     #buildElixirTicks() {
         const ticks = this.$('elixir-ticks');
-        for (let i = 0; i < 10; i++) ticks.appendChild(document.createElement('span'));
+        for (let i = 0; i < GAME_RULES.elixirMax; i++) ticks.appendChild(document.createElement('span'));
     }
 
     bindGame(game) {
@@ -396,7 +396,7 @@ export class UI {
         // 聖水
         this.$('elixir-num').textContent = Math.floor(p.elixir);
         const fill = this.$('elixir-fill');
-        fill.style.width = `${(p.elixir / 10) * 100}%`;
+        fill.style.width = `${(p.elixir / GAME_RULES.elixirMax) * 100}%`;
         fill.classList.toggle('boost', g.elixirMultiplier() > 1);
 
         // 時間 / 皇冠
@@ -404,9 +404,11 @@ export class UI {
         const timerEl = this.$('timer');
         timerEl.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
         timerEl.classList.toggle('urgent', g.phase === 'overtime' || t <= 30);
-        this.$('phase-label').textContent =
-            g.phase === 'overtime' ? '⚡ 加時 突然死亡'
+        const inClimax = g.phase === 'overtime' && g.time <= GAME_RULES.climaxWindow;
+        this.$('phase-label').textContent = inClimax ? '🔥 決勝一刻 傷害提升'
+            : g.phase === 'overtime' ? '⚡ 加時 突然死亡'
             : g.elixirMultiplier() > 1 ? '💧 雙倍聖水' : '';
+        this.$('phase-label').classList.toggle('climax', inClimax);
         this.$('crowns-player').textContent = g.crowns[TEAM.PLAYER];
         this.$('crowns-enemy').textContent = g.crowns[TEAM.ENEMY];
     }

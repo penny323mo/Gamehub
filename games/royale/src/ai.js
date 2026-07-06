@@ -1,5 +1,5 @@
 // AI 對手 — 防守反應 + 進攻推線 + 法術運用 + 三種打法個性
-import { TEAM, ARENA } from './constants.js';
+import { TEAM, ARENA, GAME_RULES } from './constants.js';
 import { CARDS } from './cards.js';
 
 const DIFFICULTY = {
@@ -84,7 +84,7 @@ export class AIController {
         // 4. 進攻：儲夠聖水就推線
         if (me.elixir >= this.cfg.attackElixir) {
             this.tryAttack();
-        } else if (me.elixir >= 10) {
+        } else if (me.elixir >= GAME_RULES.elixirMax) {
             // 聖水滿瀉，是但出張嘢
             this.playAnyCheap();
         }

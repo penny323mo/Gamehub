@@ -24,12 +24,17 @@ export const TOWERS = {
 export const GAME_RULES = {
     matchTime: 180,        // 正賽 3 分鐘
     doubleElixirAt: 60,    // 剩 60 秒開始雙倍聖水
-    overtimeTime: 120,     // 加時 2 分鐘
-    elixirMax: 10,
+    overtimeTime: 120,     // 第一節加時 2 分鐘
+    overtimeExtension: 60, // 加時完仲打和 → 再延長 1 分鐘（sudden death 唔會即刻靠塔血比大細完場）
+    maxOvertimeExtensions: 2, // 最多延長兩次，之後先靠塔血百分比分勝負，確保賽事一定完結
+    overtimeElixirMult: 3, // 加時聖水回復倍率（3 倍，比雙倍聖水仲快）
+    elixirMax: 12,         // 略為提高上限，畀玩家儲多幾滴打連招組合
     elixirStart: 5,
     elixirInterval: 2.8,   // 每 2.8 秒回 1 滴
     deployTime: 1.0,       // 部署硬直
     spellTowerFactor: 0.35, // 法術對塔傷害折扣
+    climaxWindow: 10,      // 加時最後幾秒開始傷害加成，谷落決勝
+    climaxDmgMult: 1.25,
 };
 
 export const TEAM_COLORS = {

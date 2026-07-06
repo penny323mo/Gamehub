@@ -103,9 +103,9 @@ export const CARDS = {
     },
     mill: {
         id: 'mill', kind: 'building', name: '聖水磨坊', icon: '⚗️', cost: 5,
-        desc: '每 7 秒產 1 滴聖水，45 秒',
+        desc: '每 5 秒產 1 滴聖水，60 秒（總共回本 +7）',
         hp: 500, dmg: 0, hitSpeed: 999, range: 0,
-        lifetime: 45, radius: 0.65, elixirGen: { interval: 7, amount: 1 },
+        lifetime: 60, radius: 0.65, elixirGen: { interval: 5, amount: 1 },
     },
 };
 
