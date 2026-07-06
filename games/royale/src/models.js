@@ -106,13 +106,16 @@ function paintCastle(obj, teamColor) {
 
 // 人形素模冇材質分區，用世界高度／離中軸距離近似分區上色
 // （頭=膚色、腳=靴色、伸出去嘅武器/配件=皮革木色、身軀=隊色）
-function paintSoldier(obj, tunicColor) {
-    // 淨用高度分區：頭=膚色、腳=靴色、其餘（軀幹/四肢/武器/披風全部）= 隊色。
-    // 之前加埋「離軀幹半徑」判斷，會將闊身斗篷／長袍嘅大半面積誤判做
-    // 皮革配件色，令件衫睇落好唔自然、隊色淨返返個頭肩，所以去咗。
+function paintSoldier(obj, tunicColor, { armor = true } = {}) {
+    // 純高度分區（唔用半徑，避免斗篷/長袍被誤判），但加多層令唔再係
+    // 一嚿平塗色：頭=膚色、肩甲=金屬灰（可關）、身軀=隊色、
+    // 腰帶=深隊色、褲/腿=深隊色、靴=近黑色。
     const cSkin = new THREE.Color(0xd9a679);
-    const cBoot = new THREE.Color(0x241a14);
+    const cArmor = new THREE.Color(0x8a929c);
+    const cBoot = new THREE.Color(0x201810);
     const cTunic = new THREE.Color(tunicColor);
+    const cBelt = new THREE.Color(0x3a2c1c);
+    const cLegs = cTunic.clone().multiplyScalar(0.68);
     const tmp = new THREE.Color();
     const v = new THREE.Vector3();
 
@@ -131,10 +134,16 @@ function paintSoldier(obj, tunicColor) {
             const h = (v.y - minY) / spanY;
             if (h > 0.86) {
                 tmp.copy(cSkin); // 頭
-            } else if (h < 0.09) {
-                tmp.copy(cBoot); // 靴
+            } else if (armor && h > 0.72) {
+                tmp.copy(cArmor); // 肩／領口金屬
+            } else if (h > 0.46) {
+                tmp.copy(cTunic); // 上身 = 隊色
+            } else if (h > 0.36) {
+                tmp.copy(cBelt); // 腰帶
+            } else if (h > 0.12) {
+                tmp.copy(cLegs); // 褲／腿：深啲嘅隊色
             } else {
-                tmp.copy(cTunic); // 軀幹/四肢/武器/披風 = 隊色
+                tmp.copy(cBoot); // 靴
             }
             colors[i * 3] = tmp.r;
             colors[i * 3 + 1] = tmp.g;
@@ -194,7 +203,7 @@ function makeFakeAnimator(model, { bobAmount = 0.045, bobSpeed = 8, lungeAmount 
             // 前撲＋前傾大幅加大，令攻擊一睇就知
             const lunge = p < 0.3 ? (p / 0.3) : Math.max(0, 1 - (p - 0.3) / 0.55);
             model.position.z = forwardSign * lunge * lungeAmount;
-            model.rotation.x = -forwardSign * lunge * 0.5;
+            model.rotation.x = forwardSign * lunge * 0.5;
         } else {
             model.position.z *= 0.7;
             model.rotation.x += (walkTilt - model.rotation.x) * 0.2;
@@ -204,9 +213,9 @@ function makeFakeAnimator(model, { bobAmount = 0.045, bobSpeed = 8, lungeAmount 
 }
 
 // Meshy 人形素模：貼地、染色、包一層轉向（若模型原本面向 -z）、掛 fake 動畫
-function makeMeshyUnit(key, team, { height, tint, flip = true, ...animOpts } = {}) {
+function makeMeshyUnit(key, team, { height, tint, flip = true, armor: armorOpt = true, ...animOpts } = {}) {
     const c = TEAM_COLORS[team];
-    const model = paintSoldier(instantiate(key), tint ?? c.main);
+    const model = paintSoldier(instantiate(key), tint ?? c.main, { armor: armorOpt });
     scaleToHeightGrounded(key, model, height);
     const g = new THREE.Group();
     g.add(model);
@@ -219,27 +228,27 @@ function makeMeshyUnit(key, team, { height, tint, flip = true, ...animOpts } = {
 
 function makeMilitia(team) {
     const c = TEAM_COLORS[team];
-    return makeMeshyUnit('meshyMilitia', team, { height: 1.3, tint: mixColor(c.main, 0x9a8560, 0.5) });
+    return makeMeshyUnit('meshyMilitia', team, { height: 1.3, tint: mixColor(c.main, 0x9a8560, 0.45), armor: false });
 }
 
 function makeSwordsman(team) {
     const c = TEAM_COLORS[team];
-    return makeMeshyUnit('meshySwordsman', team, { height: 1.45, tint: mixColor(c.main, 0xb8b0a0, 0.2) });
+    return makeMeshyUnit('meshySwordsman', team, { height: 1.45, tint: mixColor(c.main, 0xb8b0a0, 0.15) });
 }
 
 function makeArcher(team) {
     const c = TEAM_COLORS[team];
-    return makeMeshyUnit('meshyArcher', team, { height: 1.35, tint: mixColor(c.main, 0x4a7a3a, 0.3) });
+    return makeMeshyUnit('meshyArcher', team, { height: 1.35, tint: mixColor(c.main, 0x4a7a3a, 0.3), armor: false });
 }
 
 function makePikeman(team) {
     const c = TEAM_COLORS[team];
-    return makeMeshyUnit('meshyPikeman', team, { height: 1.4, tint: mixColor(c.main, 0x6a7078, 0.25), lungeAmount: 0.2 });
+    return makeMeshyUnit('meshyPikeman', team, { height: 1.4, tint: mixColor(c.main, 0x6a7078, 0.2), lungeAmount: 0.2 });
 }
 
 function makeHandCannoneer(team) {
     const c = TEAM_COLORS[team];
-    return makeMeshyUnit('meshyMusketeer', team, { height: 1.4, tint: mixColor(c.main, 0x50555c, 0.4) });
+    return makeMeshyUnit('meshyMusketeer', team, { height: 1.4, tint: mixColor(c.main, 0x50555c, 0.35), armor: false });
 }
 
 function makeKnight(team) {
