@@ -104,24 +104,42 @@ function paintCastle(obj, teamColor) {
     return obj;
 }
 
-// 人形素模冇材質分區，用世界高度／離中軸距離近似分區上色
-// （頭=膚色、腳=靴色、伸出去嘅武器/配件=皮革木色、身軀=隊色）
-function paintSoldier(obj, tunicColor, { armor = true } = {}) {
-    // 純高度分區（唔用半徑，避免斗篷/長袍被誤判），但加多層令唔再係
-    // 一嚿平塗色：頭=膚色、肩甲=金屬灰（可關）、身軀=隊色、
-    // 腰帶=深隊色、褲/腿=深隊色、靴=近黑色。
+// 人形素模冇材質分區，用世界高度（＋有限制嘅離軸半徑）近似分區上色。
+// 每個兵種可以自訂 accent（獨有飾帶色）同 armor（肩甲有冇），等六隻兵
+// 就算全部素模冇材質，睇落都有唔同嘅盔甲/軍服細節，唔止得隊色一嚿。
+function paintSoldier(obj, tunicColor, {
+    armor = true, accent = null, accentBand = [0.56, 0.64], propColor = 0x5a3d20,
+} = {}) {
     const cSkin = new THREE.Color(0xd9a679);
     const cArmor = new THREE.Color(0x8a929c);
     const cBoot = new THREE.Color(0x201810);
     const cTunic = new THREE.Color(tunicColor);
     const cBelt = new THREE.Color(0x3a2c1c);
     const cLegs = cTunic.clone().multiplyScalar(0.68);
+    const cAccent = accent != null ? new THREE.Color(accent) : null;
+    const cProp = new THREE.Color(propColor);
     const tmp = new THREE.Color();
     const v = new THREE.Vector3();
 
     obj.updateMatrixWorld(true);
     const wbox = new THREE.Box3().setFromObject(obj);
     const minY = wbox.min.y, spanY = (wbox.max.y - wbox.min.y) || 1;
+    const cx = (wbox.min.x + wbox.max.x) / 2;
+    const cz = (wbox.min.z + wbox.max.z) / 2;
+
+    // 淨用嚟揾「伸出去好遠」嘅武器桿/弓臂 —— 只喺中上身高度範圍先檢查
+    // 半徑，避免下身闊身斗篷／長袍（半徑一樣大但高度低好多）被誤判
+    let maxRad = 0.001;
+    obj.traverse((o) => {
+        if (!o.isMesh) return;
+        const pos = o.geometry.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+            v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+            const h = (v.y - minY) / spanY;
+            if (h < 0.3 || h > 0.9) continue; // 淨計中上身，唔理褲腳/斗篷下擺
+            maxRad = Math.max(maxRad, Math.hypot(v.x - cx, v.z - cz));
+        }
+    });
 
     obj.traverse((o) => {
         if (!o.isMesh) return;
@@ -132,10 +150,15 @@ function paintSoldier(obj, tunicColor, { armor = true } = {}) {
         for (let i = 0; i < pos.count; i++) {
             v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
             const h = (v.y - minY) / spanY;
+            const rad = (h >= 0.3 && h <= 0.9) ? Math.hypot(v.x - cx, v.z - cz) / maxRad : 0;
             if (h > 0.86) {
                 tmp.copy(cSkin); // 頭
+            } else if (rad > 0.72) {
+                tmp.copy(cProp); // 中上身範圍內、伸出好遠 = 武器桿/弓臂
             } else if (armor && h > 0.72) {
                 tmp.copy(cArmor); // 肩／領口金屬
+            } else if (cAccent && h > accentBand[0] && h <= accentBand[1]) {
+                tmp.copy(cAccent); // 每兵種獨有飾帶
             } else if (h > 0.46) {
                 tmp.copy(cTunic); // 上身 = 隊色
             } else if (h > 0.36) {
@@ -192,30 +215,36 @@ function makeHitFlash(model) {
 // 移動時輕微浮動、攻擊時前撲、受傷時閃白
 function makeFakeAnimator(model, { bobAmount = 0.045, bobSpeed = 8, lungeAmount = 0.32, forwardSign = 1 } = {}) {
     const baseY = model.position.y;
+    const baseScale = model.scale.x;
     const flash = makeHitFlash(model);
     model.userData.onHit = flash.onHit;
     return (t, state) => {
         model.position.y = baseY + (state.moving ? Math.abs(Math.sin(t * bobSpeed)) * bobAmount : 0);
-        // 行走時身體輕微前傾，令移動方向一眼睇得出（冇步姿動畫，用傾側代替）
-        const walkTilt = state.moving ? 0.12 : 0;
         if (state.attackT >= 0) {
             const p = state.attackT;
-            // 前撲＋前傾大幅加大，令攻擊一睇就知
+            // 前撲（實質位移，唔靠旋轉）＋命中一刻膨脹一下，喺呢種頂視鏡頭
+            // 底下都清楚睇到「撲緊向邊」，唔會再有方向歧義
             const lunge = p < 0.3 ? (p / 0.3) : Math.max(0, 1 - (p - 0.3) / 0.55);
             model.position.z = forwardSign * lunge * lungeAmount;
-            model.rotation.x = forwardSign * lunge * 0.5;
+            const punch = p < 0.32 ? (p / 0.32) : Math.max(0, 1 - (p - 0.32) / 0.5);
+            model.scale.setScalar(baseScale * (1 + punch * 0.16));
         } else {
             model.position.z *= 0.7;
-            model.rotation.x += (walkTilt - model.rotation.x) * 0.2;
+            model.scale.setScalar(model.scale.x + (baseScale - model.scale.x) * 0.3);
         }
         flash.update(t);
     };
 }
 
 // Meshy 人形素模：貼地、染色、包一層轉向（若模型原本面向 -z）、掛 fake 動畫
-function makeMeshyUnit(key, team, { height, tint, flip = true, armor: armorOpt = true, ...animOpts } = {}) {
+function makeMeshyUnit(key, team, {
+    height, tint, flip = true, armor: armorOpt = true, accent = null, accentBand, propColor, ...animOpts
+} = {}) {
     const c = TEAM_COLORS[team];
-    const model = paintSoldier(instantiate(key), tint ?? c.main, { armor: armorOpt });
+    const paintOpts = { armor: armorOpt, accent };
+    if (accentBand) paintOpts.accentBand = accentBand;
+    if (propColor != null) paintOpts.propColor = propColor;
+    const model = paintSoldier(instantiate(key), tint ?? c.main, paintOpts);
     scaleToHeightGrounded(key, model, height);
     const g = new THREE.Group();
     g.add(model);
@@ -228,27 +257,42 @@ function makeMeshyUnit(key, team, { height, tint, flip = true, armor: armorOpt =
 
 function makeMilitia(team) {
     const c = TEAM_COLORS[team];
-    return makeMeshyUnit('meshyMilitia', team, { height: 1.3, tint: mixColor(c.main, 0x9a8560, 0.45), armor: false });
+    return makeMeshyUnit('meshyMilitia', team, {
+        height: 1.3, tint: mixColor(c.main, 0x9a8560, 0.45), armor: false,
+        accent: 0xc9a227, accentBand: [0.55, 0.6], propColor: 0x6b4a28, // 芥黃色布條腰帶
+    });
 }
 
 function makeSwordsman(team) {
     const c = TEAM_COLORS[team];
-    return makeMeshyUnit('meshySwordsman', team, { height: 1.45, tint: mixColor(c.main, 0xb8b0a0, 0.15) });
+    return makeMeshyUnit('meshySwordsman', team, {
+        height: 1.45, tint: mixColor(c.main, 0xb8b0a0, 0.15),
+        accent: 0xe8dcc0, accentBand: [0.58, 0.63], propColor: 0xb9c2c9, // 米白色綬帶＋銀刃
+    });
 }
 
 function makeArcher(team) {
     const c = TEAM_COLORS[team];
-    return makeMeshyUnit('meshyArcher', team, { height: 1.35, tint: mixColor(c.main, 0x4a7a3a, 0.3), armor: false });
+    return makeMeshyUnit('meshyArcher', team, {
+        height: 1.35, tint: mixColor(c.main, 0x4a7a3a, 0.3), armor: false,
+        accent: 0x6b4423, accentBand: [0.5, 0.56], propColor: 0x7a5230, // 皮革箭袋帶＋木弓
+    });
 }
 
 function makePikeman(team) {
     const c = TEAM_COLORS[team];
-    return makeMeshyUnit('meshyPikeman', team, { height: 1.4, tint: mixColor(c.main, 0x6a7078, 0.2), lungeAmount: 0.2 });
+    return makeMeshyUnit('meshyPikeman', team, {
+        height: 1.4, tint: mixColor(c.main, 0x6a7078, 0.2), lungeAmount: 0.2,
+        accent: 0x2f4a35, accentBand: [0.58, 0.63], propColor: 0x5a3d20, // 墨綠色軍帶＋木桿
+    });
 }
 
 function makeHandCannoneer(team) {
     const c = TEAM_COLORS[team];
-    return makeMeshyUnit('meshyMusketeer', team, { height: 1.4, tint: mixColor(c.main, 0x50555c, 0.35), armor: false });
+    return makeMeshyUnit('meshyMusketeer', team, {
+        height: 1.4, tint: mixColor(c.main, 0x50555c, 0.35), armor: false,
+        accent: 0xded6c0, accentBand: [0.52, 0.6], propColor: 0x3a3a3a, // 米白色子彈袋帶＋鐵槍管
+    });
 }
 
 function makeKnight(team) {
@@ -256,6 +300,7 @@ function makeKnight(team) {
     return makeMeshyUnit('meshyCavalry', team, {
         height: 1.85, tint: mixColor(c.main, 0x8a7050, 0.35),
         bobAmount: 0.07, bobSpeed: 6, lungeAmount: 0.22,
+        accent: 0xd4af37, accentBand: [0.42, 0.48], propColor: 0x5a3d20, // 金色馬鞍飾邊
     });
 }
 
