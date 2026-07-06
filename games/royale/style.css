@@ -606,6 +606,279 @@ body {
     line-height: 1.8;
 }
 
+/* ---------- 段位＋生涯統計 ---------- */
+#profile-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, .22);
+    border: 2px solid #55452a;
+    border-radius: 14px;
+}
+
+#rank-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-align: left;
+}
+
+#rank-icon {
+    font-size: 30px;
+}
+
+#rank-name {
+    font-size: 14px;
+    font-weight: 800;
+    color: #ffe9b0;
+}
+
+#rank-trophies {
+    font-size: 13px;
+    color: #ffd870;
+    font-weight: 700;
+}
+
+#profile-stats {
+    font-size: 11px;
+    color: #c8bc9a;
+    text-align: right;
+    line-height: 1.5;
+}
+
+/* ---------- 每日挑戰 ---------- */
+#daily-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.daily-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, .18);
+    border: 1px solid #55452a;
+    border-radius: 9px;
+    color: #d8cca8;
+    text-align: left;
+}
+
+.daily-item.done {
+    color: #8fd86a;
+    border-color: #4a7a38;
+}
+
+.daily-item .tick {
+    font-size: 14px;
+}
+
+/* ---------- 模式選擇 ---------- */
+#mode-row {
+    display: flex;
+    gap: 8px;
+}
+
+.mode-btn {
+    flex: 1;
+    padding: 10px 6px;
+    font-size: 14px;
+    font-weight: 700;
+    border-radius: 12px;
+    border: 2px solid #6a5230;
+    background: #2a3620;
+    color: #d8cca8;
+    cursor: pointer;
+}
+
+.mode-btn.selected {
+    background: #7a4a28;
+    border-color: #ffd870;
+    color: #fff;
+}
+
+#gauntlet-best {
+    font-size: 11px;
+    color: #ffb066;
+}
+
+/* ---------- 卡組槽 ---------- */
+#deck-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.deck-tab {
+    flex: 1;
+    padding: 7px 4px;
+    font-size: 13px;
+    font-weight: 700;
+    border-radius: 9px;
+    border: 2px solid #55452a;
+    background: #222c18;
+    color: #9a927e;
+    cursor: pointer;
+}
+
+.deck-tab.selected {
+    background: #3a4a28;
+    border-color: #ffd870;
+    color: #fff;
+}
+
+/* ---------- 卡牌等級角標 ---------- */
+.lv-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    padding: 1px 5px;
+    border-radius: 8px;
+    background: linear-gradient(180deg, #6ac2ff, #2a6ad8);
+    border: 1.5px solid #fff;
+    font-size: 10px;
+    font-weight: 800;
+    color: #fff;
+}
+
+.deck-card .shard-bar {
+    margin-top: 3px;
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, .4);
+    overflow: hidden;
+}
+
+.deck-card .shard-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #6ac2ff, #9adcff);
+    border-radius: 3px;
+}
+
+/* ---------- 對手已出卡 ---------- */
+#enemy-played {
+    position: absolute;
+    top: 56px;
+    left: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    pointer-events: none;
+    z-index: 4;
+}
+
+#enemy-played .chip {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: rgba(60, 18, 12, .8);
+    border: 1.5px solid rgba(255, 140, 120, .5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+}
+
+#enemy-played .chip img {
+    width: 90%;
+    height: 90%;
+    object-fit: contain;
+}
+
+/* ---------- 結算詳情 ---------- */
+#end-trophy {
+    font-size: 17px;
+    font-weight: 800;
+    color: #ffd870;
+    margin-bottom: 4px;
+}
+
+#end-trophy .rankup {
+    display: block;
+    font-size: 14px;
+    color: #8fd86a;
+    margin-top: 2px;
+}
+
+#end-gauntlet {
+    font-size: 15px;
+    font-weight: 700;
+    color: #ffb066;
+    margin: 6px 0;
+}
+
+#end-damage {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.dmg-row {
+    display: grid;
+    grid-template-columns: 30px 1fr 52px;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #d8cca8;
+}
+
+.dmg-row .dmg-icon {
+    font-size: 17px;
+    text-align: center;
+}
+
+.dmg-row .dmg-track {
+    height: 12px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, .35);
+    overflow: hidden;
+}
+
+.dmg-row .dmg-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #d8a038, #ffd870);
+    border-radius: 6px;
+}
+
+.dmg-row .dmg-num {
+    text-align: right;
+    font-weight: 700;
+}
+
+#end-rewards {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.reward-chip {
+    padding: 5px 10px;
+    background: rgba(0, 0, 0, .25);
+    border: 1.5px solid #55452a;
+    border-radius: 10px;
+    font-size: 12px;
+    color: #d8cca8;
+}
+
+.reward-chip.levelup {
+    border-color: #6ac2ff;
+    color: #9adcff;
+    font-weight: 700;
+}
+
+#end-challenges {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #8fd86a;
+    line-height: 1.6;
+}
+
 /* ---------- 細螢幕適配 ---------- */
 @media (max-width: 480px) {
     .card {

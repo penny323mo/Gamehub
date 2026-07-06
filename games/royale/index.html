@@ -40,6 +40,7 @@
             </div>
             <button id="mute-btn" title="靜音">🔊</button>
             <button id="quit-btn" title="投降離開">🏳️</button>
+            <div id="enemy-played" title="對手已出過嘅卡"></div>
             <div id="cam-controls">
                 <button id="cam-zoom-in" title="放大">➕</button>
                 <button id="cam-zoom-out" title="縮小">➖</button>
@@ -67,16 +68,44 @@
             <div class="panel">
                 <h1>⚔️ 帝國皇家戰</h1>
                 <p class="subtitle">即時戰略塔防 — 派兵過河，攻陷敵方城堡！</p>
-                <div class="section-label">難度</div>
+
+                <!-- 玩家段位＋生涯統計 -->
+                <div id="profile-bar">
+                    <div id="rank-badge"><span id="rank-icon">🪵</span>
+                        <div>
+                            <div id="rank-name">木盾見習</div>
+                            <div id="rank-trophies">🏆 0</div>
+                        </div>
+                    </div>
+                    <div id="profile-stats"></div>
+                </div>
+
+                <!-- 每日挑戰 -->
+                <div class="section-label">📅 每日挑戰</div>
+                <div id="daily-list"></div>
+
+                <div class="section-label">模式</div>
+                <div id="mode-row">
+                    <button class="mode-btn selected" data-mode="single">⚔️ 單場對戰</button>
+                    <button class="mode-btn" data-mode="gauntlet">🔥 連勝挑戰 <span id="gauntlet-best"></span></button>
+                </div>
+
+                <div class="section-label" id="difficulty-label">難度</div>
                 <div id="difficulty-row">
                     <button class="diff-btn" data-diff="easy">🙂 簡單</button>
                     <button class="diff-btn selected" data-diff="normal">😐 普通</button>
                     <button class="diff-btn" data-diff="hard">😈 困難</button>
                 </div>
+
                 <div class="section-label">你嘅卡組（揀 8 張）<span id="deck-count">8/8</span></div>
+                <div id="deck-tabs">
+                    <button class="deck-tab selected" data-slot="0">卡組 1</button>
+                    <button class="deck-tab" data-slot="1">卡組 2</button>
+                    <button class="deck-tab" data-slot="2">卡組 3</button>
+                </div>
                 <div id="deck-grid"></div>
                 <button id="start-btn" class="big-btn">開戰！</button>
-                <p class="hint">💡 拖卡落戰場出兵 · 聖水會自動回復 · 3 分鐘內攻陷更多城塔就贏</p>
+                <p class="hint">💡 拖卡落戰場出兵 · 贏比賽儲碎片升級卡牌 · 完成每日挑戰有額外獎勵</p>
             </div>
         </div>
 
@@ -85,6 +114,13 @@
             <div class="panel">
                 <h1 id="end-title">勝利！</h1>
                 <div id="end-crowns"></div>
+                <div id="end-trophy"></div>
+                <div id="end-gauntlet" class="hidden"></div>
+                <div class="section-label">⚔️ 傷害榜</div>
+                <div id="end-damage"></div>
+                <div id="end-rewards"></div>
+                <div id="end-challenges"></div>
+                <button id="next-stage-btn" class="big-btn hidden">🔥 下一關</button>
                 <button id="again-btn" class="big-btn">再嚟一局</button>
                 <button id="menu-btn" class="big-btn secondary">返回選單</button>
             </div>

@@ -1,4 +1,4 @@
-// AI 對手 — 防守反應 + 進攻推線 + 法術運用
+// AI 對手 — 防守反應 + 進攻推線 + 法術運用 + 三種打法個性
 import { TEAM, ARENA } from './constants.js';
 import { CARDS } from './cards.js';
 
@@ -8,10 +8,42 @@ const DIFFICULTY = {
     hard: { interval: 0.45, skipChance: 0.0, attackElixir: 7, defendChance: 1.0, spellIQ: 1.0 },
 };
 
+// 打法個性：卡組 + 對難度參數嘅偏移
+export const PERSONALITIES = {
+    aggro: {
+        name: '狂攻型', icon: '🔥',
+        deck: ['scout', 'militia', 'knight', 'berserker', 'ram', 'powderkeg', 'arrows', 'elephant'],
+        attackElixirDelta: -2, defendMult: 0.6, intervalMult: 1.0,
+    },
+    control: {
+        name: '防反型', icon: '🛡️',
+        deck: ['archers', 'pikemen', 'handcannon', 'ballista', 'mill', 'freeze', 'fireball', 'elephant'],
+        attackElixirDelta: +1, defendMult: 1.15, intervalMult: 1.0,
+    },
+    cycle: {
+        name: '快循環型', icon: '♻️',
+        deck: ['militia', 'scout', 'archers', 'pikemen', 'powderkeg', 'swordsman', 'arrows', 'ram'],
+        attackElixirDelta: -1, defendMult: 1.0, intervalMult: 0.8,
+    },
+};
+
+export function randomPersonality() {
+    const keys = Object.keys(PERSONALITIES);
+    return keys[Math.floor(Math.random() * keys.length)];
+}
+
 export class AIController {
-    constructor(game, difficulty = 'normal') {
+    constructor(game, difficulty = 'normal', personality = null) {
         this.game = game;
-        this.cfg = DIFFICULTY[difficulty] ?? DIFFICULTY.normal;
+        const base = DIFFICULTY[difficulty] ?? DIFFICULTY.normal;
+        const p = PERSONALITIES[personality] ?? null;
+        this.personality = personality;
+        this.cfg = p ? {
+            ...base,
+            interval: base.interval * p.intervalMult,
+            attackElixir: Math.max(5, base.attackElixir + p.attackElixirDelta),
+            defendChance: Math.min(1, base.defendChance * p.defendMult),
+        } : base;
         this.timer = 2.0; // 開波唞一唞
         this.spellCd = 0;
     }
@@ -40,7 +72,16 @@ export class AIController {
             if (threatValue >= 2 && this.tryDefend(threats)) return;
         }
 
-        // 3. 進攻：儲夠聖水就推線
+        // 3. 冇威脅又夠水：落聖水磨坊儲經濟
+        if (!threats.length && me.elixir >= 8) {
+            const mills = this.affordable(c => c.elixirGen);
+            if (mills.length && Math.random() < 0.7) {
+                const x = (Math.random() < 0.5 ? -1 : 1) * 2.2;
+                if (this.play(mills[0].i, x, -11.5)) return;
+            }
+        }
+
+        // 4. 進攻：儲夠聖水就推線
         if (me.elixir >= this.cfg.attackElixir) {
             this.tryAttack();
         } else if (me.elixir >= 10) {
@@ -108,8 +149,8 @@ export class AIController {
         // 揀反制卡：兵海用平價多兵，坦克用長槍／高傷
         let options = this.affordable(c => c.kind === 'unit' && !c.targetsBuildingsOnly);
         if (!options.length) {
-            // 或者擺個哨塔
-            const b = this.affordable(c => c.kind === 'building');
+            // 或者擺個防禦建築（磨坊冇攻擊力，唔算）
+            const b = this.affordable(c => c.kind === 'building' && c.dmg > 0);
             if (b.length) {
                 return this.play(b[0].i, 0, -6);
             }

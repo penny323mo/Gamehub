@@ -1,6 +1,10 @@
-// UI — 手牌、聖水、計時、畫面切換、拖放操作（滑鼠 + 觸控）
-import { CARDS, CARD_POOL, DEFAULT_DECK } from './cards.js';
+// UI — 手牌、聖水、計時、畫面切換、拖放操作（滑鼠 + 觸控）、進度/卡組/挑戰/結算
+import { CARDS, CARD_POOL } from './cards.js';
 import { TEAM } from './constants.js';
+import {
+    getStats, getDailyChallenges, getDecks, setDeck, getActiveDeck, setActiveDeck,
+    cardLevel, cardShards, SHARDS_PER_LEVEL, MAX_LEVEL,
+} from './storage.js';
 
 export class UI {
     constructor(callbacks, thumbs = {}) {
@@ -9,25 +13,55 @@ export class UI {
             const art = this.thumbs[card.id]
                 ? `<img class="art" src="${this.thumbs[card.id]}" draggable="false" alt="">`
                 : `<div class="icon">${card.icon}</div>`;
-            return `<div class="cost">${card.cost}</div>${art}<div class="name">${card.name}</div>`;
+            const lv = cardLevel(card.id);
+            const lvHtml = lv > 1 ? `<div class="lv-badge">Lv${lv}</div>` : '';
+            return `<div class="cost">${card.cost}</div>${lvHtml}${art}<div class="name">${card.name}</div>`;
         };
-        this.cb = callbacks; // { onStart, onDrop(idx,x,y), onDragMove(idx,x,y), onDragEnd, onQuit, onAgain }
+        this.cb = callbacks; // { onStart, onDrop, onDragMove, onDragEnd, onQuit, onAgain, onNextStage }
         this.$ = (id) => document.getElementById(id);
         this.game = null;
         this.lastHandKey = '';
+        this.lastPlayedKey = '';
         this.dragIdx = -1;
         this.selectedIdx = -1;
         this.difficulty = 'normal';
-        this.deck = [...DEFAULT_DECK];
+        this.mode = 'single'; // single | gauntlet
+        this.deckSlot = getActiveDeck();
+        this.deck = [...getDecks()[this.deckSlot].cards];
         this.bannerTimer = null;
 
         this.#buildDeckGrid();
         this.#bindStartScreen();
         this.#bindHand();
         this.#buildElixirTicks();
+        this.refreshProfile();
     }
 
-    // ---------- 開始畫面 ----------
+    // ---------- 開始畫面：段位/統計/每日挑戰 ----------
+    refreshProfile() {
+        const s = getStats();
+        this.$('rank-icon').textContent = s.rank.icon;
+        this.$('rank-name').textContent = s.rank.name;
+        this.$('rank-trophies').textContent = s.next
+            ? `🏆 ${s.trophies}（${s.next.min - s.trophies} 到 ${s.next.name}）`
+            : `🏆 ${s.trophies}`;
+        const fast = s.fastestThreeCrown != null ? `｜最快三冠 ${s.fastestThreeCrown}s` : '';
+        this.$('profile-stats').innerHTML =
+            `勝 ${s.wins}｜負 ${s.losses}｜和 ${s.draws}<br>連勝 ${s.streak}（最高 ${s.bestStreak}）${fast}`;
+        this.$('gauntlet-best').textContent = s.gauntletBest > 0 ? `最佳 ${s.gauntletBest} 關` : '';
+
+        const daily = this.$('daily-list');
+        daily.innerHTML = '';
+        for (const c of getDailyChallenges()) {
+            const el = document.createElement('div');
+            el.className = 'daily-item' + (c.done ? ' done' : '');
+            el.innerHTML = `<span class="tick">${c.done ? '✅' : '⬜'}</span><span>${c.desc}</span>`;
+            daily.appendChild(el);
+        }
+        this.#refreshDeckLevels();
+    }
+
+    // ---------- 卡組編輯 ----------
     #buildDeckGrid() {
         const grid = this.$('deck-grid');
         grid.innerHTML = '';
@@ -39,9 +73,10 @@ export class UI {
             const art = this.thumbs[id]
                 ? `<img class="art" src="${this.thumbs[id]}" draggable="false" alt="">`
                 : `<div class="icon">${c.icon}</div>`;
-            el.innerHTML = `<div class="cost">${c.cost}</div>${art}
+            el.innerHTML = `<div class="cost">${c.cost}</div><div class="lv-badge"></div>${art}
                 <div class="name">${c.name}</div>
-                <div class="desc">${c.desc}</div>`;
+                <div class="desc">${c.desc}</div>
+                <div class="shard-bar"><div class="shard-fill"></div></div>`;
             el.addEventListener('click', () => {
                 if (this.deck.includes(id)) {
                     this.deck = this.deck.filter(d => d !== id);
@@ -50,10 +85,39 @@ export class UI {
                     this.deck.push(id);
                     el.classList.add('picked');
                 }
+                setDeck(this.deckSlot, this.deck);
                 this.#updateDeckCount();
             });
             grid.appendChild(el);
         }
+        this.#refreshDeckLevels();
+        this.#updateDeckCount();
+    }
+
+    #refreshDeckLevels() {
+        document.querySelectorAll('#deck-grid .deck-card').forEach((el) => {
+            const id = el.dataset.id;
+            const lv = cardLevel(id);
+            const badge = el.querySelector('.lv-badge');
+            badge.textContent = `Lv${lv}`;
+            const fill = el.querySelector('.shard-fill');
+            if (lv >= MAX_LEVEL) {
+                fill.style.width = '100%';
+                badge.textContent = 'MAX';
+            } else {
+                fill.style.width = `${Math.min(100, (cardShards(id) / SHARDS_PER_LEVEL[lv]) * 100)}%`;
+            }
+        });
+    }
+
+    #switchDeckSlot(slot) {
+        this.deckSlot = slot;
+        setActiveDeck(slot);
+        this.deck = [...getDecks()[slot].cards];
+        document.querySelectorAll('.deck-tab').forEach(b =>
+            b.classList.toggle('selected', Number(b.dataset.slot) === slot));
+        document.querySelectorAll('#deck-grid .deck-card').forEach(el =>
+            el.classList.toggle('picked', this.deck.includes(el.dataset.id)));
         this.#updateDeckCount();
     }
 
@@ -73,10 +137,24 @@ export class UI {
                 this.difficulty = btn.dataset.diff;
             });
         }
+        for (const btn of document.querySelectorAll('.mode-btn')) {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('selected'));
+                btn.classList.add('selected');
+                this.mode = btn.dataset.mode;
+                // 連勝挑戰難度自動遞增，唔使揀
+                this.$('difficulty-row').style.display = this.mode === 'gauntlet' ? 'none' : '';
+                this.$('difficulty-label').style.display = this.mode === 'gauntlet' ? 'none' : '';
+            });
+        }
+        for (const btn of document.querySelectorAll('.deck-tab')) {
+            btn.addEventListener('click', () => this.#switchDeckSlot(Number(btn.dataset.slot)));
+        }
         this.$('start-btn').addEventListener('click', () => {
-            this.cb.onStart(this.deck, this.difficulty);
+            this.cb.onStart(this.deck, this.difficulty, this.mode);
         });
         this.$('again-btn').addEventListener('click', () => this.cb.onAgain());
+        this.$('next-stage-btn').addEventListener('click', () => this.cb.onNextStage());
         this.$('menu-btn').addEventListener('click', () => this.showStart());
         this.$('quit-btn').addEventListener('click', () => this.cb.onQuit());
         this.$('mute-btn').addEventListener('click', () => {
@@ -86,6 +164,7 @@ export class UI {
     }
 
     showStart() {
+        this.refreshProfile();
         this.$('screen-start').classList.remove('hidden');
         this.$('screen-end').classList.add('hidden');
         this.$('hud').classList.add('hidden');
@@ -96,14 +175,83 @@ export class UI {
         this.$('screen-end').classList.add('hidden');
         this.$('hud').classList.remove('hidden');
         this.lastHandKey = '';
+        this.lastPlayedKey = '';
+        this.$('enemy-played').innerHTML = '';
     }
 
-    showEnd(result) {
+    // result: game.result；extra: { rewards, damage, mode, stage, stageCleared }
+    showEnd(result, extra = {}) {
         const win = result.winner === TEAM.PLAYER;
         const draw = result.winner === null || result.winner === undefined;
         this.$('end-title').textContent = draw ? '🤝 和局' : win ? '🏆 勝利！' : '💀 戰敗…';
         this.$('end-crowns').innerHTML =
-            `你 👑 × ${result.crowns[TEAM.PLAYER]}<br>敵方 👑 × ${result.crowns[TEAM.ENEMY]}`;
+            `你 👑 × ${result.crowns[TEAM.PLAYER]}　·　敵方 👑 × ${result.crowns[TEAM.ENEMY]}`;
+
+        // 獎盃變化＋段位
+        const r = extra.rewards;
+        const trophyEl = this.$('end-trophy');
+        if (r) {
+            const sign = r.trophyDelta >= 0 ? '+' : '';
+            trophyEl.innerHTML = `🏆 ${sign}${r.trophyDelta} → ${r.trophies}` +
+                (r.rankUp ? `<span class="rankup">⬆️ 晉升 ${r.rank.icon} ${r.rank.name}！</span>` : '');
+        } else {
+            trophyEl.innerHTML = '';
+        }
+
+        // 連勝挑戰進度
+        const gEl = this.$('end-gauntlet');
+        const nextBtn = this.$('next-stage-btn');
+        if (extra.mode === 'gauntlet') {
+            gEl.classList.remove('hidden');
+            gEl.textContent = win
+                ? `🔥 連勝挑戰：第 ${extra.stage} 關通過！`
+                : `🔥 連勝挑戰喺第 ${extra.stage} 關止步`;
+            nextBtn.classList.toggle('hidden', !win);
+            this.$('again-btn').classList.toggle('hidden', win);
+        } else {
+            gEl.classList.add('hidden');
+            nextBtn.classList.add('hidden');
+            this.$('again-btn').classList.remove('hidden');
+        }
+
+        // 傷害榜（自己卡組頭 4 名）
+        const dmgEl = this.$('end-damage');
+        dmgEl.innerHTML = '';
+        const rows = Object.entries(extra.damage ?? {})
+            .filter(([id]) => CARDS[id])
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 4);
+        const maxD = rows.length ? rows[0][1] : 1;
+        for (const [id, d] of rows) {
+            const c = CARDS[id];
+            const row = document.createElement('div');
+            row.className = 'dmg-row';
+            row.innerHTML = `<div class="dmg-icon">${c.icon}</div>
+                <div class="dmg-track"><div class="dmg-fill" style="width:${Math.round((d / maxD) * 100)}%"></div></div>
+                <div class="dmg-num">${Math.round(d)}</div>`;
+            dmgEl.appendChild(row);
+        }
+        if (!rows.length) dmgEl.innerHTML = '<div class="dmg-row" style="justify-content:center">—</div>';
+
+        // 碎片獎勵
+        const rw = this.$('end-rewards');
+        rw.innerHTML = '';
+        for (const g of r?.shardGains ?? []) {
+            const c = CARDS[g.id];
+            const chip = document.createElement('div');
+            chip.className = 'reward-chip' + (g.leveledUp ? ' levelup' : '');
+            chip.textContent = g.leveledUp
+                ? `${c.icon} ${c.name} 升到 Lv${g.level}！`
+                : `${c.icon} ${c.name} +${g.n} 碎片`;
+            rw.appendChild(chip);
+        }
+
+        // 每日挑戰達成
+        const ch = this.$('end-challenges');
+        ch.innerHTML = (r?.challengesDone ?? [])
+            .map(c => `✅ 每日挑戰完成：${c.desc}（+${c.reward.n ?? 8} 碎片）`)
+            .join('<br>');
+
         setTimeout(() => {
             this.$('screen-end').classList.remove('hidden');
         }, 1400);
@@ -212,6 +360,23 @@ export class UI {
             const next = this.$('next-card');
             next.innerHTML = this.cardInnerHtml(CARDS[p.next]);
             this.#refreshSelection();
+        }
+
+        // 對手已出過嘅卡（獨特卡，最多 8 張）
+        const played = [...new Set(g.playedCards[TEAM.ENEMY])].slice(0, 8);
+        const playedKey = played.join(',');
+        if (playedKey !== this.lastPlayedKey) {
+            this.lastPlayedKey = playedKey;
+            const box = this.$('enemy-played');
+            box.innerHTML = '';
+            for (const id of played) {
+                const chip = document.createElement('div');
+                chip.className = 'chip';
+                chip.innerHTML = this.thumbs[id]
+                    ? `<img src="${this.thumbs[id]}" alt="">`
+                    : CARDS[id].icon;
+                box.appendChild(chip);
+            }
         }
 
         // 買唔買得起

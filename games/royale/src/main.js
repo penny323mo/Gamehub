@@ -1,14 +1,15 @@
 // 入口 — Three.js 場景、鏡頭、資產載入、遊戲循環、拖放落卡
 import * as THREE from 'three';
 import { ARENA, TEAM } from './constants.js';
-import { CARDS, randomDeck } from './cards.js';
+import { CARDS, CARD_POOL } from './cards.js';
 import { loadAssets } from './assets.js';
 import { buildArena } from './arena.js';
 import { Game } from './game.js';
-import { AIController } from './ai.js';
+import { AIController, PERSONALITIES, randomPersonality } from './ai.js';
 import { UI } from './ui.js';
 import { sfx } from './sfx.js';
 import { generateCardThumbs } from './thumbs.js';
+import { playerLevels, avgDeckLevel, recordMatch } from './storage.js';
 
 // ---------- Renderer / Scene ----------
 const holder = document.getElementById('canvas-holder');
@@ -234,11 +235,14 @@ function showZones(show) {
 }
 
 const uiCallbacks = {
-    onStart(deck, difficulty) {
-        startMatch(deck, difficulty);
+    onStart(deck, difficulty, mode = 'single') {
+        startMatch(deck, difficulty, mode, 1);
     },
     onAgain() {
-        startMatch(ui.deck, ui.difficulty);
+        startMatch(ui.deck, ui.difficulty, matchMode, matchMode === 'gauntlet' ? 1 : gauntletStage);
+    },
+    onNextStage() {
+        startMatch(ui.deck, ui.difficulty, 'gauntlet', gauntletStage + 1);
     },
     onQuit() {
         if (game && game.phase !== 'ended') {
@@ -299,6 +303,7 @@ function cleanupMatch() {
     for (const e of game.entities) {
         scene.remove(e.model);
         scene.remove(e.hpBar);
+        if (e.slowRing) scene.remove(e.slowRing);
     }
     for (const pr of game.projectiles) scene.remove(pr.model);
     for (const ef of game.effects) if (ef.mesh) scene.remove(ef.mesh);
@@ -312,11 +317,44 @@ function cleanupMatch() {
     running = false;
 }
 
-function startMatch(deck, difficulty) {
+let matchMode = 'single';
+let gauntletStage = 1;
+let matchStats = null;
+
+// 連勝挑戰難度階梯
+function gauntletDifficulty(stage) {
+    return stage <= 1 ? 'easy' : stage === 2 ? 'normal' : 'hard';
+}
+
+function startMatch(deck, difficulty, mode = 'single', stage = 1) {
     cleanupMatch();
-    game = new Game(scene, deck, randomDeck(), {
+    matchMode = mode;
+    gauntletStage = stage;
+    const actualDiff = mode === 'gauntlet' ? gauntletDifficulty(stage) : difficulty;
+
+    // AI 個性＋預組卡組
+    const pid = randomPersonality();
+    const personality = PERSONALITIES[pid];
+
+    // 卡牌等級：玩家用自己存檔；AI 全卡組跟玩家平均等級走，保持公平
+    const enemyLv = Math.round(avgDeckLevel(deck));
+    const enemyLevels = {};
+    for (const id of CARD_POOL) enemyLevels[id] = enemyLv;
+
+    matchStats = {
+        difficulty: actualDiff,
+        deck: [...deck],
+        avgCost: deck.reduce((s, id) => s + CARDS[id].cost, 0) / deck.length,
+        towersDestroyed: 0,
+        bestSpellHit: 0,
+        cardsPlayed: 0,
+        gauntletStage: mode === 'gauntlet' ? stage : 0,
+    };
+
+    game = new Game(scene, deck, personality.deck, {
         onTowerDestroyed(t) {
             sfx.towerDown();
+            if (t.team === TEAM.ENEMY) matchStats.towersDestroyed += 1;
             ui.banner(t.team === TEAM.PLAYER ? '💥 你嘅城塔冧咗！' : '🎉 攻陷敵方城塔！');
         },
         onKingActivated(team) {
@@ -325,21 +363,45 @@ function startMatch(deck, difficulty) {
         },
         onOvertime() {
             sfx.overtime();
-            ui.banner('⚡ 加時！突然死亡', 2200);
+            ui.banner('⚡ 加時！河心聖水泉開通', 2200);
+        },
+        onSpellHit(team, cardId, count) {
+            if (team === TEAM.PLAYER) {
+                matchStats.bestSpellHit = Math.max(matchStats.bestSpellHit, count);
+            }
+        },
+        onCardPlayed(team, cardId) {
+            if (team === TEAM.PLAYER) matchStats.cardsPlayed += 1;
         },
         onGameOver(result) {
             if (result.winner === TEAM.PLAYER) sfx.win();
             else if (result.winner === TEAM.ENEMY) sfx.lose();
-            ui.showEnd(result);
+            // 結算：入存檔（獎盃/碎片/挑戰），再交畀結算畫面
+            matchStats.win = result.winner === TEAM.PLAYER;
+            matchStats.draw = result.winner === null || result.winner === undefined;
+            matchStats.crowns = result.crowns[TEAM.PLAYER];
+            matchStats.matchSeconds = game.simTime;
+            const rewards = recordMatch(matchStats);
+            ui.showEnd(result, {
+                rewards,
+                damage: game.damageByCard[TEAM.PLAYER],
+                mode: matchMode,
+                stage: gauntletStage,
+            });
         },
         onImpact() { sfx.explosion(); },
         onSpawn() {},
+    }, {
+        levels: { [TEAM.PLAYER]: playerLevels(), [TEAM.ENEMY]: enemyLevels },
+        // 連勝挑戰第 4 關起，AI 聖水回復有加成
+        enemyElixirRate: mode === 'gauntlet' ? 1 + Math.max(0, stage - 3) * 0.15 : 1,
     });
-    ai = new AIController(game, difficulty);
+    ai = new AIController(game, actualDiff, pid);
     window.__royale = { game, ai }; // 畀自動化測試用
     ui.bindGame(game);
     ui.showGame();
-    ui.banner('⚔️ 開戰！', 1200);
+    const stageTag = mode === 'gauntlet' ? `第 ${stage} 關 · ` : '';
+    ui.banner(`⚔️ ${stageTag}對手：${personality.icon} ${personality.name}`, 1600);
     running = true;
 }
 

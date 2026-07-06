@@ -73,6 +73,40 @@ export const CARDS = {
         hp: 720, dmg: 62, hitSpeed: 0.9, range: 6.5,
         lifetime: 30, radius: 0.7, projectile: 'arrow',
     },
+    scout: {
+        id: 'scout', kind: 'unit', name: '斥候輕騎', icon: '🐴', cost: 2,
+        desc: '極速單騎，搶時間引火力',
+        count: 1, hp: 380, dmg: 72, hitSpeed: 0.9, range: 0.6,
+        speed: 3.4, sight: 5.5, radius: 0.42,
+    },
+    berserker: {
+        id: 'berserker', kind: 'unit', name: '狂戰士', icon: '🪓', cost: 4,
+        desc: '血愈少斬愈快，高風險高回報',
+        count: 1, hp: 640, dmg: 108, hitSpeed: 1.3, range: 0.6,
+        speed: 2.0, sight: 5.0, radius: 0.42, berserk: true,
+    },
+    freeze: {
+        id: 'freeze', kind: 'spell', name: '冰凍術', icon: '❄️', cost: 3,
+        desc: '範圍冰封 4 秒，大幅減速',
+        dmg: 40, splash: 2.3, castDelay: 0.4, slow: { factor: 0.25, dur: 4 },
+    },
+    powderkeg: {
+        id: 'powderkeg', kind: 'spell', name: '炸藥桶', icon: '🧨', cost: 2,
+        desc: '細範圍即爆，平價清兵',
+        dmg: 210, splash: 1.3, castDelay: 0.45,
+    },
+    ballista: {
+        id: 'ballista', kind: 'building', name: '巨弩塔', icon: '🎯', cost: 5,
+        desc: '超遠程單體重擊，35 秒',
+        hp: 850, dmg: 215, hitSpeed: 2.0, range: 7.5,
+        lifetime: 35, radius: 0.7, projectile: 'bolt',
+    },
+    mill: {
+        id: 'mill', kind: 'building', name: '聖水磨坊', icon: '⚗️', cost: 5,
+        desc: '每 7 秒產 1 滴聖水，45 秒',
+        hp: 500, dmg: 0, hitSpeed: 999, range: 0,
+        lifetime: 45, radius: 0.65, elixirGen: { interval: 7, amount: 1 },
+    },
 };
 
 export const CARD_POOL = Object.keys(CARDS);
@@ -84,8 +118,8 @@ export const DEFAULT_DECK = [
 
 // 隨機砌一副合理嘅 AI 卡組：至少 1 法術、1 坦克/攻城、1 遠程
 export function randomDeck() {
-    const spells = ['fireball', 'arrows'];
-    const heavies = ['elephant', 'ram', 'knight'];
+    const spells = ['fireball', 'arrows', 'freeze', 'powderkeg'];
+    const heavies = ['elephant', 'ram', 'knight', 'berserker'];
     const ranged = ['archers', 'handcannon', 'catapult'];
     const deck = new Set();
     deck.add(spells[Math.floor(Math.random() * spells.length)]);

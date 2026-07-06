@@ -93,7 +93,7 @@ function makeHpBar(width, team) {
 
 // ---------- 實體 ----------
 class Entity {
-    constructor({ team, cardId, x, z, isTower = false, towerKind = null }) {
+    constructor({ team, cardId, x, z, isTower = false, towerKind = null, levelMult = 1 }) {
         this.id = nextId++;
         this.team = team;
         this.cardId = cardId;
@@ -125,9 +125,9 @@ class Entity {
         } else {
             const c = CARDS[cardId];
             this.card = c;
-            this.maxHp = c.hp;
-            this.hp = c.hp;
-            this.dmg = c.dmg;
+            this.maxHp = Math.round(c.hp * levelMult);
+            this.hp = this.maxHp;
+            this.dmg = Math.round(c.dmg * levelMult);
             this.hitSpeed = c.hitSpeed;
             this.range = c.range;
             this.sight = c.sight ?? c.range + 1;
@@ -141,6 +141,9 @@ class Entity {
             this.active = true;
             this.deployT = GAME_RULES.deployTime;
         }
+        this.slowT = 0;       // 冰凍/減速剩餘秒數
+        this.slowFactor = 1;  // 減速時嘅速度倍率
+        this.genT = 0;        // 聖水磨坊產水計時
     }
 }
 
@@ -169,9 +172,9 @@ class PlayerState {
 
 // ---------- 主遊戲 ----------
 export class Game {
-    constructor(scene, playerDeck, enemyDeck, hooks = {}) {
+    constructor(scene, playerDeck, enemyDeck, hooks = {}, opts = {}) {
         this.scene = scene;
-        this.hooks = hooks; // { onTowerDestroyed, onGameOver, onKingActivated, onSpawn, onSpell }
+        this.hooks = hooks; // { onTowerDestroyed, onGameOver, onKingActivated, onSpawn, onSpell, onSpellHit }
         this.entities = [];
         this.projectiles = [];
         this.effects = [];
@@ -185,9 +188,24 @@ export class Game {
         this.phase = 'regulation'; // regulation | overtime | ended
         this.result = null;
         this.simTime = 0;
+        // 卡牌等級（id -> level 倍率查表由 opts.levels 提供，冇就全部 1）
+        this.levels = opts.levels ?? { [TEAM.PLAYER]: {}, [TEAM.ENEMY]: {} };
+        this.levelBonus = opts.levelBonus ?? 0.08;
+        // 敵方聖水回復倍率（連勝挑戰高關卡用）
+        this.enemyElixirRate = opts.enemyElixirRate ?? 1;
+        // 傷害統計（結算傷害榜用）＋雙方已出卡記錄
+        this.damageByCard = { [TEAM.PLAYER]: {}, [TEAM.ENEMY]: {} };
+        this.playedCards = { [TEAM.PLAYER]: [], [TEAM.ENEMY]: [] };
+        this.fountainT = 0;
+        this.fountain = null;
 
         this.towers = { [TEAM.PLAYER]: {}, [TEAM.ENEMY]: {} };
         this.#spawnTowers();
+    }
+
+    #levelMult(team, cardId) {
+        const lv = this.levels[team]?.[cardId] ?? 1;
+        return 1 + this.levelBonus * (lv - 1);
     }
 
     #spawnTowers() {
@@ -233,7 +251,10 @@ export class Game {
         if (e.isTower) return e.towerKind === 'king' ? 5.2 : 4.2;
         if (e.cardId === 'elephant') return 2.88; // 模型放大 20% 之後嘅實際高度
         if (e.cardId === 'watchtower') return 3.0;
+        if (e.cardId === 'ballista') return 3.2;
+        if (e.cardId === 'mill') return 2.3;
         if (e.cardId === 'knight') return 2.52;
+        if (e.cardId === 'scout') return 2.2;
         if (e.cardId === 'catapult' || e.cardId === 'ram') return 1.8;
         return 2.04;
     }
@@ -276,6 +297,7 @@ export class Game {
 
         p.elixir -= card.cost;
         p.playFromHand(handIdx);
+        this.playedCards[team].push(cardId);
 
         if (card.kind === 'spell') {
             this.#castSpell(team, card, pos.x, pos.z);
@@ -296,6 +318,7 @@ export class Game {
             const e = new Entity({
                 team, cardId,
                 x: x + offsets[i][0], z: z + offsets[i][1],
+                levelMult: this.#levelMult(team, cardId),
             });
             e.model = makeUnitModel(cardId, team);
             this.#addEntity(e);
@@ -337,7 +360,7 @@ export class Game {
                 },
                 onEnd: () => this.#spellImpact(team, card, x, z),
             });
-        } else {
+        } else if (card.id === 'arrows') {
             // 箭雨：天上落箭
             for (let i = 0; i < 10; i++) {
                 const a = makeProjectile('arrow');
@@ -363,19 +386,89 @@ export class Game {
                 update: () => {},
                 onEnd: () => this.#spellImpact(team, card, x, z),
             });
+        } else if (card.id === 'freeze') {
+            // 冰凍：藍白冰霧收縮
+            const mist = new THREE.Mesh(
+                new THREE.SphereGeometry(card.splash, 16, 10),
+                new THREE.MeshBasicMaterial({ color: 0x9adcff, transparent: true, opacity: 0.25 })
+            );
+            mist.position.set(x, 0.5, z);
+            mist.scale.y = 0.35;
+            this.scene.add(mist);
+            this.effects.push({
+                t: 0, dur: card.castDelay, mesh: mist,
+                update: (ef) => {
+                    const p = ef.t / ef.dur;
+                    mist.material.opacity = 0.25 + p * 0.25;
+                    mist.scale.setScalar(1 - p * 0.15);
+                    mist.scale.y = 0.35;
+                },
+                onEnd: () => this.#spellImpact(team, card, x, z),
+            });
+        } else {
+            // 炸藥桶等：由天上跌落
+            const keg = new THREE.Group();
+            const barrel = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.28, 0.28, 0.45, 10),
+                new THREE.MeshLambertMaterial({ color: 0x7a4a22 })
+            );
+            keg.add(barrel);
+            keg.position.set(x, 7, z);
+            this.scene.add(keg);
+            this.effects.push({
+                t: 0, dur: card.castDelay, mesh: keg,
+                update: (ef) => {
+                    const p = Math.min(1, ef.t / ef.dur);
+                    keg.position.y = 7 * (1 - p * p);
+                    keg.rotation.z = p * 2.5;
+                },
+                onEnd: () => this.#spellImpact(team, card, x, z),
+            });
         }
     }
 
     #spellImpact(team, card, x, z) {
-        this.#explosion(x, z, card.splash, card.id === 'fireball' ? 0xff6a1a : 0xddcc66);
+        const color = card.id === 'fireball' ? 0xff6a1a
+            : card.id === 'freeze' ? 0x9adcff
+            : card.id === 'powderkeg' ? 0xffaa33 : 0xddcc66;
+        this.#explosion(x, z, card.splash, color);
+        const mult = this.#levelMult(team, card.id);
+        let unitsHit = 0;
         for (const e of this.entities) {
             if (e.dead || e.team === team) continue;
             if (dist(e, { x, z }) <= card.splash + e.radius) {
-                const dmg = e.isTower ? card.dmg * GAME_RULES.spellTowerFactor : card.dmg;
-                this.#damage(e, dmg);
+                const base = card.dmg * mult;
+                const dmg = e.isTower ? base * GAME_RULES.spellTowerFactor : base;
+                if (!e.isTower) unitsHit += 1;
+                this.#damage(e, dmg, { team, cardId: card.id });
+                if (card.slow && !e.isTower) {
+                    e.slowT = card.slow.dur;
+                    e.slowFactor = card.slow.factor;
+                    this.#attachSlowRing(e);
+                }
             }
         }
+        if (unitsHit > 0) this.hooks.onSpellHit?.(team, card.id, unitsHit);
         this.hooks.onImpact?.(card.id, x, z);
+    }
+
+    // 減速中嘅單位腳底藍色冰環
+    #attachSlowRing(e) {
+        if (e.slowRing) return;
+        const ring = new THREE.Mesh(
+            new THREE.RingGeometry(e.radius * 1.1, e.radius * 1.5, 20),
+            new THREE.MeshBasicMaterial({ color: 0x9adcff, transparent: true, opacity: 0.75, side: THREE.DoubleSide })
+        );
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.set(e.x, 0.06, e.z);
+        this.scene.add(ring);
+        e.slowRing = ring;
+    }
+
+    #detachSlowRing(e) {
+        if (!e.slowRing) return;
+        this.scene.remove(e.slowRing);
+        e.slowRing = null;
     }
 
     // ---------- 特效 ----------
@@ -482,8 +575,12 @@ export class Game {
     }
 
     // ---------- 傷害 / 死亡 ----------
-    #damage(e, dmg) {
+    #damage(e, dmg, src = null) {
         if (e.dead) return;
+        if (src && src.cardId) {
+            const board = this.damageByCard[src.team];
+            board[src.cardId] = (board[src.cardId] ?? 0) + Math.min(Math.max(0, e.hp), dmg);
+        }
         e.hp -= dmg;
         e.hpBar.visible = true;
         e.hpBar.userData.setRatio(Math.max(0, e.hp / e.maxHp));
@@ -499,6 +596,7 @@ export class Game {
     #kill(e) {
         e.dead = true;
         e.hpBar.visible = false;
+        this.#detachSlowRing(e);
         if (e.isTower) {
             this.#towerFall(e);
         } else {
@@ -578,6 +676,36 @@ export class Game {
         this.hooks.onGameOver?.(this.result);
     }
 
+    // ---------- 加時聖水泉（河心紫圈）----------
+    #makeFountain() {
+        const g = new THREE.Group();
+        g.userData.isRubble = true; // 借用 cleanupMatch 嘅 isRubble 清理路徑
+        const ring = new THREE.Mesh(
+            new THREE.RingGeometry(2.2, 2.6, 40),
+            new THREE.MeshBasicMaterial({ color: 0xb04ae0, transparent: true, opacity: 0.55, side: THREE.DoubleSide })
+        );
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.set(0, 0.07, 0);
+        g.add(ring);
+        const drop = new THREE.Mesh(
+            new THREE.SphereGeometry(0.3, 10, 8),
+            new THREE.MeshBasicMaterial({ color: 0xd06aff, transparent: true, opacity: 0.85 })
+        );
+        drop.position.set(0, 1, 0);
+        g.add(drop);
+        this.scene.add(g);
+        this.fountain = g;
+        this.effects.push({
+            t: 0, dur: Infinity, mesh: null,
+            update: (ef) => {
+                drop.position.y = 1 + Math.sin(ef.t * 2.4) * 0.25;
+                drop.rotation.y = ef.t * 1.5;
+                ring.material.opacity = 0.45 + Math.sin(ef.t * 3) * 0.15;
+            },
+        });
+        this.hooks.onFountain?.();
+    }
+
     // ---------- 聖水倍率 ----------
     elixirMultiplier() {
         if (this.phase === 'overtime') return 3;
@@ -638,16 +766,19 @@ export class Game {
 
     // ---------- 攻擊 ----------
     #attack(e, target) {
-        e.attackCd = e.hitSpeed;
+        // 狂戰士：血愈少出手愈快（最盡快一倍）
+        const berserk = e.card?.berserk ? (0.5 + 0.5 * (e.hp / e.maxHp)) : 1;
+        e.attackCd = e.hitSpeed * berserk;
         e.attackAnimT = 0;
+        const src = { team: e.team, cardId: e.isTower ? 'tower' : e.cardId };
         if (e.projectile) {
             this.#fireProjectile(e, target);
         } else {
-            this.#damage(target, e.dmg);
+            this.#damage(target, e.dmg, src);
             if (e.splash) {
                 for (const o of this.entities) {
                     if (o.dead || o.team === e.team || o === target) continue;
-                    if (dist(o, target) <= e.splash + o.radius) this.#damage(o, e.dmg);
+                    if (dist(o, target) <= e.splash + o.radius) this.#damage(o, e.dmg, src);
                 }
             }
         }
@@ -665,6 +796,7 @@ export class Game {
         this.projectiles.push({
             kind, model, x: e.x, y: y0, z: e.z,
             target, team: e.team, dmg: e.dmg, splash: e.splash ?? 0,
+            srcCardId: e.isTower ? 'tower' : e.cardId,
             speed, lob: kind === 'stone',
             travel: 0,
             total: Math.max(0.15, dist(e, target) / speed),
@@ -702,11 +834,11 @@ export class Game {
                     for (const o of this.entities) {
                         if (o.dead || o.team === p.team) continue;
                         if (dist(o, { x: p.x, z: p.z }) <= p.splash + o.radius) {
-                            this.#damage(o, p.dmg);
+                            this.#damage(o, p.dmg, { team: p.team, cardId: p.srcCardId });
                         }
                     }
                 } else if (!t.dead) {
-                    this.#damage(t, p.dmg);
+                    this.#damage(t, p.dmg, { team: p.team, cardId: p.srcCardId });
                 }
             }
         }
@@ -753,10 +885,30 @@ export class Game {
         const mult = this.elixirMultiplier();
         for (const team of [TEAM.PLAYER, TEAM.ENEMY]) {
             const p = this.players[team];
-            p.elixirT += dt * mult;
+            const rate = team === TEAM.ENEMY ? this.enemyElixirRate : 1;
+            p.elixirT += dt * mult * rate;
             while (p.elixirT >= GAME_RULES.elixirInterval) {
                 p.elixirT -= GAME_RULES.elixirInterval;
                 p.elixir = Math.min(GAME_RULES.elixirMax, p.elixir + 1);
+            }
+        }
+
+        // 加時聖水泉：河心有自己單位就每 3 秒多 1 滴
+        if (this.phase === 'overtime') {
+            if (!this.fountain) this.#makeFountain();
+            this.fountainT += dt;
+            if (this.fountainT >= 3) {
+                this.fountainT -= 3;
+                for (const team of [TEAM.PLAYER, TEAM.ENEMY]) {
+                    const near = this.entities.some(e =>
+                        !e.dead && e.team === team && !e.isTower && !e.isBuilding &&
+                        e.deployT <= 0 && dist(e, { x: 0, z: 0 }) <= 2.6);
+                    if (near) {
+                        const p = this.players[team];
+                        p.elixir = Math.min(GAME_RULES.elixirMax, p.elixir + 1);
+                        this.#particles(0, 0, 0xd06aff, 6, 2, 0.5);
+                    }
+                }
             }
         }
 
@@ -771,11 +923,33 @@ export class Game {
             }
 
             if (e.deployT > 0) { e.deployT -= dt; continue; }
-            if (e.attackCd > 0) e.attackCd -= dt;
+
+            // 冰凍/減速：移動同攻擊節奏一齊慢
+            const slowMult = e.slowT > 0 ? e.slowFactor : 1;
+            if (e.slowT > 0) {
+                e.slowT -= dt;
+                if (e.slowT <= 0) this.#detachSlowRing(e);
+            }
+
+            // 聖水磨坊產水
+            if (e.card?.elixirGen) {
+                e.genT += dt;
+                if (e.genT >= e.card.elixirGen.interval) {
+                    e.genT -= e.card.elixirGen.interval;
+                    const p = this.players[e.team];
+                    p.elixir = Math.min(GAME_RULES.elixirMax, p.elixir + e.card.elixirGen.amount);
+                    this.#particles(e.x, e.z, 0xd06aff, 5, 1.6, 0.9);
+                }
+            }
+
+            if (e.attackCd > 0) e.attackCd -= dt * slowMult;
             if (e.attackAnimT >= 0) {
                 e.attackAnimT += dt / 0.35;
                 if (e.attackAnimT >= 1) e.attackAnimT = -1;
             }
+
+            // 純輔助建築（磨坊）唔使索敵
+            if (e.isBuilding && !e.isTower && e.dmg <= 0) continue;
 
             if (e.isTower) {
                 if (!e.active) continue;
@@ -805,7 +979,7 @@ export class Game {
                 const goal = this.#moveGoal(e, e.target);
                 const dx = goal.x - e.x, dz = goal.z - e.z;
                 const gd = Math.sqrt(dx * dx + dz * dz) || 1;
-                const step = Math.min(e.speed * dt, gd);
+                const step = Math.min(e.speed * slowMult * dt, gd);
                 e.x += (dx / gd) * step;
                 e.z += (dz / gd) * step;
                 e.facing = Math.atan2(dx, dz);
@@ -861,6 +1035,7 @@ export class Game {
                 attackT: e.attackAnimT,
             });
             e.hpBar.position.set(e.x, e.hpBar.userData.h, e.z);
+            if (e.slowRing) e.slowRing.position.set(e.x, 0.06, e.z);
         }
 
         this.#updateProjectiles(dt);

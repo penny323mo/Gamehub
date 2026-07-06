@@ -34,6 +34,44 @@ export function generateCardThumbs() {
                 g.scale.setScalar(1.5);
                 return g;
             }
+            if (id === 'freeze') {
+                // 冰晶：藍白六角錐簇
+                const g = new THREE.Group();
+                const ice = new THREE.MeshLambertMaterial({ color: 0xbfe8ff, emissive: 0x2a5a80 });
+                const spikes = [[0, 0.5, 0, 0.55], [0.28, 0.3, 0.1, 0.35], [-0.25, 0.28, -0.08, 0.3], [0.05, 0.25, -0.28, 0.28]];
+                for (const [x, h, z, r] of spikes) {
+                    const s = new THREE.Mesh(new THREE.ConeGeometry(r * 0.4, h * 1.6, 6), ice);
+                    s.position.set(x, h * 0.7, z);
+                    s.rotation.z = x * 0.5;
+                    g.add(s);
+                }
+                return g;
+            }
+            if (id === 'powderkeg') {
+                // 炸藥桶＋引信
+                const g = new THREE.Group();
+                const barrel = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.32, 0.32, 0.5, 12),
+                    new THREE.MeshLambertMaterial({ color: 0x7a4a22 })
+                );
+                g.add(barrel);
+                for (const y of [-0.16, 0.16]) {
+                    const hoop = new THREE.Mesh(
+                        new THREE.TorusGeometry(0.33, 0.025, 6, 16),
+                        new THREE.MeshLambertMaterial({ color: 0x3a3a3a })
+                    );
+                    hoop.rotation.x = Math.PI / 2;
+                    hoop.position.y = y;
+                    g.add(hoop);
+                }
+                const spark = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.07, 8, 6),
+                    new THREE.MeshBasicMaterial({ color: 0xffcc44 })
+                );
+                spark.position.set(0.12, 0.38, 0);
+                g.add(spark);
+                return g;
+            }
             // 箭雨：三支箭散開
             const g = new THREE.Group();
             for (let i = -1; i <= 1; i++) {

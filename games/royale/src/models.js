@@ -303,6 +303,25 @@ function makeKnight(team) {
     });
 }
 
+function makeScout(team) {
+    const c = TEAM_COLORS[team];
+    // 輕騎：騎兵模型縮細、淺皮革色調，銀灰飾帶
+    return makeMeshyUnit('meshyCavalry', team, {
+        height: 1.92, tint: mixColor(c.main, 0xc2a878, 0.45),
+        bobAmount: 0.09, bobSpeed: 9, lungeAmount: 0.4,
+        accent: 0xc9ced4, accentBand: [0.44, 0.5], propColor: 0x7a5230,
+    });
+}
+
+function makeBerserker(team) {
+    const c = TEAM_COLORS[team];
+    // 狂戰士：劍士模型染血紅戰甲、深紅飾帶
+    return makeMeshyUnit('meshySwordsman', team, {
+        height: 1.78, tint: mixColor(c.main, 0x8a2418, 0.5),
+        lungeAmount: 0.55, accent: 0x5c0f0f, accentBand: [0.56, 0.62], propColor: 0x4a4a50,
+    });
+}
+
 // ---------- 攻城槌（Meshy AI 模型）----------
 function makeRam(team) {
     const c = TEAM_COLORS[team];
@@ -482,6 +501,78 @@ export function makeKingTower(team) {
     return g;
 }
 
+// ---------- 巨弩塔：哨塔基座 + 程序化弩臂 ----------
+export function makeBallista(team) {
+    const c = TEAM_COLORS[team];
+    const g = new THREE.Group();
+    const t = meshyTint(instantiate('meshyTower'), 0x8a7a62);
+    const sc = scaleToFit('meshyTower', t, 1.5, { byFootprint: true });
+    g.add(t);
+    const topY = ASSETS.meshyTower.rawSize.y * sc;
+    // 弩臂：橫弓 + 中軸箭槽
+    const bow = box(1.5, 0.09, 0.12, WOOD_DARK);
+    bow.position.set(0, topY + 0.12, 0.15);
+    g.add(bow);
+    const rail = box(0.1, 0.08, 1.0, WOOD);
+    rail.position.set(0, topY + 0.1, -0.1);
+    g.add(rail);
+    const bolt = cyl(0.03, 0.03, 0.7, STEEL, 6);
+    bolt.rotation.x = Math.PI / 2;
+    bolt.position.set(0, topY + 0.18, -0.05);
+    g.add(bolt);
+    const flag = addTowerFlag(g, team, topY + 0.1, 0.7);
+    const flash = makeHitFlash(t);
+    g.userData.onHit = flash.onHit;
+    g.userData.animate = (t2, state) => {
+        flag.rotation.y = Math.sin(t2 * 2.2) * 0.35;
+        if (state?.attackT >= 0) {
+            // 上弦後座
+            const p = state.attackT;
+            bolt.position.z = p < 0.2 ? -0.05 - (p / 0.2) * 0.3 : -0.35 + ((p - 0.2) / 0.8) * 0.3;
+        }
+        flash.update(t2);
+    };
+    return g;
+}
+
+// ---------- 聖水磨坊：程序化風車，扇葉轉動 ----------
+export function makeMill(team) {
+    const c = TEAM_COLORS[team];
+    const g = new THREE.Group();
+    const base = cyl(0.55, 0.7, 1.3, STONE, 10);
+    base.position.y = 0.65;
+    g.add(base);
+    const roof = cone(0.62, 0.55, c.main, 10);
+    roof.position.y = 1.55;
+    g.add(roof);
+    // 聖水桶
+    const vat = cyl(0.28, 0.32, 0.4, 0x7a3fa8, 8);
+    vat.position.set(0.55, 0.2, 0.35);
+    g.add(vat);
+    const juice = cyl(0.22, 0.22, 0.06, 0xd06aff, 8);
+    juice.position.set(0.55, 0.42, 0.35);
+    g.add(juice);
+    // 扇葉軸心
+    const hub = new THREE.Group();
+    hub.position.set(0, 1.35, 0.62);
+    for (let i = 0; i < 4; i++) {
+        const blade = box(0.16, 0.85, 0.03, 0xd8cdb8);
+        blade.position.y = 0.5;
+        const arm = new THREE.Group();
+        arm.rotation.z = (i * Math.PI) / 2;
+        arm.add(blade);
+        hub.add(arm);
+    }
+    g.add(hub);
+    const flash = makeHitFlash(g);
+    g.userData.onHit = flash.onHit;
+    g.userData.animate = (t2) => {
+        hub.rotation.z = t2 * 1.4;
+        flash.update(t2);
+    };
+    return g;
+}
+
 const UNIT_FACTORIES = {
     militia: makeMilitia,
     swordsman: makeSwordsman,
@@ -493,6 +584,10 @@ const UNIT_FACTORIES = {
     catapult: makeCatapult,
     elephant: makeElephant,
     watchtower: makeWatchtower,
+    scout: makeScout,
+    berserker: makeBerserker,
+    ballista: makeBallista,
+    mill: makeMill,
 };
 
 export function makeUnitModel(cardId, team) {
@@ -521,6 +616,18 @@ export function makeProjectile(kind) {
     }
     if (kind === 'bullet') {
         return sphere(0.06, 0x333333, 6);
+    }
+    if (kind === 'bolt') {
+        // 巨弩粗箭：重用 Meshy 箭，加大加深色
+        const g = new THREE.Group();
+        const a = meshyTint(instantiate('meshyArrow'), 0x5a4a34);
+        const s = ASSETS.meshyArrow.rawSize;
+        const longest = Math.max(s.x, s.y, s.z);
+        a.scale.setScalar(0.85 / longest);
+        if (longest === s.x) a.rotation.y = Math.PI / 2;
+        else if (longest === s.y) a.rotation.x = Math.PI / 2;
+        g.add(a);
+        return g;
     }
     if (kind === 'fireball') {
         const g = new THREE.Group();
