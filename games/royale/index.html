@@ -80,32 +80,44 @@
                     <div id="profile-stats"></div>
                 </div>
 
-                <!-- 每日挑戰 -->
-                <div class="section-label">📅 每日挑戰</div>
-                <div id="daily-list"></div>
-
-                <div class="section-label">模式</div>
-                <div id="mode-row">
-                    <button class="mode-btn selected" data-mode="single">⚔️ 單場對戰</button>
-                    <button class="mode-btn" data-mode="gauntlet">🔥 連勝挑戰 <span id="gauntlet-best"></span></button>
+                <!-- 分頁 -->
+                <div id="start-tabs">
+                    <button class="start-tab selected" data-tab="battle">⚔️ 對戰</button>
+                    <button class="start-tab" data-tab="deck">🃏 卡組</button>
+                    <button class="start-tab" data-tab="quests">📅 挑戰</button>
                 </div>
 
-                <div class="section-label" id="difficulty-label">難度</div>
-                <div id="difficulty-row">
-                    <button class="diff-btn" data-diff="easy">🙂 簡單</button>
-                    <button class="diff-btn selected" data-diff="normal">😐 普通</button>
-                    <button class="diff-btn" data-diff="hard">😈 困難</button>
+                <div class="tab-page active" data-page="battle">
+                    <div class="section-label">模式</div>
+                    <div id="mode-row">
+                        <button class="mode-btn selected" data-mode="single">⚔️ 單場對戰</button>
+                        <button class="mode-btn" data-mode="gauntlet">🔥 連勝挑戰 <span id="gauntlet-best"></span></button>
+                    </div>
+                    <div class="section-label" id="difficulty-label">難度</div>
+                    <div id="difficulty-row">
+                        <button class="diff-btn" data-diff="easy">🙂 簡單</button>
+                        <button class="diff-btn selected" data-diff="normal">😐 普通</button>
+                        <button class="diff-btn" data-diff="hard">😈 困難</button>
+                    </div>
+                    <p class="hint">💡 拖卡落戰場出兵 · 贏比賽儲碎片升級卡牌 · 完成每日挑戰有額外獎勵</p>
                 </div>
 
-                <div class="section-label">你嘅卡組（揀 8 張）<span id="deck-count">8/8</span></div>
-                <div id="deck-tabs">
-                    <button class="deck-tab selected" data-slot="0">卡組 1</button>
-                    <button class="deck-tab" data-slot="1">卡組 2</button>
-                    <button class="deck-tab" data-slot="2">卡組 3</button>
+                <div class="tab-page" data-page="deck">
+                    <div class="section-label">你嘅卡組（揀 8 張）<span id="deck-count">8/8</span></div>
+                    <div id="deck-tabs">
+                        <button class="deck-tab selected" data-slot="0">卡組 1</button>
+                        <button class="deck-tab" data-slot="1">卡組 2</button>
+                        <button class="deck-tab" data-slot="2">卡組 3</button>
+                    </div>
+                    <div id="deck-grid"></div>
                 </div>
-                <div id="deck-grid"></div>
+
+                <div class="tab-page" data-page="quests">
+                    <div class="section-label">📅 每日挑戰</div>
+                    <div id="daily-list"></div>
+                </div>
+
                 <button id="start-btn" class="big-btn">開戰！</button>
-                <p class="hint">💡 拖卡落戰場出兵 · 贏比賽儲碎片升級卡牌 · 完成每日挑戰有額外獎勵</p>
             </div>
         </div>
 

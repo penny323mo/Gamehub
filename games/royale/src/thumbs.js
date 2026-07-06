@@ -88,7 +88,8 @@ export function generateCardThumbs() {
 
     for (const id of Object.keys(CARDS)) {
         const subject = buildSubject(id);
-        subject.rotation.y = Math.PI * 0.82; // 側少少面向鏡頭
+        // 模型統一面向 +z，鏡頭喺 +z 側；轉 -32° 側少少面向鏡頭
+        subject.rotation.y = CARDS[id].kind === 'spell' ? Math.PI * 0.82 : -Math.PI * 0.18;
         // 行兩次令 mixer 有 dt 可以套用 idle pose
         subject.userData.animate?.(0.1, { moving: false, attackT: -1 });
         subject.userData.animate?.(0.65, { moving: false, attackT: -1 });

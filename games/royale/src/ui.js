@@ -130,6 +130,14 @@ export class UI {
     }
 
     #bindStartScreen() {
+        for (const btn of document.querySelectorAll('.start-tab')) {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.start-tab').forEach(b => b.classList.remove('selected'));
+                btn.classList.add('selected');
+                document.querySelectorAll('.tab-page').forEach(p =>
+                    p.classList.toggle('active', p.dataset.page === btn.dataset.tab));
+            });
+        }
         for (const btn of document.querySelectorAll('.diff-btn')) {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('selected'));

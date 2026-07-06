@@ -677,6 +677,41 @@ body {
     font-size: 14px;
 }
 
+/* ---------- 開始畫面分頁 ---------- */
+#start-tabs {
+    display: flex;
+    gap: 6px;
+    margin-top: 12px;
+    border-bottom: 2px solid #55452a;
+    padding-bottom: 8px;
+}
+
+.start-tab {
+    flex: 1;
+    padding: 9px 4px;
+    font-size: 14px;
+    font-weight: 700;
+    border-radius: 10px;
+    border: 2px solid #55452a;
+    background: #222c18;
+    color: #9a927e;
+    cursor: pointer;
+}
+
+.start-tab.selected {
+    background: #5a7a38;
+    border-color: #ffd870;
+    color: #fff;
+}
+
+.tab-page {
+    display: none;
+}
+
+.tab-page.active {
+    display: block;
+}
+
 /* ---------- 模式選擇 ---------- */
 #mode-row {
     display: flex;
