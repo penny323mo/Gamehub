@@ -231,11 +231,11 @@ export class Game {
 
     #modelHeight(e) {
         if (e.isTower) return e.towerKind === 'king' ? 5.2 : 4.2;
-        if (e.cardId === 'elephant') return 2.4;
+        if (e.cardId === 'elephant') return 2.88; // 模型放大 20% 之後嘅實際高度
         if (e.cardId === 'watchtower') return 3.0;
-        if (e.cardId === 'knight') return 2.1;
-        if (e.cardId === 'catapult' || e.cardId === 'ram') return 1.5;
-        return 1.7;
+        if (e.cardId === 'knight') return 2.52;
+        if (e.cardId === 'catapult' || e.cardId === 'ram') return 1.8;
+        return 2.04;
     }
 
     // ---------- 部署驗證 ----------
@@ -290,8 +290,8 @@ export class Game {
         const card = CARDS[cardId];
         const n = card.count ?? 1;
         const offsets = n === 1 ? [[0, 0]]
-            : n === 2 ? [[-0.45, 0], [0.45, 0]]
-            : [[0, -0.45], [-0.45, 0.35], [0.45, 0.35]];
+            : n === 2 ? [[-0.54, 0], [0.54, 0]]
+            : [[0, -0.54], [-0.54, 0.42], [0.54, 0.42]];
         for (let i = 0; i < n; i++) {
             const e = new Entity({
                 team, cardId,

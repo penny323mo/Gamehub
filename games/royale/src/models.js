@@ -258,7 +258,7 @@ function makeMeshyUnit(key, team, {
 function makeMilitia(team) {
     const c = TEAM_COLORS[team];
     return makeMeshyUnit('meshyMilitia', team, {
-        height: 1.3, tint: mixColor(c.main, 0x9a8560, 0.45), armor: false,
+        height: 1.56, tint: mixColor(c.main, 0x9a8560, 0.45), armor: false,
         accent: 0xc9a227, accentBand: [0.55, 0.6], propColor: 0x6b4a28, // 芥黃色布條腰帶
     });
 }
@@ -266,7 +266,7 @@ function makeMilitia(team) {
 function makeSwordsman(team) {
     const c = TEAM_COLORS[team];
     return makeMeshyUnit('meshySwordsman', team, {
-        height: 1.45, tint: mixColor(c.main, 0xb8b0a0, 0.15),
+        height: 1.74, tint: mixColor(c.main, 0xb8b0a0, 0.15),
         accent: 0xe8dcc0, accentBand: [0.58, 0.63], propColor: 0xb9c2c9, // 米白色綬帶＋銀刃
     });
 }
@@ -274,7 +274,7 @@ function makeSwordsman(team) {
 function makeArcher(team) {
     const c = TEAM_COLORS[team];
     return makeMeshyUnit('meshyArcher', team, {
-        height: 1.35, tint: mixColor(c.main, 0x4a7a3a, 0.3), armor: false,
+        height: 1.62, tint: mixColor(c.main, 0x4a7a3a, 0.3), armor: false,
         accent: 0x6b4423, accentBand: [0.5, 0.56], propColor: 0x7a5230, // 皮革箭袋帶＋木弓
     });
 }
@@ -282,7 +282,7 @@ function makeArcher(team) {
 function makePikeman(team) {
     const c = TEAM_COLORS[team];
     return makeMeshyUnit('meshyPikeman', team, {
-        height: 1.4, tint: mixColor(c.main, 0x6a7078, 0.2), lungeAmount: 0.2,
+        height: 1.68, tint: mixColor(c.main, 0x6a7078, 0.2), lungeAmount: 0.2,
         accent: 0x2f4a35, accentBand: [0.58, 0.63], propColor: 0x5a3d20, // 墨綠色軍帶＋木桿
     });
 }
@@ -290,7 +290,7 @@ function makePikeman(team) {
 function makeHandCannoneer(team) {
     const c = TEAM_COLORS[team];
     return makeMeshyUnit('meshyMusketeer', team, {
-        height: 1.4, tint: mixColor(c.main, 0x50555c, 0.35), armor: false,
+        height: 1.68, tint: mixColor(c.main, 0x50555c, 0.35), armor: false,
         accent: 0xded6c0, accentBand: [0.52, 0.6], propColor: 0x3a3a3a, // 米白色子彈袋帶＋鐵槍管
     });
 }
@@ -298,7 +298,7 @@ function makeHandCannoneer(team) {
 function makeKnight(team) {
     const c = TEAM_COLORS[team];
     return makeMeshyUnit('meshyCavalry', team, {
-        height: 1.85, tint: mixColor(c.main, 0x8a7050, 0.35),
+        height: 2.22, tint: mixColor(c.main, 0x8a7050, 0.35),
         bobAmount: 0.07, bobSpeed: 6, lungeAmount: 0.22,
         accent: 0xd4af37, accentBand: [0.42, 0.48], propColor: 0x5a3d20, // 金色馬鞍飾邊
     });
@@ -309,7 +309,7 @@ function makeRam(team) {
     const c = TEAM_COLORS[team];
     const g = new THREE.Group();
     const ram = meshyTint(instantiate('meshyRam'), 0x8a6238);
-    scaleToFit('meshyRam', ram, 1.5);
+    scaleToFit('meshyRam', ram, 1.8);
     ram.rotation.y = -Math.PI / 2; // 模型圓木沿 x 軸，轉去沿 z（攻擊方向）
     g.add(ram);
     const banner = makeFlag(0.3, 0.18, c.flag);
@@ -340,7 +340,7 @@ function makeCatapult(team) {
     const c = TEAM_COLORS[team];
     const g = new THREE.Group();
     const cat = meshyTint(instantiate('meshyCatapult'), 0x8a6238);
-    scaleToFit('meshyCatapult', cat, 1.5);
+    scaleToFit('meshyCatapult', cat, 1.8);
     cat.rotation.y = -Math.PI / 2; // 同攻城槌一樣沿 x 軸砌
     g.add(cat);
     const banner = makeFlag(0.25, 0.16, c.flag);
@@ -371,7 +371,7 @@ function makeElephant(team) {
     const c = TEAM_COLORS[team];
     const g = new THREE.Group();
     const ele = meshyTint(instantiate('meshyElephant'), 0x968f88);
-    scaleToHeight('meshyElephant', ele, 1.9);
+    scaleToHeight('meshyElephant', ele, 2.28);
     g.add(ele);
 
     // 隊色披布 + 戰塔 + 旗

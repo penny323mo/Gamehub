@@ -41,7 +41,7 @@ scene.fog = new THREE.Fog(0xc2dcda, 62, 120);
 const camera = new THREE.PerspectiveCamera(52, 1, 0.5, 200);
 let arena = { zones: null, update: () => {} }; // loadAssets 之後先起
 
-// ---------- 鏡頭自動適配 ----------
+// ---------- 鏡頭自動適配 + 縮放/旋轉 ----------
 const fitPoints = [
     new THREE.Vector3(-ARENA.halfW - 0.8, 0, ARENA.halfL + 0.8),
     new THREE.Vector3(ARENA.halfW + 0.8, 0, ARENA.halfL + 0.8),
@@ -52,15 +52,36 @@ const fitPoints = [
 ];
 const tmpV = new THREE.Vector3();
 
+let fitD = 40;       // 自動適配搵到嘅基準距離
+let fitTargetZ = -1.2; // 自動適配嘅 lookAt 基準點
+let zoom = 1;        // >1 = 拉近，<1 = 拉遠
+let orbit = 0;        // 鏡頭繞 lookAt 點嘅水平旋轉角（radian）
+const ZOOM_MIN = 0.55, ZOOM_MAX = 2.3;
+
+const camTarget = new THREE.Vector3();
+const camOffset = new THREE.Vector3();
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+
+function applyCameraView() {
+    const d = fitD / zoom;
+    camTarget.set(0, 0, fitTargetZ);
+    camOffset.set(0, d * 0.76, d * 0.66 + 5).sub(camTarget);
+    camOffset.applyAxisAngle(Y_AXIS, orbit);
+    camera.position.copy(camTarget).add(camOffset);
+    camera.lookAt(camTarget);
+    camera.updateProjectionMatrix();
+}
+
 function fitCamera() {
     const w = holder.clientWidth, h = holder.clientHeight;
     renderer.setSize(w, h);
     camera.aspect = w / h;
 
-    // 可用範圍：底部留返位畀手牌 UI
+    // 可用範圍：底部留返位畀手牌 UI（用未旋轉/未縮放嘅基準鏡頭搜尋）
     const X_MAX = 0.96, Y_MAX = 0.94, Y_MIN = -0.62;
     const Y_MID = (Y_MAX + Y_MIN) / 2;
     let targetZ = -1.2;
+    let foundD = 40;
     outer:
     for (let d = 24; d < 90; d += 1.0) {
         for (let iter = 0; iter < 10; iter++) {
@@ -80,13 +101,88 @@ function fitCamera() {
                 targetZ += (Y_MID - mid) * 6;
                 continue;
             }
+            foundD = d;
             if (maxX <= X_MAX && maxY <= Y_MAX && minY >= Y_MIN) break outer;
             break;
         }
     }
+    fitD = foundD;
+    fitTargetZ = targetZ;
+    applyCameraView();
 }
 window.addEventListener('resize', fitCamera);
 fitCamera();
+
+// ---------- 鏡頭互動：滾輪/pinch 縮放、拖曳旋轉、重置 ----------
+let cardBusy = false; // 出卡拖放進行緊嘅時候唔好搶咗個拖動去轉鏡頭
+let camDragging = false;
+let camLastX = 0;
+const activePointers = new Map();
+let pinchStartDist = 0;
+let pinchStartZoom = 1;
+
+function clampZoom(z) {
+    return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+}
+
+holder.addEventListener('wheel', (ev) => {
+    ev.preventDefault();
+    zoom = clampZoom(zoom * (ev.deltaY < 0 ? 1.1 : 0.9));
+    applyCameraView();
+}, { passive: false });
+
+holder.addEventListener('pointerdown', (ev) => {
+    activePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (activePointers.size === 2) {
+        const pts = [...activePointers.values()];
+        pinchStartDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
+        pinchStartZoom = zoom;
+        camDragging = false;
+        return;
+    }
+    if (cardBusy || (ui && ui.selectedIdx >= 0)) return;
+    camDragging = true;
+    camLastX = ev.clientX;
+});
+window.addEventListener('pointermove', (ev) => {
+    if (activePointers.has(ev.pointerId)) {
+        activePointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    }
+    if (activePointers.size === 2) {
+        const pts = [...activePointers.values()];
+        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
+        zoom = clampZoom(pinchStartZoom * (dist / pinchStartDist));
+        applyCameraView();
+        return;
+    }
+    if (!camDragging) return;
+    const dx = ev.clientX - camLastX;
+    camLastX = ev.clientX;
+    orbit += dx * 0.006;
+    applyCameraView();
+});
+function releasePointer(ev) {
+    activePointers.delete(ev.pointerId);
+    camDragging = false;
+}
+window.addEventListener('pointerup', releasePointer);
+window.addEventListener('pointercancel', releasePointer);
+
+function resetCameraView() {
+    zoom = 1;
+    orbit = 0;
+    applyCameraView();
+}
+
+document.getElementById('cam-zoom-in')?.addEventListener('click', () => {
+    zoom = clampZoom(zoom * 1.2);
+    applyCameraView();
+});
+document.getElementById('cam-zoom-out')?.addEventListener('click', () => {
+    zoom = clampZoom(zoom / 1.2);
+    applyCameraView();
+});
+document.getElementById('cam-reset')?.addEventListener('click', resetCameraView);
 
 // ---------- 部署 ghost 指示 ----------
 const ghost = new THREE.Group();
@@ -157,6 +253,7 @@ const uiCallbacks = {
         return sfx.isMuted();
     },
     onDragMove(handIdx, cx, cy) {
+        cardBusy = true;
         if (!game || game.phase === 'ended') return;
         const p = screenToWorld(cx, cy);
         if (!p) { ghost.visible = false; return; }
@@ -175,6 +272,7 @@ const uiCallbacks = {
         ghostRing.material.color.set(ok ? 0x55ff77 : 0xff5544);
     },
     onDrop(handIdx, cx, cy) {
+        cardBusy = false;
         ghost.visible = false;
         showZones(false);
         if (!game || game.phase === 'ended') return;
@@ -190,6 +288,7 @@ const uiCallbacks = {
         }
     },
     onDragEnd() {
+        cardBusy = false;
         ghost.visible = false;
         showZones(false);
     },

@@ -178,6 +178,33 @@ body {
     left: 10px;
 }
 
+#cam-controls {
+    position: absolute;
+    right: 10px;
+    top: 58px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: auto;
+    z-index: 5;
+}
+
+#cam-controls button {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    border: 2px solid rgba(255, 255, 255, .3);
+    background: rgba(20, 30, 15, .65);
+    color: #fff;
+    font-size: 15px;
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+#cam-controls button:active {
+    background: rgba(255, 255, 255, .25);
+}
+
 /* ---------- 手牌區 ---------- */
 #hand-area {
     position: absolute;
