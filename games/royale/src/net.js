@@ -63,7 +63,7 @@ function randomRoomCode() {
     return s;
 }
 
-// on(event, cb): 'state' | 'input' | 'opponentLeft' | 'roomUpdate'
+// on(event, cb): 'state' | 'input' | 'matchStats' | 'opponentLeft' | 'roomUpdate'
 export function on(event, cb) {
     NetState.handlers[event] = cb;
 }
@@ -124,8 +124,9 @@ export async function joinRoomByCode(code, deck) {
 
 export async function cancelWaiting() {
     if (!NetState.roomId || !NetState.client) return;
-    await NetState.client.from(ROOM_TABLE).delete().eq('id', NetState.roomId).eq('status', 'waiting');
-    teardown();
+    const roomId = NetState.roomId; // 記住緊揀，等 delete 完返嚟先唔會拆錯（可能中途開咗新一局）
+    await NetState.client.from(ROOM_TABLE).delete().eq('id', roomId).eq('status', 'waiting');
+    if (NetState.roomId === roomId) teardown();
 }
 
 // 等對手入座（host 用嚟 poll，配合 postgres_changes 訂閱做保險）
@@ -142,9 +143,11 @@ export async function markPlaying() {
 
 export async function reportResult(winner, reason) {
     if (!NetState.client || !NetState.roomId) return;
+    // 唔淨係 filter status='playing' —— 如果 markPlaying() 之前寫失敗咗、房間仲停喺
+    // 'waiting'，都要照寫得入結果；淨係防止蓋走一個已經 finished 嘅紀錄。
     await NetState.client.from(ROOM_TABLE)
         .update({ status: 'finished', winner, finished_reason: reason, last_activity_at: new Date().toISOString() })
-        .eq('id', NetState.roomId).eq('status', 'playing');
+        .eq('id', NetState.roomId).neq('status', 'finished');
 }
 
 // ---------- Realtime：房間變化 + broadcast 快照/輸入 + presence 斷線偵測 ----------
@@ -157,6 +160,7 @@ function subscribeChannel() {
         }, (payload) => { NetState.handlers.roomUpdate?.(payload.new); })
         .on('broadcast', { event: 'state' }, ({ payload }) => { NetState.handlers.state?.(payload); })
         .on('broadcast', { event: 'input' }, ({ payload }) => { NetState.handlers.input?.(payload); })
+        .on('broadcast', { event: 'matchStats' }, ({ payload }) => { NetState.handlers.matchStats?.(payload); })
         .on('presence', { event: 'leave' }, ({ key }) => {
             const otherRole = NetState.role === 'host' ? 'guest' : 'host';
             if (key === otherRole) NetState.handlers.opponentLeft?.();
@@ -174,6 +178,11 @@ export function sendState(snapshot) {
 
 export function sendInput(cmd) {
     NetState.channel?.send({ type: 'broadcast', event: 'input', payload: cmd });
+}
+
+// Host 場終果陣送一次自己統計到嘅「對手表現」畀 guest，等佢每日挑戰唔會永遠得 0
+export function sendMatchStats(stats) {
+    NetState.channel?.send({ type: 'broadcast', event: 'matchStats', payload: stats });
 }
 
 function startHeartbeat() {
@@ -198,6 +207,7 @@ export function teardown() {
     NetState.roomId = null;
     NetState.roomCode = null;
     NetState.role = null;
+    NetState.handlers = {}; // 清哂舊 handler，唔好留低指住已完場 game 嘅 closure
 }
 
 // 主動離開 = 判自己輸（配合 stop hook：關頁時盡量發一次 keepalive 請求）

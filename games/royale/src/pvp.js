@@ -66,8 +66,11 @@ export class GuestGame {
         this.towers = { [TEAM.PLAYER]: {}, [TEAM.ENEMY]: {} };
     }
 
+    // entities 入面嘅 team 冇對調（保持 host 嘅真實視角），但呢個方法對外係跟
+    // players/crowns 果套「PLAYER=自己」慣例，所以查詢嗰陣要將 team 反轉先啱
     aliveUnits(team) {
-        return this.entities.filter(e => !e.dead && e.team === team && !e.isTower);
+        const trueTeam = team === TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
+        return this.entities.filter(e => !e.dead && e.team === trueTeam && !e.isTower);
     }
     elixirMultiplier() { return this._mult; }
 
@@ -145,13 +148,19 @@ export class GuestGame {
             e.model.userData.animate?.(this._clock + e.id * 0.7, { moving: es.moving, attackT: es.attackT });
         }
         this.towers = towers;
-        for (const e of [...this.entities]) {
-            if (!seen.has(e.id)) {
-                this.scene.remove(e.model);
-                if (e.hpBar) { this.scene.remove(e.hpBar); this.hpBars = this.hpBars.filter(b => b !== e.hpBar); }
-                this.entities = this.entities.filter(x => x !== e);
-                this.byId.delete(e.id);
-            }
+        // 收埋晒要拆嘅先，出面淨係 filter 一次（唔好一隻死兵 rebuild 一次成個 array）
+        const removedHpBars = new Set();
+        let anyRemoved = false;
+        for (const e of this.entities) {
+            if (seen.has(e.id)) continue;
+            anyRemoved = true;
+            this.scene.remove(e.model);
+            if (e.hpBar) { this.scene.remove(e.hpBar); removedHpBars.add(e.hpBar); }
+            this.byId.delete(e.id);
+        }
+        if (anyRemoved) {
+            this.entities = this.entities.filter(e => seen.has(e.id));
+            if (removedHpBars.size) this.hpBars = this.hpBars.filter(b => !removedHpBars.has(b));
         }
     }
 

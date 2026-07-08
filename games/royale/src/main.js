@@ -262,7 +262,7 @@ const uiCallbacks = {
         cancelMatchmaking();
     },
     onAgain() {
-        if (matchMode === 'pvp') { ui.showStart(); return; } // PvP 唔支援即刻再嚟一局，返選單再配對
+        if (matchMode === 'pvp') { cleanupMatch(); ui.showStart(); return; } // PvP 唔支援即刻再嚟一局，返選單再配對
         startMatch(ui.deck, ui.difficulty, matchMode, matchMode === 'gauntlet' ? 1 : gauntletStage);
     },
     onNextStage() {
@@ -311,6 +311,7 @@ const uiCallbacks = {
         if (!p) return;
         const cardId = game.players[TEAM.PLAYER].hand[handIdx];
         const card = CARDS[cardId];
+        if (!card) return;
         if (netRole === 'guest') {
             // Guest 冇話事權：只係送叫牌指令畀 host，用本機 validPlacement 做樂觀預判
             const pos = game.validPlacement(TEAM.PLAYER, cardId, p.x, p.z);
@@ -432,6 +433,7 @@ async function afterJoinedRoom(room) {
     matchPollT = setInterval(async () => {
         if (!matchmakingActive) return;
         const r = await Net.pollRoom();
+        if (!matchmakingActive) return; // 等緊個 await 嗰陣可能已經由 roomUpdate 那邊開咗波
         if (r && r.guest_id && r.host_id) beginAsHost(r.host_deck ?? pvpDeck, r.guest_deck);
     }, 2500);
 }
@@ -534,6 +536,7 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
 
 // ---------- PvP：Host 開波（跑晒真正 Game 模擬，冇 AI，由遠端玩家輸入代替）----------
 function beginAsHost(hostDeck, guestDeck) {
+    if (netRole) return; // 防止 poll 同 roomUpdate 兩條路一齊撞入嚟開兩次波
     stopMatchmaking();
     ui.hideMatching();
     netRole = 'host';
@@ -546,11 +549,14 @@ function beginAsHost(hostDeck, guestDeck) {
         avgCost: hostDeck.reduce((s, id) => s + CARDS[id].cost, 0) / hostDeck.length,
         towersDestroyed: 0, bestSpellHit: 0, cardsPlayed: 0, gauntletStage: 0,
     };
+    // 對手（guest）嘅表現都要跟埋，場終先廣播返畀佢，唔係佢啲每日挑戰永遠計唔到
+    const enemyStats = { towersDestroyed: 0, bestSpellHit: 0, cardsPlayed: 0 };
 
     game = new Game(scene, hostDeck, guestDeck, {
         onTowerDestroyed(t) {
             sfx.towerDown();
             if (t.team === TEAM.ENEMY) matchStats.towersDestroyed += 1;
+            else enemyStats.towersDestroyed += 1;
             ui.banner(t.team === TEAM.PLAYER ? '💥 你嘅城塔冧咗！' : '🎉 攻陷敵方城塔！');
         },
         onKingActivated(team) {
@@ -562,9 +568,11 @@ function beginAsHost(hostDeck, guestDeck) {
         onClimax() { sfx.kingWake(); ui.banner('🔥 決勝一刻！傷害提升', 1800); },
         onSpellHit(team, cardId, count) {
             if (team === TEAM.PLAYER) matchStats.bestSpellHit = Math.max(matchStats.bestSpellHit, count);
+            else enemyStats.bestSpellHit = Math.max(enemyStats.bestSpellHit, count);
         },
         onCardPlayed(team) {
             if (team === TEAM.PLAYER) matchStats.cardsPlayed += 1;
+            else enemyStats.cardsPlayed += 1;
         },
         onGameOver(result) {
             if (result.winner === TEAM.PLAYER) sfx.win();
@@ -575,6 +583,7 @@ function beginAsHost(hostDeck, guestDeck) {
             matchStats.matchSeconds = game.simTime;
             const rewards = recordMatch(matchStats);
             Net.reportResult(result.winner === TEAM.PLAYER ? 'host' : result.winner === TEAM.ENEMY ? 'guest' : 'draw', 'crowns');
+            Net.sendMatchStats(enemyStats);
             ui.showEnd(result, { rewards, damage: game.damageByCard[TEAM.PLAYER], mode: 'pvp', stage: 0 });
         },
         onImpact() { sfx.explosion(); },
@@ -601,6 +610,7 @@ function beginAsHost(hostDeck, guestDeck) {
 
 // ---------- PvP：Guest 開波（唔跑本機模擬，淨係接收 host 廣播嘅快照嚟渲染）----------
 function beginAsGuest() {
+    if (netRole) return; // 防止 poll 同 roomUpdate 兩條路一齊撞入嚟開兩次波
     stopMatchmaking();
     ui.hideMatching();
     netRole = 'guest';
@@ -610,26 +620,33 @@ function beginAsGuest() {
 
     const g = new GuestGame(scene);
     let recorded = false;
+    let myStats = { towersDestroyed: 0, bestSpellHit: 0, cardsPlayed: 0 };
+    Net.on('matchStats', (stats) => { myStats = stats; });
+    const finishGuestMatch = () => {
+        if (recorded || !g.result) return;
+        recorded = true;
+        if (g.result.winner === TEAM.PLAYER) sfx.win();
+        else if (g.result.winner === TEAM.ENEMY) sfx.lose();
+        const rewards = recordMatch({
+            difficulty: 'pvp', deck: [...pvpDeck], win: g.result.winner === TEAM.PLAYER,
+            draw: g.result.winner == null, crowns: g.result.crowns[TEAM.PLAYER],
+            towersDestroyed: myStats.towersDestroyed, bestSpellHit: myStats.bestSpellHit,
+            cardsPlayed: myStats.cardsPlayed, gauntletStage: 0,
+            matchSeconds: g._clock, avgCost: pvpDeck.reduce((s, id) => s + CARDS[id].cost, 0) / pvpDeck.length,
+        });
+        ui.showEnd({ winner: g.result.winner, crowns: g.result.crowns }, { rewards, damage: {}, mode: 'pvp', stage: 0 });
+    };
     Net.on('state', (snap) => {
         g.applySnapshot(snap);
-        if (g.phase === 'ended' && g.result && !recorded) {
-            recorded = true;
-            if (g.result.winner === TEAM.PLAYER) sfx.win();
-            else if (g.result.winner === TEAM.ENEMY) sfx.lose();
-            const rewards = recordMatch({
-                difficulty: 'pvp', deck: [...pvpDeck], win: g.result.winner === TEAM.PLAYER,
-                draw: g.result.winner == null, crowns: g.result.crowns[TEAM.PLAYER],
-                towersDestroyed: 0, bestSpellHit: 0, cardsPlayed: 0, gauntletStage: 0,
-                matchSeconds: g._clock, avgCost: pvpDeck.reduce((s, id) => s + CARDS[id].cost, 0) / pvpDeck.length,
-            });
-            ui.showEnd({ winner: g.result.winner, crowns: g.result.crowns }, { rewards, damage: {}, mode: 'pvp', stage: 0 });
-        }
+        if (g.phase === 'ended') finishGuestMatch();
     });
     Net.on('opponentLeft', () => {
         if (g.phase !== 'ended') {
             g.phase = 'ended';
             g.result = { winner: TEAM.PLAYER, crowns: { ...g.crowns } };
         }
+        // Host 走咗，冇得再等佢廣播 matchStats/最終 state —— 直接用現有資料收場
+        finishGuestMatch();
     });
     game = g;
     window.__royale = { game };
