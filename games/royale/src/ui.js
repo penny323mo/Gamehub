@@ -398,8 +398,11 @@ export class UI {
                 el.innerHTML = this.cardInnerHtml(CARDS[id]);
                 cardsEl.appendChild(el);
             });
-            const next = this.$('next-card');
-            next.innerHTML = this.cardInnerHtml(CARDS[p.next]);
+            // p.next 喺 PvP guest 未收到 host 第一個快照之前會係 null，CARDS[null] 揀唔到嘢
+            if (CARDS[p.next]) {
+                const next = this.$('next-card');
+                next.innerHTML = this.cardInnerHtml(CARDS[p.next]);
+            }
             this.#refreshSelection();
         }
 
