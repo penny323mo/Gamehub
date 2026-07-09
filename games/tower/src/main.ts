@@ -1196,15 +1196,16 @@ canvas.addEventListener('click', () => {
     const row = picking.hoveredRow;
     if (col < 0 || row < 0) return;
 
-    if (selectedTowerType) {
+    // An existing tower always wins: build mode stays active after placing one tower
+    // (so you can place several in a row), but clicking a tower you already own must
+    // still open its panel instead of silently trying to build on top of it.
+    const tower = state.towers.find(t => t.col === col && t.row === row);
+    if (tower) {
+        showTowerPanel(tower);
+    } else if (selectedTowerType) {
         buildTower(state, selectedTowerType, col, row);
     } else {
-        const tower = state.towers.find(t => t.col === col && t.row === row);
-        if (tower) {
-            showTowerPanel(tower);
-        } else {
-            hideTowerPanel();
-        }
+        hideTowerPanel();
     }
 });
 
