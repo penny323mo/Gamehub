@@ -697,6 +697,8 @@ body {
   z-index: 2;
   text-align: center;
   width: min(620px, calc(100vw - 40px));
+  max-height: 94vh;
+  overflow-y: auto;
   padding: 34px 30px;
   border-radius: 28px;
   background:
@@ -873,6 +875,8 @@ body {
 .end-content {
   text-align: center;
   width: min(560px, calc(100vw - 40px));
+  max-height: 94vh;
+  overflow-y: auto;
   padding: 30px 28px;
   border-radius: 26px;
   background:
