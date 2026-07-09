@@ -167,7 +167,8 @@ body {
 }
 
 #mute-btn,
-#quit-btn {
+#quit-btn,
+#hub-btn {
     position: absolute;
     top: max(8px, env(safe-area-inset-top));
     width: 40px;
@@ -186,6 +187,11 @@ body {
 
 #quit-btn {
     left: 10px;
+}
+
+#hub-btn {
+    left: 10px;
+    z-index: 51;
 }
 
 #cam-controls {
