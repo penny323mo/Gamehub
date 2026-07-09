@@ -18,8 +18,10 @@
   padding: 40px;
   width: 90%;
   max-width: 400px;
+  max-height: 90vh;
+  overflow-y: auto;
   text-align: center;
-  box-shadow: 
+  box-shadow:
     0 0 30px var(--neon-cyan),
     0 0 60px rgba(0, 255, 245, 0.3);
   animation: slide-up 0.5s ease-out;

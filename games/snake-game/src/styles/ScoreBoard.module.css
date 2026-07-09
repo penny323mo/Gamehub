@@ -19,7 +19,9 @@
   padding: 30px;
   min-width: 400px;
   max-width: 90%;
-  box-shadow: 
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow:
     0 0 30px rgba(255, 255, 0, 0.3),
     inset 0 0 30px rgba(255, 255, 0, 0.05);
   animation: slideIn 0.3s ease-out;

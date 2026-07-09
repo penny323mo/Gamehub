@@ -789,3 +789,14 @@ body {
 .hidden {
   display: none !important;
 }
+
+/* Safety net for the landing/online-lobby/online-room panels: on short
+   viewports (Android Chrome's browser chrome eats extra height) the fixed,
+   overflow:hidden .layout wrapper would otherwise clip their top/bottom with
+   no way to scroll to it. */
+#landing-page,
+#online-lobby,
+#online-room {
+  max-height: 100vh;
+  overflow-y: auto;
+}

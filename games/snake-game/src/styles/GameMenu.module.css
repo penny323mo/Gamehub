@@ -24,7 +24,9 @@
   padding: 30px;
   width: 90%;
   max-width: 450px;
-  box-shadow: 
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow:
     0 0 30px var(--neon-cyan),
     0 0 60px rgba(0, 255, 245, 0.2);
 }
