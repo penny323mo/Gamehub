@@ -555,6 +555,28 @@ function applyIncomingShotEvent(rawShot) {
     }
 }
 
+// 重連恢復：攞房間「最新一個」快照——唔理係邊一方打嘅。自己嗰桿嘅最終快照
+// 正正就係要恢復嘅狀態；以前淨係攞對手嘅（.neq player_role），刷新會回滾自己最後一桿。
+async function fetchLatestSnapshotForRecovery() {
+    if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid) return;
+    const { data: rows, error } = await SnookerOnline.sbClient
+        .from('snooker_shots')
+        .select('*')
+        .eq('room_id', SnookerOnline.roomUuid)
+        .order('shot_no', { ascending: false })
+        .limit(8);
+    if (error || !rows) return;
+    for (const row of rows) {
+        const payload = getShotPayload(row);
+        if (payload && payload.kind === 'state_sync' && isShotPayloadForCurrentRound(payload)) {
+            if (window.snookerApplyRemoteStateSnapshot) {
+                window.snookerApplyRemoteStateSnapshot(payload.snapshot || null, payload, { allowOwn: true });
+            }
+            return;
+        }
+    }
+}
+
 async function fetchMissingShotsOnce() {
     if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid || !SnookerOnline.playerRole) return;
     // Filtering by client-side gameStartedAt risks clock skew dropping valid
@@ -1092,6 +1114,9 @@ function renderRoomState(room) {
     // are true and applyIncomingShotEvent can actually apply (not just dedup) them.
     if (isFirstPlayingTransition) {
         fetchMissingShotsOnce();
+        // 重連入一局進行緊嘅遊戲：補完對手嘅 shots 之後，用「最新快照」（可能係
+        // 自己嗰桿嘅）恢復最終狀態；serial 守衛保證唔會倒退
+        fetchLatestSnapshotForRecovery();
     }
 }
 
@@ -1246,6 +1271,7 @@ function subscribeToShots() {
             if (err) console.error('[SnookerRT-SHOTS] error:', err);
             if (status === 'SUBSCRIBED') {
                 fetchMissingShotsOnce();
+                fetchLatestSnapshotForRecovery(); // 重新訂閱＝可能斷過線，順手恢復最新狀態
             }
         });
 }

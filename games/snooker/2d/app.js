@@ -926,6 +926,15 @@
         // Practice mode: negative score for player
         state.scores.player -= foulVal;
       }
+      // 犯規桿入咗嘅紅波一樣係永久死咗（snooker 紅波唔重擺）——
+      // 個計數器一定要跟住減，唔然枱面冇紅但 gamePhase 又出唔到 RED，成局死循環
+      if (redPots.length > 0) {
+        state.redRemaining = Math.max(0, state.redRemaining - redPots.length);
+      }
+      // 淨返黑柴階段：任何犯規即完局（正式規則）；平手就跟重擺黑柴決勝，繼續打
+      if (requiredClear === 'black' && state.scores.player !== state.scores.ai) {
+        state.isComplete = true;
+      }
     } else {
       let points = 0;
       if (state.gamePhase === 'RED') {
@@ -957,9 +966,11 @@
       state.scores[currentScorer] += points;
     }
 
-    if (state.gamePhase === 'COLOUR' && state.redRemaining > 0) {
+    if (state.gamePhase === 'COLOUR') {
       if (foul || state.shotPots.length === 0) {
-        state.gamePhase = 'RED';
+        // 紅波打晒之後嗰一桿 COLOUR 失手/犯規：下一個人由黃波開始清枱，
+        // 唔可以繼續留喺「任揀色」狀態（唔然對手可以直接攞黑柴 7 分）
+        state.gamePhase = state.redRemaining > 0 ? 'RED' : clearPhases[0];
       }
     }
 
@@ -1119,11 +1130,21 @@
     drawAim();
   }
 
+  // 固定物理步長：以前用 rAF 嘅可變 dt 積分，60Hz 同 144Hz 螢幕會行出唔同結果，
+  // online 對手重播你嗰桿嗰陣兩邊各自各行位。而家兩邊都用一樣嘅步長序列。
+  const FIXED_DT = 1 / 120;
+  let physAcc = 0;
   function tick(t) {
     if (state.lastTime == null) state.lastTime = t;
     const dt = Math.min(0.05, (t - state.lastTime) / 1000);
     state.lastTime = t;
-    if (!state.aiming) step(dt);
+    if (!state.aiming) {
+      physAcc = Math.min(0.1, physAcc + dt);
+      while (physAcc >= FIXED_DT) {
+        step(FIXED_DT);
+        physAcc -= FIXED_DT;
+      }
+    }
     render();
     requestAnimationFrame(tick);
   }
@@ -1416,6 +1437,7 @@
 
 
   aimBtn.addEventListener('click', () => {
+    if (state.phase === 'shot') return; // 波仲喺度郁：唔准開瞄準模式，唔然物理模擬會凍住成局
     if (state.placingCue) {
       confirmPlacement();
     }

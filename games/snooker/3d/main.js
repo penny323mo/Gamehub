@@ -2450,7 +2450,7 @@ function applyBallSnapshot(ballSnapshot, index) {
   return true;
 }
 
-function applyGameStateSnapshot(rawPayload) {
+function applyGameStateSnapshot(rawPayload, { allowOwn = false } = {}) {
   const snapshot = normalizeSnapshotPayload(rawPayload);
   if (!snapshot || typeof snapshot !== 'object') return false;
   if (!window.isOnlineMode) return false;
@@ -2458,7 +2458,9 @@ function applyGameStateSnapshot(rawPayload) {
   const localClientId = typeof SnookerOnline !== 'undefined' && SnookerOnline?.clientId
     ? SnookerOnline.clientId
     : null;
-  if (snapshot.clientId && localClientId && snapshot.clientId === localClientId) {
+  // 平時要跳過自己嘅 echo；但重連恢復（allowOwn）時自己嗰桿嘅最終快照
+  // 正正就係要恢復嘅狀態，唔可以拒收（唔然刷新會回滾自己最後一桿）
+  if (!allowOwn && snapshot.clientId && localClientId && snapshot.clientId === localClientId) {
     return false;
   }
 
@@ -2707,8 +2709,9 @@ function refreshStartButtonUi() {
 }
 
 function updateUi() {
-  // 最終保險：全部清晒就完場
-  if (!gameOver && redsRemaining() === 0 && colorsRemaining() === 0) {
+  // 最終保險：全部清晒就完場——但一定要等嗰一桿完全結算咗先
+  // （唔然黑柴一跌袋就即刻判勝負，嗰 7 分/犯規調整都未計，會判錯贏家）
+  if (!gameOver && !shotInProgress && redsRemaining() === 0 && colorsRemaining() === 0) {
     endGame();
     return;
   }
@@ -3484,6 +3487,17 @@ function applyFoulDecision(forceFoulerContinue) {
 
 function endShot() {
   shotInProgress = false;
+  // 白波中途跌咗袋：全部波停晒定先放返出嚟（配合 handlePocket 唔即刻復位嘅做法）
+  if (cueBallPottedThisShot) {
+    const cue = balls.find((b) => b.type === 'cue');
+    if (cue && cue.pocketed) {
+      cue.pocketed = false;
+      cue.group.visible = true;
+      cue.velocity.set(0, 0, 0);
+      cue.position.copy(cueStart);
+      cue.group.position.copy(cueStart);
+    }
+  }
   const completedShotOrigin = activeShotOrigin || 'offline';
   lastCompletedShotOrigin = completedShotOrigin;
   // Consume the break flag unconditionally so the receiver side doesn't leak
@@ -3539,15 +3553,20 @@ function endShot() {
 
   if (freeBallAvailable) {
     if (scored.length > 0) {
-      scores[currentPlayer] += 1;
-      setStatus('Free ball potted +1', 1.6);
-      if (pottedColors.length > 0 && reds > 0) {
+      // Free ball 計「應打波」分值：紅波階段=1，清枱階段=目標彩波嘅分值
+      const clearOrder = ['yellow', 'green', 'brown', 'blue', 'pink', 'black'];
+      const freeBallValue = reds > 0 ? 1 : (ballValues[clearOrder[colorClearIndex]] ?? 1);
+      scores[currentPlayer] += freeBallValue;
+      setStatus(`Free ball potted +${freeBallValue}`, 1.6);
+      // Free ball 係代替品：入咗一定要執返出嚟（以前清枱階段唔執，
+      // 清到嗰粒色嗰陣枱面已經冇咗佢，成局卡死）
+      if (pottedColors.length > 0) {
         respotColors(pottedColors);
       }
       freeBallAvailable = false;
       expectingColor = reds > 0;
       snookered = false;
-      logRule('freeball_scored', { player: currentPlayer + 1, points: 1 });
+      logRule('freeball_scored', { player: currentPlayer + 1, points: freeBallValue });
     } else {
       freeBallAvailable = false;
       currentPlayer = 1 - currentPlayer;
@@ -4105,6 +4124,8 @@ function handlePrimaryPointerDown(e) {
   }
 
   if (cueBallInHand) {
+    // 線上模式：只有輪到自己嗰個先可以擺白波（唔然等緊嗰邊都拖得郁，兩邊位置即刻脫節）
+    if (window.isOnlineMode && currentPlayer !== (window.onlineMyPlayerIndex ?? 0)) return;
     isDraggingCueBall = true;
     turnState = 'PLACE_CUE_DRAG';
     updateCueBallPlacementFromPointer(e); // 若 raycast miss 會返回 false，但仍保持拖放狀態
@@ -4354,6 +4375,8 @@ if ('PointerEvent' in window) {
 }
 canvas.addEventListener('dblclick', (e) => {
   if (!cueBallInHand) return;
+  // 線上模式：唔輪到自己唔可以確認白波位置
+  if (window.isOnlineMode && currentPlayer !== (window.onlineMyPlayerIndex ?? 0)) return;
   updateCueBallPlacementFromPointer(e);
   if (!isValidCuePlacement(cueBall.position)) {
     setStatus('Invalid cue placement. Keep cue ball inside D.', 1.6);
@@ -4389,6 +4412,7 @@ if (decisionForceBtn) {
 if (confirmCueBtn) {
   confirmCueBtn.addEventListener('click', () => {
     if (!cueBallInHand) return;
+    if (window.isOnlineMode && currentPlayer !== (window.onlineMyPlayerIndex ?? 0)) return;
     if (!isValidCuePlacement(cueBall.position)) {
       setStatus('Invalid cue placement. Keep cue ball inside D.', 1.6);
       return;
@@ -4565,6 +4589,9 @@ if (spinResetBtn) {
 }
 
 window.addEventListener('keydown', (e) => {
+  // 打緊字（例如玩家名輸入框）唔好當快捷鍵處理
+  const tag = e.target?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
   if (foulDecisionPending && (e.code === 'KeyY' || e.code === 'Enter' || e.code === 'Space')) {
     if (canApplyFoulDecisionLocally()) applyFoulDecision(false);
     return;
@@ -4574,6 +4601,8 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (e.code === 'KeyR') {
+    // 線上模式唔畀本機單方面 reset（會同對手完全脫節），要行返房間 rematch 流程
+    if (window.isOnlineMode) return;
     resetGame();
   }
   if (e.code === 'KeyC') {
@@ -4683,12 +4712,11 @@ function handlePocket(ball) {
     foulThisShot = true;
     foulReason = 'Cue ball potted';
     cueBallPottedThisShot = true;
+    // 白波跌袋：其他波仲滾緊嗰陣要當佢離場（隱形＋唔碰撞）——
+    // 唔可以即刻擺返 D 區做一個活體障礙物俾人撞；endShot 先放返出嚟
     ball.velocity.set(0, 0, 0);
-    ball.position.copy(cueStart);
-    ball.group.position.copy(cueStart);
-    ball.pocketed = false;
-    cueBallInHand = true;
-    stationaryTime = 0;
+    ball.pocketed = true;
+    ball.group.visible = false;
     logRule('cue_pocketed', { player: currentPlayer + 1 });
     return;
   }
@@ -5338,10 +5366,10 @@ window.snookerApplyRemoteShot = function(payload) {
   updateUi();
 };
 
-window.snookerApplyRemoteStateSnapshot = function(snapshot, meta) {
+window.snookerApplyRemoteStateSnapshot = function(snapshot, meta, opts) {
   if (!window.isOnlineMode) return;
   const payload = meta?.snapshot ? meta : snapshot;
-  applyGameStateSnapshot(payload);
+  applyGameStateSnapshot(payload, opts || {});
 };
 
 // Online multiplayer room update hook.
