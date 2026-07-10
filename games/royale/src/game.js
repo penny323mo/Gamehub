@@ -605,19 +605,19 @@ export class Game {
         if (e.isTower) {
             this.#towerFall(e);
         } else {
-            // 陣亡動畫：沉落地下 + 塵埃
+            // 陣亡動畫：沉落地下 + 塵埃。
+            // hpBar 已隱形，即刻拆；model 用 effect 嘅 mesh 欄位揸住——
+            // 噉樣動畫播完（updateEffects）或者中途退場（cleanupMatch 掃 effects）
+            // 都一定會由場景度拆走，唔會因為實體已被清掃而漏低隻屍體
             this.#particles(e.x, e.z, 0xcfc8b8, 6, 2, 0.3);
+            this.scene.remove(e.hpBar);
             const model = e.model;
             this.effects.push({
-                t: 0, dur: 0.7, mesh: null,
+                t: 0, dur: 0.7, mesh: model,
                 update: (ef) => {
                     const p = ef.t / ef.dur;
                     model.position.y = -p * 1.2;
                     model.rotation.x = p * 0.5;
-                },
-                onEnd: () => {
-                    this.scene.remove(model);
-                    this.scene.remove(e.hpBar);
                 },
             });
         }
