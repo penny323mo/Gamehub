@@ -451,7 +451,7 @@ function animateAIMove(packedMove, movingPiece, onDone) {
 
 /* ── Execute move ── */
 function doMove(packedMove) {
-  if (moveLock) return;
+  if (moveLock) return false;
   moveLock = true;
 
   const sideBefore = turn;
@@ -795,8 +795,10 @@ window.applyNetworkMove = (packedMove, color, isSilent = false) => {
     turn = color === 'red' ? BLACK : RED;
     afterMoveFlow();
   } else {
-    doMove(packedMove);
+    // doMove 動畫期間 moveLock 會靜默拒絕，要回報 false 畀網絡隊列重試
+    if (doMove(packedMove) === false) return false;
   }
+  return true;
 };
 
 window.updateStatusUI = (currentPlayerColor) => {

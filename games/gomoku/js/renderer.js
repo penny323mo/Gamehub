@@ -205,6 +205,12 @@ function updateStatusUI(player, customMessage = null) {
     playerTurnSpan = document.querySelector('.player-turn');
 }
 
+function updateDrawUI() {
+    gameOver = true;
+    statusElement.innerHTML = '<span class="player-turn">和棋！棋盤已滿</span>';
+    setTimeout(() => alert('和棋！棋盤已滿'), 10);
+}
+
 function updateWinUI(player) {
     const pName = getPlayerName(player);
     statusElement.innerHTML = `<span class="player-turn" style="color: ${player === 'black' ? '#000' : '#888'}">${pName} 獲勝！</span>`;

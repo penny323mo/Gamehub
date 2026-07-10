@@ -1,6 +1,7 @@
 
 
 function makeAIMove(difficulty) {
+    if (gameOver) return;
     let move;
     if (difficulty === 'easy') {
         move = findEasyMove();
@@ -10,19 +11,32 @@ function makeAIMove(difficulty) {
         move = findBestMove();
     }
 
-    if (move) {
-        // AI places stone
-        board[move.r][move.c] = currentPlayer;
-        placeStoneUI(move.r, move.c, currentPlayer);
-
-        if (checkWin(move.r, move.c, currentPlayer)) {
-            updateWinUI(currentPlayer);
-            return;
+    // 保險：揀咗個已被佔嘅格（例如棋盤已滿時嘅 {7,7} fallback）→ 搵任何空格；
+    // 全滿就係和棋，唔可以冚住人哋粒棋
+    if (!move || board[move.r][move.c] !== null) {
+        move = null;
+        outer:
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                if (board[r][c] === null) { move = { r, c }; break outer; }
+            }
         }
-
-        switchTurn();
-        updateStatusUI();
     }
+    if (!move) { updateDrawUI(); return; }
+
+    // AI places stone
+    board[move.r][move.c] = currentPlayer;
+    placeStoneUI(move.r, move.c, currentPlayer);
+
+    if (checkWin(move.r, move.c, currentPlayer)) {
+        updateWinUI(currentPlayer);
+        return;
+    }
+
+    if (isBoardFull()) { updateDrawUI(); return; }
+
+    switchTurn();
+    updateStatusUI();
 }
 
 function findEasyMove() {

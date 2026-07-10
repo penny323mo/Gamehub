@@ -33,7 +33,8 @@ function initApp() {
 
 function resetGame() {
     if (mode === 'online') {
-        requestRestart();
+        // online.js 提供嘅係 rematchGame（requestRestart 從來冇定義過，會 ReferenceError）
+        if (window.rematchGame) window.rematchGame();
     } else {
         resetGameState();
         resetBoardUI();
@@ -114,8 +115,8 @@ function showView(viewName) {
 
 function backToLanding() {
     if (mode === 'online') {
-        // If in a room, leave it
-        if (window.exitRoom) window.exitRoom();
+        // If in a room, leave it（online.js 掛喺 window 嘅名係 exitFixedRoom）
+        if (window.exitFixedRoom) window.exitFixedRoom();
     }
     showView('landing');
 }

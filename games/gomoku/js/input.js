@@ -63,6 +63,12 @@ function handleCellClick(row, col, difficulty) {
             console.log('[CLICK] BLOCKED: not_my_turn (db_turn=' + dbCurrentTurn + ', me=' + myRole + ')');
             return;
         }
+        // Guard 4b: DB 個 current_player 要等 realtime UPDATE 先更新，
+        // 樂觀落子嗰刻已經 switchTurn 咗——用本地 currentPlayer 擋住連點第二粒
+        if (currentPlayer !== myRole) {
+            console.log('[CLICK] BLOCKED: optimistic move pending (local turn=' + currentPlayer + ')');
+            return;
+        }
 
         // Optimistic local placement so the move feels instant.
         // If the server RPC rejects it, we roll back the board and redraw.
@@ -105,6 +111,8 @@ function handleCellClick(row, col, difficulty) {
         updateWinUI(currentPlayer);
         return;
     }
+
+    if (isBoardFull()) { updateDrawUI(); return; } // 棋盤已滿冇人連五：和棋
 
     switchTurn();
     updateStatusUI();

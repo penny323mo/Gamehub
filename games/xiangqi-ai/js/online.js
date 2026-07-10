@@ -542,7 +542,13 @@ async function processMovesQueue() {
     while (_moveQueue.length > 0) {
         const m = _moveQueue.shift();
         if (window.applyNetworkMove) {
-            window.applyNetworkMove(m.packed_move, m.color);
+            // 動畫期間 moveLock 會拒絕（回傳 false）——一定要等到應用成功，
+            // 唔係連發嚟嘅第二步會永久走失（id 已記錄，唔會再收到）
+            let tries = 0;
+            while (window.applyNetworkMove(m.packed_move, m.color) === false && tries < 50) {
+                tries++;
+                await new Promise(r => setTimeout(r, 60));
+            }
         }
         await new Promise(r => setTimeout(r, 30));
     }

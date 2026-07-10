@@ -28,6 +28,15 @@ function resetGameState() {
     isVsAI = true;
 }
 
+function isBoardFull() {
+    for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+            if (board[r][c] === null) return false;
+        }
+    }
+    return true;
+}
+
 function switchTurn() {
     currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
     return currentPlayer;
