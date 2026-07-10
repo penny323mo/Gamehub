@@ -64,6 +64,9 @@ export class GuestGame {
         this._clock = 0;
         this.playedCards = { [TEAM.PLAYER]: [], [TEAM.ENEMY]: [] };
         this.towers = { [TEAM.PLAYER]: {}, [TEAM.ENEMY]: {} };
+        // 已送出但未喺快照反映嘅手牌格：防止喺快照更新前重覆出同一格
+        // （host 嗰邊已經換咗卡，會變成出咗一張 guest 睇唔到嘅卡）
+        this.pendingHand = new Set();
     }
 
     // entities 入面嘅 team 冇對調（保持 host 嘅真實視角），但呢個方法對外係跟
@@ -74,7 +77,9 @@ export class GuestGame {
     }
     elixirMultiplier() { return this._mult; }
 
-    // 同 game.js 一樣嘅部署合法性檢查（畀 guest 本機出兵前預覽用，實際落子仲係由 host 話事）
+    // 同 game.js 一樣嘅部署合法性檢查（畀 guest 本機出兵前預覽用，實際落子仲係由 host 話事）。
+    // 座標永遠係 host 世界系：guest（呢度嘅 TEAM.PLAYER）自己半場係 z<0，
+    // 所以 ownSide 要用 game.js 嘅相反轉換——host 收到之後會以 TEAM.ENEMY 覆核同一落點。
     validPlacement(team, cardId, x, z) {
         const card = CARDS[cardId];
         if (!card) return null;
@@ -83,7 +88,7 @@ export class GuestGame {
         z = Math.max(-hl, Math.min(hl, z));
         if (card.kind === 'spell') return { x, z };
 
-        const ownSide = (zz) => (team === TEAM.PLAYER ? zz : -zz);
+        const ownSide = (zz) => (team === TEAM.PLAYER ? -zz : zz);
         const zSide = ownSide(z);
         if (zSide >= ARENA.riverHalf + 0.25) return { x, z };
         if (card.kind === 'building') return null;
@@ -105,6 +110,7 @@ export class GuestGame {
     // TEAM.PLAYER=host、TEAM.ENEMY=guest）。Guest 需要將呢兩個欄位對調，
     // ui.js 先可以照舊當「TEAM.PLAYER=自己」用，唔使另外改晒成套 HUD 邏輯。
     applySnapshot(snap) {
+        this.pendingHand.clear(); // 新快照已反映 host 嘅最新手牌，解鎖晒所有格
         this.time = snap.time;
         this.phase = snap.phase;
         this._mult = snap.mult;

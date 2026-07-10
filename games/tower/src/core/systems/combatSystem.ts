@@ -200,10 +200,15 @@ function applyHit(state: GameState, enemy: Enemy, baseDmg: number, damageType: D
     });
 
     enemy.hp -= dmg;
+    state.stats.totalDamageDealt += dmg;
+    state.stats.damageByType[damageType] = (state.stats.damageByType[damageType] ?? 0) + dmg;
     if (enemy.hp <= 0) {
         if (killerTowerId !== undefined) {
             const killerTower = state.towers.find(t => t.id === killerTowerId);
-            if (killerTower) killerTower.kills++;
+            if (killerTower) {
+                killerTower.kills++;
+                state.stats.killsByTower[killerTower.type] = (state.stats.killsByTower[killerTower.type] ?? 0) + 1;
+            }
         }
         killEnemy(state, enemy);
     }

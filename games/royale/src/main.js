@@ -245,6 +245,12 @@ let matchmakingActive = false;
 
 function showZones(show) {
     if (!game || !arena.zones) return;
+    // 區域網格係固定世界座標（own=z>0、pocket=z<0，即 host 視角）；guest 半場反轉，
+    // 要將 z 鏡射先至照喺「自己嗰邊」／「敵方袋位」嘅正確位置
+    for (const zone of Object.values(arena.zones)) {
+        if (zone.userData.baseZ === undefined) zone.userData.baseZ = zone.position.z;
+        zone.position.z = netRole === 'guest' ? -zone.userData.baseZ : zone.userData.baseZ;
+    }
     arena.zones.own.visible = show;
     arena.zones.pocketL.visible = show && !!game.towers[TEAM.ENEMY].left?.dead;
     arena.zones.pocketR.visible = show && !!game.towers[TEAM.ENEMY].right?.dead;
@@ -316,7 +322,8 @@ const uiCallbacks = {
             // Guest 冇話事權：只係送叫牌指令畀 host，用本機 validPlacement 做樂觀預判
             const pos = game.validPlacement(TEAM.PLAYER, cardId, p.x, p.z);
             const canAfford = game.players[TEAM.PLAYER].elixir >= card.cost;
-            if (pos && canAfford) {
+            if (pos && canAfford && !game.pendingHand.has(handIdx)) {
+                game.pendingHand.add(handIdx); // 下一個快照先解鎖，防止 host 換咗卡之後重覆出呢格
                 sendGuestPlay(handIdx, pos.x, pos.z);
                 card.kind === 'spell' ? sfx.spell() : sfx.deploy();
             } else {
@@ -386,6 +393,7 @@ async function startQuickMatch(deck) {
     ui.showMatching('搜尋緊對手…');
     try {
         const room = await Net.quickMatch(deck);
+        if (!matchmakingActive) { Net.cancelWaiting(); return; } // 等緊入房嗰陣㩒咗取消：唔好留低幽靈房
         await afterJoinedRoom(room);
     } catch (err) {
         if (!matchmakingActive) return;
@@ -400,6 +408,7 @@ async function startJoinRoom(deck, code) {
     ui.showMatching('加入緊房間…');
     try {
         const room = await Net.joinRoomByCode(code, deck);
+        if (!matchmakingActive) { Net.cancelWaiting(); return; } // 等緊入房嗰陣㩒咗取消：撤銷個 claim
         await afterJoinedRoom(room);
     } catch (err) {
         if (!matchmakingActive) return;

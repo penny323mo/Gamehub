@@ -88,14 +88,16 @@ function defaultSave() {
 let save = null;
 
 export function loadSave() {
-    if (save) return save;
-    try {
-        const raw = localStorage.getItem(KEY);
-        save = raw ? { ...defaultSave(), ...JSON.parse(raw) } : defaultSave();
-    } catch {
-        save = defaultSave();
+    if (!save) {
+        try {
+            const raw = localStorage.getItem(KEY);
+            save = raw ? { ...defaultSave(), ...JSON.parse(raw) } : defaultSave();
+        } catch {
+            save = defaultSave();
+        }
     }
-    // 每日挑戰過咗夜就重置
+    // 每日挑戰過咗夜就重置——放喺 cache 命中之後都要檢查，
+    // 唔係個 tab 開過夜就會一直計落尋日嗰批挑戰度
     const today = todayStr();
     if (save.daily.date !== today) {
         save.daily = { date: today, done: {} };

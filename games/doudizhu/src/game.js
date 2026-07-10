@@ -13,7 +13,7 @@
   const { makeDeck, shuffle, sortCards, cardId, cardToText } = DDZ;
   const { evalHand, canBeat } = DDZ;
   const { clearMovesCache } = DDZ;
-  const { cpuChooseMove } = DDZ;
+  const { cpuChooseMove, cpuBidDecision } = DDZ;
 
   function makeGame(){
     const state = {

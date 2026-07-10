@@ -240,6 +240,12 @@ async function joinFixedRoom(roomKey) {
     subscribeToRoom();
     subscribeToActions();
 
+    // 中途重連（房間已經開波）：subscribe 回呼嘅 wasPlaying 檢查會被
+    // enterRoomView 已寫低嘅 lastKnownRoom 騙到，永遠唔補歷史——顯式重播一次
+    if (room.status === 'playing') {
+        await syncHistoricalActions();
+    }
+
     startHeartbeat();
     startRoomPoll();
 }
@@ -571,7 +577,8 @@ async function handleOnlineAction(actionType, payloadObj, actPlayerIndex = null)
         return false;
     }
 
-    return true;
+    // 回傳 server 派嘅 action id（host 可以用嚟跳過自己嗰下嘅 Realtime echo）
+    return data?.action_id ?? true;
 }
 
 async function exitFixedRoom() {

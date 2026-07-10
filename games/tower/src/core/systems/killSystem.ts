@@ -11,15 +11,18 @@ export function killEnemy(state: GameState, enemy: Enemy): void {
     const bounty = Math.ceil(enemy.bounty * state.buffGoldMult);
     state.gold += bounty;
     state.totalKills++;
+    state.stats.goldEarned += bounty;
 
     // Kill Streak
     state.killStreak++;
     state.killStreakTimer = 3.0;
+    state.stats.longestStreak = Math.max(state.stats.longestStreak, state.killStreak);
 
     // Streak milestone bonus at multiples of 10
     if (state.killStreak % 10 === 0) {
         const bonus = 50;
         state.gold += bonus;
+        state.stats.goldEarned += bonus;
         state.floatingTexts.push({
             id: state.nextId++,
             worldX: enemy.worldX,

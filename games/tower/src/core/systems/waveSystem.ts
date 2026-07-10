@@ -33,7 +33,7 @@ function rollModifier(waveNumber1Based: number): string | null {
 }
 
 /** G24 — Map absolute wave index to a template index, wrapping in endless mode. */
-function templateIndex(state: GameState): number {
+export function templateIndex(state: GameState): number {
     if (state.currentWave < WAVES.waves.length) return state.currentWave;
     // Endless: loop through back half of the wave list for variety + scale.
     const loopLen = Math.max(1, WAVES.waves.length - 40); // reuse waves 40..98
@@ -65,6 +65,7 @@ export function tickWave(state: GameState, dt: number): void {
             // A — Interest on held gold (1%, min 10g, max 150g)
             const interest = Math.min(150, Math.max(10, Math.floor(state.gold * 0.01)));
             state.gold += interest;
+            state.stats.goldEarned += interest;
             state.floatingTexts.push({
                 id: state.nextId++,
                 worldX: 0,
@@ -136,6 +137,7 @@ export function tickWave(state: GameState, dt: number): void {
         else if (wave > 10) waveGoldBonus = 150;
         else waveGoldBonus = 120; // 早期波次提升獎金
         state.gold += waveGoldBonus;
+        state.stats.goldEarned += waveGoldBonus;
         state.lastWaveClearGold = waveGoldBonus;
 
         const perfect = state.waveLivesLostThisWave === 0;
@@ -145,6 +147,7 @@ export function tickWave(state: GameState, dt: number): void {
         const isMilestone = wave === 99 || (wave > 0 && wave % 25 === 0);
         if (isMilestone) {
             state.gold += 500;
+            state.stats.goldEarned += 500;
             state.milestoneReached = wave;
             bus.emit({ type: 'milestone', wave });
         } else {

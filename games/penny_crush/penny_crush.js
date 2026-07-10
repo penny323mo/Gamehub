@@ -54,6 +54,7 @@ const PennyCrush = {
         }
 
         this.generateGrid();
+        this.ensurePlayable();
         this.renderGrid();
     },
 
@@ -89,9 +90,58 @@ const PennyCrush = {
         for (let r = 0; r < this.gridSize; r++) {
             const row = [];
             for (let c = 0; c < this.gridSize; c++) {
-                row.push(this.getRandomColor());
+                // 避免一開波/洗完牌就自帶現成 match（左兩格、上兩格唔好同色湊三）
+                let color, guard = 0;
+                do {
+                    color = this.getRandomColor();
+                    guard++;
+                } while (guard < 20 && (
+                    (c >= 2 && row[c - 1] === color && row[c - 2] === color) ||
+                    (r >= 2 && this.grid[r - 1][c] === color && this.grid[r - 2][c] === color)
+                ));
+                row.push(color);
             }
             this.grid.push(row);
+        }
+    },
+
+    // 棋盤仲有冇路行？（特殊磚本身就係一步；否則試晒每對相鄰交換睇下有冇 match）
+    hasPossibleMove: function () {
+        for (let r = 0; r < this.gridSize; r++) {
+            for (let c = 0; c < this.gridSize; c++) {
+                if (this.specialTiles.includes(this.grid[r][c]) || this.grid[r][c] === 'pc-bomb') return true;
+            }
+        }
+        const trySwap = (r1, c1, r2, c2) => {
+            const g = this.grid;
+            [g[r1][c1], g[r2][c2]] = [g[r2][c2], g[r1][c1]];
+            const ok = this.findMatches().length > 0;
+            [g[r1][c1], g[r2][c2]] = [g[r2][c2], g[r1][c1]];
+            return ok;
+        };
+        for (let r = 0; r < this.gridSize; r++) {
+            for (let c = 0; c < this.gridSize; c++) {
+                if (c + 1 < this.gridSize && trySwap(r, c, r, c + 1)) return true;
+                if (r + 1 < this.gridSize && trySwap(r, c, r + 1, c)) return true;
+            }
+        }
+        return false;
+    },
+
+    // 死局自動免費洗牌（唔食玩家嘅 shuffle 次數），唔會俾玩家困死喺冇路行嘅棋盤
+    ensurePlayable: function () {
+        let guard = 0;
+        while (!this.hasPossibleMove() && guard < 30) {
+            this.generateGrid();
+            guard++;
+        }
+        if (guard > 0) {
+            this.renderGrid();
+            const gridEl = document.getElementById('pc-grid');
+            if (gridEl) {
+                gridEl.classList.add('pc-shake');
+                setTimeout(() => gridEl.classList.remove('pc-shake'), 500);
+            }
         }
     },
 
@@ -135,12 +185,21 @@ const PennyCrush = {
             const tile = document.querySelector(`.pc-tile[data-r="${r}"][data-c="${c}"]`);
             if (tile) tile.classList.add('pc-pop');
 
+            this.isProcessing = true; // 補位/動畫期間鎖住輸入，唔畀玩家喺變緊嘅棋盤上面亂搣
+            this.turnClearedCount = 0;
+            this.comboCount = 0;
             this.grid[r][c] = null;
             this.updateScore(50);
 
             setTimeout(async () => {
                 await this.applyGravity();
-                this.finalizeTurn();
+                // 補落嚟嘅新磚可能自己砌出 match，要照樣結算，唔好留喺棋盤度
+                const newMatches = this.findMatches();
+                if (newMatches.length > 0) {
+                    await this.processMatches(newMatches, false);
+                } else {
+                    this.finalizeTurn();
+                }
             }, 300);
             return;
         }
@@ -332,7 +391,9 @@ const PennyCrush = {
     },
 
     processMatches: async function (matches, allowSpecialSpawn = false) {
-        if (allowSpecialSpawn) this.comboCount++;
+        // 每一波消除（包括連鎖）都計 combo，唔係得第一波——
+        // 唔係 comboCount 永遠最多 1，倍數同 combo 字幕一世都出唔到
+        this.comboCount++;
 
         let specialType = null;
         let spawnPos = null;
@@ -360,7 +421,7 @@ const PennyCrush = {
 
         await new Promise(r => setTimeout(r, 320));
 
-        const multiplier = allowSpecialSpawn ? this.getComboMultiplier() : 1;
+        const multiplier = this.getComboMultiplier();
         const points = matches.length * 10 * multiplier;
         this.updateScore(points);
         this.turnClearedCount += matches.length;
@@ -369,7 +430,7 @@ const PennyCrush = {
             this.showScorePop(matches[0].r, matches[0].c, points);
         }
 
-        if (allowSpecialSpawn && multiplier > 1) {
+        if (multiplier > 1) {
             this.showComboText(multiplier);
         }
 
@@ -441,6 +502,7 @@ const PennyCrush = {
         this.isProcessing = false;
         this.turnClearedCount = 0;
         this.isPlayerInitiatedTurn = false;
+        this.ensurePlayable(); // 消完之後補位可能變死局，即場檢查
     },
 
     spawnBomb: function () {
@@ -557,6 +619,7 @@ const PennyCrush = {
         // Let's just shuffle existing tiles to keep the set fair?
         // Actually, Random Generate is easiest and fair enough.
         this.generateGrid();
+        this.ensurePlayable();
         this.renderGrid();
 
         // Show effect

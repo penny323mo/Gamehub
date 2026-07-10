@@ -164,20 +164,21 @@
       els.startGameBtn.addEventListener('click', startNewGame);
     }
 
-    // 重新開始按鈕
-    if (els.restartBtn) {
-      els.restartBtn.addEventListener('click', () => {
-        if (window.gameMode === 'online') {
-          // Online mode restart goes through the room flow
-          if (window.forceStartGame) window.forceStartGame();
-          return;
-        }
-        actions.restart();
-        render(game);
-        bidCpuLoop();
-        if (state.phase === 'play' && state.current !== 0) playCpuLoop();
-      });
-    }
+    // 重新開始按鈕（唯一綁定點：main.js 唔好再綁多次，唔然會重發兩次＋疊兩條 CPU loop）
+    const onRestartClick = () => {
+      if (window.gameMode === 'online') {
+        // Online mode restart goes through the room flow
+        if (window.forceStartGame) window.forceStartGame();
+        return;
+      }
+      if (!confirm('確定要重新開始？')) return;
+      actions.restart();
+      render(game);
+      bidCpuLoop();
+      if (state.phase === 'play' && state.current !== 0) playCpuLoop();
+    };
+    if (els.restartBtn) els.restartBtn.addEventListener('click', onRestartClick);
+    document.getElementById('restartBtn2')?.addEventListener('click', onRestartClick);
 
     function bidCpuLoop() {
       const step = () => {
@@ -485,7 +486,7 @@
     els.bidPassBtn.style.display = inBid ? '' : 'none';
 
     els.bidCallBtn.disabled = !(inBid && isHumanTurn);
-    const canRob = inBid && isHumanTurn && state.bid?.calledBy != null && state.bid?.calledBy !== 0;
+    const canRob = inBid && isHumanTurn && state.bid?.calledBy != null && state.bid?.calledBy !== getMyIndex();
     els.bidRobBtn.disabled = !canRob;
     els.bidPassBtn.disabled = !(inBid && isHumanTurn);
 

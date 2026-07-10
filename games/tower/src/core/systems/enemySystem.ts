@@ -166,6 +166,8 @@ function applyRawDamage(state: GameState, enemy: Enemy, baseDmg: number, damageT
     }
 
     enemy.hp -= dmg;
+    state.stats.totalDamageDealt += dmg;
+    state.stats.damageByType.poison = (state.stats.damageByType.poison ?? 0) + dmg;
     if (enemy.hp <= 0) {
         killEnemy(state, enemy);
     }

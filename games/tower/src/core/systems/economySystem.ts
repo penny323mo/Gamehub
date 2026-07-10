@@ -37,6 +37,8 @@ export function buildTower(state: GameState, type: TowerType, col: number, row: 
     };
 
     state.gold -= cfg.buildCost;
+    state.stats.towersBuilt++;
+    state.stats.goldSpent += cfg.buildCost;
     state.towers.push(tower);
     rebuildOccupied(state);
     
@@ -63,6 +65,7 @@ export function upgradeTower(state: GameState, towerId: number): boolean {
     if (state.gold < nextLevel.upgradeCost) return false;
 
     state.gold -= nextLevel.upgradeCost;
+    state.stats.goldSpent += nextLevel.upgradeCost;
     tower.totalInvested += nextLevel.upgradeCost;
     tower.level++;
     
@@ -83,6 +86,7 @@ export function sellTower(state: GameState, towerId: number): number {
     const tower = state.towers[idx];
     const refund = Math.floor(tower.totalInvested * SELL_REFUND_PCT);
     state.gold += refund;
+    state.stats.towersSold++;
     state.towers.splice(idx, 1);
     rebuildOccupied(state);
     
@@ -123,6 +127,7 @@ export function evolveTower(state: GameState, towerId: number, targetType: strin
     if (state.gold < evo.cost) return false;
     
     state.gold -= evo.cost;
+    state.stats.goldSpent += evo.cost;
     tower.totalInvested += evo.cost;
     tower.type = targetType as TowerType;
     tower.level = 0; // The new evolved tower type starts at level 0

@@ -579,6 +579,9 @@ export class Game {
     // ---------- 傷害 / 死亡 ----------
     #damage(e, dmg, src = null) {
         if (e.dead) return;
+        // 完場之後特效/飛行中嘅投射物照播，但唔准再改變戰果——
+        // 唔係一個遲到嘅火球可以喺勝利畫面之後先冧塔、改皇冠數
+        if (this.phase === 'ended') return;
         if (src && src.cardId) {
             const board = this.damageByCard[src.team];
             board[src.cardId] = (board[src.cardId] ?? 0) + Math.min(Math.max(0, e.hp), dmg);
@@ -1070,6 +1073,18 @@ export class Game {
 
         this.#updateProjectiles(dt);
         this.#updateEffects(dt);
+
+        // 清走死咗嘅兵（塔要留低：serialize/袋位邏輯用到）。屍體模型嘅落地動畫
+        // 由 effects 入面嘅 closure 自己揸住，唔靠 entities array，可以即刻剔走，
+        // 唔係打耐咗全部 targeting/法術/血條 loop 都要行過幾百具屍體
+        if (this.entities.some(e => e.dead && !e.isTower)) {
+            const removedBars = new Set();
+            for (const e of this.entities) {
+                if (e.dead && !e.isTower) removedBars.add(e.hpBar);
+            }
+            this.entities = this.entities.filter(e => !e.dead || e.isTower);
+            this.hpBars = this.hpBars.filter(b => !removedBars.has(b));
+        }
     }
 
     #updateEffects(dt) {

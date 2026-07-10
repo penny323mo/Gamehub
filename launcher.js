@@ -195,4 +195,8 @@ window.addEventListener('load', () => {
         container.addEventListener('touchstart', handleTouchStart, { passive: true });
         container.addEventListener('touchend', handleTouchEnd, { passive: true });
     }
+
+    // Card width is min(280px, 85vw): on very narrow screens it changes with the
+    // viewport, so recompute pixel offsets on resize/rotate or cards misalign
+    window.addEventListener('resize', updateCarousel);
 });

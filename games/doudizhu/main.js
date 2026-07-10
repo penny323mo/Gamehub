@@ -6,22 +6,7 @@
   window.__ddz = game;
   window.gameMode = 'landing';
 
-  // UI Event Bindings for newly added buttons
-  document.getElementById('restartBtn')?.addEventListener('click', () => {
-    if (window.gameMode === 'online') {
-      // Online mode: restart goes through the room flow, not local state reset
-      if (window.forceStartGame) window.forceStartGame();
-      return;
-    }
-    if (confirm('確定要重新開始？')) window.__ddz.actions.restart();
-  });
-  document.getElementById('restartBtn2')?.addEventListener('click', () => {
-    if (window.gameMode === 'online') {
-      if (window.forceStartGame) window.forceStartGame();
-      return;
-    }
-    if (confirm('確定要重新開始？')) window.__ddz.actions.restart();
-  });
+  // 重新開始按鈕由 ui.js 統一綁定（confirm + 重繪 + CPU loop），呢度唔好重複綁
   document.getElementById('exitGameBtn')?.addEventListener('click', () => {
     if (window.gameMode === 'online') {
       // Online mode: properly leave the room before going back to landing

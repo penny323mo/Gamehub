@@ -246,6 +246,14 @@ async function joinFixedRoom(roomKey) {
     subscribeToRoom();
     subscribeToActions();
 
+    // 中途重連（房間已經開波）：subscribe 回呼嗰個 wasPlaying 檢查會被
+    // enterRoomView 已經寫低咗嘅 lastKnownRoom（status='playing'）騙到，
+    // 永遠唔會補歷史——呢度顯式重播一次，開局發牌（renderRoomState →
+    // handleRoomSync）之後先執行，次序啱
+    if (room.status === 'playing') {
+        await syncHistoricalActions();
+    }
+
     startHeartbeat();
     startRoomPoll();
 }
@@ -591,7 +599,9 @@ async function handleOnlineAction(actionType, payloadObj, actPlayerIndex = null)
         return false;
     }
 
-    return true;
+    // 回傳 server 派嘅 action id（host 靠佢跳過自己嗰下嘅 Realtime echo）；
+    // 舊 RPC 冇 id 就照回傳 true，caller 用 truthy 判斷成功
+    return data?.action_id ?? true;
 }
 
 async function exitFixedRoom() {

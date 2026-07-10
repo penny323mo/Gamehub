@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createInitialState } from './core/gameState';
 import { LOGIC_DT, MAP, TOWERS, SCORING, WAVES, GRAPHICS, ENEMIES } from './core/config';
-import { tickWave, startNextWave, MODIFIERS } from './core/systems/waveSystem';
+import { tickWave, startNextWave, MODIFIERS, templateIndex } from './core/systems/waveSystem';
 import { cellToWorld } from './core/path';
 import { tickEnemies } from './core/systems/enemySystem';
 import { tickTowers } from './core/systems/towerSystem';
@@ -1357,10 +1357,11 @@ function gameLoop(time: number): void {
     }
 
     // Skill cooldowns tick in real (variable) time — fixed step loop ticks game systems only.
+    // Use rawDt, not the speed-scaled dt: 4x game speed must not quarter the cooldowns.
     if (state.phase === 'wave' || state.phase === 'prep') {
         for (const skill of state.skills) {
             if (skill.remaining > 0) {
-                skill.remaining = Math.max(0, skill.remaining - dt);
+                skill.remaining = Math.max(0, skill.remaining - rawDt);
             }
         }
         updateSkillsHUD();
@@ -1381,17 +1382,17 @@ function gameLoop(time: number): void {
         showWaveBanner(`Wave ${state.currentWave + 1}`);
     }
 
-    // Prep countdown banner
+    // Prep countdown banner — the wave being prepped IS state.currentWave
+    // (startNextWave sets spawns from templateIndex(state)), not currentWave+1
     if (state.phase === 'prep') {
         const secs = Math.ceil(state.prepTimer);
-        const nextWaveIdx = Math.min(state.currentWave + 1, TOTAL_WAVES - 1);
-        const waveGroup = WAVES.waves[nextWaveIdx];
+        const waveGroup = WAVES.waves[templateIndex(state)];
         const totalEnemies = waveGroup?.groups?.reduce((s: number, g: { count: number }) => s + g.count, 0) ?? '?';
         // E — Enemy type emoji preview
         const enemyPreview = waveGroup?.groups?.map((g: { type: string; count: number }) =>
             `${ENEMY_EMOJI[g.type] ?? '?'}×${g.count}`
         ).join(' ') ?? '';
-        waveBannerText.textContent = `Wave ${nextWaveIdx + 1} — ${totalEnemies} enemies | ${enemyPreview} | Next in ${secs}s`;
+        waveBannerText.textContent = `Wave ${state.currentWave + 1} — ${totalEnemies} enemies | ${enemyPreview} | Next in ${secs}s`;
         waveBanner.classList.remove('hidden');
     }
 

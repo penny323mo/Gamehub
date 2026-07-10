@@ -115,6 +115,9 @@ export async function joinRoomByCode(code, deck) {
     if (error || !room) throw new Error('房間唔存在');
     if (room.guest_id && room.guest_id !== NetState.clientId) throw new Error('房間已滿');
     if (room.status !== 'waiting') throw new Error('房間已經開波');
+    // 房主閂咗 tab 嘅殘留房：heartbeat 停咗超過閾值就唔好入，
+    // 唔係入到去對面永遠冇 presence join，會齋等到天荒地老
+    if (new Date(room.last_activity_at).getTime() < Date.now() - STALE_MS) throw new Error('房間已經失效，請對方重開');
     const { data, error: e2 } = await c.from(ROOM_TABLE)
         .update({ guest_id: NetState.clientId, guest_deck: deck, last_activity_at: new Date().toISOString() })
         .eq('id', room.id).is('guest_id', null).select();
@@ -125,7 +128,17 @@ export async function joinRoomByCode(code, deck) {
 export async function cancelWaiting() {
     if (!NetState.roomId || !NetState.client) return;
     const roomId = NetState.roomId; // 記住緊揀，等 delete 完返嚟先唔會拆錯（可能中途開咗新一局）
-    await NetState.client.from(ROOM_TABLE).delete().eq('id', roomId).eq('status', 'waiting');
+    if (NetState.role === 'guest') {
+        // Guest 取消：撤銷自己個 claim 讓返個房出嚟（只限仲未開波）
+        await NetState.client.from(ROOM_TABLE)
+            .update({ guest_id: null, guest_deck: null })
+            .eq('id', roomId).eq('status', 'waiting').eq('guest_id', NetState.clientId);
+    } else {
+        // Host 取消：刪房，但如果啱啱有 guest 入咗座就唔刪——
+        // 就噉 teardown，等 presence leave 通知對方（對方當我哋斷線判勝）
+        await NetState.client.from(ROOM_TABLE).delete()
+            .eq('id', roomId).eq('status', 'waiting').is('guest_id', null);
+    }
     if (NetState.roomId === roomId) teardown();
 }
 

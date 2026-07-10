@@ -289,8 +289,10 @@ export default function Game() {
 
       let newSnake = [...prev.snake];
       const head = { ...newSnake[0] };
-      const nextDir = prev.nextDirection !== getOppositeDirection(prev.direction)
-        ? prev.nextDirection
+      // REVERSE 效果：控制方向反轉（撳左行右）
+      const desiredDir = isReversed ? getOppositeDirection(prev.nextDirection) : prev.nextDirection;
+      const nextDir = desiredDir !== getOppositeDirection(prev.direction)
+        ? desiredDir
         : prev.direction;
 
       switch (nextDir) {
@@ -305,6 +307,9 @@ export default function Game() {
           if (prev.hasShield) {
             return { ...prev, hasShield: false };
           }
+          // 無敵星撞牆：唔畀出界（冇 wrap 機制），貼住牆邊停一格
+          head.x = Math.max(0, Math.min(GRID_SIZE - 1, head.x));
+          head.y = Math.max(0, Math.min(GRID_SIZE - 1, head.y));
         } else {
           const newLives = prev.lives - 1;
           if (newLives <= 0) {
@@ -325,7 +330,8 @@ export default function Game() {
         }
       }
 
-      const collisionWithSelf = newSnake.slice(0, -1).some(seg => seg.x === head.x && seg.y === head.y);
+      // GHOST 效果：可以穿過自己身體
+      const collisionWithSelf = !isGhost && newSnake.slice(0, -1).some(seg => seg.x === head.x && seg.y === head.y);
       if (collisionWithSelf) {
         if (prev.isInvincible || prev.hasShield) {
           if (prev.hasShield) {
@@ -384,8 +390,24 @@ export default function Game() {
 
       newSnake.unshift(head);
 
+      // MAGNET 效果：附近嘅食物每一格慢慢被吸埋嚟
+      let magnetFood = prev.food;
+      if (isMagnet && magnetFood) {
+        const dx = head.x - magnetFood.position.x;
+        const dy = head.y - magnetFood.position.y;
+        if ((dx !== 0 || dy !== 0) && Math.abs(dx) + Math.abs(dy) <= 5) {
+          const step = Math.abs(dx) >= Math.abs(dy)
+            ? { x: Math.sign(dx), y: 0 }
+            : { x: 0, y: Math.sign(dy) };
+          magnetFood = {
+            ...magnetFood,
+            position: { x: magnetFood.position.x + step.x, y: magnetFood.position.y + step.y },
+          };
+        }
+      }
+
       let newScore = prev.score;
-      let newFood = prev.food;
+      let newFood = magnetFood;
       let newHasShield = prev.hasShield;
       let newInvincibleUntil = prev.invincibleUntil;
       let newSpeedBoostUntil = prev.speedBoostUntil;
@@ -395,11 +417,11 @@ export default function Game() {
       let newDoubleUntil = prev.doubleUntil;
       let shouldAdvanceLevel = false;
 
-      if (prev.food && head.x === prev.food.position.x && head.y === prev.food.position.y) {
+      if (magnetFood && head.x === magnetFood.position.x && head.y === magnetFood.position.y) {
         const isDoubleActive = prev.doubleUntil ? prev.doubleUntil > now : false;
         const multiplier = isDoubleActive ? 2 : 1;
 
-        switch (prev.food.type) {
+        switch (magnetFood.type) {
           case 'NORMAL':
             newScore += SCORE_PER_FOOD * multiplier;
             break;
@@ -542,6 +564,8 @@ export default function Game() {
       if (gameState.isGameOver) {
         if (e.key === 'Enter') {
           setGameState(initializeGame(1));
+          // 限時模式用 Enter 重開都要重置個倒數，唔係會變成 0:00 嘅無限局
+          if (gameMode === 'TIMED') setTimeRemaining(TIMED_MODE_DURATION);
         }
         return;
       }

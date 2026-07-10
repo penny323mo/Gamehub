@@ -203,6 +203,7 @@ export class UI {
 
     showStart() {
         this.refreshProfile();
+        clearTimeout(this.endRevealTimer); // 撳投降走人嗰陣，唔好畀 1.4s 後嘅結算畫面彈上嚟蓋住選單
         this.$('screen-start').classList.remove('hidden');
         this.$('screen-end').classList.add('hidden');
         this.$('screen-matching').classList.add('hidden');
@@ -210,6 +211,7 @@ export class UI {
     }
 
     showGame() {
+        clearTimeout(this.endRevealTimer);
         this.$('screen-start').classList.add('hidden');
         this.$('screen-end').classList.add('hidden');
         this.$('screen-matching').classList.add('hidden');
@@ -217,6 +219,7 @@ export class UI {
         this.lastHandKey = '';
         this.lastPlayedKey = '';
         this.$('enemy-played').innerHTML = '';
+        this.$('next-card').innerHTML = ''; // 唔好留低上一場嘅「下一張」卡面（PvP guest 未收快照前會露底）
     }
 
     // result: game.result；extra: { rewards, damage, mode, stage, stageCleared }
@@ -293,7 +296,8 @@ export class UI {
             .map(c => `✅ 每日挑戰完成：${c.desc}（+${c.reward.n ?? 8} 碎片）`)
             .join('<br>');
 
-        setTimeout(() => {
+        clearTimeout(this.endRevealTimer);
+        this.endRevealTimer = setTimeout(() => {
             this.$('screen-end').classList.remove('hidden');
         }, 1400);
     }
