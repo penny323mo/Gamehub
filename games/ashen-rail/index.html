@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#120d0a" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23120d0a'/%3E%3Cpath d='M10 48 24 12h16l14 36H43l-3-9H23l-3 9Zm17-20h9l-4-13Z' fill='%23f27931'/%3E%3C/svg%3E" />
+    <title>灰燼列車：終末航線</title>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game-canvas" aria-label="灰燼列車 3D 遊戲畫面"></canvas>
+
+      <section id="loading-screen" class="screen">
+        <div class="logo-mark">AR</div>
+        <h1>灰燼列車：終末航線</h1>
+        <p class="eyebrow">ASHEN RAIL · LAST PASSAGE</p>
+        <div class="load-track"><div id="load-fill"></div></div>
+        <p id="load-label">啟動荒原引擎… 0%</p>
+        <button id="retry-button" class="secondary hidden">重試載入</button>
+      </section>
+
+      <section id="start-screen" class="screen hidden">
+        <div class="start-panel">
+          <p class="eyebrow">BONUS GAME · VERTICAL SLICE</p>
+          <h1>灰燼列車<br /><span>終末航線</span></h1>
+          <p>企穩車頂、擊落掠奪無人機，守住能源核心直到終點。</p>
+          <div class="mission-chips"><span>第三人稱射擊</span><span>3 波攻勢</span><span>手機橫向</span></div>
+          <details class="settings-panel">
+            <summary>遊戲設定</summary>
+            <label>畫質<select id="quality-setting"><option value="performance">Performance · 30 FPS</option><option value="standard">Standard · 30 FPS</option><option value="high">High · 60 FPS</option></select></label>
+            <label>主音量<input id="master-volume" type="range" min="0" max="1" step="0.05" value="0.8" /></label>
+            <label>鏡頭震動<input id="camera-shake" type="range" min="0" max="1" step="0.05" value="0.65" /></label>
+            <label>瞄準輔助<input id="aim-assist" type="range" min="0" max="1" step="0.05" value="0.7" /></label>
+            <label class="mute-setting">靜音<input id="mute-setting" type="checkbox" /></label>
+          </details>
+          <button id="start-button" class="primary">開始護送</button>
+          <a class="hub-link" href="../../index.html">← 返回 Game Hub</a>
+        </div>
+      </section>
+
+      <div id="hud" class="hidden">
+        <div class="hud-top">
+          <div class="meter player-meter"><label>守衛</label><div><i id="player-health-fill"></i></div><b id="player-health">100</b></div>
+          <div class="mission-status"><small id="wave-label">教學</small><strong id="objective-label">保護能源核心</strong><span id="enemy-count">敵人 0</span></div>
+          <div class="meter core-meter"><label>核心</label><div><i id="core-health-fill"></i></div><b id="core-health">100</b></div>
+        </div>
+        <div id="enemy-indicator">▲</div>
+        <div id="crosshair"><span></span><span></span><span></span><span></span></div>
+        <div id="ammo"><strong id="ammo-count">6</strong><span>/ 6</span><small id="reload-label"></small></div>
+        <div id="tutorial-tip">左手拖動搖桿移動</div>
+        <button id="pause-button" aria-label="暫停">Ⅱ</button>
+        <div id="joystick" class="control-zone"><div id="joystick-knob"></div></div>
+        <div class="action-controls">
+          <button id="dodge-button"><span>↯</span><small id="dodge-cooldown">閃避</small></button>
+          <button id="fire-button"><span>✦</span><small>開火</small></button>
+        </div>
+      </div>
+
+      <section id="pause-screen" class="screen hidden"><div class="dialog"><p class="eyebrow">列車暫停</p><h2>任務暫停</h2><button id="resume-button" class="primary">繼續</button><button id="restart-paused-button" class="secondary">重新開始</button><a href="../../index.html">返回 Game Hub</a></div></section>
+      <section id="result-screen" class="screen hidden"><div class="dialog"><p id="result-kicker" class="eyebrow">任務完成</p><h2 id="result-title">航線安全</h2><div id="result-stats"></div><button id="restart-button" class="primary">再守一次</button><a href="../../index.html">返回 Game Hub</a></div></section>
+      <section id="error-screen" class="screen hidden"><div class="dialog error"><p class="eyebrow">系統錯誤</p><h2>未能啟動任務</h2><p id="error-message"></p><button id="error-retry-button" class="primary">重新載入</button></div></section>
+      <div id="rotate-screen"><div>↻</div><strong>請將手機轉為橫向遊玩</strong></div>
+      <aside id="debug-panel" class="hidden"><button id="debug-toggle">調校 ▾</button><div id="debug-content"></div><button id="copy-config">Copy Config</button><pre id="perf-hud"></pre></aside>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

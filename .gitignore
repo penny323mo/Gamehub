@@ -13,6 +13,7 @@ node_modules/
 
 # Optional eslint cache
 .eslintcache
+.playwright-cli/
 
 # dotenv environment variables file
 .env
@@ -23,6 +24,7 @@ node_modules/
 
 # Build output (keep tower/dist as it's needed for GitHub Pages)
 # games/tower/dist/
+games/ashen-rail/dist/
 
 # Claude Code runtime state
 .claude/scheduled_tasks.lock

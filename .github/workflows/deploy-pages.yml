@@ -1,0 +1,83 @@
+name: Build and deploy Game Hub to Pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: games/ashen-rail/package-lock.json
+
+      - name: Install Ashen Rail dependencies
+        working-directory: games/ashen-rail
+        run: npm ci
+
+      - name: Audit Ashen Rail source assets
+        working-directory: games/ashen-rail
+        run: npm run assets:inspect
+
+      - name: Lint and test Ashen Rail
+        working-directory: games/ashen-rail
+        run: |
+          npm run lint
+          npm run test
+
+      - name: Build Ashen Rail
+        working-directory: games/ashen-rail
+        run: npm run build
+
+      - name: Generate Game Hub build info
+        run: |
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          COMMIT_TIME=$(TZ='Asia/Hong_Kong' date -d "@$(git log -1 --format=%ct)" +'%Y-%m-%d %H:%M:%S +0800')
+          BUILD_TIME=$(TZ='Asia/Hong_Kong' date +'%Y-%m-%d %H:%M:%S +0800')
+          cat > games/gomoku/build_info.js << EOF
+          window.__BUILD__ = { commit: "${COMMIT_SHA}", commitTime: "${COMMIT_TIME}", buildTime: "${BUILD_TIME}" };
+          EOF
+          sed -i "s/?v=[a-z0-9]\{7\}/?v=${COMMIT_SHA}/g" games/gomoku/index.html games/gomoku/gomoku.css games/royale/index.html || true
+
+      - name: Stage static site
+        run: |
+          mkdir _site
+          rsync -a --exclude='.git' --exclude='.github' --exclude='node_modules' --exclude='output' --exclude='test-results' --exclude='_site' ./ _site/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload static site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
