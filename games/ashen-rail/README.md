@@ -54,6 +54,8 @@ http://localhost:5173/?debug=1
 3. 用手機開啟 Vite 顯示嘅 Network URL。
 4. 轉為橫向，按「開始護送」解鎖音效及嘗試 Fullscreen。
 
+操作：左半屏搖桿控制移動；右半屏空白位置拖動會轉角色及鏡頭瞄準；右下角按鍵射擊／閃避。
+
 ## GitHub Pages
 
 根目錄 `.github/workflows/deploy-pages.yml` 會在 push 到 `main` 後安裝依賴、執行素材審計、lint、test、Vite build，再將整個 Game Hub（包括 `games/ashen-rail/dist/`）部署到 Pages。Game Hub 入口卡指向 `games/ashen-rail/dist/index.html`。

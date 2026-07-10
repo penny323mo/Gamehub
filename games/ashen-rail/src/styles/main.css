@@ -45,6 +45,9 @@ button, .hub-link { min-height: 48px; border: 0; cursor: pointer; text-decoratio
 #crosshair span:nth-child(3), #crosshair span:nth-child(4) { width: 2px; height: 9px; left: 19px; }
 #crosshair span:nth-child(3) { top: 1px; } #crosshair span:nth-child(4) { bottom: 1px; }
 #crosshair.hit span { background: #ff482f; transform: scale(1.35); }
+#aim-zone { position: absolute; top: 72px; right: 0; bottom: 0; width: 56%; pointer-events: auto; touch-action: none; }
+#aim-zone span { position: absolute; right: 26%; top: 52%; color: rgba(255,255,255,.22); font-size: 10px; letter-spacing: .12em; transition: opacity .2s; }
+#aim-zone.active span { color: rgba(242,121,49,.72); }
 #ammo { position: absolute; right: max(28px, env(safe-area-inset-right)); bottom: calc(max(22px, env(safe-area-inset-bottom)) + 126px); text-align: right; text-shadow: 0 2px 5px #000; }
 #ammo strong { font-size: 38px; } #ammo span { color: #b9a89c; } #ammo small { display: block; color: #f27931; min-height: 14px; }
 #pause-button { position: absolute; right: max(18px, env(safe-area-inset-right)); top: calc(max(12px, env(safe-area-inset-top)) + 56px); width: 48px; min-width: 48px; border-radius: 50%; color: #f7ead8; background: rgba(18, 12, 9, .65); border: 1px solid #73513e; pointer-events: auto; }

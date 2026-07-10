@@ -13,6 +13,7 @@ import { MobileCombatCamera } from "../camera/MobileCombatCamera";
 import { WeaponSystem } from "../combat/WeaponSystem";
 import { EnergyCore } from "../entities/EnergyCore";
 import { PlayerController } from "../entities/PlayerController";
+import { cameraRelativeMovement } from "../entities/movement";
 import { RaiderDrone } from "../entities/RaiderDrone";
 import { WorldScrollSystem } from "../environment/WorldScrollSystem";
 import { GameStateMachine } from "../state/GameStateMachine";
@@ -73,7 +74,7 @@ export class TrainBattleScene {
     if (this.state.state !== "READY") this.state.transition("READY");
     this.reset();
     this.state.transition("TUTORIAL");
-    this.hud.show(); this.hud.setTip("左手拖動搖桿移動"); this.tutorialTimer = 0;
+    this.hud.show(); this.hud.setTip("左手移動 · 右半屏拖動轉向"); this.tutorialTimer = 0;
   }
 
   pause(): void {
@@ -88,9 +89,12 @@ export class TrainBattleScene {
     this.clock.paused = !active;
     if (!active) return;
     const step = Math.min(delta, 0.05); this.clock.update(step); this.controls.update();
-    this.player.setMovement(this.controls.movement.x, this.controls.movement.y);
+    this.camera.rotate(this.controls.consumeLookDelta());
+    const forward = this.camera.getGroundForward();
+    const movement = cameraRelativeMovement(this.controls.movement.x, this.controls.movement.y, { x: forward.x, z: forward.z });
+    this.player.setMovement(movement.x, movement.z);
     const primaryTarget = this.nearestDrone()?.root.getAbsolutePosition();
-    this.player.update(step, primaryTarget); this.core.update(step); this.weapon.update(step); this.camera.update(step, primaryTarget); this.world.update(step);
+    this.player.update(step, this.camera.getFacingPoint()); this.core.update(step); this.weapon.update(step); this.camera.update(step, primaryTarget); this.world.update(step);
     if (this.controls.firing) this.fire();
     if (this.state.state === "TUTORIAL") this.updateTutorial(step);
     else for (const event of this.waves.update(step)) this.handleWaveEvent(event);
@@ -107,7 +111,7 @@ export class TrainBattleScene {
 
   private setupBattleObjects(): void {
     if (!this.assets) return;
-    const train = this.assets.get("train"); train.root.setEnabled(true);
+    const train = this.assets.get("train"); train.root.setEnabled(true); this.createTrainBody();
     const roofMaterial = new StandardMaterial("roof-collider-material", this.scene); roofMaterial.diffuseColor = new Color3(0.075, 0.085, 0.08); roofMaterial.specularColor = new Color3(0.34, 0.22, 0.13);
     const roof = MeshBuilder.CreateBox("roof-collider", { width: GAMEPLAY.trainRoof.width, height: 0.3, depth: GAMEPLAY.trainRoof.length }, this.scene); roof.position.set(0, 0.68, 0); roof.material = roofMaterial; roof.metadata = { blocksShots: true };
     for (const [name, x, z, width, depth] of [["left-rail", -3, 0, .25, 17.2], ["right-rail", 3, 0, .25, 17.2], ["front-wall", 0, 8.5, 6, .25], ["back-wall", 0, -8.5, 6, .25]] as [string, number, number, number, number][]) {
@@ -133,6 +137,25 @@ export class TrainBattleScene {
     const sun = new DirectionalLight("setting-sun", new Vector3(-0.5, -1, 0.35), this.scene); sun.position.set(10, 18, -12); sun.intensity = 2.2; sun.diffuse = new Color3(1, 0.48, 0.25);
   }
 
+  private createTrainBody(): void {
+    const armor = new StandardMaterial("train-armor", this.scene); armor.diffuseColor = new Color3(0.09, 0.105, 0.1); armor.specularColor = new Color3(0.38, 0.3, 0.22);
+    const trim = new StandardMaterial("train-trim", this.scene); trim.diffuseColor = new Color3(0.24, 0.12, 0.065); trim.emissiveColor = new Color3(0.035, 0.012, 0.004);
+    const body = MeshBuilder.CreateBox("armored-car-body", { width: 6.15, height: 2.25, depth: 18 }, this.scene); body.position.set(0, -0.55, 0); body.material = armor; body.metadata = { blocksShots: true };
+    for (const x of [-3.03, 3.03]) {
+      const side = MeshBuilder.CreateBox(`armor-side-${x}`, { width: 0.28, height: 1.15, depth: 17.6 }, this.scene); side.position.set(x, 0.18, 0); side.material = armor;
+      const rail = MeshBuilder.CreateBox(`roof-rail-${x}`, { width: 0.16, height: 0.62, depth: 16.8 }, this.scene); rail.position.set(x * 0.91, 1.13, 0); rail.material = armor;
+      for (const z of [-6.6, -3.3, 0, 3.3, 6.6]) {
+        const wheel = MeshBuilder.CreateCylinder(`wheel-${x}-${z}`, { diameter: 1.32, height: 0.38, tessellation: 16 }, this.scene); wheel.rotation.z = Math.PI / 2; wheel.position.set(x * 1.02, -1.35, z); wheel.material = trim;
+      }
+    }
+    for (const z of [-7.5, -5, -2.5, 0, 2.5, 5, 7.5]) {
+      const seam = MeshBuilder.CreateBox(`roof-seam-${z}`, { width: 5.45, height: 0.035, depth: 0.11 }, this.scene); seam.position.set(0, 0.86, z); seam.material = trim;
+    }
+    for (const z of [-8.82, 8.82]) {
+      const bumper = MeshBuilder.CreateBox(`train-bumper-${z}`, { width: 6.45, height: 0.42, depth: 0.32 }, this.scene); bumper.position.set(0, -0.42, z); bumper.material = trim;
+    }
+  }
+
   private setupShadows(): void {
     const sun = this.scene.getLightByName("setting-sun"); if (!(sun instanceof DirectionalLight) || !this.assets) return;
     const shadows = new ShadowGenerator(this.quality.shadowSize, sun); shadows.useBlurExponentialShadowMap = true; shadows.blurKernel = 16;
@@ -153,7 +176,7 @@ export class TrainBattleScene {
 
   private updateTutorial(delta: number): void {
     this.tutorialTimer += delta;
-    if (this.tutorialTimer > 2.7 && !this.tutorialSpawned) { const tutorialDrone = this.spawnDrone("standard"); if (tutorialDrone) { tutorialDrone.attackingCore = false; tutorialDrone.attackTimer = 6; } this.tutorialSpawned = true; this.hud.setTip("右邊開火鍵射擊無人機"); }
+    if (this.tutorialTimer > 2.7 && !this.tutorialSpawned) { const tutorialDrone = this.spawnDrone("standard"); if (tutorialDrone) { tutorialDrone.attackingCore = false; tutorialDrone.attackTimer = 6; } this.tutorialSpawned = true; this.hud.setTip("拖右半屏瞄準，再按開火"); }
     if (this.tutorialTimer > 7) this.hud.setTip("紅色攻擊前用閃避避開");
     if ((this.tutorialTimer >= GAMEPLAY.tutorialSeconds && this.droneCount === 0) || this.tutorialTimer > GAMEPLAY.tutorialSeconds + 7) {
       for (const drone of this.drones) if (!drone.dead) drone.damage(9999);

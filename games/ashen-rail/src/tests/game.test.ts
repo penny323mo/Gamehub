@@ -6,6 +6,7 @@ import { selectAimTarget } from "../game/combat/aimAssist";
 import { kamikazeDamage, shouldKamikazeDetonate } from "../game/entities/kamikaze";
 import { PausableClock } from "../game/systems/PausableClock";
 import { GameSessionModel } from "../game/systems/GameSessionModel";
+import { cameraRelativeMovement } from "../game/entities/movement";
 
 function spawnWholeWave(manager: WaveManager): void {
   for (let index = 0; index < 30 && manager.remaining > manager.alive; index += 1) manager.update(1.2);
@@ -41,4 +42,6 @@ describe("Ashen Rail game rules", () => {
   it("暫停時所有遊戲計時停止", () => { const clock = new PausableClock(); clock.update(1); clock.paused = true; clock.update(5); expect(clock.elapsed).toBe(1); });
 
   it("重新開始會清除舊有敵人及狀態", () => { const session = new GameSessionModel(); session.enemies.add("drone-1"); session.state = "LOST"; session.reset(); expect(session.enemies.size).toBe(0); expect(session.state).toBe("READY"); });
+
+  it("角色移動會跟隨鏡頭方向旋轉", () => { const move = cameraRelativeMovement(0, 1, { x: 1, z: 0 }); expect(move.x).toBe(1); expect(move.z).toBe(0); });
 });

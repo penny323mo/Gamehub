@@ -12,6 +12,7 @@
 
 - [ ] 實機：Fullscreen、雙拇指同時輸入、返回前景
 - [x] Pointer Events 同時支援 joystick、fire、dodge
+- [x] 844×390 browser QA：右半屏拖動會同步旋轉鏡頭、準星瞄向及角色朝向
 - [x] 所有主操作按鈕不少於 48 CSS px
 
 ## 通用

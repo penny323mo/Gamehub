@@ -4,7 +4,7 @@
 
 - Vite + TypeScript + Babylon.js 完全靜態遊戲專案
 - 獨立 Asset Viewer、GLB audit、runtime copy pipeline
-- 半固定越肩鏡頭、手機 joystick、射擊、閃避、暫停、重新開始
+- 越肩鏡頭、左手 joystick、右半屏拖動瞄準、角色跟鏡頭轉向、射擊、閃避、暫停、重新開始
 - Hitscan 手炮、自動換彈、Aim Assist、命中及爆炸回饋
 - 普通／精英／爆破無人機、左右航點、玩家／核心攻擊
 - 三波流程、教學、勝利／兩種失敗狀態
@@ -15,7 +15,7 @@
 ## 3D 素材整合
 
 - 玩家：Tactical Soldier GLB；有 skeleton、沒有 animation clip，使用程序化後備動作。
-- 列車：Military Locomotive GLB；固定於局部世界，車頂 gameplay 使用簡化 box bounds。
+- 列車：Military Locomotive GLB；正式模型置於車頭，並加可見裝甲車身、分段車頂、護欄、車輪及簡化 box bounds。
 - 手炮：Revolver GLB；右手骨骼採 fuzzy matching，失敗時退回右手 node／玩家 root。
 - 無人機：Futuristic Combat Drone GLB；共用 template，變體透過 scale、emissive danger aura 同數值區分。
 

@@ -30,9 +30,9 @@ export const MODEL_ASSETS: Record<AssetId, ModelAssetConfig> = {
   },
   train: {
     url: "assets/models/runtime/train-locomotive.glb",
-    scale: 8.8,
-    position: [0, -4.3, 0],
-    rotation: [0, 0, 0],
+    scale: 6.2,
+    position: [0, 2.0, 9.0],
+    rotation: [0, Math.PI, 0],
     forwardAxis: "+Z",
     groundOffset: 0,
     animationMap: {},
@@ -67,4 +67,4 @@ export const MODEL_ASSETS: Record<AssetId, ModelAssetConfig> = {
 };
 
 export const PLAYER_BOUNDS = { minX: -2.45, maxX: 2.45, minZ: -7.6, maxZ: 7.2 };
-export const CORE_POSITION: [number, number, number] = [0, 1.08, 2.5];
+export const CORE_POSITION: [number, number, number] = [-1.3, 1.08, 2.5];

@@ -11,6 +11,7 @@ export class PlayerController {
   private invincibleRemaining = 0;
   private proceduralTime = 0;
   private dodgeDirection = new Vector3(0, 0, -1);
+  private facingDirection = new Vector3(0, 0, 1);
 
   constructor(readonly root: TransformNode) {}
 
@@ -19,7 +20,7 @@ export class PlayerController {
   dodge(): boolean {
     if (this.dodgeCooldown > 0 || this.health <= 0) return false;
     const input = new Vector3(this.movement.x, 0, this.movement.y);
-    this.dodgeDirection = input.lengthSquared() > 0.05 ? input.normalize() : new Vector3(0, 0, -1);
+    this.dodgeDirection = input.lengthSquared() > 0.05 ? input.normalize() : this.facingDirection.scale(-1);
     this.dodgeRemaining = GAMEPLAY.player.dodgeDuration;
     this.dodgeCooldown = GAMEPLAY.player.dodgeCooldown;
     this.invincibleRemaining = GAMEPLAY.player.invincibility;
@@ -50,8 +51,10 @@ export class PlayerController {
     this.dodgeRemaining = Math.max(0, this.dodgeRemaining - delta);
     if (target) {
       const deltaTarget = target.subtract(this.root.position);
+      this.facingDirection.set(deltaTarget.x, 0, deltaTarget.z).normalize();
       const desired = Math.atan2(deltaTarget.x, deltaTarget.z);
-      this.root.rotation.y = Scalar.Lerp(this.root.rotation.y, desired, Math.min(1, delta * 7));
+      const angleDelta = Math.atan2(Math.sin(desired - this.root.rotation.y), Math.cos(desired - this.root.rotation.y));
+      this.root.rotation.y += angleDelta * Math.min(1, delta * 9);
     }
     this.proceduralTime += delta;
     const moving = direction.lengthSquared() > 0.01;
