@@ -52,6 +52,18 @@ function barFrameTexture() {
     return tex;
 }
 
+// 由場景移除嘅物件要埋單埋 GPU 資源（geometry/material）——唔 dispose 嘅話
+// 連勝挑戰連打幾場之後 VRAM 一路淨增長，手機瀏覽器會直接殺咗個 tab。
+// 貼圖（map）多數係共用模板資源，唔郁佢（dispose 咗都會自動重上載，嘥氣）。
+export function disposeDeep(root) {
+    if (!root) return;
+    root.traverse((o) => {
+        if (o.geometry) o.geometry.dispose();
+        const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+        for (const m of mats) m.dispose();
+    });
+}
+
 export function makeHpBar(width, team) {
     const height = 0.16;
     const pad = 0.028; // 邊框留位
@@ -470,6 +482,7 @@ export class Game {
     #detachSlowRing(e) {
         if (!e.slowRing) return;
         this.scene.remove(e.slowRing);
+        disposeDeep(e.slowRing);
         e.slowRing = null;
     }
 
@@ -841,6 +854,7 @@ export class Game {
             if (prog >= 1) {
                 p.done = true;
                 this.scene.remove(p.model);
+                disposeDeep(p.model);
                 if (p.splash) {
                     this.#explosion(p.x, p.z, p.splash, 0xbbaa88);
                     for (const o of this.entities) {
@@ -1084,6 +1098,7 @@ export class Game {
             }
             this.entities = this.entities.filter(e => !e.dead || e.isTower);
             this.hpBars = this.hpBars.filter(b => !removedBars.has(b));
+            for (const b of removedBars) disposeDeep(b);
         }
     }
 
@@ -1093,7 +1108,10 @@ export class Game {
             ef.update(ef, dt);
             if (ef.t >= ef.dur) {
                 ef.done = true;
-                if (ef.mesh) this.scene.remove(ef.mesh);
+                if (ef.mesh) {
+                    this.scene.remove(ef.mesh);
+                    disposeDeep(ef.mesh);
+                }
                 ef.onEnd?.();
             }
         }

@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { TEAM, ARENA } from './constants.js';
 import { CARDS } from './cards.js';
 import { makeUnitModel, makePrincessTower, makeKingTower } from './models.js';
-import { makeHpBar } from './game.js';
+import { makeHpBar, disposeDeep } from './game.js';
 import { on, sendState, sendInput } from './net.js';
 
 export const HOST_BROADCAST_INTERVAL = 0.1; // 10Hz，卡牌節奏遊戲夠用，唔使頂爆 Realtime
@@ -161,7 +161,8 @@ export class GuestGame {
             if (seen.has(e.id)) continue;
             anyRemoved = true;
             this.scene.remove(e.model);
-            if (e.hpBar) { this.scene.remove(e.hpBar); removedHpBars.add(e.hpBar); }
+            disposeDeep(e.model);
+            if (e.hpBar) { this.scene.remove(e.hpBar); disposeDeep(e.hpBar); removedHpBars.add(e.hpBar); }
             this.byId.delete(e.id);
         }
         if (anyRemoved) {
@@ -192,7 +193,8 @@ export class GuestGame {
     dispose() {
         for (const e of this.entities) {
             this.scene.remove(e.model);
-            if (e.hpBar) this.scene.remove(e.hpBar);
+            disposeDeep(e.model);
+            if (e.hpBar) { this.scene.remove(e.hpBar); disposeDeep(e.hpBar); }
         }
         this.entities = [];
         this.hpBars = [];

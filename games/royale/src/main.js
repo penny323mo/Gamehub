@@ -4,7 +4,7 @@ import { ARENA, TEAM } from './constants.js';
 import { CARDS, CARD_POOL } from './cards.js';
 import { loadAssets } from './assets.js';
 import { buildArena } from './arena.js';
-import { Game } from './game.js';
+import { Game, disposeDeep } from './game.js';
 import { AIController, PERSONALITIES, randomPersonality } from './ai.js';
 import { UI } from './ui.js';
 import { sfx } from './sfx.js';
@@ -364,15 +364,17 @@ function cleanupMatch() {
     for (const e of game.entities) {
         scene.remove(e.model);
         scene.remove(e.hpBar);
-        if (e.slowRing) scene.remove(e.slowRing);
+        disposeDeep(e.model);
+        disposeDeep(e.hpBar);
+        if (e.slowRing) { scene.remove(e.slowRing); disposeDeep(e.slowRing); }
     }
-    for (const pr of game.projectiles) scene.remove(pr.model);
-    for (const ef of game.effects) if (ef.mesh) scene.remove(ef.mesh);
+    for (const pr of game.projectiles) { scene.remove(pr.model); disposeDeep(pr.model); }
+    for (const ef of game.effects) if (ef.mesh) { scene.remove(ef.mesh); disposeDeep(ef.mesh); }
     const toRemove = [];
     scene.traverse((o) => {
         if (o.userData?.isRubble) toRemove.push(o);
     });
-    for (const o of toRemove) scene.remove(o);
+    for (const o of toRemove) { scene.remove(o); disposeDeep(o); }
     game = null;
     ai = null;
     running = false;
@@ -535,7 +537,7 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
         enemyElixirRate: mode === 'gauntlet' ? 1 + Math.max(0, stage - 3) * 0.15 : 1,
     });
     ai = new AIController(game, actualDiff, pid);
-    window.__royale = { game, ai }; // 畀自動化測試用
+    window.__royale = { game, ai, renderer, startMatch, cleanupMatch }; // 畀自動化測試用
     ui.bindGame(game);
     ui.showGame();
     const stageTag = mode === 'gauntlet' ? `第 ${stage} 關 · ` : '';
