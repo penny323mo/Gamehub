@@ -299,7 +299,7 @@ export class UI {
         clearTimeout(this.endRevealTimer);
         this.endRevealTimer = setTimeout(() => {
             this.$('screen-end').classList.remove('hidden');
-        }, 1400);
+        }, win ? 2800 : 1400); // 贏波延遲耐啲先彈結算，畀勝利煙花放晒（5 束 × 0.42s + 0.9s 餘燼）
     }
 
     banner(text, dur = 1800) {

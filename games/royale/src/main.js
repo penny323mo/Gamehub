@@ -347,6 +347,7 @@ const uiCallbacks = {
 
 function cleanupMatch() {
     stopMatchmaking();
+    arena.setMood?.(0); // 新一場由日光開始
     if (netRole) {
         Net.teardown();
         netRole = null;
@@ -693,6 +694,8 @@ function loop(now) {
         }
         game.updateHpBarOrientation(camera.quaternion);
         ui.update();
+        // 入咗加時就轉黃昏光（guest 嘅 phase 由快照嚟，一樣會觸發）；完場維持黃昏直到 cleanup
+        if (game.phase === 'overtime') arena.setMood?.(1);
     }
     arena.update(dt);
     renderer.render(scene, camera);

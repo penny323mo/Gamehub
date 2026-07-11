@@ -339,6 +339,7 @@ export class Game {
             e.model = makeUnitModel(cardId, team);
             this.#addEntity(e);
             this.#spawnRing(e.x, e.z, Math.max(0.5, e.radius * 1.4), team);
+            this.#particles(e.x, e.z, 0xd8cbb0, 5, 1.6, 0.22); // 落地揚塵
         }
         this.hooks.onSpawn?.(team, cardId, x, z);
     }
@@ -558,6 +559,116 @@ export class Game {
         }
     }
 
+    // 塔冧碎片：石塊向四圍拋出，有重力有旋轉，落地淡出
+    #towerDebris(x, z) {
+        for (let i = 0; i < 7; i++) {
+            const size = 0.2 + Math.random() * 0.22; // 要夠大粒，喺標準鏡頭距離先睇得見
+            const chunk = new THREE.Mesh(
+                new THREE.BoxGeometry(size, size, size),
+                new THREE.MeshLambertMaterial({ color: Math.random() < 0.5 ? 0xa39a8c : 0x8d8478, transparent: true })
+            );
+            chunk.position.set(x, 1.6 + Math.random() * 1.4, z);
+            const ang = Math.random() * Math.PI * 2;
+            const v = {
+                x: Math.cos(ang) * (1.6 + Math.random() * 2.2),
+                y: 3 + Math.random() * 3,
+                z: Math.sin(ang) * (1.6 + Math.random() * 2.2),
+            };
+            const spin = { x: (Math.random() - 0.5) * 9, z: (Math.random() - 0.5) * 9 };
+            this.scene.add(chunk);
+            this.effects.push({
+                t: 0, dur: 1.15, mesh: chunk,
+                update: (ef, d) => {
+                    v.y -= 10.5 * d;
+                    chunk.position.x += v.x * d;
+                    chunk.position.y = Math.max(0.06, chunk.position.y + v.y * d);
+                    chunk.position.z += v.z * d;
+                    chunk.rotation.x += spin.x * d;
+                    chunk.rotation.z += spin.z * d;
+                    const pr = ef.t / ef.dur;
+                    if (pr > 0.7) chunk.material.opacity = 1 - (pr - 0.7) / 0.3;
+                },
+            });
+        }
+    }
+
+    // 皇冠飛出：塔冧嗰下一個👑弧線彈上天再淡出（飛向得分嗰邊）
+    #crownPop(t) {
+        const c = document.createElement('canvas');
+        c.width = 64; c.height = 64;
+        const g = c.getContext('2d');
+        g.font = '52px serif';
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText('👑', 32, 36);
+        const tex = new THREE.CanvasTexture(c);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+        sprite.position.set(t.x, 2.6, t.z);
+        sprite.scale.setScalar(1.9); // 標準鏡頭距離都要睇得清嘅皇冠
+        sprite.renderOrder = 31;
+        this.scene.add(sprite);
+        const towardWinner = t.team === TEAM.PLAYER ? -2.2 : 2.2; // 飛向得分方嗰邊
+        this.effects.push({
+            t: 0, dur: 1.25, mesh: sprite,
+            update: (ef) => {
+                const p = ef.t / ef.dur;
+                sprite.position.y = 2.6 + Math.sin(p * Math.PI) * 2.6;
+                sprite.position.z = t.z + p * towardWinner;
+                sprite.scale.setScalar(1.9 + p * 0.9);
+                sprite.material.opacity = p < 0.7 ? 1 : 1 - (p - 0.7) / 0.3;
+            },
+            onEnd: () => tex.dispose(),
+        });
+    }
+
+    // 勝利煙花：勝方王塔上空連環爆五響
+    #fireworks(winner) {
+        const zBase = winner === TEAM.PLAYER ? 13.5 : -13.5;
+        const colors = [0xffd94a, 0xff6a9a, 0x6ad2ff, 0x9dff6a, 0xffa54a];
+        for (let burst = 0; burst < 5; burst++) {
+            const delay = burst * 0.42;
+            const bx = (Math.random() - 0.5) * 7;
+            const bz = zBase + (Math.random() - 0.5) * 4;
+            const by = 5.2 + Math.random() * 2.4;
+            const color = colors[burst % colors.length];
+            // 用一個「引信」effect 做延遲，時間到先爆
+            this.effects.push({
+                t: 0, dur: delay + 0.01, mesh: null,
+                update: () => {},
+                onEnd: () => {
+                    for (let i = 0; i < 14; i++) {
+                        const spark = new THREE.Mesh(
+                            new THREE.SphereGeometry(0.15, 5, 4),
+                            new THREE.MeshBasicMaterial({ color, transparent: true })
+                        );
+                        spark.position.set(bx, by, bz);
+                        const th = Math.random() * Math.PI * 2;
+                        const ph = Math.random() * Math.PI;
+                        const sp = 3 + Math.random() * 2.4;
+                        const v = {
+                            x: Math.sin(ph) * Math.cos(th) * sp,
+                            y: Math.cos(ph) * sp,
+                            z: Math.sin(ph) * Math.sin(th) * sp,
+                        };
+                        this.scene.add(spark);
+                        this.effects.push({
+                            t: 0, dur: 0.9, mesh: spark,
+                            update: (ef, d) => {
+                                v.y -= 3.6 * d;
+                                spark.position.x += v.x * d;
+                                spark.position.y += v.y * d;
+                                spark.position.z += v.z * d;
+                                const pr = ef.t / ef.dur;
+                                spark.material.opacity = 1 - pr;
+                                spark.scale.setScalar(1 - pr * 0.5);
+                            },
+                        });
+                    }
+                },
+            });
+        }
+    }
+
     // 王塔激活：金色擴散環＋火花，等成場人都知佢醒咗
     #kingWakeBurst(king) {
         const ring = new THREE.Mesh(
@@ -734,9 +845,11 @@ export class Game {
     }
 
     #towerFall(t) {
-        // 塔冧：縮落去 + 換做瓦礫
+        // 塔冧：縮落去 + 換做瓦礫 + 碎片飛濺 + 皇冠飛出
         const model = t.model;
         this.#explosion(t.x, t.z, 2.2, 0xccbbaa);
+        this.#towerDebris(t.x, t.z);
+        this.#crownPop(t);
         this.effects.push({
             t: 0, dur: 0.9, mesh: null,
             update: (ef) => {
@@ -788,6 +901,7 @@ export class Game {
             winner, // TEAM 或 null（和局）
             crowns: { ...this.crowns },
         };
+        if (winner != null) this.#fireworks(winner);
         this.hooks.onGameOver?.(this.result);
     }
 

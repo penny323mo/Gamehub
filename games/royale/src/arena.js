@@ -163,6 +163,11 @@ export function buildArena(scene) {
     scene.add(hemi);
     const sun = new THREE.DirectionalLight(0xffeecf, 1.9);
     sun.position.set(-14, 26, 12);
+    // 日照 mood：0=正午 1=黃昏（加時觸發），update() 慢慢過渡
+    const moodState = { current: 0, target: 0 };
+    const daySun = new THREE.Color(0xffeecf), duskSun = new THREE.Color(0xffab5e);
+    const daySky = new THREE.Color(0xcfe4f5), duskSky = new THREE.Color(0xe0b294);
+    const dayGnd = new THREE.Color(0x8aa060), duskGnd = new THREE.Color(0x7a5f44);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     sun.shadow.camera.left = -20;
@@ -511,8 +516,18 @@ export function buildArena(scene) {
         scene.add(z);
     }
 
-    // 每幀動畫：水面流動＋岸邊泡沫拍岸＋漂流閃光
+    // 每幀動畫：水面流動＋岸邊泡沫拍岸＋漂流閃光＋日照過渡
     function update(dt) {
+        if (Math.abs(moodState.current - moodState.target) > 0.001) {
+            moodState.current += (moodState.target - moodState.current) * Math.min(1, dt * 0.55);
+            const m = moodState.current;
+            sun.color.lerpColors(daySun, duskSun, m);
+            sun.intensity = 1.9 - m * 0.35;
+            sun.position.set(-14, 26 - m * 11, 12 - m * 5); // 太陽降低，影拉長
+            hemi.color.lerpColors(daySky, duskSky, m);
+            hemi.groundColor.lerpColors(dayGnd, duskGnd, m);
+            hemi.intensity = 0.85 - m * 0.14;
+        }
         foamTex.offset.x -= dt * 0.045;
         const now = performance.now();
         foam.material.opacity = 0.42 + Math.sin(now * 0.0012) * 0.1;
@@ -527,5 +542,5 @@ export function buildArena(scene) {
         }
     }
 
-    return { zones, update };
+    return { zones, update, setMood: (m) => { moodState.target = m; } };
 }
