@@ -1,1 +1,0 @@
-import{t as e}from"./particles.fragment-CMXVAYED.js";export{e as particlesPixelShaderWGSL};

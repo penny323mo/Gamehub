@@ -1,1 +1,0 @@
-import{t as e}from"./iblDominantDirection.fragment-CYpCO1y6.js";export{e as iblDominantDirectionPixelShaderWGSL};

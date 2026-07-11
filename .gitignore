@@ -24,7 +24,7 @@ node_modules/
 
 # Build output (keep tower/dist as it's needed for GitHub Pages)
 # games/tower/dist/
-# games/ashen-rail/dist/  <- 一定要 commit：GitHub Pages 冇 build step，hub 個 BONUS 掣直連 dist
+games/ashen-rail/dist/
 
 # Claude Code runtime state
 .claude/scheduled_tasks.lock
