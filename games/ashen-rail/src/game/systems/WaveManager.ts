@@ -32,10 +32,15 @@ export class WaveManager {
     this.spawnTimer -= delta;
     if (this.queue.length > 0 && this.spawnTimer <= 0) {
       const variant = this.queue.shift();
-      if (variant) { this.alive += 1; events.push({ type: "spawn", variant }); }
+      if (variant) events.push({ type: "spawn", variant });
       this.spawnTimer = 1.15;
     }
     return events;
+  }
+
+  confirmSpawn(variant: DroneVariant, success: boolean): void {
+    if (success) this.alive += 1;
+    else { this.queue.unshift(variant); this.spawnTimer = 0.45; }
   }
 
   enemyDefeated(): WaveEvent[] {
@@ -49,6 +54,7 @@ export class WaveManager {
   get currentLabel(): string { return this.waveIndex >= 0 ? (WAVES[this.waveIndex]?.label ?? "") : "教學"; }
   get remaining(): number { return this.alive + this.queue.length; }
   get isIntermission(): boolean { return this.intermission > 0; }
+  get intermissionRemaining(): number { return this.intermission; }
 
   private startWave(index: number): void {
     const wave = WAVES[index];

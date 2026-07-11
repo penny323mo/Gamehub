@@ -37,7 +37,7 @@ export class EnergyCore {
     return this.health === 0;
   }
 
-  reset(): void { this.health = this.maxHealth; this.root.setEnabled(true); this.glowMaterial.emissiveColor.set(1, 0.18, 0.01); }
+  reset(): void { this.health = this.maxHealth; this.flash = 0; this.pulse = 0; this.root.scaling.setAll(1); this.root.setEnabled(true); this.glowMaterial.emissiveColor.set(1, 0.18, 0.01); }
 
   update(delta: number): void {
     this.pulse += delta * (this.health < 35 ? 7 : 3);

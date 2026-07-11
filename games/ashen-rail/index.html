@@ -40,12 +40,14 @@
       </section>
 
       <div id="hud" class="hidden">
+        <div id="damage-flash" aria-hidden="true"></div>
+        <div id="wave-banner" aria-live="polite"></div>
         <div class="hud-top">
           <div class="meter player-meter"><label>守衛</label><div><i id="player-health-fill"></i></div><b id="player-health">100</b></div>
           <div class="mission-status"><small id="wave-label">教學</small><strong id="objective-label">保護能源核心</strong><span id="enemy-count">敵人 0</span></div>
           <div class="meter core-meter"><label>核心</label><div><i id="core-health-fill"></i></div><b id="core-health">100</b></div>
         </div>
-        <div id="enemy-indicator">▲</div>
+        <div id="enemy-indicator" class="hidden">▲</div>
         <div id="crosshair"><span></span><span></span><span></span><span></span></div>
         <div id="aim-zone" aria-label="拖動瞄準區"><span>拖動瞄準</span></div>
         <div id="ammo"><strong id="ammo-count">6</strong><span>/ 6</span><small id="reload-label"></small></div>

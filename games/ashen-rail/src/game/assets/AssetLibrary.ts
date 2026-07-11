@@ -59,6 +59,7 @@ export class AssetLibrary {
         mesh.isPickable = id === "drone";
         mesh.receiveShadows = id === "train";
       }
+      if (id === "train") this.normalizeTrain(root);
       if (id === "drone") root.setEnabled(false);
       return { id, root, meshes: result.meshes, skeletons: result.skeletons, animationGroups: result.animationGroups, fallback: false };
     } catch (error) {
@@ -70,8 +71,18 @@ export class AssetLibrary {
       mesh.position = Vector3.FromArray(config.position);
       mesh.rotation = Vector3.FromArray(config.rotation);
       mesh.scaling.setAll(config.scale);
+      if (id === "train") this.normalizeTrain(mesh);
       if (id === "drone") mesh.setEnabled(false);
       return { id, root: mesh, meshes: [mesh], skeletons: [], animationGroups: [], fallback: true, error: String(error) };
     }
+  }
+
+  private normalizeTrain(root: TransformNode): void {
+    root.computeWorldMatrix(true); for (const mesh of root.getChildMeshes(false)) mesh.computeWorldMatrix(true);
+    let bounds = root.getHierarchyBoundingVectors(true); const size = bounds.max.subtract(bounds.min);
+    root.scaling.multiplyInPlace(new Vector3(6.2 / Math.max(0.001, size.x), 3.3 / Math.max(0.001, size.y), 18 / Math.max(0.001, size.z)));
+    root.computeWorldMatrix(true); for (const mesh of root.getChildMeshes(false)) mesh.computeWorldMatrix(true);
+    bounds = root.getHierarchyBoundingVectors(true); const centerX = (bounds.min.x + bounds.max.x) / 2; const centerZ = (bounds.min.z + bounds.max.z) / 2;
+    root.position.addInPlace(new Vector3(-centerX, -2.52 - bounds.min.y, -centerZ)); root.computeWorldMatrix(true);
   }
 }

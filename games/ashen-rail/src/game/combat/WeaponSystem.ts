@@ -12,6 +12,7 @@ export class WeaponSystem {
   private cooldown = 0;
   private reloadTimer = 0;
   private recoil = 0;
+  private aimAssistStrength = 0.7;
   private readonly flash: TransformNode;
 
   constructor(private readonly scene: Scene, muzzleParent: TransformNode) {
@@ -41,7 +42,7 @@ export class WeaponSystem {
       const toDrone = drone.root.getAbsolutePosition().subtract(origin);
       return { id: drone.id, dead: drone.dead, attackingCore: drone.attackingCore, screenAngle: Math.acos(Math.max(-1, Math.min(1, Vector3.Dot(forward.normalizeToNew(), toDrone.normalizeToNew())))), distance: toDrone.length() };
     });
-    const selected = selectAimTarget(candidates, GAMEPLAY.weapon.aimAssistAngle);
+    const selected = this.aimAssistStrength > 0 ? selectAimTarget(candidates, GAMEPLAY.weapon.aimAssistAngle * this.aimAssistStrength) : null;
     const target = selected ? drones.find((drone) => drone.id === selected.id) : undefined;
     const direction = target ? target.root.getAbsolutePosition().subtract(origin).normalize() : forward.normalizeToNew();
     const ray = new Ray(origin, direction, GAMEPLAY.weapon.range);
@@ -60,7 +61,8 @@ export class WeaponSystem {
   }
 
   refill(): void { this.ammo = this.magazine; this.reloading = false; this.reloadTimer = 0; }
-  reset(): void { this.cooldown = 0; this.refill(); }
+  setAimAssistStrength(value: number): void { this.aimAssistStrength = Math.max(0, Math.min(1, value)); }
+  reset(): void { this.cooldown = 0; this.recoil = 0; this.flash.setEnabled(false); this.refill(); }
 
   private beginReload(): void { this.reloading = true; this.reloadTimer = GAMEPLAY.weapon.reloadSeconds; }
   private spawnImpact(position: Vector3, killed: boolean): void {

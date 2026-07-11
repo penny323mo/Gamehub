@@ -1,5 +1,7 @@
+export const KAMIKAZE_ARMING_DISTANCE = 1.15;
+
 export function shouldKamikazeDetonate(distanceToCore: number, countdown: number): boolean {
-  return distanceToCore <= 1.15 && countdown <= 0;
+  return distanceToCore <= KAMIKAZE_ARMING_DISTANCE && countdown <= 0;
 }
 
 export function kamikazeDamage(baseDamage: number, distanceToCore: number): number {

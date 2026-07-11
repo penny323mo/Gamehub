@@ -30,15 +30,15 @@ export const MODEL_ASSETS: Record<AssetId, ModelAssetConfig> = {
   },
   train: {
     url: "assets/models/runtime/train-locomotive.glb",
-    scale: 6.2,
-    position: [0, 2.0, 9.0],
+    scale: 1,
+    position: [0, 0, 0],
     rotation: [0, Math.PI, 0],
     forwardAxis: "+Z",
     groundOffset: 0,
     animationMap: {},
     shadowEnabled: false,
     collisionEnabled: false,
-    boundingBoxAdjustment: [3, 1, 9]
+    boundingBoxAdjustment: [3.1, 1.65, 9]
   },
   weapon: {
     url: "assets/models/runtime/hand-cannon.glb",
