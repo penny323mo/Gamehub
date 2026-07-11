@@ -31,7 +31,9 @@ export class GyroAimController {
   private readonly onOrientation = (event: DeviceOrientationEvent): void => {
     if (event.beta === null || event.gamma === null) return;
     if (this.lastBeta === undefined || this.lastGamma === undefined) { this.lastBeta = event.beta; this.lastGamma = event.gamma; return; }
-    const betaDelta = Scalar.Clamp(event.beta - this.lastBeta, -4, 4); const gammaDelta = Scalar.Clamp(event.gamma - this.lastGamma, -4, 4); this.lastBeta = event.beta; this.lastGamma = event.gamma;
-    const mapped = mapGyroDelta(betaDelta, gammaDelta, screen.orientation?.angle ?? window.orientation ?? 0); this.pending.addInPlace(mapped.scale(2.15));
+    // 增益 5.0（原本 2.15 郁極都唔夠位）：手腕細幅度已經掃到成個畫面，
+    // 每 event ±7° 上限保留，防止手機突然震一下爆衝
+    const betaDelta = Scalar.Clamp(event.beta - this.lastBeta, -7, 7); const gammaDelta = Scalar.Clamp(event.gamma - this.lastGamma, -7, 7); this.lastBeta = event.beta; this.lastGamma = event.gamma;
+    const mapped = mapGyroDelta(betaDelta, gammaDelta, screen.orientation?.angle ?? window.orientation ?? 0); this.pending.addInPlace(mapped.scale(5.0));
   };
 }

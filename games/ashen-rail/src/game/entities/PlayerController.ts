@@ -41,7 +41,7 @@ export class PlayerController {
 
   reset(groundHeight = this.groundHeight): void { this.health = this.maxHealth; this.dodgeCooldown = 0; this.dodgeRemaining = 0; this.invincibleRemaining = 0; this.proceduralTime = 0; this.groundHeight = groundHeight; this.movement.set(0, 0); this.dodgeDirection.set(0, 0, -1); this.facingDirection.set(0, 0, 1); this.root.position.set(0, groundHeight, -2.2); this.root.rotationQuaternion = null; this.root.rotation.set(0, Math.PI, 0); this.root.setEnabled(true); this.animator.reset(); }
 
-  update(delta: number, target?: Vector3, groundHeight?: number): void {
+  update(delta: number, target?: Vector3, groundHeight?: number, pose: { aimPitch?: number; reload?: number } = {}): void {
     if (this.health <= 0) { this.root.rotation.z = Scalar.Lerp(this.root.rotation.z, Math.PI / 2, delta * 2.5); return; }
     this.dodgeCooldown = Math.max(0, this.dodgeCooldown - delta);
     this.invincibleRemaining = Math.max(0, this.invincibleRemaining - delta);
@@ -64,9 +64,9 @@ export class PlayerController {
     }
     this.proceduralTime += delta;
     const moving = direction.lengthSquared() > 0.01;
-    this.root.position.y = this.groundHeight + Math.sin(this.proceduralTime * (moving ? 9 : 2.2)) * (moving ? 0.04 : 0.008);
-    this.root.rotation.x = Scalar.Lerp(this.root.rotation.x, moving ? -0.065 : Math.sin(this.proceduralTime * 2.2) * 0.008, Math.min(1, delta * 7));
-    const walkLean = moving ? -this.movement.x * 0.075 + Math.sin(this.proceduralTime * 9) * 0.025 : 0; this.root.rotation.z = this.dodgeRemaining > 0 ? -this.dodgeDirection.x * 0.28 : Scalar.Lerp(this.root.rotation.z, walkLean, delta * 8);
-    this.animator.update(delta, moving, this.dodgeRemaining > 0);
+    this.root.position.y = this.groundHeight + Math.sin(this.proceduralTime * (moving ? 10 : 2.2)) * (moving ? 0.055 : 0.008);
+    this.root.rotation.x = Scalar.Lerp(this.root.rotation.x, moving ? -0.075 : Math.sin(this.proceduralTime * 2.2) * 0.008, Math.min(1, delta * 7));
+    const walkLean = moving ? -this.movement.x * 0.085 + Math.sin(this.proceduralTime * 10) * 0.03 : 0; this.root.rotation.z = this.dodgeRemaining > 0 ? -this.dodgeDirection.x * 0.28 : Scalar.Lerp(this.root.rotation.z, walkLean, delta * 8);
+    this.animator.update(delta, { moving, dodging: this.dodgeRemaining > 0, aimPitch: pose.aimPitch ?? 0, reload: pose.reload ?? 0 });
   }
 }

@@ -106,7 +106,7 @@ export class TrainBattleScene {
     this.player.setMovement(movement.x, movement.z);
     const primaryTarget = this.primaryCameraTarget()?.root.getAbsolutePosition();
     const deckHeight = this.deckHeightAt(this.player.root.position.x, this.player.root.position.z);
-    this.player.update(step, this.camera.getFacingPoint(), deckHeight === undefined ? undefined : deckHeight + 0.015); this.core.update(step); this.weapon.update(step); this.camera.update(step, primaryTarget); this.world.update(step);
+    this.player.update(step, this.camera.getFacingPoint(), deckHeight === undefined ? undefined : deckHeight + 0.015, { aimPitch: this.camera.aimPitch, reload: this.weapon.reloading ? this.weapon.reloadProgress : 0 }); this.core.update(step); this.weapon.update(step); this.camera.update(step, primaryTarget); this.world.update(step);
     if (this.controls.firing) this.fire();
     if (this.state.state === "TUTORIAL") this.updateTutorial(step);
     else for (const event of this.waves.update(step)) this.handleWaveEvent(event);
@@ -147,7 +147,8 @@ export class TrainBattleScene {
   }
 
   private setupLighting(): void {
-    this.scene.clearColor = new Color4(0.055, 0.06, 0.085, 1); this.scene.fogMode = Scene.FOGMODE_EXP2; this.scene.fogDensity = 0.007; this.scene.fogColor = new Color3(0.2, 0.135, 0.12);
+    // 霧色對齊天空地平線嘅橙紅漸層，遠山剪影會自然溶入去；密度稍降令佢哋有得見
+    this.scene.clearColor = new Color4(0.055, 0.06, 0.085, 1); this.scene.fogMode = Scene.FOGMODE_EXP2; this.scene.fogDensity = 0.0058; this.scene.fogColor = new Color3(0.3, 0.14, 0.1);
     const ambient = new HemisphericLight("ash-ambient", new Vector3(0, 1, 0), this.scene); ambient.intensity = 0.78; ambient.diffuse = new Color3(0.68, 0.72, 0.86); ambient.groundColor = new Color3(0.075, 0.055, 0.07);
     const sun = new DirectionalLight("setting-sun", new Vector3(-0.5, -1, 0.35), this.scene); sun.position.set(10, 18, -12); sun.intensity = 2.35; sun.diffuse = new Color3(1, 0.48, 0.25);
   }
