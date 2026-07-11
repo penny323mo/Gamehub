@@ -207,6 +207,8 @@ export class Game {
         this.enemyElixirRate = opts.enemyElixirRate ?? 1;
         // 傷害統計（結算傷害榜用）＋雙方已出卡記錄
         this.damageByCard = { [TEAM.PLAYER]: {}, [TEAM.ENEMY]: {} };
+        // 浮動傷害數字：短窗口聚合（每 0.26s 每實體結一次數），唔會逐下刷屏
+        this.dmgNums = new Map();
         this.playedCards = { [TEAM.PLAYER]: [], [TEAM.ENEMY]: [] };
         this.fountainT = 0;
         this.overtimeExtensions = 0;
@@ -556,6 +558,95 @@ export class Game {
         }
     }
 
+    // 王塔激活：金色擴散環＋火花，等成場人都知佢醒咗
+    #kingWakeBurst(king) {
+        const ring = new THREE.Mesh(
+            new THREE.RingGeometry(0.5, 0.72, 40),
+            new THREE.MeshBasicMaterial({ color: 0xffcf4a, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false })
+        );
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.set(king.x, 0.12, king.z);
+        this.scene.add(ring);
+        this.effects.push({
+            t: 0, dur: 0.75, mesh: ring,
+            update: (ef) => {
+                const p = ef.t / ef.dur;
+                ring.scale.setScalar(1 + p * 6.5);
+                ring.material.opacity = 0.95 * (1 - p);
+            },
+        });
+        this.#particles(king.x, king.z, 0xffd964, 16, 3.4, 0.9);
+    }
+
+    // 浮動傷害數字：canvas sprite 一炮過畫好，升起＋淡出（texture 喺 onEnd dispose）
+    #spawnDamageNumber(rec) {
+        if (this.effects.length > 130) return; // 大混戰保護：特效隊列爆咗就犧牲數字
+        const amount = Math.round(rec.amount);
+        if (amount < 1) return;
+        const c = document.createElement('canvas');
+        c.width = 128; c.height = 56;
+        const g = c.getContext('2d');
+        const big = amount >= 150;
+        g.font = `900 ${big ? 40 : 33}px 'Arial Black', sans-serif`;
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.lineWidth = 7; g.strokeStyle = 'rgba(40,24,8,0.9)';
+        g.strokeText(String(amount), 64, 28);
+        // 打敵方＝金黃（爽），自己友被打＝紅（警覺）
+        g.fillStyle = rec.team === TEAM.PLAYER ? '#ff6a55' : '#ffd94a';
+        g.fillText(String(amount), 64, 28);
+        const tex = new THREE.CanvasTexture(c);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+        const scale = Math.min(1.7, 0.95 + amount / 550);
+        sprite.position.set(rec.x + (Math.random() - 0.5) * 0.5, rec.h, rec.z);
+        sprite.renderOrder = 30;
+        this.scene.add(sprite);
+        this.effects.push({
+            t: 0, dur: 0.78, mesh: sprite,
+            update: (ef) => {
+                const p = ef.t / ef.dur;
+                const pop = p < 0.18 ? p / 0.18 : 1; // 開頭彈一下先去到全大
+                sprite.scale.set(scale * (0.5 + pop * 0.5) * 2.2, scale * (0.5 + pop * 0.5), 1);
+                sprite.position.y = rec.h + p * 1.35;
+                sprite.material.opacity = p < 0.6 ? 1 : 1 - (p - 0.6) / 0.4;
+            },
+            onEnd: () => tex.dispose(),
+        });
+    }
+
+    // 傷咗嘅塔冒煙：血愈少冒得愈密（<60% 開始，<30% 加速兼變黑煙）
+    #updateTowerSmoke(dt) {
+        for (const team of [TEAM.PLAYER, TEAM.ENEMY]) {
+            for (const key of ['left', 'right', 'king']) {
+                const t = this.towers[team][key];
+                if (!t || t.dead) continue;
+                const ratio = t.hp / t.maxHp;
+                if (ratio >= 0.6) continue;
+                t.smokeT = (t.smokeT ?? 0) - dt;
+                if (t.smokeT > 0) continue;
+                const heavy = ratio < 0.3;
+                t.smokeT = heavy ? 0.22 : 0.48;
+                const puff = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.16 + Math.random() * 0.08, 6, 5),
+                    new THREE.MeshBasicMaterial({ color: heavy ? 0x3c3733 : 0x8b847c, transparent: true, opacity: 0.5, depthWrite: false })
+                );
+                const topY = t.towerKind === 'king' ? 4.6 : 3.7;
+                puff.position.set(t.x + (Math.random() - 0.5) * 0.9, topY, t.z + (Math.random() - 0.5) * 0.9);
+                this.scene.add(puff);
+                this.effects.push({
+                    t: 0, dur: 1.4, mesh: puff,
+                    update: (ef) => {
+                        const p = ef.t / ef.dur;
+                        puff.position.y = topY + p * 1.5;
+                        puff.position.x += Math.sin((ef.t + t.x) * 3) * dt * 0.3;
+                        puff.scale.setScalar(1 + p * 1.8);
+                        puff.material.opacity = 0.5 * (1 - p);
+                    },
+                });
+            }
+        }
+    }
+
     #explosion(x, z, r, color) {
         const ring = new THREE.Mesh(
             new THREE.RingGeometry(0.1, 0.4, 24),
@@ -600,12 +691,17 @@ export class Game {
             board[src.cardId] = (board[src.cardId] ?? 0) + Math.min(Math.max(0, e.hp), dmg);
         }
         e.hp -= dmg;
+        // 聚合浮動傷害數字（位置跟實體走，窗口結束嗰刻先生成 sprite）
+        const dmgRec = this.dmgNums.get(e.id);
+        if (dmgRec) { dmgRec.amount += dmg; dmgRec.x = e.x; dmgRec.z = e.z; }
+        else this.dmgNums.set(e.id, { amount: dmg, timer: 0.26, team: e.team, x: e.x, z: e.z, h: e.isTower ? 3.6 : 2.2 });
         e.hpBar.visible = true;
         e.hpBar.userData.setRatio(Math.max(0, e.hp / e.maxHp));
         e.model.userData.onHit?.(this.simTime);
         // 王塔被打會醒
         if (e.isTower && e.towerKind === 'king' && !e.active) {
             e.active = true;
+            this.#kingWakeBurst(e);
             this.hooks.onKingActivated?.(e.team);
         }
         if (e.hp <= 0) this.#kill(e);
@@ -677,6 +773,7 @@ export class Game {
         const king = this.towers[t.team].king;
         if (!king.active && !king.dead) {
             king.active = true;
+            this.#kingWakeBurst(king);
             this.hooks.onKingActivated?.(t.team);
         }
         this.hooks.onTowerDestroyed?.(t);
@@ -1084,6 +1181,13 @@ export class Game {
             e.hpBar.position.set(e.x, e.hpBar.userData.h, e.z);
             if (e.slowRing) e.slowRing.position.set(e.x, 0.06, e.z);
         }
+
+        // 結算傷害數字聚合窗口
+        for (const [id, rec] of this.dmgNums) {
+            rec.timer -= dt;
+            if (rec.timer <= 0) { this.#spawnDamageNumber(rec); this.dmgNums.delete(id); }
+        }
+        this.#updateTowerSmoke(dt);
 
         this.#updateProjectiles(dt);
         this.#updateEffects(dt);

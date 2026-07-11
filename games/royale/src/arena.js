@@ -273,6 +273,33 @@ export function buildArena(scene) {
         bank.position.set(0, 0.012, s * (ARENA.riverHalf + 0.18));
         scene.add(bank);
     }
+    // 岸邊白泡沫線：一條幼白邊喺水同沙交界，脈動＋輕微拍岸位移，即刻有「水係郁緊」嘅感覺
+    const shoreFoams = [];
+    for (const s of [-1, 1]) {
+        const line = new THREE.Mesh(
+            new THREE.PlaneGeometry(riverW - 0.3, 0.14),
+            new THREE.MeshBasicMaterial({ color: 0xeaf6ff, transparent: true, opacity: 0.5, depthWrite: false })
+        );
+        line.rotation.x = -Math.PI / 2;
+        line.position.set(0, 0.05, s * (ARENA.riverHalf - 0.1));
+        line.renderOrder = 3;
+        scene.add(line);
+        shoreFoams.push({ mesh: line, side: s, baseZ: s * (ARENA.riverHalf - 0.1) });
+    }
+    // 水面漂流閃光：幾粒好細嘅白光沿河飄，各自唔同相位
+    const sparkles = [];
+    for (let i = 0; i < 8; i++) {
+        const sp = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.34, 0.07),
+            new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false })
+        );
+        sp.rotation.x = -Math.PI / 2;
+        sp.rotation.z = (random() - 0.5) * 0.5;
+        sp.position.set((random() - 0.5) * (riverW - 2), 0.055, (random() - 0.5) * (ARENA.riverHalf * 1.5));
+        sp.renderOrder = 3;
+        scene.add(sp);
+        sparkles.push({ mesh: sp, speed: 0.5 + random() * 0.7, phase: random() * Math.PI * 2 });
+    }
     // 河岸石
     for (let x = -ARENA.halfW; x <= ARENA.halfW; x += 0.95) {
         if (Math.abs(Math.abs(x) - ARENA.bridgeX) < ARENA.bridgeHalfW + 0.35) continue;
@@ -484,10 +511,20 @@ export function buildArena(scene) {
         scene.add(z);
     }
 
-    // 每幀動畫：水面流動
+    // 每幀動畫：水面流動＋岸邊泡沫拍岸＋漂流閃光
     function update(dt) {
         foamTex.offset.x -= dt * 0.045;
-        foam.material.opacity = 0.42 + Math.sin(performance.now() * 0.0012) * 0.1;
+        const now = performance.now();
+        foam.material.opacity = 0.42 + Math.sin(now * 0.0012) * 0.1;
+        for (const f of shoreFoams) {
+            f.mesh.position.z = f.baseZ - f.side * (Math.sin(now * 0.0016 + f.side) * 0.5 + 0.5) * 0.09;
+            f.mesh.material.opacity = 0.3 + (Math.sin(now * 0.0016 + f.side) * 0.5 + 0.5) * 0.32;
+        }
+        for (const sp of sparkles) {
+            sp.mesh.position.x -= dt * sp.speed;
+            if (sp.mesh.position.x < -(ARENA.halfW + 0.4)) sp.mesh.position.x = ARENA.halfW + 0.4;
+            sp.mesh.material.opacity = Math.max(0, Math.sin(now * 0.003 + sp.phase)) * 0.7;
+        }
     }
 
     return { zones, update };
