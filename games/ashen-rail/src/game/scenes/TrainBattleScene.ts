@@ -234,6 +234,8 @@ export class TrainBattleScene {
     if (!this.weapon || !this.camera || (this.state.state !== "TUTORIAL" && this.state.state !== "PLAYING")) return;
     const origin = this.camera.camera.position.clone(); const forward = this.camera.camera.getTarget().subtract(origin).normalize(); const result = this.weapon.shoot(origin, forward, this.drones);
     if (!result.fired) return; this.player?.shoot(); this.audio.fire(); this.camera.kick(1); this.camera.shake(0.05, 0.08); this.hud.showShotResult(result.killed ? "kill" : result.hit ? "hit" : "miss"); if (result.hit) this.audio.hit(); if (result.killed) this.audio.explosion();
+    // 命中／擊殺分級震屏：打中有感覺、殺敵有份量
+    if (result.killed) this.camera.shake(0.3, 0.2); else if (result.hit) this.camera.shake(0.1, 0.1);
   }
 
   private handleWaveEvent(event: WaveEvent): void {

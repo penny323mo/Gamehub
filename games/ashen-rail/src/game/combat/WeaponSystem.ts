@@ -51,7 +51,7 @@ export class WeaponSystem {
     let tracerEnd = solution.obstruction?.pickedPoint?.clone() ?? origin.add(solution.direction.scale(Math.min(GAMEPLAY.weapon.range, 28)));
     let result: ShotResult = { fired: true };
     if (target && clearShot) {
-      tracerEnd = target.root.getAbsolutePosition().clone(); const killed = target.damage(GAMEPLAY.weapon.damage); this.spawnImpact(tracerEnd, killed); result = { fired: true, hit: target, killed };
+      tracerEnd = target.root.getAbsolutePosition().clone(); const killed = target.damage(GAMEPLAY.weapon.damage, solution.direction.scale(3.4)); this.spawnImpact(tracerEnd, killed); result = { fired: true, hit: target, killed };
     }
     this.spawnTracer(this.flash.getAbsolutePosition(), tracerEnd, result.killed ? "kill" : result.hit ? "hit" : "miss");
     if (this.ammo === 0) this.beginReload();
@@ -94,5 +94,28 @@ export class WeaponSystem {
     const impact = MeshBuilder.CreateSphere(`impact-${performance.now()}`, { diameter: killed ? 0.65 : 0.2, segments: 6 }, this.scene);
     impact.position.copyFrom(position); impact.material = killed ? this.tracerKillMaterial : this.tracerHitMaterial;
     window.setTimeout(() => impact.dispose(), killed ? 260 : 110);
+    if (killed) this.spawnKillShards(position);
+  }
+
+  // 擊殺爆散：金屬碎片有重力有旋轉噴開再縮細消失，畀擊殺一個實在嘅「爆開」手感
+  private spawnKillShards(position: Vector3): void {
+    for (let index = 0; index < 6; index += 1) {
+      const shard = MeshBuilder.CreateBox(`kill-shard-${performance.now()}-${index}`, { size: 0.1 + Math.random() * 0.1 }, this.scene);
+      shard.material = Math.random() < 0.4 ? this.tracerKillMaterial : this.tracerMissMaterial;
+      shard.isPickable = false;
+      shard.position.copyFrom(position);
+      const velocity = new Vector3((Math.random() - 0.5) * 7, 2 + Math.random() * 4, (Math.random() - 0.5) * 7);
+      const spin = new Vector3(Math.random() * 9, Math.random() * 9, Math.random() * 9);
+      let life = 0.75;
+      const observer = this.scene.onBeforeRenderObservable.add(() => {
+        const dt = this.scene.getEngine().getDeltaTime() / 1000;
+        life -= dt;
+        if (life <= 0) { this.scene.onBeforeRenderObservable.remove(observer); shard.dispose(); return; }
+        velocity.y -= 14 * dt;
+        shard.position.addInPlace(velocity.scale(dt));
+        shard.rotation.addInPlace(spin.scale(dt));
+        shard.scaling.setAll(Math.max(0.05, life / 0.75));
+      });
+    }
   }
 }

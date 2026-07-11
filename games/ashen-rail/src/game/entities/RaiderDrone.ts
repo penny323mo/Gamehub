@@ -32,6 +32,9 @@ export class RaiderDrone {
   private kamikazeArmed = false;
   private kamikazeCountdown = 1.05;
   private armedSignal = false;
+  private readonly baseScale: number;
+  private hitPunch = 0;
+  private readonly hitImpulse = new Vector3();
 
   constructor(readonly root: TransformNode, readonly variant: DroneVariant, side: number, scene: Scene) {
     this.maxHealth = variant === "elite" ? GAMEPLAY.drone.eliteHealth : GAMEPLAY.drone.health;
@@ -40,6 +43,7 @@ export class RaiderDrone {
     this.attackingCore = variant === "kamikaze" || Math.random() < 0.42;
     root.position.set(side * 10, 3.8 + Math.random() * 1.8, 8 + Math.random() * 6);
     root.scaling.scaleInPlace(variant === "elite" ? 1.18 : variant === "kamikaze" ? 1.1 : 1);
+    this.baseScale = root.scaling.x;
     const coreGlow = MeshBuilder.CreateSphere(`hostile-core-${this.id}`, { diameter: 0.28, segments: 8 }, scene); coreGlow.material = emissiveMaterial(scene, "hostile-core-material", new Color3(1, 0.03, 0.01)); coreGlow.parent = root; this.coreGlow = coreGlow;
     const warningRing = MeshBuilder.CreateTorus(`attack-warning-${this.id}`, { diameter: 1.85, thickness: 0.045, tessellation: 20 }, scene); warningRing.material = emissiveMaterial(scene, "attack-warning-material", new Color3(1, 0.32, 0.03)); warningRing.parent = root; warningRing.rotation.x = Math.PI / 2; warningRing.setEnabled(false); this.warningRing = warningRing;
     const targetRing = MeshBuilder.CreateTorus(`target-lock-${this.id}`, { diameter: 2.05, thickness: 0.035, tessellation: 24 }, scene); targetRing.material = emissiveMaterial(scene, "target-lock-material", new Color3(0.1, 0.75, 1)); targetRing.parent = root; targetRing.rotation.x = Math.PI / 2; targetRing.setEnabled(false); this.targetRing = targetRing;
@@ -49,9 +53,11 @@ export class RaiderDrone {
     }
   }
 
-  damage(amount: number): boolean {
+  damage(amount: number, impulse?: Vector3): boolean {
     if (this.dead) return false;
     this.health = Math.max(0, this.health - amount); this.flash = 0.12;
+    this.hitPunch = 1;
+    if (impulse) this.hitImpulse.addInPlace(impulse);
     if (this.health === 0) { this.dead = true; this.state = "Dying"; return true; }
     this.state = "Stunned"; return false;
   }
@@ -62,6 +68,15 @@ export class RaiderDrone {
       this.dyingTimer -= delta; this.root.scaling.scaleInPlace(Math.max(0.1, 1 - delta * 4)); this.root.rotation.z += delta * 10;
       if (this.dyingTimer <= 0) { this.state = "Dead"; this.root.setEnabled(false); }
       return null;
+    }
+    // 中彈反饋：短促脹大（squash & stretch）＋ 核心紅光爆閃 ＋ 受擊擊退，畀每一槍實在嘅回應
+    this.hitPunch = Math.max(0, this.hitPunch - delta * 6);
+    const punch = this.hitPunch * this.hitPunch;
+    this.root.scaling.setAll(this.baseScale * (1 + punch * 0.24));
+    this.coreGlow.scaling.setAll(1 + punch * 2.2);
+    if (this.hitImpulse.lengthSquared() > 0.0004) {
+      this.root.position.addInPlace(this.hitImpulse.scale(delta));
+      this.hitImpulse.scaleInPlace(Math.max(0, 1 - delta * 7));
     }
     if (this.variant === "kamikaze") {
       this.state = "AttackingCore";

@@ -66,6 +66,14 @@ const games = [
         playable: true
     },
     {
+        id: 'ashenrail',
+        title: '灰燼列車',
+        subtitle: '🚂 3D 列車槍戰！守住能源核心殺退無人機',
+        icon: '🚂',
+        link: 'games/ashen-rail/dist/index.html',
+        playable: true
+    },
+    {
         id: 'xiangqi',
         title: '中國象棋',
         subtitle: '中國象棋！挑戰進階 AI',
