@@ -66,14 +66,6 @@ const games = [
         playable: true
     },
     {
-        id: 'ashen-rail',
-        title: '灰燼列車：終末航線',
-        subtitle: '🔥 Bonus Game！裝甲列車車頂 3D 生存射擊',
-        icon: '🚂',
-        link: 'games/ashen-rail/dist/index.html',
-        playable: true
-    },
-    {
         id: 'xiangqi',
         title: '中國象棋',
         subtitle: '中國象棋！挑戰進階 AI',

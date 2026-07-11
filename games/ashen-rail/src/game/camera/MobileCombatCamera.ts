@@ -23,14 +23,15 @@ export class MobileCombatCamera {
     this.manualAimTimer = Math.max(0, this.manualAimTimer - delta);
     this.shakeTime = Math.max(0, this.shakeTime - delta);
     this.recoil = Scalar.Lerp(this.recoil, 0, Math.min(1, delta * 9));
+    if (target && this.manualAimTimer <= 0 && this.settings.aimAssist > 0) { const toTarget = target.subtract(this.player.position); const desiredYaw = Math.atan2(toTarget.x, toTarget.z); const yawDelta = Math.atan2(Math.sin(desiredYaw - this.yaw), Math.cos(desiredYaw - this.yaw)); this.yaw += yawDelta * Math.min(1, delta * (1.8 + this.settings.aimAssist * 2.6)); }
     const forward = this.getGroundForward();
     const right = new Vector3(forward.z, 0, -forward.x);
-    const baseFocus = this.player.position.add(forward.scale(5)).add(new Vector3(0, 1.05 + this.pitch * 2.6, 0));
-    const assist = this.manualAimTimer > 0 ? 0 : 0.3 * this.settings.aimAssist;
+    const baseFocus = this.player.position.add(forward.scale(5)).add(new Vector3(0, 0.68 + this.pitch * 2.35, 0));
+    const assist = this.manualAimTimer > 0 ? 0 : 0.28 * this.settings.aimAssist;
     const focus = target ? Vector3.Lerp(baseFocus, target, assist) : baseFocus;
-    const desired = this.player.position.subtract(forward.scale(5.3 + this.recoil * 0.08)).add(right.scale(0.76)).add(new Vector3(0, 2.55 + this.pitch * 1.65 + this.recoil * 0.14, 0));
+    const desired = this.player.position.subtract(forward.scale(5.15 + this.recoil * 0.08)).add(right.scale(0.76)).add(new Vector3(0, 2.28 + this.pitch * 1.55 + this.recoil * 0.14, 0));
     if (this.shakeTime > 0) desired.addInPlace(new Vector3((Math.random() - 0.5) * this.shakeStrength, (Math.random() - 0.5) * this.shakeStrength, 0));
-    desired.y = Math.max(2.55, desired.y);
+    desired.y = Math.max(this.player.position.y + 2.08, desired.y);
     this.camera.position = Vector3.Lerp(this.camera.position, desired, Math.min(1, delta * 7));
     this.camera.setTarget(Vector3.Lerp(this.camera.getTarget(), focus, Math.min(1, delta * 5)));
   }
@@ -39,16 +40,16 @@ export class MobileCombatCamera {
   shake(strength: number, duration: number): void { this.shakeStrength = strength * this.settings.shake; this.shakeTime = duration; }
   rotate(delta: Vector2): void {
     if (delta.lengthSquared() < 0.01) return;
-    this.yaw += delta.x * 0.005 * this.settings.sensitivity;
-    this.pitch = Scalar.Clamp(this.pitch - delta.y * 0.0035 * this.settings.sensitivity, -0.18, 0.42);
+    this.yaw += delta.x * 0.0066 * this.settings.sensitivity;
+    this.pitch = Scalar.Clamp(this.pitch - delta.y * 0.0046 * this.settings.sensitivity, -0.18, 0.42);
     this.manualAimTimer = 1.2;
   }
   getGroundForward(): Vector3 { return new Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw)); }
   getFacingPoint(): Vector3 { return this.player.position.add(this.getGroundForward().scale(8)); }
-  reset(): void { this.yaw = 0; this.pitch = 0.08; this.manualAimTimer = 0; this.shakeTime = 0; this.shakeStrength = 0; this.recoil = 0; this.camera.position.copyFrom(this.player.position.add(new Vector3(0.76, 2.68, -5.3))); this.camera.setTarget(this.player.position.add(new Vector3(0, 1.26, 5))); }
+  reset(): void { this.yaw = 0; this.pitch = 0.08; this.manualAimTimer = 0; this.shakeTime = 0; this.shakeStrength = 0; this.recoil = 0; this.camera.position.copyFrom(this.player.position.add(new Vector3(0.76, 2.4, -5.15))); this.camera.setTarget(this.player.position.add(new Vector3(0, 0.87, 5))); }
 
   private loadSettings(): CameraSettings {
-    try { return { sensitivity: 1, shake: 0.65, aimAssist: 0.7, ...JSON.parse(localStorage.getItem("ashenRail.camera") ?? "{}") }; }
-    catch { return { sensitivity: 1, shake: 0.65, aimAssist: 0.7 }; }
+    try { return { sensitivity: 1.15, shake: 0.65, aimAssist: 0.82, ...JSON.parse(localStorage.getItem("ashenRail.camera") ?? "{}") }; }
+    catch { return { sensitivity: 1.15, shake: 0.65, aimAssist: 0.82 }; }
   }
 }

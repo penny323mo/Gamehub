@@ -30,8 +30,11 @@
             <summary>遊戲設定</summary>
             <label>畫質<select id="quality-setting"><option value="performance">Performance · 30 FPS</option><option value="standard">Standard · 30 FPS</option><option value="high">High · 60 FPS</option></select></label>
             <label>主音量<input id="master-volume" type="range" min="0" max="1" step="0.05" value="0.8" /></label>
+            <label>瞄準靈敏度<input id="camera-sensitivity" type="range" min="0.6" max="1.8" step="0.05" value="1.15" /></label>
+            <label class="gyro-setting">陀螺儀瞄準<input id="gyro-aim" type="checkbox" checked /></label>
             <label>鏡頭震動<input id="camera-shake" type="range" min="0" max="1" step="0.05" value="0.65" /></label>
-            <label>瞄準輔助<input id="aim-assist" type="range" min="0" max="1" step="0.05" value="0.7" /></label>
+            <label class="aim-assist-setting">瞄準輔助<input id="aim-assist-toggle" type="checkbox" checked /></label>
+            <label>輔助強度<input id="aim-assist" type="range" min="0.2" max="1" step="0.05" value="0.82" /></label>
             <label class="mute-setting">靜音<input id="mute-setting" type="checkbox" /></label>
           </details>
           <button id="start-button" class="primary">開始護送</button>
@@ -49,10 +52,12 @@
         </div>
         <div id="enemy-indicator" class="hidden">▲</div>
         <div id="crosshair"><span></span><span></span><span></span><span></span></div>
+        <div id="combat-feedback" aria-live="polite"></div>
         <div id="aim-zone" aria-label="拖動瞄準區"><span>拖動瞄準</span></div>
         <div id="ammo"><strong id="ammo-count">6</strong><span>/ 6</span><small id="reload-label"></small></div>
         <div id="tutorial-tip">左手移動 · 右半屏拖動瞄準</div>
         <button id="pause-button" aria-label="暫停">Ⅱ</button>
+        <button id="gyro-button" class="hidden" aria-label="重新校準陀螺儀">GYRO</button>
         <div id="joystick" class="control-zone"><div id="joystick-knob"></div></div>
         <div class="action-controls">
           <button id="dodge-button"><span>↯</span><small id="dodge-cooldown">閃避</small></button>

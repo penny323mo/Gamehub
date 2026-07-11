@@ -3,11 +3,12 @@ import { NullEngine, Scene, TransformNode, Vector3 } from "@babylonjs/core";
 import { GameStateMachine } from "../game/state/GameStateMachine";
 import { resolveOutcome } from "../game/state/OutcomeResolver";
 import { WaveManager } from "../game/systems/WaveManager";
-import { selectAimTarget } from "../game/combat/aimAssist";
+import { selectAimTarget, selectDirectRayTarget } from "../game/combat/aimAssist";
 import { kamikazeDamage, shouldKamikazeDetonate } from "../game/entities/kamikaze";
 import { PausableClock } from "../game/systems/PausableClock";
 import { cameraRelativeMovement } from "../game/entities/movement";
 import { RaiderDrone } from "../game/entities/RaiderDrone";
+import { mapGyroDelta } from "../ui/GyroAimController";
 
 function spawnWholeWave(manager: WaveManager): void {
   for (let index = 0; index < 30; index += 1) {
@@ -41,6 +42,8 @@ describe("Ashen Rail game rules", () => {
     expect(target?.id).toBe("live");
   });
 
+  it("關閉 Aim Assist 仍然可以直接射線命中", () => { const target = selectDirectRayTarget([{ id: "center", dead: false, forwardDistance: 8, perpendicularDistance: .2, radius: .8 }, { id: "off-axis", dead: false, forwardDistance: 5, perpendicularDistance: 1.2, radius: .8 }]); expect(target?.id).toBe("center"); });
+
   it("爆破無人機接近核心後先倒數，時間到先會引爆", () => {
     const engine = new NullEngine(); const scene = new Scene(engine); const root = new TransformNode("kamikaze-test", scene);
     const drone = new RaiderDrone(root, "kamikaze", 1, scene); const core = Vector3.Zero(); const player = new Vector3(0, 0, -3);
@@ -62,4 +65,5 @@ describe("Ashen Rail game rules", () => {
   it("Spawn 失敗會重新排隊而唔會產生幽靈敵人", () => { const waves = new WaveManager(); waves.start(); const event = waves.update(1)[0]; expect(event?.type).toBe("spawn"); if (event?.type === "spawn") waves.confirmSpawn(event.variant, false); expect(waves.alive).toBe(0); expect(waves.remaining).toBe(3); });
 
   it("角色移動會跟隨鏡頭方向旋轉", () => { const move = cameraRelativeMovement(0, 1, { x: 1, z: 0 }); expect(move.x).toBe(1); expect(move.z).toBe(0); });
+  it("陀螺儀會按手機橫向方向映射瞄準", () => { expect(mapGyroDelta(2, 1, 90).asArray()).toEqual([-2, 1]); expect(mapGyroDelta(2, 1, 270).asArray()).toEqual([2, -1]); });
 });

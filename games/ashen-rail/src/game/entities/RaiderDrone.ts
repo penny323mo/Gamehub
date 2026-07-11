@@ -27,6 +27,7 @@ export class RaiderDrone {
   private flash = 0;
   private readonly aura?: TransformNode;
   private readonly warningRing: TransformNode;
+  private readonly targetRing: TransformNode;
   private readonly coreGlow: TransformNode;
   private kamikazeArmed = false;
   private kamikazeCountdown = 1.05;
@@ -41,6 +42,7 @@ export class RaiderDrone {
     root.scaling.scaleInPlace(variant === "elite" ? 1.18 : variant === "kamikaze" ? 1.1 : 1);
     const coreGlow = MeshBuilder.CreateSphere(`hostile-core-${this.id}`, { diameter: 0.28, segments: 8 }, scene); coreGlow.material = emissiveMaterial(scene, "hostile-core-material", new Color3(1, 0.03, 0.01)); coreGlow.parent = root; this.coreGlow = coreGlow;
     const warningRing = MeshBuilder.CreateTorus(`attack-warning-${this.id}`, { diameter: 1.85, thickness: 0.045, tessellation: 20 }, scene); warningRing.material = emissiveMaterial(scene, "attack-warning-material", new Color3(1, 0.32, 0.03)); warningRing.parent = root; warningRing.rotation.x = Math.PI / 2; warningRing.setEnabled(false); this.warningRing = warningRing;
+    const targetRing = MeshBuilder.CreateTorus(`target-lock-${this.id}`, { diameter: 2.05, thickness: 0.035, tessellation: 24 }, scene); targetRing.material = emissiveMaterial(scene, "target-lock-material", new Color3(0.1, 0.75, 1)); targetRing.parent = root; targetRing.rotation.x = Math.PI / 2; targetRing.setEnabled(false); this.targetRing = targetRing;
     if (variant === "kamikaze") {
       const aura = MeshBuilder.CreateTorus(`danger-aura-${this.id}`, { diameter: 2.2, thickness: 0.08, tessellation: 24 }, scene);
       aura.material = emissiveMaterial(scene, "danger-aura-material", new Color3(1, 0.08, 0)); aura.parent = root; aura.rotation.x = Math.PI / 2; this.aura = aura;
@@ -88,5 +90,6 @@ export class RaiderDrone {
   }
 
   consumeArmedSignal(): boolean { const armed = this.armedSignal; this.armedSignal = false; return armed; }
-  releaseExtras(): void { this.aura?.dispose(); this.warningRing.dispose(); this.coreGlow.dispose(); }
+  setTargeted(targeted: boolean): void { this.targetRing.setEnabled(targeted && !this.dead); if (targeted) this.targetRing.scaling.setAll(1 + Math.sin(this.age * 8) * 0.06); }
+  releaseExtras(): void { this.aura?.dispose(); this.warningRing.dispose(); this.targetRing.dispose(); this.coreGlow.dispose(); }
 }

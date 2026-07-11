@@ -67,4 +67,4 @@ export const MODEL_ASSETS: Record<AssetId, ModelAssetConfig> = {
 };
 
 export const PLAYER_BOUNDS = { minX: -2.45, maxX: 2.45, minZ: -7.6, maxZ: 7.2 };
-export const CORE_POSITION: [number, number, number] = [-1.3, 1.08, 2.5];
+export const CORE_POSITION: [number, number, number] = [0, 0, 1.8];

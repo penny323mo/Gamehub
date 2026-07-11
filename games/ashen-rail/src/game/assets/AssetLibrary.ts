@@ -56,8 +56,9 @@ export class AssetLibrary {
       root.rotation = Vector3.FromArray(config.rotation);
       root.scaling.setAll(config.scale);
       for (const mesh of result.meshes) {
-        mesh.isPickable = id === "drone";
+        mesh.isPickable = id === "drone" || id === "train";
         mesh.receiveShadows = id === "train";
+        if (id === "train") mesh.metadata = { ...mesh.metadata, trainSurface: true, blocksShots: true };
       }
       if (id === "train") this.normalizeTrain(root);
       if (id === "drone") root.setEnabled(false);
@@ -71,7 +72,7 @@ export class AssetLibrary {
       mesh.position = Vector3.FromArray(config.position);
       mesh.rotation = Vector3.FromArray(config.rotation);
       mesh.scaling.setAll(config.scale);
-      if (id === "train") this.normalizeTrain(mesh);
+      if (id === "train") { mesh.isPickable = true; mesh.metadata = { trainSurface: true, blocksShots: true }; this.normalizeTrain(mesh); }
       if (id === "drone") mesh.setEnabled(false);
       return { id, root: mesh, meshes: [mesh], skeletons: [], animationGroups: [], fallback: true, error: String(error) };
     }

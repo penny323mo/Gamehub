@@ -49,7 +49,7 @@ export class GameApp {
 
   private bindUi(): void {
     this.bindSettings();
-    document.querySelector("#start-button")?.addEventListener("click", async () => { await this.battle.audio.unlock(); await this.tryFullscreen(); document.querySelector("#start-screen")?.classList.add("hidden"); this.battle.start(); });
+    document.querySelector("#start-button")?.addEventListener("click", async () => { const gyro = document.querySelector<HTMLInputElement>("#gyro-aim"); const audioUnlock = this.battle.audio.unlock(); const gyroPermission = this.battle.setGyroEnabled(Boolean(gyro?.checked)); await Promise.all([audioUnlock, gyroPermission]); await this.tryFullscreen(); document.querySelector("#start-screen")?.classList.add("hidden"); this.battle.start(); });
     document.querySelector("#resume-button")?.addEventListener("click", () => this.battle.resume());
     document.querySelector("#restart-button")?.addEventListener("click", () => { document.querySelector("#result-screen")?.classList.add("hidden"); this.battle.start(); });
     document.querySelector("#restart-paused-button")?.addEventListener("click", () => { document.querySelector("#pause-screen")?.classList.add("hidden"); this.battle.state.transition("READY"); this.battle.start(); });
@@ -64,9 +64,13 @@ export class GameApp {
     const quality = document.querySelector<HTMLSelectElement>("#quality-setting"); if (quality) { quality.value = this.qualityName; quality.addEventListener("change", () => { localStorage.setItem("ashenRail.quality", quality.value); window.location.reload(); }); }
     const master = document.querySelector<HTMLInputElement>("#master-volume"); if (master) { master.value = String(this.battle.audio.settings.master); master.addEventListener("input", () => { this.battle.audio.settings.master = Number(master.value); this.saveAudioSettings(); }); }
     const mute = document.querySelector<HTMLInputElement>("#mute-setting"); if (mute) { mute.checked = this.battle.audio.settings.muted; mute.addEventListener("change", () => { this.battle.audio.settings.muted = mute.checked; this.saveAudioSettings(); }); }
-    const savedCamera = (() => { try { return JSON.parse(localStorage.getItem("ashenRail.camera") ?? "{}"); } catch { return {}; } })() as { shake?: number; aimAssist?: number };
+    const savedCamera = (() => { try { return JSON.parse(localStorage.getItem("ashenRail.camera") ?? "{}"); } catch { return {}; } })() as { sensitivity?: number; shake?: number; aimAssist?: number };
+    const sensitivity = document.querySelector<HTMLInputElement>("#camera-sensitivity"); if (sensitivity) { sensitivity.value = String(savedCamera.sensitivity ?? 1.15); sensitivity.addEventListener("input", () => this.battle.setCameraSetting("sensitivity", Number(sensitivity.value))); }
+    const gyro = document.querySelector<HTMLInputElement>("#gyro-aim"); if (gyro) { gyro.checked = localStorage.getItem("ashenRail.gyro") !== "0"; gyro.addEventListener("change", () => localStorage.setItem("ashenRail.gyro", gyro.checked ? "1" : "0")); }
     const shake = document.querySelector<HTMLInputElement>("#camera-shake"); if (shake) { shake.value = String(savedCamera.shake ?? 0.65); shake.addEventListener("input", () => this.battle.setCameraSetting("shake", Number(shake.value))); }
-    const aim = document.querySelector<HTMLInputElement>("#aim-assist"); if (aim) { aim.value = String(savedCamera.aimAssist ?? 0.7); aim.addEventListener("input", () => this.battle.setCameraSetting("aimAssist", Number(aim.value))); }
+    const aim = document.querySelector<HTMLInputElement>("#aim-assist"); const aimToggle = document.querySelector<HTMLInputElement>("#aim-assist-toggle"); const savedAim = savedCamera.aimAssist ?? 0.82;
+    if (aim) { aim.value = String(savedAim > 0 ? savedAim : 0.82); aim.addEventListener("input", () => { if (aimToggle?.checked) this.battle.setCameraSetting("aimAssist", Number(aim.value)); }); }
+    if (aimToggle) { aimToggle.checked = savedAim > 0; aimToggle.addEventListener("change", () => this.battle.setCameraSetting("aimAssist", aimToggle.checked ? Number(aim?.value ?? 0.82) : 0)); }
   }
 
   private saveAudioSettings(): void { localStorage.setItem("ashenRail.audio", JSON.stringify(this.battle.audio.settings)); }
