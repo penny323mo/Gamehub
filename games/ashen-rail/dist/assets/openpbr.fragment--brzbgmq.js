@@ -1,0 +1,1 @@
+import{t as e}from"./openpbr.fragment-ChaiWnnO.js";export{e as openpbrPixelShaderWGSL};
