@@ -686,14 +686,18 @@ body {
     background: rgba(20, 26, 16, .86); border: 2px solid #6a7a4a; border-radius: 14px; pointer-events: auto;
 }
 #rts-sel-info { font-size: 13px; color: #d8e0c0; margin-bottom: 6px; text-align: center; }
-#rts-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+#rts-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-height: 168px; overflow-y: auto; }
 .rts-act-btn {
-    display: flex; flex-direction: column; align-items: center; min-width: 76px; padding: 8px 10px;
+    display: flex; flex-direction: column; align-items: center; min-width: 72px; padding: 7px 9px;
     border: 2px solid #8a6a3a; border-radius: 10px; cursor: pointer;
-    background: linear-gradient(180deg, #ffd870, #d8a038); color: #3a2a10; font-weight: 800; font-size: 14px;
+    background: linear-gradient(180deg, #ffd870, #d8a038); color: #3a2a10; font-weight: 800; font-size: 13px;
 }
 .rts-act-btn small { font-size: 10px; font-weight: 700; opacity: .82; margin-top: 2px; }
 .rts-act-btn:active { transform: scale(.96); }
+.rts-act-btn.locked {
+    background: linear-gradient(180deg, #6a6a62, #4a4a44); color: #cfcabf;
+    border-color: #55524a; opacity: .8;
+}
 
 #rts-toast {
     position: absolute; top: 30%; left: 50%; transform: translateX(-50%);

@@ -2,7 +2,7 @@
 // 由 main.js 用共用嘅 scene/camera/renderer 建立，喺 RTS 模式期間接管單指輸入。
 import * as THREE from 'three';
 import { TEAM } from '../constants.js';
-import { RtsGame, RTS_UNITS, RTS_BUILDINGS } from './rts.js';
+import { RtsGame, RTS_UNITS, RTS_BUILDINGS, TC_UPGRADE, RTS_MAX_AGE } from './rts.js';
 import { RtsAI } from './rts-ai.js';
 
 const $ = (id) => document.getElementById(id);
@@ -215,11 +215,25 @@ export function createRtsMode(deps) {
         if (building && !units.length) {
             const def = building.def;
             if (!building.complete) { info.textContent = `${def.icon} ${def.name}（建造中 ${Math.round(building.buildProgress * 100)}%）`; return; }
-            info.textContent = `${def.icon} ${def.name}${building.trainQueue.length ? `　生產中×${building.trainQueue.length}` : ''}`;
-            for (const t of def.trains) {
-                const u = RTS_UNITS[t];
-                acts.appendChild(actionBtn(`${u.icon} ${u.name}`, costStr(u.cost), () => { game.queueTrain(building, t); renderActions(); }));
+            const age = game.teamAge(TEAM.PLAYER);
+            // 城鎮中心：升級主城
+            if (building.buildingType === 'towncenter') {
+                if (building.upgrading) {
+                    const pct = Math.round((1 - building.upgrading.timer / building.upgrading.total) * 100);
+                    info.textContent = `${def.icon} ${def.name}（第 ${building.age} 代 · 升級中 ${pct}%）`;
+                } else {
+                    info.textContent = `${def.icon} ${def.name}（第 ${building.age} 代）${building.trainQueue.length ? `　生產中×${building.trainQueue.length}` : ''}`;
+                }
+                acts.appendChild(trainBtn('villager', building));
+                if (!building.upgrading && building.age < RTS_MAX_AGE) {
+                    const up = TC_UPGRADE[building.age + 1];
+                    acts.appendChild(actionBtn(`⬆️ 升級到第 ${building.age + 1} 代`, costStr(up.cost), () => { game.queueUpgrade(building); renderActions(); }));
+                }
+                return;
             }
+            // 兵營：全兵種，按時代 gate（未夠代顯示鎖）
+            info.textContent = `${def.icon} ${def.name}（第 ${age} 代）${building.trainQueue.length ? `　生產中×${building.trainQueue.length}` : ''}`;
+            for (const t of def.trains) acts.appendChild(trainBtn(t, building, age));
             return;
         }
 
@@ -246,6 +260,19 @@ export function createRtsMode(deps) {
         b.innerHTML = `<span>${label}</span>${cost ? `<small>${cost}</small>` : ''}`;
         b.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
         return b;
+    }
+    // 訓練掣：未到時代就鎖住顯示「🔒N代」
+    function trainBtn(type, building, age = 99) {
+        const u = RTS_UNITS[type];
+        const locked = (u.age ?? 1) > age;
+        if (locked) {
+            const b = document.createElement('button');
+            b.className = 'rts-act-btn locked';
+            b.innerHTML = `<span>${u.icon} ${u.name}</span><small>🔒 ${u.age} 代</small>`;
+            b.addEventListener('click', (e) => { e.stopPropagation(); toast(`${u.name} 要升級主城到第 ${u.age} 代`); });
+            return b;
+        }
+        return actionBtn(`${u.icon} ${u.name}`, costStr(u.cost), () => { game.queueTrain(building, type); renderActions(); });
     }
     function costStr(cost) {
         if (!cost) return '';

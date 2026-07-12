@@ -15,24 +15,76 @@ let rtsId = 1;
 const lmat = (color) => new THREE.MeshLambertMaterial({ color });
 
 // ---------- 資料表 ----------
+// 全 11 個原兵種都用返：民兵→村民，其餘 10 個做戰鬥兵，分三代（age）解鎖。
+// age = 需要城鎮中心升到第幾代先出得。pop = 佔幾多人口。vsBuilding = 對建築傷害倍率。
 export const RTS_UNITS = {
     villager: {
-        name: '村民', icon: '👷', model: 'militia',
+        name: '村民', icon: '👷', model: 'militia', age: 1,
         hp: 45, dmg: 4, hitSpeed: 1.2, range: 0.9, sight: 4.5, speed: 3.0, radius: 0.32,
         cost: { food: 50 }, trainTime: 4, trainAt: 'towncenter',
-        gatherRate: 9, carryCap: 12, // 每秒採 9、袋滿 12 就返中心卸貨
+        gatherRate: 11, carryCap: 16, // 每秒採 11、袋滿 16 就返中心卸貨（大地圖行遠啲，袋大啲少啲來回）
     },
+    // ── 第一代（開局即有）──
     soldier: {
-        name: '士兵', icon: '⚔️', model: 'swordsman',
+        name: '士兵', icon: '⚔️', model: 'swordsman', age: 1,
         hp: 130, dmg: 16, hitSpeed: 1.0, range: 1.0, sight: 6.5, speed: 2.7, radius: 0.4,
         cost: { food: 60, gold: 20 }, trainTime: 6, trainAt: 'barracks',
     },
     archer: {
-        name: '弓兵', icon: '🏹', model: 'archers',
+        name: '弓兵', icon: '🏹', model: 'archers', age: 1,
         hp: 70, dmg: 12, hitSpeed: 1.1, range: 5.5, sight: 7.0, speed: 2.5, radius: 0.34,
         projectile: true, cost: { food: 40, gold: 30 }, trainTime: 5, trainAt: 'barracks',
     },
+    pikeman: {
+        name: '長槍兵', icon: '🔱', model: 'pikemen', age: 1,
+        hp: 175, dmg: 13, hitSpeed: 1.1, range: 1.3, sight: 6.0, speed: 2.5, radius: 0.4,
+        cost: { food: 55, gold: 10 }, trainTime: 6, trainAt: 'barracks', // 平、肉厚，做前排
+    },
+    // ── 第二代（升級主城一次）──
+    scout: {
+        name: '斥候輕騎', icon: '🐴', model: 'scout', age: 2,
+        hp: 100, dmg: 15, hitSpeed: 0.9, range: 1.0, sight: 7.5, speed: 4.3, radius: 0.36,
+        cost: { food: 50, gold: 25 }, trainTime: 5, trainAt: 'barracks', // 極快，騷擾採集
+    },
+    handcannon: {
+        name: '火槍兵', icon: '💥', model: 'handcannon', age: 2,
+        hp: 85, dmg: 27, hitSpeed: 1.5, range: 6.2, sight: 7.5, speed: 2.2, radius: 0.34,
+        projectile: true, cost: { food: 45, gold: 55 }, trainTime: 7, trainAt: 'barracks',
+    },
+    berserker: {
+        name: '狂戰士', icon: '🪓', model: 'berserker', age: 2,
+        hp: 170, dmg: 23, hitSpeed: 0.85, range: 1.0, sight: 6.5, speed: 3.0, radius: 0.4,
+        cost: { food: 70, gold: 35 }, trainTime: 7, trainAt: 'barracks',
+    },
+    // ── 第三代（升級主城兩次）──
+    knight: {
+        name: '騎士', icon: '🐎', model: 'knight', age: 3, pop: 2,
+        hp: 290, dmg: 31, hitSpeed: 1.0, range: 1.1, sight: 7.0, speed: 3.6, radius: 0.46,
+        cost: { food: 90, gold: 70 }, trainTime: 9, trainAt: 'barracks', // 重騎兵
+    },
+    ram: {
+        name: '攻城槌', icon: '🪵', model: 'ram', age: 3, pop: 2, vsBuilding: 9,
+        hp: 340, dmg: 12, hitSpeed: 1.5, range: 1.4, sight: 6.0, speed: 1.9, radius: 0.5,
+        cost: { food: 40, gold: 60 }, trainTime: 9, trainAt: 'barracks', // 專拆建築
+    },
+    catapult: {
+        name: '投石車', icon: '🪨', model: 'catapult', age: 3, pop: 2, vsBuilding: 2, splash: 2.2,
+        hp: 120, dmg: 42, hitSpeed: 2.4, range: 7.2, sight: 8.0, speed: 1.7, radius: 0.5,
+        projectile: true, cost: { food: 50, gold: 90 }, trainTime: 11, trainAt: 'barracks', // 範圍攻城
+    },
+    elephant: {
+        name: '戰象', icon: '🐘', model: 'elephant', age: 3, pop: 3,
+        hp: 520, dmg: 36, hitSpeed: 1.3, range: 1.3, sight: 6.5, speed: 2.2, radius: 0.6,
+        cost: { food: 120, gold: 80 }, trainTime: 13, trainAt: 'barracks', // 超級肉盾
+    },
 };
+
+// 城鎮中心升級：升到第 N 代嘅消耗同時間
+export const TC_UPGRADE = {
+    2: { cost: { food: 400, gold: 220 }, time: 28 },
+    3: { cost: { food: 750, gold: 450 }, time: 42 },
+};
+export const RTS_MAX_AGE = 3;
 
 export const RTS_BUILDINGS = {
     towncenter: {
@@ -41,8 +93,8 @@ export const RTS_BUILDINGS = {
     },
     barracks: {
         name: '兵營', icon: '🏰', hp: 800, radius: 1.6,
-        trains: ['soldier', 'archer'], model: 'watchtower',
-        cost: { gold: 120 }, buildTime: 14,
+        trains: ['soldier', 'archer', 'pikeman', 'scout', 'handcannon', 'berserker', 'knight', 'ram', 'catapult', 'elephant'],
+        model: 'watchtower', cost: { gold: 120 }, buildTime: 14,
     },
     house: {
         name: '房屋', icon: '🏠', hp: 500, radius: 1.2,
@@ -52,8 +104,8 @@ export const RTS_BUILDINGS = {
 };
 
 const START = { food: 260, gold: 160 };
-const BASE_POP_CAP = 16;   // 起始人口上限（起房屋加）
-const HARD_POP_CAP = 60;
+const BASE_POP_CAP = 18;   // 起始人口上限（起房屋加）
+const HARD_POP_CAP = 70;
 
 // RTS 專屬大地圖（比 Clash 戰場大約 2.5 倍，有空間發展經濟同排兵）
 export const RTS_MAP = { halfW: 22, halfL: 34 };
@@ -213,8 +265,8 @@ export class RtsGame {
             this.towncenter = this.towncenter || {};
             this.towncenter[team] = tc;
             this.#spawnBuilding('barracks', team, sz * -6, sz * (L - 8.5), true);
-            for (let i = 0; i < 4; i++) {
-                this.#spawnUnit('villager', team, (i - 1.5) * 1.6, sz * (L - 10));
+            for (let i = 0; i < 5; i++) {
+                this.#spawnUnit('villager', team, (i - 2) * 1.6, sz * (L - 10));
             }
         }
         // 資源節點：分散喺大地圖（本方基地附近＋側翼＋中場爭奪）
@@ -250,6 +302,7 @@ export class RtsGame {
         e.trainQueue = [];
         e.trainT = 0;
         e.rally = null;
+        if (type === 'towncenter') { e.age = 1; e.upgrading = null; } // 城鎮中心持有該隊伍嘅時代
         e.complete = complete;
         e.buildProgress = complete ? 1 : 0;
         if (!complete) { e.hp = Math.max(1, Math.round(def.hp * 0.05)); }
@@ -296,8 +349,17 @@ export class RtsGame {
 
     // ---------- 查詢 ----------
     get playerUnits() { return this.entities.filter(e => e.kind === 'unit' && e.team === TEAM.PLAYER && !e.dead); }
-    population(team) { return this.entities.filter(e => e.kind === 'unit' && e.team === team && !e.dead).length
-        + this.entities.filter(e => e.kind === 'building' && e.team === team && !e.dead).reduce((s, b) => s + b.trainQueue.length, 0); }
+    // 人口用兵種嘅 pop 權重計（騎士/攻城 2、戰象 3），排緊隊嘅都要計入去
+    population(team) {
+        let pop = 0;
+        for (const e of this.entities) {
+            if (e.dead) continue;
+            if (e.kind === 'unit' && e.team === team) pop += e.def.pop ?? 1;
+            else if (e.kind === 'building' && e.team === team) for (const t of e.trainQueue) pop += RTS_UNITS[t].pop ?? 1;
+        }
+        return pop;
+    }
+    teamAge(team) { const tc = this.towncenter?.[team]; return tc && !tc.dead ? tc.age : 1; }
 
     entityAt(x, z, teamFilter = null) {
         let best = null, bestD = Infinity;
@@ -393,7 +455,10 @@ export class RtsGame {
         if (building.dead || !building.complete) return false;
         const def = RTS_UNITS[unitType];
         if (!def || !RTS_BUILDINGS[building.buildingType].trains.includes(unitType)) return false;
-        if (this.population(building.team) + building.trainQueue.length >= this.popCap[building.team]) {
+        if ((def.age ?? 1) > this.teamAge(building.team)) {
+            this.hooks.onEvent?.(`${def.name}需要升級主城到第 ${def.age} 代`, building.team); return false;
+        }
+        if (this.population(building.team) >= this.popCap[building.team]) {
             this.hooks.onEvent?.('人口已滿，起房屋擴充', building.team); return false;
         }
         if (!this.canAfford(building.team, def.cost)) {
@@ -401,6 +466,18 @@ export class RtsGame {
         }
         this.#pay(building.team, def.cost);
         building.trainQueue.push(unitType);
+        return true;
+    }
+
+    // 城鎮中心升級：消耗資源＋時間，升到下一代解鎖高級兵
+    queueUpgrade(tc) {
+        if (!tc || tc.dead || tc.buildingType !== 'towncenter' || !tc.complete) return false;
+        if (tc.upgrading || tc.age >= RTS_MAX_AGE) return false;
+        const up = TC_UPGRADE[tc.age + 1];
+        if (!this.canAfford(tc.team, up.cost)) { this.hooks.onEvent?.('資源不足，升級唔到', tc.team); return false; }
+        this.#pay(tc.team, up.cost);
+        tc.upgrading = { timer: up.time, total: up.time, toAge: tc.age + 1 };
+        this.hooks.onEvent?.(`城鎮中心升級緊到第 ${tc.age + 1} 代…`, tc.team);
         return true;
     }
 
@@ -454,6 +531,18 @@ export class RtsGame {
             }
             return;
         }
+        // 城鎮中心升級進度
+        if (b.upgrading) {
+            b.upgrading.timer -= dt;
+            if (b.upgrading.timer <= 0) {
+                b.age = b.upgrading.toAge;
+                b.upgrading = null;
+                b.maxHp += 300; b.hp += 300; b.hpBar.userData.setRatio(b.hp / b.maxHp);
+                this.popCap[b.team] = Math.min(HARD_POP_CAP, this.popCap[b.team] + 4);
+                this.hooks.onEvent?.(`🏯 城鎮中心升到第 ${b.age} 代！解鎖新兵種`, b.team);
+                this.hooks.onResources?.();
+            }
+        }
         // 生產隊列
         if (b.trainQueue.length) {
             b.trainT += dt;
@@ -489,10 +578,10 @@ export class RtsGame {
             return;
         }
 
-        // 移動指令：去到目標點就 idle
+        // 移動指令：去到目標點附近就 idle（門檻放寬啲，多個單位迫埋一齊都唔會卡死喺 move）
         if (cmd.type === 'move') {
             const d = Math.hypot(cmd.tx - e.x, cmd.tz - e.z);
-            if (d < 0.3) { e.command = { type: 'idle' }; }
+            if (d < 0.7) { e.command = { type: 'idle' }; }
             else { this.#moveToward(e, cmd.tx, cmd.tz, dt); this.#animate(e, true); return; }
         }
 
@@ -561,8 +650,15 @@ export class RtsGame {
         if (e.attackCd <= 0) {
             e.attackCd = e.hitSpeed;
             if (e.projectile) this.#spawnProjectile(e, t);
-            else this.#damage(t, e.dmg, e);
+            else this.#hit(e, t);
         }
+    }
+
+    // 埋身/命中傷害：攻城單位對建築有加成
+    #hit(attacker, target) {
+        let dmg = attacker.dmg;
+        if (target.kind === 'building' && attacker.def?.vsBuilding) dmg *= attacker.def.vsBuilding;
+        this.#damage(target, dmg, attacker);
     }
 
     #moveToward(e, tx, tz, dt) {
@@ -631,11 +727,13 @@ export class RtsGame {
     }
 
     #spawnProjectile(e, t) {
-        const geo = new THREE.SphereGeometry(0.08, 6, 5);
-        const m = new THREE.Mesh(geo, lmat(0xffe08a));
+        const splash = e.def?.splash ?? 0;
+        const big = splash > 0;                       // 投石車：大石＋範圍
+        const geo = new THREE.SphereGeometry(big ? 0.22 : 0.08, 6, 5);
+        const m = new THREE.Mesh(geo, lmat(big ? 0x8f8a80 : 0xffe08a));
         m.position.set(e.x, 1.2, e.z);
         this.scene.add(m);
-        this.projectiles.push({ model: m, x: e.x, y: 1.2, z: e.z, target: t, dmg: e.dmg, src: e, speed: 14 });
+        this.projectiles.push({ model: m, x: e.x, y: 1.2, z: e.z, target: t, dmg: e.dmg, src: e, splash, speed: big ? 9 : 14 });
     }
 
     #updateProjectiles(dt) {
@@ -646,12 +744,37 @@ export class RtsGame {
             const d = Math.hypot(dx, dz, dy) || 1;
             const step = p.speed * dt;
             if (step >= d) {
-                this.#damage(p.target, p.dmg, p.src);
+                this.#projectileHit(p);
                 this.scene.remove(p.model); disposeDeep(p.model); this.projectiles.splice(i, 1);
             } else {
                 p.x += dx / d * step; p.y += dy / d * step; p.z += dz / d * step;
                 p.model.position.set(p.x, p.y, p.z);
             }
+        }
+    }
+
+    #projectileHit(p) {
+        const applyBonus = (target, dmg) => (target.kind === 'building' && p.src.def?.vsBuilding) ? dmg * p.src.def.vsBuilding : dmg;
+        if (p.splash > 0) {
+            // 範圍傷害：命中點附近所有敵人（含建築）
+            const cx = p.target.x, cz = p.target.z;
+            this.#explosion(cx, cz, p.splash);
+            for (const o of this.entities) {
+                if (o.dead || o.team === p.src.team || o.team === -1 || o.kind === 'resource') continue;
+                if (Math.hypot(o.x - cx, o.z - cz) <= p.splash + (o.radius ?? 0.4)) this.#damage(o, applyBonus(o, p.dmg), p.src);
+            }
+        } else {
+            this.#damage(p.target, applyBonus(p.target, p.dmg), p.src);
+        }
+    }
+
+    #explosion(x, z, r) {
+        for (let i = 0; i < 8; i++) {
+            const m = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.12), lmat(0xbdb08c));
+            m.position.set(x, 0.5, z);
+            const a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * r;
+            this.scene.add(m);
+            this.effects.push({ t: 0, dur: 0.6, m, vx: Math.cos(a) * sp, vy: 1.5 + Math.random() * 2, vz: Math.sin(a) * sp });
         }
     }
 
