@@ -689,10 +689,12 @@ export class RtsGame {
     }
 
     #animate(e, moving, attacking = false) {
-        const t = this.time + e.rtsId * 0.6;
-        if (e.model.userData.animate) e.model.userData.animate(t, { moving, attackT: attacking ? 0.3 : -1 });
+        // 先擺位再叫動畫——動畫會郁 group.position.y（戰象/攻城槌）或內層 model，
+        // 如果擺位喺動畫之後就會蓋走個 y 起伏（企定/行走都唔郁），所以次序要調返
         e.model.position.set(e.x, 0, e.z);
         e.hpBar.position.set(e.x, e.hpBar.userData.h, e.z);
+        const t = this.time + e.rtsId * 0.6;
+        if (e.model.userData.animate) e.model.userData.animate(t, { moving, attackT: attacking ? 0.3 : -1 });
     }
 
     #nearestEnemy(e, range) {

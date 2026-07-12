@@ -219,20 +219,30 @@ function makeFakeAnimator(model, { bobAmount = 0.045, bobSpeed = 8, lungeAmount 
     const flash = makeHitFlash(model);
     model.userData.onHit = flash.onHit;
     return (t, state) => {
-        model.position.y = baseY + (state.moving ? Math.abs(Math.sin(t * bobSpeed)) * bobAmount : 0);
         if (state.attackT >= 0) {
+            // 攻擊：前撲（實質位移，方向由 group facing 決定）＋側揮＋命中膨脹
             const p = state.attackT;
-            // 前撲（實質位移，唔靠旋轉，方向由 group 嘅 facing 決定，冇歧義）
-            // ＋側揮（rotation.z 唔涉及前後方向，純粹畀個「郁緊」嘅視覺回饋）＋命中膨脹
             const lunge = p < 0.3 ? (p / 0.3) : Math.max(0, 1 - (p - 0.3) / 0.55);
             model.position.z = forwardSign * lunge * lungeAmount;
             const punch = p < 0.32 ? (p / 0.32) : Math.max(0, 1 - (p - 0.32) / 0.5);
             model.scale.setScalar(baseScale * (1 + punch * 0.28));
             model.rotation.z = Math.sin(p * Math.PI) * 0.32;
-        } else {
+            model.position.y = baseY;
+            model.rotation.x *= 0.6;
+        } else if (state.moving) {
+            // 行走：上下踏步
+            model.position.y = baseY + Math.abs(Math.sin(t * bobSpeed)) * bobAmount;
             model.position.z *= 0.7;
             model.scale.setScalar(model.scale.x + (baseScale - model.scale.x) * 0.3);
             model.rotation.z *= 0.6;
+            model.rotation.x *= 0.6;
+        } else {
+            // 企定：呼吸起伏＋慢搖重心＋輕微前後晃，唔好似木頭人綁死咗（t 已含每兵相位偏移，唔會同步）
+            model.position.y = baseY + (Math.sin(t * 2.2) * 0.5 + 0.5) * 0.028;
+            model.rotation.z = Math.sin(t * 1.3) * 0.06;
+            model.rotation.x = Math.sin(t * 0.9) * 0.03;
+            model.position.z *= 0.7;
+            model.scale.setScalar(model.scale.x + (baseScale - model.scale.x) * 0.3);
         }
         flash.update(t);
     };
@@ -340,9 +350,7 @@ function makeRam(team) {
 
     g.userData.animate = (t, state) => {
         banner.rotation.y = Math.sin(t * 2.6) * 0.35;
-        if (state.moving) {
-            g.position.y = Math.abs(Math.sin(t * 7)) * 0.03;
-        }
+        g.position.y = state.moving ? Math.abs(Math.sin(t * 7)) * 0.03 : Math.sin(t * 1.6) * 0.01;
         if (state.attackT >= 0) {
             const p = state.attackT;
             // 成架車向前撞
@@ -371,9 +379,7 @@ function makeCatapult(team) {
 
     g.userData.animate = (t, state) => {
         banner.rotation.y = Math.sin(t * 2.6) * 0.35;
-        if (state.moving) {
-            g.position.y = Math.abs(Math.sin(t * 6)) * 0.025;
-        }
+        g.position.y = state.moving ? Math.abs(Math.sin(t * 6)) * 0.025 : Math.sin(t * 1.5) * 0.008;
         if (state.attackT >= 0) {
             // fake 後座力：向後一縮再回彈
             const p = state.attackT;
@@ -434,6 +440,8 @@ function makeElephant(team) {
             walkA.timeScale += (target - walkA.timeScale) * Math.min(1, dt * 8);
             mixer.update(dt);
         }
+        // 企定時輕微呼吸起伏，唔好僵住
+        g.position.y = state.moving ? 0 : Math.sin(t * 1.4) * 0.022;
         if (state.attackT >= 0) {
             const p = state.attackT;
             const a = p < 0.4 ? (p / 0.4) : 1 - (p - 0.4) / 0.6;
