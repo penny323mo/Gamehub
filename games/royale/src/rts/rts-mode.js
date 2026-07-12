@@ -184,28 +184,32 @@ export function createRtsMode(deps) {
         const units = selected.filter(e => e.kind === 'unit');
         const selBuilding = selected.find(e => e.kind === 'building');
 
-        // A) 有選中單位 → 落指令（去續建未完成建築／攻擊／採集／移動）；
-        //    但 tap 自己「已建成」建築 = 改為選取嗰個建築
-        if (units.length) {
-            if (hit && hit.team === TEAM.PLAYER && hit.kind === 'building' && hit.complete) {
-                selected = [hit]; renderActions(); return;
+        // A) 撳中自己嘅嘢：一律優先當「選取」，方便隨時轉揀單位（唔會誤變移動指令）；
+        //    例外：揀住村民撳自己未完成建築 = 去幫手起
+        if (hit && hit.team === TEAM.PLAYER) {
+            const vills = units.filter(u => u.unitType === 'villager');
+            if (hit.kind === 'building' && !hit.complete && vills.length) {
+                game.commandBuild(vills, hit); pingCommand(w.x, w.z, 'build'); return;
             }
+            selected = [hit]; renderActions(); return;
+        }
+
+        // B) 有選中單位 → 落指令（攻擊敵人／採集資源／移動；純移動會脫離戰鬥可以撤退）
+        if (units.length) {
             const kind = game.commandSmart(units, w.x, w.z, TEAM.PLAYER);
             pingCommand(w.x, w.z, kind);
             return;
         }
 
-        // B) 選咗建築 → tap 自己另一件嘢 = 改選；tap 地面 = 設集結點
+        // C) 選咗建築 → tap 地面 = 設集結點
         if (selBuilding && !selBuilding.dead) {
-            if (hit && hit.team === TEAM.PLAYER) { selected = [hit]; renderActions(); return; }
             selBuilding.rally = { x: w.x, z: w.z };
             updateRallyFlag();
             pingCommand(w.x, w.z, 'move');
             return;
         }
 
-        // C) 冇選取 → tap 自己嘢 = 選取；否則清空
-        if (hit && hit.team === TEAM.PLAYER) { selected = [hit]; renderActions(); return; }
+        // D) 咩都冇揀又撳空地 → 清選取
         selected = []; renderActions();
     }
 

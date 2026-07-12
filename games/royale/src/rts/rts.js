@@ -90,6 +90,7 @@ export const RTS_BUILDINGS = {
     towncenter: {
         name: '城鎮中心', icon: '🏯', hp: 1800, radius: 2.4, dropOff: true,
         trains: ['villager'], model: 'king',
+        atk: { dmg: 46, range: 8.5, hitSpeed: 0.9 }, // 主城自衛箭塔：幾隻兵衝唔冧，要真正軍隊或攻城
     },
     barracks: {
         name: '兵營', icon: '🏰', hp: 800, radius: 1.6,
@@ -368,7 +369,8 @@ export class RtsGame {
         for (const e of this.entities) {
             if (e.dead) continue;
             if (teamFilter !== null && e.team !== teamFilter) continue;
-            const r = (e.radius ?? 0.5) + 0.6;
+            // 單位細粒，畀多啲容差先好撳中（大地圖上尤其重要）
+            const r = (e.radius ?? 0.5) + (e.kind === 'unit' ? 1.2 : 0.6);
             const d = Math.hypot(e.x - x, e.z - z);
             if (d <= r && d < bestD) { best = e; bestD = d; }
         }
@@ -565,6 +567,18 @@ export class RtsGame {
             }
             return;
         }
+        // 防禦箭塔（主城）：向射程內最近敵人放箭，越高代打得越痛
+        if (b.def.atk) {
+            b.attackCd = Math.max(0, b.attackCd - dt);
+            if (b.attackCd <= 0) {
+                const foe = this.#nearestEnemy(b, b.def.atk.range);
+                if (foe) {
+                    b.attackCd = b.def.atk.hitSpeed;
+                    const dmg = Math.round(b.def.atk.dmg * (1 + ((b.age ?? 1) - 1) * 0.35));
+                    this.#buildingShoot(b, foe, dmg);
+                }
+            }
+        }
         // 城鎮中心升級進度
         if (b.upgrading) {
             b.upgrading.timer -= dt;
@@ -632,12 +646,9 @@ export class RtsGame {
             else { this.#moveToward(e, cmd.tx, cmd.tz, dt); this.#animate(e, true); return; }
         }
 
-        // 移動指令：純移動；但被貼身攻擊會還手（唔會死站畀人打）
+        // 移動指令：純移動，會脫離戰鬥——落 move 就係想撤退/轉場，唔會黐住繼續打
+        // （想邊打邊走用 attack-move；企定嘅單位仍然會自衛，見下面 idle 分支）
         if (cmd.type === 'move') {
-            if (isCombat) {
-                const foe = this.#nearestEnemy(e, e.range + (e.radius) + 1.4);
-                if (foe) { this.#chaseAndAttack(e, foe, dt); return; }
-            }
             const d = Math.hypot(cmd.tx - e.x, cmd.tz - e.z);
             if (d < 0.7) { e.command = { type: 'idle' }; }
             else { this.#moveToward(e, cmd.tx, cmd.tz, dt); this.#animate(e, true); return; }
@@ -791,6 +802,15 @@ export class RtsGame {
             if (d < bestD) { best = o; bestD = d; }
         }
         return best;
+    }
+
+    // 建築放箭（主城防禦）：由塔頂射出，直取目標
+    #buildingShoot(b, target, dmg) {
+        const y = 3.8;
+        const m = new THREE.Mesh(new THREE.SphereGeometry(0.11, 6, 5), lmat(0xffe08a));
+        m.position.set(b.x, y, b.z);
+        this.scene.add(m);
+        this.projectiles.push({ model: m, x: b.x, y, z: b.z, target, dmg, src: b, splash: 0, speed: 17 });
     }
 
     #spawnProjectile(e, t) {
