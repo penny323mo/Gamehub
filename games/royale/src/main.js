@@ -463,10 +463,11 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
     cleanupMatch();
     matchMode = mode;
     gauntletStage = stage;
-    const actualDiff = mode === 'gauntlet' ? gauntletDifficulty(stage) : difficulty;
+    const isLv2 = mode === 'lv2';
+    const actualDiff = mode === 'gauntlet' ? gauntletDifficulty(stage) : isLv2 ? 'hard' : difficulty;
 
-    // AI 個性＋預組卡組
-    const pid = randomPersonality();
+    // AI 個性＋預組卡組（LV2 精英戰場固定狂攻型，壓迫感更強）
+    const pid = isLv2 ? 'aggro' : randomPersonality();
     const personality = PERSONALITIES[pid];
 
     // 卡牌等級：玩家用自己存檔；AI 全卡組跟玩家平均等級走，保持公平
@@ -534,15 +535,24 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
         onSpawn() {},
     }, {
         levels: { [TEAM.PLAYER]: playerLevels(), [TEAM.ENEMY]: enemyLevels },
-        // 連勝挑戰第 4 關起，AI 聖水回復有加成
-        enemyElixirRate: mode === 'gauntlet' ? 1 + Math.max(0, stage - 3) * 0.15 : 1,
+        // 連勝挑戰第 4 關起，AI 聖水回復有加成；LV2 精英戰場 AI 全程加壓
+        enemyElixirRate: mode === 'gauntlet' ? 1 + Math.max(0, stage - 3) * 0.15 : isLv2 ? 1.35 : 1,
+        // LV2 專屬：敵方要塞 +40% 血、開局雙方 7 滴聖水，開場即刻打得爆
+        enemyTowerHpMult: isLv2 ? 1.4 : 1,
+        startElixir: isLv2 ? 7 : null,
     });
     ai = new AIController(game, actualDiff, pid);
     window.__royale = { game, ai, renderer, startMatch, cleanupMatch }; // 畀自動化測試用
     ui.bindGame(game);
     ui.showGame();
-    const stageTag = mode === 'gauntlet' ? `第 ${stage} 關 · ` : '';
-    ui.banner(`⚔️ ${stageTag}對手：${personality.icon} ${personality.name}`, 1600);
+    // LV2 精英戰場即刻轉黃昏光，同一般日光戰場區隔開
+    arena.setMood?.(isLv2 ? 1 : 0);
+    if (isLv2) {
+        ui.banner(`⭐ LV2 精英戰場 · 對手：${personality.icon} ${personality.name}`, 2000);
+    } else {
+        const stageTag = mode === 'gauntlet' ? `第 ${stage} 關 · ` : '';
+        ui.banner(`⚔️ ${stageTag}對手：${personality.icon} ${personality.name}`, 1600);
+    }
     running = true;
 }
 
