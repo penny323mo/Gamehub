@@ -13,6 +13,7 @@ import { playerLevels, avgDeckLevel, recordMatch } from './storage.js';
 import { GuestGame, attachHostRelay, sendGuestPlay } from './pvp.js';
 import * as Net from './net.js';
 import { createRtsMode } from './rts/rts-mode.js';
+import { RTS_MAP } from './rts/rts.js';
 
 // ---------- Renderer / Scene ----------
 const holder = document.getElementById('canvas-holder');
@@ -46,14 +47,18 @@ const camera = new THREE.PerspectiveCamera(52, 1, 0.5, 200);
 let arena = { zones: null, update: () => {} }; // loadAssets 之後先起
 
 // ---------- 鏡頭自動適配 + 縮放/旋轉 ----------
-const fitPoints = [
-    new THREE.Vector3(-ARENA.halfW - 0.8, 0, ARENA.halfL + 0.8),
-    new THREE.Vector3(ARENA.halfW + 0.8, 0, ARENA.halfL + 0.8),
-    new THREE.Vector3(-ARENA.halfW - 0.8, 0, -ARENA.halfL - 0.8),
-    new THREE.Vector3(ARENA.halfW + 0.8, 0, -ARENA.halfL - 0.8),
-    new THREE.Vector3(0, 5, -ARENA.halfL),
-    new THREE.Vector3(0, 4, ARENA.halfL),
-];
+// 鏡頭要 fit 嘅範圍：Clash 用 ARENA，RTS 大地圖用 RTS_MAP（startRts 時切換）
+let camHalfW = ARENA.halfW, camHalfL = ARENA.halfL;
+function buildFitPoints() {
+    return [
+        new THREE.Vector3(-camHalfW - 0.8, 0, camHalfL + 0.8),
+        new THREE.Vector3(camHalfW + 0.8, 0, camHalfL + 0.8),
+        new THREE.Vector3(-camHalfW - 0.8, 0, -camHalfL - 0.8),
+        new THREE.Vector3(camHalfW + 0.8, 0, -camHalfL - 0.8),
+        new THREE.Vector3(0, 5, -camHalfL),
+        new THREE.Vector3(0, 4, camHalfL),
+    ];
+}
 const tmpV = new THREE.Vector3();
 
 let fitD = 40;       // 自動適配搵到嘅基準距離
@@ -87,8 +92,9 @@ function fitCamera() {
     const Y_MID = (Y_MAX + Y_MIN) / 2;
     let targetZ = -1.2;
     let foundD = 40;
+    const fitPoints = buildFitPoints();
     outer:
-    for (let d = 24; d < 90; d += 1.0) {
+    for (let d = 24; d < 180; d += 1.0) {
         for (let iter = 0; iter < 10; iter++) {
             camera.position.set(0, d * 0.76, d * 0.66 + 5);
             camera.lookAt(0, 0, targetZ);
@@ -145,7 +151,7 @@ holder.addEventListener('pointerdown', (ev) => {
         camDragging = false;
         return;
     }
-    if (rts && rts.active) { rts.onPointerDown(ev.clientX, ev.clientY); return; }
+    if (rts && rts.active) { rtsPointerDown = true; rts.onPointerDown(ev.clientX, ev.clientY); return; }
     if (cardBusy || (ui && ui.selectedIdx >= 0)) return;
     camDragging = true;
     camLastX = ev.clientX;
@@ -161,7 +167,7 @@ window.addEventListener('pointermove', (ev) => {
         applyCameraView();
         return;
     }
-    if (rts && rts.active) { rts.onPointerMove(ev.clientX, ev.clientY); return; }
+    if (rts && rts.active) { if (rtsPointerDown) rts.onPointerMove(ev.clientX, ev.clientY); return; }
     if (!camDragging) return;
     const dx = ev.clientX - camLastX;
     camLastX = ev.clientX;
@@ -169,7 +175,10 @@ window.addEventListener('pointermove', (ev) => {
     applyCameraView();
 });
 function releasePointer(ev) {
-    if (rts && rts.active && activePointers.size <= 1) rts.onPointerUp(ev.clientX, ev.clientY);
+    // 只處理喺 canvas 上面開始嘅手勢——tap HUD 掣（訓練/建造/縮放）唔可以當落地指令，
+    // 否則會清走選取、喺 click 之前 removeDOM 令訓練掣按唔到（兵營出唔到兵嘅成因）
+    if (rts && rts.active && rtsPointerDown && activePointers.size <= 1) rts.onPointerUp(ev.clientX, ev.clientY);
+    rtsPointerDown = false;
     activePointers.delete(ev.pointerId);
     camDragging = false;
 }
@@ -242,6 +251,7 @@ let ai = null;
 let ui = null;
 let running = false;
 let rts = null; // LV2 世紀帝國式 RTS 控制器（init 後先建立）
+let rtsPointerDown = false; // RTS 手勢係咪喺 canvas 上面開始（隔走 HUD 掣嘅 pointer 事件）
 
 // ---------- PvP 狀態 ----------
 let netRole = null; // null | 'host' | 'guest'
@@ -557,13 +567,18 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
 function startRts() {
     cleanupMatch();            // 清走任何 Clash 遊戲狀態
     matchMode = 'lv2';
+    // 切去 RTS 大地圖：收起 Clash 戰場、關霧（大地圖遠端會俾霧食咗）、鏡頭 fit 大範圍
+    if (arena.root) arena.root.visible = false;
+    clashFog = scene.fog; scene.fog = null;
+    camHalfW = RTS_MAP.halfW; camHalfL = RTS_MAP.halfL;
+    fitCamera();
     resetCameraView();
-    arena.setMood?.(0);
     document.getElementById('screen-start')?.classList.add('hidden');
     document.getElementById('hud')?.classList.add('hidden');
     running = false;           // Clash 主迴圈唔郁，RTS 自己 update
     rts.start('hard');
 }
+let clashFog = null;
 
 // ---------- PvP：Host 開波（跑晒真正 Game 模擬，冇 AI，由遠端玩家輸入代替）----------
 function beginAsHost(hostDeck, guestDeck) {
@@ -700,7 +715,7 @@ function loop(now) {
 
     if (rts && rts.active) {
         rts.update(dt);
-        arena.update(dt);
+        // Clash 戰場喺 RTS 期間收起咗，唔使 arena.update（RTS 大地圖係靜態）
         renderer.render(scene, camera);
         return;
     }
@@ -746,7 +761,14 @@ async function init() {
     rts = createRtsMode({
         scene, camera, renderer, screenToWorld,
         zoomBy: (f) => { zoom = clampZoom(zoom * f); applyCameraView(); },
-        onExit: () => { arena.setMood?.(0); resetCameraView(); ui.showStart(); },
+        onExit: () => {
+            // 由 RTS 返 Clash：還原戰場、霧、鏡頭 fit 範圍
+            if (arena.root) arena.root.visible = true;
+            if (clashFog) scene.fog = clashFog;
+            camHalfW = ARENA.halfW; camHalfL = ARENA.halfL;
+            fitCamera();
+            arena.setMood?.(0); resetCameraView(); ui.showStart();
+        },
     });
     window.__rts = rts; // 畀自動化測試用
     window.__royaleRenderer = renderer; // 畀滲漏測試量度 GPU 資源

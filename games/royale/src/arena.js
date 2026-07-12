@@ -170,14 +170,18 @@ export function buildArena(scene) {
     const dayGnd = new THREE.Color(0x8aa060), duskGnd = new THREE.Color(0x7a5f44);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.camera.left = -20;
-    sun.shadow.camera.right = 20;
-    sun.shadow.camera.top = 22;
-    sun.shadow.camera.bottom = -22;
-    sun.shadow.camera.far = 70;
+    // 陰影範圍要蓋到 RTS 大地圖（±22 闊 ×±34 長），順帶都覆蓋 Clash 戰場
+    sun.shadow.camera.left = -26;
+    sun.shadow.camera.right = 26;
+    sun.shadow.camera.top = 38;
+    sun.shadow.camera.bottom = -38;
+    sun.shadow.camera.far = 100;
     sun.shadow.bias = -0.0004;
     sun.shadow.radius = 4;
     scene.add(sun);
+
+    // 所有戰場視覺（唔包燈光）放喺一個 root group 度，方便 RTS 模式整組收埋
+    const root = new THREE.Group();
 
     // ----- 主戰場草地 -----
     const field = new THREE.Mesh(
@@ -187,7 +191,7 @@ export function buildArena(scene) {
     field.rotation.x = -Math.PI / 2;
     field.position.y = 0;
     field.receiveShadow = true;
-    scene.add(field);
+    root.add(field);
 
     // 戰場微微升起嘅土台邊
     const plinth = new THREE.Mesh(
@@ -195,7 +199,7 @@ export function buildArena(scene) {
         new THREE.MeshLambertMaterial({ color: 0x8a6f47 })
     );
     plinth.position.y = -0.26;
-    scene.add(plinth);
+    root.add(plinth);
 
     // ----- 外圍草坪 -----
     const meadow = new THREE.Mesh(
@@ -205,7 +209,7 @@ export function buildArena(scene) {
     meadow.rotation.x = -Math.PI / 2;
     meadow.position.y = -0.06;
     meadow.receiveShadow = true;
-    scene.add(meadow);
+    root.add(meadow);
 
     // ----- 木柵欄圍場（AoE palisade）-----
     {
@@ -240,7 +244,7 @@ export function buildArena(scene) {
             shafts.setColorAt(i, col);
             tips.setColorAt(i, col);
         });
-        scene.add(shafts, tips);
+        root.add(shafts, tips);
     }
 
     // ----- 河流 -----
@@ -250,14 +254,14 @@ export function buildArena(scene) {
         new THREE.MeshLambertMaterial({ color: 0x3a76ae })
     );
     waterDeep.position.set(0, -0.14, 0);
-    scene.add(waterDeep);
+    root.add(waterDeep);
     const waterTop = new THREE.Mesh(
         new THREE.PlaneGeometry(riverW, ARENA.riverHalf * 2 - 0.12),
         new THREE.MeshLambertMaterial({ color: 0x5b9cd0, transparent: true, opacity: 0.85 })
     );
     waterTop.rotation.x = -Math.PI / 2;
     waterTop.position.y = 0.025;
-    scene.add(waterTop);
+    root.add(waterTop);
     // 流動泡沫層
     const foamTex = makeFoamTexture();
     const foam = new THREE.Mesh(
@@ -266,7 +270,7 @@ export function buildArena(scene) {
     );
     foam.rotation.x = -Math.PI / 2;
     foam.position.y = 0.045;
-    scene.add(foam);
+    root.add(foam);
 
     // 河岸沙邊
     for (const s of [-1, 1]) {
@@ -276,7 +280,7 @@ export function buildArena(scene) {
         );
         bank.rotation.x = -Math.PI / 2;
         bank.position.set(0, 0.012, s * (ARENA.riverHalf + 0.18));
-        scene.add(bank);
+        root.add(bank);
     }
     // 岸邊白泡沫線：一條幼白邊喺水同沙交界，脈動＋輕微拍岸位移，即刻有「水係郁緊」嘅感覺
     const shoreFoams = [];
@@ -288,7 +292,7 @@ export function buildArena(scene) {
         line.rotation.x = -Math.PI / 2;
         line.position.set(0, 0.05, s * (ARENA.riverHalf - 0.1));
         line.renderOrder = 3;
-        scene.add(line);
+        root.add(line);
         shoreFoams.push({ mesh: line, side: s, baseZ: s * (ARENA.riverHalf - 0.1) });
     }
     // 水面漂流閃光：幾粒好細嘅白光沿河飄，各自唔同相位
@@ -302,7 +306,7 @@ export function buildArena(scene) {
         sp.rotation.z = (random() - 0.5) * 0.5;
         sp.position.set((random() - 0.5) * (riverW - 2), 0.055, (random() - 0.5) * (ARENA.riverHalf * 1.5));
         sp.renderOrder = 3;
-        scene.add(sp);
+        root.add(sp);
         sparkles.push({ mesh: sp, speed: 0.5 + random() * 0.7, phase: random() * Math.PI * 2 });
     }
     // 河岸石
@@ -316,7 +320,7 @@ export function buildArena(scene) {
             st.position.set(x + (random() - 0.5) * 0.5, 0.07, s * (ARENA.riverHalf + 0.06 + random() * 0.18));
             st.rotation.set(random() * 2, random() * 2, random() * 2);
             st.castShadow = true;
-            scene.add(st);
+            root.add(st);
         }
     }
 
@@ -361,7 +365,7 @@ export function buildArena(scene) {
             bridge.add(pier);
         }
         bridge.position.set(bx, 0, 0);
-        scene.add(bridge);
+        root.add(bridge);
     }
 
     // ----- 樹（Quaternius 松樹 + 圓樹）-----
@@ -372,7 +376,7 @@ export function buildArena(scene) {
         normalizeHeight(tree, (1.6 + random() * 1.2) * scale);
         tree.position.set(x, 0, z);
         tree.rotation.y = random() * Math.PI * 2;
-        scene.add(tree);
+        root.add(tree);
     }
     // 左右樹林
     for (let i = 0; i < 34; i++) {
@@ -403,7 +407,7 @@ export function buildArena(scene) {
         );
         hill.position.set(hx, -hr * 0.72, hz);
         hill.scale.y = 0.55;
-        scene.add(hill);
+        root.add(hill);
     }
     for (const [mx, mz, mh] of [
         [-26, -22, 9], [-12, -30, 12], [8, -32, 10], [24, -24, 8], [30, -8, 9], [-30, 6, 8],
@@ -412,7 +416,7 @@ export function buildArena(scene) {
         normalizeHeight(mtn, mh);
         mtn.position.set(mx, -0.4, mz);
         mtn.rotation.y = random() * Math.PI * 2;
-        scene.add(mtn);
+        root.add(mtn);
     }
 
     // ----- Meshy 場景件（玩家提供）-----
@@ -422,7 +426,7 @@ export function buildArena(scene) {
         m.position.x = x;
         m.position.z = z;
         m.rotation.y = rotY;
-        scene.add(m);
+        root.add(m);
         return m;
     }
     // 軍旗：兩邊橋頭各插一支（隊色）
@@ -453,16 +457,16 @@ export function buildArena(scene) {
         normalizeHeight(crate, 0.55);
         crate.position.set(2.6, 0, s * 14.4);
         crate.rotation.y = random();
-        scene.add(crate);
+        root.add(crate);
         const barrel = instantiate('barrel');
         normalizeHeight(barrel, 0.55);
         barrel.position.set(3.3, 0, s * 13.9);
-        scene.add(barrel);
+        root.add(barrel);
         const crate2 = instantiate('crate');
         normalizeHeight(crate2, 0.42);
         crate2.position.set(-2.8, 0, s * 14.3);
         crate2.rotation.y = random() * 2;
-        scene.add(crate2);
+        root.add(crate2);
     }
 
     // ----- 灌木 / 花 / 石 點綴（戰場內外）-----
@@ -478,20 +482,20 @@ export function buildArena(scene) {
             const bush = new THREE.Mesh(new THREE.IcosahedronGeometry(0.2 + random() * 0.16, 0), mat(greens[Math.floor(random() * greens.length)]));
             bush.position.set(x, 0.14, z);
             bush.castShadow = true;
-            scene.add(bush);
+            root.add(bush);
         } else if (kind < 0.75) {
             const flower = new THREE.Mesh(
                 new THREE.SphereGeometry(0.06, 5, 4),
                 mat(random() < 0.5 ? 0xe8d84a : 0xe87a6a)
             );
             flower.position.set(x, 0.1, z);
-            scene.add(flower);
+            root.add(flower);
         } else {
             const rock = instantiate(random() < 0.5 ? 'rock1' : 'rock2');
             normalizeHeight(rock, 0.3 + random() * 0.3);
             rock.position.set(x, 0, z);
             rock.rotation.y = random() * Math.PI * 2;
-            scene.add(rock);
+            root.add(rock);
         }
     }
 
@@ -513,7 +517,7 @@ export function buildArena(scene) {
     for (const z of Object.values(zones)) {
         z.visible = false;
         z.renderOrder = 5;
-        scene.add(z);
+        root.add(z);
     }
 
     // 每幀動畫：水面流動＋岸邊泡沫拍岸＋漂流閃光＋日照過渡
@@ -542,5 +546,6 @@ export function buildArena(scene) {
         }
     }
 
-    return { zones, update, setMood: (m) => { moodState.target = m; } };
+    scene.add(root);
+    return { zones, update, setMood: (m) => { moodState.target = m; }, root };
 }

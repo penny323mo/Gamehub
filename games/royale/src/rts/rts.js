@@ -3,7 +3,7 @@
 //   主動採集資源（食物🍖＋黃金🪙）→ 建築生產部隊 → 全 RTS 操控（框選、移動、攻擊、採集、建造）。
 // 座標系同 Clash 一致：玩家喺 z>0（下方），敵方 z<0（上方）。
 import * as THREE from 'three';
-import { ARENA, TEAM } from '../constants.js';
+import { TEAM } from '../constants.js';
 import { makeUnitModel, makeKingTower, makeWatchtower } from '../models.js';
 import { makeHpBar, disposeDeep } from '../game.js';
 
@@ -51,9 +51,49 @@ export const RTS_BUILDINGS = {
     },
 };
 
-const START = { food: 220, gold: 140 };
+const START = { food: 260, gold: 160 };
 const BASE_POP_CAP = 16;   // 起始人口上限（起房屋加）
 const HARD_POP_CAP = 60;
+
+// RTS 專屬大地圖（比 Clash 戰場大約 2.5 倍，有空間發展經濟同排兵）
+export const RTS_MAP = { halfW: 22, halfL: 34 };
+
+// 大地圖草地質感（tile 重複，唔會因為放大而糊）
+function makeRtsGrassTexture() {
+    const S = 256;
+    const c = document.createElement('canvas');
+    c.width = S; c.height = S;
+    const g = c.getContext('2d');
+    g.fillStyle = '#6fa04d'; g.fillRect(0, 0, S, S);
+    let seed = 4242; const rnd = () => { seed = (seed * 16807 + 12345) % 2147483647; return (seed & 0xffff) / 0xffff; };
+    for (let i = 0; i < 70; i++) {
+        g.fillStyle = rnd() < 0.5 ? `rgba(80,130,54,${0.06 + rnd() * 0.1})` : `rgba(130,170,90,${0.05 + rnd() * 0.09})`;
+        g.beginPath(); g.arc(rnd() * S, rnd() * S, 14 + rnd() * 46, 0, Math.PI * 2); g.fill();
+    }
+    for (let i = 0; i < 1600; i++) {
+        g.fillStyle = rnd() < 0.5 ? `rgba(55,95,38,${0.1 + rnd() * 0.14})` : `rgba(170,205,115,${0.08 + rnd() * 0.12})`;
+        const s = 1 + rnd() * 2.2; g.fillRect(rnd() * S, rnd() * S, s, s);
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+}
+
+function makeTree() {
+    const g = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 1.1, 6), lmat(0x6e4a2a));
+    trunk.position.y = 0.55;
+    const foliage = new THREE.Mesh(new THREE.ConeGeometry(1.0, 2.2, 7), lmat(0x3f7a38));
+    foliage.position.y = 2.0;
+    g.add(trunk, foliage);
+    return g;
+}
+function makeRock() {
+    const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5 + Math.random() * 0.4, 0), lmat(0x8b8680));
+    r.position.y = 0.3; r.rotation.set(Math.random(), Math.random(), Math.random());
+    return r;
+}
 
 // ---------- 資源節點模型 ----------
 function makeGoldMine() {
@@ -121,30 +161,72 @@ export class RtsGame {
         this.phase = 'playing'; // playing | ended
         this.result = null;
         this.time = 0;
+        this.env = [];       // 地圖環境 mesh（草地/邊界/裝飾），dispose 時清走
+        this.envTex = null;  // 草地貼圖，要手動 dispose
+        this.#buildEnvironment();
         this.#buildWorld();
+    }
+
+    // ---------- 大地圖環境 ----------
+    #buildEnvironment() {
+        const W = RTS_MAP.halfW, L = RTS_MAP.halfL;
+        // 主草地（tile 貼圖）
+        this.envTex = makeRtsGrassTexture();
+        this.envTex.repeat.set((W * 2 + 6) / 6, (L * 2 + 6) / 6);
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(W * 2 + 6, L * 2 + 6), new THREE.MeshLambertMaterial({ map: this.envTex }));
+        ground.rotation.x = -Math.PI / 2; ground.position.y = 0; ground.receiveShadow = true;
+        this.scene.add(ground); this.env.push(ground);
+        // 外圍更闊嘅淺色地台，避免見到地圖邊
+        const outer = new THREE.Mesh(new THREE.PlaneGeometry(W * 2 + 80, L * 2 + 80), lmat(0x5a8642));
+        outer.rotation.x = -Math.PI / 2; outer.position.y = -0.1;
+        this.scene.add(outer); this.env.push(outer);
+        // 四邊矮木牆做地圖邊界
+        const wallMat = lmat(0x7a5f3a);
+        const walls = [
+            [0, L, W * 2 + 2, 0.5], [0, -L, W * 2 + 2, 0.5],
+            [-W, 0, 0.5, L * 2 + 2], [W, 0, 0.5, L * 2 + 2],
+        ];
+        for (const [x, z, w, d] of walls) {
+            const wall = new THREE.Mesh(new THREE.BoxGeometry(w, 1.0, d), wallMat);
+            wall.position.set(x, 0.5, z); wall.castShadow = true;
+            this.scene.add(wall); this.env.push(wall);
+        }
+        // 邊緣散落樹木＋石頭（唔阻擋戰場中央）
+        let seed = 909; const rnd = () => { seed = (seed * 16807 + 12345) % 2147483647; return (seed & 0xffff) / 0xffff; };
+        for (let i = 0; i < 26; i++) {
+            const edgeX = rnd() < 0.5;
+            const x = edgeX ? (rnd() < 0.5 ? -1 : 1) * (W - 1 - rnd() * 3) : (rnd() * 2 - 1) * (W - 2);
+            const z = edgeX ? (rnd() * 2 - 1) * (L - 2) : (rnd() < 0.5 ? -1 : 1) * (L - 1 - rnd() * 3);
+            const d = rnd() < 0.7 ? makeTree() : makeRock();
+            d.position.set(x, 0, z); d.scale.setScalar(0.8 + rnd() * 0.6);
+            this.scene.add(d); this.env.push(d);
+        }
     }
 
     // ---------- 世界初始化 ----------
     #buildWorld() {
-        // 雙方城鎮中心
+        const L = RTS_MAP.halfL;
+        // 雙方城鎮中心（後方角落），起始兵營同 4 個村民
         for (const team of [TEAM.PLAYER, TEAM.ENEMY]) {
             const sz = team === TEAM.PLAYER ? 1 : -1;
-            const tc = this.#spawnBuilding('towncenter', team, 0, sz * 12.5, true);
+            const tc = this.#spawnBuilding('towncenter', team, 0, sz * (L - 5), true);
             this.towncenter = this.towncenter || {};
             this.towncenter[team] = tc;
-            // 起始一間兵營，玩家一開波就有得出兵
-            this.#spawnBuilding('barracks', team, sz * -4.5, sz * 11, true);
-            // 起始 3 個村民
-            for (let i = 0; i < 3; i++) {
-                this.#spawnUnit('villager', team, (i - 1) * 1.6, sz * 9.8);
+            this.#spawnBuilding('barracks', team, sz * -6, sz * (L - 8.5), true);
+            for (let i = 0; i < 4; i++) {
+                this.#spawnUnit('villager', team, (i - 1.5) * 1.6, sz * (L - 10));
             }
         }
-        // 資源節點（對稱擺放）
-        const nodes = [
-            ['gold', -6, 13.5], ['gold', 6, 13.5], ['food', -3, 9], ['food', 3, 9],
-            ['gold', -6, -13.5], ['gold', 6, -13.5], ['food', -3, -9], ['food', 3, -9],
-            ['gold', -7.5, 0], ['gold', 7.5, 0], ['food', 0, 3.2], ['food', 0, -3.2], // 中場爭奪點
-        ];
+        // 資源節點：分散喺大地圖（本方基地附近＋側翼＋中場爭奪）
+        const nodes = [];
+        for (const sz of [1, -1]) {
+            nodes.push(['gold', -8, sz * (L - 3)], ['gold', 8, sz * (L - 3)]);   // 基地後方黃金
+            nodes.push(['food', -4, sz * (L - 10)], ['food', 4, sz * (L - 10)]); // 基地前方食物
+            nodes.push(['gold', -15, sz * 12], ['gold', 15, sz * 12]);           // 側翼黃金
+            nodes.push(['food', 0, sz * 15]);                                     // 中前場食物
+        }
+        // 中央爭奪點
+        nodes.push(['gold', -17, 0], ['gold', 17, 0], ['gold', 0, 0], ['food', -7, 0], ['food', 7, 0]);
         for (const [res, x, z] of nodes) this.#spawnResource(res, x, z);
     }
 
@@ -498,8 +580,8 @@ export class RtsGame {
             if (od < min && od > 0.001) { px += (nx - o.x) / od * (min - od) * 0.5; pz += (nz - o.z) / od * (min - od) * 0.5; }
         }
         nx += px; nz += pz;
-        e.x = Math.max(-ARENA.halfW + 0.3, Math.min(ARENA.halfW - 0.3, nx));
-        e.z = Math.max(-ARENA.halfL + 0.3, Math.min(ARENA.halfL - 0.3, nz));
+        e.x = Math.max(-RTS_MAP.halfW + 0.6, Math.min(RTS_MAP.halfW - 0.6, nx));
+        e.z = Math.max(-RTS_MAP.halfL + 0.6, Math.min(RTS_MAP.halfL - 0.6, nz));
         this.#faceTo(e, tx, tz);
         e.model.position.set(e.x, 0, e.z);
         e.hpBar.position.set(e.x, e.hpBar.userData.h, e.z);
@@ -640,6 +722,8 @@ export class RtsGame {
         for (const e of this.entities) { this.scene.remove(e.model); disposeDeep(e.model); if (e.hpBar) { this.scene.remove(e.hpBar); disposeDeep(e.hpBar); } }
         for (const p of this.projectiles) { this.scene.remove(p.model); disposeDeep(p.model); }
         for (const ef of this.effects) { this.scene.remove(ef.m); disposeDeep(ef.m); }
-        this.entities = []; this.projectiles = []; this.effects = []; this.hpBars = [];
+        for (const m of this.env) { this.scene.remove(m); disposeDeep(m); }
+        this.envTex?.dispose(); // disposeDeep 唔會 dispose 貼圖，手動清
+        this.entities = []; this.projectiles = []; this.effects = []; this.hpBars = []; this.env = [];
     }
 }
