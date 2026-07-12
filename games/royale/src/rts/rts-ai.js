@@ -93,12 +93,12 @@ export class RtsAI {
             return;
         }
 
-        // 出擊：湊夠一隊就攻向玩家中心
+        // 出擊：湊夠一隊就 attack-move 攻向玩家中心（沿途會打晒攔截嘅兵，唔會直衝送頭）
         if (army.length >= this.cfg.army) {
             const idleArmy = army.filter(a => a.command.type === 'idle');
             if (!this.attacking || idleArmy.length >= 3) {
                 const target = this.#pickAttackTarget();
-                if (target) { g.commandAttack(army, target); this.attacking = true; }
+                if (target) { g.commandAttackMove(army, target.x, target.z); this.attacking = true; }
             }
         }
     }

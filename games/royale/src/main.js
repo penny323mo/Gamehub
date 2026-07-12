@@ -66,6 +66,7 @@ let fitTargetZ = -1.2; // 自動適配嘅 lookAt 基準點
 let zoom = 1;        // >1 = 拉近，<1 = 拉遠
 let orbitBase = 0;    // 鏡頭基準朝向（PvP guest 要企喺對面望返嚟，基準轉 180°）
 let orbit = 0;        // 鏡頭繞 lookAt 點嘅水平旋轉角（radian，喺 orbitBase 上面疊加）
+let panX = 0, panZ = 0; // RTS 大地圖鏡頭平移（雙指拖動；Clash 永遠 0）
 const ZOOM_MIN = 0.55, ZOOM_MAX = 2.3;
 
 const camTarget = new THREE.Vector3();
@@ -74,8 +75,9 @@ const Y_AXIS = new THREE.Vector3(0, 1, 0);
 
 function applyCameraView() {
     const d = fitD / zoom;
-    camTarget.set(0, 0, fitTargetZ);
-    camOffset.set(0, d * 0.76, d * 0.66 + 5).sub(camTarget);
+    camTarget.set(panX, 0, fitTargetZ + panZ); // panX/panZ 只喺 RTS 大地圖用（睇上/下半場）
+    // 鏡頭對 target 嘅固定偏移（高＋後移），orbit 圍住 target 轉；pan 郁 target，鏡頭跟住一齊移
+    camOffset.set(0, d * 0.76, d * 0.66 + 5 - fitTargetZ);
     camOffset.applyAxisAngle(Y_AXIS, orbit);
     camera.position.copy(camTarget).add(camOffset);
     camera.lookAt(camTarget);
@@ -131,9 +133,13 @@ let camLastX = 0;
 const activePointers = new Map();
 let pinchStartDist = 0;
 let pinchStartZoom = 1;
+let pinchStartCx = 0, pinchStartCy = 0, panStartX = 0, panStartZ = 0;
 
 function clampZoom(z) {
     return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+}
+function clampPan(v, limit) {
+    return Math.max(-limit, Math.min(limit, v));
 }
 
 holder.addEventListener('wheel', (ev) => {
@@ -148,7 +154,10 @@ holder.addEventListener('pointerdown', (ev) => {
         const pts = [...activePointers.values()];
         pinchStartDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
         pinchStartZoom = zoom;
+        pinchStartCx = (pts[0].x + pts[1].x) / 2; pinchStartCy = (pts[0].y + pts[1].y) / 2;
+        panStartX = panX; panStartZ = panZ;
         camDragging = false;
+        if (rts && rts.active) { rtsPointerDown = false; rts.cancelGesture(); } // 第二指落 → 取消緊做嘅框選/tap，轉做縮放平移
         return;
     }
     if (rts && rts.active) { rtsPointerDown = true; rts.onPointerDown(ev.clientX, ev.clientY); return; }
@@ -164,6 +173,13 @@ window.addEventListener('pointermove', (ev) => {
         const pts = [...activePointers.values()];
         const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
         zoom = clampZoom(pinchStartZoom * (dist / pinchStartDist));
+        // RTS 大地圖：雙指拖動平移鏡頭（睇上/下半場）——揸住地面跟手指郁
+        if (rts && rts.active) {
+            const cx = (pts[0].x + pts[1].x) / 2, cy = (pts[0].y + pts[1].y) / 2;
+            const wpp = (fitD / zoom) * 1.15 / holder.clientHeight; // 每像素對應世界距離（隨縮放變）
+            panX = clampPan(panStartX - (cx - pinchStartCx) * wpp, RTS_MAP.halfW);
+            panZ = clampPan(panStartZ - (cy - pinchStartCy) * wpp, RTS_MAP.halfL);
+        }
         applyCameraView();
         return;
     }
@@ -188,6 +204,7 @@ window.addEventListener('pointercancel', releasePointer);
 function resetCameraView() {
     zoom = 1;
     orbit = orbitBase;
+    panX = 0; panZ = 0;
     applyCameraView();
 }
 
@@ -772,6 +789,7 @@ async function init() {
     });
     window.__rts = rts; // 畀自動化測試用
     window.__royaleRenderer = renderer; // 畀滲漏測試量度 GPU 資源
+    window.__royaleCamera = camera; // 畀鏡頭平移測試用
     ui.showStart();
     document.getElementById('loading')?.remove();
     requestAnimationFrame(loop);

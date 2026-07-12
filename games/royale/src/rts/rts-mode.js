@@ -29,6 +29,24 @@ export function createRtsMode(deps) {
     buildGhost.visible = false;
     scene.add(buildGhost);
 
+    // 集結點旗標（揀住建築先顯示）
+    const rallyFlag = new THREE.Group();
+    {
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.6, 6), new THREE.MeshBasicMaterial({ color: 0x8a6a3a }));
+        pole.position.y = 0.8;
+        const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.36), new THREE.MeshBasicMaterial({ color: 0x7dff8a, side: THREE.DoubleSide, transparent: true, opacity: 0.95 }));
+        flag.position.set(0.3, 1.4, 0);
+        rallyFlag.add(pole, flag);
+        rallyFlag.visible = false;
+        rallyFlag.renderOrder = 12;
+        scene.add(rallyFlag);
+    }
+    function updateRallyFlag() {
+        const b = selected.length === 1 && selected[0].kind === 'building' ? selected[0] : null;
+        if (b && b.rally) { rallyFlag.position.set(b.rally.x, 0, b.rally.z); rallyFlag.visible = true; }
+        else rallyFlag.visible = false;
+    }
+
     let toastT = 0;
 
     function start(difficulty = 'hard') {
@@ -49,6 +67,7 @@ export function createRtsMode(deps) {
         $('rts-hud').classList.remove('hidden');
         renderActions();
         refreshHud();
+        toast('單指框選/點選 · 點地面下令 · 雙指縮放同平移鏡頭', 4000);
     }
 
     function exit() {
@@ -63,6 +82,7 @@ export function createRtsMode(deps) {
         for (const r of selRings) { scene.remove(r); r.geometry !== ringGeo && r.geometry.dispose(); r.material.dispose(); }
         selRings.length = 0;
         buildGhost.visible = false;
+        rallyFlag.visible = false;
         selected = [];
     }
 
@@ -75,6 +95,7 @@ export function createRtsMode(deps) {
         // 清走死咗嘅選取
         selected = selected.filter(e => !e.dead);
         syncSelRings();
+        updateRallyFlag();
         if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('rts-toast').classList.add('hidden'); }
         refreshHud();
     }
@@ -124,6 +145,12 @@ export function createRtsMode(deps) {
         }
     }
 
+    // 第二隻手指落嚟（縮放/平移）→ 取消緊做嘅框選/tap
+    function cancelGesture() {
+        dragging = false;
+        $('rts-selbox').style.display = 'none';
+    }
+
     function onPointerUp(clientX, clientY) {
         if (!active) return;
         $('rts-selbox').style.display = 'none';
@@ -150,23 +177,35 @@ export function createRtsMode(deps) {
             return;
         }
 
-        // 單擊（tap）：quick tap 先當指令，避免同鏡頭混淆
+        // 單擊（tap）
         const w = screenToWorld(clientX, clientY);
         if (!w) return;
         const hit = game.entityAt(w.x, w.z);
+        const units = selected.filter(e => e.kind === 'unit');
+        const selBuilding = selected.find(e => e.kind === 'building');
 
-        // 有選中單位 → 落指令；點自己單位／建築 → 改為選取
-        const haveUnits = selected.some(e => e.kind === 'unit');
-        if (hit && hit.team === TEAM.PLAYER) {
-            selected = [hit]; renderActions(); return;
-        }
-        if (haveUnits) {
-            const units = selected.filter(e => e.kind === 'unit');
+        // A) 有選中單位 → 落指令（去續建未完成建築／攻擊／採集／移動）；
+        //    但 tap 自己「已建成」建築 = 改為選取嗰個建築
+        if (units.length) {
+            if (hit && hit.team === TEAM.PLAYER && hit.kind === 'building' && hit.complete) {
+                selected = [hit]; renderActions(); return;
+            }
             const kind = game.commandSmart(units, w.x, w.z, TEAM.PLAYER);
             pingCommand(w.x, w.z, kind);
             return;
         }
-        // 冇選取又點空地 → 清選取
+
+        // B) 選咗建築 → tap 自己另一件嘢 = 改選；tap 地面 = 設集結點
+        if (selBuilding && !selBuilding.dead) {
+            if (hit && hit.team === TEAM.PLAYER) { selected = [hit]; renderActions(); return; }
+            selBuilding.rally = { x: w.x, z: w.z };
+            updateRallyFlag();
+            pingCommand(w.x, w.z, 'move');
+            return;
+        }
+
+        // C) 冇選取 → tap 自己嘢 = 選取；否則清空
+        if (hit && hit.team === TEAM.PLAYER) { selected = [hit]; renderActions(); return; }
         selected = []; renderActions();
     }
 
@@ -207,6 +246,7 @@ export function createRtsMode(deps) {
         const info = $('rts-sel-info');
         const acts = $('rts-actions');
         acts.innerHTML = '';
+        updateRallyFlag();
         if (!selected.length) { info.textContent = '揀你嘅單位或建築落指令'; return; }
 
         const building = selected.find(e => e.kind === 'building');
@@ -298,7 +338,7 @@ export function createRtsMode(deps) {
     $('rts-zoom-out').addEventListener('click', () => zoomBy(1 / 1.2));
 
     return {
-        start, exit, update,
+        start, exit, update, cancelGesture,
         onPointerDown, onPointerMove, onPointerUp,
         get active() { return active; },
         get game() { return game; },

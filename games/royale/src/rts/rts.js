@@ -269,16 +269,18 @@ export class RtsGame {
                 this.#spawnUnit('villager', team, (i - 2) * 1.6, sz * (L - 10));
             }
         }
-        // 資源節點：分散喺大地圖（本方基地附近＋側翼＋中場爭奪）
+        // 資源分布：點對稱佈局（每個 (x,z) 都鏡射到 (-x,-z)），保證雙方經濟起點完全公平。
+        // 規劃：①主基地叢（後方黃金×2＋前方食物×2）②側翼擴張（一金一食）③中前場橋頭資源。
+        const half = [
+            ['gold', -7, L - 3], ['gold', 7, L - 3],     // ① 基地後方黃金（安全採）
+            ['food', -4, L - 9], ['food', 4, L - 9],     // ① 基地前方食物
+            ['gold', -15, 11], ['food', 15, 11],         // ② 側翼擴張
+            ['food', -9, 5], ['gold', 9, 5],             // ③ 中前場橋頭
+        ];
         const nodes = [];
-        for (const sz of [1, -1]) {
-            nodes.push(['gold', -8, sz * (L - 3)], ['gold', 8, sz * (L - 3)]);   // 基地後方黃金
-            nodes.push(['food', -4, sz * (L - 10)], ['food', 4, sz * (L - 10)]); // 基地前方食物
-            nodes.push(['gold', -15, sz * 12], ['gold', 15, sz * 12]);           // 側翼黃金
-            nodes.push(['food', 0, sz * 15]);                                     // 中前場食物
-        }
-        // 中央爭奪點
-        nodes.push(['gold', -17, 0], ['gold', 17, 0], ['gold', 0, 0], ['food', -7, 0], ['food', 7, 0]);
+        for (const [res, x, z] of half) { nodes.push([res, x, z], [res, -x, -z]); } // 半場 + 180° 鏡射
+        // ④ 中線爭奪點（本身左右對稱）
+        nodes.push(['gold', 0, 0], ['gold', -17, 0], ['gold', 17, 0], ['food', -8, 0], ['food', 8, 0]);
         for (const [res, x, z] of nodes) this.#spawnResource(res, x, z);
     }
 
@@ -413,28 +415,60 @@ export class RtsGame {
             u.target = targetEntity;
         }
     }
+    // 進攻推進：向目的地行，sight 內見敵就打（唔會無視攔截直衝）
+    commandAttackMove(units, x, z) {
+        const spread = this.#formation(units, x, z);
+        units.forEach((u, i) => {
+            if (u.dead || u.kind !== 'unit') return;
+            u.command = { type: 'attackMove', tx: spread[i].x, tz: spread[i].z };
+            u.target = null;
+        });
+    }
     commandGather(units, node) {
         for (const u of units) {
             if (u.dead || u.unitType !== 'villager') continue;
             u.command = { type: 'gather', node };
         }
     }
+    commandBuild(villagers, site) {
+        for (const v of villagers) {
+            if (v.dead || v.unitType !== 'villager' || !site || site.dead) continue;
+            v.command = { type: 'build', target: site };
+        }
+    }
     // 智能右鍵：按目標類型自動判斷指令
     commandSmart(units, worldX, worldZ, team) {
-        const enemy = this.entityAt(worldX, worldZ);
-        if (enemy && enemy.kind === 'resource') {
-            const vills = units.filter(u => u.unitType === 'villager');
-            const others = units.filter(u => u.unitType !== 'villager');
-            if (vills.length) this.commandGather(vills, enemy);
+        const target = this.entityAt(worldX, worldZ);
+        const vills = units.filter(u => u.unitType === 'villager');
+        const others = units.filter(u => u.unitType !== 'villager');
+        if (target && target.kind === 'resource') {
+            if (vills.length) this.commandGather(vills, target);
             if (others.length) this.commandMove(others, worldX, worldZ);
             return vills.length ? 'gather' : 'move';
         }
-        if (enemy && enemy.team !== team && enemy.team !== -1) {
-            this.commandAttack(units, enemy);
+        // 揀住村民 tap 自己未起好嘅建築 → 去續建/幫手起
+        if (target && target.kind === 'building' && target.team === team && !target.complete && vills.length) {
+            this.commandBuild(vills, target);
+            if (others.length) this.commandMove(others, worldX, worldZ);
+            return 'build';
+        }
+        if (target && target.team !== team && target.team !== -1) {
+            this.commandAttack(units, target);
             return 'attack';
         }
         this.commandMove(units, worldX, worldZ);
         return 'move';
+    }
+
+    // 最近嘅己方未完成建築（畀村民自動追蹤幫手起）
+    #nearestUnfinished(e, maxD = Infinity) {
+        let best = null, bestD = maxD;
+        for (const o of this.entities) {
+            if (o.dead || o.kind !== 'building' || o.team !== e.team || o.complete) continue;
+            const d = Math.hypot(o.x - e.x, o.z - e.z);
+            if (d < bestD) { best = o; bestD = d; }
+        }
+        return best;
     }
 
     #formation(units, x, z) {
@@ -570,29 +604,55 @@ export class RtsGame {
             return;
         }
 
-        // 攻擊指令：追住目標打
+        const isCombat = e.unitType !== 'villager';
+
+        // 指定目標攻擊：但沿途更近嘅敵人會先打（唔會無視攔截）
         if (cmd.type === 'attack') {
             const t = cmd.target;
-            if (!t || t.dead) { e.command = { type: 'idle' }; return; }
-            this.#chaseAndAttack(e, t, dt);
-            return;
+            if (!t || t.dead) { e.command = { type: 'idle' }; }
+            else {
+                let engage = t;
+                if (isCombat) {
+                    const near = this.#nearestEnemy(e, e.sight);
+                    if (near && near !== t && Math.hypot(near.x - e.x, near.z - e.z) < Math.hypot(t.x - e.x, t.z - e.z)) engage = near;
+                }
+                this.#chaseAndAttack(e, engage, dt);
+                return;
+            }
         }
 
-        // 移動指令：去到目標點附近就 idle（門檻放寬啲，多個單位迫埋一齊都唔會卡死喺 move）
+        // attack-move：向目的地推進，sight 內見敵即打（AI 進攻用，唔會直衝主城俾人攔截打死都唔還手）
+        if (cmd.type === 'attackMove') {
+            if (isCombat) {
+                const foe = this.#nearestEnemy(e, e.sight);
+                if (foe) { this.#chaseAndAttack(e, foe, dt); return; }
+            }
+            const d = Math.hypot(cmd.tx - e.x, cmd.tz - e.z);
+            if (d < 1.0) { e.command = { type: 'idle' }; }
+            else { this.#moveToward(e, cmd.tx, cmd.tz, dt); this.#animate(e, true); return; }
+        }
+
+        // 移動指令：純移動；但被貼身攻擊會還手（唔會死站畀人打）
         if (cmd.type === 'move') {
+            if (isCombat) {
+                const foe = this.#nearestEnemy(e, e.range + (e.radius) + 1.4);
+                if (foe) { this.#chaseAndAttack(e, foe, dt); return; }
+            }
             const d = Math.hypot(cmd.tx - e.x, cmd.tz - e.z);
             if (d < 0.7) { e.command = { type: 'idle' }; }
             else { this.#moveToward(e, cmd.tx, cmd.tz, dt); this.#animate(e, true); return; }
         }
 
-        // idle / 到步：戰鬥單位自動接敵（村民唔會）
-        if (e.unitType !== 'villager') {
+        // idle / 到步
+        if (isCombat) {
             const foe = this.#nearestEnemy(e, e.sight);
             if (foe) { this.#chaseAndAttack(e, foe, dt); return; }
         } else {
-            // idle 村民自衛
+            // idle 村民：先自衛，再自動幫手起附近未完成建築
             const foe = this.#nearestEnemy(e, 2.5);
             if (foe) { this.#chaseAndAttack(e, foe, dt); return; }
+            const site = this.#nearestUnfinished(e, 9);
+            if (site) { e.command = { type: 'build', target: site }; return; }
         }
         this.#animate(e, false);
     }
@@ -602,7 +662,12 @@ export class RtsGame {
         // 建造
         if (cmd.type === 'build') {
             const site = cmd.target;
-            if (!site || site.dead || site.complete) { e.command = { type: 'idle' }; return; }
+            if (!site || site.dead || site.complete) {
+                // 起好呢個 → 自動搵下一個附近未完成建築繼續（連續起唔使逐個再撳）
+                const next = this.#nearestUnfinished(e, 14);
+                e.command = next ? { type: 'build', target: next } : { type: 'idle' };
+                return;
+            }
             const d = Math.hypot(site.x - e.x, site.z - e.z);
             if (d > site.radius + 0.9) { this.#moveToward(e, site.x, site.z, dt); this.#animate(e, true); return; }
             site.buildProgress = Math.min(1, site.buildProgress + dt / (site.def.buildTime * 0.5)); // 多幾個村民就快
