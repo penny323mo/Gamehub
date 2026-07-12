@@ -205,13 +205,6 @@ export class Game {
         this.levelBonus = opts.levelBonus ?? 0.08;
         // 敵方聖水回復倍率（連勝挑戰高關卡用）
         this.enemyElixirRate = opts.enemyElixirRate ?? 1;
-        // LV2 精英戰場：敵方城塔血量加成
-        this.enemyTowerHpMult = opts.enemyTowerHpMult ?? 1;
-        // 開局聖水（LV2 開得快啲，開場即刻有得爆發）
-        if (opts.startElixir != null) {
-            this.players[TEAM.PLAYER].elixir = opts.startElixir;
-            this.players[TEAM.ENEMY].elixir = opts.startElixir;
-        }
         // 傷害統計（結算傷害榜用）＋雙方已出卡記錄
         this.damageByCard = { [TEAM.PLAYER]: {}, [TEAM.ENEMY]: {} };
         // 浮動傷害數字：短窗口聚合（每 0.26s 每實體結一次數），唔會逐下刷屏
@@ -241,10 +234,6 @@ export class Game {
                     team, isTower: true, towerKind: 'princess',
                     x: side * TOWERS.princess.x, z: sz * TOWERS.princess.z,
                 });
-                if (team === TEAM.ENEMY && this.enemyTowerHpMult !== 1) {
-                    t.maxHp = Math.round(t.maxHp * this.enemyTowerHpMult);
-                    t.hp = t.maxHp;
-                }
                 t.model = makePrincessTower(team);
                 this.#addEntity(t, towerTop(t.model));
                 this.towers[team][side === -1 ? 'left' : 'right'] = t;
@@ -253,10 +242,6 @@ export class Game {
                 team, isTower: true, towerKind: 'king',
                 x: 0, z: sz * TOWERS.king.z,
             });
-            if (team === TEAM.ENEMY && this.enemyTowerHpMult !== 1) {
-                k.maxHp = Math.round(k.maxHp * this.enemyTowerHpMult);
-                k.hp = k.maxHp;
-            }
             k.model = makeKingTower(team);
             this.#addEntity(k, towerTop(k.model));
             this.towers[team].king = k;

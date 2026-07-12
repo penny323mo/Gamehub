@@ -12,6 +12,7 @@ import { generateCardThumbs } from './thumbs.js';
 import { playerLevels, avgDeckLevel, recordMatch } from './storage.js';
 import { GuestGame, attachHostRelay, sendGuestPlay } from './pvp.js';
 import * as Net from './net.js';
+import { createRtsMode } from './rts/rts-mode.js';
 
 // ---------- Renderer / Scene ----------
 const holder = document.getElementById('canvas-holder');
@@ -144,6 +145,7 @@ holder.addEventListener('pointerdown', (ev) => {
         camDragging = false;
         return;
     }
+    if (rts && rts.active) { rts.onPointerDown(ev.clientX, ev.clientY); return; }
     if (cardBusy || (ui && ui.selectedIdx >= 0)) return;
     camDragging = true;
     camLastX = ev.clientX;
@@ -159,6 +161,7 @@ window.addEventListener('pointermove', (ev) => {
         applyCameraView();
         return;
     }
+    if (rts && rts.active) { rts.onPointerMove(ev.clientX, ev.clientY); return; }
     if (!camDragging) return;
     const dx = ev.clientX - camLastX;
     camLastX = ev.clientX;
@@ -166,6 +169,7 @@ window.addEventListener('pointermove', (ev) => {
     applyCameraView();
 });
 function releasePointer(ev) {
+    if (rts && rts.active && activePointers.size <= 1) rts.onPointerUp(ev.clientX, ev.clientY);
     activePointers.delete(ev.pointerId);
     camDragging = false;
 }
@@ -237,6 +241,7 @@ let game = null;
 let ai = null;
 let ui = null;
 let running = false;
+let rts = null; // LV2 世紀帝國式 RTS 控制器（init 後先建立）
 
 // ---------- PvP 狀態 ----------
 let netRole = null; // null | 'host' | 'guest'
@@ -259,6 +264,7 @@ function showZones(show) {
 const uiCallbacks = {
     onStart(deck, difficulty, mode = 'single') {
         if (mode === 'pvp') { startQuickMatch(deck); return; }
+        if (mode === 'lv2') { startRts(); return; }
         startMatch(deck, difficulty, mode, 1);
     },
     onJoinRoom(deck, code) {
@@ -463,11 +469,10 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
     cleanupMatch();
     matchMode = mode;
     gauntletStage = stage;
-    const isLv2 = mode === 'lv2';
-    const actualDiff = mode === 'gauntlet' ? gauntletDifficulty(stage) : isLv2 ? 'hard' : difficulty;
+    const actualDiff = mode === 'gauntlet' ? gauntletDifficulty(stage) : difficulty;
 
-    // AI 個性＋預組卡組（LV2 精英戰場固定狂攻型，壓迫感更強）
-    const pid = isLv2 ? 'aggro' : randomPersonality();
+    // AI 個性＋預組卡組
+    const pid = randomPersonality();
     const personality = PERSONALITIES[pid];
 
     // 卡牌等級：玩家用自己存檔；AI 全卡組跟玩家平均等級走，保持公平
@@ -535,25 +540,29 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
         onSpawn() {},
     }, {
         levels: { [TEAM.PLAYER]: playerLevels(), [TEAM.ENEMY]: enemyLevels },
-        // 連勝挑戰第 4 關起，AI 聖水回復有加成；LV2 精英戰場 AI 全程加壓
-        enemyElixirRate: mode === 'gauntlet' ? 1 + Math.max(0, stage - 3) * 0.15 : isLv2 ? 1.35 : 1,
-        // LV2 專屬：敵方要塞 +40% 血、開局雙方 7 滴聖水，開場即刻打得爆
-        enemyTowerHpMult: isLv2 ? 1.4 : 1,
-        startElixir: isLv2 ? 7 : null,
+        // 連勝挑戰第 4 關起，AI 聖水回復有加成
+        enemyElixirRate: mode === 'gauntlet' ? 1 + Math.max(0, stage - 3) * 0.15 : 1,
     });
     ai = new AIController(game, actualDiff, pid);
     window.__royale = { game, ai, renderer, startMatch, cleanupMatch }; // 畀自動化測試用
     ui.bindGame(game);
     ui.showGame();
-    // LV2 精英戰場即刻轉黃昏光，同一般日光戰場區隔開
-    arena.setMood?.(isLv2 ? 1 : 0);
-    if (isLv2) {
-        ui.banner(`⭐ LV2 精英戰場 · 對手：${personality.icon} ${personality.name}`, 2000);
-    } else {
-        const stageTag = mode === 'gauntlet' ? `第 ${stage} 關 · ` : '';
-        ui.banner(`⚔️ ${stageTag}對手：${personality.icon} ${personality.name}`, 1600);
-    }
+    arena.setMood?.(0);
+    const stageTag = mode === 'gauntlet' ? `第 ${stage} 關 · ` : '';
+    ui.banner(`⚔️ ${stageTag}對手：${personality.icon} ${personality.name}`, 1600);
     running = true;
+}
+
+// ---------- LV2 世紀帝國式 RTS：開波 ----------
+function startRts() {
+    cleanupMatch();            // 清走任何 Clash 遊戲狀態
+    matchMode = 'lv2';
+    resetCameraView();
+    arena.setMood?.(0);
+    document.getElementById('screen-start')?.classList.add('hidden');
+    document.getElementById('hud')?.classList.add('hidden');
+    running = false;           // Clash 主迴圈唔郁，RTS 自己 update
+    rts.start('hard');
 }
 
 // ---------- PvP：Host 開波（跑晒真正 Game 模擬，冇 AI，由遠端玩家輸入代替）----------
@@ -689,6 +698,13 @@ function loop(now) {
     last = now;
     if (dt > 0.25) dt = 0.25;
 
+    if (rts && rts.active) {
+        rts.update(dt);
+        arena.update(dt);
+        renderer.render(scene, camera);
+        return;
+    }
+
     if (running && game) {
         if (netRole === 'guest') {
             // Guest 唔跑本機模擬，淨係推動渲染用嘅本地時鐘（bob/攻擊動畫）
@@ -727,6 +743,13 @@ async function init() {
     fitCamera();
     const cardThumbs = generateCardThumbs();
     ui = new UI(uiCallbacks, cardThumbs);
+    rts = createRtsMode({
+        scene, camera, renderer, screenToWorld,
+        zoomBy: (f) => { zoom = clampZoom(zoom * f); applyCameraView(); },
+        onExit: () => { arena.setMood?.(0); resetCameraView(); ui.showStart(); },
+    });
+    window.__rts = rts; // 畀自動化測試用
+    window.__royaleRenderer = renderer; // 畀滲漏測試量度 GPU 資源
     ui.showStart();
     document.getElementById('loading')?.remove();
     requestAnimationFrame(loop);

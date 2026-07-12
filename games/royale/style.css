@@ -648,6 +648,60 @@ body {
     50% { box-shadow: 0 0 16px rgba(184, 146, 255, .7); }
 }
 
+/* ---------- LV2 世紀帝國式 RTS HUD ---------- */
+#rts-hud { position: absolute; inset: 0; pointer-events: none; z-index: 20; }
+#rts-hud.hidden { display: none; }
+#rts-hud button { pointer-events: auto; }
+
+#rts-topbar {
+    position: absolute; top: env(safe-area-inset-top, 8px); left: 50%; transform: translateX(-50%);
+    display: flex; gap: 14px; padding: 6px 16px;
+    background: rgba(20, 26, 16, .82); border: 2px solid #6a7a4a; border-radius: 0 0 14px 14px;
+    font-size: 16px; font-weight: 800; color: #f0e8d0;
+}
+#rts-topbar .rts-res b { color: #ffe08a; }
+
+#rts-quit {
+    position: absolute; top: calc(env(safe-area-inset-top, 8px) + 4px); right: 10px;
+    width: 40px; height: 40px; font-size: 18px; border-radius: 10px;
+    border: 2px solid #8a6a3a; background: rgba(30, 24, 14, .82); cursor: pointer;
+}
+#rts-cam {
+    position: absolute; top: calc(env(safe-area-inset-top, 8px) + 4px); left: 10px;
+    display: flex; flex-direction: column; gap: 6px;
+}
+#rts-cam button {
+    width: 38px; height: 38px; font-size: 16px; border-radius: 10px;
+    border: 2px solid #6a7a4a; background: rgba(30, 34, 22, .82); color: #f0e8d0; cursor: pointer;
+}
+
+#rts-selbox {
+    position: fixed; display: none; border: 1.5px solid #7dff8a;
+    background: rgba(125, 255, 138, .14); z-index: 21; pointer-events: none;
+}
+
+#rts-panel {
+    position: absolute; left: 50%; bottom: env(safe-area-inset-bottom, 10px); transform: translateX(-50%);
+    width: min(94%, 560px); padding: 8px 10px;
+    background: rgba(20, 26, 16, .86); border: 2px solid #6a7a4a; border-radius: 14px; pointer-events: auto;
+}
+#rts-sel-info { font-size: 13px; color: #d8e0c0; margin-bottom: 6px; text-align: center; }
+#rts-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.rts-act-btn {
+    display: flex; flex-direction: column; align-items: center; min-width: 76px; padding: 8px 10px;
+    border: 2px solid #8a6a3a; border-radius: 10px; cursor: pointer;
+    background: linear-gradient(180deg, #ffd870, #d8a038); color: #3a2a10; font-weight: 800; font-size: 14px;
+}
+.rts-act-btn small { font-size: 10px; font-weight: 700; opacity: .82; margin-top: 2px; }
+.rts-act-btn:active { transform: scale(.96); }
+
+#rts-toast {
+    position: absolute; top: 30%; left: 50%; transform: translateX(-50%);
+    padding: 10px 20px; background: rgba(20, 26, 16, .9); border: 2px solid #b892ff; border-radius: 12px;
+    color: #fbe9ff; font-weight: 800; font-size: 16px; white-space: nowrap;
+}
+#rts-toast.hidden { display: none; }
+
 .hint {
     margin-top: 12px;
     font-size: 12px;

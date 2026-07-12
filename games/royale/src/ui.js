@@ -127,8 +127,7 @@ export class UI {
         el.textContent = `${n}/8`;
         el.classList.toggle('bad', n !== 8);
         this.$('start-btn').disabled = n !== 8;
-        const lv2 = this.$('lv2-btn');
-        if (lv2) { lv2.disabled = n !== 8; lv2.style.filter = n !== 8 ? 'grayscale(.7) brightness(.7)' : ''; }
+        // LV2 RTS 唔靠卡組，唔跟住 disable
     }
 
     #bindStartScreen() {
@@ -168,7 +167,7 @@ export class UI {
             this.cb.onStart(this.deck, this.difficulty, this.mode);
         });
         this.$('lv2-btn').addEventListener('click', () => {
-            if (this.deck.length !== 8) return; // 卡組未夠 8 張就唔畀開波
+            // LV2 世紀帝國式 RTS 唔用卡組，隨時可以開波
             this.cb.onStart(this.deck, 'hard', 'lv2');
         });
         this.$('pvp-join-btn').addEventListener('click', () => {
