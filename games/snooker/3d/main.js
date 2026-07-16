@@ -2238,6 +2238,7 @@ let power = 0;
 let shotInProgress = false;
 let shotElapsed = 0;
 let firstHitType = null;
+let shotStartReds = 0; // 開桿嗰刻嘅紅波數：判斷「呢桿先清咗最後一粒紅」嘅犯規分類用
 let shotPotted = [];
 let foulThisShot = false;
 let foulReason = '';
@@ -2267,6 +2268,7 @@ let lastCompletedShotOrigin = null;   // Tracks the last fully resolved shot
 let currentShotSerial = 0;            // Monotonic per shot, shared in snapshots
 let lastAppliedSnapshotSerial = 0;
 let lastAppliedSnapshotId = null;
+let lastAppliedSnapshotSeq = 0; // 同 serial 快照嘅次序判別（防止舊快照遲到蓋走新狀態）
 const inputDebug = {
   lastMouseDown: '',
   lastMouseUp: '',
@@ -2289,7 +2291,9 @@ const cushionRestitution = 0.88;  // Increased from 0.86
 const cushionTangentialFriction = 0.045;
 const ballRestitution = 0.92;
 const collisionEnergyRetention = 0.996;
-const stopThreshold = 0.12;  // Increased from 0.02
+// 0.12 會令慢波（輕力 safety、貼袋 creep）突然硬煞停；0.06 保留自然慢滾，
+// 卡波唔會 hang——stepSimulation 有 10 秒超時保險會強制收桿
+const stopThreshold = 0.06;
 const settledThreshold = 0.01;
 const settledDuration = 0.5;
 const collisionCellSize = BALL_RADIUS * 3.2;
@@ -2381,6 +2385,7 @@ function serializeGameStateSnapshot(extra = {}) {
     snapshotVersion: 1,
     kind: 'snooker_3d_state_snapshot',
     snapshotId: `${clientId || 'local'}:${currentShotSerial}:${Date.now()}`,
+    seq: Date.now(), // 同一 serial 可以有多個快照（shot_resolved → foul_decision）：用 seq 保證新蓋舊
     clientId,
     gameMode: '3d',
     shotSerial: currentShotSerial,
@@ -2478,6 +2483,13 @@ function applyGameStateSnapshot(rawPayload, { allowOwn = false } = {}) {
     if (snapshotSerial === lastAppliedSnapshotSerial && snapshot.snapshotId && snapshot.snapshotId === lastAppliedSnapshotId) {
       return false;
     }
+    // 同一 serial：seq 舊過已套用嗰個 = 遲到嘅舊快照（例如 foul_decision 之後
+    // 先重派返個 foul-pending 快照）——直接棄，唔好將已解決嘅判罰倒返轉頭
+    if (snapshotSerial === lastAppliedSnapshotSerial
+        && Number.isFinite(snapshot.seq) && lastAppliedSnapshotSeq
+        && snapshot.seq < lastAppliedSnapshotSeq) {
+      return false;
+    }
     if (snapshotSerial === currentShotSerial && shotInProgress && !isAuthoritativePostShot) {
       return false;
     }
@@ -2507,6 +2519,7 @@ function applyGameStateSnapshot(rawPayload, { allowOwn = false } = {}) {
     currentShotSerial = Math.max(currentShotSerial, snapshotSerial);
     lastAppliedSnapshotSerial = snapshotSerial;
     lastAppliedSnapshotId = snapshot.snapshotId || lastAppliedSnapshotId;
+    if (Number.isFinite(snapshot.seq)) lastAppliedSnapshotSeq = snapshot.seq;
   }
 
   gameStarted = snapshot.gameStarted !== undefined ? !!snapshot.gameStarted : gameStarted;
@@ -2593,6 +2606,7 @@ function broadcastSettledStateSnapshot({ force = false, reason = 'shot_resolved'
 
   lastAppliedSnapshotSerial = Number.isFinite(snapshot.shotSerial) ? snapshot.shotSerial : lastAppliedSnapshotSerial;
   lastAppliedSnapshotId = snapshot.snapshotId || lastAppliedSnapshotId;
+  if (Number.isFinite(snapshot.seq)) lastAppliedSnapshotSeq = snapshot.seq;
 
   try {
     const result = window.snookerSendStateSnapshot(snapshot);
@@ -2868,6 +2882,7 @@ function resetGame({ startNow = true, aiMode = aiEnabled } = {}) {
   currentShotSerial = 0;
   lastAppliedSnapshotSerial = 0;
   lastAppliedSnapshotId = null;
+  lastAppliedSnapshotSeq = 0;
   // Reset aim / charge / spin so a rematch begins from a deterministic state
   // instead of inheriting the previous match's in-flight input.
   shotElapsed = 0;
@@ -2875,6 +2890,12 @@ function resetGame({ startNow = true, aiMode = aiEnabled } = {}) {
   chargeLockedAimDirection.set(0, 0, 1);
   spin.x = 0;
   spin.y = 0;
+  updateSpinMarker(); // spin 歸零，個 marker 都要跟住返中心，唔好呃人
+  // 手勢狀態一併清走：rematch 喺 mid-gesture 觸發時唔可以帶住舊 flag 入新一局
+  isRotatingCamera = false;
+  spinDragging = false;
+  mobileChargeActive = false;
+  resetCamera();
   statusEl.textContent = '';
 
   balls.forEach((ball) => {
@@ -3007,6 +3028,14 @@ function updateAimLine() {
   }
   // Online mode: hide aim guides and cue when it's the opponent's turn
   if (window.isOnlineMode && currentPlayer !== (window.onlineMyPlayerIndex ?? 0)) {
+    hideAimGuides();
+    cueGroup.visible = false;
+    lastAimCollision = null;
+    return;
+  }
+  // 離線 AI 回合一樣要收埋 cue 同瞄準線——唔係嘅話 AI 諗緊/擺白波嗰陣，
+  // 玩家郁滑鼠條 cue 會跟住轉，好似仲係自己回合咁
+  if (aiEnabled && currentPlayer === 1) {
     hideAimGuides();
     cueGroup.visible = false;
     lastAimCollision = null;
@@ -3377,6 +3406,7 @@ function startShot() {
   shotElapsed = 0;
   cueBallPottedThisShot = false;
   firstHitType = null;
+  shotStartReds = redsRemaining();
   shotPotted = [];
   foulThisShot = false;
   foulReason = '';
@@ -3626,8 +3656,24 @@ function endShot() {
 
       // 檢查遊戲是否結束（黑球已入 或 已清晒）
       if (colorClearIndex >= 6 || targetColor === 'black' || colorsRemaining() === 0) {
-        endGame();
-        return;
+        // 正式規則：黑球入袋後平分唔係和局——重置黑球決勝
+        // （黑球擺返點、白波自由球、對手先打；邊個入黑邊個贏）
+        if (scores[0] === scores[1]) {
+          respotColors(['black']);
+          colorClearIndex = 5; // 目標繼續係黑球
+          currentPlayer = 1 - currentPlayer;
+          turn += 1;
+          cueBallInHand = true;
+          cueBall.pocketed = false;
+          cueBall.group.visible = true;
+          cueBall.velocity.set(0, 0, 0);
+          snookered = false;
+          setStatus('平分！重置黑球決勝——入黑者勝', 4);
+          logRule('respotted_black', { scores: [...scores], nextPlayer: currentPlayer + 1 });
+        } else {
+          endGame();
+          return;
+        }
       }
     } else {
       currentPlayer = 1 - currentPlayer;
@@ -3734,18 +3780,29 @@ function respotColors(types) {
   types.forEach((type) => {
     const ball = balls.find((b) => b.type === type);
     if (!ball || !ball.spot) return;
+    const spotClear = (pos) => balls.every((other) => {
+      if (other === ball || other.pocketed) return true;
+      const dx = other.position.x - pos.x;
+      const dz = other.position.z - pos.z;
+      return dx * dx + dz * dz > (BALL_RADIUS * 2.05) ** 2;
+    });
     const target = ball.spot.clone();
-    let offset = 0;
-    while (offset < 4) {
-      const clear = balls.every((other) => {
-        if (other === ball || other.pocketed) return true;
-        const dx = other.position.x - target.x;
-        const dz = other.position.z - target.z;
-        return dx * dx + dz * dz > (BALL_RADIUS * 2) ** 2;
-      });
-      if (clear) break;
-      offset += 1;
-      target.z += BALL_RADIUS * 1.5;
+    if (!spotClear(target)) {
+      // 正式規則：自己個點被佔 → 擺最高分值嘅空置點；全部被佔 → 由自己
+      // 個點向頂庫方向搵最近空位（clamp 喺桌內，唔會推出界／推入袋口）
+      let found = false;
+      for (const higher of ['black', 'pink', 'blue', 'brown', 'green', 'yellow']) {
+        const spot = balls.find((b) => b.type === higher)?.spot;
+        if (spot && spotClear(spot)) { target.copy(spot); found = true; break; }
+      }
+      if (!found) {
+        target.copy(ball.spot);
+        const zLimit = halfL - BALL_RADIUS * 1.6;
+        for (let i = 0; i < 60 && !spotClear(target); i++) {
+          target.z = Math.min(target.z + BALL_RADIUS * 0.8, zLimit);
+          if (target.z >= zLimit) break;
+        }
+      }
     }
     ball.position.copy(target);
     ball.group.position.copy(target);
@@ -3821,6 +3878,11 @@ function queueAiShot() {
   if (cueBallInHand) return;
   if (gameOver) return;
   aiQueued = false;
+  // AI 開桿前清走玩家較落嘅 spin——唔係 AI 嗰桿會用埋玩家嘅塞/推桿，
+  // 白波無端端跟住玩家上一桿嘅旋轉去彎
+  spin.x = 0;
+  spin.y = 0;
+  updateSpinMarker();
   const targets = legalTargetTypes();
   const targetBalls = balls.filter(
     (ball) => targets.includes(ball.type) && !ball.pocketed
@@ -4091,6 +4153,7 @@ function isTouchInControlArea(e) {
 
 function handlePrimaryPointerDown(e) {
   inputDebug.lastMouseDown = `btn=${e.button} x=${e.clientX} y=${e.clientY} state=${turnState}`;
+  if (spinDragging) return; // 撥緊 spin 掣：事件由 spin 控件 pointer capture 處理，唔好搶
   if (e.button !== 0) return;
   if (foulDecisionPending) return;
   if (!gameStarted) return;
@@ -4197,6 +4260,7 @@ function handlePrimaryPointerDown(e) {
 
 // 新的手機 Move 邏輯：只瞄準，不儲力
 function handlePrimaryPointerMove(e) {
+  if (spinDragging) return; // 撥緊 spin 掣：唔好將 widget 內嘅移動當成重新瞄準
   inputDebug.lastMouseMove = `x=${e.clientX} y=${e.clientY} dragCue=${isDraggingCueBall} cueInHand=${cueBallInHand}`;
   if (activePointerId !== null && e.pointerId !== undefined && e.pointerId !== activePointerId) {
     return;
@@ -4318,6 +4382,7 @@ function handlePrimaryPointerMove_OLD(e) {
 }
 
 function handlePrimaryPointerUp(e) {
+  if (spinDragging) return;
   inputDebug.lastMouseUp = `btn=${e.button} x=${e.clientX} y=${e.clientY} state=${turnState} charging=${isCharging}`;
   if (e.button !== 0) return;
 
@@ -4361,6 +4426,7 @@ if ('PointerEvent' in window) {
     activePointerId = null;
     isDraggingCueBall = false;
     isCharging = false;
+    isRotatingCamera = false; // OS 搶咗手勢（pointercancel）都要放低，唔係下一下 tap 會被食咗
   });
 } else {
   canvas.addEventListener('mousedown', (e) =>
@@ -4508,7 +4574,7 @@ if (mobileChargeBtn) {
   };
 
   mobileChargeBtn.addEventListener('pointerdown', startCharging);
-  mobileChargeBtn.addEventListener('touchstart', startCharging);
+  if (!('PointerEvent' in window)) mobileChargeBtn.addEventListener('touchstart', startCharging);
 
   const withinButton = (e) => {
     const rect = mobileChargeBtn.getBoundingClientRect();
@@ -4519,7 +4585,7 @@ if (mobileChargeBtn) {
   };
 
   mobileChargeBtn.addEventListener('pointerup', stopChargingAndShoot);
-  mobileChargeBtn.addEventListener('touchend', stopChargingAndShoot);
+  if (!('PointerEvent' in window)) mobileChargeBtn.addEventListener('touchend', stopChargingAndShoot);
   mobileChargeBtn.addEventListener('touchcancel', cancelCharging);
 
   mobileChargeBtn.addEventListener('pointermove', (e) => {
@@ -4756,8 +4822,10 @@ function checkPockets(ball) {
         return true;
       }
     } else {
-      // 角袋：保持原本邏輯
-      if (distSq < pocket.radius * pocket.radius) {
+      // 角袋：球心要真係入到袋口先算（之前用足全個半徑，波啱啱掂到
+      // 袋口邊都即刻入袋，比中袋鬆成一倍——角袋照理鬆過中袋少少就夠）
+      const capture = pocket.radius - BALL_RADIUS * 0.6;
+      if (distSq < capture * capture) {
         handlePocket(ball);
         return true;
       }
@@ -4850,6 +4918,9 @@ function resolveBallCollisions() {
               const spinForce = -spin.y * Math.abs(velAlongNormal) * 0.45;
               cue.velocity.x += dirX * spinForce;
               cue.velocity.z += dirZ * spinForce;
+              // 大力推桿（follow）可以令白波撞後反而加速超過 substep 取樣上限，
+              // 有機會下一 substep 穿波/穿庫——cap 返落開桿速度上限
+              if (cue.velocity.length() > cueSpeedCap) cue.velocity.setLength(cueSpeedCap);
             }
           }
         }
@@ -4926,7 +4997,9 @@ function evaluateShotIfStopped() {
   const reds = redsRemaining();
 
   if (!foulThisShot && !freeBallAvailable) {
-    if (reds > 0) {
+    // 用「開桿嗰刻」嘅紅波數判斷階段：呢桿先啱啱清咗最後一粒紅（reds 而家 0）
+    // 都仲係紅波階段規則，唔可以跌落清台分支話人哋「Wrong color (yellow required)」
+    if (reds > 0 || (shotStartReds > 0 && !expectingColor)) {
       if (!expectingColor && pottedColors.length > 0) {
         foulThisShot = true;
         foulReason = 'Potted color on red';
@@ -4989,6 +5062,15 @@ function stepSimulation(dt) {
 
   if (shotInProgress) {
     shotElapsed += dt;
+    // 10 秒超時保險：evaluateShotIfStopped 開頭會 !allStopped() return，
+    // 所以真係卡波（兩粒波喺庫邊互彈唔肯停）嗰陣一定要先強制停晒佢哋，
+    // 否則 shotInProgress 永遠清唔到、成局 hang 死
+    if (shotElapsed > 10 && !allStopped()) {
+      for (const ball of balls) {
+        if (!ball.pocketed) ball.velocity.set(0, 0, 0);
+      }
+      stationaryTime = settledDuration;
+    }
     if (stationaryTime >= settledDuration || shotElapsed > 10) {
       evaluateShotIfStopped();
     }
@@ -5419,19 +5501,24 @@ window.snookerOnlineRoomUpdate = function ({ status, players, myRole, room } = {
     // After rematch the server flips the room back to 'waiting' before both
     // players re-ready. Clear the prior finished overlay + game-over panel so
     // the next 'playing' transition can open a clean slate.
+    // 注意：對局進行中收到遲到/重派嘅舊 'waiting' 事件（realtime 冇次序保證）
+    // 唔可以清 serial guard——一清，之後任何過期快照都會直接改到新鮮狀態。
+    // 只有「真係喺兩局之間」（完咗局／round 換咗／未開始）先做重置。
+    const wasGameOver = gameOver;
+    const roundChanged = Number.isFinite(room?.round_id) && room.round_id !== window.__snookerOnlineRoundId;
     if (gameOver) {
       gameOver = false;
       document.getElementById('game-over-panel')?.remove();
     }
-    // Defensive reset of snapshot/shot serials so a late cross-round state_sync
-    // from the PREVIOUS round cannot mutate fresh state between 'waiting' and
-    // 'playing'. resetGame() on the next 'playing' will reset again; harmless.
-    lastAppliedSnapshotSerial = 0;
-    lastAppliedSnapshotId = null;
-    currentShotSerial = 0;
-    activeShotOrigin = null;
-    lastCompletedShotOrigin = null;
-    document.getElementById('snooker3d-online-overlay')?.classList.remove('hidden');
+    if (wasGameOver || roundChanged || !gameStarted) {
+      lastAppliedSnapshotSerial = 0;
+      lastAppliedSnapshotId = null;
+      lastAppliedSnapshotSeq = 0;
+      currentShotSerial = 0;
+      activeShotOrigin = null;
+      lastCompletedShotOrigin = null;
+      document.getElementById('snooker3d-online-overlay')?.classList.remove('hidden');
+    }
   } else if (status === 'left') {
     window.isOnlineMode        = false;
     window.onlineMyPlayerIndex = 0;

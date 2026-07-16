@@ -564,16 +564,36 @@ async function fetchLatestSnapshotForRecovery() {
         .select('*')
         .eq('room_id', SnookerOnline.roomUuid)
         .order('shot_no', { ascending: false })
-        .limit(8);
+        .limit(30); // 8 行唔夠：連環快速交波時最新嘅 state_sync 可能俾 shot envelope 沖出窗外
     if (error || !rows) return;
-    for (const row of rows) {
-        const payload = getShotPayload(row);
+    let syncIdx = -1;
+    for (let i = 0; i < rows.length; i++) {
+        const payload = getShotPayload(rows[i]);
         if (payload && payload.kind === 'state_sync' && isShotPayloadForCurrentRound(payload)) {
-            if (window.snookerApplyRemoteStateSnapshot) {
-                window.snookerApplyRemoteStateSnapshot(payload.snapshot || null, payload, { allowOwn: true });
-            }
-            return;
+            syncIdx = i;
+            break;
         }
+    }
+    if (syncIdx === -1) return;
+    const syncPayload = getShotPayload(rows[syncIdx]);
+    if (window.snookerApplyRemoteStateSnapshot) {
+        window.snookerApplyRemoteStateSnapshot(syncPayload.snapshot || null, syncPayload, { allowOwn: true });
+    }
+    // 快照「之後」仲有 shot envelope？咁多數係「自己開咗桿、未 settle 就刷新」——
+    // settled 快照從未寫入，齋 restore 快照會令刷新嗰方回滾到開桿前，
+    // 對面就已經行咗轉 turn，兩邊會嗌交。將呢啲 envelope 照 remote replay 路徑
+    // 重播（唔理係邊個打嘅），deterministic 模擬會追返到一致狀態。
+    const later = rows.slice(0, syncIdx).reverse(); // 轉返升序，順住 shot_no 重播
+    for (const row of later) {
+        const payload = getShotPayload(row);
+        if (!payload || payload.kind === 'state_sync' || !isShotPayloadForCurrentRound(payload)) continue;
+        const dedupKey = payload.event_id || row.id;
+        if (dedupKey) {
+            if (SnookerOnline.appliedShotIds.has(dedupKey)) continue;
+            trimAppliedEventIds();
+            SnookerOnline.appliedShotIds.add(dedupKey); // 防 realtime/poll 再派一次
+        }
+        if (window.snookerApplyRemoteShot) window.snookerApplyRemoteShot(payload);
     }
 }
 
@@ -1382,13 +1402,11 @@ function cleanupAndLobby() {
 window.snookerSignalGameOver = async function({ winner = 0, scores = [] } = {}) {
     if (!SnookerOnline.sbClient || !SnookerOnline.roomUuid) return;
     const winnerRole = winner === 1 ? 'player1' : winner === 2 ? 'player2' : null;
-    // Only one client must write the result — otherwise the two peers can race
-    // with divergent `winner` values if their scores briefly differ due to a
-    // dropped snapshot. Rule: the winner writes, or on draw player1 writes.
-    const iAmAuthoritative =
-        (winnerRole && SnookerOnline.playerRole === winnerRole) ||
-        (!winnerRole && SnookerOnline.playerRole === 'player1');
-    if (!iAmAuthoritative) return;
+    // 邊個 call 邊個寫。呢度天然只有一個 caller：只有「打完嗰桿導致完局」
+    // 嘅一方會行到 endGame()（對方喺 endShot 對 remote 桿早退），所以唔會 race。
+    // 以前「贏家先寫」嘅規則有個窿：射手入咗黑但輸咗（或者和局而射手係 player2）
+    // 嗰局，射手唔寫、贏家又永遠唔會 call —— 房就卡死喺 'playing'，
+    // 兩邊都收唔到 finished，冇結算冇 rematch。
     const { error } = await SnookerOnline.sbClient.rpc('signal_snooker_game_over', {
         p_room_id: SnookerOnline.roomUuid,
         p_client_id: SnookerOnline.clientId,
