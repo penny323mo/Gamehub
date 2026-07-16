@@ -4730,10 +4730,17 @@ function resolveCushion(ball) {
     }
     const dx = bx - p.position.x;
     const dz = bz - p.position.z;
-    return Math.hypot(dx, dz) < p.radius + BALL_RADIUS * 0.5;
+    // 收窄 near zone（貼近真正捕捉半徑）：擦袋而過嘅波唔好無端端豁免 cushion
+    return Math.hypot(dx, dz) < p.radius - BALL_RADIUS * 0.1;
   });
 
-  if (isNearPocket) return;  // Let ball fall into pocket instead of bouncing
+  if (isNearPocket) {
+    // 畀波跌入袋，但唔畀佢衝出枱外成步再彈返（好似 teleport）——
+    // 出界幅度封頂喺一個波半徑內
+    ball.position.x = Math.max(-halfW - BALL_RADIUS, Math.min(halfW + BALL_RADIUS, ball.position.x));
+    ball.position.z = Math.max(-halfL - BALL_RADIUS, Math.min(halfL + BALL_RADIUS, ball.position.z));
+    return;
+  }
 
   if (ball.position.x < -halfW + BALL_RADIUS) {
     ball.position.x = -halfW + BALL_RADIUS;
@@ -4835,6 +4842,7 @@ function checkPockets(ball) {
 }
 
 function resolveBallCollisions() {
+  let firstHitCandidate = null; // 同一 substep 撞到多粒時，用重疊深度揀「最早接觸」
   const buckets = new Map();
   for (let i = 0; i < balls.length; i += 1) {
     const ball = balls[i];
@@ -4899,8 +4907,12 @@ function resolveBallCollisions() {
           b.velocity.multiplyScalar(collisionEnergyRetention);
 
           if (shotInProgress && !firstHitType) {
-            if (a.type === 'cue') firstHitType = b.type;
-            if (b.type === 'cue') firstHitType = a.type;
+            // 唔好即刻定案：貼波/波堆情況下同一 substep 可能處理幾對 cue 接觸，
+            // array 次序唔代表接觸先後——重疊最深嗰粒先係最早掂到嘅
+            const otherType = a.type === 'cue' ? b.type : (b.type === 'cue' ? a.type : null);
+            if (otherType && (!firstHitCandidate || overlap > firstHitCandidate.overlap)) {
+              firstHitCandidate = { type: otherType, overlap };
+            }
           }
 
           // Spin effect: follow/screw after cue ball collision
@@ -4927,6 +4939,7 @@ function resolveBallCollisions() {
       }
     }
   }
+  if (shotInProgress && !firstHitType && firstHitCandidate) firstHitType = firstHitCandidate.type;
 }
 
 function applyFriction(ball, dt) {
@@ -4995,6 +5008,16 @@ function evaluateShotIfStopped() {
   const pottedReds = scored.filter((type) => type === 'red').length;
   const pottedColors = scored.filter((type) => type !== 'red' && type !== 'cue');
   const reds = redsRemaining();
+
+  if (!foulThisShot && freeBallAvailable) {
+    // Free ball：以「第一粒接觸」作提名。入咗提名以外嘅波 = 犯規
+    //（正式規則要事先提名；呢度用首触當提名，係一致而可判定嘅簡化）
+    const pottedObjects = scored.filter((t) => t !== 'cue');
+    if (firstHitType && pottedObjects.some((t) => t !== firstHitType)) {
+      foulThisShot = true;
+      foulReason = `Free ball: potted ${pottedObjects.find((t) => t !== firstHitType)} but hit ${firstHitType} first`;
+    }
+  }
 
   if (!foulThisShot && !freeBallAvailable) {
     // 用「開桿嗰刻」嘅紅波數判斷階段：呢桿先啱啱清咗最後一粒紅（reds 而家 0）

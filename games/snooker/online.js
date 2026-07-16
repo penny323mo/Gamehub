@@ -1245,6 +1245,17 @@ async function sendStateSnapshot(snapshot) {
         label: 'SnookerStateSync',
         strictPlaying: false,
     });
+    // 維護 rooms.current_turn：以前呢個欄位開波寫一次就永遠唔郁（死數據），
+    // 任何信佢嘅恢復/觀戰/UI 路徑會成局都以為係 player1 回合。
+    // 每個 settled 快照（authoritative、有 currentPlayer）順手同步返，best effort。
+    if (snapshot.phase === 'final' && Number.isFinite(snapshot.currentPlayer)
+        && SnookerOnline.sbClient && SnookerOnline.roomUuid) {
+        const turnRole = snapshot.currentPlayer === 1 ? 'player2' : 'player1';
+        SnookerOnline.sbClient.from('snooker_rooms')
+            .update({ current_turn: turnRole, last_activity_at: new Date().toISOString() })
+            .eq('id', SnookerOnline.roomUuid).eq('status', 'playing')
+            .then(() => {}, () => {});
+    }
 }
 
 // ─── Realtime ────────────────────────────────────────────────────────────────
