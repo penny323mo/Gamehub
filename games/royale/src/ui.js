@@ -387,6 +387,16 @@ export class UI {
         this.game = game;
         this.selectedIdx = -1;
         this.dragIdx = -1;
+        // 重置所有「有變先寫」HUD cache，新一場一定全部重繪一次
+        this.lastHandKey = null;
+        this.lastPlayedKey = null;
+        this._lastPlayedLen = -1;
+        this._lastElixirInt = -1;
+        this._lastBoost = null;
+        this._lastT = -1;
+        this._lastPhase = null;
+        this._lastCrowns = -1;
+        this._cardsDirty = true;
     }
 
     // 每幀更新 HUD
@@ -421,48 +431,78 @@ export class UI {
                 next.innerHTML = this.cardInnerHtml(CARDS[p.next]);
             }
             this.#refreshSelection();
+            this._cardsDirty = true; // 手牌換咗，affordability class 要重新計
         }
 
-        // 對手已出過嘅卡（獨特卡，最多 8 張）
-        const played = [...new Set(g.playedCards[TEAM.ENEMY])].slice(0, 8);
-        const playedKey = played.join(',');
-        if (playedKey !== this.lastPlayedKey) {
-            this.lastPlayedKey = playedKey;
-            const box = this.$('enemy-played');
-            box.innerHTML = '';
-            for (const id of played) {
-                const chip = document.createElement('div');
-                chip.className = 'chip';
-                chip.innerHTML = this.thumbs[id]
-                    ? `<img src="${this.thumbs[id]}" alt="">`
-                    : CARDS[id].icon;
-                box.appendChild(chip);
+        // 對手已出過嘅卡（獨特卡，最多 8 張）。
+        // 平價 guard 先行：playedCards 冇加長就唔使砌 Set/array/join（每幀慳返啲 GC）
+        const playedLen = g.playedCards[TEAM.ENEMY].length;
+        if (playedLen !== this._lastPlayedLen) {
+            this._lastPlayedLen = playedLen;
+            const played = [...new Set(g.playedCards[TEAM.ENEMY])].slice(0, 8);
+            const playedKey = played.join(',');
+            if (playedKey !== this.lastPlayedKey) {
+                this.lastPlayedKey = playedKey;
+                const box = this.$('enemy-played');
+                box.innerHTML = '';
+                for (const id of played) {
+                    const chip = document.createElement('div');
+                    chip.className = 'chip';
+                    chip.innerHTML = this.thumbs[id]
+                        ? `<img src="${this.thumbs[id]}" alt="">`
+                        : CARDS[id].icon;
+                    box.appendChild(chip);
+                }
             }
         }
 
-        // 買唔買得起
-        document.querySelectorAll('#cards .card').forEach((el, i) => {
-            const c = CARDS[p.hand[i]];
-            el.classList.toggle('unaffordable', !c || p.elixir < c.cost);
-        });
+        // 以下 HUD 值大部分係 1Hz 或更慢先變——全部用「有變先寫 DOM」gate 住，
+        // 唔好 60fps 咁狂寫 textContent/classList（cache 埋元素，唔使每幀 getElementById）
+        if (!this._hud) {
+            this._hud = {
+                elixirNum: this.$('elixir-num'), elixirFill: this.$('elixir-fill'),
+                timer: this.$('timer'), phase: this.$('phase-label'),
+                crownP: this.$('crowns-player'), crownE: this.$('crowns-enemy'),
+            };
+        }
+        const H = this._hud;
 
-        // 聖水
-        this.$('elixir-num').textContent = Math.floor(p.elixir);
-        const fill = this.$('elixir-fill');
-        fill.style.width = `${(p.elixir / GAME_RULES.elixirMax) * 100}%`;
-        fill.classList.toggle('boost', g.elixirMultiplier() > 1);
+        // 買唔買得起：手牌重繪／聖水過整數位先重新計
+        const elixirInt = Math.floor(p.elixir);
+        if (elixirInt !== this._lastElixirInt || this._cardsDirty) {
+            this._cardsDirty = false;
+            document.querySelectorAll('#cards .card').forEach((el, i) => {
+                const c = CARDS[p.hand[i]];
+                el.classList.toggle('unaffordable', !c || p.elixir < c.cost);
+            });
+        }
+        if (elixirInt !== this._lastElixirInt) {
+            this._lastElixirInt = elixirInt;
+            H.elixirNum.textContent = elixirInt;
+        }
 
-        // 時間 / 皇冠
+        // 聖水條係連續動畫，照每幀寫；boost class 就 gate 住
+        H.elixirFill.style.width = `${(p.elixir / GAME_RULES.elixirMax) * 100}%`;
+        const boost = g.elixirMultiplier() > 1;
+        if (boost !== this._lastBoost) { this._lastBoost = boost; H.elixirFill.classList.toggle('boost', boost); }
+
+        // 時間 / 階段 / 皇冠
         const t = Math.max(0, Math.ceil(g.time));
-        const timerEl = this.$('timer');
-        timerEl.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
-        timerEl.classList.toggle('urgent', g.phase === 'overtime' || t <= 30);
-        const inClimax = g.phase === 'overtime' && g.time <= GAME_RULES.climaxWindow;
-        this.$('phase-label').textContent = inClimax ? '🔥 決勝一刻 傷害提升'
-            : g.phase === 'overtime' ? '⚡ 加時 突然死亡'
-            : g.elixirMultiplier() > 1 ? '💧 雙倍聖水' : '';
-        this.$('phase-label').classList.toggle('climax', inClimax);
-        this.$('crowns-player').textContent = g.crowns[TEAM.PLAYER];
-        this.$('crowns-enemy').textContent = g.crowns[TEAM.ENEMY];
+        if (t !== this._lastT || g.phase !== this._lastPhase) {
+            H.timer.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+            H.timer.classList.toggle('urgent', g.phase === 'overtime' || t <= 30);
+            const inClimax = g.phase === 'overtime' && g.time <= GAME_RULES.climaxWindow;
+            H.phase.textContent = inClimax ? '🔥 決勝一刻 傷害提升'
+                : g.phase === 'overtime' ? '⚡ 加時 突然死亡'
+                : boost ? '💧 雙倍聖水' : '';
+            H.phase.classList.toggle('climax', inClimax);
+            this._lastT = t; this._lastPhase = g.phase;
+        }
+        const crownKey = g.crowns[TEAM.PLAYER] * 10 + g.crowns[TEAM.ENEMY];
+        if (crownKey !== this._lastCrowns) {
+            this._lastCrowns = crownKey;
+            H.crownP.textContent = g.crowns[TEAM.PLAYER];
+            H.crownE.textContent = g.crowns[TEAM.ENEMY];
+        }
     }
 }

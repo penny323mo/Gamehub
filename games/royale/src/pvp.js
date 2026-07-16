@@ -103,6 +103,11 @@ export class GuestGame {
         return null;
     }
     updateHpBarOrientation(quaternion) {
+        // 同 game.js 一樣嘅 early-out：鏡頭冇郁、血條數冇變就唔使逐條 copy
+        if (this._lastBarQuat && this._lastBarQuat.equals(quaternion) && this._lastBarCount === this.hpBars.length) return;
+        if (!this._lastBarQuat) this._lastBarQuat = new THREE.Quaternion();
+        this._lastBarQuat.copy(quaternion);
+        this._lastBarCount = this.hpBars.length;
         for (const bar of this.hpBars) bar.quaternion.copy(quaternion);
     }
 

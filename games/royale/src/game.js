@@ -7,6 +7,10 @@ import { instantiate, ASSETS } from './assets.js';
 
 let nextId = 1;
 
+// 每步重用嘅 scratch objects（熱路徑唔好每實體每步做新 allocation）
+const ANIM_ARG = { moving: false, attackT: -1 };
+const GOAL = { x: 0, z: 0 };
+
 function dist(a, b) {
     const dx = a.x - b.x, dz = a.z - b.z;
     return Math.sqrt(dx * dx + dz * dz);
@@ -959,24 +963,27 @@ export class Game {
     }
 
     // ---------- 尋路 ----------
+    // 回傳共用 scratch object GOAL（caller 即場讀完就算，唔好揸住個 reference）
     #moveGoal(e, target) {
         const sameSide = Math.sign(e.z) === Math.sign(target.z) || Math.abs(target.z) < 0.5;
         const inRiverBand = Math.abs(e.z) <= ARENA.riverHalf + 0.5;
-        if (sameSide && !inRiverBand) return { x: target.x, z: target.z };
+        if (sameSide && !inRiverBand) { GOAL.x = target.x; GOAL.z = target.z; return GOAL; }
 
         const bx = e.x < 0 ? -ARENA.bridgeX : ARENA.bridgeX;
         const inCorridor = Math.abs(e.x - bx) <= ARENA.bridgeHalfW - 0.25;
+        GOAL.x = bx;
         if (inRiverBand) {
             // 過緊橋：直行到對面
             const exitZ = (sameSide ? Math.sign(target.z) : -Math.sign(e.z)) * (ARENA.riverHalf + 0.9);
-            return { x: bx, z: exitZ || -Math.sign(e.z) * (ARENA.riverHalf + 0.9) };
-        }
-        if (!inCorridor) {
+            GOAL.z = exitZ || -Math.sign(e.z) * (ARENA.riverHalf + 0.9);
+        } else if (!inCorridor) {
             // 行去橋頭
-            return { x: bx, z: Math.sign(e.z) * (ARENA.riverHalf + 0.7) };
+            GOAL.z = Math.sign(e.z) * (ARENA.riverHalf + 0.7);
+        } else {
+            // 喺走廊入面，向橋直行
+            GOAL.z = -Math.sign(e.z) * (ARENA.riverHalf + 0.9);
         }
-        // 喺走廊入面，向橋直行
-        return { x: bx, z: -Math.sign(e.z) * (ARENA.riverHalf + 0.9) };
+        return GOAL;
     }
 
     // ---------- 索敵 ----------
@@ -1266,6 +1273,8 @@ export class Game {
                 const a = units[i], b = units[j];
                 const minD = a.radius + b.radius;
                 const dx = b.x - a.x, dz = b.z - a.z;
+                // 大部分配對都離行離列：axis 快篩先，慳返乘法（O(n²) 熱路徑）
+                if (dx > minD || dx < -minD || dz > minD || dz < -minD) continue;
                 const d2 = dx * dx + dz * dz;
                 if (d2 < minD * minD && d2 > 0.0001) {
                     const d = Math.sqrt(d2);
@@ -1301,10 +1310,11 @@ export class Game {
             while (diff > Math.PI) diff -= Math.PI * 2;
             while (diff < -Math.PI) diff += Math.PI * 2;
             e.model.rotation.y += diff * Math.min(1, dt * 10);
-            e.model.userData.animate?.(this.simTime + e.id * 0.7, {
-                moving: !!e.moving && e.deployT <= 0,
-                attackT: e.attackAnimT,
-            });
+            // 重用一個 scratch object：animate 只會即場讀兩個 field，
+            // 唔好每實體每步整個新 object（30 兵 = 每秒 ~1800 個垃圾畀 GC 執）
+            ANIM_ARG.moving = !!e.moving && e.deployT <= 0;
+            ANIM_ARG.attackT = e.attackAnimT;
+            e.model.userData.animate?.(this.simTime + e.id * 0.7, ANIM_ARG);
             e.hpBar.position.set(e.x, e.hpBar.userData.h, e.z);
             if (e.slowRing) e.slowRing.position.set(e.x, 0.06, e.z);
         }
@@ -1354,6 +1364,12 @@ export class Game {
         return this.entities.filter(e => !e.dead && e.team === team && !e.isTower);
     }
     updateHpBarOrientation(quaternion) {
+        // 鏡頭冇郁、血條數目又冇變（冇新兵 spawn）就唔使逐條 copy——
+        // 鏡頭只有拖/縮放嗰陣先郁，平時每幀慳返幾十次 quaternion copy
+        if (this._lastBarQuat && this._lastBarQuat.equals(quaternion) && this._lastBarCount === this.hpBars.length) return;
+        if (!this._lastBarQuat) this._lastBarQuat = new THREE.Quaternion();
+        this._lastBarQuat.copy(quaternion);
+        this._lastBarCount = this.hpBars.length;
         for (const bar of this.hpBars) bar.quaternion.copy(quaternion);
     }
 
