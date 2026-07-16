@@ -292,7 +292,16 @@ export class Game {
         const ownSide = (zz) => (team === TEAM.PLAYER ? zz : -zz);
         const zSide = ownSide(z);
 
-        if (zSide >= ARENA.riverHalf + 0.25) return { x, z }; // 自己半場
+        if (zSide >= ARENA.riverHalf + 0.25) {
+            // 建築唔畀疊建築/塔（兩座哨塔完全重疊會變成一點集火，冇任何走位代價）
+            if (card.kind === 'building') {
+                for (const e of this.entities) {
+                    if (e.dead || (!e.isBuilding && !e.isTower)) continue;
+                    if (dist(e, { x, z }) < e.radius + (card.radius ?? 0.6) + 0.5) return null;
+                }
+            }
+            return { x, z }; // 自己半場
+        }
         if (card.kind === 'building') return null; // 建築只可以喺自己半場
 
         // 口袋區：對面公主塔冧咗先可以擺嗰半邊
@@ -453,7 +462,9 @@ export class Game {
             : card.id === 'freeze' ? 0x9adcff
             : card.id === 'powderkeg' ? 0xffaa33 : 0xddcc66;
         this.#explosion(x, z, card.splash, color);
-        const mult = this.#levelMult(team, card.id);
+        // 決勝一刻嘅傷害加成對法術一樣生效——唔係嘅話最後 10 秒
+        // 用嚟收官嘅火球反而比一劍仔更蝕章
+        const mult = this.#levelMult(team, card.id) * this.#climaxMult();
         let unitsHit = 0;
         for (const e of this.entities) {
             if (e.dead || e.team === team) continue;
@@ -462,7 +473,9 @@ export class Game {
                 const dmg = e.isTower ? base * GAME_RULES.spellTowerFactor : base;
                 if (!e.isTower) unitsHit += 1;
                 this.#damage(e, dmg, { team, cardId: card.id });
-                if (card.slow && !e.isTower) {
+                // 冰凍對塔一樣有效（塔嘅攻擊節奏行 slowMult）——
+                // 之前塔完全免疫，同「範圍冰封」嘅講法唔一致
+                if (card.slow) {
                     e.slowT = card.slow.dur;
                     e.slowFactor = card.slow.factor;
                     this.#attachSlowRing(e);
@@ -973,9 +986,11 @@ export class Game {
         const inCorridor = Math.abs(e.x - bx) <= ARENA.bridgeHalfW - 0.25;
         GOAL.x = bx;
         if (inRiverBand) {
-            // 過緊橋：直行到對面
-            const exitZ = (sameSide ? Math.sign(target.z) : -Math.sign(e.z)) * (ARENA.riverHalf + 0.9);
-            GOAL.z = exitZ || -Math.sign(e.z) * (ARENA.riverHalf + 0.9);
+            // 過緊橋：直行到對面。單位啱啱喺 z=0 嗰陣 Math.sign 係 0，
+            // 要 fallback 用目標方向，唔係個 goal 冇 z 分量會令佢卡喺河中間
+            const dir = (sameSide ? Math.sign(target.z) : -Math.sign(e.z))
+                || Math.sign(target.z - e.z) || 1;
+            GOAL.z = dir * (ARENA.riverHalf + 0.9);
         } else if (!inCorridor) {
             // 行去橋頭
             GOAL.z = Math.sign(e.z) * (ARENA.riverHalf + 0.7);
@@ -1025,7 +1040,9 @@ export class Game {
         const src = { team: e.team, cardId: e.isTower ? 'tower' : e.cardId };
         const dmg = e.dmg * this.#climaxMult();
         if (e.projectile) {
-            this.#fireProjectile(e, target, dmg);
+            // 投射物送「未乘 climax」嘅底傷，落地嗰刻先乘——投石車飛成秒鐘，
+            // 開火同落地跨越決勝窗口時先唔會同近戰唔一致
+            this.#fireProjectile(e, target, e.dmg);
         } else {
             this.#damage(target, dmg, src);
             if (e.splash) {
@@ -1083,16 +1100,17 @@ export class Game {
                 p.done = true;
                 this.scene.remove(p.model);
                 disposeDeep(p.model);
+                const impactDmg = p.dmg * this.#climaxMult(); // climax 以「落地一刻」計
                 if (p.splash) {
                     this.#explosion(p.x, p.z, p.splash, 0xbbaa88);
                     for (const o of this.entities) {
                         if (o.dead || o.team === p.team) continue;
                         if (dist(o, { x: p.x, z: p.z }) <= p.splash + o.radius) {
-                            this.#damage(o, p.dmg, { team: p.team, cardId: p.srcCardId });
+                            this.#damage(o, impactDmg, { team: p.team, cardId: p.srcCardId });
                         }
                     }
                 } else if (!t.dead) {
-                    this.#damage(t, p.dmg, { team: p.team, cardId: p.srcCardId });
+                    this.#damage(t, impactDmg, { team: p.team, cardId: p.srcCardId });
                 }
             }
         }
@@ -1194,19 +1212,20 @@ export class Game {
             if (this.phase === 'ended') break;
             if (e.dead) continue;
 
-            // 建築壽命
-            if (!e.isTower && e.isBuilding) {
-                e.lifetime -= dt;
-                if (e.lifetime <= 0) { this.#kill(e); continue; }
-            }
-
-            if (e.deployT > 0) { e.deployT -= dt; continue; }
-
-            // 冰凍/減速：移動同攻擊節奏一齊慢
+            // 冰凍/減速：計時喺部署硬直期間都要行（唔係凍住落地嘅單位
+            // 會變相延長冰凍時間），但建築壽命就要等部署完先開始計
             const slowMult = e.slowT > 0 ? e.slowFactor : 1;
             if (e.slowT > 0) {
                 e.slowT -= dt;
                 if (e.slowT <= 0) this.#detachSlowRing(e);
+            }
+
+            if (e.deployT > 0) { e.deployT -= dt; continue; }
+
+            // 建築壽命（部署完成先開始倒數，「30 秒」哨塔就真係服役 30 秒）
+            if (!e.isTower && e.isBuilding) {
+                e.lifetime -= dt;
+                if (e.lifetime <= 0) { this.#kill(e); continue; }
             }
 
             // 聖水磨坊產水
