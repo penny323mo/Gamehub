@@ -574,6 +574,10 @@ export function makeMill(team) {
         hub.add(arm);
     }
     g.add(hub);
+    // 磨坊部件用緊 mat() 共享快取材質——hit-flash 會直接改 emissive，
+    // 唔 clone 嘅話一座磨坊中彈，所有共用嗰啲材質嘅嘢（另一座磨坊、
+    // 戰象披布等）會一齊閃白，仲會互相熄咗人哋嘅 flash
+    g.traverse((o) => { if (o.isMesh) o.material = o.material.clone(); });
     const flash = makeHitFlash(g);
     g.userData.onHit = flash.onHit;
     g.userData.animate = (t2) => {

@@ -531,32 +531,39 @@ export class Game {
 
     // 粒子飛濺
     #particles(x, z, color, n = 8, power = 3.5, y0 = 0.4) {
+        // 成束粒子做「一個」effect：n 粒 mesh 共用一個 geometry，
+        // 全部完晒先由 disposeDeep 清一次——唔可以逐粒逐粒 effect，
+        // 否則最早完嗰粒會 dispose 咗個共享 geometry，累到其他仲喺度嘅兄弟粒
         const geo = new THREE.SphereGeometry(0.09, 5, 4);
-        const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1 });
+        const group = new THREE.Group();
+        const parts = [];
         for (let i = 0; i < n; i++) {
-            const p = new THREE.Mesh(geo, material.clone());
+            const p = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1 }));
             p.position.set(x, y0, z);
             const ang = Math.random() * Math.PI * 2;
             const sp = power * (0.4 + Math.random() * 0.6);
-            const vel = {
-                x: Math.cos(ang) * sp,
-                y: 2.5 + Math.random() * 2.5,
-                z: Math.sin(ang) * sp,
-            };
-            this.scene.add(p);
-            this.effects.push({
-                t: 0, dur: 0.55 + Math.random() * 0.25, mesh: p,
-                update: (ef, dt) => {
-                    vel.y -= 14 * dt;
-                    p.position.x += vel.x * dt;
-                    p.position.y += vel.y * dt;
-                    p.position.z += vel.z * dt;
-                    if (p.position.y < 0.05) p.position.y = 0.05;
-                    p.material.opacity = 1 - ef.t / ef.dur;
-                    p.scale.setScalar(1 - ef.t / ef.dur * 0.5);
-                },
+            parts.push({
+                p, dur: 0.55 + Math.random() * 0.25,
+                vx: Math.cos(ang) * sp, vy: 2.5 + Math.random() * 2.5, vz: Math.sin(ang) * sp,
             });
+            group.add(p);
         }
+        this.scene.add(group);
+        this.effects.push({
+            t: 0, dur: 0.8, mesh: group,
+            update: (ef, dt) => {
+                for (const it of parts) {
+                    const k = Math.min(1, ef.t / it.dur);
+                    if (k >= 1) { it.p.visible = false; continue; }
+                    it.vy -= 14 * dt;
+                    it.p.position.x += it.vx * dt;
+                    it.p.position.y = Math.max(0.05, it.p.position.y + it.vy * dt);
+                    it.p.position.z += it.vz * dt;
+                    it.p.material.opacity = 1 - k;
+                    it.p.scale.setScalar(1 - k * 0.5);
+                }
+            },
+        });
     }
 
     // 塔冧碎片：石塊向四圍拋出，有重力有旋轉，落地淡出
@@ -860,6 +867,9 @@ export class Game {
             onEnd: () => {
                 this.scene.remove(model);
                 this.scene.remove(t.hpBar);
+                disposeDeep(model);
+                disposeDeep(t.hpBar);
+                this.hpBars = this.hpBars.filter(b => b !== t.hpBar); // 唔好再每幀同孤兒血條校方向
                 // 瓦礫：Meshy「破塔」模型
                 const rubble = new THREE.Group();
                 rubble.userData.isRubble = true;
@@ -1172,6 +1182,9 @@ export class Game {
 
         // 實體更新
         for (const e of this.entities) {
+            // 場中途完咗場（例如攻城槌喺呢個 loop 入面拆冧王塔）就即刻停，
+            // 唔好畀剩低嘅單位繼續郁多一格、射多啲已經冇意義嘅投射物
+            if (this.phase === 'ended') break;
             if (e.dead) continue;
 
             // 建築壽命

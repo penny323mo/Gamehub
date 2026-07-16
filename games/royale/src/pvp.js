@@ -30,7 +30,7 @@ export function attachHostRelay(game) {
         tick(dt) {
             acc += dt;
             if (acc >= HOST_BROADCAST_INTERVAL) {
-                acc -= HOST_BROADCAST_INTERVAL;
+                acc %= HOST_BROADCAST_INTERVAL; // 卡幀追落嚟嗰陣唔好累積 backlog，維持穩定 10Hz
                 sendState(game.serialize());
             }
         },
@@ -64,9 +64,11 @@ export class GuestGame {
         this._clock = 0;
         this.playedCards = { [TEAM.PLAYER]: [], [TEAM.ENEMY]: [] };
         this.towers = { [TEAM.PLAYER]: {}, [TEAM.ENEMY]: {} };
-        // 已送出但未喺快照反映嘅手牌格：防止喺快照更新前重覆出同一格
-        // （host 嗰邊已經換咗卡，會變成出咗一張 guest 睇唔到嘅卡）
-        this.pendingHand = new Set();
+        // 已送出但未喺快照反映嘅手牌格：防止喺快照更新前重覆出同一格。
+        // handIdx -> { cardId, t }：只有見到快照入面嗰格嘅卡真係換咗先解鎖
+        // （快照 10Hz 獨立於 input 處理，唔可以一收到快照就當 host 已經食咗指令），
+        // 或者等 2.5 秒當 host 拒絕咗（聖水唔夠/落點無效）都解鎖返。
+        this.pendingHand = new Map();
     }
 
     // entities 入面嘅 team 冇對調（保持 host 嘅真實視角），但呢個方法對外係跟
@@ -104,13 +106,26 @@ export class GuestGame {
         for (const bar of this.hpBars) bar.quaternion.copy(quaternion);
     }
 
-    tick(dt) { this._clock += dt; }
+    tick(dt) {
+        this._clock += dt;
+        // pendingHand 超時解鎖：host 可能拒絕咗個指令（唔會有手牌變化），唔可以鎖死格
+        for (const [idx, rec] of this.pendingHand) {
+            if (this._clock - rec.t > 2.5) this.pendingHand.delete(idx);
+        }
+    }
 
     // snap 係 host 用 game.serialize() 傳過嚟嘅原始快照（永遠以 host 角度：
     // TEAM.PLAYER=host、TEAM.ENEMY=guest）。Guest 需要將呢兩個欄位對調，
     // ui.js 先可以照舊當「TEAM.PLAYER=自己」用，唔使另外改晒成套 HUD 邏輯。
     applySnapshot(snap) {
-        this.pendingHand.clear(); // 新快照已反映 host 嘅最新手牌，解鎖晒所有格
+        // 只解鎖「手牌真係換咗」嘅格：快照可能喺 host 處理 input 之前生成，
+        // 一律清空會令雙出保護形同虛設（可以連 send 兩次同一格 → host 雙倍出卡）
+        const myHand = snap.players[TEAM.ENEMY]?.hand;
+        if (myHand) {
+            for (const [idx, rec] of this.pendingHand) {
+                if (myHand[idx] !== rec.cardId) this.pendingHand.delete(idx);
+            }
+        }
         this.time = snap.time;
         this.phase = snap.phase;
         this._mult = snap.mult;

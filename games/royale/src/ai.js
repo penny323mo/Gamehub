@@ -81,12 +81,12 @@ export class AIController {
             }
         }
 
-        // 4. 進攻：儲夠聖水就推線
+        // 4. 進攻：儲夠聖水就推線；出唔到（例如手上剩晒法術又冇目標）
+        //    而聖水已經滿瀉，就是但出張嘢，唔好企喺度嘥晒回復
+        //    （之前寫做 else if 係死碼：attackElixir 最高 10 < elixirMax 12，永遠入唔到）
         if (me.elixir >= this.cfg.attackElixir) {
-            this.tryAttack();
-        } else if (me.elixir >= GAME_RULES.elixirMax) {
-            // 聖水滿瀉，是但出張嘢
-            this.playAnyCheap();
+            const attacked = this.tryAttack();
+            if (!attacked && me.elixir >= GAME_RULES.elixirMax) this.playAnyCheap();
         }
     }
 

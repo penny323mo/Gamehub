@@ -177,7 +177,8 @@ export class UI {
         this.$('matching-cancel-btn').addEventListener('click', () => this.cb.onCancelMatching());
         this.$('again-btn').addEventListener('click', () => this.cb.onAgain());
         this.$('next-stage-btn').addEventListener('click', () => this.cb.onNextStage());
-        this.$('menu-btn').addEventListener('click', () => this.showStart());
+        // 「返回選單」要經 main.js 清埋成個 match（scene 物件/網絡），唔係淨係換畫面
+        this.$('menu-btn').addEventListener('click', () => this.cb.onBackToMenu());
         this.$('quit-btn').addEventListener('click', () => this.cb.onQuit());
         this.$('mute-btn').addEventListener('click', () => {
             const m = this.cb.onToggleMute();
@@ -392,6 +393,13 @@ export class UI {
     update() {
         const g = this.game;
         if (!g) return;
+        // 完場即刻甩選卡狀態：唔好等結算畫面彈出前嗰 1.4-2.8 秒
+        // 仲揀住卡（highlight 唔走、按 canvas 又轉唔到鏡頭）
+        if (g.phase === 'ended' && this.selectedIdx >= 0) {
+            this.selectedIdx = -1;
+            this.canvasPlacing = false;
+            this.#refreshSelection();
+        }
         const p = g.players[TEAM.PLAYER];
 
         // 手牌（有變先重繪）

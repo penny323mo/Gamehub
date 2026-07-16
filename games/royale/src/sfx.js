@@ -8,6 +8,11 @@ function ac() {
     return ctx;
 }
 
+// Autoplay policy：AudioContext 一定要喺用戶手勢入面 resume 先出到聲。
+// 如果第一下聲效嚟自 setTimeout／AI 動作（唔算手勢），context 會困死喺
+// suspended，成場遊戲靜晒——所以喺第一次任何 pointerdown 就預先開好佢。
+window.addEventListener('pointerdown', () => { try { ac(); } catch { /* 冇 WebAudio 都照玩 */ } }, { once: true });
+
 function tone(freq, dur, type = 'square', vol = 0.15, slide = 0) {
     if (muted) return;
     try {

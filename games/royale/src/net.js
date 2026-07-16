@@ -134,10 +134,16 @@ export async function cancelWaiting() {
             .update({ guest_id: null, guest_deck: null })
             .eq('id', roomId).eq('status', 'waiting').eq('guest_id', NetState.clientId);
     } else {
-        // Host 取消：刪房，但如果啱啱有 guest 入咗座就唔刪——
-        // 就噉 teardown，等 presence leave 通知對方（對方當我哋斷線判勝）
-        await NetState.client.from(ROOM_TABLE).delete()
-            .eq('id', roomId).eq('status', 'waiting').is('guest_id', null);
+        // Host 取消：刪房，但如果啱啱有 guest 入咗座就刪唔到（delete 條件唔中）——
+        // 嗰陣要主動將房標成 finished（guest 判勝），唔可以齋 teardown 留低一間
+        // status='waiting' 但有 guest 嘅殭屍房，令對面一直等到 stale
+        const { data } = await NetState.client.from(ROOM_TABLE).delete()
+            .eq('id', roomId).eq('status', 'waiting').is('guest_id', null).select();
+        if (!data || !data.length) {
+            await NetState.client.from(ROOM_TABLE)
+                .update({ status: 'finished', winner: 'guest', finished_reason: 'host_cancelled' })
+                .eq('id', roomId).neq('status', 'finished');
+        }
     }
     if (NetState.roomId === roomId) teardown();
 }
@@ -180,9 +186,13 @@ function subscribeChannel() {
         })
         .subscribe(async (status) => {
             if (status === 'SUBSCRIBED') {
-                await NetState.channel.track({ role: NetState.role, at: Date.now() });
+                // 訂閱 ack 係 async：呢一刻用戶可能已經㩒咗取消令 teardown() 清咗 channel，
+                // 或者已經換咗第二個 channel —— 淨係 track 返「仲係現任」嗰個
+                if (NetState.channel !== ch) return;
+                await ch.track({ role: NetState.role, at: Date.now() });
             }
         });
+    const ch = NetState.channel;
 }
 
 export function sendState(snapshot) {
@@ -228,7 +238,9 @@ export function leaveAsLoser() {
     if (!NetState.client || !NetState.roomId) return;
     const winner = NetState.role === 'host' ? 'guest' : 'host';
     try {
-        fetch(`${SUPABASE_URL}/rest/v1/${ROOM_TABLE}?id=eq.${NetState.roomId}&status=eq.playing`, {
+        // neq.finished 而唔係 eq.playing：guest 早退時 host 可能仲未 markPlaying()（房仲係 waiting），
+        // 用 eq.playing 會一行都 match 唔到，成場結果就冇人寫低
+        fetch(`${SUPABASE_URL}/rest/v1/${ROOM_TABLE}?id=eq.${NetState.roomId}&status=neq.finished`, {
             method: 'PATCH', keepalive: true,
             headers: {
                 apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`,

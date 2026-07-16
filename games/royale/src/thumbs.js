@@ -107,6 +107,12 @@ export function generateCardThumbs() {
         renderer.render(scene, camera);
         thumbs[id] = renderer.domElement.toDataURL('image/png');
         scene.remove(subject);
+        // 縮圖影完就冇用：geometry/材質即場 dispose，唔好成個 session 揸住幾十個模型嘅 GPU 資源
+        subject.traverse((o) => {
+            if (o.geometry) o.geometry.dispose();
+            const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+            for (const m of mats) m.dispose();
+        });
     }
 
     renderer.dispose();

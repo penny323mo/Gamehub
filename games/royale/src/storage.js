@@ -95,6 +95,18 @@ export function loadSave() {
         } catch {
             save = defaultSave();
         }
+        // 淨係 JSON.parse 唔會爆唔代表結構啱：舊版本／畀人改過嘅存檔可能
+        // daily=null、decks 唔夠 3 個、cardLevels 唔係 object……逐個 key 驗返，
+        // 壞邊瓣補邊瓣（唔好成份存檔重置，保得幾多保幾多）
+        const def = defaultSave();
+        if (!save.daily || typeof save.daily !== 'object') save.daily = def.daily;
+        if (typeof save.daily.done !== 'object' || save.daily.done === null) save.daily.done = {};
+        if (!Array.isArray(save.decks) || save.decks.length < def.decks.length) save.decks = def.decks;
+        for (let i = 0; i < save.decks.length; i++) {
+            if (!save.decks[i] || !Array.isArray(save.decks[i].cards)) save.decks[i] = def.decks[i] ?? { name: `卡組 ${i + 1}`, cards: [] };
+        }
+        if (typeof save.activeDeck !== 'number' || save.activeDeck < 0 || save.activeDeck >= save.decks.length) save.activeDeck = 0;
+        if (!save.cardLevels || typeof save.cardLevels !== 'object') save.cardLevels = def.cardLevels;
     }
     // 每日挑戰過咗夜就重置——放喺 cache 命中之後都要檢查，
     // 唔係個 tab 開過夜就會一直計落尋日嗰批挑戰度

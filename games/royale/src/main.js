@@ -213,6 +213,7 @@ function resetCameraView() {
 function setViewFlip(flipped) {
     orbitBase = flipped ? Math.PI : 0;
     orbit = orbitBase;
+    zoom = 1; // 開新場/清場都由標準縮放開始，唔好繼承上一場 pinch 完嘅狀態
     applyCameraView();
 }
 
@@ -269,6 +270,7 @@ let ui = null;
 let running = false;
 let rts = null; // LV2 世紀帝國式 RTS 控制器（init 後先建立）
 let rtsPointerDown = false; // RTS 手勢係咪喺 canvas 上面開始（隔走 HUD 掣嘅 pointer 事件）
+let guestFinish = null; // PvP guest 嘅收場函數（beginAsGuest 設定；投降時都要行到入賬）
 
 // ---------- PvP 狀態 ----------
 let netRole = null; // null | 'host' | 'guest'
@@ -308,13 +310,27 @@ const uiCallbacks = {
         startMatch(ui.deck, ui.difficulty, 'gauntlet', gauntletStage + 1);
     },
     onQuit() {
-        if (netRole && game && game.phase !== 'ended') {
-            Net.leaveAsLoser();
+        // 投降照計一場敗仗入賬（勝負/連勝/獎盃）——唔可以白 quit 嚟保成績。
+        // ui.showStart() 會清走 showEnd 排定嘅結算畫面 timer，所以唔會彈結算。
+        if (game && game.phase !== 'ended') {
+            if (netRole) Net.leaveAsLoser();
+            if (netRole === 'guest') {
+                game.phase = 'ended';
+                game.result = { winner: TEAM.ENEMY, crowns: { ...game.crowns } };
+                guestFinish?.();
+            } else {
+                game.crowns[TEAM.ENEMY] = Math.max(game.crowns[TEAM.ENEMY], netRole ? 1 : 3);
+                game.phase = 'ended';
+                game.result = { winner: TEAM.ENEMY, crowns: { ...game.crowns } };
+                game.hooks.onGameOver?.(game.result);
+            }
         }
-        if (game && game.phase !== 'ended' && !netRole) {
-            game.crowns[TEAM.ENEMY] = 3;
-            game.phase = 'ended';
-        }
+        cleanupMatch();
+        ui.showStart();
+    },
+    onBackToMenu() {
+        // 完場「返回選單」：一定要清埋成個 match（entities/hpBars/effects 全部拆走 dispose），
+        // 唔係嘅話舊場嘅嘢會留喺 scene 度繼續 render，下一場仲會兩場嘢疊埋
         cleanupMatch();
         ui.showStart();
     },
@@ -324,7 +340,12 @@ const uiCallbacks = {
     },
     onDragMove(handIdx, cx, cy) {
         cardBusy = true;
-        if (!game || game.phase === 'ended') return;
+        if (!game || game.phase === 'ended') {
+            // 拖到一半完場：唔好留低 ghost 圈同部署區 overlay 喺場度
+            ghost.visible = false;
+            showZones(false);
+            return;
+        }
         const p = screenToWorld(cx, cy);
         if (!p) { ghost.visible = false; return; }
         const cardId = game.players[TEAM.PLAYER].hand[handIdx];
@@ -356,7 +377,8 @@ const uiCallbacks = {
             const pos = game.validPlacement(TEAM.PLAYER, cardId, p.x, p.z);
             const canAfford = game.players[TEAM.PLAYER].elixir >= card.cost;
             if (pos && canAfford && !game.pendingHand.has(handIdx)) {
-                game.pendingHand.add(handIdx); // 下一個快照先解鎖，防止 host 換咗卡之後重覆出呢格
+                // 記低送出嗰陣格內嘅卡：見到快照呢格換咗卡（host 食咗指令）先解鎖
+                game.pendingHand.set(handIdx, { cardId, t: game._clock });
                 sendGuestPlay(handIdx, pos.x, pos.z);
                 card.kind === 'spell' ? sfx.spell() : sfx.deploy();
             } else {
@@ -381,6 +403,7 @@ const uiCallbacks = {
 function cleanupMatch() {
     stopMatchmaking();
     arena.setMood?.(0); // 新一場由日光開始
+    guestFinish = null;
     if (netRole) {
         Net.teardown();
         netRole = null;
@@ -424,6 +447,7 @@ let pvpDeck = null;
 
 async function startQuickMatch(deck) {
     if (matchmakingActive) return;
+    cleanupMatch(); // 上一場（例如撳完「返回選單」嗰場）嘅嘢要清晒先開始配對
     matchmakingActive = true;
     pvpDeck = deck;
     ui.showMatching('搜尋緊對手…');
@@ -439,6 +463,7 @@ async function startQuickMatch(deck) {
 
 async function startJoinRoom(deck, code) {
     if (matchmakingActive) return;
+    cleanupMatch(); // 同 startQuickMatch 一樣，清走上一場殘留
     matchmakingActive = true;
     pvpDeck = deck;
     ui.showMatching('加入緊房間…');
@@ -699,17 +724,22 @@ function beginAsGuest() {
         });
         ui.showEnd({ winner: g.result.winner, crowns: g.result.crowns }, { rewards, damage: {}, mode: 'pvp', stage: 0 });
     };
+    guestFinish = finishGuestMatch; // 投降（onQuit）都要行到入賬
     Net.on('state', (snap) => {
         g.applySnapshot(snap);
         if (g.phase === 'ended') finishGuestMatch();
     });
     Net.on('opponentLeft', () => {
-        if (g.phase !== 'ended') {
-            g.phase = 'ended';
-            g.result = { winner: TEAM.PLAYER, crowns: { ...g.crowns } };
-        }
-        // Host 走咗，冇得再等佢廣播 matchStats/最終 state —— 直接用現有資料收場
-        finishGuestMatch();
+        // Presence leave 同 broadcast 係兩條通道，冇次序保證：host 完場後即刻走人，
+        // 個「ended」快照可能仲喺路上。等 1.2 秒先判 walkover，唔好將輸咗嘅場當贏。
+        setTimeout(() => {
+            if (netRole !== 'guest' || recorded) return;
+            if (g.phase !== 'ended') {
+                g.phase = 'ended';
+                g.result = { winner: TEAM.PLAYER, crowns: { ...g.crowns } };
+            }
+            finishGuestMatch();
+        }, 1200);
     });
     game = g;
     window.__royale = { game };
