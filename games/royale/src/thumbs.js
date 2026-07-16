@@ -107,12 +107,9 @@ export function generateCardThumbs() {
         renderer.render(scene, camera);
         thumbs[id] = renderer.domElement.toDataURL('image/png');
         scene.remove(subject);
-        // 縮圖影完就冇用：geometry/材質即場 dispose，唔好成個 session 揸住幾十個模型嘅 GPU 資源
-        subject.traverse((o) => {
-            if (o.geometry) o.geometry.dispose();
-            const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
-            for (const m of mats) m.dispose();
-        });
+        // 注意：唔好喺度 dispose subject——GLB 模型嘅 geometry 同 mat() 快取材質
+        // 係同正式戰場上嘅單位「共享」嘅，dispose 咗會令遊戲中重新上傳 GPU 資源。
+        // 縮圖模型嘅殘留係一次性、好細，由 GC 處理 JS 部分就夠。
     }
 
     renderer.dispose();
