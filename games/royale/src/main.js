@@ -404,6 +404,7 @@ function cleanupMatch() {
     stopMatchmaking();
     arena.setMood?.(0); // 新一場由日光開始
     guestFinish = null;
+    if (graceTimer) { clearTimeout(graceTimer); graceTimer = null; } // 離場就唔好留低判負倒數
     if (netRole) {
         Net.teardown();
         netRole = null;
@@ -622,6 +623,69 @@ function startRts() {
 }
 let clashFog = null;
 
+// ---------- PvP 斷線寬限期（host/guest 共用）----------
+// presence leave → 起 30 秒倒數；期內 presence join 返嚟就取消；
+// 房 status 轉 finished（對方正式投降/離開）就唔等，即刻按房記錄完場。
+const DISCONNECT_GRACE_MS = 30000;
+let graceTimer = null;
+
+function armDisconnectGrace({ onWalkover, stillPlaying }) {
+    const cancelGrace = () => {
+        if (graceTimer) { clearTimeout(graceTimer); graceTimer = null; }
+    };
+    Net.on('opponentLeft', () => {
+        if (!stillPlaying() || graceTimer) return;
+        ui.banner('⚠️ 對手斷線，等佢重連（30 秒）…', 3600);
+        graceTimer = setTimeout(() => {
+            graceTimer = null;
+            if (stillPlaying()) onWalkover();
+        }, DISCONNECT_GRACE_MS);
+    });
+    Net.on('opponentJoined', () => {
+        if (!graceTimer) return;
+        cancelGrace();
+        if (stillPlaying()) ui.banner('🔗 對手重連返嚟，繼續！', 2000);
+    });
+    // 對方正式投降（leaveAsLoser 寫咗 finished + winner）→ 唔使白等 30 秒
+    Net.on('roomUpdate', (room) => {
+        if (room?.status === 'finished' && stillPlaying()) {
+            cancelGrace();
+            onWalkover();
+        }
+    });
+}
+
+// ---------- PvP 斷線重連：開始畫面檢查 + 恢復流程 ----------
+async function checkReconnect() {
+    if (!sessionStorage.getItem('royale_active_room')) return;
+    const found = await Net.findMyActiveRoom();
+    if (!found) return;
+    ui.showReconnectBar(async () => {
+        ui.hideReconnectBar();
+        try {
+            await resumeMatch(found.room, found.role);
+        } catch (err) {
+            ui.banner('重連失敗：' + (err?.message ?? err), 2600);
+            cleanupMatch();
+            ui.showStart();
+        }
+    });
+}
+
+async function resumeMatch(room, role) {
+    cleanupMatch();
+    await Net.rejoinRoom(room, role);
+    if (role === 'host') {
+        beginAsHost(room.host_deck ?? ui.deck, room.guest_deck);
+        // beginAsHost 起咗一場全新 Game——即刻用持久化快照恢復返戰況
+        game.restoreFromSnapshot(room.last_snapshot);
+    } else {
+        beginAsGuest();
+        game.applySnapshot(room.last_snapshot); // 未等到下一個廣播都即刻見返場波
+    }
+    ui.banner('🔗 重連成功，繼續作戰！', 2200);
+}
+
 // ---------- PvP：Host 開波（跑晒真正 Game 模擬，冇 AI，由遠端玩家輸入代替）----------
 function beginAsHost(hostDeck, guestDeck) {
     if (netRole) return; // 防止 poll 同 roomUpdate 兩條路一齊撞入嚟開兩次波
@@ -680,13 +744,18 @@ function beginAsHost(hostDeck, guestDeck) {
         levels: { [TEAM.PLAYER]: playerLevels(), [TEAM.ENEMY]: playerLevels() },
     });
     hostRelay = attachHostRelay(game);
-    Net.on('opponentLeft', () => {
-        if (game && game.phase !== 'ended') {
-            game.crowns[TEAM.ENEMY] = 0; game.crowns[TEAM.PLAYER] = Math.max(game.crowns[TEAM.PLAYER], 1);
-            game.phase = 'ended';
-            game.result = { winner: TEAM.PLAYER, crowns: { ...game.crowns } };
-            game.hooks.onGameOver?.(game.result);
-        }
+    // 斷線 ≠ 即刻判負：畀 30 秒寬限期等對手重連（refresh／訊號斷一斷好常見）。
+    // 對手「正式投降」（房 status 轉 finished）就唔使等，即刻完場。
+    armDisconnectGrace({
+        onWalkover: () => {
+            if (game && game.phase !== 'ended') {
+                game.crowns[TEAM.ENEMY] = 0; game.crowns[TEAM.PLAYER] = Math.max(game.crowns[TEAM.PLAYER], 1);
+                game.phase = 'ended';
+                game.result = { winner: TEAM.PLAYER, crowns: { ...game.crowns } };
+                game.hooks.onGameOver?.(game.result);
+            }
+        },
+        stillPlaying: () => game && game.phase !== 'ended' && netRole === 'host',
     });
     Net.markPlaying();
     window.__royale = { game };
@@ -729,17 +798,21 @@ function beginAsGuest() {
         g.applySnapshot(snap);
         if (g.phase === 'ended') finishGuestMatch();
     });
-    Net.on('opponentLeft', () => {
-        // Presence leave 同 broadcast 係兩條通道，冇次序保證：host 完場後即刻走人，
-        // 個「ended」快照可能仲喺路上。等 1.2 秒先判 walkover，唔好將輸咗嘅場當贏。
-        setTimeout(() => {
-            if (netRole !== 'guest' || recorded) return;
+    // 斷線 ≠ 即刻判負：30 秒寬限期等 host 重連（順帶取代咗以前 1.2 秒
+    // 「等最終快照」嘅 race 緩衝——寬限期內快照到咗就直接正常完場）
+    armDisconnectGrace({
+        onWalkover: () => {
+            if (recorded) return;
             if (g.phase !== 'ended') {
                 g.phase = 'ended';
                 g.result = { winner: TEAM.PLAYER, crowns: { ...g.crowns } };
             }
+            // 房結果都要寫低（host 唔喺度冇人寫）——唔係間房會一直 playing，
+            // host 遲下重連仲會入返嚟一間其實已完場嘅鬼房
+            Net.reportResult('guest', 'opponent_left');
             finishGuestMatch();
-        }, 1200);
+        },
+        stillPlaying: () => netRole === 'guest' && !recorded,
     });
     game = g;
     window.__royale = { game };
@@ -821,6 +894,7 @@ async function init() {
     window.__royaleRenderer = renderer; // 畀滲漏測試量度 GPU 資源
     window.__royaleCamera = camera; // 畀鏡頭平移測試用
     ui.showStart();
+    checkReconnect(); // 上一場 PvP 打到一半 refresh 咗？有得救就彈「重連」bar
     document.getElementById('loading')?.remove();
     requestAnimationFrame(loop);
 }

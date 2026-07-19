@@ -5,7 +5,7 @@ import { TEAM, ARENA } from './constants.js';
 import { CARDS } from './cards.js';
 import { makeUnitModel, makePrincessTower, makeKingTower } from './models.js';
 import { makeHpBar, disposeDeep } from './game.js';
-import { on, sendState, sendInput } from './net.js';
+import { on, sendState, sendInput, saveSnapshot } from './net.js';
 
 export const HOST_BROADCAST_INTERVAL = 0.1; // 10Hz，卡牌節奏遊戲夠用，唔使頂爆 Realtime
 
@@ -21,17 +21,27 @@ function modelHeight(es) {
 }
 
 // ---------- Host 端：喺現有 Game 之上加一層廣播 + 遙距入牌 ----------
+export const SNAPSHOT_PERSIST_INTERVAL = 3; // 每 3 秒持久化一次落 DB（斷線重連用）
+
 export function attachHostRelay(game) {
     let acc = 0;
+    let persistAcc = 0;
     on('input', (cmd) => {
         game.playCard(TEAM.ENEMY, cmd.handIdx, cmd.x, cmd.z);
     });
     return {
         tick(dt) {
             acc += dt;
+            persistAcc += dt;
             if (acc >= HOST_BROADCAST_INTERVAL) {
                 acc %= HOST_BROADCAST_INTERVAL; // 卡幀追落嚟嗰陣唔好累積 backlog，維持穩定 10Hz
-                sendState(game.serialize());
+                const snap = game.serialize();
+                sendState(snap);
+                // 低頻持久化：斷線嗰方（任何一方）憑呢個快照喺寬限期內恢復場波
+                if (persistAcc >= SNAPSHOT_PERSIST_INTERVAL) {
+                    persistAcc = 0;
+                    saveSnapshot(snap);
+                }
             }
         },
         stop() { on('input', null); },
@@ -166,6 +176,25 @@ export class GuestGame {
             e.hp = es.hp; e.maxHp = es.maxHp; e.x = es.x; e.z = es.z; e.dead = false;
             e.model.position.set(es.x, 0, es.z);
             e.model.rotation.y = es.facing;
+            // v2：冰凍狀態 → 腳底冰環（同 host 嗰邊一樣嘅視覺）
+            if (es.slow && !e.slowRing) {
+                const r = CARDS[es.cardId]?.radius ?? (es.isTower ? 1.2 : 0.4);
+                const ring = new THREE.Mesh(
+                    new THREE.RingGeometry(r * 1.1, r * 1.5, 20),
+                    new THREE.MeshBasicMaterial({ color: 0x9adcff, transparent: true, opacity: 0.75, side: THREE.DoubleSide })
+                );
+                ring.rotation.x = -Math.PI / 2;
+                this.scene.add(ring);
+                e.slowRing = ring;
+            } else if (!es.slow && e.slowRing) {
+                this.scene.remove(e.slowRing);
+                disposeDeep(e.slowRing);
+                e.slowRing = null;
+            }
+            if (e.slowRing) e.slowRing.position.set(es.x, 0.06, es.z);
+            // v2：王塔甦醒（act 0→1 轉變嗰下爆一個金圈，guest 唔再懵然不知）
+            if (es.isTower && es.towerKind === 'king' && es.act && !e.act) this.#kingWakeFx(es.x, es.z);
+            if (es.act != null) e.act = !!es.act;
             if (e.hpBar) {
                 e.hpBar.position.set(es.x, e.hpBar.userData.h, es.z);
                 e.hpBar.userData.setRatio(Math.max(0.001, es.hp / es.maxHp));
@@ -183,12 +212,38 @@ export class GuestGame {
             this.scene.remove(e.model);
             disposeDeep(e.model);
             if (e.hpBar) { this.scene.remove(e.hpBar); disposeDeep(e.hpBar); removedHpBars.add(e.hpBar); }
+            if (e.slowRing) { this.scene.remove(e.slowRing); disposeDeep(e.slowRing); e.slowRing = null; }
             this.byId.delete(e.id);
         }
         if (anyRemoved) {
             this.entities = this.entities.filter(e => seen.has(e.id));
             if (removedHpBars.size) this.hpBars = this.hpBars.filter(b => !removedHpBars.has(b));
         }
+    }
+
+    // 王塔甦醒金圈（guest 端輕量版：自己 rAF 走完就拆，唔使成套 effects 系統）
+    #kingWakeFx(x, z) {
+        const ring = new THREE.Mesh(
+            new THREE.RingGeometry(0.6, 0.85, 32),
+            new THREE.MeshBasicMaterial({ color: 0xffd964, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthTest: false })
+        );
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.set(x, 0.1, z);
+        ring.renderOrder = 12;
+        this.scene.add(ring);
+        const t0 = performance.now();
+        const tick = () => {
+            const p = (performance.now() - t0) / 700;
+            if (p >= 1 || !ring.parent) {
+                this.scene.remove(ring);
+                disposeDeep(ring);
+                return;
+            }
+            ring.scale.setScalar(1 + p * 6.5);
+            ring.material.opacity = 0.95 * (1 - p);
+            requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
     }
 
     #spawn(es) {
@@ -215,6 +270,7 @@ export class GuestGame {
             this.scene.remove(e.model);
             disposeDeep(e.model);
             if (e.hpBar) { this.scene.remove(e.hpBar); disposeDeep(e.hpBar); }
+            if (e.slowRing) { this.scene.remove(e.slowRing); disposeDeep(e.slowRing); }
         }
         this.entities = [];
         this.hpBars = [];

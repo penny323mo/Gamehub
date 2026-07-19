@@ -72,9 +72,49 @@ async function enterRoom(room, role) {
     NetState.roomId = room.id;
     NetState.roomCode = room.room_code;
     NetState.role = role;
+    // 重連提示：正常離場（teardown）會清走；refresh 唔會行 teardown，
+    // 所以重新開頁嗰陣呢個 hint 仲喺度 → 開始畫面就知有得重連
+    sessionStorage.setItem('royale_active_room', room.id);
     subscribeChannel();
     startHeartbeat();
     return room;
+}
+
+// ---------- 斷線重連 ----------
+const RECONNECT_WINDOW_MS = 45000; // 快照要夠新鮮先當「場波仲救得返」
+
+// Host 定期將戰場快照持久化落房（低頻，斷線恢復用；正常同步照行 Broadcast）
+export function saveSnapshot(snap) {
+    if (!NetState.client || !NetState.roomId || NetState.role !== 'host') return;
+    NetState.client.from(ROOM_TABLE)
+        .update({ last_snapshot: snap, snapshot_at: new Date().toISOString(), last_activity_at: new Date().toISOString() })
+        .eq('id', NetState.roomId).eq('status', 'playing')
+        .then(() => {}, () => {});
+}
+
+// 開始畫面用：搵返「我仲係成員、狀態 playing、快照新鮮」嘅房
+export async function findMyActiveRoom() {
+    const hint = sessionStorage.getItem('royale_active_room');
+    if (!hint) return null;
+    try {
+        const c = await ensureClient();
+        const { data: room } = await c.from(ROOM_TABLE).select('*').eq('id', hint).maybeSingle();
+        const me = NetState.clientId;
+        const role = room && (room.host_id === me ? 'host' : room.guest_id === me ? 'guest' : null);
+        const fresh = room?.snapshot_at && (Date.now() - new Date(room.snapshot_at).getTime() <= RECONNECT_WINDOW_MS);
+        if (!room || room.status !== 'playing' || !role || !fresh || !room.last_snapshot) {
+            sessionStorage.removeItem('royale_active_room');
+            return null;
+        }
+        return { room, role };
+    } catch {
+        return null; // 網絡問題唔好阻住開始畫面
+    }
+}
+
+export async function rejoinRoom(room, role) {
+    await ensureClient();
+    return enterRoom(room, role);
 }
 
 // ---------- 配對 ----------
@@ -184,6 +224,11 @@ function subscribeChannel() {
             const otherRole = NetState.role === 'host' ? 'guest' : 'host';
             if (key === otherRole) NetState.handlers.opponentLeft?.();
         })
+        .on('presence', { event: 'join' }, ({ key }) => {
+            // 對手（可能係重連）返咗嚟——畀 main.js 取消判負倒數
+            const otherRole = NetState.role === 'host' ? 'guest' : 'host';
+            if (key === otherRole) NetState.handlers.opponentJoined?.();
+        })
         .subscribe(async (status) => {
             if (status === 'SUBSCRIBED') {
                 // 訂閱 ack 係 async：呢一刻用戶可能已經㩒咗取消令 teardown() 清咗 channel，
@@ -222,6 +267,7 @@ function stopHeartbeat() {
 }
 
 export function teardown() {
+    sessionStorage.removeItem('royale_active_room'); // 正常離場：以後唔使再提重連
     stopHeartbeat();
     if (NetState.channel) {
         NetState.client?.removeChannel(NetState.channel);

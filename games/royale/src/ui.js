@@ -186,6 +186,19 @@ export class UI {
         });
     }
 
+    // ---------- PvP 斷線重連 bar ----------
+    showReconnectBar(onClick) {
+        const bar = this.$('reconnect-bar');
+        if (!bar) return;
+        bar.classList.remove('hidden');
+        const btn = this.$('reconnect-btn');
+        btn.onclick = onClick; // 用 onclick 而唔係 addEventListener：重覆 show 唔會疊 handler
+    }
+
+    hideReconnectBar() {
+        this.$('reconnect-bar')?.classList.add('hidden');
+    }
+
     // ---------- PvP 配對畫面 ----------
     showMatching(status) {
         this.$('screen-start').classList.add('hidden');
@@ -217,6 +230,7 @@ export class UI {
     }
 
     showGame() {
+        this.hideReconnectBar(); // 入咗場就唔使再提重連
         clearTimeout(this.endRevealTimer);
         this.$('screen-start').classList.add('hidden');
         this.$('screen-end').classList.add('hidden');

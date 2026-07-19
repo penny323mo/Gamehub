@@ -609,6 +609,37 @@ body {
     cursor: not-allowed;
 }
 
+/* PvP 斷線重連 bar */
+#reconnect-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 12px;
+    padding: 10px 12px;
+    border: 2px solid #64b5ff;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #1d3a5f, #142a46);
+    color: #cfe6ff;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+#reconnect-bar.hidden { display: none; }
+
+#reconnect-bar button {
+    padding: 8px 14px;
+    border: 2px solid #64b5ff;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #4a9eff, #2f6fd0);
+    color: #fff;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+#reconnect-bar button:active { transform: scale(.96); }
+
 /* LV2 精英戰場 BONUS 入口：紫金漸層 + 微光呼吸，同一般模式明顯區隔 */
 .lv2-btn {
     display: block;

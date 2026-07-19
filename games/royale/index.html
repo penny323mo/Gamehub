@@ -123,7 +123,7 @@
                     </div>
 
                     <div id="pvp-panel" class="hidden">
-                        <p class="hint pvp-hint">🌐 搶先體驗版：隨機配對或者輸入房號同朋友對戰。斷線會直接判負，暫時未支援重連。</p>
+                        <p class="hint pvp-hint">🌐 搶先體驗版：隨機配對或者輸入房號同朋友對戰。中途斷線可以喺 45 秒內返嚟重連，對手會等你 30 秒。</p>
                         <div id="pvp-code-row">
                             <input id="pvp-code-input" maxlength="5" placeholder="輸入房號加入" autocomplete="off">
                             <button id="pvp-join-btn" class="big-btn secondary">加入</button>
@@ -148,6 +148,11 @@
                     <div id="daily-list"></div>
                 </div>
 
+                <!-- PvP 斷線重連：偵測到未完場嘅房先顯示 -->
+                <div id="reconnect-bar" class="hidden">
+                    <span>⚔️ 偵測到未完嘅真人對戰</span>
+                    <button id="reconnect-btn">🔗 重連返去</button>
+                </div>
                 <button id="start-btn" class="big-btn">開戰！</button>
                 <button id="lv2-btn" class="lv2-btn">
                     <span class="lv2-title">⭐ BONUS · LV2 世紀帝國</span>

@@ -1392,6 +1392,83 @@ export class Game {
         for (const bar of this.hpBars) bar.quaternion.copy(quaternion);
     }
 
+    // ---------- PvP 斷線重連：由持久化快照恢復 host 模擬 ----------
+    // 投射物/特效/攻擊冷卻唔恢復（幾秒內自然重建）；傷害統計由重連點重新計。
+    restoreFromSnapshot(snap) {
+        if (!snap || !Array.isArray(snap.entities)) return false;
+        this.time = snap.time;
+        this.phase = snap.phase === 'overtime' ? 'overtime' : 'regulation';
+        this.crowns = { ...snap.crowns };
+        this.playedCards = {
+            [TEAM.PLAYER]: [...(snap.playedCards?.[TEAM.PLAYER] ?? [])],
+            [TEAM.ENEMY]: [...(snap.playedCards?.[TEAM.ENEMY] ?? [])],
+        };
+        for (const team of [TEAM.PLAYER, TEAM.ENEMY]) {
+            const p = this.players[team];
+            const sp = snap.players?.[team];
+            if (!sp) continue;
+            p.elixir = sp.elixir;
+            p.hand = [...sp.hand];
+            // 重建循環隊列：快照淨係有 hand+next，餘卡順序近似重排（唔影響公平——
+            // 兩邊都係由同一個快照恢復，資訊一致）
+            const rest = p.deck.filter(id => !sp.hand.includes(id) && id !== sp.next);
+            p.queue = [sp.next, ...rest].filter(Boolean);
+        }
+        let maxId = 0;
+        for (const es of snap.entities) {
+            maxId = Math.max(maxId, es.id);
+            if (es.isTower) {
+                const side = es.towerKind === 'king' ? 'king' : (es.x < 0 ? 'left' : 'right');
+                const t = this.towers[es.team]?.[side];
+                if (!t) continue;
+                t.maxHp = es.maxHp;
+                t.hp = es.hp;
+                t.hpBar.userData.setRatio(Math.max(0.001, es.hp / es.maxHp));
+                if (es.act != null) t.active = !!es.act;
+                if (es.dead && !t.dead) this.#restoreDeadTower(t);
+            } else {
+                const card = CARDS[es.cardId];
+                if (!card) continue;
+                // 等級倍率由 maxHp 反推（快照冇送 levelMult），dmg 按同一比例縮放
+                const mult = card.hp > 0 ? es.maxHp / card.hp : 1;
+                const e = new Entity({ team: es.team, cardId: es.cardId, x: es.x, z: es.z, levelMult: mult });
+                e.hp = es.hp;
+                e.deployT = 0;
+                e.facing = es.facing ?? e.facing;
+                e.model = makeUnitModel(es.cardId, es.team);
+                this.#addEntity(e);
+                e.hpBar.userData.setRatio(Math.max(0.001, es.hp / es.maxHp));
+                e.hpBar.visible = es.hp < es.maxHp;
+            }
+        }
+        nextId = Math.max(nextId, maxId + 1); // 唔好同快照入面嘅 id 撞返
+        return true;
+    }
+
+    #restoreDeadTower(t) {
+        // 重連恢復：塔已經冧咗——唔播動畫，直接入終局狀態（rubble + 王塔醒）
+        t.dead = true;
+        t.hp = 0;
+        this.scene.remove(t.model);
+        disposeDeep(t.model);
+        this.scene.remove(t.hpBar);
+        disposeDeep(t.hpBar);
+        this.hpBars = this.hpBars.filter(b => b !== t.hpBar);
+        const rubble = new THREE.Group();
+        rubble.userData.isRubble = true;
+        const broken = meshyTint(instantiate('meshyRubble'), 0x8f887c);
+        const s = ASSETS.meshyRubble.rawSize;
+        const sc = (t.towerKind === 'king' ? 2.6 : 2.0) / (Math.max(s.x, s.z) || 1);
+        broken.scale.setScalar(sc);
+        broken.position.set(t.x, -ASSETS.meshyRubble.rawMin.y * sc, t.z);
+        rubble.add(broken);
+        this.scene.add(rubble);
+        if (t.towerKind !== 'king') {
+            const king = this.towers[t.team].king;
+            if (king && !king.dead) king.active = true;
+        }
+    }
+
     // ---------- PvP：序列化戰場快照畀 host-relay 廣播（guest 淨係接收呢啲嚟渲染）----------
     serialize() {
         return {
@@ -1420,6 +1497,9 @@ export class Game {
                 hp: Math.round(e.hp), maxHp: e.maxHp, dead: e.dead,
                 facing: +e.model.rotation.y.toFixed(3),
                 moving: !!e.moving, attackT: +(e.attackAnimT ?? -1).toFixed(2),
+                // v2：guest 都睇到冰凍狀態（渲染冰環）同王塔有冇醒（甦醒光效）
+                slow: e.slowT > 0 ? 1 : 0,
+                act: e.isTower ? (e.active ? 1 : 0) : undefined,
             })),
         };
     }
