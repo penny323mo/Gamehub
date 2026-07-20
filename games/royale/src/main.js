@@ -10,6 +10,7 @@ import { UI } from './ui.js';
 import { sfx } from './sfx.js';
 import { generateCardThumbs } from './thumbs.js';
 import { playerLevels, avgDeckLevel, recordMatch } from './storage.js';
+import { submitScore } from './leaderboard.js';
 import { GuestGame, attachHostRelay, sendGuestPlay } from './pvp.js';
 import * as Net from './net.js';
 import { createRtsMode } from './rts/rts-mode.js';
@@ -582,6 +583,7 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
             matchStats.crowns = result.crowns[TEAM.PLAYER];
             matchStats.matchSeconds = game.simTime;
             const rewards = recordMatch(matchStats);
+            submitScore(); // 上報排行榜（fire-and-forget，離線唔阻結算）
             ui.showEnd(result, {
                 rewards,
                 damage: game.damageByCard[TEAM.PLAYER],
@@ -734,6 +736,7 @@ function beginAsHost(hostDeck, guestDeck) {
             matchStats.crowns = result.crowns[TEAM.PLAYER];
             matchStats.matchSeconds = game.simTime;
             const rewards = recordMatch(matchStats);
+            submitScore();
             Net.reportResult(result.winner === TEAM.PLAYER ? 'host' : result.winner === TEAM.ENEMY ? 'guest' : 'draw', 'crowns');
             Net.sendMatchStats(enemyStats);
             ui.showEnd(result, { rewards, damage: game.damageByCard[TEAM.PLAYER], mode: 'pvp', stage: 0 });
@@ -791,6 +794,7 @@ function beginAsGuest() {
             cardsPlayed: myStats.cardsPlayed, gauntletStage: 0,
             matchSeconds: g._clock, avgCost: pvpDeck.reduce((s, id) => s + CARDS[id].cost, 0) / pvpDeck.length,
         });
+        submitScore();
         ui.showEnd({ winner: g.result.winner, crowns: g.result.crowns }, { rewards, damage: {}, mode: 'pvp', stage: 0 });
     };
     guestFinish = finishGuestMatch; // 投降（onQuit）都要行到入賬

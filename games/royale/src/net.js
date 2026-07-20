@@ -56,6 +56,11 @@ async function ensureClient() {
     return NetState.client;
 }
 
+// 畀排行榜等其他模組共用同一個 Supabase client（照舊 lazy-load SDK）
+export function getClient() {
+    return ensureClient();
+}
+
 function randomRoomCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let s = '';

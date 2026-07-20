@@ -3,8 +3,9 @@ import { CARDS, CARD_POOL } from './cards.js';
 import { TEAM, GAME_RULES } from './constants.js';
 import {
     getStats, getDailyChallenges, getDecks, setDeck, getActiveDeck, setActiveDeck,
-    cardLevel, cardShards, SHARDS_PER_LEVEL, MAX_LEVEL,
+    cardLevel, cardShards, SHARDS_PER_LEVEL, MAX_LEVEL, getAchievements,
 } from './storage.js';
+import { fetchLeaderboard, getPlayerName, setPlayerName } from './leaderboard.js';
 
 export class UI {
     constructor(callbacks, thumbs = {}) {
@@ -32,6 +33,7 @@ export class UI {
 
         this.#buildDeckGrid();
         this.#bindStartScreen();
+        this.#bindLeaderboard();
         this.#bindHand();
         this.#buildElixirTicks();
         this.refreshProfile();
@@ -58,7 +60,90 @@ export class UI {
             el.innerHTML = `<span class="tick">${c.done ? '✅' : '⬜'}</span><span>${c.desc}</span>`;
             daily.appendChild(el);
         }
+        this.#refreshAchievements();
         this.#refreshDeckLevels();
+    }
+
+    #refreshAchievements() {
+        const list = this.$('ach-list');
+        if (!list) return;
+        const achs = getAchievements();
+        const done = achs.filter(a => a.unlocked).length;
+        this.$('ach-count').textContent = `${done}/${achs.length}`;
+        list.innerHTML = '';
+        // 解鎖咗嘅排先，一眼睇到戰績
+        for (const a of [...achs].sort((x, y) => Number(y.unlocked) - Number(x.unlocked))) {
+            const el = document.createElement('div');
+            el.className = 'ach-item' + (a.unlocked ? ' unlocked' : '');
+            el.innerHTML = `<span class="ach-icon">${a.icon}</span>
+                <span class="ach-text"><b>${a.name}</b><small>${a.desc}</small></span>
+                <span class="ach-tick">${a.unlocked ? '✅' : '🔒'}</span>`;
+            list.appendChild(el);
+        }
+    }
+
+    // ---------- 排行榜 ----------
+    #bindLeaderboard() {
+        const input = this.$('lb-name-input');
+        if (!input) return;
+        input.value = getPlayerName();
+        this.$('lb-name-save').addEventListener('click', () => {
+            const clean = setPlayerName(input.value);
+            input.value = clean;
+            this.banner(`✅ 戰名改做「${clean}」，下場之後更新上榜`, 2000);
+        });
+        this.$('lb-refresh').addEventListener('click', () => this.#loadLeaderboard(true));
+        // 撳「排行」tab 先至去攞數（順便 lazy-load Supabase SDK）
+        document.querySelector('.start-tab[data-tab="rankings"]')
+            ?.addEventListener('click', () => this.#loadLeaderboard(false));
+    }
+
+    async #loadLeaderboard(force) {
+        const status = this.$('lb-status');
+        const list = this.$('lb-list');
+        if (this._lbLoading) return;
+        if (!force && this._lbLoadedAt && Date.now() - this._lbLoadedAt < 30000) return; // 30 秒 cache
+        this._lbLoading = true;
+        status.classList.remove('hidden');
+        status.textContent = '📡 載入緊排行榜…';
+        try {
+            const { rows, me, myId } = await fetchLeaderboard(50);
+            this._lbLoadedAt = Date.now();
+            list.innerHTML = '';
+            if (!rows.length) {
+                status.textContent = '榜上暫時未有人——打一場就會見到自己！';
+            } else {
+                status.classList.add('hidden');
+                const medal = (n) => n === 1 ? '🥇' : n === 2 ? '🥈' : n === 3 ? '🥉' : `${n}`;
+                rows.forEach((r, i) => {
+                    const el = document.createElement('div');
+                    el.className = 'lb-row' + (r.player_id === myId ? ' me' : '') + (i < 3 ? ' top3' : '');
+                    el.innerHTML = `<span class="lb-rank">${medal(i + 1)}</span>
+                        <span class="lb-name"></span>
+                        <span class="lb-meta">勝 ${r.wins}｜🔥${r.best_streak}</span>
+                        <span class="lb-cups">🏆 ${r.trophies}</span>`;
+                    el.querySelector('.lb-name').textContent = r.name; // textContent 防注入
+                    list.appendChild(el);
+                });
+                // 自己跌出頭 50：榜尾補一行顯示真實名次
+                if (me && !rows.some(r => r.player_id === myId)) {
+                    const el = document.createElement('div');
+                    el.className = 'lb-row me';
+                    el.innerHTML = `<span class="lb-rank">${me.rank}</span>
+                        <span class="lb-name"></span>
+                        <span class="lb-meta">勝 ${me.wins}｜🔥${me.best_streak}</span>
+                        <span class="lb-cups">🏆 ${me.trophies}</span>`;
+                    el.querySelector('.lb-name').textContent = me.name + '（你）';
+                    list.appendChild(el);
+                }
+            }
+        } catch {
+            status.classList.remove('hidden');
+            status.textContent = '⚠️ 排行榜載入失敗，撳 🔄 再試';
+            this._lbLoadedAt = 0;
+        } finally {
+            this._lbLoading = false;
+        }
     }
 
     // ---------- 卡組編輯 ----------
@@ -310,10 +395,12 @@ export class UI {
             rw.appendChild(chip);
         }
 
-        // 每日挑戰達成
+        // 每日挑戰達成 + 新解鎖成就
         const ch = this.$('end-challenges');
         ch.innerHTML = (r?.challengesDone ?? [])
             .map(c => `✅ 每日挑戰完成：${c.desc}（+${c.reward.n ?? 8} 碎片）`)
+            .concat((r?.achievementsUnlocked ?? [])
+                .map(a => `<span class="ach-unlock">🏅 解鎖成就：${a.icon} ${a.name}</span>`))
             .join('<br>');
 
         clearTimeout(this.endRevealTimer);

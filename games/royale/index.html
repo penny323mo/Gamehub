@@ -106,6 +106,7 @@
                     <button class="start-tab selected" data-tab="battle">⚔️ 對戰</button>
                     <button class="start-tab" data-tab="deck">🃏 卡組</button>
                     <button class="start-tab" data-tab="quests">📅 挑戰</button>
+                    <button class="start-tab" data-tab="rankings">🏅 排行</button>
                 </div>
 
                 <div class="tab-page active" data-page="battle">
@@ -146,6 +147,19 @@
                 <div class="tab-page" data-page="quests">
                     <div class="section-label">📅 每日挑戰</div>
                     <div id="daily-list"></div>
+                    <div class="section-label">🏅 成就 <span id="ach-count"></span></div>
+                    <div id="ach-list"></div>
+                </div>
+
+                <div class="tab-page" data-page="rankings">
+                    <div class="section-label">你嘅戰名（上榜顯示）</div>
+                    <div id="lb-name-row">
+                        <input id="lb-name-input" maxlength="12" placeholder="無名戰士" autocomplete="off">
+                        <button id="lb-name-save" class="big-btn secondary">改名</button>
+                    </div>
+                    <div class="section-label">🌍 全球排行榜<button id="lb-refresh" title="重新整理">🔄</button></div>
+                    <div id="lb-status" class="hint hidden"></div>
+                    <div id="lb-list"></div>
                 </div>
 
                 <!-- PvP 斷線重連：偵測到未完場嘅房先顯示 -->

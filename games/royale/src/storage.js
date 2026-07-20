@@ -48,6 +48,54 @@ const CHALLENGE_POOL = [
 
 const CHALLENGE_REWARD = 8; // 完成一個挑戰送幾多碎片
 
+// ---------- 成就 ----------
+// check(save, stats)：stats 係場終嗰場嘅 matchStats（可能係 null，例如齋睇成就頁）；
+// 靠 save 判斷嘅係「生涯成就」，靠 stats 判斷嘅係「單場成就」（嗰一場達成先解鎖）
+export const ACHIEVEMENTS = [
+    { id: 'firstWin', icon: '🎖️', name: '初戰告捷', desc: '贏出第一場對戰', check: (sv) => sv.wins >= 1 },
+    { id: 'wins25', icon: '⚔️', name: '身經百戰', desc: '累積贏 25 場', check: (sv) => sv.wins >= 25 },
+    { id: 'wins100', icon: '🛡️', name: '沙場老將', desc: '累積贏 100 場', check: (sv) => sv.wins >= 100 },
+    { id: 'threeCrown', icon: '👑', name: '三冠完勝', desc: '一場攞齊 3 個皇冠', check: (sv, st) => !!st && st.win && st.crowns >= 3 },
+    { id: 'fastCrown', icon: '⚡', name: '閃電戰', desc: '120 秒內 3 皇冠完勝', check: (sv) => sv.fastestThreeCrown != null && sv.fastestThreeCrown <= 120 },
+    { id: 'streak5', icon: '🔥', name: '連勝之火', desc: '連勝 5 場', check: (sv) => sv.bestStreak >= 5 },
+    { id: 'streak10', icon: '🌋', name: '燃燒不滅', desc: '連勝 10 場', check: (sv) => sv.bestStreak >= 10 },
+    { id: 'rankBronze', icon: '🗡️', name: '銅劍士', desc: '獎盃達到 100', check: (sv) => sv.trophies >= 100 },
+    { id: 'rankSilver', icon: '🛡️', name: '銀騎士', desc: '獎盃達到 260', check: (sv) => sv.trophies >= 260 },
+    { id: 'rankGold', icon: '👑', name: '金冠將軍', desc: '獎盃達到 480', check: (sv) => sv.trophies >= 480 },
+    { id: 'rankEmperor', icon: '🏆', name: '帝國皇者', desc: '獎盃達到 780', check: (sv) => sv.trophies >= 780 },
+    { id: 'pvpWin', icon: '🌐', name: '真人剋星', desc: '真人對戰贏一場', check: (sv, st) => !!st && st.win && st.difficulty === 'pvp' },
+    { id: 'gauntlet5', icon: '🏰', name: '五關斬將', desc: '連勝挑戰闖到第 5 關', check: (sv) => sv.gauntletBest >= 5 },
+    { id: 'maxCard', icon: '💎', name: '滿級鍛造', desc: '一張卡升到 MAX 級', check: (sv) => Object.values(sv.cardLevels).some(c => c && c.level >= MAX_LEVEL) },
+    { id: 'dailySweep', icon: '📅', name: '每日全清', desc: '一日內完成晒 3 個每日挑戰', check: (sv) => Object.values(sv.daily.done).filter(Boolean).length >= 3 },
+    { id: 'spell5', icon: '💥', name: '一網打盡', desc: '一發法術命中 5 個以上敵兵', check: (sv, st) => !!st && st.bestSpellHit >= 5 },
+    { id: 'cards18', icon: '🃏', name: '車輪戰術', desc: '一場之內出 18 張卡', check: (sv, st) => !!st && st.cardsPlayed >= 18 },
+];
+
+// 攞成就一覽（畀成就頁 render）：[{id, icon, name, desc, unlocked, date}]
+export function getAchievements() {
+    loadSave();
+    return ACHIEVEMENTS.map(a => ({
+        id: a.id, icon: a.icon, name: a.name, desc: a.desc,
+        unlocked: !!save.achievements[a.id],
+        date: save.achievements[a.id] || null,
+    }));
+}
+
+// 場終（或任何存檔變動後）評估未解鎖成就；回傳今次新解鎖嗰批
+function evalAchievements(stats) {
+    const unlocked = [];
+    for (const a of ACHIEVEMENTS) {
+        if (save.achievements[a.id]) continue;
+        let hit = false;
+        try { hit = !!a.check(save, stats); } catch { /* 個別成就爆錯唔好累街坊 */ }
+        if (hit) {
+            save.achievements[a.id] = todayStr();
+            unlocked.push({ id: a.id, icon: a.icon, name: a.name, desc: a.desc });
+        }
+    }
+    return unlocked;
+}
+
 // 用日期做 seed，全 client 決定當日三個挑戰
 function dailyChallengeIds(dateStr) {
     let h = 0;
@@ -82,6 +130,7 @@ function defaultSave() {
         activeDeck: 0,
         daily: { date: '', done: {} }, // done: challengeId -> true
         gauntletBest: 0,
+        achievements: {},        // id -> 解鎖日期字串
     };
 }
 
@@ -107,6 +156,7 @@ export function loadSave() {
         }
         if (typeof save.activeDeck !== 'number' || save.activeDeck < 0 || save.activeDeck >= save.decks.length) save.activeDeck = 0;
         if (!save.cardLevels || typeof save.cardLevels !== 'object') save.cardLevels = def.cardLevels;
+        if (!save.achievements || typeof save.achievements !== 'object') save.achievements = {};
     }
     // 每日挑戰過咗夜就重置——放喺 cache 命中之後都要檢查，
     // 唔係個 tab 開過夜就會一直計落尋日嗰批挑戰度
@@ -261,6 +311,9 @@ export function recordMatch(stats) {
         }
     }
 
+    // 成就評估要喺所有存檔更新（獎盃/連勝/碎片/每日挑戰）之後先做
+    const achievementsUnlocked = evalAchievements(stats);
+
     persist();
     return {
         trophyDelta: delta,
@@ -270,5 +323,6 @@ export function recordMatch(stats) {
         shardGains,
         challengesDone,
         streak: save.streak,
+        achievementsUnlocked,
     };
 }

@@ -821,6 +821,151 @@ body {
     font-size: 14px;
 }
 
+/* ---------- 成就 ---------- */
+#ach-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.ach-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, .18);
+    border: 1px solid #55452a;
+    border-radius: 9px;
+    color: #8d8368;
+    text-align: left;
+    filter: grayscale(.7);
+    opacity: .75;
+}
+
+.ach-item.unlocked {
+    color: #f4e8c0;
+    border-color: #b8912f;
+    background: rgba(184, 145, 47, .12);
+    filter: none;
+    opacity: 1;
+}
+
+.ach-item .ach-icon { font-size: 18px; }
+
+.ach-item .ach-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
+}
+
+.ach-item .ach-text small { font-size: 10px; opacity: .8; }
+
+.ach-unlock {
+    color: #ffd964;
+    font-weight: 700;
+}
+
+/* ---------- 排行榜 ---------- */
+#lb-name-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+#lb-name-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1px solid #55452a;
+    background: rgba(0, 0, 0, .25);
+    color: #f4e8c0;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+}
+
+#lb-name-row input:focus { border-color: #b8912f; }
+
+#lb-name-row button {
+    padding: 8px 14px;
+    font-size: 13px;
+    width: auto;
+    margin: 0;
+}
+
+#lb-refresh {
+    margin-left: 8px;
+    background: none;
+    border: none;
+    font-size: 14px;
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+#lb-refresh:active { transform: rotate(180deg); }
+
+#lb-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.lb-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, .18);
+    border: 1px solid #55452a;
+    border-radius: 9px;
+    color: #d8cca8;
+    text-align: left;
+}
+
+.lb-row.top3 { border-color: #b8912f; }
+
+.lb-row.me {
+    border-color: #58a8ff;
+    background: rgba(58, 128, 220, .16);
+    color: #cfe6ff;
+}
+
+.lb-row .lb-rank {
+    width: 26px;
+    text-align: center;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.lb-row .lb-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.lb-row .lb-meta {
+    font-size: 10px;
+    opacity: .75;
+    flex-shrink: 0;
+}
+
+.lb-row .lb-cups {
+    font-weight: 700;
+    color: #ffd964;
+    flex-shrink: 0;
+}
+
 /* ---------- 開始畫面分頁 ---------- */
 #start-tabs {
     display: flex;
