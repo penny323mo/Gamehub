@@ -595,12 +595,12 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
         onSpawn() {},
     }, {
         levels: { [TEAM.PLAYER]: playerLevels(), [TEAM.ENEMY]: enemyLevels },
-        // 連勝挑戰第 4 關起，AI 聖水回復有溫和加成——同玩家基本上同一起跑線，
-        // 斜率細（每關 +7%）而且封頂 1.35×：以前 +15% 冇上限，第 8 關 1.75× 聖水浸住，
-        // AI 條「有坦克就出坦克」進攻路每次都通，變咗無限戰象咁樣濫用機制
-        enemyElixirRate: mode === 'gauntlet' ? Math.min(1.35, 1 + Math.max(0, stage - 3) * 0.07) : 1,
+        // 連勝挑戰：AI 同玩家基本上同一起跑線。經濟只微調（每關 +5%、封頂 +20%）——
+        // 高關卡嘅難度靠 AIController 嘅「戰術銳化」（諗嘢快、識數牌捉時機、識分路施壓），
+        // 唔靠聖水暴脹呢啲機制作弊（以前 +15% 冇上限，第 8 關 1.75× 變咗無限戰象）
+        enemyElixirRate: mode === 'gauntlet' ? Math.min(1.2, 1 + Math.max(0, stage - 3) * 0.05) : 1,
     });
-    ai = new AIController(game, actualDiff, pid);
+    ai = new AIController(game, actualDiff, pid, mode === 'gauntlet' ? stage : 0);
     window.__royale = { game, ai, renderer, startMatch, cleanupMatch }; // 畀自動化測試用
     ui.bindGame(game);
     ui.showGame();

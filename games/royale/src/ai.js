@@ -33,7 +33,7 @@ export function randomPersonality() {
 }
 
 export class AIController {
-    constructor(game, difficulty = 'normal', personality = null) {
+    constructor(game, difficulty = 'normal', personality = null, stage = 0) {
         this.game = game;
         const base = DIFFICULTY[difficulty] ?? DIFFICULTY.normal;
         const p = PERSONALITIES[personality] ?? null;
@@ -44,20 +44,38 @@ export class AIController {
             attackElixir: Math.max(5, base.attackElixir + p.attackElixirDelta),
             defendChance: Math.min(1, base.defendChance * p.defendMult),
         } : base;
+        // 連勝關卡：難度升級行「戰術銳化」呢條路（諗嘢快啲、時機捉得準啲），
+        // 唔靠經濟作弊——第 3 關開始漸進，第 8 關去到滿格
+        this.sharp = Math.min(1, Math.max(0, (stage - 2) / 6));
+        this.cfg = { ...this.cfg, interval: this.cfg.interval * (1 - 0.3 * this.sharp) };
         this.timer = 2.0; // 開波唞一唞
         this.spellCd = 0;
         this.recentPlays = []; // 最近成功出過嘅卡 id（防止同一張卡連環抌）
+        // 聖水數牌：同真人一樣「靠睇」估對手水量——由開局 5 滴計起，
+        // 見到佢出卡就扣返，回復用大家都知嘅官方倍率推算。絕唔偷睇真值。
+        this.oppElixir = GAME_RULES.elixirStart;
+        this.oppSeen = 0; // 已入賬嘅 playedCards index
     }
 
     update(dt) {
         if (this.game.phase === 'ended') return;
+        const g = this.game;
+
+        // 聖水數牌（每幀更新，唔受思考間隔限制——真人都係一路睇一路數）
+        const played = g.playedCards[TEAM.PLAYER];
+        while (this.oppSeen < played.length) {
+            const c = CARDS[played[this.oppSeen++]];
+            if (c) this.oppElixir = Math.max(0, this.oppElixir - c.cost);
+        }
+        this.oppElixir = Math.min(GAME_RULES.elixirMax,
+            this.oppElixir + (dt * g.elixirMultiplier()) / GAME_RULES.elixirInterval);
+
         this.timer -= dt;
         this.spellCd -= dt;
         if (this.timer > 0) return;
         this.timer = this.cfg.interval;
         if (Math.random() < this.cfg.skipChance) return;
 
-        const g = this.game;
         const me = g.players[TEAM.ENEMY];
 
         // 1. 法術：搵玩家單位嘅密集點抌落去
@@ -70,7 +88,7 @@ export class AIController {
         const threats = g.aliveUnits(TEAM.PLAYER).filter(e => e.z < -ARENA.riverHalf);
         if (threats.length && Math.random() < this.cfg.defendChance) {
             const threatValue = threats.reduce((s, e) => s + (e.card?.cost ?? 2) * (e.hp / e.maxHp), 0);
-            if (threatValue >= 2 && this.tryDefend(threats)) return;
+            if (threatValue >= 2 && this.tryDefend(threats, threatValue)) return;
         }
 
         // 3. 冇威脅又夠水：落聖水磨坊儲經濟
@@ -82,10 +100,13 @@ export class AIController {
             }
         }
 
-        // 4. 進攻：儲夠聖水就推線；出唔到（例如手上剩晒法術又冇目標）
-        //    而聖水已經滿瀉，就是但出張嘢，唔好企喺度嘥晒回復
-        //    （之前寫做 else if 係死碼：attackElixir 最高 10 < elixirMax 12，永遠入唔到）
-        if (me.elixir >= this.cfg.attackElixir) {
+        // 4. 進攻時機：靠數牌捉窗口——對手估計冇乜水就提早施壓（懲罰窗口），
+        //    對手滿水就穩陣啲儲多滴先郁（免俾佢輕鬆反擊）。IQ 低嘅 AI 唔識咁諗。
+        const iq = this.cfg.spellIQ;
+        const punish = this.oppElixir <= 3.5 ? -2 * iq : 0;
+        const wary = this.oppElixir >= 9.5 ? 1 * iq : 0;
+        const threshold = Math.max(4, this.cfg.attackElixir + punish + wary - this.sharp);
+        if (me.elixir >= threshold) {
             const attacked = this.tryAttack();
             if (!attacked && me.elixir >= GAME_RULES.elixirMax) this.playAnyCheap();
         }
@@ -155,14 +176,18 @@ export class AIController {
         return false;
     }
 
-    tryDefend(threats) {
+    tryDefend(threats, threatValue = 99) {
         // 揀最入嗰個威脅
         const lead = threats.reduce((a, b) => (a.z < b.z ? a : b));
         const isSwarm = threats.length >= 3;
         const isTank = lead.maxHp >= 700;
 
-        // 揀反制卡：兵海用平價多兵，坦克用長槍／高傷
-        let options = this.affordable(c => c.kind === 'unit' && !c.targetsBuildingsOnly);
+        // 揀反制卡：兵海用平價多兵，坦克用長槍／高傷。
+        // 防守使費要同威脅價值成比例——唔好用 7 費卡接 3 費小兵（換水就輸咗），
+        // 冇平價選擇先至焗住用貴卡
+        const budget = threatValue + 2;
+        let options = this.affordable(c => c.kind === 'unit' && !c.targetsBuildingsOnly && c.cost <= budget);
+        if (!options.length) options = this.affordable(c => c.kind === 'unit' && !c.targetsBuildingsOnly);
         if (!options.length) {
             // 或者擺個防禦建築（磨坊冇攻擊力，唔算）
             const b = this.affordable(c => c.kind === 'building' && c.dmg > 0);
@@ -191,8 +216,18 @@ export class AIController {
         const g = this.game;
         // 揀玩家較殘嗰路
         const pl = g.towers[TEAM.PLAYER].left, pr = g.towers[TEAM.PLAYER].right;
-        const laneX = (pl.dead ? -1 : pr.dead ? 1
+        let laneX = (pl.dead ? -1 : pr.dead ? 1
             : (pl.hp / pl.maxHp <= pr.hp / pr.maxHp ? -1 : 1)) * ARENA.bridgeX;
+
+        // 分路施壓：玩家重兵壓緊一邊而兩座塔都仲健在，就攻另一邊——
+        // 迫佢分水兩邊處理，鬥嘅係節奏唔係數值（IQ 低嘅 AI 未學識）
+        if (!pl.dead && !pr.dead && Math.random() < this.cfg.spellIQ * (0.5 + 0.4 * this.sharp)) {
+            const advancing = g.aliveUnits(TEAM.PLAYER).filter(e => e.z < 2 && e.card?.kind === 'unit');
+            const leftCost = advancing.filter(e => e.x < 0).reduce((s, e) => s + (e.card?.cost ?? 2), 0);
+            const rightCost = advancing.reduce((s, e) => s + (e.card?.cost ?? 2), 0) - leftCost;
+            if (leftCost >= 6 && leftCost > rightCost * 2) laneX = ARENA.bridgeX;       // 佢重左，我攻右
+            else if (rightCost >= 6 && rightCost > leftCost * 2) laneX = -ARENA.bridgeX; // 佢重右，我攻左
+        }
 
         // 有坦克先出坦克喺後排；但唔可以疊——場上已經有隻大坦克就轉出支援兵，
         // 揀卡又唔可以永遠「HP 最高」嗰張（以前兩樣夾埋，聖水一充裕就變咗無限戰象）
