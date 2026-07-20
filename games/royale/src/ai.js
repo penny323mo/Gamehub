@@ -46,6 +46,7 @@ export class AIController {
         } : base;
         this.timer = 2.0; // 開波唞一唞
         this.spellCd = 0;
+        this.recentPlays = []; // 最近成功出過嘅卡 id（防止同一張卡連環抌）
     }
 
     update(dt) {
@@ -102,7 +103,21 @@ export class AIController {
     }
 
     play(handIdx, x, z) {
-        return this.game.playCard(TEAM.ENEMY, handIdx, x, z);
+        const id = this.game.players[TEAM.ENEMY].hand[handIdx];
+        const ok = this.game.playCard(TEAM.ENEMY, handIdx, x, z);
+        if (ok) {
+            this.recentPlays.push(id);
+            if (this.recentPlays.length > 4) this.recentPlays.shift();
+        }
+        return ok;
+    }
+
+    // 最近兩次出過嘅卡，有其他選擇就唔好again——AI 都要似個真人咁換吓招，
+    // 唔可以聖水一浸就無限重複同一張王牌（玩家見到會覺得 AI 濫用機制）
+    notRecent(options) {
+        const recent = this.recentPlays.slice(-2);
+        const fresh = options.filter(o => !recent.includes(o.c.id));
+        return fresh.length ? fresh : options;
     }
 
     trySpell() {
@@ -179,17 +194,21 @@ export class AIController {
         const laneX = (pl.dead ? -1 : pr.dead ? 1
             : (pl.hp / pl.maxHp <= pr.hp / pr.maxHp ? -1 : 1)) * ARENA.bridgeX;
 
-        // 有坦克先出坦克喺後排；再唔係就喺橋頭出攻擊手
-        const tanks = this.affordable(c => c.kind === 'unit' && (c.hp >= 900 || c.targetsBuildingsOnly));
+        // 有坦克先出坦克喺後排；但唔可以疊——場上已經有隻大坦克就轉出支援兵，
+        // 揀卡又唔可以永遠「HP 最高」嗰張（以前兩樣夾埋，聖水一充裕就變咗無限戰象）
+        const hasBigTank = g.aliveUnits(TEAM.ENEMY).some(e => (e.card?.hp ?? 0) >= 900);
+        let tanks = this.affordable(c => c.kind === 'unit' && (c.hp >= 900 || c.targetsBuildingsOnly));
+        if (hasBigTank) tanks = tanks.filter(o => o.c.hp < 900); // 剩返攻城槌類短程衝門
+        tanks = this.notRecent(tanks);
         if (tanks.length) {
-            const pick = tanks.reduce((a, b) => (a.c.hp > b.c.hp ? a : b));
+            const pick = tanks[Math.floor(Math.random() * tanks.length)];
             // 攻城槌直接喺橋頭出，大坦克喺後排慢慢行
             const z = pick.c.targetsBuildingsOnly ? -(ARENA.riverHalf + 1.2) : -12;
             return this.play(pick.i, laneX, z);
         }
         // 支援：自己有單位喺前線就補後排
         const myFront = g.aliveUnits(TEAM.ENEMY).filter(e => e.card?.kind === 'unit' && e.z > -8);
-        const units = this.affordable(c => c.kind === 'unit' && !c.targetsBuildingsOnly);
+        const units = this.notRecent(this.affordable(c => c.kind === 'unit' && !c.targetsBuildingsOnly));
         if (!units.length) return false;
         if (myFront.length) {
             const ranged = units.find(o => o.c.range > 2);
@@ -201,7 +220,7 @@ export class AIController {
     }
 
     playAnyCheap() {
-        const options = this.affordable(c => c.kind === 'unit');
+        const options = this.notRecent(this.affordable(c => c.kind === 'unit'));
         if (!options.length) return;
         const pick = options.reduce((a, b) => (a.c.cost < b.c.cost ? a : b));
         const laneX = (Math.random() < 0.5 ? -1 : 1) * ARENA.bridgeX;
