@@ -1,6 +1,7 @@
 // Quaternius CC0 模型載入器（https://quaternius.com）
 import * as THREE from 'three';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
+import { DRACOLoader } from '../vendor/DRACOLoader.js';
 import { clone as skeletonClone } from '../vendor/SkeletonUtils.js';
 
 const FILES = {
@@ -44,6 +45,11 @@ export const ASSETS = {}; // { key: { scene, animations, rawSize, rawHeight } }
 
 export async function loadAssets(onProgress) {
     const loader = new GLTFLoader();
+    // 模型全部做咗 Draco 幾何壓縮（26MB → 1.3MB）：接返 decoder 先解得開。
+    // decoder 檔（wasm）放喺 vendor/draco/，同頁面同源，唔靠外部 CDN
+    const draco = new DRACOLoader();
+    draco.setDecoderPath('vendor/draco/');
+    loader.setDRACOLoader(draco);
     const keys = Object.keys(FILES);
     let done = 0;
     await Promise.all(keys.map(async (key) => {
