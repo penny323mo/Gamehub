@@ -1,5 +1,6 @@
 // 3D 卡面 — 開波時離屏影低每張卡嘅模型，做卡牌圖示
 import * as THREE from 'three';
+import { RoomEnvironment } from '../vendor/environments/RoomEnvironment.js';
 import { TEAM } from './constants.js';
 import { CARDS } from './cards.js';
 import { makeUnitModel, makeProjectile } from './models.js';
@@ -12,6 +13,15 @@ export function generateCardThumbs() {
     renderer.toneMappingExposure = 1.25;
 
     const scene = new THREE.Scene();
+    // 模型而家用 MeshStandard（有 metalness），冇環境光嘅話金屬位會變黑——
+    // 縮圖 scene 都要補返 IBL。PMREM 完即棄，唔留喺記憶（縮圖係一次性）
+    {
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
+        scene.environment = envRT.texture;
+        scene.environmentIntensity = 0.5;
+        pmrem.dispose();
+    }
     scene.add(new THREE.HemisphereLight(0xdfeaf5, 0x9a9a80, 1.0));
     const key = new THREE.DirectionalLight(0xfff2d8, 2.2);
     key.position.set(2.5, 3.5, 3);

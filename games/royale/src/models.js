@@ -7,7 +7,9 @@ import { instantiate, normalizeHeight, scaleToHeight, scaleToHeightGrounded, sca
 const matCache = new Map();
 export function mat(color) {
     if (!matCache.has(color)) {
-        matCache.set(color, new THREE.MeshLambertMaterial({ color }));
+        // Standard 而唔係 Lambert：食到 scene.environment 嘅 IBL，有柔和質感。
+        // 高 roughness + 微 metalness，唔會變鏡面，只係唔再死板
+        matCache.set(color, new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.08 }));
     }
     return matCache.get(color);
 }
@@ -98,7 +100,7 @@ function paintCastle(obj, teamColor) {
             colors[i * 3 + 2] = tmp.b;
         }
         geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-        o.material = new THREE.MeshLambertMaterial({ vertexColors: true });
+        o.material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0.1 });
         o.castShadow = true;
     });
     return obj;
@@ -173,17 +175,17 @@ function paintSoldier(obj, tunicColor, {
             colors[i * 3 + 2] = tmp.b;
         }
         geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-        o.material = new THREE.MeshLambertMaterial({ vertexColors: true });
+        o.material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0.1 });
         o.castShadow = true;
     });
     return obj;
 }
 
-// Meshy 素模冇 material，整個 Lambert 上色
+// Meshy 素模冇 material，整個 Standard 上色（食 IBL：盔甲／金屬件會有微反光）
 export function meshyTint(obj, color) {
     obj.traverse((o) => {
         if (o.isMesh) {
-            o.material = new THREE.MeshLambertMaterial({ color });
+            o.material = new THREE.MeshStandardMaterial({ color, roughness: 0.78, metalness: 0.14 });
             o.castShadow = true;
         }
     });

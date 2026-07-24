@@ -1,5 +1,10 @@
 // 入口 — Three.js 場景、鏡頭、資產載入、遊戲循環、拖放落卡
 import * as THREE from 'three';
+import { EffectComposer } from '../vendor/postprocessing/EffectComposer.js';
+import { RenderPass } from '../vendor/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from '../vendor/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from '../vendor/postprocessing/OutputPass.js';
+import { RoomEnvironment } from '../vendor/environments/RoomEnvironment.js';
 import { ARENA, TEAM } from './constants.js';
 import { CARDS, CARD_POOL } from './cards.js';
 import { loadAssets } from './assets.js';
@@ -44,7 +49,45 @@ const scene = new THREE.Scene();
 }
 scene.fog = new THREE.Fog(0xc2dcda, 62, 120);
 
+// ---------- 環境光（IBL）----------
+// 用 RoomEnvironment 程序生成環境貼圖（唔使外部 HDRI 檔，同源自足），
+// 經 PMREM 濾波後畀 MeshStandard 材質做柔和環境反射／補光——金屬盔甲、
+// 攻城器、塔身會有微妙質感，唔再係完全扁平嘅 Lambert
+{
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
+    scene.environment = envRT.texture;
+    scene.environmentIntensity = 0.24; // 克制：主力仍係太陽＋半球光，環境光只加少少質感
+    pmrem.dispose();
+}
+
+// ---------- 後製：Bloom 發光 ----------
+// 手機效能守門：只有真・弱機（記憶體 ≤2GB 或 CPU ≤2 核）先唔開後製，
+// 慳返成條 bloom pass；其餘裝置（連桌面）都食到發光效果。
+// 唔用 DPR 判斷——DPR 高唔代表 GPU 弱（反而多數新手機 DPR 2-3 但夠力）
+const LOW_END = (navigator.deviceMemory && navigator.deviceMemory <= 2) ||
+    (navigator.hardwareConcurrency ?? 4) <= 2;
+let composer = null, bloomPass = null;
+function setupComposer() {
+    if (LOW_END) return; // 低階裝置維持直接 render
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.34, 0.45, 0.9);
+    // strength 0.34（細力，唔好成塊畫面泛白）、radius 0.45、
+    // threshold 0.9（只有真高光——太陽、法術閃、王塔覺醒、煙花——先發，
+    // 唔好連光身嘅天空同草地都發光）
+    composer.addPass(bloomPass);
+    composer.addPass(new OutputPass());
+}
+
+// 統一 render 入口：有 composer 行後製，冇就直接畫
+function renderScene() {
+    if (composer) composer.render();
+    else renderer.render(scene, camera);
+}
+
 const camera = new THREE.PerspectiveCamera(52, 1, 0.5, 200);
+setupComposer(); // RenderPass 要用到 camera，要喺 camera 宣告之後先起
 let arena = { zones: null, update: () => {} }; // loadAssets 之後先起
 
 // ---------- 鏡頭自動適配 + 縮放/旋轉 ----------
@@ -88,6 +131,7 @@ function applyCameraView() {
 function fitCamera() {
     const w = holder.clientWidth, h = holder.clientHeight;
     renderer.setSize(w, h);
+    composer?.setSize(w, h); // bloom pass 要跟畫布大小
     camera.aspect = w / h;
 
     // 可用範圍：底部留返位畀手牌 UI（用未旋轉/未縮放嘅基準鏡頭搜尋）
@@ -842,7 +886,7 @@ function loop(now) {
     if (rts && rts.active) {
         rts.update(dt);
         // Clash 戰場喺 RTS 期間收起咗，唔使 arena.update（RTS 大地圖係靜態）
-        renderer.render(scene, camera);
+        renderScene();
         return;
     }
 
@@ -865,7 +909,7 @@ function loop(now) {
         if (game.phase === 'overtime') arena.setMood?.(1);
     }
     arena.update(dt);
-    renderer.render(scene, camera);
+    renderScene();
 }
 
 // ---------- 啟動 ----------
@@ -899,6 +943,7 @@ async function init() {
     window.__rts = rts; // 畀自動化測試用
     window.__royaleRenderer = renderer; // 畀滲漏測試量度 GPU 資源
     window.__royaleCamera = camera; // 畀鏡頭平移測試用
+    window.__royaleComposer = () => composer; // 畀視覺測試確認後製狀態
     ui.showStart();
     checkReconnect(); // 上一場 PvP 打到一半 refresh 咗？有得救就彈「重連」bar
     document.getElementById('loading')?.remove();
