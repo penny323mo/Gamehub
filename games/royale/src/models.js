@@ -336,6 +336,33 @@ function makeBerserker(team) {
     });
 }
 
+function makeCleric(team) {
+    const c = TEAM_COLORS[team];
+    // 醫者：民兵模型染純白袍、金色綬帶（神聖感）
+    return makeMeshyUnit('meshyMilitia', team, {
+        height: 1.6, tint: mixColor(c.main, 0xf0ece0, 0.55), armor: false,
+        accent: 0xffd76a, accentBand: [0.5, 0.58], propColor: 0xe8dcb0,
+    });
+}
+
+function makeGrenadier(team) {
+    const c = TEAM_COLORS[team];
+    // 擲彈兵：火槍手模型染深灰＋火藥紅、黑火藥袋帶
+    return makeMeshyUnit('meshyMusketeer', team, {
+        height: 1.62, tint: mixColor(c.main, 0x3a3630, 0.5), armor: false,
+        accent: 0xd8482a, accentBand: [0.5, 0.6], propColor: 0x2a2420,
+    });
+}
+
+function makeIronclad(team) {
+    const c = TEAM_COLORS[team];
+    // 重甲衛：劍士模型放大染厚重鋼灰、深藍鋼飾帶
+    return makeMeshyUnit('meshySwordsman', team, {
+        height: 1.96, tint: mixColor(c.main, 0x6b7078, 0.55),
+        lungeAmount: 0.2, accent: 0x2f3a52, accentBand: [0.54, 0.64], propColor: 0xc9ced4,
+    });
+}
+
 // ---------- 攻城槌（Meshy AI 模型）----------
 function makeRam(team) {
     const c = TEAM_COLORS[team];
@@ -604,6 +631,9 @@ const UNIT_FACTORIES = {
     berserker: makeBerserker,
     ballista: makeBallista,
     mill: makeMill,
+    cleric: makeCleric,
+    grenadier: makeGrenadier,
+    ironclad: makeIronclad,
 };
 
 export function makeUnitModel(cardId, team) {

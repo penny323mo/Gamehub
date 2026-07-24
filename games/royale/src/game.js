@@ -160,6 +160,7 @@ class Entity {
         this.slowT = 0;       // 冰凍/減速剩餘秒數
         this.slowFactor = 1;  // 減速時嘅速度倍率
         this.genT = 0;        // 聖水磨坊產水計時
+        this.healT = 0;       // 醫者治療計時
     }
 }
 
@@ -821,6 +822,8 @@ export class Game {
         // 完場之後特效/飛行中嘅投射物照播，但唔准再改變戰果——
         // 唔係一個遲到嘅火球可以喺勝利畫面之後先冧塔、改皇冠數
         if (this.phase === 'ended') return;
+        // 重甲衛：厚甲按比例減傷（傷害榜同扣血都用實際傷害）
+        if (e.card?.armor) dmg *= (1 - e.card.armor);
         if (src && src.cardId) {
             const board = this.damageByCard[src.team];
             board[src.cardId] = (board[src.cardId] ?? 0) + Math.min(Math.max(0, e.hp), dmg);
@@ -846,6 +849,17 @@ export class Game {
         e.dead = true;
         e.hpBar.visible = false;
         this.#detachSlowRing(e);
+        // 擲彈兵：陣亡即引爆，大範圍炸敵（dead 已設，#damage 對自己 early-return，
+        // 就算連鎖炸死其他擲彈兵都會逐個引爆然後終止，唔會無限遞迴）
+        if (e.card?.deathBomb && !e.isTower) {
+            const b = e.card.deathBomb;
+            this.#explosion(e.x, e.z, b.splash, 0xff7a2a);
+            const bombDmg = b.dmg * this.#climaxMult();
+            for (const o of this.entities) {
+                if (o.dead || o.team === e.team) continue;
+                if (dist(e, o) <= b.splash + o.radius) this.#damage(o, bombDmg, { team: e.team, cardId: e.cardId });
+            }
+        }
         if (e.isTower) {
             this.#towerFall(e);
         } else {
@@ -1236,6 +1250,28 @@ export class Game {
                     const p = this.players[e.team];
                     p.elixir = Math.min(GAME_RULES.elixirMax, p.elixir + e.card.elixirGen.amount);
                     this.#particles(e.x, e.z, 0xd06aff, 5, 1.6, 0.9);
+                }
+            }
+
+            // 醫者：定時治療射程內最傷嘅友軍（唔醫自己、唔醫塔）
+            if (e.card?.heal) {
+                e.healT += dt;
+                if (e.healT >= e.card.heal.interval) {
+                    e.healT -= e.card.heal.interval;
+                    const h = e.card.heal;
+                    let best = null, bestRatio = 1;
+                    for (const o of this.entities) {
+                        if (o.dead || o.team !== e.team || o === e || o.isTower) continue;
+                        if (o.hp >= o.maxHp) continue;
+                        if (dist(e, o) > h.range) continue;
+                        const r = o.hp / o.maxHp;
+                        if (r < bestRatio) { bestRatio = r; best = o; }
+                    }
+                    if (best) {
+                        best.hp = Math.min(best.maxHp, best.hp + h.amount);
+                        best.hpBar.userData.setRatio(best.hp / best.maxHp);
+                        this.#particles(best.x, best.z, 0x7dff9a, 5, 1.4, 1.0);
+                    }
                 }
             }
 

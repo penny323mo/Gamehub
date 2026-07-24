@@ -107,6 +107,26 @@ export const CARDS = {
         hp: 500, dmg: 0, hitSpeed: 999, range: 0,
         lifetime: 60, radius: 0.65, elixirGen: { interval: 5, amount: 1 },
     },
+    cleric: {
+        id: 'cleric', kind: 'unit', name: '醫者', icon: '✚', cost: 4,
+        desc: '隨軍治療最傷嘅友軍，令部隊持久力大增',
+        count: 1, hp: 340, dmg: 34, hitSpeed: 1.3, range: 0.6,
+        speed: 1.7, sight: 5.0, radius: 0.36,
+        heal: { amount: 48, interval: 0.85, range: 4.2 },
+    },
+    grenadier: {
+        id: 'grenadier', kind: 'unit', name: '擲彈兵', icon: '🧨', cost: 3,
+        desc: '衝入敵陣，陣亡即引爆大範圍傷害',
+        count: 1, hp: 240, dmg: 55, hitSpeed: 1.2, range: 0.6,
+        speed: 2.3, sight: 5.0, radius: 0.36,
+        deathBomb: { dmg: 260, splash: 2.0 },
+    },
+    ironclad: {
+        id: 'ironclad', kind: 'unit', name: '重甲衛', icon: '🛡️', cost: 5,
+        desc: '厚重鋼甲減 35% 傷害，前排肉盾之王',
+        count: 1, hp: 1450, dmg: 92, hitSpeed: 1.5, range: 0.6,
+        speed: 1.3, sight: 5.0, radius: 0.56, armor: 0.35,
+    },
 };
 
 export const CARD_POOL = Object.keys(CARDS);
@@ -119,7 +139,7 @@ export const DEFAULT_DECK = [
 // 隨機砌一副合理嘅 AI 卡組：至少 1 法術、1 坦克/攻城、1 遠程
 export function randomDeck() {
     const spells = ['fireball', 'arrows', 'freeze', 'powderkeg'];
-    const heavies = ['elephant', 'ram', 'knight', 'berserker'];
+    const heavies = ['elephant', 'ram', 'knight', 'berserker', 'ironclad'];
     const ranged = ['archers', 'handcannon', 'catapult'];
     const deck = new Set();
     deck.add(spells[Math.floor(Math.random() * spells.length)]);
