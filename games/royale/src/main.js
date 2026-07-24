@@ -24,7 +24,13 @@ import { RTS_MAP } from './rts/rts.js';
 // ---------- Renderer / Scene ----------
 const holder = document.getElementById('canvas-holder');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+// 後製開嗰陣封頂 DPR：composer + bloom 會起一堆全屏／降採樣 render target，
+// 喺高 DPR 手機（×2-3）會食爆顯存令驅動 kill 咗個 WebGL context（畫面閃黑再恢復）。
+// 封到 1.5 大幅減 RT 記憶體，低多邊形模型 + bloom 柔化之下畫質幾乎睇唔出分別。
+const DPR_CAP = 1.5;
+// 安全網：萬一真係 context lost，preventDefault 容許瀏覽器自動恢復
+// （three 會重新上傳資源），唔會卡死喺永久黑畫面
+renderer.domElement.addEventListener('webglcontextlost', (e) => e.preventDefault(), false);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -88,6 +94,8 @@ function renderScene() {
 
 const camera = new THREE.PerspectiveCamera(52, 1, 0.5, 200);
 setupComposer(); // RenderPass 要用到 camera，要喺 camera 宣告之後先起
+// composer 開就封頂 DPR 慳顯存（防 context lost 閃黑）；冇後製就照用足 DPR（最多 2）
+renderer.setPixelRatio(composer ? Math.min(window.devicePixelRatio, DPR_CAP) : Math.min(window.devicePixelRatio, 2));
 let arena = { zones: null, update: () => {} }; // loadAssets 之後先起
 
 // ---------- 鏡頭自動適配 + 縮放/旋轉 ----------
@@ -168,7 +176,16 @@ function fitCamera() {
     fitTargetZ = targetZ;
     applyCameraView();
 }
-window.addEventListener('resize', fitCamera);
+// resize 要 debounce：手機網址列升降 / 軟鍵盤 會連環 fire resize，
+// 每次都 renderer.setSize（清黑畫布）+ composer.setSize（重建 render target）+
+// 行成個 fitCamera 搜尋迴圈，就係「玩途中閃黑」嘅另一主因。等佢停 180ms 先做一次。
+let resizeTimer = null;
+function onResize() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(fitCamera, 180);
+}
+window.addEventListener('resize', onResize);
+window.addEventListener('orientationchange', onResize);
 fitCamera();
 
 // ---------- 鏡頭互動：滾輪/pinch 縮放、拖曳旋轉、重置 ----------
