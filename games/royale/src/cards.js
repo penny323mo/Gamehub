@@ -109,10 +109,10 @@ export const CARDS = {
     },
     cleric: {
         id: 'cleric', kind: 'unit', name: '醫者', icon: '✚', cost: 4,
-        desc: '隨軍治療最傷嘅友軍，令部隊持久力大增',
-        count: 1, hp: 340, dmg: 34, hitSpeed: 1.3, range: 0.6,
-        speed: 1.7, sight: 5.0, radius: 0.36,
-        heal: { amount: 48, interval: 0.85, range: 4.2 },
+        desc: '純輔助：跟喺部隊後面，遠距離持續治療最傷嘅友軍（唔會攻擊）',
+        count: 1, hp: 340, dmg: 0, hitSpeed: 1.3, range: 5.2,
+        speed: 1.8, sight: 5.5, radius: 0.36,
+        heal: { amount: 55, interval: 0.8, range: 5.2 },
     },
     grenadier: {
         id: 'grenadier', kind: 'unit', name: '擲彈兵', icon: '🧨', cost: 3,

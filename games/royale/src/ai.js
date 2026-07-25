@@ -197,9 +197,11 @@ export class AIController {
         // 揀反制卡：兵海用平價多兵，坦克用長槍／高傷。
         // 防守使費要同威脅價值成比例——唔好用 7 費卡接 3 費小兵（換水就輸咗），
         // 冇平價選擇先至焗住用貴卡
+        // 醫者零攻擊力，擋唔到嘢——防守千祈唔好揀佢
+        const canFight = c => c.kind === 'unit' && !c.targetsBuildingsOnly && !c.heal;
         const budget = threatValue + 2;
-        let options = this.affordable(c => c.kind === 'unit' && !c.targetsBuildingsOnly && c.cost <= budget);
-        if (!options.length) options = this.affordable(c => c.kind === 'unit' && !c.targetsBuildingsOnly);
+        let options = this.affordable(c => canFight(c) && c.cost <= budget);
+        if (!options.length) options = this.affordable(canFight);
         if (!options.length) {
             // 或者擺個防禦建築（磨坊冇攻擊力，唔算）
             const b = this.affordable(c => c.kind === 'building' && c.dmg > 0);
@@ -275,7 +277,8 @@ export class AIController {
     }
 
     playAnyCheap() {
-        const options = this.notRecent(this.affordable(c => c.kind === 'unit'));
+        // 洩水都唔好倒醫者出去（佢冇部隊跟就等於乜都做唔到）
+        const options = this.notRecent(this.affordable(c => c.kind === 'unit' && !c.heal));
         if (!options.length) return;
         const pick = options.reduce((a, b) => (a.c.cost < b.c.cost ? a : b));
         const laneX = (Math.random() < 0.5 ? -1 : 1) * ARENA.bridgeX;

@@ -724,13 +724,15 @@ export class Game {
         c.width = 128; c.height = 56;
         const g = c.getContext('2d');
         const big = amount >= 150;
+        const text = rec.heal ? `+${amount}` : String(amount);
         g.font = `900 ${big ? 40 : 33}px 'Arial Black', sans-serif`;
         g.textAlign = 'center'; g.textBaseline = 'middle';
         g.lineWidth = 7; g.strokeStyle = 'rgba(40,24,8,0.9)';
-        g.strokeText(String(amount), 64, 28);
-        // 打敵方＝金黃（爽），自己友被打＝紅（警覺）
-        g.fillStyle = rec.team === TEAM.PLAYER ? '#ff6a55' : '#ffd94a';
-        g.fillText(String(amount), 64, 28);
+        g.strokeText(text, 64, 28);
+        // 治療＝綠；打敵方＝金黃（爽），自己友被打＝紅（警覺）
+        g.fillStyle = rec.heal ? '#6dfb8e'
+            : rec.team === TEAM.PLAYER ? '#ff6a55' : '#ffd94a';
+        g.fillText(text, 64, 28);
         const tex = new THREE.CanvasTexture(c);
         tex.colorSpace = THREE.SRGBColorSpace;
         const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
@@ -1027,6 +1029,92 @@ export class Game {
     }
 
     // ---------- 索敵 ----------
+    // 醫者：純輔助兵。唔會索敵、唔會攻擊，只會跟住部隊尾隨並遠距離治療。
+    // 站位邏輯 = 企喺「最前嘅友軍」後面一段距離，令佢唔會自己衝入敵陣送頭
+    #updateHealer(e, dt, slowMult) {
+        const h = e.card.heal;
+        const dir = teamDir(e.team); // 玩家 -1（向 -z 推進），敵方 +1
+        const STANDOFF = 2.6;        // 同前排保持嘅距離
+
+        // ---- 治療 ----
+        e.healT += dt * slowMult;
+        if (e.healT >= h.interval) {
+            e.healT -= h.interval;
+            let best = null, bestRatio = 1;
+            for (const o of this.entities) {
+                if (o.dead || o.team !== e.team || o === e || o.isTower) continue;
+                if (o.hp >= o.maxHp) continue;
+                if (dist(e, o) > h.range) continue;
+                const r = o.hp / o.maxHp;
+                if (r < bestRatio) { bestRatio = r; best = o; }
+            }
+            if (best) {
+                const before = best.hp;
+                best.hp = Math.min(best.maxHp, best.hp + h.amount);
+                const gained = best.hp - before;
+                best.hpBar.visible = best.hp < best.maxHp;
+                best.hpBar.userData.setRatio(best.hp / best.maxHp);
+                this.#healNumber(best, gained);
+                this.#healBeam(e, best);
+                this.#pushFx(best.x, best.z, 0.5, 0x7dff9a); // guest 都睇到治療脈衝
+                // 面向被醫嘅人 + 借用攻擊動畫做「施法」姿勢
+                e.facing = Math.atan2(best.x - e.x, best.z - e.z);
+                e.attackAnimT = 0;
+            }
+        }
+
+        // ---- 站位：跟住最前嘅友軍，企喺佢後面 ----
+        if (e.speed <= 0) return;
+        let lead = null;
+        for (const o of this.entities) {
+            if (o.dead || o.team !== e.team || o === e || o.isTower || o.isBuilding) continue;
+            if (o.deployT > 0) continue;
+            // 「最前」= 沿住推進方向行得最遠嗰個
+            if (!lead || o.z * dir > lead.z * dir) lead = o;
+        }
+        if (!lead) { e.moving = false; return; } // 冇部隊就企定，唔好自己送死
+        const goalX = lead.x;
+        const goalZ = lead.z - dir * STANDOFF; // 前排後面
+        const dx = goalX - e.x, dz = goalZ - e.z;
+        const gd = Math.sqrt(dx * dx + dz * dz);
+        if (gd < 0.35) { e.moving = false; return; }
+        const step = Math.min(e.speed * slowMult * dt, gd);
+        e.x += (dx / gd) * step;
+        e.z += (dz / gd) * step;
+        // 冇醫緊人就望住前方（唔好背住敵人行）
+        if (e.attackAnimT < 0) e.facing = Math.atan2(dx, dz);
+        e.moving = true;
+    }
+
+    // 綠色「+N」治療數字（同傷害數字共用 sprite 系統，但用另一組 key 免撞）
+    #healNumber(target, amount) {
+        if (amount < 1) return;
+        const key = `h${target.id}`;
+        const rec = this.dmgNums.get(key);
+        if (rec) { rec.amount += amount; rec.x = target.x; rec.z = target.z; }
+        else this.dmgNums.set(key, { amount, timer: 0.26, team: target.team, heal: true, x: target.x, z: target.z, h: target.isTower ? 3.6 : 2.4 });
+    }
+
+    // 醫者到傷者之間嘅治療光束
+    #healBeam(from, to) {
+        if (this.effects.length > 120) return;
+        const d = dist(from, to);
+        if (d < 0.05) return;
+        const geo = new THREE.CylinderGeometry(0.05, 0.05, d, 6, 1, true);
+        const beam = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+            color: 0x7dff9a, transparent: true, opacity: 0.7, depthWrite: false,
+        }));
+        beam.position.set((from.x + to.x) / 2, 1.0, (from.z + to.z) / 2);
+        beam.rotation.z = Math.PI / 2;
+        beam.rotation.y = -Math.atan2(to.z - from.z, to.x - from.x);
+        beam.renderOrder = 11;
+        this.scene.add(beam);
+        this.effects.push({
+            t: 0, dur: 0.32, mesh: beam,
+            update: (ef) => { beam.material.opacity = 0.7 * (1 - ef.t / ef.dur); },
+        });
+    }
+
     #findTarget(e) {
         let best = null, bestD = Infinity;
         for (const o of this.entities) {
@@ -1264,28 +1352,6 @@ export class Game {
                 }
             }
 
-            // 醫者：定時治療射程內最傷嘅友軍（唔醫自己、唔醫塔）
-            if (e.card?.heal) {
-                e.healT += dt;
-                if (e.healT >= e.card.heal.interval) {
-                    e.healT -= e.card.heal.interval;
-                    const h = e.card.heal;
-                    let best = null, bestRatio = 1;
-                    for (const o of this.entities) {
-                        if (o.dead || o.team !== e.team || o === e || o.isTower) continue;
-                        if (o.hp >= o.maxHp) continue;
-                        if (dist(e, o) > h.range) continue;
-                        const r = o.hp / o.maxHp;
-                        if (r < bestRatio) { bestRatio = r; best = o; }
-                    }
-                    if (best) {
-                        best.hp = Math.min(best.maxHp, best.hp + h.amount);
-                        best.hpBar.userData.setRatio(best.hp / best.maxHp);
-                        this.#particles(best.x, best.z, 0x7dff9a, 5, 1.4, 1.0);
-                        this.#pushFx(best.x, best.z, 0.5, 0x7dff9a); // guest 都睇到治療脈衝
-                    }
-                }
-            }
 
             if (e.attackCd > 0) e.attackCd -= dt * slowMult;
             if (e.attackAnimT >= 0) {
@@ -1304,6 +1370,9 @@ export class Game {
                 if (e.target && e.attackCd <= 0) this.#attack(e, e.target);
                 continue;
             }
+
+            // 醫者：純輔助，完全唔索敵唔攻擊（行自己一條支援邏輯）
+            if (e.card?.heal) { this.#updateHealer(e, dt, slowMult); continue; }
 
             // 索敵
             e.retargetT -= dt;
