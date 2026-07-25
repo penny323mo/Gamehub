@@ -144,6 +144,26 @@ const camTarget = new THREE.Vector3();
 const camOffset = new THREE.Vector3();
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 
+// 打擊感：大事件（冧塔／大爆炸）震一震鏡頭。只係疊喺鏡頭位置上面，
+// 唔會改 camTarget，所以唔會影響操作同落卡命中判定
+// 用固定時長 + 二次衰減包絡：0.42 秒內一定歸零，鏡頭保證復位乾淨
+// （指數衰減永遠唔會真正到 0，會留低肉眼睇唔到但驗證得出嘅偏移）
+const SHAKE_DUR = 0.42;
+let shakePeak = 0, shakeAmp = 0, shakeT = 0;
+function addShake(amount) {
+    const left = shakePeak * Math.max(0, 1 - shakeT / SHAKE_DUR); // 疊加時保留仲未震完嗰部分
+    shakePeak = Math.min(0.55, left + amount);
+    shakeT = 0;
+}
+function updateShake(dt) {
+    if (shakePeak <= 0) return;
+    shakeT += dt;
+    const k = 1 - shakeT / SHAKE_DUR;
+    if (k <= 0) { shakePeak = 0; shakeAmp = 0; }
+    else shakeAmp = shakePeak * k * k; // 二次衰減：頭段有力，尾段快速收
+    applyCameraView(); // k<=0 嗰一幀都要行，先會復位到冇偏移嘅鏡頭
+}
+
 function applyCameraView() {
     const d = fitD / zoom;
     camTarget.set(panX, 0, fitTargetZ + panZ); // panX/panZ 只喺 RTS 大地圖用（睇上/下半場）
@@ -151,6 +171,10 @@ function applyCameraView() {
     camOffset.set(0, d * 0.76, d * 0.66 + 5 - fitTargetZ);
     camOffset.applyAxisAngle(Y_AXIS, orbit);
     camera.position.copy(camTarget).add(camOffset);
+    if (shakeAmp > 0) {
+        camera.position.x += Math.sin(shakeT * 62) * shakeAmp;
+        camera.position.y += Math.sin(shakeT * 47 + 1.3) * shakeAmp * 0.7;
+    }
     camera.lookAt(camTarget);
     camera.updateProjectionMatrix();
 }
@@ -627,6 +651,7 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
     game = new Game(scene, deck, personality.deck, {
         onTowerDestroyed(t) {
             sfx.towerDown();
+            addShake(0.34); // 冧塔＝最重嘅一下
             if (t.team === TEAM.ENEMY) matchStats.towersDestroyed += 1;
             ui.banner(t.team === TEAM.PLAYER ? '💥 你嘅城塔冧咗！' : '🎉 攻陷敵方城塔！');
         },
@@ -671,7 +696,17 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
                 stage: gauntletStage,
             });
         },
-        onImpact() { sfx.explosion(); },
+        onImpact() { sfx.explosion(); addShake(0.12); },
+        // 出手聲：投射物類型決定音色（箭／子彈／石），近戰就金屬互斬
+        onAttack(projectile, cardId) {
+            if (projectile === 'arrow' || projectile === 'bolt') sfx.arrow();
+            else if (projectile === 'bullet') sfx.gunshot();
+            else if (projectile === 'stone') sfx.launch();
+            else if (cardId === 'ram') sfx.thud();
+            else sfx.melee();
+        },
+        onDeath(e) { if (!e.isTower && !e.isBuilding) sfx.death(); },
+        onHeal() { sfx.heal(); },
         onSpawn() {},
     }, {
         levels: { [TEAM.PLAYER]: playerLevels(), [TEAM.ENEMY]: enemyLevels },
@@ -791,6 +826,7 @@ function beginAsHost(hostDeck, guestDeck) {
     game = new Game(scene, hostDeck, guestDeck, {
         onTowerDestroyed(t) {
             sfx.towerDown();
+            addShake(0.34); // 冧塔＝最重嘅一下
             if (t.team === TEAM.ENEMY) matchStats.towersDestroyed += 1;
             else enemyStats.towersDestroyed += 1;
             ui.banner(t.team === TEAM.PLAYER ? '💥 你嘅城塔冧咗！' : '🎉 攻陷敵方城塔！');
@@ -823,7 +859,17 @@ function beginAsHost(hostDeck, guestDeck) {
             Net.sendMatchStats(enemyStats);
             ui.showEnd(result, { rewards, damage: game.damageByCard[TEAM.PLAYER], mode: 'pvp', stage: 0 });
         },
-        onImpact() { sfx.explosion(); },
+        onImpact() { sfx.explosion(); addShake(0.12); },
+        // 出手聲：投射物類型決定音色（箭／子彈／石），近戰就金屬互斬
+        onAttack(projectile, cardId) {
+            if (projectile === 'arrow' || projectile === 'bolt') sfx.arrow();
+            else if (projectile === 'bullet') sfx.gunshot();
+            else if (projectile === 'stone') sfx.launch();
+            else if (cardId === 'ram') sfx.thud();
+            else sfx.melee();
+        },
+        onDeath(e) { if (!e.isTower && !e.isBuilding) sfx.death(); },
+        onHeal() { sfx.heal(); },
         onSpawn() {},
     }, {
         levels: { [TEAM.PLAYER]: playerLevels(), [TEAM.ENEMY]: playerLevels() },
@@ -922,6 +968,7 @@ function loop(now) {
     if (rts && rts.active) {
         rts.update(dt);
         // Clash 戰場喺 RTS 期間收起咗，唔使 arena.update（RTS 大地圖係靜態）
+        updateShake(dt); // 由 Clash 切過嚟時仲有殘餘震動就喺度收乾淨
         renderScene();
         return;
     }
@@ -945,6 +992,7 @@ function loop(now) {
         if (game.phase === 'overtime') arena.setMood?.(1);
     }
     arena.update(dt);
+    updateShake(dt);
     renderScene();
 }
 
@@ -980,6 +1028,7 @@ async function init() {
     window.__royaleRenderer = renderer; // 畀滲漏測試量度 GPU 資源
     window.__royaleCamera = camera; // 畀鏡頭平移測試用
     window.__royaleComposer = () => composer; // 畀視覺測試確認後製狀態
+    window.__royaleShake = () => ({ peak: shakePeak, amp: shakeAmp }); // 畀打擊感測試觀察
     ui.showStart();
     checkReconnect(); // 上一場 PvP 打到一半 refresh 咗？有得救就彈「重連」bar
     document.getElementById('loading')?.remove();

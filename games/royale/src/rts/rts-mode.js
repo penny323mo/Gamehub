@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { TEAM } from '../constants.js';
 import { RtsGame, RTS_UNITS, RTS_BUILDINGS, TC_UPGRADE, RTS_MAX_AGE, RTS_TECH } from './rts.js';
 import { RtsAI } from './rts-ai.js';
+import { sfx } from '../sfx.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -53,6 +54,13 @@ export function createRtsMode(deps) {
         cleanup();
         game = new RtsGame(scene, {
             onResources: refreshHud,
+            // 之前成個 LV2 模式完全冇聲——而家戰鬥同里程碑都有音效。
+            // 里程碑類（建成/升代/研發）只播玩家嗰邊，唔好被 AI 嘅進度洗版
+            onSound: (name, team) => {
+                const milestone = name === 'complete' || name === 'ageUp' || name === 'research' || name === 'train' || name === 'gather';
+                if (milestone && team !== TEAM.PLAYER) return;
+                sfx[name]?.();
+            },
             onEvent: (msg, team) => { if (team === TEAM.PLAYER) toast(msg); },
             onEnd: (result) => {
                 const won = result.winner === TEAM.PLAYER;

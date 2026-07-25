@@ -1056,6 +1056,7 @@ export class Game {
                 best.hpBar.userData.setRatio(best.hp / best.maxHp);
                 this.#healNumber(best, gained);
                 this.#healBeam(e, best);
+                this.hooks.onHeal?.();
                 this.#pushFx(best.x, best.z, 0.5, 0x7dff9a); // guest 都睇到治療脈衝
                 // 面向被醫嘅人 + 借用攻擊動畫做「施法」姿勢
                 e.facing = Math.atan2(best.x - e.x, best.z - e.z);
@@ -1152,6 +1153,8 @@ export class Game {
         e.attackAnimT = 0;
         const src = { team: e.team, cardId: e.isTower ? 'tower' : e.cardId };
         const dmg = e.dmg * this.#climaxMult();
+        // 出手音效（近戰／放箭／開火各有唔同聲）——之前成場戰鬥都係靜嘅
+        this.hooks.onAttack?.(e.projectile ?? null, e.cardId, e.isTower);
         if (e.projectile) {
             // 投射物送「未乘 climax」嘅底傷，落地嗰刻先乘——投石車飛成秒鐘，
             // 開火同落地跨越決勝窗口時先唔會同近戰唔一致

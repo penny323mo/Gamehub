@@ -632,6 +632,7 @@ export class RtsGame {
                 b.model.traverse(o => { if (o.isMesh) { o.material.opacity = 1; o.material.transparent = false; } });
                 b.hp = b.maxHp;
                 if (b.def.pop) this.popCap[b.team] = Math.min(HARD_POP_CAP, this.popCap[b.team] + b.def.pop);
+                this.hooks.onSound?.('complete', b.team);
                 this.hooks.onEvent?.(`${b.def.icon} ${b.def.name}建成`, b.team);
                 this.hooks.onResources?.();
             }
@@ -645,6 +646,7 @@ export class RtsGame {
                 if (foe) {
                     b.attackCd = b.def.atk.hitSpeed;
                     const dmg = Math.round(b.def.atk.dmg * (1 + ((b.age ?? 1) - 1) * 0.35));
+                    this.hooks.onSound?.('arrow', b.team);
                     this.#buildingShoot(b, foe, dmg);
                 }
             }
@@ -657,6 +659,7 @@ export class RtsGame {
                 b.researching = null;
                 const t = RTS_TECH[line];
                 this.tech[b.team][line] = Math.min(t.max, this.tech[b.team][line] + 1);
+                this.hooks.onSound?.('research', b.team);
                 this.hooks.onEvent?.(`${t.icon} ${t.name} 升到 Lv${this.tech[b.team][line]}！`, b.team);
                 this.hooks.onResources?.();
             }
@@ -669,6 +672,7 @@ export class RtsGame {
                 b.upgrading = null;
                 b.maxHp += 300; b.hp += 300; b.hpBar.userData.setRatio(b.hp / b.maxHp);
                 this.popCap[b.team] = Math.min(HARD_POP_CAP, this.popCap[b.team] + 4);
+                this.hooks.onSound?.('ageUp', b.team);
                 this.hooks.onEvent?.(`🏯 城鎮中心升到第 ${b.age} 代！解鎖新兵種`, b.team);
                 this.hooks.onResources?.();
             }
@@ -685,6 +689,7 @@ export class RtsGame {
                 const spawn = this.#spawnUnit(type, b.team, b.x + (Math.random() - 0.5) * 1.2, b.z + sz * (b.radius + 1.0));
                 const rally = b.rally ?? { x: b.x, z: b.z + sz * (b.radius + 2.5) };
                 spawn.command = { type: 'move', tx: rally.x, tz: rally.z };
+                this.hooks.onSound?.('train', b.team);
                 this.hooks.onResources?.();
             }
         }
@@ -776,7 +781,7 @@ export class RtsGame {
         if (cmd.type === 'gather') {
             const node = cmd.node;
             if (!node || node.dead) { e.command = { type: 'idle' }; return; }
-            if (e.carry >= e.def.carryCap) { e.command = { type: '_return', node }; return; }
+            if (e.carry >= e.def.carryCap) { this.hooks.onSound?.('gather', e.team); e.command = { type: '_return', node }; return; }
             const d = Math.hypot(node.x - e.x, node.z - e.z);
             if (d > node.radius + 0.8) { this.#moveToward(e, node.x, node.z, dt); this.#animate(e, true); return; }
             // 採
@@ -812,6 +817,9 @@ export class RtsGame {
         if (e.attackCd <= 0) {
             e.attackCd = e.hitSpeed;
             e.attackAnimT = 0; // 每次出手重新播一次揮擊
+            this.hooks.onSound?.(e.projectile ? (e.unitType === 'handcannon' ? 'gunshot'
+                : e.unitType === 'catapult' ? 'launch' : 'arrow')
+                : (e.unitType === 'ram' ? 'thud' : 'melee'), e.team);
             if (e.projectile) this.#spawnProjectile(e, t);
             else this.#hit(e, t);
         }
