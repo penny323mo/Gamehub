@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { TEAM_COLORS } from './constants.js';
 import { instantiate, normalizeHeight, scaleToHeight, scaleToHeightGrounded, scaleToFit, ASSETS } from './assets.js';
+import { makeRigAnimator } from './rig.js';
 
 const matCache = new Map();
 export function mat(color) {
@@ -215,6 +216,34 @@ function makeHitFlash(model) {
 
 // ---------- Fake 動畫（畀冇骨架嘅 Meshy 素模用）----------
 // 移動時輕微浮動、攻擊時前撲＋揮動、受傷時閃白
+// 有骨骼嘅人形：骨骼動作做主體（真步態／揮擊），group 級只留少量重量感
+function makeRiggedAnimator(key, model, opts) {
+    const rig = makeRigAnimator(key, model, opts);
+    if (!rig) return null;
+    const { bobAmount = 0.03, bobSpeed = 7.5, lungeAmount = 0.3, forwardSign = 1 } = opts;
+    const baseY = model.position.y;
+    const flash = makeHitFlash(model);
+    model.userData.onHit = flash.onHit;
+    return (t, state) => {
+        rig(t, state);
+        if (state.attackT >= 0) {
+            // 前撲位移配合骨骼揮擊（唔再靠整個身縮放去「假裝」有力）
+            const p = state.attackT;
+            const lunge = p < 0.3 ? (p / 0.3) : Math.max(0, 1 - (p - 0.3) / 0.55);
+            model.position.z = forwardSign * lunge * lungeAmount;
+            model.position.y = baseY;
+        } else if (state.moving) {
+            // 踏步嘅上下起伏（頻率同骨骼步態一致，一步一沉）
+            model.position.y = baseY + Math.abs(Math.sin(t * bobSpeed)) * bobAmount;
+            model.position.z *= 0.7;
+        } else {
+            model.position.y = baseY + (Math.sin(t * 1.9) * 0.5 + 0.5) * 0.016;
+            model.position.z *= 0.7;
+        }
+        flash.update(t);
+    };
+}
+
 function makeFakeAnimator(model, { bobAmount = 0.045, bobSpeed = 8, lungeAmount = 0.5, forwardSign = 1 } = {}) {
     const baseY = model.position.y;
     const baseScale = model.scale.x;
@@ -262,7 +291,8 @@ function makeMeshyUnit(key, team, {
     scaleToHeightGrounded(key, model, height);
     const g = new THREE.Group();
     g.add(model);
-    g.userData.animate = makeFakeAnimator(model, animOpts);
+    // 有骨骼就行真骨骼動作；分析唔到（非人形／冇骨）就 fallback 返舊嘅整體動畫
+    g.userData.animate = makeRiggedAnimator(key, model, animOpts) ?? makeFakeAnimator(model, animOpts);
     // makeFakeAnimator 將 onHit 掛咗喺內層 model 度，但 game.js 攞返出面個 group 嚟叫 —— 轉駁一下
     g.userData.onHit = (t) => model.userData.onHit?.(t);
     return g;
@@ -273,6 +303,7 @@ function makeMilitia(team) {
     return makeMeshyUnit('meshyMilitia', team, {
         height: 1.56, tint: mixColor(c.main, 0x9a8560, 0.45), armor: false,
         accent: 0xc9a227, accentBand: [0.55, 0.6], propColor: 0x6b4a28, // 芥黃色布條腰帶
+        attackStyle: 'swing', walkSpeed: 9.5, walkAmp: 0.52, armAmp: 0.46,
     });
 }
 
@@ -281,6 +312,7 @@ function makeSwordsman(team) {
     return makeMeshyUnit('meshySwordsman', team, {
         height: 1.74, tint: mixColor(c.main, 0xb8b0a0, 0.15),
         accent: 0xe8dcc0, accentBand: [0.58, 0.63], propColor: 0xb9c2c9, // 米白色綬帶＋銀刃
+        attackStyle: 'swing', walkSpeed: 7.0, walkAmp: 0.5, armAmp: 0.38,
     });
 }
 
@@ -289,6 +321,7 @@ function makeArcher(team) {
     return makeMeshyUnit('meshyArcher', team, {
         height: 1.62, tint: mixColor(c.main, 0x4a7a3a, 0.3), armor: false,
         accent: 0x6b4423, accentBand: [0.5, 0.56], propColor: 0x7a5230, // 皮革箭袋帶＋木弓
+        attackStyle: 'shoot', walkSpeed: 8.0, walkAmp: 0.46, armAmp: 0.34,
     });
 }
 
@@ -297,6 +330,7 @@ function makePikeman(team) {
     return makeMeshyUnit('meshyPikeman', team, {
         height: 1.68, tint: mixColor(c.main, 0x6a7078, 0.2), lungeAmount: 0.32,
         accent: 0x2f4a35, accentBand: [0.58, 0.63], propColor: 0x5a3d20, // 墨綠色軍帶＋木桿
+        attackStyle: 'thrust', walkSpeed: 7.4, walkAmp: 0.48, armAmp: 0.3,
     });
 }
 
@@ -305,6 +339,7 @@ function makeHandCannoneer(team) {
     return makeMeshyUnit('meshyMusketeer', team, {
         height: 1.68, tint: mixColor(c.main, 0x50555c, 0.35), armor: false,
         accent: 0xded6c0, accentBand: [0.52, 0.6], propColor: 0x3a3a3a, // 米白色子彈袋帶＋鐵槍管
+        attackStyle: 'shoot', walkSpeed: 6.8, walkAmp: 0.44, armAmp: 0.3,
     });
 }
 
@@ -314,6 +349,7 @@ function makeKnight(team) {
         height: 2.22, tint: mixColor(c.main, 0x8a7050, 0.35),
         bobAmount: 0.07, bobSpeed: 6, lungeAmount: 0.35,
         accent: 0xd4af37, accentBand: [0.42, 0.48], propColor: 0x5a3d20, // 金色馬鞍飾邊
+        attackStyle: 'swing', walkSpeed: 9.0, walkAmp: 0, armAmp: 0.3, // 騎馬：腿唔擺
     });
 }
 
@@ -324,6 +360,7 @@ function makeScout(team) {
         height: 1.92, tint: mixColor(c.main, 0xc2a878, 0.45),
         bobAmount: 0.09, bobSpeed: 9, lungeAmount: 0.4,
         accent: 0xc9ced4, accentBand: [0.44, 0.5], propColor: 0x7a5230,
+        attackStyle: 'swing', walkSpeed: 12.0, walkAmp: 0, armAmp: 0.32, // 騎馬：腿唔擺
     });
 }
 
@@ -333,6 +370,7 @@ function makeBerserker(team) {
     return makeMeshyUnit('meshySwordsman', team, {
         height: 1.78, tint: mixColor(c.main, 0x8a2418, 0.5),
         lungeAmount: 0.55, accent: 0x5c0f0f, accentBand: [0.56, 0.62], propColor: 0x4a4a50,
+        attackStyle: 'swing', walkSpeed: 9.5, walkAmp: 0.62, armAmp: 0.55,
     });
 }
 
@@ -342,6 +380,7 @@ function makeCleric(team) {
     return makeMeshyUnit('meshyMilitia', team, {
         height: 1.6, tint: mixColor(c.main, 0xf0ece0, 0.55), armor: false,
         accent: 0xffd76a, accentBand: [0.5, 0.58], propColor: 0xe8dcb0,
+        attackStyle: 'cast', walkSpeed: 8.0, walkAmp: 0.44, armAmp: 0.3,
     });
 }
 
@@ -351,6 +390,7 @@ function makeGrenadier(team) {
     return makeMeshyUnit('meshyMusketeer', team, {
         height: 1.62, tint: mixColor(c.main, 0x3a3630, 0.5), armor: false,
         accent: 0xd8482a, accentBand: [0.5, 0.6], propColor: 0x2a2420,
+        attackStyle: 'swing', walkSpeed: 9.0, walkAmp: 0.5, armAmp: 0.44,
     });
 }
 
@@ -360,6 +400,7 @@ function makeIronclad(team) {
     return makeMeshyUnit('meshySwordsman', team, {
         height: 1.96, tint: mixColor(c.main, 0x6b7078, 0.55),
         lungeAmount: 0.2, accent: 0x2f3a52, accentBand: [0.54, 0.64], propColor: 0xc9ced4,
+        attackStyle: 'swing', walkSpeed: 5.4, walkAmp: 0.42, armAmp: 0.3,
     });
 }
 

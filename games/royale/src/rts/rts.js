@@ -227,6 +227,7 @@ class RtsEntity {
         this.maxHp = def?.hp ?? 1;
         this.hp = this.maxHp;
         this.attackCd = 0;
+        this.attackAnimT = -1; // 揮擊動畫進度（-1 = 冇播）
         this.command = { type: 'idle' };
         this.target = null;
     }
@@ -691,6 +692,11 @@ export class RtsGame {
 
     #updateUnit(e, dt) {
         e.attackCd = Math.max(0, e.attackCd - dt);
+        // 揮擊動畫進度（0.35 秒播完一次，同 Clash 一致）
+        if (e.attackAnimT >= 0) {
+            e.attackAnimT += dt / 0.35;
+            if (e.attackAnimT > 1) e.attackAnimT = -1;
+        }
         const cmd = e.command;
 
         // 村民採集 / 建造 FSM
@@ -803,12 +809,13 @@ export class RtsGame {
         const reach = e.range + (t.radius ?? 0.4) + e.radius;
         if (d > reach) { this.#moveToward(e, t.x, t.z, dt); this.#animate(e, true); return; }
         this.#faceTo(e, t.x, t.z);
-        this.#animate(e, false, true);
         if (e.attackCd <= 0) {
             e.attackCd = e.hitSpeed;
+            e.attackAnimT = 0; // 每次出手重新播一次揮擊
             if (e.projectile) this.#spawnProjectile(e, t);
             else this.#hit(e, t);
         }
+        this.#animate(e, false, true);
     }
 
     // 埋身/命中傷害：攻城單位對建築有加成
@@ -851,7 +858,9 @@ export class RtsGame {
         e.model.position.set(e.x, 0, e.z);
         e.hpBar.position.set(e.x, e.hpBar.userData.h, e.z);
         const t = this.time + e.rtsId * 0.6;
-        if (e.model.userData.animate) e.model.userData.animate(t, { moving, attackT: attacking ? 0.3 : -1 });
+        // 攻擊姿態要真係播完一次揮擊（之前寫死 0.3，即係凍結喺蓄力一格，睇落好硬）
+        const atkT = (attacking && e.attackAnimT >= 0 && e.attackAnimT <= 1) ? e.attackAnimT : -1;
+        if (e.model.userData.animate) e.model.userData.animate(t, { moving, attackT: atkT });
     }
 
     #nearestEnemy(e, range) {
