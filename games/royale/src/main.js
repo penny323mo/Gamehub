@@ -24,13 +24,24 @@ import { RTS_MAP } from './rts/rts.js';
 // ---------- Renderer / Scene ----------
 const holder = document.getElementById('canvas-holder');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-// 後製開嗰陣封頂 DPR：composer + bloom 會起一堆全屏／降採樣 render target，
-// 喺高 DPR 手機（×2-3）會食爆顯存令驅動 kill 咗個 WebGL context（畫面閃黑再恢復）。
-// 封到 1.5 大幅減 RT 記憶體，低多邊形模型 + bloom 柔化之下畫質幾乎睇唔出分別。
-const DPR_CAP = 1.5;
+// 畫質／記憶體分級：composer + bloom 會起一堆全屏／降採樣 render target，
+// 喺高 DPR 手機食太多顯存會令驅動 kill 咗 WebGL context（畫面閃黑）。
+// 記憶體充足就行足 DPR 2 + 4× MSAA；細記憶體機先降級。
+// （之前一刀切封到 1.5 又冇 MSAA，畫面明顯多咗鋸齒）
+const GFX_KEY = 'royale_gfx_safe';
+// 自癒：真係試過 context lost（畫面閃黑）嘅機，下次入場自動用保守設定，
+// 唔使全世界一齊犧牲畫質。冇事嘅機照享受足 DPR + 4× MSAA
+let SAFE_MODE = false;
+try { SAFE_MODE = localStorage.getItem(GFX_KEY) === '1'; } catch { /* private mode */ }
+const DEVICE_MEM = navigator.deviceMemory ?? 4;
+const DPR_CAP = (SAFE_MODE || DEVICE_MEM < 4) ? 1.5 : 2;
+const MSAA_SAMPLES = SAFE_MODE ? 0 : (DEVICE_MEM >= 4 ? 4 : 2);
 // 安全網：萬一真係 context lost，preventDefault 容許瀏覽器自動恢復
-// （three 會重新上傳資源），唔會卡死喺永久黑畫面
-renderer.domElement.addEventListener('webglcontextlost', (e) => e.preventDefault(), false);
+// （three 會重新上傳資源），唔會卡死喺永久黑畫面；同時記低要降級
+renderer.domElement.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    try { localStorage.setItem(GFX_KEY, '1'); } catch { /* ignore */ }
+}, false);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -76,7 +87,15 @@ const LOW_END = (navigator.deviceMemory && navigator.deviceMemory <= 2) ||
 let composer = null, bloomPass = null;
 function setupComposer() {
     if (LOW_END) return; // 低階裝置維持直接 render
-    composer = new EffectComposer(renderer);
+    // EffectComposer 預設個 render target 冇 MSAA —— 一開後製，
+    // WebGLRenderer({antialias:true}) 嗰個畫布級抗鋸齒就完全用唔著（畫面全部經離屏 target），
+    // 所以要自己畀返一個帶 samples 嘅 target，唔係邊緣會好多鋸齒
+    const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+    const rt = new THREE.WebGLRenderTarget(size.width, size.height, {
+        type: THREE.HalfFloatType,
+        samples: renderer.capabilities.isWebGL2 ? MSAA_SAMPLES : 0, // MSAA 要 WebGL2
+    });
+    composer = new EffectComposer(renderer, rt);
     composer.addPass(new RenderPass(scene, camera));
     bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.34, 0.45, 0.9);
     // strength 0.34（細力，唔好成塊畫面泛白）、radius 0.45、
