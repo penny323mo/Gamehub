@@ -725,6 +725,8 @@ body {
 }
 .rts-act-btn small { font-size: 10px; font-weight: 700; opacity: .82; margin-top: 2px; }
 .rts-act-btn:active { transform: scale(.96); }
+.rts-act-btn.locked { opacity: .45; filter: grayscale(.6); }
+.rts-act-btn.locked:active { transform: none; }
 .rts-act-btn.locked {
     background: linear-gradient(180deg, #6a6a62, #4a4a44); color: #cfcabf;
     border-color: #55524a; opacity: .8;

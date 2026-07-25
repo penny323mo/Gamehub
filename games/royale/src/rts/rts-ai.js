@@ -5,7 +5,7 @@
 //   4. 儲夠一隊就 attack-move 攻向玩家城鎮中心
 //   5. 基地受襲就召返部隊回防
 import { TEAM } from '../constants.js';
-import { RTS_UNITS, RTS_BUILDINGS, TC_UPGRADE, RTS_MAX_AGE } from './rts.js';
+import { RTS_UNITS, RTS_BUILDINGS, TC_UPGRADE, RTS_MAX_AGE, RTS_TECH } from './rts.js';
 
 export class RtsAI {
     constructor(game, difficulty = 'normal') {
@@ -63,6 +63,34 @@ export class RtsAI {
         // 訓練村民擴充經濟
         if (villagers.length + this.#queued(tc) < this.cfg.workers && tc.trainQueue.length < 2) {
             g.queueTrain(tc, 'villager');
+        }
+
+        // 起鐵匠鋪／箭塔（同玩家一樣要用村民、付同一份資源）
+        const smithy = g.entities.find(e => e.kind === 'building' && e.team === this.team
+            && e.buildingType === 'blacksmith' && !e.dead);
+        const freeVill = () => villagers.find(v => v.command.type === 'idle' || v.command.type === 'gather');
+        if (!smithy && villagers.length >= this.cfg.workers - 2
+            && g.canAfford(this.team, RTS_BUILDINGS.blacksmith.cost)) {
+            const v = freeVill();
+            if (v) g.startBuild([v], 'blacksmith', (Math.random() - 0.5) * 8, -8 - Math.random() * 4, this.team);
+        }
+        // 主城捱打過就補防禦塔（最多 2 座，唔好嘥晒資源龜縮）
+        const towers = g.entities.filter(e => e.kind === 'building' && e.team === this.team
+            && e.buildingType === 'tower' && !e.dead).length;
+        if (towers < 2 && tc.hp < tc.maxHp * 0.9 && g.canAfford(this.team, RTS_BUILDINGS.tower.cost)) {
+            const v = freeVill();
+            if (v) g.startBuild([v], 'tower', tc.x + (Math.random() - 0.5) * 7, tc.z + 4.5, this.team);
+        }
+        // 有鐵匠鋪就持續研發（攻防交替，資源夠先落單）
+        if (smithy && smithy.complete && !smithy.researching) {
+            const lines = g.tech[this.team].attack <= g.tech[this.team].armor
+                ? ['attack', 'armor'] : ['armor', 'attack'];
+            for (const line of lines) {
+                const nx = g.nextTech(this.team, line);
+                if (nx && (nx.age ?? 1) <= g.teamAge(this.team) && g.canAfford(this.team, nx.cost)) {
+                    if (g.queueResearch(smithy, line)) break;
+                }
+            }
         }
 
         // 升級主城：夠人手就儲資源升代。儲緊嗰陣暫停出兵（保留最低防守）

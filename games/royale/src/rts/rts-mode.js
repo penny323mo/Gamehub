@@ -2,7 +2,7 @@
 // 由 main.js 用共用嘅 scene/camera/renderer 建立，喺 RTS 模式期間接管單指輸入。
 import * as THREE from 'three';
 import { TEAM } from '../constants.js';
-import { RtsGame, RTS_UNITS, RTS_BUILDINGS, TC_UPGRADE, RTS_MAX_AGE } from './rts.js';
+import { RtsGame, RTS_UNITS, RTS_BUILDINGS, TC_UPGRADE, RTS_MAX_AGE, RTS_TECH } from './rts.js';
 import { RtsAI } from './rts-ai.js';
 
 const $ = (id) => document.getElementById(id);
@@ -275,6 +275,29 @@ export function createRtsMode(deps) {
                 }
                 return;
             }
+            // 鐵匠鋪：研發攻擊／護甲科技
+            if (RTS_BUILDINGS[building.buildingType].research) {
+                const tk = game.tech[TEAM.PLAYER];
+                if (building.researching) {
+                    const t = RTS_TECH[building.researching.line];
+                    const pct = Math.round((1 - building.researching.timer / building.researching.total) * 100);
+                    info.textContent = `${def.icon} ${def.name}（研發 ${t.name} 中 ${pct}%）`;
+                } else {
+                    info.textContent = `${def.icon} ${def.name}　⚔️Lv${tk.attack}　🛡️Lv${tk.armor}`;
+                    for (const line of ['attack', 'armor']) {
+                        const t = RTS_TECH[line];
+                        const nx = game.nextTech(TEAM.PLAYER, line);
+                        if (!nx) { acts.appendChild(actionBtn(`${t.icon} ${t.name} MAX`, '', () => {}, true)); continue; }
+                        const locked = (nx.age ?? 1) > age;
+                        acts.appendChild(actionBtn(
+                            `${t.icon} ${t.name} Lv${tk[line] + 1}`,
+                            locked ? `需第 ${nx.age} 代` : costStr(nx.cost),
+                            () => { game.queueResearch(building, line); renderActions(); }, locked,
+                        ));
+                    }
+                }
+                return;
+            }
             // 兵營：全兵種，按時代 gate（未夠代顯示鎖）
             info.textContent = `${def.icon} ${def.name}（第 ${age} 代）${building.trainQueue.length ? `　生產中×${building.trainQueue.length}` : ''}`;
             for (const t of def.trains) acts.appendChild(trainBtn(t, building, age));
@@ -287,6 +310,8 @@ export function createRtsMode(deps) {
         if (vills.length) {
             acts.appendChild(actionBtn('🏰 建兵營', costStr(RTS_BUILDINGS.barracks.cost), () => enterPlace('barracks')));
             acts.appendChild(actionBtn('🏠 建房屋', costStr(RTS_BUILDINGS.house.cost), () => enterPlace('house')));
+            acts.appendChild(actionBtn('🗼 建箭塔', costStr(RTS_BUILDINGS.tower.cost), () => enterPlace('tower')));
+            acts.appendChild(actionBtn('⚒️ 建鐵匠鋪', costStr(RTS_BUILDINGS.blacksmith.cost), () => enterPlace('blacksmith')));
         }
         acts.appendChild(actionBtn('🛑 停止', '', () => { game.commandMove(units, units[0].x, units[0].z); for (const u of units) u.command = { type: 'idle' }; }));
     }
@@ -298,11 +323,12 @@ export function createRtsMode(deps) {
         toast(`揀位置起 ${RTS_BUILDINGS[type].name}`);
     }
 
-    function actionBtn(label, cost, onClick) {
+    function actionBtn(label, cost, onClick, locked = false) {
         const b = document.createElement('button');
-        b.className = 'rts-act-btn';
+        b.className = 'rts-act-btn' + (locked ? ' locked' : '');
         b.innerHTML = `<span>${label}</span>${cost ? `<small>${cost}</small>` : ''}`;
-        b.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
+        if (locked) b.disabled = true;
+        else b.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
         return b;
     }
     // 訓練掣：未到時代就鎖住顯示「🔒N代」

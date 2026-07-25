@@ -4,7 +4,7 @@
 // 座標系同 Clash 一致：玩家喺 z>0（下方），敵方 z<0（上方）。
 import * as THREE from 'three';
 import { TEAM } from '../constants.js';
-import { makeUnitModel, makeKingTower, makeWatchtower } from '../models.js';
+import { makeUnitModel, makeKingTower, makeWatchtower, makePrincessTower, makeMill } from '../models.js';
 import { makeHpBar, disposeDeep } from '../game.js';
 
 let rtsId = 1;
@@ -101,6 +101,41 @@ export const RTS_BUILDINGS = {
         name: '房屋', icon: '🏠', hp: 500, radius: 1.2,
         trains: [], model: 'watchtower', pop: 8,
         cost: { gold: 40 }, buildTime: 8,
+    },
+    tower: {
+        name: '箭塔', icon: '🗼', hp: 900, radius: 1.1,
+        trains: [], model: 'princess',
+        cost: { food: 60, gold: 100 }, buildTime: 12,
+        // 建築攻擊本身係通用機制（同主城行同一條 def.atk 路），所以起塔即插即用
+        atk: { dmg: 38, range: 7.5, hitSpeed: 1.0 },
+    },
+    blacksmith: {
+        name: '鐵匠鋪', icon: '⚒️', hp: 700, radius: 1.4,
+        trains: [], model: 'mill',
+        cost: { food: 100, gold: 80 }, buildTime: 14,
+        research: true,
+    },
+};
+
+// 鐵匠鋪科技：全隊永久加成，兩條線各 3 級，越後越貴。
+// 攻擊 +12%/級、護甲 −9% 受傷/級 —— 用資源換部隊質素，
+// 同「爆兵海」「谷經濟」形成真正嘅三向取捨
+export const RTS_TECH = {
+    attack: {
+        name: '兵器鍛造', icon: '⚔️', max: 3, perLevel: 0.12,
+        levels: [
+            { cost: { food: 120, gold: 90 }, time: 20 },
+            { cost: { food: 260, gold: 200 }, time: 30, age: 2 },
+            { cost: { food: 480, gold: 380 }, time: 42, age: 3 },
+        ],
+    },
+    armor: {
+        name: '護甲鍛造', icon: '🛡️', max: 3, perLevel: 0.09,
+        levels: [
+            { cost: { food: 100, gold: 110 }, time: 20 },
+            { cost: { food: 220, gold: 240 }, time: 30, age: 2 },
+            { cost: { food: 420, gold: 430 }, time: 42, age: 3 },
+        ],
     },
 };
 
@@ -211,6 +246,11 @@ export class RtsGame {
             [TEAM.ENEMY]: { ...START },
         };
         this.popCap = { [TEAM.PLAYER]: BASE_POP_CAP, [TEAM.ENEMY]: BASE_POP_CAP };
+        // 鐵匠鋪科技等級（全隊永久生效）
+        this.tech = {
+            [TEAM.PLAYER]: { attack: 0, armor: 0 },
+            [TEAM.ENEMY]: { attack: 0, armor: 0 },
+        };
         this.phase = 'playing'; // playing | ended
         this.result = null;
         this.time = 0;
@@ -309,9 +349,14 @@ export class RtsGame {
         e.complete = complete;
         e.buildProgress = complete ? 1 : 0;
         if (!complete) { e.hp = Math.max(1, Math.round(def.hp * 0.05)); }
-        e.model = def.model === 'king' ? makeKingTower(team) : makeWatchtower(team);
+        e.model = def.model === 'king' ? makeKingTower(team)
+            : def.model === 'princess' ? makePrincessTower(team)
+            : def.model === 'mill' ? makeMill(team)
+            : makeWatchtower(team);
         if (type === 'barracks') e.model.scale.setScalar(1.15);
         if (type === 'house') { e.model.scale.setScalar(0.7); }
+        if (type === 'tower') e.model.scale.setScalar(0.85);
+        if (type === 'blacksmith') e.model.scale.setScalar(1.25);
         e.model.position.set(x, 0, z);
         e.model.rotation.y = e.facing;
         if (!complete) e.model.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.5; } });
@@ -363,6 +408,30 @@ export class RtsGame {
         return pop;
     }
     teamAge(team) { const tc = this.towncenter?.[team]; return tc && !tc.dead ? tc.age : 1; }
+
+    // 科技加成：攻擊倍率（打人嗰邊）同受傷倍率（捱打嗰邊）
+    techAtkMult(team) { return 1 + this.tech[team].attack * RTS_TECH.attack.perLevel; }
+    techDefMult(team) { return 1 - this.tech[team].armor * RTS_TECH.armor.perLevel; }
+
+    // 下一級科技資料（null = 已滿級）
+    nextTech(team, line) {
+        const t = RTS_TECH[line];
+        const lv = this.tech[team][line];
+        return lv >= t.max ? null : t.levels[lv];
+    }
+
+    queueResearch(building, line) {
+        if (!building || building.dead || !building.complete) return false;
+        if (!RTS_BUILDINGS[building.buildingType].research) return false;
+        if (building.researching) return false;
+        const nx = this.nextTech(building.team, line);
+        if (!nx) return false;
+        if ((nx.age ?? 1) > this.teamAge(building.team)) return false;
+        if (!this.canAfford(building.team, nx.cost)) return false;
+        this.#pay(building.team, nx.cost);
+        building.researching = { line, timer: nx.time, total: nx.time };
+        return true;
+    }
 
     entityAt(x, z, teamFilter = null) {
         let best = null, bestD = Infinity;
@@ -577,6 +646,18 @@ export class RtsGame {
                     const dmg = Math.round(b.def.atk.dmg * (1 + ((b.age ?? 1) - 1) * 0.35));
                     this.#buildingShoot(b, foe, dmg);
                 }
+            }
+        }
+        // 鐵匠鋪研發進度
+        if (b.researching) {
+            b.researching.timer -= dt;
+            if (b.researching.timer <= 0) {
+                const line = b.researching.line;
+                b.researching = null;
+                const t = RTS_TECH[line];
+                this.tech[b.team][line] = Math.min(t.max, this.tech[b.team][line] + 1);
+                this.hooks.onEvent?.(`${t.icon} ${t.name} 升到 Lv${this.tech[b.team][line]}！`, b.team);
+                this.hooks.onResources?.();
             }
         }
         // 城鎮中心升級進度
@@ -867,6 +948,10 @@ export class RtsGame {
 
     #damage(t, dmg, src) {
         if (t.dead) return;
+        // 鐵匠鋪科技：只作用喺單位身上（建築攻防已經跟時代 scale，
+        // 再疊科技會令龜縮流無敵）。單一收窄點，所有傷害來源自動涵蓋
+        if (src?.kind === 'unit' && src.team != null) dmg *= this.techAtkMult(src.team);
+        if (t.kind === 'unit') dmg *= this.techDefMult(t.team);
         t.hp -= dmg;
         if (t.hpBar) { t.hpBar.userData.setRatio(Math.max(0.001, t.hp / t.maxHp)); t.hpBar.visible = true; }
         if (t.hp <= 0) {
