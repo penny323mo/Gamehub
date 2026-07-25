@@ -25,6 +25,18 @@ export const PERSONALITIES = {
         deck: ['militia', 'scout', 'archers', 'pikemen', 'powderkeg', 'swordsman', 'arrows', 'ram'],
         attackElixirDelta: -1, defendMult: 1.0, intervalMult: 0.8,
     },
+    // 以下兩個個性用新卡（醫者／擲彈兵／重甲衛），令單機都遇到新機制。
+    // 參數同其他個性同一格式，冇任何額外優待——難度照樣淨係嚟自打法
+    attrition: {
+        name: '持久型', icon: '✚',
+        deck: ['militia', 'archers', 'pikemen', 'cleric', 'ironclad', 'swordsman', 'arrows', 'fireball'],
+        attackElixirDelta: +1, defendMult: 1.1, intervalMult: 0.95,
+    },
+    demolition: {
+        name: '爆破型', icon: '🧨',
+        deck: ['scout', 'grenadier', 'archers', 'knight', 'powderkeg', 'fireball', 'ram', 'handcannon'],
+        attackElixirDelta: -1, defendMult: 0.85, intervalMult: 0.9,
+    },
 };
 
 export function randomPersonality() {
@@ -246,11 +258,19 @@ export class AIController {
         const units = this.notRecent(this.affordable(c => c.kind === 'unit' && !c.targetsBuildingsOnly));
         if (!units.length) return false;
         if (myFront.length) {
-            const ranged = units.find(o => o.c.range > 2);
-            const pick = ranged ?? units[0];
+            // 有前排就補後排。前排開始見血就先出醫者頂住（受傷嘅部隊
+            // 續返血比再疊一隊新兵抵），冇傷就照出遠程輸出
+            const hurt = myFront.some(e => e.hp < e.maxHp * 0.6);
+            const support = (hurt && units.find(o => o.c.heal))
+                ?? units.find(o => o.c.range > 2)
+                ?? units.find(o => o.c.heal);
+            const pick = support ?? units[0];
             return this.play(pick.i, laneX * 0.85, -(ARENA.riverHalf + 2.5));
         }
-        const pick = units[Math.floor(Math.random() * units.length)];
+        // 冇前排就唔好單推醫者出去——佢冇嘢可以醫，等同送水
+        const leads = units.filter(o => !o.c.heal);
+        const pool = leads.length ? leads : units;
+        const pick = pool[Math.floor(Math.random() * pool.length)];
         return this.play(pick.i, laneX, -(ARENA.riverHalf + 1.5));
     }
 

@@ -195,6 +195,7 @@ export class Game {
         this.entities = [];
         this.projectiles = [];
         this.effects = [];
+        this.fxQueue = [];    // 待廣播畀 guest 嘅一次性視覺事件（見 #pushFx）
         this.hpBars = [];
         this.players = {
             [TEAM.PLAYER]: new PlayerState(playerDeck),
@@ -783,7 +784,17 @@ export class Game {
         }
     }
 
+    // PvP：一次性視覺事件排入 fx 佇列，隨下一個快照廣播畀 guest 重播。
+    // 呢啲效果 guest 由快照本身推唔返出嚟（法術落點、擲彈兵爆炸、治療脈衝
+    // 都唔會留低任何實體狀態），唔同步就變成「無聲無息扣血」。
+    #pushFx(x, z, r, color) {
+        // 單機唔會有人抽走佢——封頂免無限增長
+        if (this.fxQueue.length >= 16) this.fxQueue.shift();
+        this.fxQueue.push({ x: +x.toFixed(2), z: +z.toFixed(2), r: +r.toFixed(2), c: color });
+    }
+
     #explosion(x, z, r, color) {
+        this.#pushFx(x, z, r, color); // 所有爆炸（法術／擲彈兵／塔冧）嘅單一收窄點
         const ring = new THREE.Mesh(
             new THREE.RingGeometry(0.1, 0.4, 24),
             new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, side: THREE.DoubleSide })
@@ -1271,6 +1282,7 @@ export class Game {
                         best.hp = Math.min(best.maxHp, best.hp + h.amount);
                         best.hpBar.userData.setRatio(best.hp / best.maxHp);
                         this.#particles(best.x, best.z, 0x7dff9a, 5, 1.4, 1.0);
+                        this.#pushFx(best.x, best.z, 0.5, 0x7dff9a); // guest 都睇到治療脈衝
                     }
                 }
             }
@@ -1537,6 +1549,8 @@ export class Game {
                 slow: e.slowT > 0 ? 1 : 0,
                 act: e.isTower ? (e.active ? 1 : 0) : undefined,
             })),
+            // v3：一次性視覺事件（爆炸／治療），抽走即清——每個事件只廣播一次
+            fx: this.fxQueue.length ? this.fxQueue.splice(0) : undefined,
         };
     }
 }

@@ -40,7 +40,9 @@ export function attachHostRelay(game) {
                 // 低頻持久化：斷線嗰方（任何一方）憑呢個快照喺寬限期內恢復場波
                 if (persistAcc >= SNAPSHOT_PERSIST_INTERVAL) {
                     persistAcc = 0;
-                    saveSnapshot(snap);
+                    // fx 係一次性事件，唔應該存落重連快照——
+                    // 唔係重連返嚟會即刻重播一批幾秒前嘅爆炸
+                    saveSnapshot(snap.fx ? { ...snap, fx: undefined } : snap);
                 }
             }
         },
@@ -79,6 +81,7 @@ export class GuestGame {
         // （快照 10Hz 獨立於 input 處理，唔可以一收到快照就當 host 已經食咗指令），
         // 或者等 2.5 秒當 host 拒絕咗（聖水唔夠/落點無效）都解鎖返。
         this.pendingHand = new Map();
+        this.fxRings = new Set(); // 播緊嘅一次性環特效，dispose 要清
     }
 
     // entities 入面嘅 team 冇對調（保持 host 嘅真實視角），但呢個方法對外係跟
@@ -141,6 +144,7 @@ export class GuestGame {
                 if (myHand[idx] !== rec.cardId) this.pendingHand.delete(idx);
             }
         }
+        if (snap.fx) this.#playFx(snap.fx);
         this.time = snap.time;
         this.phase = snap.phase;
         this._mult = snap.mult;
@@ -221,29 +225,49 @@ export class GuestGame {
         }
     }
 
-    // 王塔甦醒金圈（guest 端輕量版：自己 rAF 走完就拆，唔使成套 effects 系統）
-    #kingWakeFx(x, z) {
+    // Guest 端輕量擴散環（自己 rAF 走完就拆，唔使成套 effects 系統）。
+    // 王塔甦醒金圈同 host 廣播落嚟嘅 fx 事件都行呢一個。
+    #ringFx(x, z, { color = 0xffd964, r0 = 0.6, grow = 6.5, dur = 700, opacity = 0.95 } = {}) {
         const ring = new THREE.Mesh(
-            new THREE.RingGeometry(0.6, 0.85, 32),
-            new THREE.MeshBasicMaterial({ color: 0xffd964, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthTest: false })
+            new THREE.RingGeometry(r0, r0 * 1.42, 32),
+            new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthTest: false })
         );
         ring.rotation.x = -Math.PI / 2;
         ring.position.set(x, 0.1, z);
         ring.renderOrder = 12;
         this.scene.add(ring);
+        this.fxRings.add(ring); // dispose 要即刻清走，唔好留孤兒環喺場
         const t0 = performance.now();
         const tick = () => {
-            const p = (performance.now() - t0) / 700;
+            const p = (performance.now() - t0) / dur;
             if (p >= 1 || !ring.parent) {
                 this.scene.remove(ring);
                 disposeDeep(ring);
+                this.fxRings.delete(ring);
                 return;
             }
-            ring.scale.setScalar(1 + p * 6.5);
-            ring.material.opacity = 0.95 * (1 - p);
+            ring.scale.setScalar(1 + p * grow);
+            ring.material.opacity = opacity * (1 - p);
             requestAnimationFrame(tick);
         };
         requestAnimationFrame(tick);
+    }
+
+    #kingWakeFx(x, z) {
+        this.#ringFx(x, z, { color: 0xffd964, r0: 0.6, grow: 6.5, dur: 700 });
+    }
+
+    // 重播 host 廣播落嚟嘅一次性事件（法術爆炸、擲彈兵自爆、治療脈衝）。
+    // 座標係 host 視角，同 entities 一樣唔使反轉（成個場景已經靠鏡頭翻轉）
+    #playFx(list) {
+        for (const f of list) {
+            const isHeal = f.r <= 0.6;
+            this.#ringFx(f.x, f.z, {
+                color: f.c, r0: Math.max(0.25, f.r * 0.5),
+                grow: isHeal ? 1.6 : 2.2, dur: isHeal ? 520 : 450,
+                opacity: isHeal ? 0.8 : 0.9,
+            });
+        }
     }
 
     #spawn(es) {
@@ -275,5 +299,7 @@ export class GuestGame {
         this.entities = [];
         this.hpBars = [];
         this.byId.clear();
+        for (const ring of this.fxRings) { this.scene.remove(ring); disposeDeep(ring); }
+        this.fxRings.clear();
     }
 }
