@@ -34,6 +34,7 @@ export class UI {
         this.deck = [...getDecks()[this.deckSlot].cards];
         this.bannerTimer = null;
         this.tutorialOpen = false;
+        this.pressureSummary = null;
         this.tutorialStep = 0;
         this.tutorialSteps = [
             {
@@ -496,6 +497,67 @@ export class UI {
         this.$('help-btn').focus();
     }
 
+    #renderTacticalRecap(result) {
+        const root = this.$('end-tactics');
+        const summary = this.pressureSummary;
+        if (!summary) {
+            root.innerHTML = '<div class="tactic-advice">今場未有足夠戰況資料。</div>';
+            return;
+        }
+        const leftDanger = summary.left.dangerSeconds;
+        const rightDanger = summary.right.dangerSeconds;
+        const laneDangerTotal = leftDanger + rightDanger;
+        const balancedDanger = leftDanger > 1 && rightDanger > 1
+            && Math.max(leftDanger, rightDanger) / Math.min(leftDanger, rightDanger) < 1.6;
+        const pressuredLane = laneDangerTotal < 1 ? '防線穩固'
+            : balancedDanger ? '雙路'
+            : leftDanger > rightDanger ? '左路' : '右路';
+
+        const leftPush = summary.left.peakAlly;
+        const rightPush = summary.right.peakAlly;
+        const pushMax = Math.max(leftPush, rightPush);
+        const balancedPush = Math.min(leftPush, rightPush) > 0
+            && pushMax / Math.min(leftPush, rightPush) < 1.15;
+        const pushLane = pushMax < 0.5 ? '未成形'
+            : balancedPush ? '雙路'
+            : leftPush > rightPush ? '左路' : '右路';
+
+        const stable = laneDangerTotal < 1;
+        const formatSeconds = (seconds) => seconds > 0 && seconds < 1 ? '&lt;1s' : `${Math.round(seconds)}s`;
+        const leftPct = stable ? 100 : (leftDanger / laneDangerTotal) * 100;
+        const rightPct = stable ? 0 : (rightDanger / laneDangerTotal) * 100;
+        const won = result.winner === TEAM.PLAYER;
+        let advice;
+        if (summary.dangerAnySeconds < 2) {
+            advice = won
+                ? '防線控制得好：對手全場都未形成持續兵力優勢。'
+                : '今場唔係輸喺持續受壓；可以集中檢討拆塔效率同出牌時機。';
+        } else if (summary.dangerBothSeconds >= Math.max(2, summary.dangerAnySeconds * 0.25)) {
+            advice = '曾經雙路同時受壓；下場避免一次過將低費守兵全部壓落同一路。';
+        } else {
+            const lane = leftDanger > rightDanger ? '左路' : '右路';
+            advice = `${lane}係今場主要破口；壓力條開始轉紅時，預留一張低費守兵喺${lane}。`;
+        }
+
+        root.innerHTML = `<div class="tactic-cards">
+            <div class="tactic-card"><b>${pressuredLane}</b><span>最受壓</span></div>
+            <div class="tactic-card"><b>${formatSeconds(summary.dangerAnySeconds)}</b><span>告急時間</span></div>
+            <div class="tactic-card"><b>${pushLane}</b><span>最強推進</span></div>
+        </div>
+        <div class="tactic-lane-split" title="左右路告急時間比例">
+            <i class="tactic-left" style="width:${leftPct}%"></i>
+            <i class="tactic-right" style="width:${rightPct}%"></i>
+        </div>
+        <div class="tactic-lane-labels${stable ? ' stable' : ''}">${stable
+            ? '<span>全場未有持續告急</span>'
+            : `<span>左 ${formatSeconds(leftDanger)}</span><span>右 ${formatSeconds(rightDanger)}</span>`}</div>
+        <p class="tactic-advice">💡 ${advice}</p>`;
+        root.classList.toggle('stable', stable);
+        root.dataset.pressuredLane = pressuredLane;
+        root.dataset.dangerSeconds = String(Number(summary.dangerAnySeconds.toFixed(1)));
+        root.dataset.pushLane = pushLane;
+    }
+
     // result: game.result；extra: { rewards, damage, mode, stage, stageCleared }
     showEnd(result, extra = {}) {
         const win = result.winner === TEAM.PLAYER;
@@ -503,6 +565,7 @@ export class UI {
         this.$('end-title').textContent = draw ? '🤝 和局' : win ? '🏆 勝利！' : '💀 戰敗…';
         this.$('end-crowns').innerHTML =
             `你 👑 × ${result.crowns[TEAM.PLAYER]}　·　敵方 👑 × ${result.crowns[TEAM.ENEMY]}`;
+        this.#renderTacticalRecap(result);
 
         // 獎盃變化＋段位
         const r = extra.rewards;
@@ -680,6 +743,14 @@ export class UI {
         this._lastPhase = null;
         this._lastCrowns = -1;
         this._lastPressureAt = 0;
+        this._lastPressureClock = game.pressureClock?.() ?? 0;
+        this.pressureSummary = {
+            left: { dangerSeconds: 0, peakEnemy: 0, peakAlly: 0 },
+            right: { dangerSeconds: 0, peakEnemy: 0, peakAlly: 0 },
+            dangerAnySeconds: 0,
+            dangerBothSeconds: 0,
+            engagedSeconds: 0,
+        };
         this._cardsDirty = true;
     }
 
@@ -719,6 +790,21 @@ export class UI {
             const danger = values.enemy >= 4 && values.enemy > values.ally * 1.35;
             document.querySelector(`.lane-pressure-item[data-lane="${lane}"]`)?.classList.toggle('danger', danger);
             if (danger) dangers.push(lane === 'left' ? '左路' : '右路');
+            const recap = this.pressureSummary?.[lane];
+            if (recap && g.phase !== 'ended') {
+                recap.peakEnemy = Math.max(recap.peakEnemy, values.enemy);
+                recap.peakAlly = Math.max(recap.peakAlly, values.ally);
+            }
+        }
+        const clock = g.pressureClock?.() ?? this._lastPressureClock;
+        const sampleSeconds = Math.max(0, clock - this._lastPressureClock);
+        this._lastPressureClock = clock;
+        if (this.pressureSummary && g.phase !== 'ended' && sampleSeconds > 0) {
+            if (engaged) this.pressureSummary.engagedSeconds += sampleSeconds;
+            if (dangers.length) this.pressureSummary.dangerAnySeconds += sampleSeconds;
+            if (dangers.length === 2) this.pressureSummary.dangerBothSeconds += sampleSeconds;
+            if (dangers.includes('左路')) this.pressureSummary.left.dangerSeconds += sampleSeconds;
+            if (dangers.includes('右路')) this.pressureSummary.right.dangerSeconds += sampleSeconds;
         }
         this.$('lane-pressure').classList.toggle('engaged', engaged);
         this.$('pressure-alert').textContent = dangers.length === 2

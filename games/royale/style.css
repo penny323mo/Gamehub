@@ -1477,6 +1477,65 @@ body {
     margin: 6px 0;
 }
 
+/* ---------- 結算：戰術回顧 ---------- */
+#end-tactics {
+    padding: 9px;
+    border: 1px solid #5c5136;
+    border-radius: 12px;
+    background: rgba(13, 20, 10, .36);
+}
+
+.tactic-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+}
+
+.tactic-card {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 7px 3px;
+    border: 1px solid rgba(255, 221, 145, .22);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, .035);
+}
+
+.tactic-card b { color: #ffe094; font-size: 14px; }
+.tactic-card span { color: #978e76; font-size: 9px; }
+
+.tactic-lane-split {
+    display: flex;
+    height: 7px;
+    margin-top: 9px;
+    overflow: hidden;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, .09);
+}
+
+.tactic-lane-split i { display: block; height: 100%; }
+.tactic-left { background: linear-gradient(90deg, #e5573d, #ff9a74); }
+.tactic-right { background: linear-gradient(90deg, #f3b25a, #e16a3f); }
+#end-tactics.stable .tactic-left { background: linear-gradient(90deg, #4f8c43, #8ac36a); }
+
+.tactic-lane-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 3px;
+    color: #a79c80;
+    font-size: 9px;
+}
+
+.tactic-lane-labels.stable { justify-content: center; color: #8fc875; }
+
+.tactic-advice {
+    margin-top: 7px;
+    color: #d9cba7;
+    font-size: 11px;
+    line-height: 1.45;
+    text-align: left;
+}
+
 #end-damage {
     display: flex;
     flex-direction: column;

@@ -93,6 +93,7 @@ export class GuestGame {
     }
     // Guest 鏡頭轉咗 180°，世界 x 正負喺畫面左右亦要反轉。
     viewX(entity) { return -entity.x; }
+    pressureClock() { return this._clock; }
     elixirMultiplier() { return this._mult; }
 
     // 同 game.js 一樣嘅部署合法性檢查（畀 guest 本機出兵前預覽用，實際落子仲係由 host 話事）。

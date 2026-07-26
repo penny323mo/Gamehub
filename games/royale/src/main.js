@@ -767,7 +767,7 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
         ...conditionOpts(cond),
     });
     ai = new AIController(game, actualDiff, pid, mode === 'gauntlet' ? stage : 0);
-    window.__royale = { game, ai, renderer, startMatch, cleanupMatch }; // 畀自動化測試用
+    window.__royale = { game, ai, ui, renderer, startMatch, cleanupMatch }; // 畀自動化測試用
     ui.bindGame(game);
     ui.showGame(mode === 'single' || mode === 'gauntlet');
     arena.setMood?.(0);

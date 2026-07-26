@@ -186,3 +186,16 @@ Progress, temporary debugging notes, and next tasks belong in `HANDOFF.md`.
 - Reason: players need a quick defence cue during dense battles, but the cue must
   not expose the AI hand, elixir, intended placement, or any other hidden state.
   Per-unit cost splitting prevents swarm cards from being counted multiple times.
+
+## ADR-017: Royale tactical recap samples simulation time, not wall time
+
+- Date: 2026-07-26
+- Status: accepted
+- Decision: the post-match tactical recap reuses the visible lane-pressure samples
+  from ADR-016. Danger duration advances from the Game/GuestGame simulation clock,
+  so tutorial pause, background throttling, and render speed do not inflate it.
+  The recap reports the most pressured lane, any-danger duration, strongest push,
+  and one bounded coaching message; it does not persist hidden analytics.
+- Reason: wall-clock sampling would punish a player for reading the tutorial or
+  running on a slow device. A compact actionable recap teaches more than a raw
+  chart while keeping the analysis explainable from battlefield state.
