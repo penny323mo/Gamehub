@@ -86,6 +86,10 @@ export function disposeDeep(root) {
 // 用「文字＋顏色」做 key 快取，命中率好高。
 const _dmgTexCache = new Map();
 const DMG_TEX_CACHE_MAX = 96;
+
+// 畀測試用：傷害數字快取係「跨場保留、有上限」嘅設計，所以 renderer 嘅 texture
+// 數會高過開機基準。測試要分得清「快取填緊」同「真洩漏」，就要睇得到呢個數。
+export function dmgTextureCacheSize() { return _dmgTexCache.size; }
 function dmgNumberTexture(text, color, big) {
     const key = `${text}|${color}|${big ? 1 : 0}`;
     const hit = _dmgTexCache.get(key);
@@ -759,7 +763,9 @@ export class Game {
                 sprite.scale.setScalar(1.9 + p * 0.9);
                 sprite.material.opacity = p < 0.7 ? 1 : 1 - (p - 0.7) / 0.3;
             },
-            onEnd: () => tex.dispose(),
+            // onDispose 而唔係 onEnd：onEnd 係「時間到，做應該做嘅事」（法術嗰個會引爆），
+            // 清場時唔可以行。資源釋放要兩條路都行到，所以分開一個 hook。
+            onDispose: () => tex.dispose(),
         });
     }
 
@@ -1632,6 +1638,7 @@ export class Game {
                     disposeDeep(ef.mesh);
                 }
                 ef.onEnd?.();
+                ef.onDispose?.();
             }
         }
         this.effects = this.effects.filter(ef => !ef.done);

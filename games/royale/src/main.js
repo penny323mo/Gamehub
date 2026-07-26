@@ -709,7 +709,12 @@ function cleanupMatch() {
         if (e.slowRing) { scene.remove(e.slowRing); disposeDeep(e.slowRing); }
     }
     for (const pr of game.projectiles) { scene.remove(pr.model); disposeDeep(pr.model); }
-    for (const ef of game.effects) if (ef.mesh) { scene.remove(ef.mesh); disposeDeep(ef.mesh); }
+    // 特效自己擁有嘅 GPU 資源（例如皇冠 sprite 嘅 CanvasTexture）要喺清場時放返。
+    // 只叫 onDispose，唔叫 onEnd —— onEnd 係「時間到」語義，法術嗰啲會即場引爆。
+    for (const ef of game.effects) {
+        if (ef.mesh) { scene.remove(ef.mesh); disposeDeep(ef.mesh); }
+        ef.onDispose?.();
+    }
     const toRemove = [];
     scene.traverse((o) => {
         if (o.userData?.isRubble) toRemove.push(o);

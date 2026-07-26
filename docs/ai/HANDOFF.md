@@ -4,66 +4,65 @@ Updated: 2026-07-26 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Baseline before this task: `7f6c50c`
-Status: RTS suite added; it found and we fixed a real GPU texture leak in LV2
+Baseline before this task: `17d1482`
+Status: mixed-mode session suite added; it found a second texture leak, now fixed
 
 ## Current objective
 
-Extend the suite to LV2 RTS, which had no coverage at all: fairness of the starting
-position, the tech/age/population/cost gates, counter parity with Clash, and mode
-enter/exit cleanup. The cleanup check failed immediately, so the task became fixing
-the leak it exposed.
+Cover what single-mode tests structurally cannot: a long session that keeps switching
+modes. Leaks live in the seams between modes, and a rising GPU texture count is the
+mechanism behind the player's "it flashes black after a while" report. The new test
+failed on first run and exposed a second leak.
 
 ## Completed
 
-- Added `games/royale/tests/rts.mjs`, 29 checks, registered in `run-all.mjs`. The
-  suite is now seven files and 105 checks.
-- Fixed a GPU texture leak in LV2. `disposeDeep` now disposes
-  `o.skeleton?.boneTexture`. Every `SkeletonUtils.clone` gets its own `Skeleton`, and
-  Three lazily allocates a bone `DataTexture` per skeleton that `material.dispose()`
-  never frees. RTS starts with ten skinned units, so each entry leaked ten textures.
-- Starting-position fairness is now asserted: both sides get identical resources,
-  population cap, tech levels, buildings, units, and age. This is the RTS equivalent
-  of ADR-007 and previously had no automated guard.
-- Gate coverage: research is refused when the age or the resources are short, when
-  the building is not a blacksmith, when it is still under construction, and when the
-  line is maxed; queueing charges immediately. Training is refused on cost and on a
-  full population cap. Tech multipliers are per-team at the documented 0.12/0.09.
-- Counter parity with Clash is asserted, including the deliberate difference: RTS
-  catapults keep the higher building multiplier because they cannot outrange towers
-  the way the Clash catapult can.
-- ADR-023 records the bone-texture rule so the next agent does not reintroduce it.
+- Added `games/royale/tests/session.mjs`: five rounds of two full Clash matches plus
+  an LV2 entry and exit, checking GPU resources at every round boundary. The suite is
+  now eight files and 110 checks.
+- Fixed the leak it found. The crown-pop effect owns a `CanvasTexture` and released it
+  in `onEnd`, but killing a king tower ends the match immediately, so cleanup ran
+  first and the texture leaked every match.
+- Split the two meanings that were sharing `onEnd`. Effects now release owned
+  resources in `onDispose`, which runs both on natural completion and on teardown;
+  `onEnd` stays "the duration elapsed, do the thing" and is still never called during
+  cleanup, because for spells it detonates the impact. ADR-024 records this.
+- Exported `dmgTextureCacheSize()` so a test can tell a filling cache apart from a
+  leak. The damage-number cache is deliberately kept across matches and bounded at 96,
+  so texture count legitimately sits above the boot baseline.
 
 ## Changed files
 
-- `games/royale/tests/rts.mjs` (new), `run-all.mjs`, `README.md`
-- `games/royale/src/game.js` (`disposeDeep`)
-- `docs/ai/DECISIONS.md` (ADR-023), `docs/ai/HANDOFF.md`
+- `games/royale/tests/session.mjs` (new), `run-all.mjs`, `README.md`
+- `games/royale/src/game.js` (`onDispose` hook, `dmgTextureCacheSize`)
+- `games/royale/src/main.js` (`cleanupMatch` releases effect-owned resources)
+- `docs/ai/DECISIONS.md` (ADR-024), `docs/ai/HANDOFF.md`
 
 ## Verification
 
-- `npm test` in `games/royale/tests`: 7/7 suites, 105 checks, all pass.
-- The leak, measured before the fix: four RTS enter/exit cycles gave textures
-  32, 44, 56, 68 with geometries flat at 116. Root cause confirmed by counting ten
-  skinned meshes each holding a 12x12 bone texture, and by a WebGL-level trace
-  showing ten `texStorage2D 12x12` uploads per entry.
-- After the fix the same four cycles give textures 20, 20, 20, 20 and geometries
-  116, 116, 116, 116 — the leak is gone and LV2 returns to the Clash baseline.
-- Rendering still correct after disposal: two RTS enter/exit cycles followed by a
-  Clash match showed nine skinned meshes, all visible, and a screenshot confirmed
-  intact soldiers, towers, and terrain.
-- `leak.mjs` still 116 geometries / 20 textures flat over six Clash cycles, so the
-  `disposeDeep` change did not disturb the Clash path.
+- `npm test` in `games/royale/tests`: 8/8 suites, 110 checks, all pass.
+- The leak, measured before the fix: three mixed rounds gave textures 24, 27, 30 with
+  geometries flat at 117 — three lost textures per round.
+- After the crown fix the same shape of run gives 23, 24, 25, 25, 26 across five
+  rounds, and every texture above the boot baseline is accounted for: excess 7 against
+  a damage-number cache holding 62 entries, cache under its 96 cap.
+- Geometries stayed flat at 117 in every round and returned to within one of the boot
+  baseline of 116.
+- `leak.mjs` and `rts.mjs` still pass unchanged, so neither the `onDispose` split nor
+  the cleanup change disturbed the single-mode paths.
 - `./scripts/check-handoff.sh`: PASS.
 
 ## Known issues and cautions
 
 - Deploy for this commit must be confirmed on `deploy-pages.yml` after merge.
+- Two texture leaks have now been fixed in a row (ADR-023 bone textures, ADR-024
+  crown pop). Both made long sessions consume more GPU memory over time, which is the
+  same pressure that triggers the black-flash downgrade. Worth telling the player that
+  a long session should behave better now.
+- `session.mjs` intentionally does not require textures to return to the boot
+  baseline; the damage-number cache is designed to persist. It requires the excess to
+  be explained by the cache size.
 - The RTS suite covers simulation rules and cleanup, not RTS input (selection box,
   gestures, camera pan) and not the HUD panels. Those still need a real device.
-- LV2 memory was measurably worse before this fix on any device where a player
-  entered and left LV2 repeatedly. Worth mentioning if the player says long sessions
-  used to degrade.
 - The black-flash fix from `d0fae14` is still unconfirmed on the player's device.
 - Gauntlet condition balance is simulated, not played.
 - Live PvP flows (reconnect on both roles, 30s grace, walkover) remain unverified on
@@ -90,6 +89,8 @@ the leak it exposed.
 
 - Do not remove the bone-texture disposal in `disposeDeep`; it fixes a measured
   ten-texture-per-entry leak in LV2 (ADR-023).
+- Do not call `onEnd` from teardown to release resources; that detonates pending
+  spells. Owned resources go in `onDispose` (ADR-024).
 - Do not write Royale verification scripts outside the repository; a check an agent
   cannot rerun is not a check.
 - Do not remove the tutorial suppression in `lib/harness.mjs`; without it every

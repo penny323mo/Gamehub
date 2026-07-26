@@ -284,3 +284,16 @@ Progress, temporary debugging notes, and next tasks belong in `HANDOFF.md`.
   map at start; four enter/exit cycles measured 32, 44, 56, 68 textures. With the
   disposal in place the count is flat at 20, the same baseline as Clash. The leak was
   invisible to the Clash gate, which is why `tests/rts.mjs` now watches textures too.
+
+## ADR-024: Effect teardown uses onDispose; onEnd stays a timing hook
+
+- Date: 2026-07-26
+- Status: accepted
+- Decision: an effect that owns a GPU resource releases it in `onDispose`, which
+  runs both when the effect completes and when the match is torn down.
+  `onEnd` keeps its original meaning — "the duration elapsed, now do the thing" —
+  and is never called during teardown, because for spells it detonates the impact.
+- Reason: the crown-pop effect owned a `CanvasTexture` and released it in `onEnd`.
+  Destroying a king tower ends the match immediately, so cleanup ran before the
+  effect finished and the texture leaked every match. Calling `onEnd` from cleanup
+  would have "fixed" the leak by applying spell damage during teardown.
