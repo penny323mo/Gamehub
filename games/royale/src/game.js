@@ -9,6 +9,9 @@ let nextId = 1;
 
 // 每步重用嘅 scratch objects（熱路徑唔好每實體每步做新 allocation）
 const ANIM_ARG = { moving: false, attackT: -1 };
+// 場上實體多過呢個數先開動畫 LOD（交錯隔幀更新）。門檻定得夠高，
+// 令一般對局（連塔通常 < 30 個實體）行為完全冇改變
+const ANIM_LOD_MIN = 28;
 const GOAL = { x: 0, z: 0 };
 
 function dist(a, b) {
@@ -62,10 +65,49 @@ function barFrameTexture() {
 export function disposeDeep(root) {
     if (!root) return;
     root.traverse((o) => {
-        if (o.geometry) o.geometry.dispose();
+        // Sprite 喺 three 入面全部共用同一個 module-level geometry（實測確認）。
+        // dispose 佢會令場上每一個 sprite 嘅 GPU buffer 一齊失效重傳——
+        // 大混戰每秒有幾十個傷害數字過期，就變成每秒幾十次全域重傳。
+        if (o.geometry && !o.isSprite) o.geometry.dispose();
         const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
         for (const m of mats) m.dispose();
     });
+}
+
+// ---------- 浮動傷害／治療數字 texture 快取 ----------
+// 之前每一個數字都即場開一個 canvas + CanvasTexture，大混戰實測每秒
+// 分配 26 個，全部要上傳 GPU 再棄置——手機上係 GC 壓力同上傳卡頓嘅主因。
+// 同樣嘅數值其實不斷重覆（同一張卡打同一種目標必然出同一個數），所以
+// 用「文字＋顏色」做 key 快取，命中率好高。
+const _dmgTexCache = new Map();
+const DMG_TEX_CACHE_MAX = 96;
+function dmgNumberTexture(text, color, big) {
+    const key = `${text}|${color}|${big ? 1 : 0}`;
+    const hit = _dmgTexCache.get(key);
+    if (hit) {
+        _dmgTexCache.delete(key); _dmgTexCache.set(key, hit); // 移到最新（LRU）
+        return hit;
+    }
+    const c = document.createElement('canvas');
+    c.width = 128; c.height = 56;
+    const g = c.getContext('2d');
+    g.font = `900 ${big ? 40 : 33}px 'Arial Black', sans-serif`;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineWidth = 7; g.strokeStyle = 'rgba(40,24,8,0.9)';
+    g.strokeText(text, 64, 28);
+    g.fillStyle = color;
+    g.fillText(text, 64, 28);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    _dmgTexCache.set(key, tex);
+    // 封頂：踢走最舊嗰個。佢可能仲喺一個未播完嘅 sprite 度用緊，
+    // 但 three 會喺下次用到嗰陣自動重新上傳，唔會出錯
+    if (_dmgTexCache.size > DMG_TEX_CACHE_MAX) {
+        const oldest = _dmgTexCache.keys().next().value;
+        _dmgTexCache.get(oldest)?.dispose();
+        _dmgTexCache.delete(oldest);
+    }
+    return tex;
 }
 
 export function makeHpBar(width, team) {
@@ -206,6 +248,8 @@ export class Game {
         this.phase = 'regulation'; // regulation | overtime | ended
         this.result = null;
         this.simTime = 0;
+        this._animFrame = 0;  // 動畫 LOD 交錯用
+        this.animLodMin = ANIM_LOD_MIN; // 可調（測試／調參用）
         // 卡牌等級（id -> level 倍率查表由 opts.levels 提供，冇就全部 1）
         this.levels = opts.levels ?? { [TEAM.PLAYER]: {}, [TEAM.ENEMY]: {} };
         this.levelBonus = opts.levelBonus ?? 0.08;
@@ -720,23 +764,13 @@ export class Game {
         if (this.effects.length > 130) return; // 大混戰保護：特效隊列爆咗就犧牲數字
         const amount = Math.round(rec.amount);
         if (amount < 1) return;
-        const c = document.createElement('canvas');
-        c.width = 128; c.height = 56;
-        const g = c.getContext('2d');
-        const big = amount >= 150;
-        const text = rec.heal ? `+${amount}` : rec.bonus ? `${amount}!` : String(amount);
-        g.font = `900 ${big ? 40 : 33}px 'Arial Black', sans-serif`;
-        g.textAlign = 'center'; g.textBaseline = 'middle';
-        g.lineWidth = 7; g.strokeStyle = 'rgba(40,24,8,0.9)';
-        g.strokeText(text, 64, 28);
         // 治療＝綠；打敵方＝金黃（爽），自己友被打＝紅（警覺）
         // 剋制命中用橙金色＋驚嘆號，畀玩家一眼睇出「呢下打得特別痛」
-        g.fillStyle = rec.heal ? '#6dfb8e'
+        const color = rec.heal ? '#6dfb8e'
             : rec.bonus ? '#ff9d2e'
             : rec.team === TEAM.PLAYER ? '#ff6a55' : '#ffd94a';
-        g.fillText(text, 64, 28);
-        const tex = new THREE.CanvasTexture(c);
-        tex.colorSpace = THREE.SRGBColorSpace;
+        const text = rec.heal ? `+${amount}` : rec.bonus ? `${amount}!` : String(amount);
+        const tex = dmgNumberTexture(text, color, amount >= 150);
         const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
         const scale = Math.min(1.7, 0.95 + amount / 550);
         sprite.position.set(rec.x + (Math.random() - 0.5) * 0.5, rec.h, rec.z);
@@ -751,7 +785,7 @@ export class Game {
                 sprite.position.y = rec.h + p * 1.35;
                 sprite.material.opacity = p < 0.6 ? 1 : 1 - (p - 0.6) / 0.4;
             },
-            onEnd: () => tex.dispose(),
+            // 唔好 dispose：張 texture 係快取共用嘅（見 dmgNumberTexture）
         });
     }
 
@@ -1451,6 +1485,9 @@ export class Game {
         }
 
         // 同步模型
+        // 兵數多過 ANIM_LOD_MIN 先至開交錯更新（見下面 LOD 註解）
+        const animFrame = ++this._animFrame;
+        const lod = this.entities.length > this.animLodMin;
         for (const e of this.entities) {
             if (e.dead) continue;
             e.model.position.x = e.x;
@@ -1464,7 +1501,12 @@ export class Game {
             // 唔好每實體每步整個新 object（30 兵 = 每秒 ~1800 個垃圾畀 GC 執）
             ANIM_ARG.moving = !!e.moving && e.deployT <= 0;
             ANIM_ARG.attackT = e.attackAnimT;
-            e.model.userData.animate?.(this.simTime + e.id * 0.7, ANIM_ARG);
+            // 動畫 LOD：實測骨骼動畫佔咗大混戰 CPU 嘅一半。兵數多過門檻就
+            // 隔幀交錯更新（按 id 分批），出手中嘅單位就永遠每幀更新——
+            // 揮擊夠短夠關鍵，唔可以跌幀。正常場數（≤ 門檻）行為完全冇變
+            if (!lod || e.attackAnimT >= 0 || ((e.id + animFrame) & 1) === 0) {
+                e.model.userData.animate?.(this.simTime + e.id * 0.7, ANIM_ARG);
+            }
             e.hpBar.position.set(e.x, e.hpBar.userData.h, e.z);
             if (e.slowRing) e.slowRing.position.set(e.x, 0.06, e.z);
         }
