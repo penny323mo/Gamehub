@@ -23,19 +23,20 @@ export const CARDS = {
     },
     pikemen: {
         id: 'pikemen', kind: 'unit', name: '長槍兵', icon: '🔱', cost: 3,
-        desc: '3 個長槍兵，剋制大型單位',
+        desc: '3 個長槍兵，對大型單位傷害 ×2',
         count: 3, hp: 190, dmg: 78, hitSpeed: 1.6, range: 0.9,
         speed: 1.7, sight: 5.0, radius: 0.34,
+        bonusVs: { heavy: 2.0 }, // 剋大型：長矛陣專破重騎／巨獸／攻城器
     },
     knight: {
         id: 'knight', kind: 'unit', name: '騎士', icon: '🐎', cost: 4,
-        desc: '重騎兵，快而狠',
+        desc: '重騎兵，快而狠（大型：怕長槍）', heavy: true,
         count: 1, hp: 780, dmg: 165, hitSpeed: 1.4, range: 0.7,
         speed: 2.4, sight: 5.5, radius: 0.5,
     },
     ram: {
         id: 'ram', kind: 'unit', name: '攻城槌', icon: '🪵', cost: 4,
-        desc: '只攻擊建築，直搗黃龍',
+        desc: '只攻擊建築，直搗黃龍（大型：怕長槍）', heavy: true,
         count: 1, hp: 950, dmg: 230, hitSpeed: 1.7, range: 0.8,
         speed: 2.2, sight: 5.5, radius: 0.55, targetsBuildingsOnly: true,
     },
@@ -53,7 +54,7 @@ export const CARDS = {
     },
     elephant: {
         id: 'elephant', kind: 'unit', name: '戰象', icon: '🐘', cost: 7,
-        desc: '巨型坦克，血厚力大',
+        desc: '巨型坦克，血厚力大（大型：怕長槍）', heavy: true,
         count: 1, hp: 2700, dmg: 210, hitSpeed: 1.7, range: 0.9,
         speed: 1.2, sight: 5.5, radius: 0.75,
     },
@@ -123,9 +124,9 @@ export const CARDS = {
     },
     ironclad: {
         id: 'ironclad', kind: 'unit', name: '重甲衛', icon: '🛡️', cost: 5,
-        desc: '厚重鋼甲減 35% 傷害，前排肉盾之王',
+        desc: '厚重鋼甲減 35% 傷害，前排肉盾之王（大型：怕長槍）',
         count: 1, hp: 1450, dmg: 92, hitSpeed: 1.5, range: 0.6,
-        speed: 1.3, sight: 5.0, radius: 0.56, armor: 0.35,
+        speed: 1.3, sight: 5.0, radius: 0.56, armor: 0.35, heavy: true,
     },
 };
 

@@ -39,6 +39,7 @@ export const RTS_UNITS = {
         name: '長槍兵', icon: '🔱', model: 'pikemen', age: 1,
         hp: 175, dmg: 13, hitSpeed: 1.1, range: 1.3, sight: 6.0, speed: 2.5, radius: 0.4,
         cost: { food: 55, gold: 10 }, trainTime: 6, trainAt: 'barracks', // 平、肉厚，做前排
+        vsHeavy: 2.0, // 剋大型：同 Clash 模式一致嘅長矛陣
     },
     // ── 第二代（升級主城一次）──
     scout: {
@@ -60,12 +61,12 @@ export const RTS_UNITS = {
     knight: {
         name: '騎士', icon: '🐎', model: 'knight', age: 3, pop: 2,
         hp: 290, dmg: 31, hitSpeed: 1.0, range: 1.1, sight: 7.0, speed: 3.6, radius: 0.46,
-        cost: { food: 90, gold: 70 }, trainTime: 9, trainAt: 'barracks', // 重騎兵
+        cost: { food: 90, gold: 70 }, trainTime: 9, trainAt: 'barracks', heavy: true, // 重騎兵
     },
     ram: {
         name: '攻城槌', icon: '🪵', model: 'ram', age: 3, pop: 2, vsBuilding: 9,
         hp: 340, dmg: 12, hitSpeed: 1.5, range: 1.4, sight: 6.0, speed: 1.9, radius: 0.5,
-        cost: { food: 40, gold: 60 }, trainTime: 9, trainAt: 'barracks', // 專拆建築
+        cost: { food: 40, gold: 60 }, trainTime: 9, trainAt: 'barracks', heavy: true, // 專拆建築
     },
     catapult: {
         name: '投石車', icon: '🪨', model: 'catapult', age: 3, pop: 2, vsBuilding: 2, splash: 2.2,
@@ -75,7 +76,7 @@ export const RTS_UNITS = {
     elephant: {
         name: '戰象', icon: '🐘', model: 'elephant', age: 3, pop: 3,
         hp: 520, dmg: 36, hitSpeed: 1.3, range: 1.3, sight: 6.5, speed: 2.2, radius: 0.6,
-        cost: { food: 120, gold: 80 }, trainTime: 13, trainAt: 'barracks', // 超級肉盾
+        cost: { food: 120, gold: 80 }, trainTime: 13, trainAt: 'barracks', heavy: true, // 超級肉盾
     },
 };
 
@@ -830,6 +831,7 @@ export class RtsGame {
     #hit(attacker, target) {
         let dmg = attacker.dmg;
         if (target.kind === 'building' && attacker.def?.vsBuilding) dmg *= attacker.def.vsBuilding;
+        if (target.def?.heavy && attacker.def?.vsHeavy) dmg *= attacker.def.vsHeavy;
         this.#damage(target, dmg, attacker);
     }
 

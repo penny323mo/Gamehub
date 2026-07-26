@@ -724,13 +724,15 @@ export class Game {
         c.width = 128; c.height = 56;
         const g = c.getContext('2d');
         const big = amount >= 150;
-        const text = rec.heal ? `+${amount}` : String(amount);
+        const text = rec.heal ? `+${amount}` : rec.bonus ? `${amount}!` : String(amount);
         g.font = `900 ${big ? 40 : 33}px 'Arial Black', sans-serif`;
         g.textAlign = 'center'; g.textBaseline = 'middle';
         g.lineWidth = 7; g.strokeStyle = 'rgba(40,24,8,0.9)';
         g.strokeText(text, 64, 28);
         // 治療＝綠；打敵方＝金黃（爽），自己友被打＝紅（警覺）
+        // 剋制命中用橙金色＋驚嘆號，畀玩家一眼睇出「呢下打得特別痛」
         g.fillStyle = rec.heal ? '#6dfb8e'
+            : rec.bonus ? '#ff9d2e'
             : rec.team === TEAM.PLAYER ? '#ff6a55' : '#ffd94a';
         g.fillText(text, 64, 28);
         const tex = new THREE.CanvasTexture(c);
@@ -835,6 +837,15 @@ export class Game {
         // 完場之後特效/飛行中嘅投射物照播，但唔准再改變戰果——
         // 唔係一個遲到嘅火球可以喺勝利畫面之後先冧塔、改皇冠數
         if (this.phase === 'ended') return;
+        // 兵種相剋：長槍兵對「大型」單位傷害加成（卡面一直有寫，之前根本冇實作）。
+        // 同護甲一樣掛喺呢個單一收窄點，近戰／投射物／法術全部自動涵蓋
+        let bonus = false;
+        const srcCard = src?.cardId ? CARDS[src.cardId] : null;
+        if (srcCard?.bonusVs && e.card) {
+            for (const tag in srcCard.bonusVs) {
+                if (e.card[tag]) { dmg *= srcCard.bonusVs[tag]; bonus = true; break; }
+            }
+        }
         // 重甲衛：厚甲按比例減傷（傷害榜同扣血都用實際傷害）
         if (e.card?.armor) dmg *= (1 - e.card.armor);
         if (src && src.cardId) {
@@ -844,8 +855,8 @@ export class Game {
         e.hp -= dmg;
         // 聚合浮動傷害數字（位置跟實體走，窗口結束嗰刻先生成 sprite）
         const dmgRec = this.dmgNums.get(e.id);
-        if (dmgRec) { dmgRec.amount += dmg; dmgRec.x = e.x; dmgRec.z = e.z; }
-        else this.dmgNums.set(e.id, { amount: dmg, timer: 0.26, team: e.team, x: e.x, z: e.z, h: e.isTower ? 3.6 : 2.2 });
+        if (dmgRec) { dmgRec.amount += dmg; dmgRec.x = e.x; dmgRec.z = e.z; if (bonus) dmgRec.bonus = true; }
+        else this.dmgNums.set(e.id, { amount: dmg, timer: 0.26, team: e.team, bonus, x: e.x, z: e.z, h: e.isTower ? 3.6 : 2.2 });
         e.hpBar.visible = true;
         e.hpBar.userData.setRatio(Math.max(0, e.hp / e.maxHp));
         e.model.userData.onHit?.(this.simTime);
