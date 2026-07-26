@@ -884,6 +884,9 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
                 matchStats.bestSpellHit = Math.max(matchStats.bestSpellHit, count);
             }
         },
+        onSpell(team) {
+            if (team === TEAM.ENEMY) sfx.spellWarning();
+        },
         onCardPlayed(team, cardId) {
             if (team === TEAM.PLAYER) matchStats.cardsPlayed += 1;
         },
@@ -1061,6 +1064,9 @@ function beginAsHost(hostDeck, guestDeck) {
             if (team === TEAM.PLAYER) matchStats.bestSpellHit = Math.max(matchStats.bestSpellHit, count);
             else enemyStats.bestSpellHit = Math.max(enemyStats.bestSpellHit, count);
         },
+        onSpell(team) {
+            if (team === TEAM.ENEMY) sfx.spellWarning();
+        },
         onCardPlayed(team) {
             if (team === TEAM.PLAYER) matchStats.cardsPlayed += 1;
             else enemyStats.cardsPlayed += 1;
@@ -1146,6 +1152,14 @@ function beginAsGuest() {
     };
     guestFinish = finishGuestMatch; // 投降（onQuit）都要行到入賬
     Net.on('state', (snap) => {
+        const fx = snap.fx ?? [];
+        if (fx.some(f => f.k === 'spell' && g.visualTeam(f.team) === TEAM.ENEMY)) {
+            sfx.spellWarning();
+        }
+        if (fx.some(f => f.k !== 'spell' && (f.r ?? 0) > 0.8)) {
+            sfx.explosion();
+            addShake(0.08);
+        }
         g.applySnapshot(snap);
         if (g.phase === 'ended') finishGuestMatch();
     });

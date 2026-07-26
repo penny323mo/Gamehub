@@ -1,6 +1,6 @@
 // 遊戲核心模擬 — 單位、戰鬥、塔、聖水、計時、勝負
 import * as THREE from 'three';
-import { ARENA, TEAM, TOWERS, GAME_RULES, teamDir } from './constants.js';
+import { ARENA, TEAM, TEAM_COLORS, TOWERS, GAME_RULES, teamDir } from './constants.js';
 import { CARDS } from './cards.js';
 import { makeUnitModel, makePrincessTower, makeKingTower, makeProjectile, mat, meshyTint } from './models.js';
 import { instantiate, ASSETS } from './assets.js';
@@ -147,6 +147,53 @@ export function makeHpBar(width, team) {
         fill.position.x = -fillW * (1 - ratio) / 2;
     };
     return g;
+}
+
+// ---------- 法術命中前預警 ----------
+// 每次施法自己擁有 geometry/material，完成後可以安全 dispose（ADR-008）。
+// 外圈係真實傷害半徑；倒數圈由外收縮，內層隨命中時間逐步加深。
+export function makeSpellTelegraph(x, z, radius, color) {
+    const group = new THREE.Group();
+    group.name = 'spell-telegraph';
+    group.position.set(x, 0.075, z);
+    group.scale.setScalar(radius);
+
+    const fill = new THREE.Mesh(
+        new THREE.CircleGeometry(1, 40),
+        new THREE.MeshBasicMaterial({
+            color, transparent: true, opacity: 0.04, depthWrite: false,
+        })
+    );
+    const boundary = new THREE.Mesh(
+        new THREE.RingGeometry(0.94, 1, 40),
+        new THREE.MeshBasicMaterial({
+            color, transparent: true, opacity: 0.42, side: THREE.DoubleSide,
+            depthTest: false, depthWrite: false,
+        })
+    );
+    const countdown = new THREE.Mesh(
+        new THREE.RingGeometry(0.82, 0.9, 40),
+        new THREE.MeshBasicMaterial({
+            color, transparent: true, opacity: 0.42, side: THREE.DoubleSide,
+            depthTest: false, depthWrite: false,
+        })
+    );
+    for (const mesh of [fill, boundary, countdown]) mesh.rotation.x = -Math.PI / 2;
+    fill.renderOrder = 9;
+    boundary.renderOrder = 11;
+    countdown.renderOrder = 12;
+    group.add(fill, boundary, countdown);
+
+    group.userData.setProgress = (progress, fade = 1) => {
+        const p = Math.max(0, Math.min(1, progress));
+        const ease = 1 - (1 - p) * (1 - p);
+        countdown.scale.setScalar(1.28 - ease * 0.28);
+        countdown.material.opacity = (0.38 + p * 0.52) * fade;
+        boundary.material.opacity = (0.42 + p * 0.34) * fade;
+        fill.material.opacity = (0.04 + p * 0.15) * fade;
+    };
+    group.userData.setProgress(0);
+    return group;
 }
 
 // ---------- 實體 ----------
@@ -421,17 +468,21 @@ export class Game {
 
     #castSpell(team, card, x, z) {
         this.hooks.onSpell?.(team, card.id, x, z);
-        // 目標指示圈
-        const ring = new THREE.Mesh(
-            new THREE.RingGeometry(card.splash - 0.1, card.splash, 32),
-            new THREE.MeshBasicMaterial({ color: 0xffaa22, transparent: true, opacity: 0.7, side: THREE.DoubleSide })
-        );
-        ring.rotation.x = -Math.PI / 2;
-        ring.position.set(x, 0.06, z);
-        this.scene.add(ring);
+        this.#queueFx({
+            k: 'spell', x: +x.toFixed(2), z: +z.toFixed(2),
+            r: +card.splash.toFixed(2), d: card.castDelay, at: this.simTime,
+            team, id: card.id,
+        });
+        const telegraph = makeSpellTelegraph(x, z, card.splash, TEAM_COLORS[team].accent);
+        this.scene.add(telegraph);
         this.effects.push({
-            t: 0, dur: card.castDelay + 0.4, mesh: ring,
-            update: () => {},
+            t: 0, dur: card.castDelay + 0.24, mesh: telegraph,
+            update: (ef) => {
+                const progress = Math.min(1, ef.t / card.castDelay);
+                const fade = ef.t <= card.castDelay
+                    ? 1 : Math.max(0, 1 - (ef.t - card.castDelay) / 0.24);
+                telegraph.userData.setProgress(progress, fade);
+            },
         });
 
         if (card.id === 'fireball') {
@@ -841,10 +892,14 @@ export class Game {
     // PvP：一次性視覺事件排入 fx 佇列，隨下一個快照廣播畀 guest 重播。
     // 呢啲效果 guest 由快照本身推唔返出嚟（法術落點、擲彈兵爆炸、治療脈衝
     // 都唔會留低任何實體狀態），唔同步就變成「無聲無息扣血」。
-    #pushFx(x, z, r, color) {
+    #queueFx(event) {
         // 單機唔會有人抽走佢——封頂免無限增長
         if (this.fxQueue.length >= 16) this.fxQueue.shift();
-        this.fxQueue.push({ x: +x.toFixed(2), z: +z.toFixed(2), r: +r.toFixed(2), c: color });
+        this.fxQueue.push(event);
+    }
+
+    #pushFx(x, z, r, color) {
+        this.#queueFx({ x: +x.toFixed(2), z: +z.toFixed(2), r: +r.toFixed(2), c: color });
     }
 
     #explosion(x, z, r, color) {
@@ -1673,6 +1728,12 @@ export class Game {
 
     // ---------- PvP：序列化戰場快照畀 host-relay 廣播（guest 淨係接收呢啲嚟渲染）----------
     serialize() {
+        const fx = this.fxQueue.length ? this.fxQueue.splice(0).map((event) => {
+            if (event.k !== 'spell') return event;
+            const { at, ...wire } = event;
+            wire.d = +Math.max(0.1, event.d - (this.simTime - at)).toFixed(2);
+            return wire;
+        }) : undefined;
         return {
             time: this.time, phase: this.phase, mult: this.elixirMultiplier(),
             winner: this.phase === 'ended' ? (this.result?.winner ?? null) : undefined,
@@ -1703,8 +1764,8 @@ export class Game {
                 slow: e.slowT > 0 ? 1 : 0,
                 act: e.isTower ? (e.active ? 1 : 0) : undefined,
             })),
-            // v3：一次性視覺事件（爆炸／治療），抽走即清——每個事件只廣播一次
-            fx: this.fxQueue.length ? this.fxQueue.splice(0) : undefined,
+            // v3：一次性視覺事件（法術預警／爆炸／治療），抽走即清——每個事件只廣播一次
+            fx,
         };
     }
 }

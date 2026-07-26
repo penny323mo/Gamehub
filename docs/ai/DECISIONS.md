@@ -240,3 +240,19 @@ Progress, temporary debugging notes, and next tasks belong in `HANDOFF.md`.
   draw calls and UI clutter in swarm fights. One instanced layer preserves enemy
   and ally silhouettes at phone scale, and local colour mapping prevents a PvP
   guest from seeing their own army in the opponent's red.
+
+## ADR-021: Royale spell warnings are synchronized pre-impact effects
+
+- Date: 2026-07-26
+- Status: accepted
+- Decision: every spell cast creates a team-coloured telegraph whose fixed outer
+  boundary is the true splash radius and whose inner countdown contracts until the
+  authoritative cast delay expires. The host sends a `k: 'spell'` event through the
+  existing snapshot `fx` channel with the remaining delay, not its private simulation
+  timestamp. `GuestGame` maps the raw team to the local viewer before rendering; the
+  same path powers highlight replay. Telegraphs may clarify timing but must not alter
+  spell damage, radius, or impact time.
+- Reason: a static host-only ring neither tells the player when damage will land nor
+  warns a PvP guest before the impact. Sending remaining time survives lower snapshot
+  rates without restarting a full warning, and preserving the real simulation as the
+  authority avoids visual UI changing game balance.

@@ -97,6 +97,12 @@ export const sfx = {
     // ---------- 出兵／落卡 ----------
     deploy() { if (!gate('deploy', 40)) return; voice(0.2); tone(220, 0.12, 'triangle', 0.2, -80); noise(0.08, 0.08); },
     spell() { if (!gate('spell', 60)) return; voice(0.35); tone(440, 0.3, 'sawtooth', 0.12, 220); },
+    spellWarning() {
+        if (!gate('spell-warning', 120)) return;
+        voice(0.38);
+        tone(620, 0.17, 'square', 0.09, -180);
+        tone(420, 0.2, 'triangle', 0.08, -90, 0.15);
+    },
 
     // ---------- 戰鬥 ----------
     // 金屬互斬：窄帶噪音（鏗）＋低頻撞擊（實感），每下微調音高唔會覺得複製黏貼

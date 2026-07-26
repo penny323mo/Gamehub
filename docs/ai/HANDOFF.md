@@ -3,83 +3,84 @@
 Updated: 2026-07-26 (Asia/Macau)
 Prepared by: Codex (local)
 Integration branch: `main`
-Baseline before this task: `64f6967`
-Status: Royale dense-combat clarity implemented and browser verified
+Baseline before this task: `c79371a`
+Status: Royale spell telegraphs implemented and browser verified; no active follow-up task
 
 ## Current objective
 
-Keep units, teams, and health readable during dense phone-scale fights without
-adding one mesh/draw call per unit or covering ordinary marching with UI.
+Make every spell's impact area and remaining cast time legible before damage lands,
+including enemy warnings, PvP guest rendering, and highlight replay, without changing
+spell balance or simulation timing.
 
 ## Completed
 
-- Added a subtle blue/red ground ring below every living non-building unit.
-- All rings use one persistent `InstancedMesh`, capped at 72 instances, and share
-  the existing deployment-ring geometry. Dense fights therefore add one clarity
-  layer rather than one scene object and draw call per unit.
-- Ring scale follows unit radius, so elephants and siege silhouettes receive a
-  larger footprint while swarm troops remain compact.
-- A full-health unit now shows its HP bar only when its current target is inside
-  attack reach. Damaged units retain the existing persistent bar; marching units
-  do not create a wall of full bars.
-- Guest snapshots retain raw host teams for simulation and mapping, but models,
-  towers, HP bars, and clarity markers now use local viewer colours. A PvP guest's
-  own army is blue and the host opponent is red.
-- Guest attack snapshots keep a full-health combat bar visible for 0.7 seconds,
-  preventing 10Hz snapshot gaps from making it flicker.
-- Cleanup immediately sets the shared marker instance count to zero.
+- All four spells now show their exact damage radius before impact. A team-coloured
+  countdown ring contracts onto the boundary while the inner fill strengthens.
+- Enemy casts play a distinct two-tone warning through the existing synthesized
+  audio system. The player's existing cast sound remains unchanged.
+- Spell telegraphs travel through the existing snapshot `fx` channel with spell id,
+  team, radius, and remaining cast duration. Serializing after part of the delay does
+  not restart the warning from its original full duration.
+- PvP guests map the authoritative host team to their local blue/red viewpoint before
+  drawing the telegraph. Highlight replay keeps the local player orientation.
+- Guest-side impact events now also use the existing explosion sound and light shake;
+  this restores impact feedback that was previously visual-only on the guest.
+- Telegraph geometry and materials are owned per effect and disposed after the short
+  post-impact fade or when the match/guest renderer is cleaned up.
+- Fireball, arrows, freeze, and powder keg damage values and cast delays are unchanged.
 
 ## Changed files
 
-- `games/royale/src/main.js`
 - `games/royale/src/game.js`
+- `games/royale/src/main.js`
 - `games/royale/src/pvp.js`
-- `docs/ai/PROJECT_CONTEXT.md` (GPU baseline 116)
-- `docs/ai/DECISIONS.md` (ADR-020 and ADR-008 baseline)
+- `games/royale/src/sfx.js`
+- `docs/ai/DECISIONS.md` (ADR-021)
 - `docs/ai/HANDOFF.md`
 
 ## Verification
 
-- `node --check` for all changed Royale JS: PASS.
-- Dense browser fixture created 22 living units (11 per side); marker count was
-  exactly 22 and the scene contained one named clarity `InstancedMesh`.
-- Marker instance 0 was blue `[0.332, 0.578, 1]`; the first enemy instance was
-  red `[1, 0.434, 0.332]`.
-- Twelve still-full-health units with a live in-range target had visible bars.
-  The 22-unit fight had 22 visible bars after damage began.
-- Guest own raw team 1 mapped to visual team 0 and blue HP fill `3ba2ff`; raw host
-  team 0 mapped to visual team 1 and red HP fill `ff5544`.
-- Guest full-health combat bar was visible at attack, remained after 0.5 seconds,
-  and hid after the 0.7-second hold expired.
-- Portrait 390x844 and landscape 844x390 dense-fight screenshots passed visual
-  inspection with 22 markers and zero horizontal overflow.
-- Guest mirror create/dispose stayed flat at 246 geometries inside the dense
-  fixture. Dense cleanup returned 246 to the 116 menu baseline.
-- A separate three-unit cycle changed marker count 3 to 0 and returned to 116.
-- Console had no functional errors; only the existing root `/favicon.ico` 404.
+- `node --check` for all four changed Royale JS modules: PASS.
 - `git diff --check`: PASS.
+- Real browser smoke at direct `/games/royale/` navigation: PASS.
+- Fireball, arrows, freeze, and powder keg each produced exactly one telegraph; at
+  half delay the target tower HP was unchanged, then damage was respectively 126,
+  47.25, 14, and 73.5. Every telegraph removed after impact.
+- Player telegraphs used blue `9cc8ff`; an enemy fireball used red `ffb09c`, called
+  the warning hook exactly once, caused no early damage, and still dealt 126.
+- Countdown scale contracted from 1.28 to about 1.07 halfway through local casts;
+  fill opacity increased from 0.04 to 0.115.
+- A spell serialized halfway through a 0.6-second cast carried `d: 0.3` with its
+  internal simulation timestamp removed.
+- PvP guest snapshot test mapped raw host player blue to local enemy red, contracted
+  1.28 to 1.032 in real time, removed itself, and kept geometry flat at 161 to 161.
+  Local replay mapped the same raw team back to blue and also cleaned up.
+- A real highlight replay capture 0.2 seconds into fireball stored `d: 0.4` in the
+  frame snapshot.
+- Portrait 390x844 and landscape 844x390 screenshots passed visual inspection with
+  zero horizontal overflow.
+- Console had no functional errors; only the existing root `/favicon.ico` 404.
 
 ## Known issues and cautions
 
-- The clarity layer intentionally caps at 72 units. A pathological debug swarm
-  above that count still plays, but later units do not receive rings.
-- PvP local colour mapping passed snapshot-mirror tests; live two-device Supabase
+- Browser automation proved the enemy warning hook invocation. Headless output does
+  not objectively certify loudness on Penny's phone speakers.
+- Snapshot rendering and team mapping passed locally. Live two-device Supabase
   matchmaking and latency remain unavailable in the local sandbox.
 - Existing device-specific black-flash verification remains unresolved.
 
 ## Exact next action
 
-1. Receiving agent runs `./scripts/agent-context.sh --sync`, then reads ADR-020
-   before changing unit rings, HP visibility, or GuestGame team colour.
-2. Penny can judge on a real phone whether ring opacity 0.58 is strong enough in
-   a normal fight without looking too gamey.
-3. Next gameplay/visual round should improve spell targeting/timing readability
-   or add replay pause/speed if real play indicates the need.
+1. There is no active implementation task. The receiving agent should sync `main`,
+   read ADR-021, and wait for Penny's next scoped request.
+2. On a real phone, optionally judge whether the warning tone and red fill remain
+   noticeable at the preferred volume during a dense fight.
 
 ## Do not redo
 
-- Do not replace the instanced layer with one mesh/material per unit.
-- Do not show full HP bars for every marching unit.
-- Do not swap raw snapshot entity teams; only map the visual team at render time.
-- Do not persist detailed match telemetry without explicit authorization.
+- Do not change spell damage, tower multipliers, radius, or cast delay to tune this UI.
+- Do not send the private simulation timestamp over snapshots; send remaining duration.
+- Do not infer pre-impact spell locations on the guest from later damage. Keep using
+  the explicit `fx` event.
+- Do not share telegraph materials with cached model materials; cleanup owns them.
 - Do not amend, rebase, or force-push published `main` history.

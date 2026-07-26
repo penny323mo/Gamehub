@@ -1,10 +1,10 @@
 // PvP Host-Relay 支援 —— host 跑晒個 Game 模擬並廣播快照；guest 淨係接收快照嚟渲染，
 // 唔會本機運算戰鬥（保證雙方見到嘅結果一致，唔使處理浮點誤差累積嘅同步漂移問題）
 import * as THREE from 'three';
-import { TEAM, ARENA, GAME_RULES } from './constants.js';
+import { TEAM, TEAM_COLORS, ARENA, GAME_RULES } from './constants.js';
 import { CARDS } from './cards.js';
 import { makeUnitModel, makePrincessTower, makeKingTower } from './models.js';
-import { makeHpBar, disposeDeep } from './game.js';
+import { makeHpBar, makeSpellTelegraph, disposeDeep } from './game.js';
 import { on, sendState, sendInput, saveSnapshot } from './net.js';
 
 export const HOST_BROADCAST_INTERVAL = 0.1; // 10Hz，卡牌節奏遊戲夠用，唔使頂爆 Realtime
@@ -297,10 +297,42 @@ export class GuestGame {
         this.#ringFx(x, z, { color: 0xffd964, r0: 0.6, grow: 6.5, dur: 700 });
     }
 
-    // 重播 host 廣播落嚟嘅一次性事件（法術爆炸、擲彈兵自爆、治療脈衝）。
+    #spellTelegraph(f) {
+        const visualTeam = this.visualTeam(f.team);
+        const mesh = makeSpellTelegraph(f.x, f.z, f.r, TEAM_COLORS[visualTeam].accent);
+        this.scene.add(mesh);
+        this.fxRings.add(mesh);
+        const castMs = Math.max(100, (f.d ?? 0.5) * 1000);
+        const lingerMs = 240;
+        const t0 = performance.now();
+        const tick = () => {
+            if (!mesh.parent) {
+                this.fxRings.delete(mesh);
+                return;
+            }
+            const elapsed = performance.now() - t0;
+            const progress = Math.min(1, elapsed / castMs);
+            const fade = elapsed <= castMs ? 1 : Math.max(0, 1 - (elapsed - castMs) / lingerMs);
+            mesh.userData.setProgress(progress, fade);
+            if (elapsed >= castMs + lingerMs) {
+                this.scene.remove(mesh);
+                disposeDeep(mesh);
+                this.fxRings.delete(mesh);
+                return;
+            }
+            requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+    }
+
+    // 重播 host 廣播落嚟嘅一次性事件（法術預警／爆炸、擲彈兵自爆、治療脈衝）。
     // 座標係 host 視角，同 entities 一樣唔使反轉（成個場景已經靠鏡頭翻轉）
     #playFx(list) {
         for (const f of list) {
+            if (f.k === 'spell') {
+                this.#spellTelegraph(f);
+                continue;
+            }
             const isHeal = f.r <= 0.6;
             this.#ringFx(f.x, f.z, {
                 color: f.c, r0: Math.max(0.25, f.r * 0.5),
