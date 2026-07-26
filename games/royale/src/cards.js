@@ -48,9 +48,13 @@ export const CARDS = {
     },
     catapult: {
         id: 'catapult', kind: 'unit', name: '投石車', icon: '🪨', cost: 5,
-        desc: '超遠程範圍攻擊，攻城利器',
+        desc: '超遠程範圍攻擊，對建築傷害 ×1.6（攻城利器）',
         count: 1, hp: 380, dmg: 140, hitSpeed: 2.6, range: 8.5,
         speed: 1.0, sight: 9.0, radius: 0.6, projectile: 'stone', splash: 1.8,
+        // 卡面一直寫「攻城利器」但之前完全冇加成（同 pikemen 一樣嘅講大話問題），
+        // RTS 版本亦早就有 vsBuilding 2。倍率刻意細過 RTS：投石車射程 8.5 已經
+        // 大過公主塔 7.5，本身就可以喺塔射程外免費攻城，×2 會令 5 費卡太霸道
+        bonusVs: { building: 1.6 },
     },
     elephant: {
         id: 'elephant', kind: 'unit', name: '戰象', icon: '🐘', cost: 7,

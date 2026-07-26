@@ -875,9 +875,11 @@ export class Game {
         // 同護甲一樣掛喺呢個單一收窄點，近戰／投射物／法術全部自動涵蓋
         let bonus = false;
         const srcCard = src?.cardId ? CARDS[src.cardId] : null;
-        if (srcCard?.bonusVs && e.card) {
+        if (srcCard?.bonusVs) {
             for (const tag in srcCard.bonusVs) {
-                if (e.card[tag]) { dmg *= srcCard.bonusVs[tag]; bonus = true; break; }
+                // 標籤可以係卡級（例如 heavy）或者實體級（building —— 塔冇 card 物件）
+                const hit = tag === 'building' ? (e.isTower || e.isBuilding) : !!e.card?.[tag];
+                if (hit) { dmg *= srcCard.bonusVs[tag]; bonus = true; break; }
             }
         }
         // 重甲衛：厚甲按比例減傷（傷害榜同扣血都用實際傷害）
