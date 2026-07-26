@@ -1,18 +1,18 @@
 # Current cross-agent handoff
 
 Updated: 2026-07-26 (Asia/Macau)
-Prepared by: Claude Code (cloud)
+Prepared by: Claude Code (cloud); accepted by Codex (local)
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
 Baseline before this task: `250f8ac`
-Status: gauntlet stages now vary; match rules are per-match instead of global
+Status: accepted at `013e36e`; gauntlet conditions and per-match rules verified
 
 ## Current objective
 
 Give the gauntlet ladder actual variety. Stages differed only by a difficulty label
 and the AI's tactical sharpening, so from stage 3 onwards every stage played the
-same. ADR-007 rules out variety through better AI numbers, so each stage gets a
-battlefield condition that applies to both sides equally.
+same. New stage-condition variety must not favour the AI, so each condition
+applies to both sides equally; the separate ADR-007 capped elixir ramp remains.
 
 ## Completed
 
@@ -49,9 +49,9 @@ battlefield condition that applies to both sides equally.
 - Conditions land: stages 1-7 report the expected `matchTime` (180/120), elixir
   interval (2.8/1.75), start elixir (5/10), princess HP (1500/1950), king HP
   (2600/3380), `fountainAlways`; `elixirMax` stayed 12 in every stage.
-- Symmetry, stages 1-6: tower HP strings match, both start on the same elixir, and
-  after ten simulated seconds both hold identical elixir (8/8, 10/10 under 聖水泛濫,
-  12/12 under 開局決鬥) with `enemyElixirRate` 1.
+- Isolated condition symmetry, stages 1-6 with `enemyElixirRate` fixed at 1: tower
+  HP and starting elixir match; after ten seconds both sides remain equal. The
+  production gauntlet separately keeps ADR-007's stage-4+ ramp, capped at 1.2.
 - Fountain-from-start: a unit parked at river centre for seven seconds gained 4
   elixir under 聖水泉常開 versus 2 under standard rules — two fountain ticks.
 - Opponent rotation is deterministic, every key resolves to a real personality,
@@ -61,18 +61,18 @@ battlefield condition that applies to both sides equally.
 - HUD: stage 4 shows chip `🧱 堅城` with both princess towers at 1950; a standard
   single match hides the chip and restores 1500. End screen: win at stage 3
   previews 堅城, win at stage 6 says 下一關：標準規則, a loss shows nothing.
-- Layout at 390x844 and 1000x760: the chip clears the crown boxes, quit/mute
-  buttons, camera controls, and played-cards column, and the long condition banner
-  fits on screen in two lines.
+- Claude tested layout at 390x844 and 1000x760. Codex repeated local HTTP/browser
+  smoke at 390x844: stage 1 plain; stage 4 chip visible, both princess towers 1950,
+  `enemyElixirRate` 1.05; no overlap or runtime error beyond `/favicon.ico` 404.
 - Regression: `test-royale-leak.mjs` 115 geometries / 20 textures flat over six
   match/menu cycles; `clash-fixes-test.mjs`, `test-pvp-logic.mjs`,
   `test-royale2.mjs`, `rts-check.mjs` all pass. Only console error is the
   sandbox's Supabase tunnel failure.
-- `./scripts/check-handoff.sh`: PASS.
+- Codex: JS syntax PASS; Pages deployment `013e36e` success; handoff check PASS.
 
 ## Known issues and cautions
 
-- Deploy for this commit must be confirmed on `deploy-pages.yml` after merge.
+- GitHub Pages deployment for `013e36e` completed successfully.
 - The black-flash fix from `d0fae14` is still unconfirmed on the player's device;
   do not tune graphics further until they report back.
 - Condition balance is simulated, not played; if the ladder feels swingy, tune the
@@ -87,21 +87,20 @@ battlefield condition that applies to both sides equally.
 - Earlier cautions still apply: root `progress.md` is historical, some old remote
   branches are not ancestors of `main`, Pages CI runs the full lint/test/build
   sequence only for Ashen Rail.
+- Named `.mjs` regressions were cloud-session tools and are not tracked; Codex
+  could not rerun those exact scripts, so retained their results as Claude evidence.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync` on the intended branch.
-2. Read `PROJECT_CONTEXT.md`, this handoff, and ADR-007 to ADR-013 before editing
-   anything under `games/royale/`.
-3. Ask the player whether the black flash is gone before tuning graphics further.
-4. Otherwise pick the next Royale item: a first-run tutorial, or the replay system.
+1. Ask the player whether the black flash is gone before tuning graphics further.
+2. Otherwise pick the next Royale item: a first-run tutorial, or the replay system.
 
 ## Do not redo
 
 - Do not re-derive the Royale constraints by reading the whole game; ADR-007 to
   ADR-013 already record them, and Git history is the evidence.
-- Do not make a gauntlet stage harder with AI elixir, HP, or hidden information;
-  add or tune a symmetric condition instead.
+- Do not add an AI-only stage condition or increase ADR-007's capped elixir ramp;
+  add or tune a symmetric battlefield condition instead.
 - Do not read `GAME_RULES` directly inside match code; use `game.rules`, and never
   let a condition override `elixirMax`.
 - Do not raise the catapult building bonus to the RTS value of 2.0; the range

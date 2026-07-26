@@ -45,10 +45,10 @@ Ashen Rail during deployment.
 - Royale carries local vendor modules and Draco assets so production must not
   assume a package-manager build step for that game. See ADR-007 to ADR-012 for
   the Royale rules an editor must not break; the load-bearing ones are: AI gets no
-  resource or information advantage, anything `disposeDeep` reaches needs a
-  per-instance material, character motion is generated in `rig.js` rather than
-  baked in the GLBs, and guest-visible PvP effects must travel in the snapshot
-  `fx` channel.
+  hidden information and only the explicit ADR-007 gauntlet elixir ramp (1.0 to
+  1.2), anything `disposeDeep` reaches needs a per-instance material, character
+  motion is generated in `rig.js` rather than baked in the GLBs, and guest-visible
+  PvP effects must travel in the snapshot `fx` channel.
 - Royale damage passes through one funnel, `Game#damage`. Counter bonuses
   (`bonusVs` against tags such as `heavy`) and armour reduction belong there so
   melee, projectiles, and spells stay consistent; do not special-case card ids in
