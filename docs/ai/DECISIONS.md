@@ -271,3 +271,16 @@ Progress, temporary debugging notes, and next tasks belong in `HANDOFF.md`.
   to reproduce it, which breaks the handoff exactly where verification matters. It
   also meant a feature landing in one agent's session, such as the first-run
   tutorial modal, silently broke automation the other agent could not see.
+
+## ADR-023: disposeDeep also owns per-instance skeleton bone textures
+
+- Date: 2026-07-26
+- Status: accepted
+- Decision: `disposeDeep` disposes `o.skeleton?.boneTexture` alongside geometry and
+  materials. Every `SkeletonUtils.clone` produces its own `Skeleton`, and Three
+  lazily allocates a bone `DataTexture` per skeleton (36 bones becomes 12x12), which
+  `material.dispose()` never touches.
+- Reason: LV2 leaked ten GPU textures per entry because ten skinned units are on the
+  map at start; four enter/exit cycles measured 32, 44, 56, 68 textures. With the
+  disposal in place the count is flat at 20, the same baseline as Clash. The leak was
+  invisible to the Clash gate, which is why `tests/rts.mjs` now watches textures too.

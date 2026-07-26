@@ -71,6 +71,11 @@ export function disposeDeep(root) {
         if (o.geometry && !o.isSprite) o.geometry.dispose();
         const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
         for (const m of mats) m.dispose();
+        // 每個 SkinnedMesh clone 有自己一副 Skeleton，three 會為佢 lazy 開一張
+        // bone texture（36 條骨 → 12×12 DataTexture）。material.dispose() 唔會碰
+        // 呢張圖，所以以前每次退出 LV2 都漏 10 張：RTS 開局有 10 個 skinned 單位，
+        // 反覆進出四轉實測 textures 由 32 一路升到 68。
+        o.skeleton?.boneTexture?.dispose();
     });
 }
 

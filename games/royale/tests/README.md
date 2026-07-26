@@ -30,6 +30,7 @@ Chromium 點揀（`lib/harness.mjs`）：`PLAYWRIGHT_CHROMIUM` 環境變數 → 
 | `combat.mjs` | 傷害漏斗 `Game#damage`：相剋、護甲、攻城加成、卡面文字同數據一致 |
 | `pvp-guest.mjs` | PvP guest 視角對調（ADR-011）：手牌／單位／塔／勝負／`pendingHand` |
 | `match.mjs` | 一場對局嘅生命週期：投降入賬、返選單清場、AI 唔塞死、對局有結果 |
+| `rts.mjs` | LV2 RTS：雙方開局對稱、科技／年代／人口／花費閘、相剋倍率同 Clash 一致、進出四轉唔漏 GPU 資源 |
 | `features.mjs` | ADR-014 到 ADR-021 嘅隱形不變式：教學觸發條件、玩家 code 只存 hash、落點單一規則路徑、法術預警清理、路壓用模擬時鐘、重播剝走敵方情報、標記層唔加 geometry |
 
 ## 寫新測試要知
