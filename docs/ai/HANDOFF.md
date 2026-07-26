@@ -4,82 +4,72 @@ Updated: 2026-07-26 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Baseline at handoff: `main` = merge `615962e` (contains `d690dcc` + `af3dca9`)
-Status: Empire Royale gameplay batch complete, deployed, and verified
+Baseline before this task: `8a85573`
+Status: Royale context capture complete; no code behaviour changed
 
 ## Current objective
 
-Deepen Empire Royale (`games/royale`) gameplay: make unit counters real, and make
-the AI use them through data rather than hardcoded card ids.
+Make the Royale knowledge from the long cloud session survive an agent switch.
+The previous handoff described the last task well, but `DECISIONS.md` held only
+protocol ADRs and `PROJECT_CONTEXT.md` described Royale in one line, so the
+hard-won engineering constraints existed only in commit messages and in one
+agent's context window.
 
 ## Completed
 
-- Counter system (`b9707bf`): added `heavy` tag (knight / ram / elephant /
-  ironclad) and `bonusVs: { heavy: 2.0 }` on pikemen. Applied at the single
-  `#damage` funnel in `game.js`, so melee, projectiles, and spells are all
-  covered without per-path special cases. This implements a counter the pikemen
-  card had advertised since launch but that never existed in code.
-- Bonus hits render an orange `N!` damage number so the mechanic is learnable
-  without reading docs.
-- Mirrored into LV2 RTS (`vsHeavy`, alongside the existing `vsBuilding`).
-- AI counter awareness (`d690dcc`): new `#valuePerElixir(card, target)` scores
-  cards by real output per elixir including `bonusVs` and target `armor`.
-  Removed the hardcoded `id === 'pikemen'` branch in `tryDefend`, so future
-  counters need no AI changes.
-- AI reads only public information (`playedCards`) via `#oppHasHeavyCounter()`
-  to stop force-feeding heavy units into a known counter. No hand peeking.
+- Added ADR-007 to ADR-012 covering the Royale rules a future editor must not
+  break: AI fairness doctrine, `disposeDeep` material ownership, procedural bone
+  animation, Draco assets with a vendored decoder, host-authoritative PvP with an
+  explicit `fx` channel, and per-device graphics downgrade.
+- Expanded the Royale row in `PROJECT_CONTEXT.md` into a real module map.
+- Added Royale architectural invariants: the single `Game#damage` funnel for
+  counters and armour, and the rule against special-casing card ids in `ai.js`.
+- Added Royale verification specifics: swiftshader rAF is about 5fps so step the
+  sim manually and freeze before capture, the `window.__royale*` debug handles,
+  the 115-geometry leak gate, and the fact that live PvP needs real devices.
 
 ## Changed files
 
-- `games/royale/src/cards.js`
-- `games/royale/src/game.js`
-- `games/royale/src/ai.js`
-- `games/royale/src/rts/rts.js`
+- `docs/ai/DECISIONS.md`
+- `docs/ai/PROJECT_CONTEXT.md`
 - `docs/ai/HANDOFF.md`
 
 ## Verification
 
-- Browser smoke (Playwright + swiftshader, real game load) for all claims below.
-- Counter damage: pikemen over 8s dealt 890 to a knight vs 390 to a swordsman.
-- AI defence choice: picked pikemen 12/12 times against an elephant push.
-- Data-driven proof: value-per-elixir ranks pikemen 1st vs elephant (97.5) but
-  only 2nd vs militia (48.8, behind militia 51.8) — target-aware, not a blanket
-  preference.
-- Opponent-read: heavy plays dropped 41% -> 32% after pikemen were shown.
-- Fairness unchanged: stage-8 sim shows no card played twice in a row and 0%
-  elephant spam.
-- Regression green: full-match sim, GPU leak baseline (115 geometries),
-  new-card mechanics, surrender/menu paths, RTS AI.
-- GitHub Pages deploy verified success for `b9707bf`.
+- `./scripts/check-handoff.sh`: PASS.
+- `./scripts/agent-context.sh --check`: PASS; branch and `main` aligned with
+  origin before the change.
+- Documentation-only task. No game source changed, so no browser smoke was run
+  and none is required. Every claim recorded in the new ADRs comes from checks
+  already run and recorded in earlier commits on this branch.
 
 ## Known issues and cautions
 
-- `d690dcc` was pushed before this handoff file existed on the branch, so code
-  and handoff are in separate commits for this one task only. Later tasks should
-  keep them in a single commit per `AGENTS.md`.
-- Deploy for merge `615962e` was not yet verified at the time of writing; check
-  the `deploy-pages.yml` run for that SHA before assuming the site is updated.
-- Live PvP flows (reconnect on both roles, 30s disconnect grace, walkover) still
-  need two-device verification; the cloud sandbox cannot reach Supabase.
-- Royale graphics auto-downgrade on WebGL context loss via the
-  `royale_gfx_safe` localStorage flag; clear it when testing full-quality paths.
+- Deploy for `8a85573` verified success. This task changes no shipped asset, so a
+  Pages deploy is expected to be a no-op for the site.
+- Live PvP flows (reconnect on both roles, 30s disconnect grace, walkover) remain
+  unverified on real hardware; the cloud sandbox cannot reach Supabase.
+- Royale graphics auto-downgrade through the `royale_gfx_safe` localStorage flag;
+  clear it before testing full-quality rendering paths.
 - Earlier cautions still apply: root `progress.md` is historical, some old remote
-  branches are not ancestors of `main`, and Pages CI runs full automated checks
-  only for Ashen Rail.
+  branches are not ancestors of `main`, and Pages CI runs the full automated
+  lint/test/build sequence only for Ashen Rail.
 
 ## Exact next action
 
 1. Run `./scripts/agent-context.sh --sync` on the intended branch.
-2. Verify the `deploy-pages.yml` run for `615962e` succeeded.
-3. Pick the next Royale gameplay item. Open candidates, none started: extend the
-   counter triangle with a second relationship, gauntlet stage variety, a
+2. Read `PROJECT_CONTEXT.md`, this handoff, and ADR-007 to ADR-012 before editing
+   anything under `games/royale/`.
+3. Pick the next Royale gameplay item. Open candidates, none started: a second
+   counter relationship to widen the tactical triangle, gauntlet stage variety, a
    first-run tutorial, and the replay system.
 
 ## Do not redo
 
-- Do not reintroduce hardcoded counter card ids in `ai.js`; extend the
-  `bonusVs` / tag data instead.
-- Do not give the AI economy bonuses or hidden information; difficulty must come
-  from tactics only.
+- Do not re-derive the Royale constraints by reading the whole game; ADR-007 to
+  ADR-012 already record them, and Git history is the evidence.
+- Do not reintroduce hardcoded counter card ids in `ai.js`; extend the `bonusVs`
+  and tag data instead.
+- Do not give the Royale AI economy bonuses or hidden information.
 - Do not create a second parallel handoff file or revive root `progress.md`.
 - Do not copy chat transcripts or secrets into repository context files.

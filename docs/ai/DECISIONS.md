@@ -61,3 +61,73 @@ Progress, temporary debugging notes, and next tasks belong in `HANDOFF.md`.
   and cloud Claude Code use different environments but the same remote checkpoint.
 - Reason: reading a locally stale handoff defeats the protocol even when the
   document format itself is correct.
+
+## ADR-007: Royale AI difficulty comes from tactics, never from resources or hidden information
+
+- Date: 2026-07-26
+- Status: accepted
+- Decision: Empire Royale AI opponents play by the same rules as the player. No
+  elixir/resource multipliers beyond a small capped gauntlet ramp, no reading the
+  player's hand, no privileged placement. Higher difficulty is expressed as faster
+  decision cadence, elixir counting from public `playedCards`, lane pressure,
+  proportional defence budgets, and data-driven counter selection.
+- Reason: a player reported the stage-8 AI spamming war elephants; the cause was an
+  uncapped +15%/stage economy bonus feeding a "always play the highest-HP tank"
+  branch. Economy advantages read as cheating and hide weak AI logic.
+
+## ADR-008: Anything disposeDeep can reach owns its material
+
+- Date: 2026-07-26
+- Status: accepted
+- Decision: Royale's `disposeDeep` disposes geometries and materials
+  unconditionally. Objects that it may reach (RTS entities, effects, guest-side
+  meshes) must use per-instance materials, never the shared `mat()` cache in
+  `models.js`. The RTS module keeps its own `lmat()` helper for this reason.
+- Reason: disposing a cached material silently breaks every other object still
+  using it. The regression guard is the GPU resource baseline: repeated
+  match/menu cycles must stay flat at 115 geometries.
+
+## ADR-009: Royale unit animation is procedural bone animation
+
+- Date: 2026-07-26
+- Status: accepted
+- Decision: the Meshy character GLBs are skinned but ship zero animation clips.
+  All motion is generated at runtime by `games/royale/src/rig.js`, which infers
+  legs, torso, and arms from rest-pose skeleton geometry because the joints are
+  unnamed (`Bone_NNN`). Per-unit gait and one of four attack styles
+  (swing/thrust/shoot/cast) are configured in `models.js`.
+- Reason: an agent assuming baked clips will look for animation data that does not
+  exist, and name-based rig lookups fail on these auto-rigged skeletons.
+
+## ADR-010: Royale ships Draco-compressed models with a vendored decoder
+
+- Date: 2026-07-26
+- Status: accepted
+- Decision: `games/royale/assets/models` is Draco-compressed (26MB to 1.3MB) and
+  `games/royale/vendor/draco/` holds the same-origin decoder. Never commit
+  uncompressed replacements, and never point the loader at an external CDN.
+- Reason: the game must stay installable from a static Pages subpath with no build
+  step and no third-party runtime dependency.
+
+## ADR-011: Royale PvP is a host-authoritative relay; transient effects need explicit sync
+
+- Date: 2026-07-26
+- Status: accepted
+- Decision: the host runs the only real simulation and broadcasts snapshots; the
+  guest renders a mirror. Anything the guest cannot infer from entity state -
+  spell impacts, death explosions, heal pulses - must travel in the snapshot `fx`
+  channel. Snapshot shape changes require updating host serialize, guest apply,
+  and the persisted reconnect snapshot together.
+- Reason: guests silently saw no spell explosions for the entire PvP lifetime
+  because the effects existed only in host-local code.
+
+## ADR-012: Royale degrades graphics on WebGL context loss instead of capping everyone
+
+- Date: 2026-07-26
+- Status: accepted
+- Decision: post-processing runs with MSAA at full device pixel ratio by default.
+  A real `webglcontextlost` event sets the `royale_gfx_safe` localStorage flag, and
+  later loads use conservative settings on that device only.
+- Reason: post-processing render targets can exhaust memory on some phones, but
+  lowering quality globally to protect a minority both dulls the image and removes
+  the canvas antialiasing that EffectComposer bypasses.

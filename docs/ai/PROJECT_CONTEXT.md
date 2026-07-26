@@ -27,7 +27,7 @@ Ashen Rail during deployment.
 | Snooker | `games/snooker/index.html` | 2D and 3D modes plus shared `games/snooker/online.js`. |
 | Tower Defense | `games/tower/dist/index.html` | Vite + TypeScript + Three.js; tracked `dist/` is the hub target. |
 | Neon Snake | `games/snake-game/dist/index.html` | React + Vite + TypeScript; tracked `dist/` is the hub target. |
-| Empire Royale | `games/royale/index.html` | Static ES modules + Three.js vendor files; PvP, RTS, AI, SFX, models, leaderboard. |
+| Empire Royale | `games/royale/index.html` | Static ES modules + vendored Three.js. Two modes: Clash-style lane battle (`game.js`, `ai.js`) and LV2 age-of-empires RTS (`src/rts/`). Shared: `models.js`, `rig.js` (procedural bone animation), `sfx.js`, `net.js`/`pvp.js` (Supabase PvP), `leaderboard.js`, `storage.js`. |
 | Ashen Rail | `games/ashen-rail/dist/index.html` | Self-contained Vite + TypeScript + Babylon.js bonus game; CI builds `dist/`. |
 | Xiangqi AI | `games/xiangqi-ai/dist/index.html` | Vite + Three.js; hub targets tracked `dist/`. |
 | Database | `supabase/migrations/` | Append-only numbered migrations; never edit an applied migration casually. |
@@ -43,7 +43,16 @@ Ashen Rail during deployment.
   Source-only changes to those games are incomplete until the required dist output
   is regenerated and verified.
 - Royale carries local vendor modules and Draco assets so production must not
-  assume a package-manager build step for that game.
+  assume a package-manager build step for that game. See ADR-007 to ADR-012 for
+  the Royale rules an editor must not break; the load-bearing ones are: AI gets no
+  resource or information advantage, anything `disposeDeep` reaches needs a
+  per-instance material, character motion is generated in `rig.js` rather than
+  baked in the GLBs, and guest-visible PvP effects must travel in the snapshot
+  `fx` channel.
+- Royale damage passes through one funnel, `Game#damage`. Counter bonuses
+  (`bonusVs` against tags such as `heavy`) and armour reduction belong there so
+  melee, projectiles, and spells stay consistent; do not special-case card ids in
+  `ai.js`.
 - Supabase changes go through a new numbered migration. Never expose keys, tokens,
   cookies, or connection secrets in code, handoffs, logs, or commits.
 - Visual, camera, input, responsive-layout, audio, and gameplay-feel changes need
@@ -117,6 +126,18 @@ tests or existing self-check hooks where present, syntax/import checks where
 useful, and a real browser smoke for the changed flow. Online-mode changes require
 multi-client verification and must state whether Supabase migrations were merely
 added or actually applied.
+
+Royale specifics that repeatedly matter:
+
+- Headless smoke runs under swiftshader, where `requestAnimationFrame` drops to
+  roughly five frames per second. Wall-clock waits overshoot; step the simulation
+  manually (`for (...) game.update(1/60)`) and freeze it before capturing.
+- `main.js` exposes `window.__royale`, `__royaleRenderer`, `__royaleCamera`,
+  `__royaleComposer()`, `__royaleShake()`, and `__rts` for automated inspection.
+- Treat a flat GPU resource count across repeated match/menu cycles as the leak
+  gate; the current baseline is 115 geometries.
+- The cloud sandbox cannot reach Supabase, so live PvP paths (matchmaking,
+  reconnect, disconnect grace, walkover) can only be certified on real devices.
 
 ## Deployment and Git rules
 
