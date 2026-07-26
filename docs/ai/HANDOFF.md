@@ -1,77 +1,85 @@
 # Current cross-agent handoff
 
 Updated: 2026-07-26 (Asia/Macau)
-Prepared by: Codex
+Prepared by: Claude Code (cloud)
 Integration branch: `main`
-Observed baseline before handoff setup: `b9707bf686397413b4d658a5714e57db56019e81`
-Status: protocol ready; the Git commit containing this file is the shared
-checkpoint for the receiving agent
+Work branch: `claude/3d-tower-defense-game-rld6ts`
+Baseline at handoff: `main` = merge `615962e` (contains `d690dcc` + `af3dca9`)
+Status: Empire Royale gameplay batch complete, deployed, and verified
 
 ## Current objective
 
-Establish a durable Codex/Claude Code handoff system so either agent can resume
-from a small, verified context packet instead of rescanning the whole Game Hub.
+Deepen Empire Royale (`games/royale`) gameplay: make unit counters real, and make
+the AI use them through data rather than hardcoded card ids.
 
 ## Completed
 
-- Synchronized the local checkout with GitHub `origin/main` at `b9707bf`.
-- Confirmed the main Claude cloud work branch
-  `claude/3d-tower-defense-game-rld6ts` pointed to the same commit as `main` at
-  synchronization time.
-- Added shared entry instructions for Codex and Claude Code.
-- Added a stable architecture and verification map.
-- Added a durable decision log and current-handoff format.
-- Added a start-of-task tool that fetches GitHub and safely fast-forwards a clean,
-  strictly-behind branch before the agent reads handoff files.
-- Added handoff validation tooling and explicit local-Codex/cloud-Claude start
-  rules.
+- Counter system (`b9707bf`): added `heavy` tag (knight / ram / elephant /
+  ironclad) and `bonusVs: { heavy: 2.0 }` on pikemen. Applied at the single
+  `#damage` funnel in `game.js`, so melee, projectiles, and spells are all
+  covered without per-path special cases. This implements a counter the pikemen
+  card had advertised since launch but that never existed in code.
+- Bonus hits render an orange `N!` damage number so the mechanic is learnable
+  without reading docs.
+- Mirrored into LV2 RTS (`vsHeavy`, alongside the existing `vsBuilding`).
+- AI counter awareness (`d690dcc`): new `#valuePerElixir(card, target)` scores
+  cards by real output per elixir including `bonusVs` and target `armor`.
+  Removed the hardcoded `id === 'pikemen'` branch in `tryDefend`, so future
+  counters need no AI changes.
+- AI reads only public information (`playedCards`) via `#oppHasHeavyCounter()`
+  to stop force-feeding heavy units into a known counter. No hand peeking.
 
 ## Changed files
 
-- `AGENTS.md`
-- `CLAUDE.md`
-- `docs/ai/PROJECT_CONTEXT.md`
+- `games/royale/src/cards.js`
+- `games/royale/src/game.js`
+- `games/royale/src/ai.js`
+- `games/royale/src/rts/rts.js`
 - `docs/ai/HANDOFF.md`
-- `docs/ai/DECISIONS.md`
-- `scripts/agent-context.sh`
-- `scripts/check-handoff.sh`
 
 ## Verification
 
-- `bash -n scripts/agent-context.sh scripts/check-handoff.sh`: PASS.
-- `./scripts/check-handoff.sh`: PASS (`HANDOFF_LINES=66` before this result update).
-- `./scripts/agent-context.sh --check`: PASS; fetched origin, reported `main` at
-  `b9707bf`, ahead/behind `0/0`, and identified the uncommitted setup files.
-- `./scripts/agent-context.sh --sync` dirty-worktree guard: PASS; refused to start
-  a new task and returned the documented non-zero status without pulling.
-- Cross-file reference check for all entrypoints, documents, and scripts: PASS.
-- Credential-pattern scan: PASS.
-- Entrypoint/path/trackability review: PASS.
-- `shellcheck` is unavailable locally; `bash -n` is the recorded shell syntax
-  substitute.
-- No game runtime behavior changed, so game builds are not required for this
-  documentation/tooling-only task.
+- Browser smoke (Playwright + swiftshader, real game load) for all claims below.
+- Counter damage: pikemen over 8s dealt 890 to a knight vs 390 to a swordsman.
+- AI defence choice: picked pikemen 12/12 times against an elephant push.
+- Data-driven proof: value-per-elixir ranks pikemen 1st vs elephant (97.5) but
+  only 2nd vs militia (48.8, behind militia 51.8) — target-aware, not a blanket
+  preference.
+- Opponent-read: heavy plays dropped 41% -> 32% after pikemen were shown.
+- Fairness unchanged: stage-8 sim shows no card played twice in a row and 0%
+  elephant spam.
+- Regression green: full-match sim, GPU leak baseline (115 geometries),
+  new-card mechanics, surrender/menu paths, RTS AI.
+- GitHub Pages deploy verified success for `b9707bf`.
 
 ## Known issues and cautions
 
-- The root `progress.md` is a historical Snake Game note from February 2026 and is
-  not the active handoff.
-- Some old remote Claude/auto branches are not ancestors of `main`; do not merge
-  them without a content-level review.
-- GitHub Pages CI currently performs the full automated lint/test/build sequence
-  only for Ashen Rail. Other games still need targeted checks and browser smoke.
-- The repository historically tracks several `.DS_Store` and output artifacts even
-  though `.gitignore` now ignores new ones. Cleanup is outside this handoff task.
+- `d690dcc` was pushed before this handoff file existed on the branch, so code
+  and handoff are in separate commits for this one task only. Later tasks should
+  keep them in a single commit per `AGENTS.md`.
+- Deploy for merge `615962e` was not yet verified at the time of writing; check
+  the `deploy-pages.yml` run for that SHA before assuming the site is updated.
+- Live PvP flows (reconnect on both roles, 30s disconnect grace, walkover) still
+  need two-device verification; the cloud sandbox cannot reach Supabase.
+- Royale graphics auto-downgrade on WebGL context loss via the
+  `royale_gfx_safe` localStorage flag; clear it when testing full-quality paths.
+- Earlier cautions still apply: root `progress.md` is historical, some old remote
+  branches are not ancestors of `main`, and Pages CI runs full automated checks
+  only for Ashen Rail.
 
 ## Exact next action
 
-1. Receiving agent runs `./scripts/agent-context.sh --sync` on the intended branch.
-2. Read `CLAUDE.md`, `PROJECT_CONTEXT.md`, this handoff, and relevant decisions.
-3. Run `./scripts/check-handoff.sh`, confirm GitHub/local alignment, then replace
-   this handoff with the next scoped Game Hub task state.
+1. Run `./scripts/agent-context.sh --sync` on the intended branch.
+2. Verify the `deploy-pages.yml` run for `615962e` succeeded.
+3. Pick the next Royale gameplay item. Open candidates, none started: extend the
+   counter triangle with a second relationship, gauntlet stage variety, a
+   first-run tutorial, and the replay system.
 
 ## Do not redo
 
+- Do not reintroduce hardcoded counter card ids in `ai.js`; extend the
+  `bonusVs` / tag data instead.
+- Do not give the AI economy bonuses or hidden information; difficulty must come
+  from tactics only.
 - Do not create a second parallel handoff file or revive root `progress.md`.
-- Do not copy entire chat transcripts or secrets into repository context files.
-- Do not scan every game unless current source contradicts this context map.
+- Do not copy chat transcripts or secrets into repository context files.
