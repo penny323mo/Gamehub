@@ -11,6 +11,7 @@ import { loadAssets } from './assets.js';
 import { buildArena } from './arena.js';
 import { Game, disposeDeep } from './game.js';
 import { AIController, PERSONALITIES, randomPersonality } from './ai.js';
+import { stageCondition, conditionOpts, stagePersonality } from './gauntlet.js';
 import { UI } from './ui.js';
 import { sfx } from './sfx.js';
 import { generateCardThumbs } from './thumbs.js';
@@ -674,9 +675,12 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
     matchMode = mode;
     gauntletStage = stage;
     const actualDiff = mode === 'gauntlet' ? gauntletDifficulty(stage) : difficulty;
+    // 連勝挑戰：關卡有各自嘅戰場條件（對雙方對稱），對手個性亦按關卡順序輪替，
+    // 玩家可以預先準備卡組——單人／PvP 模式照舊行標準規則、隨機對手
+    const cond = mode === 'gauntlet' ? stageCondition(stage) : null;
 
     // AI 個性＋預組卡組
-    const pid = randomPersonality();
+    const pid = mode === 'gauntlet' ? stagePersonality(stage) : randomPersonality();
     const personality = PERSONALITIES[pid];
 
     // 卡牌等級：玩家用自己存檔；AI 全卡組跟玩家平均等級走，保持公平
@@ -760,6 +764,7 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
         // 高關卡嘅難度靠 AIController 嘅「戰術銳化」（諗嘢快、識數牌捉時機、識分路施壓），
         // 唔靠聖水暴脹呢啲機制作弊（以前 +15% 冇上限，第 8 關 1.75× 變咗無限戰象）
         enemyElixirRate: mode === 'gauntlet' ? Math.min(1.2, 1 + Math.max(0, stage - 3) * 0.05) : 1,
+        ...conditionOpts(cond),
     });
     ai = new AIController(game, actualDiff, pid, mode === 'gauntlet' ? stage : 0);
     window.__royale = { game, ai, renderer, startMatch, cleanupMatch }; // 畀自動化測試用
@@ -768,6 +773,9 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
     arena.setMood?.(0);
     const stageTag = mode === 'gauntlet' ? `第 ${stage} 關 · ` : '';
     ui.banner(`⚔️ ${stageTag}對手：${personality.icon} ${personality.name}`, 1600);
+    // 戰場條件要喺開打前講清楚（唔講就等於隱藏規則），所以排喺對手橫額之後
+    if (cond) ui.banner(`${cond.icon} ${cond.name}：${cond.desc}`, 3200, 1700);
+    ui.setCondition?.(cond);
     running = true;
 }
 

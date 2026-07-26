@@ -131,3 +131,18 @@ Progress, temporary debugging notes, and next tasks belong in `HANDOFF.md`.
 - Reason: post-processing render targets can exhaust memory on some phones, but
   lowering quality globally to protect a minority both dulls the image and removes
   the canvas antialiasing that EffectComposer bypasses.
+
+## ADR-013: Royale gauntlet stages vary through symmetric battlefield conditions
+
+- Date: 2026-07-26
+- Status: accepted
+- Decision: gauntlet stage variety comes from `games/royale/src/gauntlet.js`, a
+  data table of conditions that apply equally to both sides, plus a deterministic
+  opponent rotation. `Game` accepts a `rules` override (merged over `GAME_RULES`),
+  `towerHpMult`, and `fountainFromStart`, and every rule read inside the match
+  goes through `this.rules`, including `ai.js` and `ui.js`. Conditions must never
+  override `elixirMax`, and must never favour one side.
+- Reason: stages previously differed only by difficulty label, so the ladder felt
+  identical from stage 3 onwards. Making difficulty come from asymmetric numbers
+  is exactly what ADR-007 forbids, and reading `GAME_RULES` directly made
+  per-match rules impossible without editing shared constants.

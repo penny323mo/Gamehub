@@ -1,7 +1,7 @@
 // PvP Host-Relay 支援 —— host 跑晒個 Game 模擬並廣播快照；guest 淨係接收快照嚟渲染，
 // 唔會本機運算戰鬥（保證雙方見到嘅結果一致，唔使處理浮點誤差累積嘅同步漂移問題）
 import * as THREE from 'three';
-import { TEAM, ARENA } from './constants.js';
+import { TEAM, ARENA, GAME_RULES } from './constants.js';
 import { CARDS } from './cards.js';
 import { makeUnitModel, makePrincessTower, makeKingTower } from './models.js';
 import { makeHpBar, disposeDeep } from './game.js';
@@ -61,7 +61,8 @@ export function sendGuestPlay(handIdx, x, z) {
 export class GuestGame {
     constructor(scene) {
         this.scene = scene;
-        this.time = 180;
+        this.rules = GAME_RULES; // PvP 一律行標準規則（戰場條件只喺連勝挑戰出現）
+        this.time = GAME_RULES.matchTime;
         this.phase = 'regulation';
         this.result = null;
         this.crowns = { [TEAM.PLAYER]: 0, [TEAM.ENEMY]: 0 };

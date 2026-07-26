@@ -1,6 +1,7 @@
 // UI — 手牌、聖水、計時、畫面切換、拖放操作（滑鼠 + 觸控）、進度/卡組/挑戰/結算
 import { CARDS, CARD_POOL } from './cards.js';
 import { TEAM, GAME_RULES } from './constants.js';
+import { stageCondition } from './gauntlet.js';
 import {
     getStats, getDailyChallenges, getDecks, setDeck, getActiveDeck, setActiveDeck,
     cardLevel, cardShards, SHARDS_PER_LEVEL, MAX_LEVEL, getAchievements,
@@ -308,15 +309,28 @@ export class UI {
     showStart() {
         this.refreshProfile();
         clearTimeout(this.endRevealTimer); // 撳投降走人嗰陣，唔好畀 1.4s 後嘅結算畫面彈上嚟蓋住選單
+        clearTimeout(this.bannerDelayTimer);
+        this.setCondition(null);
         this.$('screen-start').classList.remove('hidden');
         this.$('screen-end').classList.add('hidden');
         this.$('screen-matching').classList.add('hidden');
         this.$('hud').classList.add('hidden');
     }
 
+    // 戰場條件章：null = 標準規則就收起。整場都睇得到，唔止開場橫額閃一次
+    setCondition(cond) {
+        const el = this.$('condition-chip');
+        if (!cond) { el.classList.add('hidden'); el.textContent = ''; return; }
+        el.textContent = `${cond.icon} ${cond.name}`;
+        el.title = `${cond.name}：${cond.desc}（雙方一樣）`;
+        el.classList.remove('hidden');
+    }
+
     showGame() {
         this.hideReconnectBar(); // 入咗場就唔使再提重連
         clearTimeout(this.endRevealTimer);
+        clearTimeout(this.bannerDelayTimer); // 上一場排咗隊但未出嘅橫額唔好走漏到新一場
+        this.setCondition(null);              // 由 startMatch 決定要唔要，PvP／LV2 一律冇
         this.$('screen-start').classList.add('hidden');
         this.$('screen-end').classList.add('hidden');
         this.$('screen-matching').classList.add('hidden');
@@ -354,6 +368,13 @@ export class UI {
             gEl.textContent = win
                 ? `🔥 連勝挑戰：第 ${extra.stage} 關通過！`
                 : `🔥 連勝挑戰喺第 ${extra.stage} 關止步`;
+            // 贏咗就預告下一關嘅條件，畀玩家撳「下一關」之前有機會改卡組
+            if (win) {
+                const nc = stageCondition(extra.stage + 1);
+                gEl.textContent += nc
+                    ? ` 下一關條件：${nc.icon} ${nc.name}（${nc.desc}）`
+                    : ' 下一關：標準規則';
+            }
             nextBtn.classList.toggle('hidden', !win);
             this.$('again-btn').classList.toggle('hidden', win);
         } else {
@@ -409,7 +430,13 @@ export class UI {
         }, win ? 2800 : 1400); // 贏波延遲耐啲先彈結算，畀勝利煙花放晒（5 束 × 0.42s + 0.9s 餘燼）
     }
 
-    banner(text, dur = 1800) {
+    // delay > 0：排隊喺 delay 之後才出，畀前一條橫額講完先（開場「對手」→「戰場條件」）
+    banner(text, dur = 1800, delay = 0) {
+        if (delay > 0) {
+            clearTimeout(this.bannerDelayTimer);
+            this.bannerDelayTimer = setTimeout(() => this.banner(text, dur), delay);
+            return;
+        }
         const b = this.$('banner');
         b.textContent = text;
         b.classList.remove('hidden');
@@ -583,7 +610,7 @@ export class UI {
         }
 
         // 聖水條係連續動畫，照每幀寫；boost class 就 gate 住
-        H.elixirFill.style.width = `${(p.elixir / GAME_RULES.elixirMax) * 100}%`;
+        H.elixirFill.style.width = `${(p.elixir / g.rules.elixirMax) * 100}%`;
         const boost = g.elixirMultiplier() > 1;
         if (boost !== this._lastBoost) { this._lastBoost = boost; H.elixirFill.classList.toggle('boost', boost); }
 
@@ -592,7 +619,7 @@ export class UI {
         if (t !== this._lastT || g.phase !== this._lastPhase) {
             H.timer.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
             H.timer.classList.toggle('urgent', g.phase === 'overtime' || t <= 30);
-            const inClimax = g.phase === 'overtime' && g.time <= GAME_RULES.climaxWindow;
+            const inClimax = g.phase === 'overtime' && g.time <= g.rules.climaxWindow;
             H.phase.textContent = inClimax ? '🔥 決勝一刻 傷害提升'
                 : g.phase === 'overtime' ? '⚡ 加時 突然死亡'
                 : boost ? '💧 雙倍聖水' : '';

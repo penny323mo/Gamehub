@@ -418,7 +418,13 @@ body {
     text-shadow: 0 2px 4px rgba(0, 0, 0, .8);
     pointer-events: none;
     animation: bannerPop .35s ease-out;
-    white-space: nowrap;
+    /* 長橫額（例如連勝關卡嘅戰場條件說明）要摺行，唔好左右衝出畫面。
+       width: max-content 係必需嘅：left: 50% 令可用寬度只有容器一半，
+       淨靠 max-width 會迫到剩返五、六個字一行 */
+    width: max-content;
+    max-width: min(92vw, 620px);
+    text-align: center;
+    line-height: 1.25;
     z-index: 30;
 }
 
@@ -1154,6 +1160,29 @@ body {
 }
 
 /* ---------- 對手已出卡 ---------- */
+/* 連勝挑戰戰場條件：擺喺計時器下面正中（左邊係對手出牌記錄、右邊係鏡頭鍵，中間得閒） */
+#condition-chip {
+    position: absolute;
+    top: calc(max(8px, env(safe-area-inset-top)) + 58px); /* 完全低過皇冠盒，窄機都唔會撞 */
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: min(70vw, 320px);
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #ffe9c2;
+    background: rgba(58, 34, 10, .78);
+    border: 1.5px solid rgba(255, 196, 92, .55);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .35);
+    pointer-events: none;
+    z-index: 4;
+}
+
 #enemy-played {
     position: absolute;
     top: 56px;

@@ -151,7 +151,7 @@ export function makeHpBar(width, team) {
 
 // ---------- 實體 ----------
 class Entity {
-    constructor({ team, cardId, x, z, isTower = false, towerKind = null, levelMult = 1 }) {
+    constructor({ team, cardId, x, z, isTower = false, towerKind = null, levelMult = 1, hpMult = 1 }) {
         this.id = nextId++;
         this.team = team;
         this.cardId = cardId;
@@ -169,8 +169,8 @@ class Entity {
 
         if (isTower) {
             const spec = TOWERS[towerKind];
-            this.maxHp = spec.hp;
-            this.hp = spec.hp;
+            this.maxHp = Math.round(spec.hp * hpMult); // 連勝挑戰「堅城」條件會加厚雙方城塔
+            this.hp = this.maxHp;
             this.dmg = spec.dmg;
             this.hitSpeed = spec.hitSpeed;
             this.range = spec.range;
@@ -208,7 +208,7 @@ class Entity {
 
 // ---------- 玩家狀態（卡組循環 + 聖水）----------
 class PlayerState {
-    constructor(deck) {
+    constructor(deck, startElixir = GAME_RULES.elixirStart) {
         this.deck = [...deck];
         // 洗牌
         for (let i = this.deck.length - 1; i > 0; i--) {
@@ -217,7 +217,7 @@ class PlayerState {
         }
         this.queue = [...this.deck];
         this.hand = this.queue.splice(0, 4);
-        this.elixir = GAME_RULES.elixirStart;
+        this.elixir = startElixir;
         this.elixirT = 0;
     }
     get next() { return this.queue[0]; }
@@ -234,17 +234,23 @@ export class Game {
     constructor(scene, playerDeck, enemyDeck, hooks = {}, opts = {}) {
         this.scene = scene;
         this.hooks = hooks; // { onTowerDestroyed, onGameOver, onKingActivated, onSpawn, onSpell, onSpellHit }
+        // 規則可以按場覆寫（連勝挑戰嘅戰場條件用），冇覆寫就直接用常數物件。
+        // 條件對雙方對稱，所以呢個表冇分隊伍。elixirMax 唔可以覆寫：HUD 嘅聖水
+        // 格數開場建立一次，改上限會令格數同水量對唔上。
+        this.rules = opts.rules ? { ...GAME_RULES, ...opts.rules, elixirMax: GAME_RULES.elixirMax } : GAME_RULES;
+        this.towerHpMult = opts.towerHpMult ?? 1;
+        this.fountainAlways = !!opts.fountainFromStart;
         this.entities = [];
         this.projectiles = [];
         this.effects = [];
         this.fxQueue = [];    // 待廣播畀 guest 嘅一次性視覺事件（見 #pushFx）
         this.hpBars = [];
         this.players = {
-            [TEAM.PLAYER]: new PlayerState(playerDeck),
-            [TEAM.ENEMY]: new PlayerState(enemyDeck),
+            [TEAM.PLAYER]: new PlayerState(playerDeck, this.rules.elixirStart),
+            [TEAM.ENEMY]: new PlayerState(enemyDeck, this.rules.elixirStart),
         };
         this.crowns = { [TEAM.PLAYER]: 0, [TEAM.ENEMY]: 0 };
-        this.time = GAME_RULES.matchTime;
+        this.time = this.rules.matchTime;
         this.phase = 'regulation'; // regulation | overtime | ended
         this.result = null;
         this.simTime = 0;
@@ -283,6 +289,7 @@ export class Game {
                 const t = new Entity({
                     team, isTower: true, towerKind: 'princess',
                     x: side * TOWERS.princess.x, z: sz * TOWERS.princess.z,
+                    hpMult: this.towerHpMult,
                 });
                 t.model = makePrincessTower(team);
                 this.#addEntity(t, towerTop(t.model));
@@ -291,6 +298,7 @@ export class Game {
             const k = new Entity({
                 team, isTower: true, towerKind: 'king',
                 x: 0, z: sz * TOWERS.king.z,
+                hpMult: this.towerHpMult,
             });
             k.model = makeKingTower(team);
             this.#addEntity(k, towerTop(k.model));
@@ -516,7 +524,7 @@ export class Game {
             if (e.dead || e.team === team) continue;
             if (dist(e, { x, z }) <= card.splash + e.radius) {
                 const base = card.dmg * mult;
-                const dmg = e.isTower ? base * GAME_RULES.spellTowerFactor : base;
+                const dmg = e.isTower ? base * this.rules.spellTowerFactor : base;
                 if (!e.isTower) unitsHit += 1;
                 this.#damage(e, dmg, { team, cardId: card.id });
                 // 冰凍對塔一樣有效（塔嘅攻擊節奏行 slowMult）——
@@ -1038,15 +1046,15 @@ export class Game {
 
     // ---------- 聖水倍率 ----------
     elixirMultiplier() {
-        if (this.phase === 'overtime') return GAME_RULES.overtimeElixirMult;
-        if (this.time <= GAME_RULES.doubleElixirAt) return 2;
+        if (this.phase === 'overtime') return this.rules.overtimeElixirMult;
+        if (this.time <= this.rules.doubleElixirAt) return 2;
         return 1;
     }
 
     // ---------- 決勝加成：加時最後幾秒雙方攻擊力提升，谷落決勝負 ----------
     #climaxMult() {
-        return (this.phase === 'overtime' && this.time <= GAME_RULES.climaxWindow)
-            ? GAME_RULES.climaxDmgMult : 1;
+        return (this.phase === 'overtime' && this.time <= this.rules.climaxWindow)
+            ? this.rules.climaxDmgMult : 1;
     }
 
     // ---------- 尋路 ----------
@@ -1299,7 +1307,7 @@ export class Game {
                     return;
                 }
                 this.phase = 'overtime';
-                this.time = GAME_RULES.overtimeTime;
+                this.time = this.rules.overtimeTime;
                 this.overtimeExtensions = 0;
                 this.climaxNotified = false;
                 this.hooks.onOvertime?.();
@@ -1310,9 +1318,9 @@ export class Game {
                     return;
                 }
                 // 加時完仲打和：唔好即刻靠塔血比大細完場，再延長一節（有次數上限保證一定完結）
-                if (this.overtimeExtensions < GAME_RULES.maxOvertimeExtensions) {
+                if (this.overtimeExtensions < this.rules.maxOvertimeExtensions) {
                     this.overtimeExtensions += 1;
-                    this.time = GAME_RULES.overtimeExtension;
+                    this.time = this.rules.overtimeExtension;
                     this.climaxNotified = false;
                     this.hooks.onOvertimeExtend?.(this.overtimeExtensions);
                 } else {
@@ -1332,7 +1340,7 @@ export class Game {
         }
 
         // 加時決勝一刻：淨係通知一次
-        if (this.phase === 'overtime' && !this.climaxNotified && this.time <= GAME_RULES.climaxWindow) {
+        if (this.phase === 'overtime' && !this.climaxNotified && this.time <= this.rules.climaxWindow) {
             this.climaxNotified = true;
             this.hooks.onClimax?.();
         }
@@ -1343,14 +1351,15 @@ export class Game {
             const p = this.players[team];
             const rate = team === TEAM.ENEMY ? this.enemyElixirRate : 1;
             p.elixirT += dt * mult * rate;
-            while (p.elixirT >= GAME_RULES.elixirInterval) {
-                p.elixirT -= GAME_RULES.elixirInterval;
-                p.elixir = Math.min(GAME_RULES.elixirMax, p.elixir + 1);
+            while (p.elixirT >= this.rules.elixirInterval) {
+                p.elixirT -= this.rules.elixirInterval;
+                p.elixir = Math.min(this.rules.elixirMax, p.elixir + 1);
             }
         }
 
         // 加時聖水泉：河心有自己單位就每 3 秒多 1 滴
-        if (this.phase === 'overtime') {
+        // （連勝挑戰「聖水泉常開」條件會由開場就通，雙方一樣可以搶）
+        if (this.phase === 'overtime' || this.fountainAlways) {
             if (!this.fountain) this.#makeFountain();
             this.fountainT += dt;
             if (this.fountainT >= 3) {
@@ -1361,7 +1370,7 @@ export class Game {
                         e.deployT <= 0 && dist(e, { x: 0, z: 0 }) <= 2.6);
                     if (near) {
                         const p = this.players[team];
-                        p.elixir = Math.min(GAME_RULES.elixirMax, p.elixir + 1);
+                        p.elixir = Math.min(this.rules.elixirMax, p.elixir + 1);
                         this.#particles(0, 0, 0xd06aff, 6, 2, 0.5);
                     }
                 }
@@ -1397,7 +1406,7 @@ export class Game {
                 if (e.genT >= e.card.elixirGen.interval) {
                     e.genT -= e.card.elixirGen.interval;
                     const p = this.players[e.team];
-                    p.elixir = Math.min(GAME_RULES.elixirMax, p.elixir + e.card.elixirGen.amount);
+                    p.elixir = Math.min(this.rules.elixirMax, p.elixir + e.card.elixirGen.amount);
                     this.#particles(e.x, e.z, 0xd06aff, 5, 1.6, 0.9);
                 }
             }

@@ -1,5 +1,5 @@
 // AI 對手 — 防守反應 + 進攻推線 + 法術運用 + 三種打法個性
-import { TEAM, ARENA, GAME_RULES } from './constants.js';
+import { TEAM, ARENA } from './constants.js';
 import { CARDS } from './cards.js';
 
 const DIFFICULTY = {
@@ -65,7 +65,7 @@ export class AIController {
         this.recentPlays = []; // 最近成功出過嘅卡 id（防止同一張卡連環抌）
         // 聖水數牌：同真人一樣「靠睇」估對手水量——由開局 5 滴計起，
         // 見到佢出卡就扣返，回復用大家都知嘅官方倍率推算。絕唔偷睇真值。
-        this.oppElixir = GAME_RULES.elixirStart;
+        this.oppElixir = game.rules.elixirStart;
         this.oppSeen = 0; // 已入賬嘅 playedCards index
     }
 
@@ -79,8 +79,8 @@ export class AIController {
             const c = CARDS[played[this.oppSeen++]];
             if (c) this.oppElixir = Math.max(0, this.oppElixir - c.cost);
         }
-        this.oppElixir = Math.min(GAME_RULES.elixirMax,
-            this.oppElixir + (dt * g.elixirMultiplier()) / GAME_RULES.elixirInterval);
+        this.oppElixir = Math.min(g.rules.elixirMax,
+            this.oppElixir + (dt * g.elixirMultiplier()) / g.rules.elixirInterval);
 
         this.timer -= dt;
         this.spellCd -= dt;
@@ -120,7 +120,7 @@ export class AIController {
         const threshold = Math.max(4, this.cfg.attackElixir + punish + wary - this.sharp);
         if (me.elixir >= threshold) {
             const attacked = this.tryAttack();
-            if (!attacked && me.elixir >= GAME_RULES.elixirMax) this.playAnyCheap();
+            if (!attacked && me.elixir >= g.rules.elixirMax) this.playAnyCheap();
         }
     }
 
