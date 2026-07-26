@@ -256,3 +256,18 @@ Progress, temporary debugging notes, and next tasks belong in `HANDOFF.md`.
   warns a PvP guest before the impact. Sending remaining time survives lower snapshot
   rates without restarting a full warning, and preserving the real simulation as the
   authority avoids visual UI changing game balance.
+
+## ADR-022: Royale regression checks live in the repository, not in an agent sandbox
+
+- Date: 2026-07-26
+- Status: accepted
+- Decision: the Royale checks a handoff cites must exist under
+  `games/royale/tests/` and run through `npm test` there. `lib/harness.mjs` owns
+  the static server, browser resolution, tutorial suppression, and scoring, so a
+  test file contains only its assertions. The leak-gate baseline lives in
+  `leak.mjs`; changing it requires saying why in the handoff.
+- Reason: the suite previously existed only inside one cloud session's temporary
+  directory. A receiving agent could read "leak gate 116 geometries" and had no way
+  to reproduce it, which breaks the handoff exactly where verification matters. It
+  also meant a feature landing in one agent's session, such as the first-run
+  tutorial modal, silently broke automation the other agent could not see.

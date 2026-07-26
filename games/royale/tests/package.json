@@ -1,0 +1,12 @@
+{
+  "name": "royale-tests",
+  "private": true,
+  "type": "module",
+  "description": "Empire Royale 回歸測試（唔屬於遊戲執行期，Pages 部署唔會用到）",
+  "scripts": {
+    "test": "node run-all.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.1"
+  }
+}

@@ -27,7 +27,7 @@ Ashen Rail during deployment.
 | Snooker | `games/snooker/index.html` | 2D and 3D modes plus shared `games/snooker/online.js`. |
 | Tower Defense | `games/tower/dist/index.html` | Vite + TypeScript + Three.js; tracked `dist/` is the hub target. |
 | Neon Snake | `games/snake-game/dist/index.html` | React + Vite + TypeScript; tracked `dist/` is the hub target. |
-| Empire Royale | `games/royale/index.html` | Static ES modules + vendored Three.js. Two modes: Clash-style lane battle (`game.js`, `ai.js`) and LV2 age-of-empires RTS (`src/rts/`). Shared: `models.js`, `rig.js` (procedural bone animation), `sfx.js`, `net.js`/`pvp.js` (Supabase PvP), `leaderboard.js`, `storage.js`. |
+| Empire Royale | `games/royale/index.html` | Static ES modules + vendored Three.js. Two modes: Clash-style lane battle (`game.js`, `ai.js`) and LV2 age-of-empires RTS (`src/rts/`). Shared: `models.js`, `rig.js` (procedural bone animation), `sfx.js`, `net.js`/`pvp.js` (Supabase PvP), `leaderboard.js`, `storage.js`, `gauntlet.js`, `profiles.js`. Regression suite in `games/royale/tests/`. |
 | Ashen Rail | `games/ashen-rail/dist/index.html` | Self-contained Vite + TypeScript + Babylon.js bonus game; CI builds `dist/`. |
 | Xiangqi AI | `games/xiangqi-ai/dist/index.html` | Vite + Three.js; hub targets tracked `dist/`. |
 | Database | `supabase/migrations/` | Append-only numbered migrations; never edit an applied migration casually. |
@@ -126,6 +126,21 @@ tests or existing self-check hooks where present, syntax/import checks where
 useful, and a real browser smoke for the changed flow. Online-mode changes require
 multi-client verification and must state whether Supabase migrations were merely
 added or actually applied.
+
+Royale has a committed regression suite. Run it for any change under
+`games/royale/`:
+
+```sh
+cd games/royale/tests
+npm install        # once
+npm test           # leak, gauntlet, combat, pvp-guest, match; non-zero exit on failure
+```
+
+It covers the ADR invariants that are cheap to break silently: the GPU leak gate
+(ADR-008), gauntlet condition symmetry (ADR-007/013), the `Game#damage` funnel,
+PvP guest viewpoint mapping (ADR-011), and match lifecycle. See
+`games/royale/tests/README.md`. The suite is test-only; production still needs no
+build step.
 
 Royale specifics that repeatedly matter:
 
