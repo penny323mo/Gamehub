@@ -3,83 +3,87 @@
 Updated: 2026-07-26 (Asia/Macau)
 Prepared by: Codex (local)
 Integration branch: `main`
-Baseline before this task: `69ac9e6`
-Status: Royale 12-second highlight replay implemented and browser verified
+Baseline before this task: `7cd3197`
+Status: Royale deployment feedback implemented and browser verified
 
 ## Current objective
 
-Let single-player and gauntlet players replay the visible finish of a completed
-match without re-running simulation, changing rewards, or exposing hidden state.
+Make touch card deployment readable before and after release without changing
+placement legality, leaking hidden state, or adding simulation cost.
 
 ## Completed
 
-- Added `🎬 重播決勝片段` to eligible result screens plus a replay progress bar
-  and explicit `返回結算` control.
-- Single-player and gauntlet keep an in-memory ring of the latest 12 seconds at
-  5Hz, including a forced final frame. PvP and LV2 do not record these frames.
-- Every stored frame removes enemy hand, elixir, and next-card data before it can
-  enter the replay buffer. The player's own visible hand remains available.
-- Playback feeds snapshots to `GuestGame` in the local player's orientation. It
-  does not run `Game.update`, AI, result callbacks, score submission, or rewards.
-- Generalized `GuestGame` orientation while preserving its default flipped PvP
-  guest behavior.
-- Replay can be exited manually or returns to the unchanged result automatically;
-  match recap and replay button remain available for another viewing.
-- Replay objects use the existing deep cleanup path and release their GPU meshes.
+- Selecting an affordable card now immediately shows its name, instruction, and
+  the pulsing blue legal deployment zones. Spell selection explains that the
+  whole battlefield is valid.
+- Dragging updates a compact status pill: green means release to deploy, red gives
+  the exact public failure reason, including low elixir, own-side restriction,
+  locked tower pocket, or collision with a tower/building.
+- A successful local release confirms the card name, action, and elixir cost for
+  850ms; a PvP guest instead says it is waiting for host confirmation. Failures
+  remain visible for the same interval instead of relying on error audio.
+- Added `placementInfo` to `Game` and `GuestGame`. Existing `validPlacement` and
+  `playCard` use its position, so preview and execution cannot drift apart.
+- Guest placement checks derive building/tower collision radii from visible
+  snapshot entities while preserving the host's final authority.
+- Placement DOM writes are keyed, avoiding repeated live-region and layout writes
+  while a pointer remains in the same state.
+- Portrait and landscape status-pill positions keep a 10px gap above the hand.
 
 ## Changed files
 
 - `games/royale/index.html`
 - `games/royale/style.css`
-- `games/royale/src/ui.js`
+- `games/royale/src/arena.js`
+- `games/royale/src/game.js`
 - `games/royale/src/pvp.js`
+- `games/royale/src/ui.js`
 - `games/royale/src/main.js`
-- `docs/ai/DECISIONS.md` (ADR-018)
+- `docs/ai/DECISIONS.md` (ADR-019)
 - `docs/ai/HANDOFF.md`
 
 ## Verification
 
-- `node --check` for changed Royale JS: PASS.
-- HTML duplicate-id and UI DOM-reference contract: PASS (129 ids / 82 refs).
-- Live ring-buffer fixture retained 61 frames spanning 12.0 seconds; its forced
-  final frame had `phase=ended` and the correct winner.
-- All 61 frames had empty enemy hands, zero enemy elixir, and no enemy next card;
-  the player's visible hand remained populated.
-- Manual exit and automatic return both restored the result screen. Two full
-  viewings left recorded wins unchanged at 2.
-- A clean replay cycle returned renderer geometry from the 115 baseline to 115
-  after disposal.
-- Portrait (390x844) and landscape (844x390) browser checks passed. Replay hid the
-  deploy hand, retained camera controls, and produced no horizontal overflow.
-- Default PvP guest mapping still swaps teams and flips world x; local replay
-  mapping preserves teams and x.
+- `node --check` for all changed Royale JS: PASS.
+- HTML duplicate-id and UI DOM-reference contract: PASS (133 ids / 86 refs).
+- Selecting an archer showed `藍色區域可部署`; the own-zone mesh was visible and
+  its opacity changed from 0.144 to 0.152 over 220ms.
+- Enemy-side knight preview showed `只可以放己方半場或已攻陷區域`; release kept
+  entity count at 6.
+- Own-side archer preview showed `放手部署`; release showed `已部署`, reduced
+  elixir from 5 to 2, and increased entities from 6 to 8.
+- Placement fixtures returned `blocked-building`, `building-own-side`, and
+  `locked-pocket`; own-side unit and whole-map spell fixtures returned positions.
+- Default flipped guest accepted z=-6 and local replay accepted z=+6. Both rejected
+  a watchtower over their own king tower as `blocked-building`.
+- Guest mirror create/dispose stayed flat at 157 geometries; a clean match/menu
+  cycle returned from 157 to the 115 menu baseline.
+- At 390x844, feedback bottom was 692 and hand top was 702. At 844x390, feedback
+  bottom was 246 and hand top was 256. Both had zero horizontal overflow.
 - Console had no functional errors; only the existing root `/favicon.ico` 404.
 - `git diff --check`: PASS.
 
 ## Known issues and cautions
 
-- This is a 5Hz snapshot highlight, not video or a deterministic simulation. Very
-  short animation transitions can look stepped.
-- Frames exist only for the current completed match and disappear on a new match
-  or page reload.
-- Live two-device Supabase PvP remains unavailable in the local sandbox, though
-  the existing flipped guest mapping has a local regression check.
+- PvP still needs a real two-device Supabase test; local guest snapshot mapping and
+  visible collision rules passed, but host rejection timing is not network-tested.
+- Placement feedback intentionally does not predict future movement, AI intent,
+  target choice, or whether a unit is tactically wise.
 - Existing device-specific black-flash verification remains unresolved.
 
 ## Exact next action
 
-1. Receiving agent runs `./scripts/agent-context.sh --sync`, then reads ADR-018
-   before changing replay capture, hidden-state filtering, or snapshot mapping.
-2. Penny can judge on a real phone whether 1x speed and the 12-second window feel
-   right after a busy finish.
-3. Next gameplay/visual round should improve deployment feedback or add simple
-   replay pause/speed controls only if real play shows a need.
+1. Receiving agent runs `./scripts/agent-context.sh --sync`, then reads ADR-019
+   before changing placement preview or `validPlacement`.
+2. Penny can judge on a real phone whether the 850ms result confirmation feels
+   long enough without covering combat.
+3. Next gameplay/visual round should improve unit readability in dense fights or
+   add replay pause/speed only if real play indicates the need.
 
 ## Do not redo
 
-- Do not retain or render enemy hand, elixir, next card, AI intent, or future state.
-- Do not turn playback into a second simulation or fire result/reward callbacks.
-- Do not persist replay snapshots or extend them to PvP without a two-client
-  privacy and mapping test.
+- Do not duplicate placement bounds or pocket logic in UI code.
+- Do not use hidden hand, AI intent, or future state in placement feedback.
+- Do not let a PvP guest bypass host-side placement validation.
 - Do not persist detailed match telemetry without explicit authorization.
 - Do not amend, rebase, or force-push published `main` history.

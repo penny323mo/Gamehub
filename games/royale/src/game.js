@@ -334,15 +334,15 @@ export class Game {
     }
 
     // ---------- 部署驗證 ----------
-    // 回傳 null = 無效；否則 {x, z}
-    validPlacement(team, cardId, x, z) {
+    // 預覽同真正出牌共用同一條規則，避免 UI 顯示綠燈但 playCard 又拒絕。
+    placementInfo(team, cardId, x, z) {
         const card = CARDS[cardId];
+        if (!card) return { pos: null, reason: 'invalid-card' };
         const hw = ARENA.halfW - 0.4, hl = ARENA.halfL - 0.5;
         x = Math.max(-hw, Math.min(hw, x));
         z = Math.max(-hl, Math.min(hl, z));
-        if (card.kind === 'spell') return { x, z };
+        if (card.kind === 'spell') return { pos: { x, z }, reason: null };
 
-        const dir = teamDir(team); // 玩家 -1（向上攻），自己半場 z>0
         const ownSide = (zz) => (team === TEAM.PLAYER ? zz : -zz);
         const zSide = ownSide(z);
 
@@ -351,20 +351,28 @@ export class Game {
             if (card.kind === 'building') {
                 for (const e of this.entities) {
                     if (e.dead || (!e.isBuilding && !e.isTower)) continue;
-                    if (dist(e, { x, z }) < e.radius + (card.radius ?? 0.6) + 0.5) return null;
+                    if (dist(e, { x, z }) < e.radius + (card.radius ?? 0.6) + 0.5) {
+                        return { pos: null, reason: 'blocked-building' };
+                    }
                 }
             }
-            return { x, z }; // 自己半場
+            return { pos: { x, z }, reason: null }; // 自己半場
         }
-        if (card.kind === 'building') return null; // 建築只可以喺自己半場
+        if (card.kind === 'building') return { pos: null, reason: 'building-own-side' };
 
         // 口袋區：對面公主塔冧咗先可以擺嗰半邊
         if (zSide <= -(ARENA.riverHalf + 0.25) && zSide >= -9.5) {
             const enemy = team === TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
             const towerSide = x < 0 ? 'left' : 'right';
-            if (this.towers[enemy][towerSide].dead) return { x, z };
+            if (this.towers[enemy][towerSide].dead) return { pos: { x, z }, reason: null };
+            return { pos: null, reason: 'locked-pocket' };
         }
-        return null;
+        return { pos: null, reason: 'own-side' };
+    }
+
+    // 舊 caller 保持只收 {x,z} / null；詳細原因只供部署預覽使用。
+    validPlacement(team, cardId, x, z) {
+        return this.placementInfo(team, cardId, x, z).pos;
     }
 
     // ---------- 出卡 ----------

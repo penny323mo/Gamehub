@@ -102,27 +102,46 @@ export class GuestGame {
     // 同 game.js 一樣嘅部署合法性檢查（畀 guest 本機出兵前預覽用，實際落子仲係由 host 話事）。
     // 座標永遠係 host 世界系：guest（呢度嘅 TEAM.PLAYER）自己半場係 z<0，
     // 所以 ownSide 要用 game.js 嘅相反轉換——host 收到之後會以 TEAM.ENEMY 覆核同一落點。
-    validPlacement(team, cardId, x, z) {
+    placementInfo(team, cardId, x, z) {
         const card = CARDS[cardId];
-        if (!card) return null;
+        if (!card) return { pos: null, reason: 'invalid-card' };
         const hw = ARENA.halfW - 0.4, hl = ARENA.halfL - 0.5;
         x = Math.max(-hw, Math.min(hw, x));
         z = Math.max(-hl, Math.min(hl, z));
-        if (card.kind === 'spell') return { x, z };
+        if (card.kind === 'spell') return { pos: { x, z }, reason: null };
 
         const ownSide = (zz) => this.flipTeams
             ? (team === TEAM.PLAYER ? -zz : zz)
             : (team === TEAM.PLAYER ? zz : -zz);
         const zSide = ownSide(z);
-        if (zSide >= ARENA.riverHalf + 0.25) return { x, z };
-        if (card.kind === 'building') return null;
+        if (zSide >= ARENA.riverHalf + 0.25) {
+            if (card.kind === 'building') {
+                for (const e of this.entities) {
+                    const isBuilding = CARDS[e.cardId]?.kind === 'building';
+                    if (e.dead || (!isBuilding && !e.isTower)) continue;
+                    const radius = e.isTower
+                        ? (e.towerKind === 'king' ? 1.5 : 1.0)
+                        : (CARDS[e.cardId]?.radius ?? 0.6);
+                    if (Math.hypot(e.x - x, e.z - z) < radius + (card.radius ?? 0.6) + 0.5) {
+                        return { pos: null, reason: 'blocked-building' };
+                    }
+                }
+            }
+            return { pos: { x, z }, reason: null };
+        }
+        if (card.kind === 'building') return { pos: null, reason: 'building-own-side' };
 
         if (zSide <= -(ARENA.riverHalf + 0.25) && zSide >= -9.5) {
             const enemy = team === TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
             const towerSide = x < 0 ? 'left' : 'right';
-            if (this.towers[enemy]?.[towerSide]?.dead) return { x, z };
+            if (this.towers[enemy]?.[towerSide]?.dead) return { pos: { x, z }, reason: null };
+            return { pos: null, reason: 'locked-pocket' };
         }
-        return null;
+        return { pos: null, reason: 'own-side' };
+    }
+
+    validPlacement(team, cardId, x, z) {
+        return this.placementInfo(team, cardId, x, z).pos;
     }
     updateHpBarOrientation(quaternion) {
         // 同 game.js 一樣嘅 early-out：鏡頭冇郁、血條數冇變就唔使逐條 copy
@@ -300,6 +319,7 @@ export class GuestGame {
         this.hpBars.push(hpBar);
         return {
             id: es.id, team: es.team, cardId: es.cardId, isTower: es.isTower,
+            towerKind: es.towerKind,
             model, hpBar, prevHp: es.hp, hp: es.hp, maxHp: es.maxHp, dead: false,
         };
     }

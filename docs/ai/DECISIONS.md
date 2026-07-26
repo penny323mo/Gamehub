@@ -212,3 +212,16 @@ Progress, temporary debugging notes, and next tasks belong in `HANDOFF.md`.
 - Reason: a short result-screen highlight helps players understand the finish
   without requiring deterministic replay infrastructure, persistent telemetry,
   or exposing information the player could not see during the match.
+
+## ADR-019: Royale placement preview and card play share one rules path
+
+- Date: 2026-07-26
+- Status: accepted
+- Decision: `Game` and `GuestGame` expose `placementInfo`, which returns the same
+  clamped position used by `validPlacement` plus a bounded public reason code.
+  Selection, drag feedback, and actual card play therefore evaluate one placement
+  rules path. Feedback may use current elixir, destroyed towers, and visible
+  buildings only; the PvP host remains authoritative over the final command.
+- Reason: a red or green ring without an explanation makes touch deployment feel
+  arbitrary, while duplicating placement rules in UI code inevitably creates
+  cases where the preview says yes and `playCard` says no.

@@ -514,7 +514,8 @@ export function buildArena(scene) {
     zones.pocketL.position.set(-ARENA.halfW / 2, 0.06, -(ARENA.riverHalf + 9) / 2);
     zones.pocketR.rotation.x = -Math.PI / 2;
     zones.pocketR.position.set(ARENA.halfW / 2, 0.06, -(ARENA.riverHalf + 9) / 2);
-    for (const z of Object.values(zones)) {
+    for (const [name, z] of Object.entries(zones)) {
+        z.name = `deploy-zone-${name}`;
         z.visible = false;
         z.renderOrder = 5;
         root.add(z);
@@ -543,6 +544,9 @@ export function buildArena(scene) {
             sp.mesh.position.x -= dt * sp.speed;
             if (sp.mesh.position.x < -(ARENA.halfW + 0.4)) sp.mesh.position.x = ARENA.halfW + 0.4;
             sp.mesh.material.opacity = Math.max(0, Math.sin(now * 0.003 + sp.phase)) * 0.7;
+        }
+        if (zones.own.visible) {
+            zoneMat.opacity = 0.14 + (Math.sin(now * 0.005) * 0.5 + 0.5) * 0.1;
         }
     }
 

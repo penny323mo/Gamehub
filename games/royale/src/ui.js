@@ -35,6 +35,8 @@ export class UI {
         this.bannerTimer = null;
         this.tutorialOpen = false;
         this.pressureSummary = null;
+        this.deployFeedbackTimer = null;
+        this._deployFeedbackKey = '';
         this.tutorialStep = 0;
         this.tutorialSteps = [
             {
@@ -410,6 +412,7 @@ export class UI {
         this.$('hud').classList.add('hidden');
         this.$('hud').classList.remove('replay-mode');
         this.$('replay-bar').classList.add('hidden');
+        this.hideDeployFeedback(true);
     }
 
     // 戰場條件章：null = 標準規則就收起。整場都睇得到，唔止開場橫額閃一次
@@ -432,6 +435,7 @@ export class UI {
         this.$('hud').classList.remove('hidden');
         this.$('hud').classList.remove('replay-mode');
         this.$('replay-bar').classList.add('hidden');
+        this.hideDeployFeedback(true);
         this.lastHandKey = '';
         this.lastPlayedKey = '';
         this.$('enemy-played').innerHTML = '';
@@ -449,6 +453,34 @@ export class UI {
         this.$('hud').classList.add('replay-mode');
         this.$('replay-bar').classList.remove('hidden');
         this.$('replay-progress-fill').style.width = '0%';
+        this.hideDeployFeedback(true);
+    }
+
+    showDeployFeedback(card, state, message, hold = false) {
+        if (!card) return;
+        const box = this.$('deploy-feedback');
+        const key = `${card.id}|${state}|${message}|${hold ? 1 : 0}`;
+        if (this._deployFeedbackKey === key && !box.classList.contains('hidden')) return;
+        this._deployFeedbackKey = key;
+        clearTimeout(this.deployFeedbackTimer);
+        box.className = state || 'ready';
+        this.$('deploy-feedback-icon').textContent = card.icon;
+        this.$('deploy-feedback-name').textContent = card.name;
+        this.$('deploy-feedback-message').textContent = message;
+        box.classList.remove('hidden');
+        box.dataset.hold = hold ? '1' : '0';
+        if (hold) {
+            this.deployFeedbackTimer = setTimeout(() => this.hideDeployFeedback(true), 850);
+        }
+    }
+
+    hideDeployFeedback(force = false) {
+        const box = this.$('deploy-feedback');
+        if (!force && box.dataset.hold === '1') return;
+        clearTimeout(this.deployFeedbackTimer);
+        box.dataset.hold = '0';
+        box.classList.add('hidden');
+        this._deployFeedbackKey = '';
     }
 
     updateReplayProgress(ratio) {
@@ -723,6 +755,7 @@ export class UI {
                 this.#refreshSelection();
             }
             this.cb.onDragEnd();
+            if (!this.dragMoved) this.cb.onSelect?.(this.selectedIdx);
         });
         // 揀咗卡之後點/拖戰場都可以落
         const holder = this.$('canvas-holder');

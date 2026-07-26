@@ -430,6 +430,60 @@ body {
     gap: 8px;
 }
 
+/* ---------- 出牌落點回饋 ---------- */
+#deploy-feedback {
+    position: absolute;
+    left: 50%;
+    bottom: calc(max(6px, env(safe-area-inset-bottom)) + 146px);
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 190px;
+    max-width: min(88vw, 380px);
+    padding: 7px 12px 7px 9px;
+    border: 1.5px solid rgba(255, 220, 130, .7);
+    border-radius: 999px;
+    background: rgba(24, 31, 17, .9);
+    color: #f6edcf;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .42);
+    pointer-events: none;
+    z-index: 13;
+    transition: border-color .12s, background .12s, transform .12s;
+}
+
+#deploy-feedback.hidden { display: none; }
+#deploy-feedback.valid { border-color: #69e98c; background: rgba(19, 65, 33, .92); }
+#deploy-feedback.invalid { border-color: #ff705f; background: rgba(82, 25, 20, .94); }
+#deploy-feedback.success {
+    border-color: #ffe16d;
+    background: rgba(79, 61, 15, .94);
+    transform: translateX(-50%) scale(1.04);
+}
+
+#deploy-feedback-icon {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .12);
+    font-size: 19px;
+}
+
+.deploy-feedback-copy { display: flex; flex-direction: column; min-width: 0; }
+#deploy-feedback-name { font-size: 12px; line-height: 1.1; }
+#deploy-feedback-message {
+    margin-top: 2px;
+    color: inherit;
+    font-size: 10px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 #elixir-num {
     width: 30px;
     height: 30px;
@@ -1701,6 +1755,17 @@ body {
         transform: none;
         width: auto;
     }
+
+    #deploy-feedback {
+        left: auto;
+        right: 10px;
+        bottom: 144px;
+        transform: none;
+        min-width: 180px;
+        max-width: 300px;
+    }
+
+    #deploy-feedback.success { transform: scale(1.04); }
 
     .card {
         width: 58px;

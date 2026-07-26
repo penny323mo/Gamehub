@@ -468,6 +468,17 @@ function showZones(show) {
     arena.zones.pocketR.visible = show && !!game.towers[TEAM.ENEMY].right?.dead;
 }
 
+function placementMessage(card, placement, canAfford) {
+    if (!canAfford) return `聖水不足 · 需要 ${card.cost}`;
+    if (placement.pos) return card.kind === 'spell' ? '放手施放' : '放手部署';
+    return {
+        'blocked-building': '唔可以同塔或建築重疊',
+        'building-own-side': '建築只可以放喺己方半場',
+        'locked-pocket': '先拆呢一路公主塔先可前置部署',
+        'own-side': '只可以放己方半場或已攻陷區域',
+    }[placement.reason] ?? '呢個位置唔可以部署';
+}
+
 const uiCallbacks = {
     onStart(deck, difficulty, mode = 'single') {
         if (mode === 'pvp') { startQuickMatch(deck); return; }
@@ -522,6 +533,20 @@ const uiCallbacks = {
         sfx.setMuted(!sfx.isMuted());
         return sfx.isMuted();
     },
+    onSelect(handIdx) {
+        ghost.visible = false;
+        if (!game || game.phase === 'ended' || handIdx < 0) {
+            showZones(false);
+            ui.hideDeployFeedback();
+            return;
+        }
+        const card = CARDS[game.players[TEAM.PLAYER].hand[handIdx]];
+        if (!card) return;
+        showZones(card.kind !== 'spell');
+        ui.showDeployFeedback(card, 'ready', card.kind === 'spell'
+            ? '點戰場施放 · 全場有效'
+            : '藍色區域可部署 · 點戰場落兵');
+    },
     onDragMove(handIdx, cx, cy) {
         cardBusy = true;
         if (!game || game.phase === 'ended') {
@@ -536,15 +561,22 @@ const uiCallbacks = {
         const card = CARDS[cardId];
         if (!card) return;
         showZones(card.kind !== 'spell');
-        const pos = game.validPlacement(TEAM.PLAYER, cardId, p.x, p.z);
+        const placement = game.placementInfo(TEAM.PLAYER, cardId, p.x, p.z);
+        const pos = placement.pos;
         ghost.visible = true;
         const gx = pos ? pos.x : p.x, gz = pos ? pos.z : p.z;
         ghost.position.set(gx, 0.08, gz);
         const r = card.kind === 'spell' ? card.splash : Math.max(0.5, (card.radius ?? 0.4) * 1.6);
         ghostRing.scale.setScalar(r / 0.65);
         ghostSplash.scale.setScalar(card.kind === 'spell' ? card.splash : 0.001);
-        const ok = !!pos && game.players[TEAM.PLAYER].elixir >= card.cost;
+        const canAfford = game.players[TEAM.PLAYER].elixir >= card.cost;
+        const pending = netRole === 'guest' && game.pendingHand.has(handIdx);
+        const ok = !!pos && canAfford && !pending;
         ghostRing.material.color.set(ok ? 0x55ff77 : 0xff5544);
+        const message = pending ? '等候主機確認上一張牌'
+            : placementMessage(card, placement, canAfford);
+        ui.showDeployFeedback(card, ok ? 'valid' : 'invalid',
+            `${ok ? '✓' : '✕'} ${message}`);
     },
     onDrop(handIdx, cx, cy) {
         cardBusy = false;
@@ -565,22 +597,33 @@ const uiCallbacks = {
                 game.pendingHand.set(handIdx, { cardId, t: game._clock });
                 sendGuestPlay(handIdx, pos.x, pos.z);
                 card.kind === 'spell' ? sfx.spell() : sfx.deploy();
+                ui.showDeployFeedback(card, 'success', '✓ 已送出 · 等候主機確認', true);
             } else {
                 sfx.error();
+                const reason = game.pendingHand.has(handIdx) ? '等候主機確認上一張牌'
+                    : placementMessage(card, game.placementInfo(TEAM.PLAYER, cardId, p.x, p.z), canAfford);
+                ui.showDeployFeedback(card, 'invalid', `✕ ${reason}`, true);
             }
             return;
         }
         const ok = game.playCard(TEAM.PLAYER, handIdx, p.x, p.z);
         if (ok) {
             card.kind === 'spell' ? sfx.spell() : sfx.deploy();
+            ui.showDeployFeedback(card, 'success',
+                `✓ 已${card.kind === 'spell' ? '施放' : '部署'} · 消耗 ${card.cost} 聖水`, true);
         } else {
             sfx.error();
+            const placement = game.placementInfo(TEAM.PLAYER, cardId, p.x, p.z);
+            const canAfford = game.players[TEAM.PLAYER].elixir >= card.cost;
+            ui.showDeployFeedback(card, 'invalid',
+                `✕ ${placementMessage(card, placement, canAfford)}`, true);
         }
     },
     onDragEnd() {
         cardBusy = false;
         ghost.visible = false;
         showZones(false);
+        ui.hideDeployFeedback();
     },
 };
 
