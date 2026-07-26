@@ -3,77 +3,80 @@
 Updated: 2026-07-26 (Asia/Macau)
 Prepared by: Codex (local)
 Integration branch: `main`
-Baseline before this task: `e659b09`
-Status: Royale first-run tutorial implemented and locally verified
+Baseline before this task: `f3ae634`
+Status: Royale local player save slots implemented and verified
 
 ## Current objective
 
-Help a first-time Clash-mode player understand elixir, card placement, and the
-tower objective without rescanning instructions or being attacked while reading.
+Let multiple people on the same browser resume separate Royale progress using a
+player name and a simple code, while preserving the pre-profile save.
 
 ## Completed
 
-- Added a three-step in-match tutorial: elixir/cost, tap-or-drag placement, and
-  crown/tower victory conditions.
-- A fresh save auto-opens it on the first single or gauntlet match. The simulation,
-  AI, and timer remain frozen until completion or skip.
-- Completion/skip writes `tutorialSeen` into the existing `royale-save-v1`.
-- Existing saves with any win/loss/draw do not auto-open after this update, even
-  when the old save has no `tutorialSeen` field.
-- The in-match `❓` button reopens the tutorial at any time. PvP and LV2 do not
-  auto-open it.
-- The overlay highlights the relevant live HUD region, supports Next, Skip,
-  Enter, Escape, viewport resize, and exposes a proper dialog role.
+- Added a compact `👤 玩家` tab with current player, name, 4–12 character code,
+  login/create actions, and known local player names.
+- Each player now has isolated `royale-save-v1:<profile-id>` progress, leaderboard
+  display-name, and leaderboard player-id keys.
+- New-player codes use a random salt plus SHA-256 hash; plaintext codes are not
+  stored.
+- The first created player copies the old shared save and leaderboard id into its
+  scoped keys. The old shared keys are not deleted, so migration is recoverable.
+- A second player starts fresh. Switching player reloads the page so every module
+  reads the selected save rather than retaining the previous in-memory cache.
+- The UI explicitly says this is local save separation, not a cloud/security
+  account, and browser-site-data deletion also deletes the profiles.
 
 ## Changed files
 
 - `games/royale/index.html`
 - `games/royale/style.css`
-- `games/royale/src/ui.js`
-- `games/royale/src/main.js`
+- `games/royale/src/profiles.js` (new)
 - `games/royale/src/storage.js`
-- `docs/ai/DECISIONS.md` (ADR-014)
+- `games/royale/src/leaderboard.js`
+- `games/royale/src/ui.js`
+- `docs/ai/DECISIONS.md` (ADR-015)
 - `docs/ai/HANDOFF.md`
 
 ## Verification
 
-- `node --check` for changed Royale JS: PASS.
-- Fresh storage: first single match opened step 1/3 automatically.
-- Pause gate: after 2.2 wall-clock seconds, `time=180` and `simTime=0`.
-- Next moved through all three steps; final button and Skip both closed the dialog.
-- Completion persisted `tutorialSeen=true`; reload plus a second match did not
-  auto-open it.
-- Manual `❓` replay opened after completion and paused the running match.
-- Legacy save `{ wins: 1 }` without `tutorialSeen`: migration kept the tutorial
-  hidden and preserved the win.
-- Visual browser checks passed at 390x844 portrait and 844x390 landscape; panel,
-  focus ring, cards, crowns, and controls stayed readable.
-- Console had no functional errors; only the existing root `/favicon.ico` 404.
-- `./scripts/check-handoff.sh`: PASS after this file update.
+- `node --check` for `profiles.js`, `storage.js`, `leaderboard.js`, and `ui.js`: PASS.
+- HTML duplicate-id and UI DOM-reference contract check: PASS (117 ids / 75 refs).
+- Legacy migration: a seeded 321-trophy save retained 12/4/2 record, Lv3 card and
+  shards, custom deck, achievement date, tutorial state, and leaderboard id.
+- Migration copied rather than deleted the legacy save; old fallback key remained.
+- Stored profile record contained only id/name/salt/hash; test code `1234` was not
+  present in serialized profile storage.
+- Two-player isolation: first player stayed at 321 trophies; second started at 0,
+  was set to 77 for the test, and switching back restored 321.
+- Wrong code did not change the active player; correct code did.
+- Browser smoke passed at 390x844 portrait and 844x390 landscape with no horizontal
+  overflow. Player list, inputs, notices, and current-player state were readable.
+- Browser console reported no functional errors.
+- `git diff --check`: PASS.
 
 ## Known issues and cautions
 
-- The black-flash fix from `d0fae14` is still unconfirmed on Penny's original
-  device; do not tune graphics further until they report back.
-- Live PvP reconnect/grace/walkover still needs real-device Supabase verification.
-- Cloud-session `.mjs` regressions are not tracked, so Codex cannot rerun the exact
-  scripts; Pages CI fully lint/tests/builds only Ashen Rail.
-- Root `/favicon.ico` remains absent; this is a non-functional local-server 404.
+- Profiles exist only in this browser's localStorage. There is no cross-device
+  sync, code recovery, server authentication, or protection from someone with
+  access to browser storage.
+- Deleting site data deletes all local profiles and progress.
+- Existing black-flash and live PvP device-level verification cautions from the
+  prior handoff remain unresolved and are unrelated to this change.
 
 ## Exact next action
 
-1. After push, receiving agent runs `./scripts/agent-context.sh --sync` and reads
-   ADR-007 to ADR-014 plus this handoff.
-2. Penny can try the tutorial and confirm the earlier black flash on the affected
-   device.
-3. If no tutorial issue is reported, the next Royale roadmap item is replay.
+1. Receiving agent runs `./scripts/agent-context.sh --sync`, then reads ADR-015 and
+   this handoff before editing Royale storage/profile code.
+2. Penny can create the first named player on the real device; that operation
+   safely binds a copy of the existing progress.
+3. Do not add cloud-auth claims unless a real backend and recovery design are
+   explicitly authorized.
 
 ## Do not redo
 
-- Do not let tutorial time advance the simulation or AI.
-- Do not auto-open this Clash tutorial in PvP, LV2, or for an existing player with
-  recorded matches.
-- Do not remove the `❓` replay path when changing first-run detection.
-- Do not create another tutorial save key; migrate `royale-save-v1`.
-- Do not tune graphics before the device-level black-flash result.
+- Do not store the local code in plaintext.
+- Do not delete or overwrite the legacy save during first-player migration.
+- Do not reuse one save or leaderboard player id across named profiles.
+- Do not remove the reload after player switch unless all module-level save caches
+  are made profile-aware and tested.
 - Do not amend, rebase, or force-push published `main` history.

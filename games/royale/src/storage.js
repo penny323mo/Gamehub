@@ -1,5 +1,6 @@
 // 進度存檔 — localStorage：獎盃/段位、卡牌等級碎片、每日挑戰、生涯統計、卡組、連勝挑戰
 import { CARD_POOL, DEFAULT_DECK } from './cards.js';
+import { getProfileSaveKey } from './profiles.js';
 
 const KEY = 'royale-save-v1';
 
@@ -140,7 +141,7 @@ let save = null;
 export function loadSave() {
     if (!save) {
         try {
-            const raw = localStorage.getItem(KEY);
+            const raw = localStorage.getItem(getProfileSaveKey(KEY));
             save = raw ? { ...defaultSave(), ...JSON.parse(raw) } : defaultSave();
         } catch {
             save = defaultSave();
@@ -171,7 +172,7 @@ export function loadSave() {
 }
 
 function persist() {
-    try { localStorage.setItem(KEY, JSON.stringify(save)); } catch { /* private mode 都照玩 */ }
+    try { localStorage.setItem(getProfileSaveKey(KEY), JSON.stringify(save)); } catch { /* private mode 都照玩 */ }
 }
 
 // ---------- 讀取 helpers ----------

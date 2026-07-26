@@ -123,6 +123,7 @@
                     <button class="start-tab" data-tab="deck">🃏 卡組</button>
                     <button class="start-tab" data-tab="quests">📅 挑戰</button>
                     <button class="start-tab" data-tab="rankings">🏅 排行</button>
+                    <button class="start-tab" data-tab="profile">👤 玩家</button>
                 </div>
 
                 <div class="tab-page active" data-page="battle">
@@ -176,6 +177,30 @@
                     <div class="section-label">🌍 全球排行榜<button id="lb-refresh" title="重新整理">🔄</button></div>
                     <div id="lb-status" class="hint hidden"></div>
                     <div id="lb-list"></div>
+                </div>
+
+                <div class="tab-page" data-page="profile">
+                    <div id="profile-current">
+                        <span>目前玩家</span>
+                        <b id="profile-current-name">訪客（舊存檔）</b>
+                    </div>
+                    <p class="hint profile-note">用名稱同簡單 code 建立本機玩家。下次輸入返同一組資料，就可以喺呢部裝置繼續之前進度。</p>
+                    <div class="section-label">玩家名稱</div>
+                    <div id="profile-name-row">
+                        <input id="profile-name-input" maxlength="12" placeholder="例如 Penny" autocomplete="username">
+                    </div>
+                    <div class="section-label">簡單 code（4–12 個字）</div>
+                    <div id="profile-code-row">
+                        <input id="profile-code-input" type="password" minlength="4" maxlength="12" placeholder="輸入 code" autocomplete="current-password">
+                    </div>
+                    <div id="profile-actions">
+                        <button id="profile-login-btn" class="big-btn">登入玩家</button>
+                        <button id="profile-create-btn" class="big-btn secondary">新增玩家</button>
+                    </div>
+                    <div id="profile-message" class="hint" role="status"></div>
+                    <div class="section-label">呢部裝置已有玩家</div>
+                    <div id="profile-user-list"></div>
+                    <p class="hint profile-warning">🔒 呢個 code 只用嚟分隔本機存檔，唔係雲端帳戶或高保安密碼。清除瀏覽器網站資料會一併清除玩家進度。</p>
                 </div>
 
                 <!-- PvP 斷線重連：偵測到未完場嘅房先顯示 -->

@@ -158,3 +158,18 @@ Progress, temporary debugging notes, and next tasks belong in `HANDOFF.md`.
 - Reason: onboarding must not let the AI attack while the player reads, must not
   surprise existing players after an update, and must remain recoverable after a
   skip without adding a second settings screen.
+
+## ADR-015: Royale player profiles are local save slots, not cloud accounts
+
+- Date: 2026-07-26
+- Status: accepted
+- Decision: Royale supports multiple players on one browser through a name and a
+  4–12 character local code. Each player receives separate save, leaderboard name,
+  and leaderboard identity keys. Codes are stored as salted SHA-256 hashes, never
+  plaintext. The first created player copies the legacy `royale-save-v1` and
+  player id into its scoped keys; the legacy keys remain untouched as a recovery
+  fallback.
+- Reason: Penny needs a lightweight way for different local players to resume
+  their own progress without introducing authentication infrastructure. This code
+  separates save slots only: it cannot recover data on another device and is not
+  a security boundary or a cloud password.

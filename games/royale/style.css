@@ -856,6 +856,13 @@ body {
     align-items: center;
     gap: 8px;
     text-align: left;
+    cursor: pointer;
+}
+
+#rank-badge:focus-visible {
+    outline: 2px solid #ffd870;
+    outline-offset: 4px;
+    border-radius: 8px;
 }
 
 #rank-icon {
@@ -880,6 +887,81 @@ body {
     text-align: right;
     line-height: 1.5;
 }
+
+/* ---------- 本機玩家存檔 ---------- */
+#profile-current {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 12px 14px;
+    border: 2px solid #725b32;
+    border-radius: 12px;
+    background: rgba(184, 145, 47, .14);
+    color: #bcb08f;
+    font-size: 12px;
+}
+
+#profile-current b { color: #fff1c5; font-size: 16px; }
+.profile-note { margin: 9px 2px 2px; text-align: left; }
+
+#profile-name-row {
+    display: flex;
+    gap: 8px;
+}
+
+#profile-name-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1px solid #55452a;
+    background: rgba(0, 0, 0, .25);
+    color: #f4e8c0;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+}
+
+#profile-name-row input:focus { border-color: #b8912f; }
+
+#profile-code-row input {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1px solid #55452a;
+    background: rgba(0, 0, 0, .25);
+    color: #f4e8c0;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+}
+
+#profile-code-row input:focus { border-color: #b8912f; }
+#profile-actions { display: flex; gap: 8px; margin-top: 10px; }
+#profile-actions .big-btn { flex: 1; margin: 0; padding: 10px 8px; font-size: 13px; }
+#profile-message { min-height: 18px; margin: 7px 2px 0; text-align: left; }
+
+#profile-user-list { display: flex; flex-direction: column; gap: 6px; }
+.profile-user {
+    display: grid;
+    grid-template-columns: 24px 1fr auto;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 11px;
+    border: 1px solid #55452a;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, .18);
+    color: #d8cca8;
+    text-align: left;
+    cursor: pointer;
+}
+.profile-user.active { border-color: #79a94d; background: rgba(83, 128, 52, .18); }
+.profile-user small { color: #978d73; font-size: 10px; }
+.profile-empty { padding: 10px; border: 1px dashed #55452a; border-radius: 10px; color: #8f866f; font-size: 12px; }
+.profile-warning { margin-bottom: 2px; text-align: left; }
 
 /* ---------- 每日挑戰 ---------- */
 #daily-list {
@@ -1067,13 +1149,18 @@ body {
 .start-tab {
     flex: 1;
     padding: 9px 4px;
-    font-size: 14px;
+    font-size: 12.5px;
     font-weight: 700;
     border-radius: 10px;
     border: 2px solid #55452a;
     background: #222c18;
     color: #9a927e;
     cursor: pointer;
+}
+
+@media (max-width: 430px) {
+    #start-tabs { gap: 4px; }
+    .start-tab { padding: 8px 2px; font-size: 11px; }
 }
 
 .start-tab.selected {

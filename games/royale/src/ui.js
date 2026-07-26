@@ -8,6 +8,7 @@ import {
     shouldShowTutorial, markTutorialSeen,
 } from './storage.js';
 import { fetchLeaderboard, getPlayerName, setPlayerName } from './leaderboard.js';
+import { createProfile, getActiveProfile, listProfiles, loginProfile } from './profiles.js';
 
 export class UI {
     constructor(callbacks, thumbs = {}) {
@@ -54,6 +55,7 @@ export class UI {
 
         this.#buildDeckGrid();
         this.#bindStartScreen();
+        this.#bindProfile();
         this.#bindLeaderboard();
         this.#bindHand();
         this.#bindTutorial();
@@ -84,6 +86,73 @@ export class UI {
         }
         this.#refreshAchievements();
         this.#refreshDeckLevels();
+        this.#refreshProfileUsers();
+    }
+
+    #bindProfile() {
+        this.$('profile-create-btn').addEventListener('click', () => this.#submitProfile('create'));
+        this.$('profile-login-btn').addEventListener('click', () => this.#submitProfile('login'));
+        this.$('profile-code-input').addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') this.#submitProfile('login');
+        });
+
+        const badge = this.$('rank-badge');
+        badge.tabIndex = 0;
+        badge.setAttribute('role', 'button');
+        badge.setAttribute('aria-label', '打開玩家個人檔案');
+        const openProfile = () => document.querySelector('.start-tab[data-tab="profile"]')?.click();
+        badge.addEventListener('click', openProfile);
+        badge.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openProfile();
+            }
+        });
+        this.#refreshProfileUsers();
+    }
+
+    async #submitProfile(action) {
+        const name = this.$('profile-name-input').value;
+        const code = this.$('profile-code-input').value;
+        const message = this.$('profile-message');
+        message.textContent = action === 'create' ? '建立緊玩家…' : '驗證緊…';
+        try {
+            const result = action === 'create'
+                ? await createProfile(name, code)
+                : await loginProfile(name, code);
+            message.textContent = action === 'create'
+                ? (result.claimedLegacy
+                    ? '✅ 玩家已建立，原有進度已保留。載入緊…'
+                    : '✅ 新玩家已建立。載入緊…')
+                : '✅ 已找到玩家，載入緊進度…';
+            window.setTimeout(() => window.location.reload(), 250);
+        } catch (error) {
+            message.textContent = `⚠️ ${error.message}`;
+        }
+    }
+
+    #refreshProfileUsers() {
+        const active = getActiveProfile();
+        this.$('profile-current-name').textContent = active?.name ?? '訪客（舊存檔）';
+        const list = this.$('profile-user-list');
+        list.innerHTML = '';
+        const profiles = listProfiles();
+        if (!profiles.length) {
+            list.innerHTML = '<div class="profile-empty">未有已建立玩家</div>';
+            return;
+        }
+        for (const profile of profiles) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'profile-user' + (profile.id === active?.id ? ' active' : '');
+            button.innerHTML = `<span>👤</span><b></b><small>${profile.id === active?.id ? '使用中' : '輸入 code 登入'}</small>`;
+            button.querySelector('b').textContent = profile.name;
+            button.addEventListener('click', () => {
+                this.$('profile-name-input').value = profile.name;
+                this.$('profile-code-input').focus();
+            });
+            list.appendChild(button);
+        }
     }
 
     #refreshAchievements() {

@@ -3,6 +3,7 @@
 // 身份用 localStorage 嘅持久 playerId（唔同 PvP 嘅 sessionStorage clientId：嗰個係每個 tab 一個）。
 import { getClient } from './net.js';
 import { getStats } from './storage.js';
+import { getProfileScopedKey } from './profiles.js';
 
 const ID_KEY = 'royale_playerId';
 const NAME_KEY = 'royale_playerName';
@@ -11,21 +12,22 @@ export const NAME_MAX = 12;
 
 export function getPlayerId() {
     let id = null;
-    try { id = localStorage.getItem(ID_KEY); } catch { /* private mode */ }
+    const key = getProfileScopedKey(ID_KEY);
+    try { id = localStorage.getItem(key); } catch { /* private mode */ }
     if (!id) {
         id = crypto.randomUUID();
-        try { localStorage.setItem(ID_KEY, id); } catch { /* 冇得存就每次新身份，照玩 */ }
+        try { localStorage.setItem(key, id); } catch { /* 冇得存就每次新身份，照玩 */ }
     }
     return id;
 }
 
 export function getPlayerName() {
-    try { return localStorage.getItem(NAME_KEY) || DEFAULT_NAME; } catch { return DEFAULT_NAME; }
+    try { return localStorage.getItem(getProfileScopedKey(NAME_KEY)) || DEFAULT_NAME; } catch { return DEFAULT_NAME; }
 }
 
 export function setPlayerName(name) {
     const clean = String(name ?? '').replace(/[<>\x00-\x1f]/g, '').trim().slice(0, NAME_MAX);
-    try { localStorage.setItem(NAME_KEY, clean || DEFAULT_NAME); } catch { /* ignore */ }
+    try { localStorage.setItem(getProfileScopedKey(NAME_KEY), clean || DEFAULT_NAME); } catch { /* ignore */ }
     return clean || DEFAULT_NAME;
 }
 
