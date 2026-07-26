@@ -1566,6 +1566,8 @@ export class Game {
     aliveUnits(team) {
         return this.entities.filter(e => !e.dead && e.team === team && !e.isTower);
     }
+    // UI 左右路以玩家鏡頭畫面為準；單機／host 視角同世界 x 軸一致。
+    viewX(entity) { return entity.x; }
     updateHpBarOrientation(quaternion) {
         // 鏡頭冇郁、血條數目又冇變（冇新兵 spawn）就唔使逐條 copy——
         // 鏡頭只有拖/縮放嗰陣先郁，平時每幀慳返幾十次 quaternion copy

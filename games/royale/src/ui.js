@@ -679,7 +679,51 @@ export class UI {
         this._lastT = -1;
         this._lastPhase = null;
         this._lastCrowns = -1;
+        this._lastPressureAt = 0;
         this._cardsDirty = true;
+    }
+
+    #updateLanePressure(g) {
+        const now = performance.now();
+        if (now - this._lastPressureAt < 250) return; // 4Hz 足夠，避免每幀掃 entities / 寫 DOM
+        this._lastPressureAt = now;
+        const lanes = {
+            left: { ally: 0, enemy: 0 },
+            right: { ally: 0, enemy: 0 },
+        };
+        const addTeam = (team, key) => {
+            for (const entity of g.aliveUnits(team)) {
+                if (entity.isBuilding) continue;
+                const card = CARDS[entity.cardId];
+                if (!card) continue;
+                const hpRatio = Math.max(0, Math.min(1, entity.hp / entity.maxHp));
+                // 只用場上可見資料：卡費代表兵力，殘血會按比例降低壓力。
+                const pressure = (card.cost / (card.count ?? 1)) * (0.3 + hpRatio * 0.7);
+                const lane = (g.viewX?.(entity) ?? entity.x) < 0 ? 'left' : 'right';
+                lanes[lane][key] += pressure;
+            }
+        };
+        addTeam(TEAM.PLAYER, 'ally');
+        addTeam(TEAM.ENEMY, 'enemy');
+
+        const dangers = [];
+        let engaged = false;
+        for (const lane of ['left', 'right']) {
+            const values = lanes[lane];
+            const total = values.ally + values.enemy;
+            engaged ||= total > 0.1;
+            const allyPct = total ? (values.ally / total) * 100 : 0;
+            const enemyPct = total ? (values.enemy / total) * 100 : 0;
+            this.$(`pressure-${lane}-ally`).style.width = `${allyPct}%`;
+            this.$(`pressure-${lane}-enemy`).style.width = `${enemyPct}%`;
+            const danger = values.enemy >= 4 && values.enemy > values.ally * 1.35;
+            document.querySelector(`.lane-pressure-item[data-lane="${lane}"]`)?.classList.toggle('danger', danger);
+            if (danger) dangers.push(lane === 'left' ? '左路' : '右路');
+        }
+        this.$('lane-pressure').classList.toggle('engaged', engaged);
+        this.$('pressure-alert').textContent = dangers.length === 2
+            ? '⚠️ 雙路受壓'
+            : dangers.length === 1 ? `⚠️ ${dangers[0]}告急` : '';
     }
 
     // 每幀更新 HUD
@@ -694,6 +738,7 @@ export class UI {
             this.#refreshSelection();
         }
         const p = g.players[TEAM.PLAYER];
+        this.#updateLanePressure(g);
 
         // 手牌（有變先重繪）
         const key = p.hand.join(',') + '|' + p.next;

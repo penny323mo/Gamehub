@@ -39,6 +39,23 @@
                 <div class="crown-box player">👑 <span id="crowns-player">0</span></div>
             </div>
             <div id="condition-chip" class="hidden" title="本關戰場條件（雙方一樣）"></div>
+            <div id="lane-pressure" aria-label="左右路即時兵力壓力">
+                <div class="lane-pressure-item" data-lane="left">
+                    <span>左路</span>
+                    <div class="lane-pressure-track">
+                        <i id="pressure-left-ally" class="pressure-ally"></i>
+                        <i id="pressure-left-enemy" class="pressure-enemy"></i>
+                    </div>
+                </div>
+                <div class="lane-pressure-item" data-lane="right">
+                    <span>右路</span>
+                    <div class="lane-pressure-track">
+                        <i id="pressure-right-ally" class="pressure-ally"></i>
+                        <i id="pressure-right-enemy" class="pressure-enemy"></i>
+                    </div>
+                </div>
+                <div id="pressure-alert"></div>
+            </div>
             <button id="mute-btn" title="靜音">🔊</button>
             <button id="help-btn" title="玩法教學">❓</button>
             <button id="quit-btn" title="投降離開">🏳️</button>

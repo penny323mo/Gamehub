@@ -1351,6 +1351,81 @@ body {
     z-index: 4;
 }
 
+/* ---------- 左右路即時壓力 ---------- */
+#lane-pressure {
+    position: absolute;
+    top: calc(max(8px, env(safe-area-inset-top)) + 87px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 10px;
+    width: min(48vw, 310px);
+    padding: 5px 8px 4px;
+    border: 1px solid rgba(225, 211, 170, .24);
+    border-radius: 10px;
+    background: rgba(15, 21, 11, .56);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, .24);
+    opacity: .58;
+    transition: opacity .2s ease, border-color .2s ease;
+    pointer-events: none;
+    z-index: 4;
+}
+
+#lane-pressure.engaged { opacity: .94; }
+
+.lane-pressure-item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    color: #c9c0a4;
+    font-size: 9px;
+    font-weight: 800;
+}
+
+.lane-pressure-track {
+    display: flex;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, .11);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .45);
+}
+
+.lane-pressure-track i {
+    display: block;
+    width: 0;
+    height: 100%;
+    transition: width .28s ease;
+}
+
+.pressure-ally { background: linear-gradient(90deg, #3584d8, #79c3ff); }
+.pressure-enemy { background: linear-gradient(90deg, #ff8a69, #d64232); }
+
+.lane-pressure-item.danger span { color: #ff9b7e; }
+.lane-pressure-item.danger .lane-pressure-track {
+    box-shadow: 0 0 7px rgba(255, 76, 52, .75), inset 0 1px 2px rgba(0, 0, 0, .45);
+    animation: laneDangerPulse .72s ease-in-out infinite;
+}
+
+#pressure-alert {
+    grid-column: 1 / -1;
+    min-height: 10px;
+    color: #ffad91;
+    font-size: 9px;
+    font-weight: 900;
+    line-height: 1;
+    text-align: center;
+    letter-spacing: .4px;
+}
+
+@keyframes laneDangerPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .62; }
+}
+
 #enemy-played {
     position: absolute;
     top: 56px;
@@ -1472,6 +1547,8 @@ body {
 
 /* ---------- 細螢幕適配 ---------- */
 @media (max-width: 480px) {
+    #lane-pressure { width: min(58vw, 250px); }
+
     .card {
         width: 64px;
         height: 80px;
@@ -1496,6 +1573,13 @@ body {
 }
 
 @media (max-height: 500px) and (orientation: landscape) {
+    #lane-pressure {
+        top: calc(max(8px, env(safe-area-inset-top)) + 54px);
+        width: min(34vw, 260px);
+    }
+
+    #condition-chip { top: calc(max(8px, env(safe-area-inset-top)) + 88px); }
+
     #hand-area {
         left: auto;
         right: 8px;

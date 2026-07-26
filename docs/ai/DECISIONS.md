@@ -173,3 +173,16 @@ Progress, temporary debugging notes, and next tasks belong in `HANDOFF.md`.
   their own progress without introducing authentication infrastructure. This code
   separates save slots only: it cannot recover data on another device and is not
   a security boundary or a cloud password.
+
+## ADR-016: Royale lane pressure uses visible battlefield state only
+
+- Date: 2026-07-26
+- Status: accepted
+- Decision: the left/right pressure HUD derives strength only from living,
+  non-building units already visible on the battlefield. Each unit contributes
+  its card cost divided by summon count, scaled by remaining HP. It updates at 4Hz,
+  warns only when enemy pressure is at least 4 and 35% above friendly pressure,
+  and mirrors world x for the PvP guest's 180-degree camera.
+- Reason: players need a quick defence cue during dense battles, but the cue must
+  not expose the AI hand, elixir, intended placement, or any other hidden state.
+  Per-unit cost splitting prevents swarm cards from being counted multiple times.
