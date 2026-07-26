@@ -1426,6 +1426,62 @@ body {
     50% { opacity: .62; }
 }
 
+/* ---------- 決勝片段重播 ---------- */
+#replay-bar {
+    position: absolute;
+    top: calc(max(8px, env(safe-area-inset-top)) + 60px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: grid;
+    grid-template-columns: auto minmax(70px, 150px) auto;
+    align-items: center;
+    gap: 9px;
+    width: min(92vw, 420px);
+    padding: 6px 8px 6px 12px;
+    border: 1.5px solid rgba(255, 214, 102, .72);
+    border-radius: 12px;
+    background: rgba(26, 19, 8, .86);
+    color: #ffe6a1;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .4);
+    font-size: 11px;
+    font-weight: 900;
+    pointer-events: auto;
+    z-index: 12;
+}
+
+#replay-progress {
+    height: 6px;
+    overflow: hidden;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, .14);
+}
+
+#replay-progress-fill {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #e5a83c, #fff08a);
+}
+
+#replay-exit-btn {
+    padding: 5px 8px;
+    border: 1px solid #8a7040;
+    border-radius: 8px;
+    background: #4b3b20;
+    color: #fff0c3;
+    font-size: 10px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+#hud.replay-mode #hand-area,
+#hud.replay-mode #enemy-played,
+#hud.replay-mode #condition-chip,
+#hud.replay-mode #lane-pressure,
+#hud.replay-mode #quit-btn,
+#hud.replay-mode #help-btn { display: none; }
+
 #enemy-played {
     position: absolute;
     top: 56px;

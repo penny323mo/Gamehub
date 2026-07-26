@@ -199,3 +199,16 @@ Progress, temporary debugging notes, and next tasks belong in `HANDOFF.md`.
 - Reason: wall-clock sampling would punish a player for reading the tutorial or
   running on a slow device. A compact actionable recap teaches more than a raw
   chart while keeping the analysis explainable from battlefield state.
+
+## ADR-018: Royale highlight replay uses sanitized visible-state snapshots
+
+- Date: 2026-07-26
+- Status: accepted
+- Decision: single-player and gauntlet matches retain only the latest 12 seconds
+  of 5Hz snapshots in memory. Before storage, the enemy hand, elixir, and next
+  card are removed. Playback uses the existing guest snapshot renderer in local
+  orientation; it never re-simulates battle logic, records rewards, or changes the
+  completed result. Replay meshes are disposed through the normal match cleanup.
+- Reason: a short result-screen highlight helps players understand the finish
+  without requiring deterministic replay infrastructure, persistent telemetry,
+  or exposing information the player could not see during the match.

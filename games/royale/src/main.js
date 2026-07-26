@@ -424,6 +424,32 @@ let rts = null; // LV2 世紀帝國式 RTS 控制器（init 後先建立）
 let rtsPointerDown = false; // RTS 手勢係咪喺 canvas 上面開始（隔走 HUD 掣嘅 pointer 事件）
 let guestFinish = null; // PvP guest 嘅收場函數（beginAsGuest 設定；投降時都要行到入賬）
 
+// ---------- 單機決勝片段重播（只留記憶體內最後 12 秒）----------
+const REPLAY_WINDOW = 12;
+const REPLAY_INTERVAL = 0.2; // 5Hz 足夠重現卡牌戰況，亦限制 allocation / 記憶體
+let replayFrames = [];
+let replayCaptureAcc = 0;
+let replayPlayback = null;
+
+function captureReplayFrame(force = false) {
+    if (!(game instanceof Game) || (matchMode !== 'single' && matchMode !== 'gauntlet')) return;
+    const at = game.simTime;
+    const lastFrame = replayFrames[replayFrames.length - 1];
+    if (!force && lastFrame && at - lastFrame.at < REPLAY_INTERVAL - 0.001) return;
+    const snapshot = game.serialize();
+    // Highlight 只係重播觀眾當時睇到嘅戰況：敵方未出手牌／聖水／下一張全部剝走。
+    snapshot.players[TEAM.ENEMY] = { elixir: 0, hand: [], next: null };
+    const frame = { at, snapshot };
+    if (lastFrame && Math.abs(lastFrame.at - at) < 0.001) replayFrames[replayFrames.length - 1] = frame;
+    else replayFrames.push(frame);
+    while (replayFrames.length > 1 && replayFrames[0].at < at - REPLAY_WINDOW) replayFrames.shift();
+}
+
+function replayAvailable() {
+    return replayFrames.length >= 2
+        && replayFrames[replayFrames.length - 1].at - replayFrames[0].at >= 1;
+}
+
 // ---------- PvP 狀態 ----------
 let netRole = null; // null | 'host' | 'guest'
 let hostRelay = null;
@@ -460,6 +486,12 @@ const uiCallbacks = {
     },
     onNextStage() {
         startMatch(ui.deck, ui.difficulty, 'gauntlet', gauntletStage + 1);
+    },
+    onReplay() {
+        startHighlightReplay();
+    },
+    onExitReplay() {
+        finishHighlightReplay();
     },
     onQuit() {
         // 投降照計一場敗仗入賬（勝負/連勝/獎盃）——唔可以白 quit 嚟保成績。
@@ -590,6 +622,31 @@ function cleanupMatch() {
     running = false;
 }
 
+function startHighlightReplay() {
+    if (replayPlayback || !replayAvailable()) return;
+    const frames = replayFrames;
+    cleanupMatch();
+    game = new GuestGame(scene, { flipTeams: false });
+    const firstAt = frames[0].at;
+    const duration = Math.max(0.001, frames[frames.length - 1].at - firstAt);
+    replayPlayback = { frames, firstAt, duration, elapsed: 0, index: 0 };
+    game.applySnapshot(frames[0].snapshot);
+    ui.bindGame(game);
+    ui.showReplay();
+    running = true;
+    acc = 0;
+    arena.setMood?.(frames[0].snapshot.phase === 'overtime' ? 1 : 0);
+    window.__royale = { game, ui, renderer, replayPlayback, finishHighlightReplay };
+}
+
+function finishHighlightReplay() {
+    if (!replayPlayback) return;
+    replayPlayback = null;
+    cleanupMatch();
+    ui.showEndAfterReplay();
+    window.__royale = { game: null, ui, renderer, replayFrames, startHighlightReplay };
+}
+
 // ---------- PvP 配對流程 ----------
 function stopMatchmaking() {
     matchmakingActive = false;
@@ -672,6 +729,9 @@ function gauntletDifficulty(stage) {
 
 function startMatch(deck, difficulty, mode = 'single', stage = 1) {
     cleanupMatch();
+    replayFrames = [];
+    replayCaptureAcc = 0;
+    replayPlayback = null;
     matchMode = mode;
     gauntletStage = stage;
     const actualDiff = mode === 'gauntlet' ? gauntletDifficulty(stage) : difficulty;
@@ -739,11 +799,13 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
             matchStats.matchSeconds = game.simTime;
             const rewards = recordMatch(matchStats);
             submitScore(); // 上報排行榜（fire-and-forget，離線唔阻結算）
+            captureReplayFrame(true); // 一定保留完場快照，唔靠 0.2s interval 咁啱撞中
             ui.showEnd(result, {
                 rewards,
                 damage: game.damageByCard[TEAM.PLAYER],
                 mode: matchMode,
                 stage: gauntletStage,
+                replayAvailable: replayAvailable(),
             });
         },
         onImpact() { sfx.explosion(); addShake(0.12); },
@@ -767,8 +829,13 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
         ...conditionOpts(cond),
     });
     ai = new AIController(game, actualDiff, pid, mode === 'gauntlet' ? stage : 0);
-    window.__royale = { game, ai, ui, renderer, startMatch, cleanupMatch }; // 畀自動化測試用
+    window.__royale = {
+        game, ai, ui, renderer, startMatch, cleanupMatch,
+        captureReplayFrame, startHighlightReplay, finishHighlightReplay,
+        get replayFrames() { return replayFrames; },
+    }; // 畀自動化測試用
     ui.bindGame(game);
+    captureReplayFrame(true);
     ui.showGame(mode === 'single' || mode === 'gauntlet');
     arena.setMood?.(0);
     const stageTag = mode === 'gauntlet' ? `第 ${stage} 關 · ` : '';
@@ -1028,25 +1095,46 @@ function loop(now) {
     }
 
     if (running && game) {
-        // 第一次入場教學開住時凍結模擬，但照 render，玩家可以安定睇完先開戰。
-        if (!ui?.tutorialOpen) {
-            if (netRole === 'guest') {
-                // Guest 唔跑本機模擬，淨係推動渲染用嘅本地時鐘（bob/攻擊動畫）
-                game.tick(dt);
-            } else {
-                acc += dt;
-                while (acc >= STEP) {
-                    game.update(STEP);
-                    ai?.update(STEP);
-                    hostRelay?.tick(STEP);
-                    acc -= STEP;
+        if (replayPlayback) {
+            const playback = replayPlayback;
+            playback.elapsed += dt;
+            const playhead = Math.min(playback.duration, playback.elapsed);
+            while (playback.index + 1 < playback.frames.length
+                && playback.frames[playback.index + 1].at - playback.firstAt <= playhead + 0.001) {
+                playback.index += 1;
+                game.applySnapshot(playback.frames[playback.index].snapshot);
+            }
+            game.tick(dt);
+            ui.updateReplayProgress(playhead / playback.duration);
+            if (playback.elapsed >= playback.duration + 0.9) finishHighlightReplay();
+        } else {
+            // 第一次入場教學開住時凍結模擬，但照 render，玩家可以安定睇完先開戰。
+            if (!ui?.tutorialOpen) {
+                if (netRole === 'guest') {
+                    // Guest 唔跑本機模擬，淨係推動渲染用嘅本地時鐘（bob/攻擊動畫）
+                    game.tick(dt);
+                } else {
+                    acc += dt;
+                    while (acc >= STEP) {
+                        game.update(STEP);
+                        ai?.update(STEP);
+                        hostRelay?.tick(STEP);
+                        replayCaptureAcc += STEP;
+                        if (replayCaptureAcc >= REPLAY_INTERVAL) {
+                            replayCaptureAcc %= REPLAY_INTERVAL;
+                            captureReplayFrame();
+                        }
+                        acc -= STEP;
+                    }
                 }
             }
         }
-        game.updateHpBarOrientation(camera.quaternion);
-        ui.update();
-        // 入咗加時就轉黃昏光（guest 嘅 phase 由快照嚟，一樣會觸發）；完場維持黃昏直到 cleanup
-        if (game.phase === 'overtime') arena.setMood?.(1);
+        if (game) {
+            game.updateHpBarOrientation(camera.quaternion);
+            ui.update();
+            // 入咗加時就轉黃昏光（guest 嘅 phase 由快照嚟，一樣會觸發）；完場維持黃昏直到 cleanup
+            if (game.phase === 'overtime') arena.setMood?.(1);
+        }
     }
     arena.update(dt);
     updateShake(dt);

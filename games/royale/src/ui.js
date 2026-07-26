@@ -347,6 +347,8 @@ export class UI {
             // LV2 世紀帝國式 RTS 唔用卡組，隨時可以開波
             this.cb.onStart(this.deck, 'hard', 'lv2');
         });
+        this.$('replay-btn').addEventListener('click', () => this.cb.onReplay?.());
+        this.$('replay-exit-btn').addEventListener('click', () => this.cb.onExitReplay?.());
         this.$('pvp-join-btn').addEventListener('click', () => {
             const code = this.$('pvp-code-input').value.trim();
             if (code) this.cb.onJoinRoom(this.deck, code);
@@ -406,6 +408,8 @@ export class UI {
         this.$('screen-end').classList.add('hidden');
         this.$('screen-matching').classList.add('hidden');
         this.$('hud').classList.add('hidden');
+        this.$('hud').classList.remove('replay-mode');
+        this.$('replay-bar').classList.add('hidden');
     }
 
     // 戰場條件章：null = 標準規則就收起。整場都睇得到，唔止開場橫額閃一次
@@ -426,11 +430,36 @@ export class UI {
         this.$('screen-end').classList.add('hidden');
         this.$('screen-matching').classList.add('hidden');
         this.$('hud').classList.remove('hidden');
+        this.$('hud').classList.remove('replay-mode');
+        this.$('replay-bar').classList.add('hidden');
         this.lastHandKey = '';
         this.lastPlayedKey = '';
         this.$('enemy-played').innerHTML = '';
         this.$('next-card').innerHTML = ''; // 唔好留低上一場嘅「下一張」卡面（PvP guest 未收快照前會露底）
         if (offerTutorial && shouldShowTutorial()) this.showTutorial();
+    }
+
+    showReplay() {
+        clearTimeout(this.endRevealTimer);
+        clearTimeout(this.bannerDelayTimer);
+        this.$('screen-start').classList.add('hidden');
+        this.$('screen-end').classList.add('hidden');
+        this.$('screen-matching').classList.add('hidden');
+        this.$('hud').classList.remove('hidden');
+        this.$('hud').classList.add('replay-mode');
+        this.$('replay-bar').classList.remove('hidden');
+        this.$('replay-progress-fill').style.width = '0%';
+    }
+
+    updateReplayProgress(ratio) {
+        this.$('replay-progress-fill').style.width = `${Math.max(0, Math.min(1, ratio)) * 100}%`;
+    }
+
+    showEndAfterReplay() {
+        this.$('hud').classList.add('hidden');
+        this.$('hud').classList.remove('replay-mode');
+        this.$('replay-bar').classList.add('hidden');
+        this.$('screen-end').classList.remove('hidden');
     }
 
     #bindTutorial() {
@@ -566,6 +595,7 @@ export class UI {
         this.$('end-crowns').innerHTML =
             `你 👑 × ${result.crowns[TEAM.PLAYER]}　·　敵方 👑 × ${result.crowns[TEAM.ENEMY]}`;
         this.#renderTacticalRecap(result);
+        this.$('replay-btn').classList.toggle('hidden', !extra.replayAvailable);
 
         // 獎盃變化＋段位
         const r = extra.rewards;

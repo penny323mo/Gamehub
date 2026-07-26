@@ -59,8 +59,9 @@ export function sendGuestPlay(handIdx, x, z) {
 // 提供 ui.js/main.js 所需嘅最小介面：players/crowns/time/phase/entities/
 // aliveUnits()/elixirMultiplier()/updateHpBarOrientation()
 export class GuestGame {
-    constructor(scene) {
+    constructor(scene, { flipTeams = true } = {}) {
         this.scene = scene;
+        this.flipTeams = flipTeams; // false = 本機 highlight replay，保持 TEAM.PLAYER 視角
         this.rules = GAME_RULES; // PvP 一律行標準規則（戰場條件只喺連勝挑戰出現）
         this.time = GAME_RULES.matchTime;
         this.phase = 'regulation';
@@ -88,11 +89,13 @@ export class GuestGame {
     // entities 入面嘅 team 冇對調（保持 host 嘅真實視角），但呢個方法對外係跟
     // players/crowns 果套「PLAYER=自己」慣例，所以查詢嗰陣要將 team 反轉先啱
     aliveUnits(team) {
-        const trueTeam = team === TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
+        const trueTeam = this.flipTeams
+            ? (team === TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER)
+            : team;
         return this.entities.filter(e => !e.dead && e.team === trueTeam && !e.isTower);
     }
     // Guest 鏡頭轉咗 180°，世界 x 正負喺畫面左右亦要反轉。
-    viewX(entity) { return -entity.x; }
+    viewX(entity) { return this.flipTeams ? -entity.x : entity.x; }
     pressureClock() { return this._clock; }
     elixirMultiplier() { return this._mult; }
 
@@ -107,7 +110,9 @@ export class GuestGame {
         z = Math.max(-hl, Math.min(hl, z));
         if (card.kind === 'spell') return { x, z };
 
-        const ownSide = (zz) => (team === TEAM.PLAYER ? -zz : zz);
+        const ownSide = (zz) => this.flipTeams
+            ? (team === TEAM.PLAYER ? -zz : zz)
+            : (team === TEAM.PLAYER ? zz : -zz);
         const zSide = ownSide(z);
         if (zSide >= ARENA.riverHalf + 0.25) return { x, z };
         if (card.kind === 'building') return null;
@@ -142,7 +147,9 @@ export class GuestGame {
     applySnapshot(snap) {
         // 只解鎖「手牌真係換咗」嘅格：快照可能喺 host 處理 input 之前生成，
         // 一律清空會令雙出保護形同虛設（可以連 send 兩次同一格 → host 雙倍出卡）
-        const myHand = snap.players[TEAM.ENEMY]?.hand;
+        const playerSource = this.flipTeams ? TEAM.ENEMY : TEAM.PLAYER;
+        const enemySource = this.flipTeams ? TEAM.PLAYER : TEAM.ENEMY;
+        const myHand = snap.players[playerSource]?.hand;
         if (myHand) {
             for (const [idx, rec] of this.pendingHand) {
                 if (myHand[idx] !== rec.cardId) this.pendingHand.delete(idx);
@@ -152,12 +159,14 @@ export class GuestGame {
         this.time = snap.time;
         this.phase = snap.phase;
         this._mult = snap.mult;
-        this.crowns = { [TEAM.PLAYER]: snap.crowns[TEAM.ENEMY], [TEAM.ENEMY]: snap.crowns[TEAM.PLAYER] };
-        this.players = { [TEAM.PLAYER]: snap.players[TEAM.ENEMY], [TEAM.ENEMY]: snap.players[TEAM.PLAYER] };
-        this.playedCards = { [TEAM.PLAYER]: snap.playedCards[TEAM.ENEMY], [TEAM.ENEMY]: snap.playedCards[TEAM.PLAYER] };
+        this.crowns = { [TEAM.PLAYER]: snap.crowns[playerSource], [TEAM.ENEMY]: snap.crowns[enemySource] };
+        this.players = { [TEAM.PLAYER]: snap.players[playerSource], [TEAM.ENEMY]: snap.players[enemySource] };
+        this.playedCards = { [TEAM.PLAYER]: snap.playedCards[playerSource], [TEAM.ENEMY]: snap.playedCards[enemySource] };
         if (snap.phase === 'ended' && !this.result) {
             const w = snap.winner;
-            this.result = { winner: w == null ? null : (w === TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER), crowns: { ...this.crowns } };
+            const logicalWinner = w == null ? null
+                : this.flipTeams ? (w === TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER) : w;
+            this.result = { winner: logicalWinner, crowns: { ...this.crowns } };
         }
 
         const seen = new Set();
@@ -172,7 +181,9 @@ export class GuestGame {
                 this.entities.push(e);
             }
             if (es.isTower) {
-                const logicalTeam = es.team === TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER;
+                const logicalTeam = this.flipTeams
+                    ? (es.team === TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER)
+                    : es.team;
                 const side = es.towerKind === 'king' ? 'king' : (es.x < 0 ? 'left' : 'right');
                 towers[logicalTeam][side] = { dead: es.dead, hp: es.hp, maxHp: es.maxHp };
                 if (es.dead && !e.dead) { e.model.visible = false; if (e.hpBar) e.hpBar.visible = false; }
