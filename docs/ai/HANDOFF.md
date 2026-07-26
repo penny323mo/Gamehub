@@ -4,41 +4,48 @@ Updated: 2026-07-26 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Baseline before this task: `df13654`
-Status: Royale regression suite committed; Codex's eight feature commits verified against it
+Baseline before this task: `b2de769`
+Status: Codex's eight features now covered by tests; suite is 6 files, 76 checks
 
 ## Current objective
 
-Close the gap that made the handoff unverifiable. Every check the last several
-handoffs cited — the GPU leak gate, gauntlet symmetry, PvP guest mapping — existed
-only inside one cloud session's temporary directory. The receiving agent could read
-the numbers but could not reproduce them, and a feature landing on one side could
-silently break automation the other side could not see. That is exactly what
-happened: the first-run tutorial modal (ADR-014) blocks every automated click.
+Cover Codex's eight features (ADR-014 to ADR-021) with tests, so the next agent to
+touch them finds out immediately when an invariant breaks. Scope is deliberately
+the invisible ones — data stripping, single rule paths, effect cleanup, credential
+storage — not how the rings look; visuals still need a real device.
 
 ## Completed
 
-- Added `games/royale/tests/`: `leak.mjs`, `gauntlet.mjs`, `combat.mjs`,
-  `pvp-guest.mjs`, `match.mjs`, a `run-all.mjs` runner, `README.md`, and
-  `lib/harness.mjs` which owns the static server, Chromium resolution, error
-  capture, and scoring. `npm test` exits non-zero on any failure.
-- The harness suppresses the first-run tutorial through the game's own
-  `markTutorialSeen()`, so UI-driving tests stop timing out on the modal.
-- Chromium resolution works in both environments: `PLAYWRIGHT_CHROMIUM`, then the
-  preinstalled `/opt/pw-browsers/chromium`, then Playwright's own lookup.
-- Ran the suite against Codex's eight commits. The Royale invariants hold; details
-  below. The leak baseline is 116, matching what Codex already recorded.
-- `PROJECT_CONTEXT.md` now names the suite as the Royale check command and lists
-  `gauntlet.js`, `profiles.js`, and the tests directory. ADR-022 records the rule.
+- Added `games/royale/tests/features.mjs`, 27 checks across all eight ADRs, and
+  registered it in `run-all.mjs`. The suite is now six files and 76 checks.
+- Tutorial gating (ADR-014): fresh save opens it, a save with any recorded match
+  never does, and `markTutorialSeen()` closes it permanently.
+- Profiles (ADR-015): the code never appears in `localStorage`, each profile has
+  its own salt, the stored digest is SHA-256 shaped, wrong codes are rejected,
+  right ones log in, short codes are refused, and the save key is profile-scoped.
+- Placement (ADR-019): `placementInfo` and `validPlacement` agree on six probes,
+  every reason code is in the documented set, and out-of-arena input is clamped.
+- Spell telegraphs (ADR-021): one telegraph per cast, the `fx` event carries radius
+  and remaining delay but not the internal simulation clock, the queue drains once,
+  and the telegraph is gone after impact plus fade.
+- Lane pressure and recap (ADR-016/017): `pressureClock()` tracks simulation time,
+  so a paused tutorial or a throttled tab cannot inflate danger duration.
+- Highlight replay (ADR-018): the window stays at 12 seconds and every frame has
+  the enemy hand, elixir, and next card stripped while the player's own hand is kept.
+- Combat clarity (ADR-020): 36 live units added no geometry, confirming the marker
+  layer is one instanced mesh rather than per-unit meshes.
+- `README.md` documents the storage cache trap that made two of these tests lie at
+  first: `storage.js` caches the save, so a `localStorage` write needs a reload.
 
 ## Changed files
 
-- `games/royale/tests/` (new: harness, five suites, runner, README, package.json)
-- `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md` (ADR-022), `docs/ai/HANDOFF.md`
+- `games/royale/tests/features.mjs` (new), `run-all.mjs`, `README.md`
+- `docs/ai/HANDOFF.md`
 
 ## Verification
 
-- `npm test` in `games/royale/tests`: 5/5 suites pass, 49 individual checks.
+- `npm test` in `games/royale/tests`: 6/6 suites pass, 76 individual checks.
+- `features.mjs` 27/27 on the checks listed above.
 - `leak.mjs`: geometries 116 and textures 20, identical across six match/menu
   cycles. The rise from 115 is ADR-020's persistent instanced marker layer, not a
   leak; a leak shows as monotonic growth, and this is flat.
@@ -60,12 +67,14 @@ happened: the first-run tutorial modal (ADR-014) blocks every automated click.
 
 - Deploy for this commit must be confirmed on `deploy-pages.yml` after merge. The
   suite is test-only; production still needs no build step.
-- Codex's eight features (tutorial, profiles, lane pressure, recap, replay,
-  placement feedback, combat clarity, spell telegraphs) are covered only by the
-  invariants above. They have no dedicated tests yet; adding them is the obvious
-  next expansion of the suite.
-- Running the suite needs `npm install` inside `games/royale/tests` once, plus
-  `npx playwright install chromium` on a machine without a preinstalled browser.
+- The eight features are covered at the invariant level only. Their visual and
+  audio sides — telegraph legibility, warning loudness, tutorial highlight
+  placement — still need a real device.
+- Three of the new checks failed on first run and all three were faults in the
+  test, not the game: the storage cache, counting particle effects as telegraphs,
+  and a float equality. Treat a first-run failure as suspect until reproduced.
+- Running the suite needs `npm install` in `games/royale/tests` once, plus
+  `npx playwright install chromium` where no browser is preinstalled.
 - The black-flash fix from `d0fae14` is still unconfirmed on the player's device;
   do not tune graphics further until they report back.
 - Gauntlet condition balance is simulated, not played.
@@ -84,8 +93,8 @@ happened: the first-run tutorial modal (ADR-014) blocks every automated click.
    before editing anything under `games/royale/`.
 3. Run `npm test` in `games/royale/tests` before and after any Royale change, and
    quote the real result in the handoff.
-4. There is no active implementation task. Open candidates: cover Codex's eight new
-   features with tests, or wait for Penny's next scoped request.
+4. There is no active implementation task. Open candidates: RTS-side coverage in
+   the suite, or wait for Penny's next scoped request.
 
 ## Do not redo
 
@@ -107,5 +116,5 @@ happened: the first-run tutorial modal (ADR-014) blocks every automated click.
   graphics self-heal escalating rather than boolean.
 - Do not reintroduce hardcoded counter card ids in `ai.js`.
 - Do not amend, rebase, or force-push commits that already exist on `origin/main`.
-- Do not create a second handoff file, revive root `progress.md`, or copy chat
-  transcripts or secrets into repository context files.
+- Do not create a second handoff file, revive `progress.md`, or copy transcripts
+  or secrets into repository context files.

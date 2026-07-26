@@ -30,6 +30,7 @@ Chromium 點揀（`lib/harness.mjs`）：`PLAYWRIGHT_CHROMIUM` 環境變數 → 
 | `combat.mjs` | 傷害漏斗 `Game#damage`：相剋、護甲、攻城加成、卡面文字同數據一致 |
 | `pvp-guest.mjs` | PvP guest 視角對調（ADR-011）：手牌／單位／塔／勝負／`pendingHand` |
 | `match.mjs` | 一場對局嘅生命週期：投降入賬、返選單清場、AI 唔塞死、對局有結果 |
+| `features.mjs` | ADR-014 到 ADR-021 嘅隱形不變式：教學觸發條件、玩家 code 只存 hash、落點單一規則路徑、法術預警清理、路壓用模擬時鐘、重播剝走敵方情報、標記層唔加 geometry |
 
 ## 寫新測試要知
 
@@ -37,6 +38,8 @@ Chromium 點揀（`lib/harness.mjs`）：`PLAYWRIGHT_CHROMIUM` 環境變數 → 
   `markTutorialSeen()` 關咗佢——如果你嘅測試要撳 UI 而 timeout，多數就係呢個原因。
 - swiftshader 之下 `requestAnimationFrame` 得大概 5fps，唔好用 wall-clock 等模擬推進；
   自己步進 `for (...) game.update(1/60)`。
+- `storage.js` 嘅存檔係 module-level cache：改完 localStorage 一定要 `page.reload()`
+  先問得到新答案，否則你攞到 reload 前嗰個。
 - 沙盒連唔到 Supabase，所以真・PvP 配對、重連、walkover 只可以喺真機驗證。
 - `leak.mjs` 嘅基準數字會隨住新增持久 mesh 而改變（例如 ADR-020 嘅團隊標記層令
   基準由 115 升到 116）。改基準嘅時候，喺 handoff 講明點解升。
