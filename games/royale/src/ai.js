@@ -188,11 +188,35 @@ export class AIController {
         return false;
     }
 
+    // 對手出過嘅牌入面有冇「剋大型」嘅卡（只睇 playedCards——同玩家一樣睇得到嘅公開資訊）
+    #oppHasHeavyCounter() {
+        for (const id of this.game.playedCards[TEAM.PLAYER]) {
+            if (CARDS[id]?.bonusVs?.heavy) return true;
+        }
+        return false;
+    }
+
+    // 對住某個目標，一張卡實際打得出幾多輸出（計埋相剋加成同目標護甲），
+    // 再除以費用 = 每滴聖水嘅價值。AI 靠呢個揀反制卡，唔使寫死邊張剋邊張
+    #valuePerElixir(card, target) {
+        const count = card.count ?? 1;
+        let dps = (card.dmg * count) / (card.hitSpeed || 1);
+        const tc = target?.card;
+        if (tc && card.bonusVs) {
+            for (const tag in card.bonusVs) {
+                if (tc[tag]) { dps *= card.bonusVs[tag]; break; }
+            }
+        }
+        if (tc?.armor) dps *= (1 - tc.armor);
+        return dps / Math.max(1, card.cost);
+    }
+
     tryDefend(threats, threatValue = 99) {
         // 揀最入嗰個威脅
         const lead = threats.reduce((a, b) => (a.z < b.z ? a : b));
         const isSwarm = threats.length >= 3;
-        const isTank = lead.maxHp >= 700;
+        // 「大型」以遊戲本身嘅 heavy 標籤為準，高血步兵（例如長劍士）都當坦克處理
+        const isTank = !!lead.card?.heavy || lead.maxHp >= 700;
 
         // 揀反制卡：兵海用平價多兵，坦克用長槍／高傷。
         // 防守使費要同威脅價值成比例——唔好用 7 費卡接 3 費小兵（換水就輸咗），
@@ -212,8 +236,11 @@ export class AIController {
         }
         let pick;
         if (isTank) {
-            pick = options.find(o => o.c.id === 'pikemen')
-                ?? options.reduce((a, b) => (a.c.dmg * (a.c.count ?? 1) > b.c.dmg * (b.c.count ?? 1) ? a : b));
+            // 由數據揀真・剋制卡：計埋相剋加成同對方護甲之後嘅「每滴聖水輸出」。
+            // 之前呢度硬編碼咗 id==='pikemen'，加咗相剋系統之後就唔應該再寫特例——
+            // 噉樣將來加任何新剋制關係，AI 都會自動識用
+            pick = options.reduce((a, b) =>
+                (this.#valuePerElixir(a.c, lead) >= this.#valuePerElixir(b.c, lead) ? a : b));
         } else if (isSwarm) {
             pick = options.find(o => (o.c.count ?? 1) >= 3 || o.c.splash)
                 ?? options[0];
@@ -248,6 +275,11 @@ export class AIController {
         const hasBigTank = g.aliveUnits(TEAM.ENEMY).some(e => (e.card?.hp ?? 0) >= 900);
         let tanks = this.affordable(c => c.kind === 'unit' && (c.hp >= 900 || c.targetsBuildingsOnly));
         if (hasBigTank) tanks = tanks.filter(o => o.c.hp < 900); // 剩返攻城槌類短程衝門
+        // 讀對手已出過嘅牌（公開資訊，唔係偷睇手牌）：見過剋大型嘅卡，
+        // 就唔好次次硬推大型單位入去俾人 ×2 打——高 IQ AI 先識忌諱
+        if (this.#oppHasHeavyCounter() && Math.random() < this.cfg.spellIQ * 0.75) {
+            tanks = tanks.filter(o => !o.c.heavy);
+        }
         tanks = this.notRecent(tanks);
         if (tanks.length) {
             const pick = tanks[Math.floor(Math.random() * tanks.length)];
