@@ -98,6 +98,11 @@ export class GuestGame {
     viewX(entity) { return this.flipTeams ? -entity.x : entity.x; }
     pressureClock() { return this._clock; }
     elixirMultiplier() { return this._mult; }
+    visualTeam(team) {
+        return this.flipTeams
+            ? (team === TEAM.PLAYER ? TEAM.ENEMY : TEAM.PLAYER)
+            : team;
+    }
 
     // 同 game.js 一樣嘅部署合法性檢查（畀 guest 本機出兵前預覽用，實際落子仲係由 host 話事）。
     // 座標永遠係 host 世界系：guest（呢度嘅 TEAM.PLAYER）自己半場係 z<0，
@@ -236,7 +241,8 @@ export class GuestGame {
             if (e.hpBar) {
                 e.hpBar.position.set(es.x, e.hpBar.userData.h, es.z);
                 e.hpBar.userData.setRatio(Math.max(0.001, es.hp / es.maxHp));
-                e.hpBar.visible = es.isTower || es.hp < es.maxHp;
+                if (!es.isTower && es.attackT >= 0) e.combatBarUntil = this._clock + 0.7;
+                e.hpBar.visible = es.isTower || es.hp < es.maxHp || this._clock < (e.combatBarUntil ?? 0);
             }
             e.model.userData.animate?.(this._clock + e.id * 0.7, { moving: es.moving, attackT: es.attackT });
         }
@@ -305,13 +311,14 @@ export class GuestGame {
     }
 
     #spawn(es) {
+        const visualTeam = this.visualTeam(es.team);
         const model = es.isTower
-            ? (es.towerKind === 'king' ? makeKingTower(es.team) : makePrincessTower(es.team))
-            : makeUnitModel(es.cardId, es.team);
+            ? (es.towerKind === 'king' ? makeKingTower(visualTeam) : makePrincessTower(visualTeam))
+            : makeUnitModel(es.cardId, visualTeam);
         this.scene.add(model);
         const h = modelHeight(es);
         const barW = es.isTower ? 2.1 : Math.max(0.85, (CARDS[es.cardId]?.radius ?? 0.4) * 2.1);
-        const hpBar = makeHpBar(barW, es.team);
+        const hpBar = makeHpBar(barW, visualTeam);
         hpBar.userData.h = h;
         hpBar.userData.setRatio(1);
         hpBar.visible = !!es.isTower;
@@ -319,7 +326,7 @@ export class GuestGame {
         this.hpBars.push(hpBar);
         return {
             id: es.id, team: es.team, cardId: es.cardId, isTower: es.isTower,
-            towerKind: es.towerKind,
+            towerKind: es.towerKind, visualTeam,
             model, hpBar, prevHp: es.hp, hp: es.hp, maxHp: es.maxHp, dead: false,
         };
     }

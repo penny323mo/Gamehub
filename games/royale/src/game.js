@@ -1527,6 +1527,13 @@ export class Game {
                 e.model.userData.animate?.(this.simTime + e.id * 0.7, ANIM_ARG);
             }
             e.hpBar.position.set(e.x, e.hpBar.userData.h, e.z);
+            if (!e.isTower && !e.isBuilding) {
+                const engaged = e.target && !e.target.dead
+                    && dist(e, e.target) <= e.range + e.radius + e.target.radius + 0.35;
+                // 受傷血條一直保留；滿血兵只喺真正進入攻擊距離時顯示，
+                // 混戰有資訊但行軍途中唔會成地 UI。
+                e.hpBar.visible = e.hp < e.maxHp || !!engaged;
+            }
             if (e.slowRing) e.slowRing.position.set(e.x, 0.06, e.z);
         }
 

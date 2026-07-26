@@ -5,7 +5,7 @@ import { RenderPass } from '../vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/postprocessing/OutputPass.js';
 import { RoomEnvironment } from '../vendor/environments/RoomEnvironment.js';
-import { ARENA, TEAM } from './constants.js';
+import { ARENA, TEAM, TEAM_COLORS } from './constants.js';
 import { CARDS, CARD_POOL } from './cards.js';
 import { loadAssets } from './assets.js';
 import { buildArena } from './arena.js';
@@ -397,6 +397,60 @@ ghost.add(ghostRing, ghostSplash);
 ghost.visible = false;
 scene.add(ghost);
 
+// ---------- 混戰敵我辨識：一個 instanced mesh 畫晒所有兵嘅隊色腳環 ----------
+// 共用 ghostRing 頂點資料；InstancedMesh 令 renderer 基準固定 +1，但唔會隨兵數增加。
+// 每幀只更新 instance matrix/color，40 隻兵混戰仍然係單一 draw call。
+const MAX_UNIT_MARKERS = 72;
+const unitMarkers = new THREE.InstancedMesh(
+    ghostRing.geometry,
+    new THREE.MeshBasicMaterial({
+        transparent: true, opacity: 0.58, depthWrite: false, vertexColors: true,
+        side: THREE.DoubleSide,
+    }),
+    MAX_UNIT_MARKERS
+);
+unitMarkers.name = 'unit-clarity-markers';
+unitMarkers.count = 0;
+unitMarkers.frustumCulled = false;
+unitMarkers.renderOrder = 4;
+scene.add(unitMarkers);
+const markerMatrix = new THREE.Matrix4();
+const markerPos = new THREE.Vector3();
+const markerScale = new THREE.Vector3();
+const markerQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+const markerColors = {
+    [TEAM.PLAYER]: new THREE.Color(TEAM_COLORS[TEAM.PLAYER].accent),
+    [TEAM.ENEMY]: new THREE.Color(TEAM_COLORS[TEAM.ENEMY].accent),
+};
+
+function updateUnitMarkers() {
+    if (!running || !game || (rts && rts.active)) {
+        unitMarkers.count = 0;
+        return;
+    }
+    let count = 0;
+    for (const e of game.entities) {
+        const isBuilding = e.isBuilding || CARDS[e.cardId]?.kind === 'building';
+        if (e.dead || e.isTower || isBuilding) continue;
+        const radius = e.radius ?? CARDS[e.cardId]?.radius ?? 0.4;
+        const ringRadius = Math.max(0.68, Math.min(1.25, radius * 1.65));
+        const scale = ringRadius / 0.75; // ghostRing 外徑係 0.75
+        markerPos.set(e.x, 0.075, e.z);
+        markerScale.set(scale, scale, scale);
+        markerMatrix.compose(markerPos, markerQuat, markerScale);
+        unitMarkers.setMatrixAt(count, markerMatrix);
+        const visualTeam = game.visualTeam?.(e.team) ?? e.team;
+        unitMarkers.setColorAt(count, markerColors[visualTeam]);
+        count += 1;
+        if (count >= MAX_UNIT_MARKERS) break;
+    }
+    unitMarkers.count = count;
+    if (count > 0) {
+        unitMarkers.instanceMatrix.needsUpdate = true;
+        if (unitMarkers.instanceColor) unitMarkers.instanceColor.needsUpdate = true;
+    }
+}
+
 const raycaster = new THREE.Raycaster();
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const ndc = new THREE.Vector2();
@@ -628,6 +682,7 @@ const uiCallbacks = {
 };
 
 function cleanupMatch() {
+    unitMarkers.count = 0;
     stopMatchmaking();
     arena.setMood?.(0); // 新一場由日光開始
     guestFinish = null;
@@ -1130,6 +1185,7 @@ function loop(now) {
     if (dt > 0.25) dt = 0.25;
 
     if (rts && rts.active) {
+        unitMarkers.count = 0;
         rts.update(dt);
         // Clash 戰場喺 RTS 期間收起咗，唔使 arena.update（RTS 大地圖係靜態）
         updateShake(dt); // 由 Clash 切過嚟時仲有殘餘震動就喺度收乾淨
@@ -1179,6 +1235,7 @@ function loop(now) {
             if (game.phase === 'overtime') arena.setMood?.(1);
         }
     }
+    updateUnitMarkers();
     arena.update(dt);
     updateShake(dt);
     renderScene();

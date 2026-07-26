@@ -85,7 +85,8 @@ Progress, temporary debugging notes, and next tasks belong in `HANDOFF.md`.
   `models.js`. The RTS module keeps its own `lmat()` helper for this reason.
 - Reason: disposing a cached material silently breaks every other object still
   using it. The regression guard is the GPU resource baseline: repeated
-  match/menu cycles must stay flat at 115 geometries.
+  match/menu cycles must stay flat at 116 geometries (the extra persistent entry
+  is ADR-020's instanced clarity layer).
 
 ## ADR-009: Royale unit animation is procedural bone animation
 
@@ -225,3 +226,17 @@ Progress, temporary debugging notes, and next tasks belong in `HANDOFF.md`.
 - Reason: a red or green ring without an explanation makes touch deployment feel
   arbitrary, while duplicating placement rules in UI code inevitably creates
   cases where the preview says yes and `playCard` says no.
+
+## ADR-020: Royale combat clarity uses one instanced team-marker layer
+
+- Date: 2026-07-26
+- Status: accepted
+- Decision: living non-building units receive a subtle team-colour ground ring
+  through one persistent `InstancedMesh` capped at 72 instances. Full-health unit
+  bars appear only while a target is inside attack reach; damaged bars remain
+  visible. `GuestGame` maps raw host teams to the local viewer before constructing
+  models and HP bars, while retaining raw teams for authoritative snapshots.
+- Reason: permanent per-unit meshes or always-visible health bars would multiply
+  draw calls and UI clutter in swarm fights. One instanced layer preserves enemy
+  and ally silhouettes at phone scale, and local colour mapping prevents a PvP
+  guest from seeing their own army in the opponent's red.

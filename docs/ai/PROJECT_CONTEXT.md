@@ -135,7 +135,8 @@ Royale specifics that repeatedly matter:
 - `main.js` exposes `window.__royale`, `__royaleRenderer`, `__royaleCamera`,
   `__royaleComposer()`, `__royaleShake()`, and `__rts` for automated inspection.
 - Treat a flat GPU resource count across repeated match/menu cycles as the leak
-  gate; the current baseline is 115 geometries.
+  gate; the current baseline is 116 geometries (including the persistent
+  instanced unit-clarity layer from ADR-020).
 - The cloud sandbox cannot reach Supabase, so live PvP paths (matchmaking,
   reconnect, disconnect grace, walkover) can only be certified on real devices.
 
