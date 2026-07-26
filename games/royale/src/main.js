@@ -29,18 +29,58 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 // 記憶體充足就行足 DPR 2 + 4× MSAA；細記憶體機先降級。
 // （之前一刀切封到 1.5 又冇 MSAA，畫面明顯多咗鋸齒）
 const GFX_KEY = 'royale_gfx_safe';
-// 自癒：真係試過 context lost（畫面閃黑）嘅機，下次入場自動用保守設定，
-// 唔使全世界一齊犧牲畫質。冇事嘅機照享受足 DPR + 4× MSAA
-let SAFE_MODE = false;
-try { SAFE_MODE = localStorage.getItem(GFX_KEY) === '1'; } catch { /* private mode */ }
+// 自癒係分級嘅，而且要保證收斂：每次 context lost（畫面閃黑）就記多一次，
+// 級數越高畫質越保守。淨係記一個 boolean 唔夠——降一級之後如果部機仲頂唔住,
+// 每個 session 都會再閃一次，永遠收斂唔到。
+//   0 次：全開（4× MSAA + 足像素預算）
+//   1 次：關 MSAA + 收細像素預算
+//   2 次或以上：完全唔開後製
+let GFX_STRIKES = 0;
+try {
+    const raw = localStorage.getItem(GFX_KEY);
+    GFX_STRIKES = raw === '1' ? 1 : Math.max(0, Math.min(9, parseInt(raw ?? '0', 10) || 0));
+} catch { /* private mode */ }
+const SAFE_MODE = GFX_STRIKES >= 1;
+const NO_POSTFX = GFX_STRIKES >= 2;
 const DEVICE_MEM = navigator.deviceMemory ?? 4;
-const DPR_CAP = (SAFE_MODE || DEVICE_MEM < 4) ? 1.5 : 2;
+// 用「繪圖像素預算」而唔係 DPR 硬上限：同一個 DPR 2 喺細機同大機差成倍像素，
+// 淨睇 DPR 控制唔到實際顯存。預算 = 全屏 RT 嘅像素數上限。
+const PIXEL_BUDGET = (SAFE_MODE || DEVICE_MEM < 4) ? 1.15e6 : 2.1e6;
 const MSAA_SAMPLES = SAFE_MODE ? 0 : (DEVICE_MEM >= 4 ? 4 : 2);
-// 安全網：萬一真係 context lost，preventDefault 容許瀏覽器自動恢復
-// （three 會重新上傳資源），唔會卡死喺永久黑畫面；同時記低要降級
+function budgetPixelRatio() {
+    const w = holder.clientWidth || window.innerWidth || 360;
+    const h = holder.clientHeight || window.innerHeight || 640;
+    const cap = Math.sqrt(PIXEL_BUDGET / Math.max(1, w * h));
+    return Math.max(1, Math.min(window.devicePixelRatio || 1, 2, cap));
+}
+// 安全網：context lost 之後 preventDefault 容許瀏覽器恢復，但唔可以只記低
+// 「下次載入再降級」——顯存壓力仲喺度，同一場會一直閃。所以即刻同場降級：
+// 拆走後製、收細像素比，恢復之後就用得返嘅低成本配置繼續打。
+let gfxDegraded = false;
+function degradeGraphics(reason) {
+    if (gfxDegraded) return;
+    gfxDegraded = true;
+    // 記多一次，令下次載入自動再降一級（保證最終收斂到部機頂得住嘅配置）
+    try { localStorage.setItem(GFX_KEY, String(GFX_STRIKES + 1)); } catch { /* ignore */ }
+    if (composer) {
+        composer.renderTarget1?.dispose();
+        composer.renderTarget2?.dispose();
+        composer = null;   // renderScene() 會自動改行直接 render
+        bloomPass = null;
+    }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    // 呢個係錯誤恢復路徑，本身絕對唔可以再拋錯（例如 context 喺載入途中就 lost，
+    // 嗰時 ui 仲未起好）——所以包住 try
+    try { fitCamera(); } catch { /* ignore */ }
+    try { ui?.banner?.(`⚙️ 已自動調低畫質保持流暢（${reason}）`, 2600); } catch { /* ignore */ }
+}
 renderer.domElement.addEventListener('webglcontextlost', (e) => {
     e.preventDefault();
-    try { localStorage.setItem(GFX_KEY, '1'); } catch { /* ignore */ }
+    degradeGraphics('顯示記憶體不足');
+}, false);
+renderer.domElement.addEventListener('webglcontextrestored', () => {
+    // 恢復之後 three 會重新上傳資源；此刻已經冇後製，所以唔會再撞同一個上限
+    fitCamera();
 }, false);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -86,13 +126,17 @@ const LOW_END = (navigator.deviceMemory && navigator.deviceMemory <= 2) ||
     (navigator.hardwareConcurrency ?? 4) <= 2;
 let composer = null, bloomPass = null;
 function setupComposer() {
-    if (LOW_END) return; // 低階裝置維持直接 render
+    if (LOW_END || NO_POSTFX) return; // 低階裝置／已經閃過兩次嘅機一律直接 render
     // EffectComposer 預設個 render target 冇 MSAA —— 一開後製，
     // WebGLRenderer({antialias:true}) 嗰個畫布級抗鋸齒就完全用唔著（畫面全部經離屏 target），
     // 所以要自己畀返一個帶 samples 嘅 target，唔係邊緣會好多鋸齒
     const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+    // 用 8-bit 而唔係 EffectComposer 預設嘅 HalfFloat：後製顯存直接減一半。
+    // 場景已經喺 renderer 做完 ACES tone mapping 落 0-1 範圍，bloom 門檻 0.9
+    // 喺 8-bit 上面一樣分得出高光，但 HalfFloat 嗰個 4 bytes/px 差價喺
+    // 高 DPR 手機就係「閃黑屏」同「打得順」嘅分界線
     const rt = new THREE.WebGLRenderTarget(size.width, size.height, {
-        type: THREE.HalfFloatType,
+        type: THREE.UnsignedByteType,
         samples: renderer.capabilities.isWebGL2 ? MSAA_SAMPLES : 0, // MSAA 要 WebGL2
     });
     composer = new EffectComposer(renderer, rt);
@@ -113,8 +157,8 @@ function renderScene() {
 
 const camera = new THREE.PerspectiveCamera(52, 1, 0.5, 200);
 setupComposer(); // RenderPass 要用到 camera，要喺 camera 宣告之後先起
-// composer 開就封頂 DPR 慳顯存（防 context lost 閃黑）；冇後製就照用足 DPR（最多 2）
-renderer.setPixelRatio(composer ? Math.min(window.devicePixelRatio, DPR_CAP) : Math.min(window.devicePixelRatio, 2));
+// 後製開嗰陣受像素預算限制（防顯存爆咗令 context lost 閃黑）；冇後製就照用足 DPR
+renderer.setPixelRatio(composer ? budgetPixelRatio() : Math.min(window.devicePixelRatio || 1, 2));
 let arena = { zones: null, update: () => {} }; // loadAssets 之後先起
 
 // ---------- 鏡頭自動適配 + 縮放/旋轉 ----------
@@ -181,6 +225,8 @@ function applyCameraView() {
 
 function fitCamera() {
     const w = holder.clientWidth, h = holder.clientHeight;
+    // 視窗大細變咗，像素預算要重算（轉橫屏會令同一個 DPR 多食好多像素）
+    if (composer) renderer.setPixelRatio(budgetPixelRatio());
     renderer.setSize(w, h);
     composer?.setSize(w, h); // bloom pass 要跟畫布大小
     camera.aspect = w / h;
