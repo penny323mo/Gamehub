@@ -167,6 +167,7 @@ body {
 }
 
 #mute-btn,
+#help-btn,
 #quit-btn,
 #hub-btn {
     position: absolute;
@@ -183,6 +184,10 @@ body {
 
 #mute-btn {
     right: 10px;
+}
+
+#help-btn {
+    right: 58px;
 }
 
 #quit-btn {
@@ -219,6 +224,82 @@ body {
 
 #cam-controls button:active {
     background: rgba(255, 255, 255, .25);
+}
+
+/* ---------- 第一次入場玩法教學 ---------- */
+#tutorial-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 80;
+    pointer-events: auto;
+}
+
+#tutorial-focus {
+    position: absolute;
+    border: 3px solid #ffd870;
+    border-radius: 14px;
+    box-shadow: 0 0 0 9999px rgba(6, 10, 4, .72), 0 0 24px rgba(255, 216, 112, .8);
+    pointer-events: none;
+    transition: left .2s ease, top .2s ease, width .2s ease, height .2s ease;
+}
+
+#tutorial-panel {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(88vw, 390px);
+    padding: 18px;
+    border: 2px solid #d6a84f;
+    border-radius: 16px;
+    background: linear-gradient(160deg, rgba(42, 54, 28, .98), rgba(23, 31, 16, .98));
+    color: #f7efd8;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, .55);
+    text-align: center;
+}
+
+#tutorial-panel.top { top: max(90px, 13vh); }
+#tutorial-panel.bottom { bottom: max(125px, 17vh); }
+
+#tutorial-step {
+    color: #d6a84f;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+
+#tutorial-title {
+    margin: 7px 0;
+    font-size: 21px;
+}
+
+#tutorial-text {
+    margin: 0;
+    color: #ded2b2;
+    font-size: 14px;
+    line-height: 1.55;
+}
+
+#tutorial-actions {
+    display: flex;
+    gap: 9px;
+    margin-top: 15px;
+}
+
+#tutorial-actions button {
+    flex: 1;
+    min-height: 42px;
+    border: 1.5px solid #8a6a3a;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .08);
+    color: #e8dcc0;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+#tutorial-next {
+    background: linear-gradient(180deg, #8ab34f, #55752f) !important;
+    border-color: #a9d667 !important;
+    color: #fff !important;
 }
 
 /* ---------- 手牌區 ---------- */

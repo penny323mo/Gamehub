@@ -1,119 +1,79 @@
 # Current cross-agent handoff
 
 Updated: 2026-07-26 (Asia/Macau)
-Prepared by: Claude Code (cloud); accepted by Codex (local)
+Prepared by: Codex (local)
 Integration branch: `main`
-Work branch: `claude/3d-tower-defense-game-rld6ts`
-Baseline before this task: `250f8ac`
-Status: accepted at `013e36e`; gauntlet conditions and per-match rules verified
+Baseline before this task: `e659b09`
+Status: Royale first-run tutorial implemented and locally verified
 
 ## Current objective
 
-Give the gauntlet ladder actual variety. Stages differed only by a difficulty label
-and the AI's tactical sharpening, so from stage 3 onwards every stage played the
-same. New stage-condition variety must not favour the AI, so each condition
-applies to both sides equally; the separate ADR-007 capped elixir ramp remains.
+Help a first-time Clash-mode player understand elixir, card placement, and the
+tower objective without rescanning instructions or being attacked while reading.
 
 ## Completed
 
-- New `games/royale/src/gauntlet.js` holds the stage table: five conditions plus a
-  plain stage, cycling with period 6. Stage 1 is always plain so a new player learns
-  the baseline first.
-- Conditions: 速攻戰 (2-minute regulation), 聖水泛濫 (elixir interval 2.8 to 1.75),
-  堅城 (both towers ×1.3 HP), 聖水泉常開 (fountain live from the first second),
-  開局決鬥 (both start on 10 elixir).
-- Opponent personality rotates deterministically by stage instead of randomly, so
-  a stage can be prepared for; period 6 against 5 personalities means the same
-  pairing returns only after 30 stages.
-- `Game` accepts `rules`, `towerHpMult`, and `fountainFromStart`. Every in-match
-  rule read now goes through `this.rules`, including `ai.js` (its elixir counting
-  would otherwise model the wrong regen rate) and `ui.js`; `GuestGame` exposes
-  `rules` too. `elixirMax` stays non-overridable because the HUD builds its elixir
-  pips once from the constant.
-- The condition is announced by a banner and stays visible all match as a chip
-  under the timer; a hidden rule change would be worse than no variety. The end
-  screen previews the next stage on a win, so the deck can be edited first.
-- Fixed a pre-existing banner bug found while testing: `#banner` sits at
-  `left: 50%`, capping its width at half the container, and `white-space: nowrap`
-  ran long text off both screen edges. It now wraps inside `width: max-content`.
+- Added a three-step in-match tutorial: elixir/cost, tap-or-drag placement, and
+  crown/tower victory conditions.
+- A fresh save auto-opens it on the first single or gauntlet match. The simulation,
+  AI, and timer remain frozen until completion or skip.
+- Completion/skip writes `tutorialSeen` into the existing `royale-save-v1`.
+- Existing saves with any win/loss/draw do not auto-open after this update, even
+  when the old save has no `tutorialSeen` field.
+- The in-match `❓` button reopens the tutorial at any time. PvP and LV2 do not
+  auto-open it.
+- The overlay highlights the relevant live HUD region, supports Next, Skip,
+  Enter, Escape, viewport resize, and exposes a proper dialog role.
 
 ## Changed files
 
-- `games/royale/src/`: `gauntlet.js` (new), `game.js`, `ai.js`, `pvp.js`, `ui.js`,
-  `main.js`
-- `games/royale/index.html`, `games/royale/style.css`
-- `docs/ai/DECISIONS.md` (ADR-013), `docs/ai/HANDOFF.md`
+- `games/royale/index.html`
+- `games/royale/style.css`
+- `games/royale/src/ui.js`
+- `games/royale/src/main.js`
+- `games/royale/src/storage.js`
+- `docs/ai/DECISIONS.md` (ADR-014)
+- `docs/ai/HANDOFF.md`
 
 ## Verification
 
-- Conditions land: stages 1-7 report the expected `matchTime` (180/120), elixir
-  interval (2.8/1.75), start elixir (5/10), princess HP (1500/1950), king HP
-  (2600/3380), `fountainAlways`; `elixirMax` stayed 12 in every stage.
-- Isolated condition symmetry, stages 1-6 with `enemyElixirRate` fixed at 1: tower
-  HP and starting elixir match; after ten seconds both sides remain equal. The
-  production gauntlet separately keeps ADR-007's stage-4+ ramp, capped at 1.2.
-- Fountain-from-start: a unit parked at river centre for seven seconds gained 4
-  elixir under 聖水泉常開 versus 2 under standard rules — two fountain ticks.
-- Opponent rotation is deterministic, every key resolves to a real personality,
-  and stage 1 plus stage 0 (non-gauntlet) have no condition.
-- Every condition plays a full match to a result: 速攻戰 ended at 120s, the others
-  ran to regulation or overtime, no errors.
-- HUD: stage 4 shows chip `🧱 堅城` with both princess towers at 1950; a standard
-  single match hides the chip and restores 1500. End screen: win at stage 3
-  previews 堅城, win at stage 6 says 下一關：標準規則, a loss shows nothing.
-- Claude tested layout at 390x844 and 1000x760. Codex repeated local HTTP/browser
-  smoke at 390x844: stage 1 plain; stage 4 chip visible, both princess towers 1950,
-  `enemyElixirRate` 1.05; no overlap or runtime error beyond `/favicon.ico` 404.
-- Regression: `test-royale-leak.mjs` 115 geometries / 20 textures flat over six
-  match/menu cycles; `clash-fixes-test.mjs`, `test-pvp-logic.mjs`,
-  `test-royale2.mjs`, `rts-check.mjs` all pass. Only console error is the
-  sandbox's Supabase tunnel failure.
-- Codex: JS syntax PASS; Pages deployment `013e36e` success; handoff check PASS.
+- `node --check` for changed Royale JS: PASS.
+- Fresh storage: first single match opened step 1/3 automatically.
+- Pause gate: after 2.2 wall-clock seconds, `time=180` and `simTime=0`.
+- Next moved through all three steps; final button and Skip both closed the dialog.
+- Completion persisted `tutorialSeen=true`; reload plus a second match did not
+  auto-open it.
+- Manual `❓` replay opened after completion and paused the running match.
+- Legacy save `{ wins: 1 }` without `tutorialSeen`: migration kept the tutorial
+  hidden and preserved the win.
+- Visual browser checks passed at 390x844 portrait and 844x390 landscape; panel,
+  focus ring, cards, crowns, and controls stayed readable.
+- Console had no functional errors; only the existing root `/favicon.ico` 404.
+- `./scripts/check-handoff.sh`: PASS after this file update.
 
 ## Known issues and cautions
 
-- GitHub Pages deployment for `013e36e` completed successfully.
-- The black-flash fix from `d0fae14` is still unconfirmed on the player's device;
-  do not tune graphics further until they report back.
-- Condition balance is simulated, not played; if the ladder feels swingy, tune the
-  condition table rather than the AI.
-- Commits show as Unverified because this environment has no signing key, not a
-  wrong identity: committer and author are already `noreply@anthropic.com`. Penny
-  accepted that. Do not rewrite pushed history, do not change `git config`.
-- Damage-number cache eviction can dispose a texture still used by an in-flight
-  sprite; Three re-uploads it, so this is churn, not corruption.
-- Live PvP flows (reconnect on both roles, 30s disconnect grace, walkover) remain
-  unverified on real hardware; the cloud sandbox cannot reach Supabase.
-- Earlier cautions still apply: root `progress.md` is historical, some old remote
-  branches are not ancestors of `main`, Pages CI runs the full lint/test/build
-  sequence only for Ashen Rail.
-- Named `.mjs` regressions were cloud-session tools and are not tracked; Codex
-  could not rerun those exact scripts, so retained their results as Claude evidence.
+- The black-flash fix from `d0fae14` is still unconfirmed on Penny's original
+  device; do not tune graphics further until they report back.
+- Live PvP reconnect/grace/walkover still needs real-device Supabase verification.
+- Cloud-session `.mjs` regressions are not tracked, so Codex cannot rerun the exact
+  scripts; Pages CI fully lint/tests/builds only Ashen Rail.
+- Root `/favicon.ico` remains absent; this is a non-functional local-server 404.
 
 ## Exact next action
 
-1. Ask the player whether the black flash is gone before tuning graphics further.
-2. Otherwise pick the next Royale item: a first-run tutorial, or the replay system.
+1. After push, receiving agent runs `./scripts/agent-context.sh --sync` and reads
+   ADR-007 to ADR-014 plus this handoff.
+2. Penny can try the tutorial and confirm the earlier black flash on the affected
+   device.
+3. If no tutorial issue is reported, the next Royale roadmap item is replay.
 
 ## Do not redo
 
-- Do not re-derive the Royale constraints by reading the whole game; ADR-007 to
-  ADR-013 already record them, and Git history is the evidence.
-- Do not add an AI-only stage condition or increase ADR-007's capped elixir ramp;
-  add or tune a symmetric battlefield condition instead.
-- Do not read `GAME_RULES` directly inside match code; use `game.rules`, and never
-  let a condition override `elixirMax`.
-- Do not raise the catapult building bonus to the RTS value of 2.0; the range
-  advantage over towers is the reason the two modes differ.
-- Do not add a card description that promises a mechanic the data does not carry.
-- Do not restore `white-space: nowrap` on `#banner` without fixing the `left: 50%`
-  width cap; that combination clipped long text off screen.
-- Do not dispose sprite geometry, and do not dispose damage-number textures at
-  effect end; both are shared.
-- Do not restore `HalfFloatType` composer targets or a plain DPR cap, and keep the
-  graphics self-heal escalating rather than boolean.
-- Do not reintroduce hardcoded counter card ids in `ai.js`; extend the `bonusVs`
-  and tag data instead.
-- Do not amend, rebase, or force-push commits that already exist on `origin/main`.
-- Do not create a second handoff file, revive root `progress.md`, or copy chat
-  transcripts or secrets into repository context files.
+- Do not let tutorial time advance the simulation or AI.
+- Do not auto-open this Clash tutorial in PvP, LV2, or for an existing player with
+  recorded matches.
+- Do not remove the `❓` replay path when changing first-run detection.
+- Do not create another tutorial save key; migrate `royale-save-v1`.
+- Do not tune graphics before the device-level black-flash result.
+- Do not amend, rebase, or force-push published `main` history.

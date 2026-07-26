@@ -769,7 +769,7 @@ function startMatch(deck, difficulty, mode = 'single', stage = 1) {
     ai = new AIController(game, actualDiff, pid, mode === 'gauntlet' ? stage : 0);
     window.__royale = { game, ai, renderer, startMatch, cleanupMatch }; // 畀自動化測試用
     ui.bindGame(game);
-    ui.showGame();
+    ui.showGame(mode === 'single' || mode === 'gauntlet');
     arena.setMood?.(0);
     const stageTag = mode === 'gauntlet' ? `第 ${stage} 關 · ` : '';
     ui.banner(`⚔️ ${stageTag}對手：${personality.icon} ${personality.name}`, 1600);
@@ -1028,16 +1028,19 @@ function loop(now) {
     }
 
     if (running && game) {
-        if (netRole === 'guest') {
-            // Guest 唔跑本機模擬，淨係推動渲染用嘅本地時鐘（bob/攻擊動畫）
-            game.tick(dt);
-        } else {
-            acc += dt;
-            while (acc >= STEP) {
-                game.update(STEP);
-                ai?.update(STEP);
-                hostRelay?.tick(STEP);
-                acc -= STEP;
+        // 第一次入場教學開住時凍結模擬，但照 render，玩家可以安定睇完先開戰。
+        if (!ui?.tutorialOpen) {
+            if (netRole === 'guest') {
+                // Guest 唔跑本機模擬，淨係推動渲染用嘅本地時鐘（bob/攻擊動畫）
+                game.tick(dt);
+            } else {
+                acc += dt;
+                while (acc >= STEP) {
+                    game.update(STEP);
+                    ai?.update(STEP);
+                    hostRelay?.tick(STEP);
+                    acc -= STEP;
+                }
             }
         }
         game.updateHpBarOrientation(camera.quaternion);

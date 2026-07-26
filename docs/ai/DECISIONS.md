@@ -146,3 +146,15 @@ Progress, temporary debugging notes, and next tasks belong in `HANDOFF.md`.
   identical from stage 3 onwards. Making difficulty come from asymmetric numbers
   is exactly what ADR-007 forbids, and reading `GAME_RULES` directly made
   per-match rules impossible without editing shared constants.
+
+## ADR-014: Royale first-run tutorial pauses play and does not interrupt veterans
+
+- Date: 2026-07-26
+- Status: accepted
+- Decision: a fresh player's first single or gauntlet match opens the three-step
+  tutorial and pauses simulation until completion or skip. Completion is stored in
+  `royale-save-v1`; saves with any recorded match do not auto-open it. The `❓`
+  HUD button always allows replay. PvP and LV2 never auto-open this Clash tutorial.
+- Reason: onboarding must not let the AI attack while the player reads, must not
+  surprise existing players after an update, and must remain recoverable after a
+  skip without adding a second settings screen.

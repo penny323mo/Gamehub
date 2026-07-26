@@ -131,6 +131,7 @@ function defaultSave() {
         daily: { date: '', done: {} }, // done: challengeId -> true
         gauntletBest: 0,
         achievements: {},        // id -> 解鎖日期字串
+        tutorialSeen: false,
     };
 }
 
@@ -157,6 +158,7 @@ export function loadSave() {
         if (typeof save.activeDeck !== 'number' || save.activeDeck < 0 || save.activeDeck >= save.decks.length) save.activeDeck = 0;
         if (!save.cardLevels || typeof save.cardLevels !== 'object') save.cardLevels = def.cardLevels;
         if (!save.achievements || typeof save.achievements !== 'object') save.achievements = {};
+        if (typeof save.tutorialSeen !== 'boolean') save.tutorialSeen = def.tutorialSeen;
     }
     // 每日挑戰過咗夜就重置——放喺 cache 命中之後都要檢查，
     // 唔係個 tab 開過夜就會一直計落尋日嗰批挑戰度
@@ -223,6 +225,18 @@ export function getActiveDeck() {
 export function setActiveDeck(idx) {
     loadSave();
     save.activeDeck = idx;
+    persist();
+}
+
+export function shouldShowTutorial() {
+    loadSave();
+    // 舊玩家唔應該因為版本更新突然被教學截停；只招呼真正未打過一場嘅新存檔。
+    return !save.tutorialSeen && save.wins + save.losses + save.draws === 0;
+}
+
+export function markTutorialSeen() {
+    loadSave();
+    save.tutorialSeen = true;
     persist();
 }
 

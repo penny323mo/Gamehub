@@ -40,6 +40,7 @@
             </div>
             <div id="condition-chip" class="hidden" title="本關戰場條件（雙方一樣）"></div>
             <button id="mute-btn" title="靜音">🔊</button>
+            <button id="help-btn" title="玩法教學">❓</button>
             <button id="quit-btn" title="投降離開">🏳️</button>
             <div id="enemy-played" title="對手已出過嘅卡"></div>
             <div id="cam-controls">
@@ -83,6 +84,20 @@
 
         <!-- 中央橫額提示 -->
         <div id="banner" class="hidden"></div>
+
+        <!-- 第一次入場玩法教學；開住時 main loop 會暫停模擬 -->
+        <div id="tutorial-layer" class="hidden" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
+            <div id="tutorial-focus"></div>
+            <div id="tutorial-panel" class="top">
+                <div id="tutorial-step"></div>
+                <h2 id="tutorial-title"></h2>
+                <p id="tutorial-text"></p>
+                <div id="tutorial-actions">
+                    <button id="tutorial-skip">略過教學</button>
+                    <button id="tutorial-next">下一步</button>
+                </div>
+            </div>
+        </div>
 
         <!-- 開始畫面 -->
         <div id="screen-start" class="screen">

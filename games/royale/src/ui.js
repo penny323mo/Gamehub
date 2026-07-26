@@ -5,6 +5,7 @@ import { stageCondition } from './gauntlet.js';
 import {
     getStats, getDailyChallenges, getDecks, setDeck, getActiveDeck, setActiveDeck,
     cardLevel, cardShards, SHARDS_PER_LEVEL, MAX_LEVEL, getAchievements,
+    shouldShowTutorial, markTutorialSeen,
 } from './storage.js';
 import { fetchLeaderboard, getPlayerName, setPlayerName } from './leaderboard.js';
 
@@ -31,11 +32,31 @@ export class UI {
         this.deckSlot = getActiveDeck();
         this.deck = [...getDecks()[this.deckSlot].cards];
         this.bannerTimer = null;
+        this.tutorialOpen = false;
+        this.tutorialStep = 0;
+        this.tutorialSteps = [
+            {
+                target: 'elixir-row', position: 'top',
+                title: '聖水就係出兵成本',
+                text: '紫色聖水會自動回復。卡牌左上角個數字係費用；灰咗代表而家未夠水。',
+            },
+            {
+                target: 'cards', position: 'top',
+                title: '點卡再點戰場，或者直接拖',
+                text: '揀一張亮住嘅卡，再點自己半場落兵；你亦可以直接將卡拖到戰場。',
+            },
+            {
+                target: 'hud-top', position: 'bottom',
+                title: '守住藍塔，攻陷紅塔',
+                text: '兵會自動過河作戰。拆塔攞皇冠；打爆敵方王塔就即時勝出。',
+            },
+        ];
 
         this.#buildDeckGrid();
         this.#bindStartScreen();
         this.#bindLeaderboard();
         this.#bindHand();
+        this.#bindTutorial();
         this.#buildElixirTicks();
         this.refreshProfile();
     }
@@ -326,7 +347,7 @@ export class UI {
         el.classList.remove('hidden');
     }
 
-    showGame() {
+    showGame(offerTutorial = false) {
         this.hideReconnectBar(); // 入咗場就唔使再提重連
         clearTimeout(this.endRevealTimer);
         clearTimeout(this.bannerDelayTimer); // 上一場排咗隊但未出嘅橫額唔好走漏到新一場
@@ -339,6 +360,71 @@ export class UI {
         this.lastPlayedKey = '';
         this.$('enemy-played').innerHTML = '';
         this.$('next-card').innerHTML = ''; // 唔好留低上一場嘅「下一張」卡面（PvP guest 未收快照前會露底）
+        if (offerTutorial && shouldShowTutorial()) this.showTutorial();
+    }
+
+    #bindTutorial() {
+        this.$('help-btn').addEventListener('click', () => this.showTutorial(true));
+        this.$('tutorial-next').addEventListener('click', () => {
+            if (this.tutorialStep >= this.tutorialSteps.length - 1) {
+                this.#closeTutorial();
+                return;
+            }
+            this.tutorialStep += 1;
+            this.#renderTutorialStep();
+        });
+        this.$('tutorial-skip').addEventListener('click', () => this.#closeTutorial());
+        window.addEventListener('resize', () => {
+            if (this.tutorialOpen) this.#positionTutorialFocus();
+        });
+        window.addEventListener('keydown', (ev) => {
+            if (!this.tutorialOpen) return;
+            if (ev.key === 'Escape') this.#closeTutorial();
+            else if (ev.key === 'Enter') this.$('tutorial-next').click();
+        });
+    }
+
+    showTutorial(force = false) {
+        if (this.tutorialOpen || (!force && !shouldShowTutorial())) return;
+        this.tutorialOpen = true;
+        this.tutorialStep = 0;
+        this.$('tutorial-layer').classList.remove('hidden');
+        this.#renderTutorialStep();
+    }
+
+    #renderTutorialStep() {
+        const step = this.tutorialSteps[this.tutorialStep];
+        this.$('tutorial-step').textContent = `${this.tutorialStep + 1} / ${this.tutorialSteps.length}`;
+        this.$('tutorial-title').textContent = step.title;
+        this.$('tutorial-text').textContent = step.text;
+        this.$('tutorial-next').textContent =
+            this.tutorialStep === this.tutorialSteps.length - 1 ? '開始作戰' : '下一步';
+        const panel = this.$('tutorial-panel');
+        panel.classList.toggle('top', step.position === 'top');
+        panel.classList.toggle('bottom', step.position === 'bottom');
+        requestAnimationFrame(() => this.#positionTutorialFocus());
+    }
+
+    #positionTutorialFocus() {
+        const step = this.tutorialSteps[this.tutorialStep];
+        const target = this.$(step.target);
+        const focus = this.$('tutorial-focus');
+        if (!target) { focus.classList.add('hidden'); return; }
+        const r = target.getBoundingClientRect();
+        const pad = 7;
+        focus.classList.remove('hidden');
+        focus.style.left = `${Math.max(4, r.left - pad)}px`;
+        focus.style.top = `${Math.max(4, r.top - pad)}px`;
+        focus.style.width = `${Math.min(innerWidth - 8, r.width + pad * 2)}px`;
+        focus.style.height = `${Math.min(innerHeight - 8, r.height + pad * 2)}px`;
+    }
+
+    #closeTutorial() {
+        if (!this.tutorialOpen) return;
+        this.tutorialOpen = false;
+        this.$('tutorial-layer').classList.add('hidden');
+        markTutorialSeen();
+        this.$('help-btn').focus();
     }
 
     // result: game.result；extra: { rewards, damage, mode, stage, stageCleared }
