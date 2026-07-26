@@ -59,7 +59,13 @@ already flashed once, and the self-heal only applied on the next page load.
 
 ## Known issues and cautions
 
-- Deploy for `12c4d02` verified success; this task's deploy still needs checking.
+- Deploy for `d0fae14` verified success.
+- Commits in this repository show as Unverified on GitHub because this environment
+  has no commit-signing key, not because of a wrong identity: committer and author
+  are already `noreply@anthropic.com`. Penny has decided to accept that. Do not
+  rewrite pushed history to chase the badge; amending cannot create a signature
+  without a key, and force-pushing `main` would break the shared handoff baseline
+  the other agent syncs from. Adding signing needs Penny to supply a key.
 - The player should clear `royale_gfx_safe` in localStorage if an earlier flash
   already recorded a strike and they want to re-test full quality.
 - Memory figures are estimates from buffer dimensions, not driver readings. If
@@ -101,5 +107,7 @@ already flashed once, and the self-heal only applied on the next page load.
 - Do not reintroduce hardcoded counter card ids in `ai.js`; extend the `bonusVs`
   and tag data instead.
 - Do not give the Royale AI economy bonuses or hidden information.
+- Do not amend, rebase, or force-push commits that already exist on `origin/main`,
+  and do not change `git config` identity; both were explicitly ruled out.
 - Do not create a second parallel handoff file or revive root `progress.md`.
 - Do not copy chat transcripts or secrets into repository context files.
