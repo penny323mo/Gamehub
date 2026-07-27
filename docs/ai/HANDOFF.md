@@ -51,7 +51,7 @@ computer rivals (someone else's pace) and a ghost of your own best lap (your own
 - `games/Racing Car/index.html`, `style.css`
 - `games/Racing Car/tests/rivals.mjs`, `tests/ghost.mjs` (both new), `tests/run-all.mjs`
 - `games/Racing Car/src/input.js`
-- `docs/ai/DECISIONS.md` (ADR-045 to ADR-050), `docs/ai/HANDOFF.md`
+- `docs/ai/DECISIONS.md` (ADR-045 to ADR-051), `docs/ai/HANDOFF.md`
 
 ## Verification
 
@@ -59,16 +59,14 @@ computer rivals (someone else's pace) and a ghost of your own best lap (your own
   ghost 25/25 (setup gained 9 control gates, rivals 7 table gates; Codex's 59
   control gates were not modified).
 - Four rivals finish three laps on every circuit (turbo 110–133s, coast 122–134s,
-  touge 120–157s) with 2.6 / 11.0 / 5.7 percent off-road and a spread of times —
-  which is what proves the skill levels do something.
+  touge 120–157s) with 2.6 / 11.0 / 5.7 percent off-road and a spread of times.
 - Budget with four rivals: 16 draw calls, 55,115 triangles, inside ADR-044's `<18`
   and `<120k`. The field adds exactly one draw call and 288 triangles.
 - Separation: four cars forced onto one point push apart to 4.51 m; two running side
   by side 2.6 m apart stay 2.46 m apart. Ranking gate: a player on pole with four
   rivals ahead reads their progress as 0.012–0.025, not 0.9x.
 - Screenshots at 430x900: the grid at lights-out, mid-race passing wheel-to-wheel,
-  lap 2 showing −2.92 against the recorded best, and the finish table with the
-  player 4th of 5 at +10.97 and one rival still 未完成.
+  lap 2 at −2.92 on the recorded best, and the finish table (player 4th of 5).
 - Ghost gates cover interpolation, shortest-path yaw across ±pi, clamping outside
   the recorded range, only-faster-overwrites, and clearing. Two rivals plus the
   ghost on track: 17 draw calls, 55,133 triangles.
@@ -86,7 +84,6 @@ computer rivals (someone else's pace) and a ghost of your own best lap (your own
   collision model: contact nudges cars apart, it does not transfer spin or damage.
 - Still unanswered from her device: whether steering reads correctly (the 轉向方向
   反轉 toggle is the escape hatch) and whether the gyro default suits her.
-- Royale is finished and needs no work; its device checklist still stands.
 - Commits show as Unverified because this environment has no signing key, not a
   wrong identity. Do not rewrite pushed history, do not change `git config`.
 
