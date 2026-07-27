@@ -432,3 +432,30 @@ follows what the tyres can use
   throttled older phone. A backgrounded mobile tab can also return with stale touch
   state or surprise motion. Rendering resolution is the safest runtime load control,
   and visible user-controlled resume is safer than guessing when play should restart.
+
+## ADR-034: Racing Car renders continuously only during an active race
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: the WebGL/rAF loop runs continuously only while a race is active.
+  Menu, pause, and finish states sleep completely; resize, track, paint, and time-of-day
+  changes invalidate the scene and request exactly one frame. A finishing race still
+  draws its last active frame before sleeping. Portrait controls must fit at 320×568
+  with every touch target at least 44px; the 667×375 landscape speed HUD must not
+  overlap either the minimap or gas control.
+- Reason: a paused 3× DPR phone under 4× CPU slowdown was still issuing 299 WebGL
+  renders in five seconds. After render-on-demand it issues zero while paused or in
+  the menu, without changing the active-race 60 fps path. The old fixed control sizes
+  also clipped 42px of the gas button at 360px portrait width, making a visually
+  present control partly untouchable.
+
+## ADR-035: Racing Car player model is 50% larger without changing physics
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: normalize the player GLB to a 6.9-unit visual length instead of 4.6,
+  and scale its contact-shadow plane by the same 1.5 factor. Keep `Car` physics,
+  wheelbase, collision queries, speed, and camera rules unchanged.
+- Reason: Penny explicitly requested the car proportion be 50% larger. This is a
+  readability/composition change; coupling it to the proven drift model would alter
+  control feel and invalidate the three-track gameplay baseline unnecessarily.

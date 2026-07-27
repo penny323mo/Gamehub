@@ -34,6 +34,20 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 holder.appendChild(renderer.domElement);
 
+// 比賽先需要連續重畫。Menu／暫停／完成畫面都係靜態，停低 rAF + WebGL
+// 先至真係畀手機 GPU 休息；設定或 resize 只補畫一幀。
+let frameHandle = 0;
+let renderDirty = true;
+let renderCount = 0;
+let carReadyRendered = false;
+function ensureFrame() {
+    if (!frameHandle) frameHandle = requestAnimationFrame(frame);
+}
+function requestRender() {
+    renderDirty = true;
+    ensureFrame();
+}
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x8fc7ef);
 // 空氣透視收走地形平面邊界，同時令遠景有真正深度。
@@ -56,6 +70,7 @@ function resize() {
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    requestRender();
 }
 addEventListener('resize', resize);
 addEventListener('orientationchange', () => setTimeout(resize, 120));
@@ -150,6 +165,7 @@ function buildTrack(id) {
     if (car) car.reset(track.startPos, track.startDir);
     if (race) { race.track = track; race.trackId = trackDef.id; race.reset(); }
     camInit = false;
+    requestRender();
 }
 buildTrack(trackDef.id);
 
@@ -177,13 +193,15 @@ const clouds = new THREE.Group();
 const loader = new GLTFLoader();
 const draco = new DRACOLoader();
 draco.setDecoderPath('./vendor/draco/');
+const CAR_VISUAL_LENGTH = 6.9; // 原本 4.6；按 Penny 要求視覺比例放大 50%
+const CAR_VISUAL_SCALE = CAR_VISUAL_LENGTH / 4.6;
 loader.setDRACOLoader(draco);
 
 // 模型可能係任何朝向／尺寸：量度包圍盒，轉到「車頭向 +z」再縮到指定長度。
 // 呢個模型（Tripo 生成）車頭係向 -z，所以對齊完之後仲要再轉 180°；
 // 唔轉嘅話成架車倒後行，玩家仲會覺得左右轉向係反嘅——其實物理啱晒，
 // 淨係模型朝向錯。
-function normalizeCar(obj, targetLength = 4.6) {
+function normalizeCar(obj, targetLength = CAR_VISUAL_LENGTH) {
     const box = new THREE.Box3().setFromObject(obj);
     const size = box.getSize(new THREE.Vector3());
     // 水平最長嗰軸當車身長度方向
@@ -218,7 +236,7 @@ function contactShadow() {
     g.fillRect(0, 0, N, N);
     const tex = new THREE.CanvasTexture(cv);
     const mesh = new THREE.Mesh(
-        new THREE.PlaneGeometry(5.4, 7.2),
+        new THREE.PlaneGeometry(5.4 * CAR_VISUAL_SCALE, 7.2 * CAR_VISUAL_SCALE),
         new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }),
     );
     mesh.rotation.x = -Math.PI / 2;
@@ -265,7 +283,11 @@ loader.load('./assets/car.glb', (gltf) => {
         get running() { return running; },
         get paused() { return paused; },
         get wakeLockActive() { return !!wakeLock; },
+        get ready() { return carReadyRendered; },
+        get renderCount() { return renderCount; },
+        visualLength: CAR_VISUAL_LENGTH,
     };
+    requestRender();
 }, undefined, (err) => {
     $('loading').innerHTML = `<div class="loading-box"><div class="loading-label">⚠️ 載入失敗</div></div>`;
     console.error(err);
@@ -339,6 +361,7 @@ function setColour(id) {
     if (carModel) paintCar(carModel, colour.hex);
     document.querySelectorAll('#colour-list button').forEach(b =>
         b.classList.toggle('on', b.dataset.id === colour.id));
+    requestRender();
 }
 function setTod(id) {
     tod = TIMES[id] ? id : 'day';
@@ -346,6 +369,7 @@ function setTod(id) {
     applyTime(tod, { scene, renderer, sun, hemi });
     document.querySelectorAll('#tod-seg button').forEach(b =>
         b.classList.toggle('on', b.dataset.tod === tod));
+    requestRender();
 }
 function markSeg(sel, attr, value) {
     document.querySelectorAll(`${sel} button`).forEach(b =>
@@ -546,6 +570,7 @@ function startRace() {
     last = performance.now();
     if (qualityMode === 'auto') setQuality('auto', false); // 每場由裝置安全上限重新量
     requestWakeLock();
+    ensureFrame();
 }
 function restart() { startRace(); }
 function pauseRace(reason = '比賽進度已保留') {
@@ -565,6 +590,7 @@ function resumeRace() {
     last = performance.now();
     $('screen-pause').classList.add('hidden');
     requestWakeLock();
+    ensureFrame();
     return true;
 }
 function toMenu() {
@@ -591,11 +617,14 @@ document.addEventListener('visibilitychange', () => {
 
 // ---------- 主迴圈 ----------
 function frame(now) {
-    requestAnimationFrame(frame);
+    frameHandle = 0;
+    // race.update 可能喺呢一幀觸發 finish 並將 running 變 false；記住入幀時
+    // 嘅狀態，確保終點嗰一幀仍然畫得出，之後先停 loop。
+    const activeFrame = running;
     const dt = Math.min(0.05, (now - last) / 1000);   // 夾住 dt：切 tab 返嚟唔好一下衝出賽道
     last = now;
-    if (car) {
-        if (running) {
+    if (car && (activeFrame || renderDirty)) {
+        if (activeFrame) {
             const cmd = race.state === 'racing' ? input.read(dt) : { throttle: 0, steer: 0, handbrake: false };
             car.update(dt, cmd, track);
             race.update(dt, car);
@@ -608,8 +637,14 @@ function frame(now) {
         }
         updateCamera(dt);
     }
-    renderer.render(scene, camera);
+    if (activeFrame || renderDirty) {
+        renderer.render(scene, camera);
+        renderCount += 1;
+        if (car) carReadyRendered = true;
+        renderDirty = false;
+    }
     sampleAutoQuality(now);
+    if (running) ensureFrame();
 }
 resize();
-requestAnimationFrame(frame);
+ensureFrame();

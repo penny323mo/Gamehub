@@ -141,6 +141,7 @@ npm test           # track build, physics, a full three-lap autopilot run, resou
 The autopilot lap is the load-bearing gameplay check: a broken track shape, an
 impossible corner, or barriers too close to the road all fail it immediately. The
 setup suite also guards the continuous-ribbon renderer, mobile geometry budget,
+idle render-on-demand, 320×568 portrait and 667×375 landscape control/HUD layout,
 dual-touch input, adaptive DPR limits, pause/wake-lock lifecycle, settings, gyro
 mapping, and minimap.
 

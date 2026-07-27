@@ -56,6 +56,24 @@ check('有連續護欄支柱同賽道樹木', geo.posts > 200 && geo.trees >= 10
 check('完整 3D 世界 draw calls 維持手機預算（<18）', geo.calls < 18, geo.calls);
 check('三角形數量喺手機預算（<120k）', geo.tris < 120000, geo.tris);
 
+// Penny 指定車身視覺比例放大 50%：4.6 -> 6.9；物理參數唔跟住改。
+const carScale = await page.evaluate(async () => {
+    const THREE = await import('three');
+    const { car, visualLength } = window.__racer;
+    const pos = car.root.position.clone(), rot = car.root.rotation.clone();
+    car.root.position.set(0, 0, 0);
+    car.root.rotation.set(0, 0, 0);
+    car.root.updateMatrixWorld(true);
+    const size = new THREE.Box3().setFromObject(car.root).getSize(new THREE.Vector3());
+    car.root.position.copy(pos);
+    car.root.rotation.copy(rot);
+    car.root.updateMatrixWorld(true);
+    return { target: visualLength, measured: +Math.max(size.x, size.z).toFixed(2) };
+});
+console.log('  ', JSON.stringify(carScale));
+check('玩家車身視覺長度放大 50% 至 6.9', carScale.target === 6.9
+    && carScale.measured >= 6.85 && carScale.measured <= 6.95, carScale);
+
 // T3：設定真係改到嘢，兼且記得住
 const set = await page.evaluate(() => {
     const { setColour, setTod, car } = window.__racer;
@@ -258,6 +276,77 @@ check('Wake Lock 會比賽時保持亮屏、暫停／過期 request 會釋放',
     lifecycle.atResume.wakeActive && !lifecycle.wakeAfterPause && lifecycle.releases === 2, lifecycle);
 check('暫停後返回選單會清乾淨 lifecycle', !lifecycle.atMenu.running
     && !lifecycle.atMenu.paused && lifecycle.atMenu.menu && lifecycle.atMenu.hud, lifecycle);
+
+// T5d：非比賽畫面唔可以繼續 60 fps 燒 GPU；設定改動就只補畫一幀。
+const idleRender = await page.evaluate(async () => {
+    const root = window.__racer;
+    root.toMenu();
+    await new Promise(r => setTimeout(r, 250));
+    const menuStart = root.renderCount;
+    await new Promise(r => setTimeout(r, 500));
+    const menuEnd = root.renderCount;
+    root.setTod(root.tod === 'day' ? 'night' : 'day');
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const afterSetting = root.renderCount;
+    await new Promise(r => setTimeout(r, 500));
+    const settled = root.renderCount;
+    root.setTod('day');
+    return {
+        idleFrames: menuEnd - menuStart,
+        settingFrames: afterSetting - menuEnd,
+        settledFrames: settled - afterSetting,
+    };
+});
+console.log('  ', JSON.stringify(idleRender));
+check('Menu／暫停唔會持續重畫 3D 世界', idleRender.idleFrames === 0, idleRender);
+check('改設定只會按需補畫，之後再休眠', idleRender.settingFrames >= 1
+    && idleRender.settingFrames <= 2 && idleRender.settledFrames === 0, idleRender);
+
+// T5e：最窄常見手機都要完整見到五粒掣，暫停掣唔可以遮住圈數 HUD。
+await page.setViewportSize({ width: 320, height: 568 });
+const narrow = await page.evaluate(() => {
+    const root = window.__racer;
+    root.startRace();
+    const rect = el => {
+        const r = el.getBoundingClientRect();
+        return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+    };
+    const buttons = [...document.querySelectorAll('.pad-btn')].map(el => ({ id: el.id, ...rect(el) }));
+    const pause = rect(document.getElementById('pause-btn'));
+    const firstStat = rect(document.querySelector('#hud-top .stat'));
+    const overlap = Math.max(0, Math.min(pause.right, firstStat.right) - Math.max(pause.left, firstStat.left))
+        * Math.max(0, Math.min(pause.bottom, firstStat.bottom) - Math.max(pause.top, firstStat.top));
+    root.pauseRace();
+    root.toMenu();
+    return { viewport: [innerWidth, innerHeight], buttons, pause, firstStat, overlap };
+});
+console.log('  ', JSON.stringify(narrow));
+check('320px 直向五粒操控掣完整留喺 viewport', narrow.buttons.every(b =>
+    b.left >= 0 && b.right <= narrow.viewport[0] && b.top >= 0 && b.bottom <= narrow.viewport[1]), narrow);
+check('窄屏觸控掣守住 44px，而且暫停掣唔撞 HUD', narrow.buttons.every(b =>
+    b.width >= 44 && b.height >= 44) && narrow.pause.width >= 44 && narrow.overlap === 0, narrow);
+await page.setViewportSize({ width: 667, height: 375 });
+const shortLandscape = await page.evaluate(() => {
+    const root = window.__racer;
+    root.startRace();
+    const rect = id => {
+        const r = document.getElementById(id).getBoundingClientRect();
+        return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+    };
+    const overlap = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left))
+        * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+    const speed = rect('speed-box'), map = rect('minimap'), gas = rect('pad-gas');
+    const out = { viewport: [innerWidth, innerHeight], speed, map, gas,
+        mapOverlap: overlap(speed, map), gasOverlap: overlap(speed, gas) };
+    root.pauseRace();
+    root.toMenu();
+    return out;
+});
+console.log('  ', JSON.stringify(shortLandscape));
+check('667×375 橫向速度錶唔遮 minimap 或油門', shortLandscape.speed.right > 0
+    && shortLandscape.map.right > 0 && shortLandscape.gas.right > 0
+    && shortLandscape.mapOverlap === 0 && shortLandscape.gasOverlap === 0, shortLandscape);
+await page.setViewportSize({ width: 900, height: 760 });
 
 // T6：賽道縮圖畫得出嘢，而且換賽道會跟住換
 const map = await page.evaluate(() => {

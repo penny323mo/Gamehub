@@ -521,6 +521,86 @@ body {
     }
 }
 
+/* 320–390px 直向手機：五粒掣原本合共闊過 viewport，油門會畀 overflow
+   靜靜裁走。縮細但守住 44px 觸控下限，HUD 亦讓開左上角暫停掣。 */
+@media (max-width: 390px) and (orientation: portrait) {
+    #pause-btn {
+        top: max(6px, env(safe-area-inset-top));
+        left: max(6px, env(safe-area-inset-left));
+        width: 44px;
+        height: 44px;
+    }
+
+    #hud-top {
+        top: max(6px, env(safe-area-inset-top));
+        left: calc(max(6px, env(safe-area-inset-left)) + 50px);
+        right: max(6px, env(safe-area-inset-right));
+        transform: none;
+        gap: 4px;
+    }
+
+    .stat {
+        min-width: 0;
+        flex: 1 1 0;
+        padding: 4px 3px;
+    }
+
+    .stat b {
+        font-size: 14px;
+    }
+
+    #score-box,
+    #minimap {
+        top: 66px;
+    }
+
+    #speed-box {
+        right: max(6px, env(safe-area-inset-right));
+        bottom: calc(max(8px, env(safe-area-inset-bottom)) + 112px);
+        padding: 5px 10px;
+    }
+
+    #speed-box b {
+        font-size: 28px;
+    }
+
+    #pad {
+        padding-right: max(6px, env(safe-area-inset-right));
+        padding-bottom: max(8px, env(safe-area-inset-bottom));
+        padding-left: max(6px, env(safe-area-inset-left));
+    }
+
+    .pad-side {
+        gap: 4px;
+    }
+
+    .pad-btn {
+        width: 58px;
+        height: 58px;
+        border-radius: 15px;
+    }
+
+    .pad-btn.small {
+        width: 46px;
+        height: 46px;
+        font-size: 12px;
+    }
+
+    .pad-btn.gas {
+        width: 70px;
+        height: 70px;
+        font-size: 14px;
+    }
+}
+
+/* 舊款／細屏手機橫向高度得 375px：速度錶移到 minimap 同油門之間，
+   避免兩塊 HUD 疊埋一齊。 */
+@media (max-height: 400px) and (orientation: landscape) {
+    #speed-box {
+        bottom: calc(max(8px, env(safe-area-inset-bottom)) + 96px);
+    }
+}
+
 /* ---------- 設定 ---------- */
 #settings {
     display: flex;
