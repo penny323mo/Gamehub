@@ -36,6 +36,8 @@
             <div id="wrong-way" class="hidden">⚠️ 掉頭！行錯方向</div>
             <div id="speed-box"><b id="speed-num">0</b><span>km/h</span></div>
             <div id="score-box">💨 <b id="score-num">0</b></div>
+            <!-- 賽道縮圖：睇到自己而家喺賽道邊個位 -->
+            <canvas id="minimap" width="150" height="150"></canvas>
 
             <!-- 漂移面板：甩緊尾先出現 -->
             <div id="drift-box" class="hidden">
@@ -70,6 +72,40 @@
                 <div id="menu-records">
                     <div><span>最快圈</span><b id="menu-best">未有紀錄</b></div>
                     <div><span>最高漂移分</span><b id="menu-score">0</b></div>
+                </div>
+                <div class="section-label">設定</div>
+                <div id="settings">
+                    <div class="set-row">
+                        <span>車身顏色</span>
+                        <div id="colour-list"></div>
+                    </div>
+                    <div class="set-row">
+                        <span>時間</span>
+                        <div class="seg" id="tod-seg">
+                            <button data-tod="day">☀️ 日頭</button>
+                            <button data-tod="dusk">🌇 黃昏</button>
+                            <button data-tod="night">🌙 夜晚</button>
+                        </div>
+                    </div>
+                    <div class="set-row">
+                        <span>轉向方向</span>
+                        <div class="seg" id="steer-seg">
+                            <button data-invert="0">正常</button>
+                            <button data-invert="1">反轉</button>
+                        </div>
+                    </div>
+                    <div class="set-row">
+                        <span>陀螺儀轉向</span>
+                        <div class="seg" id="gyro-seg">
+                            <button data-gyro="0">關</button>
+                            <button data-gyro="1">開（扭手機）</button>
+                        </div>
+                    </div>
+                    <div class="set-row" id="gyro-sens-row">
+                        <span>陀螺儀靈敏度</span>
+                        <input id="gyro-sens" type="range" min="0.5" max="2.5" step="0.1" value="1">
+                    </div>
+                    <div id="gyro-note" class="set-note hidden"></div>
                 </div>
                 <div class="howto">
                     <div><b>鍵盤</b>：↑ 油門 · ↓ 煞車 · ← → 轉向 · <b>空白鍵 手煞（甩尾）</b></div>

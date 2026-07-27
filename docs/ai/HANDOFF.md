@@ -4,78 +4,84 @@ Updated: 2026-07-27 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Baseline before this task: `8b39d5d`
-Status: racer reworked around drifting — three tracks, corrected vehicle dynamics
+Baseline before this task: `10d3596`
+Status: racer round two — Penny's device feedback addressed, settings and minimap added
 
 ## Current objective
 
-Penny asked for drifting to be the point of the racing game, for a proper physics
-model behind it, and for three selectable tracks with the layout of the Turbo Racing
-mat she photographed. Self-contained under `games/Racing Car/`.
+Penny played the drift build on her phone and reported six things: steering still
+feels mirrored, the start line sits mid-corner, no way to tell where she is on the
+track, no settings, the blocks are still coarse, and the car looks like it floats.
 
 ## Completed
 
-- Three tracks in `src/tracks.js`, each a centre-line plus a spline tension:
-  渦輪場地 (the mat layout — long straight, fast sweeper, infield S, hairpin),
-  海岸環線 (open, high-speed), 山道 (tight, technical). `Track` takes waypoints and
-  tension as arguments, so a new track is one entry and nothing else. Menu shows a
-  picker; best lap and best drift score are saved per track.
-- Drift scoring in `race.js`: angle x speed x time x combo accumulates as *pending*,
-  banks when the car straightens for 0.55s, combo steps every 1.6s to 5x, and a
-  barrier hit voids whatever has not banked. HUD panel appears only while it matters.
-- Three genuine faults in the vehicle model, found by measurement, not by feel:
-  - Velocity was recomposed with the post-rotation body axes, so slip angle could
-    never develop and the car could not drift at all (ADR-025).
-  - The yaw damping term had the wrong sign and was amplifying yaw (ADR-026).
-  - The steering envelope allowed roughly ten times the front-wheel angle the tyres
-    can use at speed, so any real input went past the tyre peak (ADR-026).
-- Barrier response now cancels only motion into the barrier, and a car that is stuck
-  for three seconds is towed to the last checkpoint (ADR-027). Before this, one
-  nose-in contact ended the race with the car pinned at 0 km/h.
-- `CFG` retuned against skidpad and lap measurements: engine 8500 N (about the rear
-  axle's grip limit), grip 1.45 front / 1.7 rear, handbrake leaves 45 percent rear
-  grip, yaw inertia 1900, `steerSpeedDrop` 2.4.
+- Steering: every layer measures correct — physics sign, camera basis, `Input`
+  mapping, the touch button ids, and an end-to-end test that presses the real
+  buttons and compares against the live camera (holding the left pad increases yaw,
+  which is screen-left). What was genuinely wrong was the body roll: the car leaned
+  *into* corners like a motorbike, which reads as the car turning the wrong way.
+  That sign is fixed. A 轉向方向 正常/反轉 toggle now exists as an escape hatch,
+  since Penny's device is the final authority and guessing again would waste a day.
+- Start line now sits on the straightest part of each circuit, found by scanning
+  curvature over an 85 m window, and is laid across the full road width. All three
+  circuits gained a real main straight: turbo 677 m radius, coast 205, touge 447.
+- Minimap (`src/minimap.js`): 2D canvas — outline, start marker, car triangle.
+  Not a second 3D camera; a render target is expensive on a phone.
+- Settings panel: eight body colours, day/dusk/night, steering direction, gyroscope
+  steering with a sensitivity slider. All persisted. Gyro uses absolute tilt with a
+  calibration zero, picks gamma or beta from `screen.orientation.angle`, has a dead
+  zone, and yields to the touch pad when a finger is down. iOS needs the permission
+  request inside a real click, so it is wired to the button and cannot be automatic.
+- Blocks halved to 0.5 world units with the ground rebuilt as merged top-face quads
+  and a noise texture for per-cell shading (ADR-028). Twice the resolution for
+  8,928 quads instead of 126,789 cubes; 5 draw calls, 222k triangles.
+- Car no longer looks like it floats: it was always at exactly y=0, but nothing
+  grounded it visually. Added a contact-shadow plane that tracks position and yaw
+  but deliberately not body roll.
+- Two more model faults found while chasing an autopilot failure: drive force
+  ignored rear traction (ADR-029), and the chase camera lost the car off-screen
+  during big drifts (ADR-030).
+- coast was redrawn. Its old west end ran a 989 m radius sweeper straight into a
+  73 m corner — a 93 percent radius drop, unbrakeable, and the autopilot crashed
+  there every single lap. It is now an undulating ellipse with a flat main straight.
 
 ## Changed files
 
-- `games/Racing Car/src/tracks.js` (new), `src/track.js`, `src/car.js`, `src/race.js`,
-  `src/main.js`, `index.html`, `style.css`, `tests/race.mjs`
-- `docs/ai/DECISIONS.md` (ADR-025, ADR-026, ADR-027), `docs/ai/HANDOFF.md`
+- `games/Racing Car/src/`: `track.js` (rewritten), `tracks.js`, `car.js`, `input.js`,
+  `main.js`, plus new `settings.js` and `minimap.js`
+- `games/Racing Car/`: `index.html`, `style.css`
+- `games/Racing Car/tests/`: `race.mjs`, new `setup.mjs`, `run-all.mjs`
+- `docs/ai/DECISIONS.md` (ADR-028, ADR-029, ADR-030), `docs/ai/HANDOFF.md`
 
 ## Verification
 
-- `node tests/race.mjs` in `games/Racing Car`: 45/45 checks, no console errors.
-- Autopilot completes three laps on all three tracks with the test driver
-  (pure-pursuit plus curvature speed limit): turbo 34.9/35.3/35.3s, 0.1 percent
-  off-road, zero barrier contacts, zero tows; coast 36.1s x3, 7.7 percent, 11
-  contacts; touge 36.6/36.3/36.3s, clean.
-- Physics on a friction plane, so the numbers are the tyre model and not the track:
-  112 km/h cruise, handbrake plus lock reaches 88 degrees of slip while holding
-  107 km/h, the same input without the handbrake gives 3.9 degrees, countersteer
-  settles the car in 12 degrees of rotation against 36 if you keep steering into it.
-- Steering direction is checked against a chase camera positioned by main.js's own
-  rule and three.js's `lookAt`: right input +0.694 along camera-right, left -0.694.
-- Track geometry: all three keep more than 36 units between passes of the circuit,
-  which is what stops checkpoints from mis-triggering.
-- Four track switches leave geometries at 3 and textures at 1.
-- Screenshots: menu with the three-track picker, and mid-drift with the pending
-  score, combo and angle bar live.
+- `npm test` in `games/Racing Car/tests`: race 45/45, setup 25/25, no console errors.
+- Autopilot completes three laps on all three circuits: turbo 39.2/36.5/36.6s with
+  zero barrier contacts and zero tows, coast 50.3/36.3/38.4s with 90 contacts and
+  one tow, touge 38.1/36.7/36.7s clean.
+- Geometry measured in-page: `BLOCK` 0.5, 126,789 cells, 8,928 ground quads,
+  5 draw calls, 222,385 triangles.
+- Settings verified by reading back what they changed: colour reaches the body
+  material and persists, day and night differ in exposure, invert flips the
+  measured direction of travel exactly (+0.608 to -0.608), gyro maps tilt to steer
+  with a dead zone and loses to the touch pad.
+- Screenshots at 430x900: menu with the settings panel, standing on the start line
+  with the straight ahead and the minimap live, mid-drift with the car held sideways
+  in frame and its shadow under it, and the same corner at night.
+- Steering chain re-verified end to end: real key and touch events through `Input`
+  and the main loop, compared against the live camera basis.
 
 ## Known issues and cautions
 
-- Deploy for this commit must be confirmed on `deploy-pages.yml` after merge.
-- Needs Penny on a real device: whether the handbrake entry feels right on touch,
-  and whether 88 degrees of slip from a held handbrake is too easy to spin into.
-  Everything that governs feel is in the `CFG` block at the top of `car.js`.
-- Lift-off mid-drift does not save the car; it needs throttle. That is real
-  rear-drive behaviour and the test records it, but it is worth telling a player.
-- Physics tests must run on the `PLANE` stub, not the track. Holding lock for a
-  second leaves any 24-unit-wide road, and then the measurement is the grass
-  penalty rather than the tyres — the first version of these tests got this wrong
-  and concluded the handbrake made less slip than no handbrake.
-- The test driver in `tests/race.mjs` is a real controller now. If it starts failing
-  after a physics change, check whether the car or the driver regressed before
-  changing thresholds.
+- Deploy must be confirmed on `deploy-pages.yml` after merge. The sandbox network
+  policy blocks `penny323mo.github.io`, so only the workflow result is checkable.
+- Still needs Penny: whether the steering now reads correctly (and if not, whether
+  the 反轉 toggle fixes it), and whether the gyro sensitivity default suits her.
+- The lap test's driver is a simple pure-pursuit controller. It occasionally
+  overcooks coast's fastest corners, so the tow check allows up to two per race;
+  the real guards are lap completion, time off-road, and barrier contacts.
+- Physics tests must run on the `PLANE` stub, not the track — see the comment at
+  the top of the T2 block for why.
 - Royale is finished and needs no work; its device checklist still stands.
 - Commits show as Unverified because this environment has no signing key, not a
   wrong identity. Do not rewrite pushed history, do not change `git config`.
@@ -83,28 +89,32 @@ mat she photographed. Self-contained under `games/Racing Car/`.
 ## Exact next action
 
 1. Run `./scripts/agent-context.sh --sync` on the intended branch.
-2. There is no active implementation task. If Penny reports a handling problem,
-   reproduce it in `tests/race.mjs` first — every fault above was found that way.
-3. Otherwise wait for Penny's next scoped request.
+2. Wait for Penny's verdict on the steering direction. If it still reads mirrored
+   on her device with 正常 selected, the answer is not another physics change —
+   capture what she sees, because every layer here now measures correct.
+3. Otherwise wait for her next scoped request.
 
 ## Do not redo
 
-- Do not recompose the car's world velocity from the post-rotation axes (ADR-025).
+- Do not flip the steering sign in `car.js` again without evidence from Penny's
+  device; the invert toggle exists precisely so nobody guesses at it.
+- Do not recompose the car's world velocity from post-rotation axes (ADR-025).
 - Do not subtract the yaw damping term from `latR`, and do not widen
   `steerSpeedDrop` back toward 0.55 (ADR-026).
-- Do not go back to zeroing a whole axis on barrier contact, and do not remove the
-  stuck tow (ADR-027).
-- Do not narrow the grass runoff in `track.js`; four blocks is what makes an
-  excursion recoverable instead of a dead stop against a barrier.
-- Do not let the race count a lap at the start line; `nextCp` starts at 1 for that
-  reason, and `tests/race.mjs` guards it.
+- Do not zero a whole axis on barrier contact, and do not remove the stuck tow
+  (ADR-027).
+- Do not put per-cell colour jitter back into vertex colours — that is what forces
+  every cell to be its own quad (ADR-028).
+- Do not remove the rear traction cap (ADR-029) or point the chase camera straight
+  down the heading (ADR-030).
+- Do not narrow the grass runoff in `track.js`, and do not let the race count a
+  lap at the start line (`nextCp` starts at 1).
 - Do not write verification scripts outside the repository (ADR-022).
 - Do not remove the bone-texture disposal in `disposeDeep` (ADR-023) or release
   effect resources from `onEnd` instead of `onDispose` (ADR-024).
 - Do not make a gauntlet stage harder with AI elixir, HP, or hidden information.
 - Do not read `GAME_RULES` directly inside Royale match code; use `game.rules`.
-- Do not dispose sprite geometry, and do not dispose damage-number textures at
-  effect end; both are shared.
+- Do not dispose sprite geometry or damage-number textures at effect end.
 - Do not amend, rebase, or force-push commits that already exist on `origin/main`.
 - Do not create a second handoff file, revive `progress.md`, or copy transcripts
   or secrets into repository context files.

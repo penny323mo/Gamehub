@@ -342,3 +342,43 @@ follows what the tyres can use
   pinned; the autopilot recorded fourteen thousand consecutive contact frames in one
   run. Sliding contact is the physical behaviour and the tow is the arcade safety
   net; `tests/race.mjs` asserts both, and that a clean lap needs no tow.
+
+## ADR-028: The blocky ground is drawn as merged top-face quads, not cubes
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: `games/Racing Car/src/track.js` keeps the cell grid in a `Uint8Array`
+  (not a `Map<string>`), renders the ground as run-merged quads with one texel of a
+  64x64 nearest-filtered noise texture per cell, and reserves real boxes for the
+  barriers. `BLOCK` is 0.5.
+- Reason: Penny asked for the grid squares to be less obvious, which means smaller
+  cells, which quadruples the cell count. The ground is flat, so only its top face
+  is ever visible: two triangles per cell instead of twelve. Because the per-cell
+  brightness now comes from a texture rather than vertex colours, adjacent cells of
+  the same kind merge into runs — 126,789 cells collapse to 8,928 quads, and the
+  whole world is 5 draw calls and 222k triangles at twice the resolution.
+
+## ADR-029: Rear drive force is capped by rear traction
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: `driveF` is clamped to `gripRear * loadR` before it is applied, and the
+  friction-circle share is computed from the clamped value.
+- Reason: without the cap the car received the full engine force as forward thrust
+  while the friction circle simultaneously stripped its lateral grip — fast and
+  steerless at the same time, which is not a state a real car can be in. It made
+  the car spin under power at low speed; the autopilot logged 861 barrier contacts
+  on one track and 3 tows per race. With the cap the same run is 90 contacts and
+  one tow.
+
+## ADR-030: The chase camera follows travel direction while drifting
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: the camera's chase axis is the heading blended toward the velocity
+  direction in proportion to body slip, and the position smoothing no longer
+  loosens during a drift.
+- Reason: aiming the camera down the heading puts the car off the bottom of the
+  screen once slip passes about 60 degrees — verified in a screenshot, the car was
+  a sliver at the frame edge. In a game whose whole subject is drifting, the drift
+  is the moment the player most needs to see the car.

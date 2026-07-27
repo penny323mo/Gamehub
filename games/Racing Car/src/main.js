@@ -7,7 +7,9 @@ import { Track, BLOCK } from './track.js';
 import { TRACKS, trackById } from './tracks.js';
 import { Car } from './car.js';
 import { Race, fmtTime } from './race.js';
-import { Input } from './input.js';
+import { Input, GYRO_KEY } from './input.js';
+import { Minimap } from './minimap.js';
+import { COLOURS, TIMES, loadColour, saveColour, loadTod, saveTod, paintCar, applyTime } from './settings.js';
 
 const $ = (id) => document.getElementById(id);
 const holder = $('canvas-holder');
@@ -30,7 +32,11 @@ const camera = new THREE.PerspectiveCamera(62, 1, 0.5, 600);
 const sun = new THREE.DirectionalLight(0xfff2d8, 2.1);
 sun.position.set(60, 120, 40);
 scene.add(sun);
-scene.add(new THREE.HemisphereLight(0xbfe3ff, 0x4a6a3a, 1.0));
+const hemi = new THREE.HemisphereLight(0xbfe3ff, 0x4a6a3a, 1.0);
+scene.add(hemi);
+
+let tod = loadTod();
+applyTime(tod, { scene, renderer, sun, hemi });
 
 function resize() {
     const w = holder.clientWidth || innerWidth;
@@ -50,6 +56,8 @@ let race = null;
 let camInit = false;      // 鏡頭要唔要即刻歸位（換賽道／重開都會用到）
 
 // 賽道可以換：換嗰陣要 dispose 舊嗰個，唔係每揀一次就漏一份方塊世界
+const minimap = new Minimap($('minimap'));
+
 let trackDef = trackById(localStorage.getItem('racer-track') ?? TRACKS[0].id);
 let track = null;
 function buildTrack(id) {
@@ -58,6 +66,7 @@ function buildTrack(id) {
     track?.dispose(scene);
     track = new Track(trackDef.waypoints, trackDef.tension);
     track.build(scene);
+    minimap.setTrack(track);
     if (car) car.reset(track.startPos, track.startDir);
     if (race) { race.track = track; race.trackId = trackDef.id; race.reset(); }
     camInit = false;
@@ -110,23 +119,64 @@ function normalizeCar(obj, targetLength = 4.6) {
 
 const input = new Input(document);
 
+// 接地陰影：一塊帶徑向漸變嘅平面貼喺車底。
+// 冇佢嘅話架車望落好似浮起（Penny 一眼就睇到）——真陰影貼圖喺手機太貴，
+// 而賽車其實得一個投影體，一塊圖就夠。
+function contactShadow() {
+    const N = 128;
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = N;
+    const g = cv.getContext('2d');
+    const grad = g.createRadialGradient(N / 2, N / 2, 0, N / 2, N / 2, N / 2);
+    grad.addColorStop(0, 'rgba(0,0,0,0.55)');
+    grad.addColorStop(0.55, 'rgba(0,0,0,0.28)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, N, N);
+    const tex = new THREE.CanvasTexture(cv);
+    const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(5.4, 7.2),
+        new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }),
+    );
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.y = 0.03;              // 貼住路面，唔好 z-fight
+    mesh.renderOrder = 1;
+    // 用 Group 包住再掛喺場景（唔係掛喺車底）：掛喺車嗰陣連車身側傾都會跟住
+    // 一齊擘，陰影一邊會離地——影就係要貼實地面先騙到眼。
+    const g2 = new THREE.Group();
+    g2.add(mesh);
+    return g2;
+}
+
+let carModel = null;
+let shadow = null;
+let colour = loadColour();
+
 loader.load('./assets/car.glb', (gltf) => {
     const model = normalizeCar(gltf.scene);
     model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+    carModel = model;
+    paintCar(model, colour.hex);
     const wrap = new THREE.Group();
     wrap.add(model);
     car = new Car(wrap);
     scene.add(car.root);
+    shadow = contactShadow();
+    scene.add(shadow);
     car.reset(track.startPos, track.startDir);
     race = new Race(track, { laps: 3, trackId: trackDef.id, onEvent: handleRaceEvent });
     $('loading').classList.add('hidden');
     $('screen-start').classList.remove('hidden');
     buildTrackButtons();
+    buildSettings();
     // 畀自動化測試用；track 用 getter，換賽道之後攞到嘅係新嗰個
     window.__racer = {
-        car, race, renderer, camera, restart, startRace, buildTrack, TRACKS,
+        car, race, renderer, camera, restart, startRace, buildTrack, TRACKS, input, minimap,
+        setColour, setTod,
         get track() { return track; },
         get trackDef() { return trackDef; },
+        get tod() { return tod; },
+        get colour() { return colour; },
     };
 }, undefined, (err) => {
     $('loading').innerHTML = `<div class="loading-box"><div class="loading-label">⚠️ 載入失敗</div></div>`;
@@ -136,8 +186,20 @@ loader.load('./assets/car.glb', (gltf) => {
 // ---------- 鏡頭：跟車 ----------
 const camPos = new THREE.Vector3();
 const camLook = new THREE.Vector3();
+const chaseDir = new THREE.Vector3(0, 0, 1);
 function updateCamera(dt) {
-    const fwd = new THREE.Vector3(Math.sin(car.yaw), 0, Math.cos(car.yaw));
+    const heading = new THREE.Vector3(Math.sin(car.yaw), 0, Math.cos(car.yaw));
+    // 鏡頭唔可以淨係跟車頭：甩到八十幾度嗰陣車係打橫飛，跟車頭嘅話架車
+    // 會直接飛出畫面（實測 45 幀手煞之後成架車跌咗落畫面底邊）。
+    // 甩得愈勁就愈跟「行進方向」，咁架車就會打橫留喺畫面中間——
+    // 亦即係漂移遊戲嗰種標準機位。
+    const travel = car.speed > 3
+        ? new THREE.Vector3(car.vel.x, 0, car.vel.z).normalize()
+        : heading;
+    const blend = Math.min(1, Math.abs(car.slipAngle) / 0.9) * 0.8;
+    const want3 = heading.clone().lerp(travel, blend).normalize();
+    chaseDir.lerp(want3, Math.min(1, dt * 5)).normalize();
+    const fwd = chaseDir;
     const speedT = Math.min(1, car.speed / 60);
     // 鏡頭要高同望遠：低機位睇落好有速度感，但玩家見唔到下一個彎就變咗盲揸。
     // 實測 5.4 高度嗰陣天空霸咗三分二畫面，路面得底下嗰條。
@@ -146,8 +208,9 @@ function updateCamera(dt) {
     want.y = 9.0 + speedT * 1.8;
     const lookAt = car.pos.clone().addScaledVector(fwd, 22).setY(0.6);
     if (!camInit) { camPos.copy(want); camLook.copy(lookAt); camInit = true; }
-    // 追car 用指數平滑；漂移時鏡頭跟得鬆啲，睇到車尾甩出去
-    const lag = car.drifting ? 3.0 : 6.0;
+    // 追car 用指數平滑。唔可以再喺漂移時特登放鬆——方向本身已經跟住
+    // 行進方向擺，位置再拖就會framing唔到架車。
+    const lag = 6.5;
     camPos.lerp(want, Math.min(1, dt * lag));
     camLook.lerp(lookAt, Math.min(1, dt * 8));
     camera.position.copy(camPos);
@@ -176,6 +239,79 @@ function buildTrackButtons() {
         box.appendChild(btn);
     }
     refreshBest();
+}
+
+// ---------- 設定 ----------
+function setColour(id) {
+    colour = COLOURS.find(c => c.id === id) ?? COLOURS[0];
+    saveColour(colour.id);
+    if (carModel) paintCar(carModel, colour.hex);
+    document.querySelectorAll('#colour-list button').forEach(b =>
+        b.classList.toggle('on', b.dataset.id === colour.id));
+}
+function setTod(id) {
+    tod = TIMES[id] ? id : 'day';
+    saveTod(tod);
+    applyTime(tod, { scene, renderer, sun, hemi });
+    document.querySelectorAll('#tod-seg button').forEach(b =>
+        b.classList.toggle('on', b.dataset.tod === tod));
+}
+function markSeg(sel, attr, value) {
+    document.querySelectorAll(`${sel} button`).forEach(b =>
+        b.classList.toggle('on', b.dataset[attr] === String(value)));
+}
+
+function buildSettings() {
+    const list = $('colour-list');
+    list.innerHTML = '';
+    for (const c of COLOURS) {
+        const b = document.createElement('button');
+        b.className = 'swatch';
+        b.dataset.id = c.id;
+        b.title = c.name;
+        b.style.background = `#${c.hex.toString(16).padStart(6, '0')}`;
+        b.addEventListener('click', () => setColour(c.id));
+        list.appendChild(b);
+    }
+    setColour(colour.id);
+    setTod(tod);
+
+    for (const b of document.querySelectorAll('#steer-seg button')) {
+        b.addEventListener('click', () => {
+            input.setInvert(b.dataset.invert === '1');
+            markSeg('#steer-seg', 'invert', input.invert ? 1 : 0);
+        });
+    }
+    markSeg('#steer-seg', 'invert', input.invert ? 1 : 0);
+
+    const note = $('gyro-note');
+    for (const b of document.querySelectorAll('#gyro-seg button')) {
+        b.addEventListener('click', async () => {
+            if (b.dataset.gyro === '0') {
+                input.disableGyro();
+                markSeg('#gyro-seg', 'gyro', 0);
+                note.classList.add('hidden');
+                return;
+            }
+            // iOS 一定要喺真 user gesture 入面問，所以只可以喺 click 度做
+            const ok = await input.enableGyro();
+            markSeg('#gyro-seg', 'gyro', ok ? 1 : 0);
+            note.classList.remove('hidden');
+            note.textContent = ok
+                ? '揸車嗰陣扭手機轉向。開波果陣手機咩姿勢就當「軚盤打直」，撳「校正」可以重設。'
+                : '呢部機／呢個瀏覽器唔畀用陀螺儀（iPhone 要喺 Safari 而且係 https）。';
+        });
+    }
+    markSeg('#gyro-seg', 'gyro', 0);
+    // 上次揀咗開嘅話都要玩家再撳一次——權限唔可以自動攞
+    if (localStorage.getItem(GYRO_KEY) === '1') {
+        note.classList.remove('hidden');
+        note.textContent = '上次你開咗陀螺儀。iOS 要每次入嚟撳一次「開」先攞得到權限。';
+    }
+
+    const sens = $('gyro-sens');
+    sens.value = String(input.gyroSens);
+    sens.addEventListener('input', () => input.setGyroSens(Number(sens.value)));
 }
 
 function refreshBest() {
@@ -300,6 +436,11 @@ function frame(now) {
             car.update(dt, cmd, track);
             race.update(dt, car);
             updateHud();
+            minimap.draw(car);
+        }
+        if (shadow) {
+            shadow.position.set(car.pos.x, 0, car.pos.z);
+            shadow.rotation.y = car.yaw;
         }
         updateCamera(dt);
     }

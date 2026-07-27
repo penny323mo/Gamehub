@@ -42,7 +42,11 @@ export const CFG = {
     handbrakeGrip: 0.45, // 手煞期間後輪抓地剩返幾多（太低會一拉就打圈、救唔返）
     yawDamp: 2.6,        // 偏航阻尼：控制「甩到幾盡」。太細直接打圈，太大就甩唔郁
 
-    loadTransfer: 0.28,  // 加減速嘅前後載荷轉移比例
+    // 加減速嘅前後載荷轉移比例。物理上應該係「重心高 ÷ 軸距」≈ 0.16，
+    // 但實測跌到 0.16 之後煞車壓唔到前軸，入彎變成死推頭直接撞外欄。
+    // 0.28 誇張咗少少（好似重心高咗），換返嚟嘅係一部肯轉頭、肯甩尾嘅車，
+    // 呢隻遊戲要嘅正正係咁。
+    loadTransfer: 0.28,
     offroadGrip: 0.45,   // 落草抓地
     offroadDrag: 2600,
     wallBounce: 0.4,
@@ -119,10 +123,10 @@ export class Car {
         if (speed > CFG.maxSpeed) driveF = Math.min(driveF, 0);
         const dragF = -CFG.dragCoef * vLong * Math.abs(vLong)
             - Math.sign(vLong) * (CFG.rollResist + (this.offroad ? CFG.offroadDrag : 0));
-        const longForce = driveF + dragF;
 
         // ---- 載荷轉移：加速壓後軸、煞車壓前軸，直接影響各軸抓地上限 ----
-        const accelLong = longForce / CFG.mass;
+        // 用未夾過嘅驅動力估載荷（差一幀，實際察覺唔到）
+        const accelLong = (driveF + dragF) / CFG.mass;
         const wb = CFG.wheelBaseF + CFG.wheelBaseR;
         const staticF = CFG.mass * G * CFG.wheelBaseR / wb;
         const staticR = CFG.mass * G * CFG.wheelBaseF / wb;
@@ -140,8 +144,15 @@ export class Car {
         const surface = this.offroad ? CFG.offroadGrip : 1;
         const frontGrip = CFG.gripFront * surface;
         const rearGrip = CFG.gripRear * surface * (input.handbrake ? CFG.handbrakeGrip : 1);
+        // 後輪最多傳到 μ·N 咁多力，多出嘅只係空轉。之前冇呢個上限：車照樣
+        // 攞到全部驅動力向前衝，同時側向抓地又被摩擦圓扣到剩一兩成——
+        // 出彎踩油變成「又快又冇軚」，低速都照打圈。
+        const traction = rearGrip * loadR;
+        if (driveF > 0) driveF = Math.min(driveF, traction);
+        const longForce = driveF + dragF;
+
         // 驅動／煞車用咗幾多抓地，側向就剩返幾多——踩爆油會甩尾就係呢度嚟
-        const rearLongUse = Math.min(0.95, Math.abs(driveF) / Math.max(1, rearGrip * loadR));
+        const rearLongUse = Math.min(0.95, Math.abs(driveF) / Math.max(1, traction));
         const rearCircle = Math.sqrt(Math.max(0, 1 - rearLongUse * rearLongUse));
 
         const tyre = (slip, grip, load) =>
@@ -193,8 +204,12 @@ export class Car {
         this.slipAngle = Math.abs(sLong) < 0.5 ? 0 : Math.atan2(sLat, Math.abs(sLong));
         this.drifting = Math.abs(this.slipAngle) > 0.19 && this.speed > 7;   // 約 11°
 
-        // 車身側傾：跟離心力，唔係跟軚盤——甩緊尾嗰陣兩者方向唔同
-        const targetRoll = THREE.MathUtils.clamp(-aLat / 26, -0.16, 0.16);
+        // 車身側傾：跟離心力，唔係跟軚盤——甩緊尾嗰陣兩者方向唔同。
+        // 車身要向彎外側傾（右轉＝左邊沉），唔係好似電單車咁向內壓。
+        // 之前符號掉轉，成場都係向內壓，望落成架車轉緊嘅方向都似係反嘅。
+        // 車身 local +x 係畫面左，繞 local +z 正轉會抬起左邊，所以右轉
+        //（aLat < 0）要負 roll ⇒ roll 同 aLat 同號。
+        const targetRoll = THREE.MathUtils.clamp(aLat / 26, -0.16, 0.16);
         this.bodyRoll += (targetRoll - this.bodyRoll) * Math.min(1, dt * 7);
         this.#sync();
     }

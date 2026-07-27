@@ -474,3 +474,105 @@ body {
 #drift-angle-fill.hot {
     background: linear-gradient(90deg, #ffb347, #ff5f4a);
 }
+
+/* ---------- 賽道縮圖 ---------- */
+#minimap {
+    position: absolute;
+    right: max(12px, env(safe-area-inset-right));
+    top: 74px;
+    width: 116px;
+    height: 116px;
+    border-radius: 14px;
+    background: rgba(15, 25, 35, .5);
+    border: 2px solid rgba(255, 255, 255, .2);
+    backdrop-filter: blur(2px);
+}
+
+@media (max-width: 430px) {
+    #minimap {
+        width: 92px;
+        height: 92px;
+    }
+}
+
+/* ---------- 設定 ---------- */
+#settings {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.set-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.set-row>span {
+    font-size: 13px;
+    color: #b9c6d6;
+    flex: 0 0 auto;
+}
+
+#colour-list {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, .28);
+    cursor: pointer;
+    padding: 0;
+}
+
+.swatch.on {
+    border-color: #7ee08a;
+    box-shadow: 0 0 0 2px rgba(126, 224, 138, .35);
+}
+
+.seg {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.seg button {
+    padding: 5px 10px;
+    border-radius: 9px;
+    border: 2px solid rgba(255, 255, 255, .16);
+    background: rgba(255, 255, 255, .05);
+    color: #d5dfeb;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.seg button.on {
+    border-color: #7ee08a;
+    background: rgba(126, 224, 138, .16);
+    color: #eafff0;
+}
+
+#gyro-sens {
+    flex: 1 1 120px;
+    max-width: 190px;
+    accent-color: #7ee08a;
+}
+
+.set-note {
+    font-size: 12px;
+    line-height: 1.5;
+    color: #9fb0c4;
+    background: rgba(255, 255, 255, .04);
+    border-radius: 9px;
+    padding: 7px 9px;
+}
