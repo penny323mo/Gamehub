@@ -297,3 +297,48 @@ Progress, temporary debugging notes, and next tasks belong in `HANDOFF.md`.
   Destroying a king tower ends the match immediately, so cleanup ran before the
   effect finished and the texture leaked every match. Calling `onEnd` from cleanup
   would have "fixed" the leak by applying spell damage during teardown.
+
+## ADR-025: Body-frame velocity is restored with the axes it was measured in
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: in `games/Racing Car/src/car.js`, the new world velocity is composed
+  from the forward/lateral axes captured at the *start* of the step, not from the
+  axes after the yaw integration. Body slip angle is then measured against the new
+  heading.
+- Reason: composing with the post-rotation axes rotates the velocity vector exactly
+  with the car, so heading and travel direction can never separate by more than one
+  frame of lateral acceleration. Measured slip on tarmac was 6 degrees at full lock
+  with the handbrake pulled, while grass — where longitudinal drag shrinks the
+  denominator — reported 70. Every drift behaviour in the game depends on this: no
+  slip angle means no countersteer, no drift scoring, and no reason to have a
+  bicycle model at all.
+
+## ADR-026: Yaw damping adds to the rear lateral force, and the steering envelope
+follows what the tyres can use
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: the yaw damping term is added to `latR`, not subtracted, and
+  `steerSpeedDrop` is 2.4 so peak front-wheel angle at speed lands near the tyre's
+  usable range.
+- Reason: rear yaw torque is `-wheelBaseR * latR`, so subtracting the damping term
+  raised the torque in the direction the car was already rotating — a positive
+  feedback loop that turned every mid-corner correction into a spin. Separately, a
+  skidpad measurement showed 2.2 degrees of front-wheel angle already produces 1g at
+  33 m/s; the old envelope allowed 22 degrees there, so a light steering input went
+  straight past the tyre's peak, the nose lost force, and the tail came round. Both
+  faults were masked by ADR-025's bug, which prevented slip from developing at all.
+
+## ADR-027: A barrier can slow a car down but never end its race
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: collision response cancels only the component of motion into the
+  barrier — the car keeps sliding along it — and `Race` tows the car back to the
+  last checkpoint after three seconds below 2.5 m/s while off-track or in contact.
+- Reason: the previous response zeroed a whole axis of both position and velocity,
+  so a car nose-in against a barrier stopped dead and stayed there with the throttle
+  pinned; the autopilot recorded fourteen thousand consecutive contact frames in one
+  run. Sliding contact is the physical behaviour and the tow is the arcade safety
+  net; `tests/race.mjs` asserts both, and that a clean lap needs no tow.

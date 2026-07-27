@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { DRACOLoader } from '../vendor/DRACOLoader.js';
 import { Track, BLOCK } from './track.js';
+import { TRACKS, trackById } from './tracks.js';
 import { Car } from './car.js';
 import { Race, fmtTime } from './race.js';
 import { Input } from './input.js';
@@ -42,8 +43,26 @@ addEventListener('resize', resize);
 addEventListener('orientationchange', () => setTimeout(resize, 120));
 
 // ---------- 世界 ----------
-const track = new Track();
-track.build(scene);
+// car／race 要喺 buildTrack 之前宣告：換賽道會順手 reset 佢哋，
+// 放喺下面就會撞 TDZ（實測：Cannot access 'car' before initialization）
+let car = null;
+let race = null;
+let camInit = false;      // 鏡頭要唔要即刻歸位（換賽道／重開都會用到）
+
+// 賽道可以換：換嗰陣要 dispose 舊嗰個，唔係每揀一次就漏一份方塊世界
+let trackDef = trackById(localStorage.getItem('racer-track') ?? TRACKS[0].id);
+let track = null;
+function buildTrack(id) {
+    trackDef = trackById(id);
+    try { localStorage.setItem('racer-track', trackDef.id); } catch { }
+    track?.dispose(scene);
+    track = new Track(trackDef.waypoints, trackDef.tension);
+    track.build(scene);
+    if (car) car.reset(track.startPos, track.startDir);
+    if (race) { race.track = track; race.trackId = trackDef.id; race.reset(); }
+    camInit = false;
+}
+buildTrack(trackDef.id);
 
 // 幾隻雲：純白方塊，飄喺高空，加返 Minecraft 感覺
 const clouds = new THREE.Group();
@@ -89,8 +108,6 @@ function normalizeCar(obj, targetLength = 4.6) {
     return obj;
 }
 
-let car = null;
-let race = null;
 const input = new Input(document);
 
 loader.load('./assets/car.glb', (gltf) => {
@@ -101,10 +118,16 @@ loader.load('./assets/car.glb', (gltf) => {
     car = new Car(wrap);
     scene.add(car.root);
     car.reset(track.startPos, track.startDir);
-    race = new Race(track, { laps: 3, onEvent: handleRaceEvent });
+    race = new Race(track, { laps: 3, trackId: trackDef.id, onEvent: handleRaceEvent });
     $('loading').classList.add('hidden');
     $('screen-start').classList.remove('hidden');
-    window.__racer = { car, track, race, renderer, restart, startRace }; // 畀自動化測試用
+    buildTrackButtons();
+    // 畀自動化測試用；track 用 getter，換賽道之後攞到嘅係新嗰個
+    window.__racer = {
+        car, race, renderer, camera, restart, startRace, buildTrack, TRACKS,
+        get track() { return track; },
+        get trackDef() { return trackDef; },
+    };
 }, undefined, (err) => {
     $('loading').innerHTML = `<div class="loading-box"><div class="loading-label">⚠️ 載入失敗</div></div>`;
     console.error(err);
@@ -113,10 +136,9 @@ loader.load('./assets/car.glb', (gltf) => {
 // ---------- 鏡頭：跟車 ----------
 const camPos = new THREE.Vector3();
 const camLook = new THREE.Vector3();
-let camInit = false;
 function updateCamera(dt) {
-    const fwd = new THREE.Vector3(Math.sin(car.heading), 0, Math.cos(car.heading));
-    const speedT = Math.min(1, Math.abs(car.speed) / 60);
+    const fwd = new THREE.Vector3(Math.sin(car.yaw), 0, Math.cos(car.yaw));
+    const speedT = Math.min(1, car.speed / 60);
     // 鏡頭要高同望遠：低機位睇落好有速度感，但玩家見唔到下一個彎就變咗盲揸。
     // 實測 5.4 高度嗰陣天空霸咗三分二畫面，路面得底下嗰條。
     const dist = 13 + speedT * 4;
@@ -125,7 +147,7 @@ function updateCamera(dt) {
     const lookAt = car.pos.clone().addScaledVector(fwd, 22).setY(0.6);
     if (!camInit) { camPos.copy(want); camLook.copy(lookAt); camInit = true; }
     // 追car 用指數平滑；漂移時鏡頭跟得鬆啲，睇到車尾甩出去
-    const lag = car.drifting ? 3.2 : 6.0;
+    const lag = car.drifting ? 3.0 : 6.0;
     camPos.lerp(want, Math.min(1, dt * lag));
     camLook.lerp(lookAt, Math.min(1, dt * 8));
     camera.position.copy(camPos);
@@ -135,12 +157,45 @@ function updateCamera(dt) {
     if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
 }
 
+// ---------- 賽道選擇 ----------
+function buildTrackButtons() {
+    const box = $('track-list');
+    if (!box) return;
+    box.innerHTML = '';
+    for (const t of TRACKS) {
+        const btn = document.createElement('button');
+        btn.className = 'track-btn' + (t.id === trackDef.id ? ' selected' : '');
+        btn.dataset.id = t.id;
+        btn.innerHTML = `<span class="track-icon">${t.icon}</span>
+            <span class="track-copy"><b>${t.name}</b><small>${t.desc}</small></span>`;
+        btn.addEventListener('click', () => {
+            buildTrack(t.id);
+            [...box.children].forEach(c => c.classList.toggle('selected', c.dataset.id === t.id));
+            refreshBest();
+        });
+        box.appendChild(btn);
+    }
+    refreshBest();
+}
+
+function refreshBest() {
+    if (!race) return;
+    const saved = race.loadBest();
+    $('menu-best').textContent = saved.bestLap == null ? '未有紀錄' : fmtTime(saved.bestLap);
+    $('menu-score').textContent = saved.bestScore ? saved.bestScore.toLocaleString() : '0';
+}
+
 // ---------- HUD ----------
 function handleRaceEvent(kind, data) {
     if (kind === 'count') banner(String(data), 900);
     else if (kind === 'go') banner('GO!', 900);
     else if (kind === 'lap') banner(`第 ${data} 圈`, 1100);
     else if (kind === 'record') banner('⚡ 最快圈！', 1300);
+    else if (kind === 'driftBank') {
+        if (data.gained >= 300) banner(`💨 +${data.gained}（${data.combo}×）`, 900);
+    }
+    else if (kind === 'driftLost') banner('💥 撞欄，漂移分報銷', 1000);
+    else if (kind === 'rescue') banner('🚧 拖返賽道', 1200);
     else if (kind === 'finish') showFinish(data);
 }
 
@@ -156,9 +211,12 @@ function banner(text, dur) {
     bannerTimer = setTimeout(() => el.classList.add('hidden'), dur);
 }
 
-function showFinish({ total, laps, best }) {
+function showFinish({ total, laps, best, drift, bestDrift, bestScore }) {
     $('finish-total').textContent = fmtTime(total);
     $('finish-best').textContent = fmtTime(best);
+    $('finish-drift').textContent = drift.toLocaleString();
+    $('finish-bestdrift').textContent = bestDrift.toLocaleString();
+    $('finish-record').textContent = bestScore.toLocaleString();
     const list = $('finish-laps');
     list.innerHTML = '';
     laps.forEach((t, i) => {
@@ -172,6 +230,25 @@ function showFinish({ total, laps, best }) {
 
 let hudCache = {};
 function updateHud() {
+    // 漂移面板：甩緊尾先亮，唔好成場都霸住畫面
+    const active = car.drifting || race.pending > 0;
+    if (active !== hudCache.driftOn) {
+        $('drift-box').classList.toggle('hidden', !active);
+        hudCache.driftOn = active;
+    }
+    if (active) {
+        const pending = Math.round(race.pending);
+        if (pending !== hudCache.pending) { $('drift-pending').textContent = pending; hudCache.pending = pending; }
+        const combo = `${race.combo}×`;
+        if (combo !== hudCache.combo) { $('drift-combo').textContent = combo; hudCache.combo = combo; }
+        // 角度條：0–60° 對應 0–100%
+        const pct = Math.min(100, Math.abs(car.slipAngle) / 1.05 * 100);
+        $('drift-angle-fill').style.width = `${pct}%`;
+        $('drift-angle-fill').classList.toggle('hot', pct > 70);
+    }
+    const score = race.driftScore;
+    if (score !== hudCache.score) { $('score-num').textContent = score.toLocaleString(); hudCache.score = score; }
+
     const kmh = car.kmh;
     if (kmh !== hudCache.kmh) { $('speed-num').textContent = kmh; hudCache.kmh = kmh; }
     const lapLabel = `${Math.min(race.lap + 1, race.totalLaps)}/${race.totalLaps}`;
@@ -200,6 +277,7 @@ function startRace() {
 function restart() { startRace(); }
 function toMenu() {
     running = false;
+    refreshBest();
     $('screen-finish').classList.add('hidden');
     $('hud').classList.add('hidden');
     $('screen-start').classList.remove('hidden');

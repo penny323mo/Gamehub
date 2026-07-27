@@ -4,83 +4,78 @@ Updated: 2026-07-27 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Baseline before this task: `60a4bf7`
-Status: Block Racer shipped, then car facing fixed and track resolution doubled
+Baseline before this task: `8b39d5d`
+Status: racer reworked around drifting — three tracks, corrected vehicle dynamics
 
 ## Current objective
 
-Build a simple racing game around the sports-car GLB Penny supplied, with a
-Minecraft-style blocky track to keep the art direction cheap and consistent.
-Self-contained under `games/Racing Car/`, registered in the hub carousel.
+Penny asked for drifting to be the point of the racing game, for a proper physics
+model behind it, and for three selectable tracks with the layout of the Turbo Racing
+mat she photographed. Self-contained under `games/Racing Car/`.
 
 ## Completed
 
-- Fixed the car model facing backwards. The Tripo model's nose points at -z, so
-  `normalizeCar` now adds a 180-degree turn after aligning the long axis. Penny read
-  it as "steering is inverted" — the physics was always correct, only the body was
-  turned around, which makes every steering input look mirrored.
-- Halved the block size, 2 world units to 1, so corners read as curves instead of
-  a staircase. Every track dimension is now written in world units and divided by
-  `BLOCK`, so the block size is a pure resolution knob: road half-width 12, kerb 2,
-  grass runoff 8, barrier band 3, barrier height 2.5. Cell count went 6,100 to
-  29,552, still one `InstancedMesh` and one draw call.
-- Barrier height is applied through per-instance scale rather than stacked blocks.
-- The car's collision radius is now a fixed 1.2 world units instead of being derived
-  from `BLOCK`; at the finer resolution the old value would have let it clip through
-  a barrier.
-
-### 早前同一個任務入面做嘅
-
-- `games/Racing Car/`: `track.js` (voxel world), `car.js` (arcade physics), `race.js`
-  (laps, checkpoints, timing, best-lap save), `input.js` (keyboard + touch),
-  `main.js` (renderer, chase camera, HUD), plus `index.html` and `style.css`.
-- Car model compressed from 4.5MB to 221KB: Draco geometry plus a 1024px WebP
-  basecolor. It loads through the same vendored loaders Royale uses.
-- Track is generated, not hand-placed: a closed Catmull-Rom spline is sampled and
-  stamped into a block grid — road, dashed centre line, red-white kerbs — then a
-  multi-source BFS grows a four-block grass runoff and a barrier ring beyond it.
-  Every block is one instance of a single `InstancedMesh`, so the whole world is
-  one draw call.
-- Race rules: three laps, twelve ordered checkpoints so cutting the course does not
-  count, countdown, per-lap timing, wrong-way warning, best lap in `localStorage`.
-- Controls: arrows/WASD plus space to drift on desktop; a left/right pad and a
-  gas/brake/drift cluster on touch.
-- Registered in `launcher.js` between Royale and Ashen Rail.
-- `games/Racing Car/tests/` with the same harness pattern as Royale (ADR-022).
+- Three tracks in `src/tracks.js`, each a centre-line plus a spline tension:
+  渦輪場地 (the mat layout — long straight, fast sweeper, infield S, hairpin),
+  海岸環線 (open, high-speed), 山道 (tight, technical). `Track` takes waypoints and
+  tension as arguments, so a new track is one entry and nothing else. Menu shows a
+  picker; best lap and best drift score are saved per track.
+- Drift scoring in `race.js`: angle x speed x time x combo accumulates as *pending*,
+  banks when the car straightens for 0.55s, combo steps every 1.6s to 5x, and a
+  barrier hit voids whatever has not banked. HUD panel appears only while it matters.
+- Three genuine faults in the vehicle model, found by measurement, not by feel:
+  - Velocity was recomposed with the post-rotation body axes, so slip angle could
+    never develop and the car could not drift at all (ADR-025).
+  - The yaw damping term had the wrong sign and was amplifying yaw (ADR-026).
+  - The steering envelope allowed roughly ten times the front-wheel angle the tyres
+    can use at speed, so any real input went past the tyre peak (ADR-026).
+- Barrier response now cancels only motion into the barrier, and a car that is stuck
+  for three seconds is towed to the last checkpoint (ADR-027). Before this, one
+  nose-in contact ended the race with the car pinned at 0 km/h.
+- `CFG` retuned against skidpad and lap measurements: engine 8500 N (about the rear
+  axle's grip limit), grip 1.45 front / 1.7 rear, handbrake leaves 45 percent rear
+  grip, yaw inertia 1900, `steerSpeedDrop` 2.4.
 
 ## Changed files
 
-- `games/Racing Car/**` (new game, assets, vendor, tests)
-- `launcher.js`, `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/HANDOFF.md`
+- `games/Racing Car/src/tracks.js` (new), `src/track.js`, `src/car.js`, `src/race.js`,
+  `src/main.js`, `index.html`, `style.css`, `tests/race.mjs`
+- `docs/ai/DECISIONS.md` (ADR-025, ADR-026, ADR-027), `docs/ai/HANDOFF.md`
 
 ## Verification
 
-- `npm test` in `games/Racing Car/tests`: 15/15 checks pass after the changes.
-- Autopilot still completes three laps at the finer resolution: 38.1 / 48.2 / 48.2
-  seconds, zero frames stuck in a barrier, 1.7 percent of time off-road.
-- Screenshot confirms the car now shows its rear to the chase camera, and the corner
-  ahead reads as a smooth arc.
-- Physics: full throttle reaches 180 km/h on tarmac, braking drops it to 50, and
-  the same throttle on grass tops out at 19.
-- Resource gate: three race restarts leave geometries at 3 and textures at 1.
-- Hub: the carousel shows 方塊賽車 and direct navigation to the game loads it.
-- Screenshots at 420x900: menu, and the car mid-track with kerbs, grass, barriers,
-  HUD, and touch pad all correct.
-- Two real bugs were found and fixed during the build, both by tests rather than by
-  eye: the runoff was only two blocks wide so any excursion pinned the car against
-  a barrier and killed its speed, and the race counted a lap at the start line so a
-  three-lap race finished after two.
+- `node tests/race.mjs` in `games/Racing Car`: 45/45 checks, no console errors.
+- Autopilot completes three laps on all three tracks with the test driver
+  (pure-pursuit plus curvature speed limit): turbo 34.9/35.3/35.3s, 0.1 percent
+  off-road, zero barrier contacts, zero tows; coast 36.1s x3, 7.7 percent, 11
+  contacts; touge 36.6/36.3/36.3s, clean.
+- Physics on a friction plane, so the numbers are the tyre model and not the track:
+  112 km/h cruise, handbrake plus lock reaches 88 degrees of slip while holding
+  107 km/h, the same input without the handbrake gives 3.9 degrees, countersteer
+  settles the car in 12 degrees of rotation against 36 if you keep steering into it.
+- Steering direction is checked against a chase camera positioned by main.js's own
+  rule and three.js's `lookAt`: right input +0.694 along camera-right, left -0.694.
+- Track geometry: all three keep more than 36 units between passes of the circuit,
+  which is what stops checkpoints from mis-triggering.
+- Four track switches leave geometries at 3 and textures at 1.
+- Screenshots: menu with the three-track picker, and mid-drift with the pending
+  score, combo and angle bar live.
 
 ## Known issues and cautions
 
 - Deploy for this commit must be confirmed on `deploy-pages.yml` after merge.
-- Needs Penny on a real device: touch pad ergonomics, whether the chase camera sits
-  well in portrait, and whether the car feels too fast or too slippery. Top speed
-  and grip live in one `CFG` block at the top of `car.js`.
-- There is no opponent and no collision physics beyond the barriers; it is a time
-  trial. An AI or ghost car is the obvious next feature.
-- The track is a single circuit defined by `WAYPOINTS` in `track.js`. Adding a
-  second track means another waypoint list, nothing more.
+- Needs Penny on a real device: whether the handbrake entry feels right on touch,
+  and whether 88 degrees of slip from a held handbrake is too easy to spin into.
+  Everything that governs feel is in the `CFG` block at the top of `car.js`.
+- Lift-off mid-drift does not save the car; it needs throttle. That is real
+  rear-drive behaviour and the test records it, but it is worth telling a player.
+- Physics tests must run on the `PLANE` stub, not the track. Holding lock for a
+  second leaves any 24-unit-wide road, and then the measurement is the grass
+  penalty rather than the tyres — the first version of these tests got this wrong
+  and concluded the handbrake made less slip than no handbrake.
+- The test driver in `tests/race.mjs` is a real controller now. If it starts failing
+  after a physics change, check whether the car or the driver regressed before
+  changing thresholds.
 - Royale is finished and needs no work; its device checklist still stands.
 - Commits show as Unverified because this environment has no signing key, not a
   wrong identity. Do not rewrite pushed history, do not change `git config`.
@@ -88,12 +83,17 @@ Self-contained under `games/Racing Car/`, registered in the hub carousel.
 ## Exact next action
 
 1. Run `./scripts/agent-context.sh --sync` on the intended branch.
-2. There is no active implementation task. If Penny reports a racer issue, start by
-   reproducing it in `games/Racing Car/tests/race.mjs`.
+2. There is no active implementation task. If Penny reports a handling problem,
+   reproduce it in `tests/race.mjs` first — every fault above was found that way.
 3. Otherwise wait for Penny's next scoped request.
 
 ## Do not redo
 
+- Do not recompose the car's world velocity from the post-rotation axes (ADR-025).
+- Do not subtract the yaw damping term from `latR`, and do not widen
+  `steerSpeedDrop` back toward 0.55 (ADR-026).
+- Do not go back to zeroing a whole axis on barrier contact, and do not remove the
+  stuck tow (ADR-027).
 - Do not narrow the grass runoff in `track.js`; four blocks is what makes an
   excursion recoverable instead of a dead stop against a barrier.
 - Do not let the race count a lap at the start line; `nextCp` starts at 1 for that

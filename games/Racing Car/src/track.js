@@ -31,18 +31,11 @@ const KIND = {
     water:   { color: 0x3b7fd4, h: BLOCK },
 };
 
-// 賽道中線（世界座標，會自動閉合）。刻意有長直路、髮夾彎同 S 彎，
-// 唔係淨係一個圈——咁樣「入彎收油」先至有意義。
-const WAYPOINTS = [
-    [0, 0], [60, 0], [110, 10], [140, 45], [135, 90], [100, 115],
-    [55, 110], [30, 130], [-20, 140], [-60, 120], [-75, 80],
-    [-55, 45], [-70, 10], [-45, -20], [0, -25],
-];
-
 export class Track {
-    constructor() {
-        const pts = WAYPOINTS.map(([x, z]) => new THREE.Vector3(x, 0, z));
-        this.curve = new THREE.CatmullRomCurve3(pts, true, 'catmullrom', 0.5);
+    // waypoints：中線座標串；tension 細＝彎位尖（髮夾），大＝圓滑長弧
+    constructor(waypoints, tension = 0.5) {
+        const pts = waypoints.map(([x, z]) => new THREE.Vector3(x, 0, z));
+        this.curve = new THREE.CatmullRomCurve3(pts, true, 'catmullrom', tension);
         this.length = this.curve.getLength();
         // 取樣密度：每半格一個點，確保印路面唔會有窿
         this.samples = Math.ceil(this.length / (BLOCK * 0.5));
@@ -145,6 +138,24 @@ export class Track {
             if (r > 0.93) this.cells.set(k, 'dirt');
             else if (r > 0.90) this.cells.set(k, 'water');
         }
+    }
+
+    // 賽道自身最近間距：唔同段落貼得太近，檢查點同落點判斷都會出事。
+    // 測試會用呢個把關（改賽道形狀之後必定要重跑）。
+    minSelfClearance() {
+        const N = 200, pts = [];
+        for (let i = 0; i < N; i++) pts.push(this.curve.getPointAt(i / N));
+        let best = Infinity;
+        for (let i = 0; i < N; i++) {
+            for (let j = i + 1; j < N; j++) {
+                // 沿線相鄰嘅點當然近，跳過（環狀距離要兩邊都計）
+                const along = Math.min(j - i, N - (j - i));
+                if (along < N * 0.08) continue;
+                const d = pts[i].distanceTo(pts[j]);
+                if (d < best) best = d;
+            }
+        }
+        return best;
     }
 
     // 檢查點：沿賽道平均分佈，用嚟防止兜路兼計圈

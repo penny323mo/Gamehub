@@ -328,3 +328,149 @@ body {
     cursor: pointer;
     z-index: 60;
 }
+
+/* ---------- 賽道選擇 ---------- */
+.section-label {
+    text-align: left;
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: #8fb2cc;
+    margin: 4px 0 8px;
+}
+
+#track-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.track-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 2px solid #46647c;
+    background: rgba(255, 255, 255, .06);
+    color: #e6f1f8;
+    text-align: left;
+    cursor: pointer;
+}
+
+.track-btn.selected {
+    border-color: #7fd18f;
+    background: rgba(80, 180, 105, .22);
+}
+
+.track-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.track-copy b {
+    display: block;
+    font-size: 15px;
+}
+
+.track-copy small {
+    display: block;
+    font-size: 11.5px;
+    color: #a9c6da;
+    line-height: 1.45;
+}
+
+#menu-records {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+#menu-records div {
+    flex: 1;
+    padding: 8px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, .28);
+}
+
+#menu-records span {
+    display: block;
+    font-size: 11px;
+    color: #8fb2cc;
+}
+
+#menu-records b {
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 漂移 HUD ---------- */
+#score-box {
+    position: absolute;
+    left: max(12px, env(safe-area-inset-left));
+    top: 74px;
+    padding: 5px 12px;
+    border-radius: 12px;
+    background: rgba(15, 25, 35, .62);
+    border: 2px solid rgba(255, 255, 255, .22);
+    color: #ffe9a8;
+    font-size: 15px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+#drift-box {
+    position: absolute;
+    left: 50%;
+    top: 30%;
+    transform: translateX(-50%);
+    width: min(60vw, 240px);
+    padding: 8px 12px;
+    border-radius: 14px;
+    background: rgba(20, 12, 6, .66);
+    border: 2px solid rgba(255, 190, 90, .6);
+    text-align: center;
+    pointer-events: none;
+}
+
+.drift-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 10px;
+    color: #ffd47a;
+}
+
+.drift-top b {
+    font-size: 30px;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+.drift-top span {
+    font-size: 16px;
+    font-weight: 800;
+    color: #ff9a5a;
+}
+
+#drift-angle {
+    margin-top: 6px;
+    height: 7px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, .16);
+    overflow: hidden;
+}
+
+#drift-angle-fill {
+    display: block;
+    height: 100%;
+    width: 0;
+    border-radius: 4px;
+    background: linear-gradient(90deg, #7ad0ff, #ffd166);
+    transition: width .08s linear;
+}
+
+#drift-angle-fill.hot {
+    background: linear-gradient(90deg, #ffb347, #ff5f4a);
+}
