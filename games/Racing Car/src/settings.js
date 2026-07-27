@@ -83,6 +83,12 @@ export function loadRivals() {
     return Number.isFinite(n) && n >= 0 && n <= 4 ? n : 2;
 }
 export function saveRivals(n) { try { localStorage.setItem(KEY_RIVALS, String(n)); } catch { } }
+
+// 幽靈車預設開：獨自計時模式冇咗佢就完全冇參照物
+export function loadGhostOn() { return localStorage.getItem('racer-ghost-on') !== '0'; }
+export function saveGhostOn(on) {
+    try { localStorage.setItem('racer-ghost-on', on ? '1' : '0'); } catch { }
+}
 export function loadQuality() {
     const id = localStorage.getItem(KEY_QUALITY);
     return QUALITY_MODES[id] ? id : 'auto';

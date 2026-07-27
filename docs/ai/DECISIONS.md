@@ -620,3 +620,30 @@ follows what the tyres can use
 - Reason: a circle cannot express a 4.6 by 2.0 metre car. A radius large enough to stop
   nose-to-tail interpenetration also shoves cars apart when they run side by side,
   which removes wheel-to-wheel racing — the reason for having rivals at all.
+
+## ADR-048: The ghost replays by lap position, not by frame
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: `src/ghost.js` samples the player's best lap every 0.1s as
+  (x, z, yaw, lap-progress) and stores it per track in `localStorage`. Playback
+  positions the ghost from elapsed lap time, and the gap readout compares the
+  player's current lap position against the time the ghost reached that same
+  position.
+- Reason: a frame-by-frame replay drifts out of meaning the moment the current lap
+  differs from the recorded one — a slow lap would leave the ghost parked in an
+  unrelated part of the circuit. Storing lap-progress alongside the pose is what
+  makes "you are 2.9 seconds up on your best" answerable at all. Sampling at 10 Hz
+  keeps a forty-second lap near 10 KB, which fits `localStorage` without a second
+  storage layer.
+
+## ADR-049: Track progress advances in the frame loop, not inside the HUD
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: `advancePlayerProgress()` runs once per physics frame; `playerProgress()`
+  is a pure read.
+- Reason: the accumulator was previously advanced as a side effect of the getter,
+  which only the HUD called. Standings and the ghost both consume that value, so
+  "how far round the lap is the player" silently depended on whether the HUD had
+  been drawn this frame. It was caught when a headless run produced a null gap.

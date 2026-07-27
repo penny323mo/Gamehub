@@ -11,11 +11,12 @@ import { Input, GYRO_KEY } from './input.js';
 import { Minimap } from './minimap.js';
 import { createEnvironment } from './environment.js';
 import { createDrivingEffects } from './driving-effects.js';
-import { RivalField, trackDelta, signedFrac } from './rivals.js';
+import { RivalField, trackDelta, signedFrac, blockCarGeometry } from './rivals.js';
+import { GhostRecorder, GhostPlayer, clearGhost } from './ghost.js';
 import {
     COLOURS, TIMES, QUALITY_MODES,
     loadColour, saveColour, loadTod, saveTod, loadQuality, saveQuality, qualityDpr,
-    loadRivals, saveRivals,
+    loadRivals, saveRivals, loadGhostOn, saveGhostOn,
     paintCar, applyTime,
 } from './settings.js';
 
@@ -252,6 +253,19 @@ const minimap = new Minimap($('minimap'));
 const rivals = new RivalField(scene);
 let rivalCount = loadRivals();
 
+// 幽靈車：半透明、唔會撞、唔會影響物理，純粹係「你上次最快嗰圈」嘅重播
+let ghostOn = loadGhostOn();
+const ghostRecorder = new GhostRecorder();
+const ghostPlayer = new GhostPlayer();
+const ghostMesh = new THREE.Mesh(blockCarGeometry(), new THREE.MeshLambertMaterial({
+    color: 0x9fd8ff, transparent: true, opacity: 0.42, depthWrite: false,
+}));
+ghostMesh.renderOrder = 1;
+ghostMesh.frustumCulled = false;
+ghostMesh.visible = false;
+scene.add(ghostMesh);
+let ghostLapBest = null, lastLapCount = 0, lapProgressBase = 0;
+
 let trackDef = trackById(localStorage.getItem('racer-track') ?? TRACKS[0].id);
 let track = null;
 function buildTrack(id) {
@@ -392,7 +406,12 @@ loader.load('./assets/car.glb', (gltf) => {
         car, race, renderer, scene, camera, environment, drivingEffects, rivals,
         restart, startRace, buildTrack, TRACKS, input, minimap, setRivals,
         get rivalCount() { return rivalCount; },
-        setColour, setTod, setQuality, tuneAutoQuality, pauseRace, resumeRace, toMenu,
+        setColour, setTod, setQuality, setGhost, ghostRecorder, ghostPlayer, ghostMesh,
+        // 測試要喺唔行 rAF 嘅情況下推進幽靈邏輯
+        updateGhostForTest: (dt) => { advancePlayerProgress(); updateGhost(dt); },
+        playerProgressForTest: playerProgress,
+        get ghostOn() { return ghostOn; },
+        get ghostDelta() { return ghostDelta; }, tuneAutoQuality, pauseRace, resumeRace, toMenu,
         performanceReport, performanceReportText, copyPerformanceReport,
         coarsePointer,
         get track() { return track; },
@@ -485,6 +504,14 @@ function setColour(id) {
         b.classList.toggle('on', b.dataset.id === colour.id));
     requestRender();
 }
+function setGhost(on) {
+    ghostOn = !!on;
+    saveGhostOn(ghostOn);
+    if (!ghostOn) ghostMesh.visible = false;
+    document.querySelectorAll('#ghost-seg button').forEach(b =>
+        b.classList.toggle('on', (b.dataset.ghost === '1') === ghostOn));
+    return ghostOn;
+}
 function setRivals(n) {
     rivalCount = Math.max(0, Math.min(4, n | 0));
     saveRivals(rivalCount);
@@ -540,6 +567,19 @@ function buildSettings() {
         b.addEventListener('click', () => setRivals(Number(b.dataset.rivals)));
     }
     setRivals(rivalCount);
+
+    for (const b of document.querySelectorAll('#ghost-seg button')) {
+        b.addEventListener('click', () => setGhost(b.dataset.ghost === '1'));
+    }
+    setGhost(ghostOn);
+    $('ghost-clear-btn').addEventListener('click', () => {
+        clearGhost(trackDef.id);
+        ghostPlayer.load(trackDef.id);
+        ghostMesh.visible = false;
+        const btn = $('ghost-clear-btn');
+        btn.textContent = '已清除';
+        setTimeout(() => { btn.textContent = '清除幽靈'; }, 1200);
+    });
         });
     }
     markSeg('#steer-seg', 'invert', input.invert ? 1 : 0);
@@ -548,6 +588,19 @@ function buildSettings() {
         b.addEventListener('click', () => setRivals(Number(b.dataset.rivals)));
     }
     setRivals(rivalCount);
+
+    for (const b of document.querySelectorAll('#ghost-seg button')) {
+        b.addEventListener('click', () => setGhost(b.dataset.ghost === '1'));
+    }
+    setGhost(ghostOn);
+    $('ghost-clear-btn').addEventListener('click', () => {
+        clearGhost(trackDef.id);
+        ghostPlayer.load(trackDef.id);
+        ghostMesh.visible = false;
+        const btn = $('ghost-clear-btn');
+        btn.textContent = '已清除';
+        setTimeout(() => { btn.textContent = '清除幽靈'; }, 1200);
+    });
 
     const note = $('gyro-note');
     for (const b of document.querySelectorAll('#gyro-seg button')) {
@@ -641,18 +694,52 @@ function showFinish({ total, laps, best, drift, bestDrift, bestScore }) {
     $('screen-finish').classList.remove('hidden');
 }
 
+// 幽靈車：錄住今圈、同時重播最快嗰圈。兩件事都用「呢一圈行咗幾多」做基準，
+// 唔用時間——今圈慢咗嘅話，逐幀對時會令幽靈車出現喺完全唔相干嘅位置。
+let ghostDelta = null;
+function updateGhost(dt) {
+    const lapProgress = playerProgress() - lapProgressBase;
+    if (race.state === 'racing') ghostRecorder.sample(dt, car, lapProgress);
+
+    // 一圈完咗：夠快就取代舊嘅幽靈
+    if (race.lapTimes.length !== lastLapCount) {
+        lastLapCount = race.lapTimes.length;
+        const lapTime = race.lapTimes[lastLapCount - 1];
+        if (ghostRecorder.commit(trackDef.id, lapTime, ghostLapBest)) ghostPlayer.load(trackDef.id);
+        ghostLapBest = race.best;
+        lapProgressBase = playerProgressValue;
+    }
+
+    if (!ghostOn || !ghostPlayer.available || race.state !== 'racing') {
+        ghostMesh.visible = false;
+        ghostDelta = null;
+        return;
+    }
+    const p = ghostPlayer.at(race.lapTime);
+    if (!p) { ghostMesh.visible = false; return; }
+    ghostMesh.position.set(p.x, 0, p.z);
+    ghostMesh.rotation.y = p.yaw;
+    ghostMesh.visible = true;
+    const at = ghostPlayer.timeAtProgress(lapProgress);
+    ghostDelta = at == null ? null : race.lapTime - at;
+}
+
 // 玩家進度用同對手一模一樣嘅累積計法，名次先至比得埋一齊
 let playerT = 0, playerProgressValue = 0;
 function resetPlayerProgress() {
     playerT = track.nearestT(car.pos.x, car.pos.z);
     playerProgressValue = signedFrac(playerT, track.startT);
 }
-function playerProgress() {
+// 每幀行一次，喺物理更新之後。之前呢個推進係擺喺 playerProgress() 入面，
+// 由 updateHud() 順手帶起——即係話「玩家跑到邊」呢個狀態，靠住 HUD 有冇
+// 畫過先會前進。幽靈車同名次兩樣都食呢個值，唔可以係 HUD 嘅副作用。
+function advancePlayerProgress() {
     const t = track.nearestT(car.pos.x, car.pos.z);
     playerProgressValue += trackDelta(t, playerT);
     playerT = t;
     return playerProgressValue;
 }
+function playerProgress() { return playerProgressValue; }
 
 let hudCache = {};
 function updateHud() {
@@ -684,6 +771,15 @@ function updateHud() {
         box.classList.toggle('hidden', !place);
         if (place) box.innerHTML = `<b>${place}</b><span>/${rivals.count + 1}</span>`;
         hudCache.place = place;
+    }
+    // 同自己最快圈嘅差距：快咗綠色、慢咗紅色
+    const gap = ghostDelta == null ? '' : `${ghostDelta >= 0 ? '+' : '−'}${Math.abs(ghostDelta).toFixed(2)}`;
+    if (gap !== hudCache.gap) {
+        const box = $('gap-box');
+        box.classList.toggle('hidden', !gap);
+        box.textContent = gap;
+        box.classList.toggle('ahead', ghostDelta != null && ghostDelta < 0);
+        hudCache.gap = gap;
     }
     const lapLabel = `${Math.min(race.lap + 1, race.totalLaps)}/${race.totalLaps}`;
     if (lapLabel !== hudCache.lap) { $('lap-num').textContent = lapLabel; hudCache.lap = lapLabel; }
@@ -740,6 +836,12 @@ function startRace() {
     drivingEffects.reset();
     rivals.spawn(track, rivalCount, race.totalLaps);
     resetPlayerProgress();
+    ghostRecorder.reset();
+    ghostPlayer.load(trackDef.id);
+    ghostLapBest = race.loadBest().bestLap;
+    lastLapCount = 0;
+    lapProgressBase = 0;
+    ghostMesh.visible = false;
     camInit = false;
     race.reset();
     hudCache = {};
@@ -842,7 +944,9 @@ function frame(now) {
             car.update(dt, cmd, track);
             race.update(dt, car);
             // 對手行喺玩家之後：咁樣分開兩架車嗰下推力已經用咗今幀嘅新位置
+            advancePlayerProgress();
             rivals.update(dt, track, car);
+            updateGhost(dt);
             drivingEffects.update(dt, car);
             updateHud();
             minimap.draw(car);

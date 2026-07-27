@@ -32,8 +32,9 @@ export function signedFrac(t, startT) {
     return f > 0.5 ? f - 1 : f;
 }
 
-// 一架低面數方塊車：車身 + 車頂 + 四個轆，全部合併做一份 geometry
-function blockCarGeometry() {
+// 一架低面數方塊車：車身 + 車頂 + 四個轆，全部合併做一份 geometry。
+// 幽靈車都用同一份（半透明材質），咁樣兩者望落係同一個世界嘅嘢。
+export function blockCarGeometry() {
     const parts = [];
     const push = (w, h, d, x, y, z, shade) => {
         const g = new THREE.BoxGeometry(w, h, d);

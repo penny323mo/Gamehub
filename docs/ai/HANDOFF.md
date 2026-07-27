@@ -4,14 +4,13 @@ Updated: 2026-07-27 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Baseline before this task: `1d9b8a1`
-Status: Racing Car now has computer rivals, standings, and a starting grid
+Baseline before this task: `94a4d13`
+Status: Racing Car has rivals, standings, and a best-lap ghost
 
 ## Current objective
 
-Racing Car was a time trial with nobody to race. The previous checkpoint's own
-handoff named an AI or ghost car as the obvious next feature, and the lap tests
-already contained a proven driver. This turns that driver into real opponents.
+Racing Car was a time trial with nobody to race. Two features close that gap:
+computer rivals (someone else's pace) and a ghost of your own best lap (your own).
 
 ## Completed
 
@@ -29,22 +28,30 @@ already contained a proven driver. This turns that driver into real opponents.
 - Standings: a position readout in the HUD and a 名次 row on the finish screen.
 - Setting 對手: 獨自計時 / 2 架 / 4 架, persisted. Zero rivals restores the old
   time-trial exactly and draws nothing.
-- Two real bugs found and fixed while building this: per-frame modulo made a player
-  on pole rank last (ADR-046), and circular separation could not hold a 4.6 m car
-  apart nose-to-tail without also forbidding side-by-side racing (ADR-047).
+- Two real bugs found while building the rivals: per-frame modulo made a player on
+  pole rank last (ADR-046), and circular separation could not hold a 4.6 m car apart
+  nose-to-tail without also forbidding side-by-side racing (ADR-047).
+- `src/ghost.js`: the player's best lap on each track, sampled at 10 Hz as pose plus
+  lap-progress and replayed as a translucent car, with a live gap readout in the HUD
+  — green when up on your best, red when down (ADR-048). Only a faster lap overwrites
+  it. Setting 幽靈車 開/關/清除幽靈, on by default. It is scenery: no physics, no
+  contact with the player.
+- A third real bug came out of that: the player's accumulated lap position was
+  advanced as a side effect of a getter that only the HUD called, so standings and
+  the ghost both depended on whether the HUD had drawn (ADR-049).
 
 ## Changed files
 
-- `games/Racing Car/src/driver.js`, `src/rivals.js` (both new)
+- `games/Racing Car/src/driver.js`, `src/rivals.js`, `src/ghost.js` (all new)
 - `games/Racing Car/src/main.js`, `src/settings.js`
 - `games/Racing Car/index.html`, `style.css`
-- `games/Racing Car/tests/rivals.mjs` (new), `tests/run-all.mjs`
-- `docs/ai/DECISIONS.md` (ADR-045 to ADR-047), `docs/ai/HANDOFF.md`
+- `games/Racing Car/tests/rivals.mjs`, `tests/ghost.mjs` (both new), `tests/run-all.mjs`
+- `docs/ai/DECISIONS.md` (ADR-045 to ADR-049), `docs/ai/HANDOFF.md`
 
 ## Verification
 
-- `npm test` in `games/Racing Car/tests`: race 47/47, setup 59/59, rivals 32/32.
-  Codex's existing gates were not modified.
+- `npm test` in `games/Racing Car/tests`: race 47/47, setup 59/59, rivals 32/32,
+  ghost 25/25. Codex's existing gates were not modified.
 - Four rivals finish three laps on every circuit: turbo 110.1/110.6/112.0/132.7s,
   coast 122.1/125.4/127.6/133.9s, touge 120.3/121.9/122.3/156.5s. Off-road time is
   2.6 / 11.0 / 5.7 percent and each circuit produces a spread of finishing times,
@@ -55,8 +62,11 @@ already contained a proven driver. This turns that driver into real opponents.
   side by side 2.6 m apart stay 2.46 m apart instead of being shoved off line.
 - Ranking regression gate: a player on pole with four rivals ahead reads their
   progress as 0.012–0.025, not 0.9x.
-- Screenshots at 430x900: the four-car grid ahead of the player at lights-out, and
-  mid-race with the player up to 2nd and passing wheel-to-wheel.
+- Screenshots at 430x900: the four-car grid ahead of the player at lights-out,
+  mid-race passing wheel-to-wheel, and lap 2 showing −2.92 against the recorded best.
+- Ghost unit gates cover interpolation, shortest-path yaw across the ±pi wrap,
+  clamping outside the recorded range, only-faster-overwrites, and clearing.
+- Two rivals plus the ghost on track: 17 draw calls, 55,133 triangles.
 
 ## Known issues and cautions
 
@@ -80,8 +90,8 @@ already contained a proven driver. This turns that driver into real opponents.
 1. Run `./scripts/agent-context.sh --sync` on the intended branch.
 2. Ask Penny how the rivals feel before tuning them: pace, aggression, and whether
    four cars is too busy on a phone screen. `SKILLS` in `driver.js` is the one knob.
-3. A ghost of the player's own best lap is the natural companion feature and reuses
-   the same standings plumbing.
+3. Remaining natural steps: a finish-screen standings table listing every finisher,
+   and letting the ghost race as a fifth entry in the standings.
 
 ## Do not redo
 
@@ -90,6 +100,8 @@ already contained a proven driver. This turns that driver into real opponents.
 - Do not compute track position with a per-frame modulo (ADR-046).
 - Do not replace body-box separation with a single radius (ADR-047).
 - Do not duplicate the driver back into the tests; the shared copy is the point.
+- Do not replay the ghost frame-by-frame, and do not let it touch physics (ADR-048).
+- Do not advance track progress from inside a getter or the HUD (ADR-049).
 - Do not restore per-frame overlapping thick skid segments or dotted opaque smoke,
   allocate a mesh per particle, or leave effects alive across restarts (ADR-044).
 - Do not shrink the 156px landscape / 118px narrow steering disc without Penny asking.

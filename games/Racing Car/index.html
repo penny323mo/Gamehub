@@ -38,6 +38,7 @@
             <div id="speed-box"><b id="speed-num">0</b><span>km/h</span></div>
             <div id="score-box">💨 <b id="score-num">0</b></div>
             <div id="place-box" class="hidden"><b>1</b><span>/3</span></div>
+            <div id="gap-box" class="hidden">+0.00</div>
             <!-- 賽道縮圖：睇到自己而家喺賽道邊個位 -->
             <canvas id="minimap" width="150" height="150"></canvas>
 
@@ -96,6 +97,14 @@
                             <button data-rivals="0">獨自計時</button>
                             <button data-rivals="2">2 架</button>
                             <button data-rivals="4">4 架</button>
+                        </div>
+                    </div>
+                    <div class="set-row">
+                        <span>幽靈車</span>
+                        <div class="seg" id="ghost-seg">
+                            <button data-ghost="1">開</button>
+                            <button data-ghost="0">關</button>
+                            <button id="ghost-clear-btn" class="report-btn">清除幽靈</button>
                         </div>
                     </div>
                     <div class="set-row">
