@@ -677,3 +677,17 @@ follows what the tyres can use
   running. Extrapolating a finish time for them would put a fabricated number next to
   real ones on the same screen. Position order is knowable and honest; their time is
   not, so it is not shown.
+
+## ADR-052: Rivals are a fixed roster, and one ranking feeds every readout
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: `ROSTER` in `rivals.js` binds a name, a colour and a skill together, and
+  grid slots are filled from it in order. The finish screen's 名次 line and its
+  standings table both read from a single `results()` call.
+- Reason: "對手 1/2/3/4" gives a table of numbers; a name attached to the colour you
+  actually see on the minimap and on track is what makes a result mean something.
+  Separately, the headline and the table were computed two different ways — position
+  by track progress versus finishing time — and a screenshot caught them disagreeing:
+  第 1 / 5 above a table putting the player 4th. Finished rivals stop advancing
+  progress, so the two rankings drift apart exactly when the result is shown.

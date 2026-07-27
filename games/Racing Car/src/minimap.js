@@ -33,7 +33,7 @@ export class Minimap {
 
     #to(x, z) { return [x * this.scale + this.ox, z * this.scale + this.oz]; }
 
-    draw(car) {
+    draw(car, rivals = null) {
         const g = this.ctx;
         if (!g || !this.pts.length) return;
         const w = this.canvas.width, h = this.canvas.height;
@@ -62,6 +62,21 @@ export class Minimap {
         g.lineWidth = 3;
         g.strokeStyle = '#f4b942';
         g.stroke();
+
+        // 對手：細圓點，顏色同佢喺賽道上面嗰架車一樣。畫喺玩家之前，
+        // 咁樣重疊嗰陣自己嘅三角形永遠喺最面。
+        if (rivals?.length) {
+            for (const rv of rivals) {
+                if (rv.finished) continue;
+                const [rx, rz] = this.#to(rv.car.pos.x, rv.car.pos.z);
+                g.beginPath();
+                g.arc(rx, rz, 4, 0, Math.PI * 2);
+                g.fillStyle = `#${rv.colour.toString(16).padStart(6, '0')}`;
+                g.strokeStyle = 'rgba(10,14,20,0.75)';
+                g.lineWidth = 1.5;
+                g.fill(); g.stroke();
+            }
+        }
 
         // 車：三角形，尖頭指住車頭方向
         const [cx, cz] = this.#to(car.pos.x, car.pos.z);

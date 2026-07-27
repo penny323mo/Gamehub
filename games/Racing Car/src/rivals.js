@@ -13,8 +13,16 @@ import * as THREE from 'three';
 import { Car } from './car.js';
 import { createDriver, SKILLS } from './driver.js';
 
-export const RIVAL_COLOURS = [0xd94f3d, 0x3f7fd6, 0xe0b23a, 0x53b06a];
-const SKILL_ORDER = [SKILLS.quick, SKILLS.steady, SKILLS.ace, SKILLS.steady];
+// 每個對手係一個固定嘅身份：名、色、揸車性格。名同色綁死，所以你喺縮圖
+// 見到嗰粒紅點，同名次表上面嗰個「阿烈」係同一個人——冇呢層對應，成個
+// 名次表都只係四行數字。排位由快到慢，第一格擺最快嗰個。
+export const ROSTER = [
+    { name: '阿烈', colour: 0xd94f3d, skill: SKILLS.ace },
+    { name: '阿藍', colour: 0x3f7fd6, skill: SKILLS.quick },
+    { name: '阿黃', colour: 0xe0b23a, skill: SKILLS.quick },
+    { name: '阿綠', colour: 0x53b06a, skill: SKILLS.steady },
+];
+export const RIVAL_COLOURS = ROSTER.map(r => r.colour);
 // 起跑格：沿住中線嘅前後偏移同左右偏移（世界單位）。
 // 對手排喺玩家「前面」係有意嘅——排後面嘅話鏡頭喺車後，開波成場都見唔到
 // 對手，亦都冇嘢追。而家一開波就見到前面幾架車，追過佢哋就係目標。
@@ -131,12 +139,13 @@ export class RivalField {
             const pos = track.startPos.clone()
                 .addScaledVector(tan, back)
                 .addScaledVector(side, across);
+            const who = ROSTER[i];
             const car = new Car(new THREE.Group());     // 唔使真 model，畫面靠 instance
             car.reset(pos, tan);
             this.rivals.push({
-                car,
-                driver: createDriver(track, SKILL_ORDER[i]),
-                colour: RIVAL_COLOURS[i],
+                car, name: who.name,
+                driver: createDriver(track, who.skill),
+                colour: who.colour,
                 // 起步走線偏移：淨係用嚟散開起跑格。呢個偏移會喺頭幾秒收返零——
                 // 成場都貼住路邊行嘅話，急彎位一定會跌出路面（實測四架有一架
                 // 因為咁樣卡死喺草地，成場跑唔完）。
@@ -264,7 +273,7 @@ export class RivalField {
     // 名次：進度愈大愈前。玩家嘅進度由外面傳入（race.js 已經計緊圈數）。
     standings(playerProgress) {
         const rows = this.rivals.map(r => ({
-            name: '對手', colour: r.colour, progress: r.progress, player: false, finished: r.finished,
+            name: r.name, colour: r.colour, progress: r.progress, player: false, finished: r.finished,
         }));
         rows.push({ name: '你', colour: 0xffffff, progress: playerProgress, player: true, finished: false });
         rows.sort((a, b) => b.progress - a.progress);
@@ -274,8 +283,8 @@ export class RivalField {
     // 完賽名次表：跑完嘅按時間排，未跑完嘅按進度排喺後面。
     // 玩家過線就收工，所以對手多數仲喺賽道上面——照樣要有個位排。
     results(playerTime, playerProgress) {
-        const rows = this.rivals.map((r, i) => ({
-            label: `對手 ${i + 1}`, colour: r.colour, player: false,
+        const rows = this.rivals.map((r) => ({
+            label: r.name, colour: r.colour, player: false,
             finished: r.finished, time: r.finished ? r.time : null, progress: r.progress,
         }));
         rows.push({

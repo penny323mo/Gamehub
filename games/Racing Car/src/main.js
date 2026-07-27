@@ -682,9 +682,14 @@ function showFinish({ total, laps, best, drift, bestDrift, bestScore }) {
     if (rivals.count) {
         placeRow.classList.remove('hidden');
         board.classList.remove('hidden');
-        $('finish-place').textContent = `第 ${rivals.playerPlace(playerProgress())} / ${rivals.count + 1}`;
+        // 上面嗰行同下面個表一定要用同一套排法。之前上面用「沿線進度」、
+        // 下面用「完賽時間」——跑完嘅對手進度會凍結喺 3.0 附近，同玩家爭
+        // 浮點數，於是出現「第 1 / 5」但個表寫你第 4 咁樣自打嘴巴。
+        const rows = rivals.results(total, playerProgress());
+        const mine = rows.find(row => row.player);
+        $('finish-place').textContent = `第 ${mine.place} / ${rows.length}`;
         board.innerHTML = '';
-        for (const row of rivals.results(total, playerProgress())) {
+        for (const row of rows) {
             const el = document.createElement('div');
             el.className = 'stand-row' + (row.player ? ' me' : '');
             const swatch = `#${row.colour.toString(16).padStart(6, '0')}`;
@@ -968,7 +973,7 @@ function frame(now) {
             updateGhost(dt);
             drivingEffects.update(dt, car);
             updateHud();
-            minimap.draw(car);
+            minimap.draw(car, rivals.rivals);
         }
         if (shadow) {
             shadow.position.set(car.pos.x, 0, car.pos.z);

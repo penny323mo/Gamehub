@@ -203,20 +203,85 @@ const table = await page.evaluate(() => {
         playerRow: rows.find(r => r.player),
         unfinished: rows.filter(r => !r.finished).map(r => ({ place: r.place, time: r.time })),
         gaps: rows.filter(r => r.finished).map(r => r.gap),
+        headline: (() => {
+            const me = rows.find(r => r.player);
+            return `第 ${me.place} / ${rows.length}`;
+        })(),
     };
 });
 console.log('  ', JSON.stringify(table));
 // 88.25（對手2）< 91.0（你）< 95.5（對手1），之後先至係未完成嗰兩架
-check('跑完嘅按時間排', table.order.slice(0, 3).join('|') === '1:對手 2|2:你|3:對手 1', table.order);
+check('跑完嘅按時間排', table.order.slice(0, 3).join('|') === '1:阿藍|2:你|3:阿烈', table.order);
 check('未跑完嘅排喺跑完嘅後面',
     table.unfinished.every(u => u.place > 3), table.unfinished);
 check('未跑完嘅唔會作個時間出嚟',
     table.unfinished.every(u => u.time === null), table.unfinished);
-check('未跑完嘅按進度排', table.order[3] === '4:對手 3', table.order);
+check('未跑完嘅按進度排', table.order[3] === '4:阿黃', table.order);
 check('冠軍冇差距', table.winnerGap === null, table.winnerGap);
 check('其他人報同冠軍嘅差距',
     Math.abs(table.gaps[1] - 2.75) < 0.01 && Math.abs(table.gaps[2] - 7.25) < 0.01, table.gaps);
 check('玩家自己嗰行標得到', table.playerRow.player === true && table.playerRow.place === 2, table.playerRow);
+// 完賽畫面上面嗰行「名次」，一定要同下面個表講同一件事
+check('名次行同名次表一致', table.headline === `第 ${table.playerRow.place} / 5`, table);
+
+// T8：對手係固定身份——名、色、性格綁死，唔會每場跳嚟跳去
+const roster = await page.evaluate(async () => {
+    const { ROSTER } = await import('./src/rivals.js');
+    const { rivals, track } = window.__racer;
+    const grab = () => rivals.rivals.map(r => `${r.name}:${r.colour.toString(16)}`);
+    rivals.spawn(track, 4, 3);
+    const first = grab();
+    rivals.spawn(track, 4, 3);
+    const second = grab();
+    rivals.spawn(track, 2, 3);
+    const two = grab();
+    return {
+        first, stable: first.join() === second.join(), two,
+        names: ROSTER.map(r => r.name),
+        colours: new Set(ROSTER.map(r => r.colour)).size,
+        skills: new Set(ROSTER.map(r => r.skill.name)).size,
+    };
+});
+console.log('  ', JSON.stringify(roster));
+check('每個對手有自己個名', roster.names.length === 4 && roster.names.every(Boolean), roster.names);
+check('名同色一對一（冇撞色）', roster.colours === 4, roster.colours);
+check('性格唔止一種', roster.skills > 1, roster.skills);
+check('同一個名每場都係同一個色', roster.stable, roster);
+check('揀兩架對手就攞頭兩個', roster.two.length === 2 && roster.two[0] === roster.first[0], roster);
+
+// T9：縮圖畫得出對手嘅點，跑完嗰啲唔再畫
+const dots = await page.evaluate(() => {
+    const { minimap, rivals, car, track } = window.__racer;
+    const cv = document.getElementById('minimap');
+    const g = cv.getContext('2d');
+    // 數藍色像素：阿藍係 0x3f7fd6。特登唔數紅——玩家自己個三角形係紅色，
+    // 起跑線係橙色，數紅嘅話量到嘅係佢哋，唔係對手。
+    const bluePixels = () => {
+        const d = g.getImageData(0, 0, cv.width, cv.height).data;
+        let n = 0;
+        for (let i = 0; i < d.length; i += 4) {
+            if (d[i + 2] > 150 && d[i + 2] > d[i] + 40 && d[i + 3] > 100) n++;
+        }
+        return n;
+    };
+    const redPixels = bluePixels;
+    minimap.setTrack(track);
+    rivals.spawn(track, 4, 3);
+    car.reset(track.startPos, track.startDir);
+    minimap.draw(car, null);
+    const without = redPixels();
+    minimap.draw(car, rivals.rivals);
+    const withDots = redPixels();
+    rivals.rivals.forEach(r => { r.finished = true; });
+    minimap.draw(car, rivals.rivals);
+    const afterFinish = redPixels();
+    return { without, withDots, afterFinish };
+});
+console.log('  ', JSON.stringify(dots));
+// 一粒點半徑 4 加深色描邊，淨低純色內部大約七個像素——由 0 變成有，
+// 已經係唔含糊嘅訊號，唔使夾硬要求好大個數
+check('縮圖畫到對手嘅點', dots.withDots > dots.without + 3, dots);
+check('跑完嘅對手唔再畫喺縮圖', dots.afterFinish <= dots.without + 2, dots);
 
 checkNoErrors(r.errors);
 await r.close();
