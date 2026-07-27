@@ -6,7 +6,7 @@
 ## 點跑
 
 ```sh
-cd games/racer/tests
+cd "games/Racing Car/tests"
 npm install          # 只需一次
 npm test
 ```

@@ -67,7 +67,8 @@ export async function openRacer({
         errors.push('console: ' + text);
     });
 
-    await page.goto(`${origin}/games/racer/index.html`);
+    // 資料夾名有空格，URL 要編碼；用 encodeURI 就唔使人手記住 %20
+    await page.goto(encodeURI(`${origin}/games/Racing Car/index.html`));
     // 車模載完先會有 __racer；載唔到就唔好靜靜等到 timeout
     await page.waitForFunction(() => !!window.__racer, null, { timeout: 90000 });
 

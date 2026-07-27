@@ -70,7 +70,7 @@ const games = [
         title: '方塊賽車',
         subtitle: '🏁 Minecraft 風賽道！三圈計時挑戰最快圈',
         icon: '🏎️',
-        link: 'games/racer/index.html',
+        link: 'games/Racing%20Car/index.html',
         playable: true
     },
     {

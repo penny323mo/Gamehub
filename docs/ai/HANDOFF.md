@@ -11,11 +11,11 @@ Status: new game shipped — Block Racer, a Minecraft-style time-trial racer
 
 Build a simple racing game around the sports-car GLB Penny supplied, with a
 Minecraft-style blocky track to keep the art direction cheap and consistent.
-Self-contained under `games/racer/`, registered in the hub carousel.
+Self-contained under `games/Racing Car/`, registered in the hub carousel.
 
 ## Completed
 
-- `games/racer/`: `track.js` (voxel world), `car.js` (arcade physics), `race.js`
+- `games/Racing Car/`: `track.js` (voxel world), `car.js` (arcade physics), `race.js`
   (laps, checkpoints, timing, best-lap save), `input.js` (keyboard + touch),
   `main.js` (renderer, chase camera, HUD), plus `index.html` and `style.css`.
 - Car model compressed from 4.5MB to 221KB: Draco geometry plus a 1024px WebP
@@ -30,16 +30,16 @@ Self-contained under `games/racer/`, registered in the hub carousel.
 - Controls: arrows/WASD plus space to drift on desktop; a left/right pad and a
   gas/brake/drift cluster on touch.
 - Registered in `launcher.js` between Royale and Ashen Rail.
-- `games/racer/tests/` with the same harness pattern as Royale (ADR-022).
+- `games/Racing Car/tests/` with the same harness pattern as Royale (ADR-022).
 
 ## Changed files
 
-- `games/racer/**` (new game, assets, vendor, tests)
+- `games/Racing Car/**` (new game, assets, vendor, tests)
 - `launcher.js`, `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/HANDOFF.md`
 
 ## Verification
 
-- `npm test` in `games/racer/tests`: 15/15 checks pass.
+- `npm test` in `games/Racing Car/tests`: 15/15 checks pass.
 - Autopilot completes three laps in 38.3 / 48.2 / 48.2 seconds with zero frames
   stuck in a barrier and 1.9 percent of time off-road.
 - Physics: full throttle reaches 180 km/h on tarmac, braking drops it to 50, and
@@ -71,7 +71,7 @@ Self-contained under `games/racer/`, registered in the hub carousel.
 
 1. Run `./scripts/agent-context.sh --sync` on the intended branch.
 2. There is no active implementation task. If Penny reports a racer issue, start by
-   reproducing it in `games/racer/tests/race.mjs`.
+   reproducing it in `games/Racing Car/tests/race.mjs`.
 3. Otherwise wait for Penny's next scoped request.
 
 ## Do not redo
