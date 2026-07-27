@@ -114,8 +114,7 @@ computer rivals (someone else's pace) and a ghost of your own best lap (your own
 - Do not recompose world velocity from post-rotation axes (ADR-025), subtract the
   yaw damping term from `latR` (ADR-026), zero a whole axis on barrier contact, or
   remove the stuck tow (ADR-027) — rivals rely on that tow too.
-- Do not remove the rear traction cap (ADR-029) or point the chase camera straight
-  down the heading (ADR-030).
-- Do not write verification scripts outside the repository (ADR-022).
+- Do not remove the rear traction cap (ADR-029), point the chase camera straight
+  down the heading (ADR-030), or write verification scripts outside the repo (ADR-022).
 - Do not amend, rebase, or force-push commits that already exist on `origin/main`.
 - Do not create a second handoff file or copy transcripts or secrets into context files.
