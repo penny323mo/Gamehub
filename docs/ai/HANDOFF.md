@@ -3,69 +3,74 @@
 Updated: 2026-07-27 (Asia/Macau)
 Prepared by: Codex (local)
 Integration branch: `main`
-Baseline before this task: `88d7ca5`
-Status: Racing Car first-race warm-up hitch removed and browser verified
+Baseline before this task: `d9155ff`
+Status: Racing Car mobile-control and drivability checkpoint complete
 
 ## Current objective
 
-Move Racing Car from its old pixel/voxel presentation to a genuinely phone-playable,
-smooth 3D circuit, including sustained rendering, modern touch controls, interruption
-safety, and readable portrait/landscape framing.
+Refine Racing Car against Penny's real-phone feedback: less obstructive car scale,
+modern continuous thumb controls, responsive launch acceleration, wider tracks, and
+working day/dusk/night selection.
 
 ## Completed
 
-- Loading now remains visible until the first complete car/world WebGL frame renders.
-- Minimap Canvas2D and HUD text/layout initialize behind loading instead of on the first
-  active race frame. Start is revealed only after that warm-up and public ready state.
-- Added a committed gate proving ready/loading/menu state, pre-drawn minimap pixels, and
-  initialized speed/lap HUD. See ADR-041.
-- Preserved the 10.35-unit car, smooth 3D tracks, analogue/action controls, independent
-  notch safe areas, capture-loss reset, interruption recovery, adaptive DPR, idle GPU,
-  and privacy-safe physical-phone report from ADR-032 to ADR-040.
+- Reduced the player GLB from 10.35 to 6.9 visual units (one-third smaller) without
+  changing collision, wheelbase, camera rules, or other physics dimensions.
+- Expanded all road surfaces from 24 to 28 world units. Guardrails remain at the same
+  offset; two grass units per side were converted into drivable road.
+- Added low-speed launch torque that fades back to the proven 8,500N engine output by
+  25m/s. Deterministic 0–80km/h is now 2.98 seconds without increasing high-speed force.
+- Replaced circle-only steering activation with a larger floating left-thumb zone.
+  Steering begins anywhere in that zone and pointer capture keeps it active outside both
+  the visible circle and the zone until release/interruption.
+- Enlarged gas from 92px to 108px in the standard layout and rebuilt the three actions as
+  a modern primary/secondary arc. Holding gas and sliding left selects brake; sliding
+  left-up selects drift; sliding back selects gas without releasing the pointer.
+- Fixed the time-of-day UI root cause: day/dusk/night buttons had no click listeners.
+  All three now update scene lighting/sky, selection state, and persisted storage.
+- Added regression coverage for track width, car scale, 0–80 launch, real time-button
+  clicks, floating steering, gas-to-brake/drift sliding, capture loss, and layout overlap.
+  See ADR-042.
 
 ## Changed files
 
-- `games/Racing Car/src/main.js`
-- `games/Racing Car/tests/setup.mjs`
-- `docs/ai/PROJECT_CONTEXT.md`, `DECISIONS.md` (ADR-041), `HANDOFF.md`
+- `games/Racing Car/index.html`, `style.css`
+- `games/Racing Car/src/input.js`, `car.js`, `track.js`, `main.js`
+- `games/Racing Car/tests/race.mjs`, `setup.mjs`
+- `docs/ai/DECISIONS.md`, `HANDOFF.md`
 
 ## Verification
 
-- `npm test` in `games/Racing Car/tests`: PASS — race 45/45 and setup 51/51.
-- Startup gate at public ready: loading hidden, menu visible, minimap had 3,227 inked
-  pixels, speed `0`, lap `1/3`, and first complete 3D frame already rendered.
-- Same headed hardware A/B at 844×390, DPR 3, 4× CPU, five seconds per race:
-  - Before: first race 59.16 fps, one long frame, maximum 101.2ms.
-  - After: first race 59.96 fps, zero long frames, maximum 31.8ms.
-  - After warm cache: races two/three 60.01/60.09 fps, zero long frames, max 18.7ms.
-- DPR stayed 1.5 in all A/B rounds; the improvement did not trade away image quality.
-- Existing 320×568 and 667×375 layout, safe-area, touch/capture, GPU recovery,
-  three-track autopilot, resource, and performance-report gates all remained green.
-- No functional browser error; only the pre-existing root favicon 404.
+- `npm test` in `games/Racing Car/tests`: PASS — race 46/46 and setup 52/52 (98/98).
+- All three autopilots completed three laps. Coast improved to 5% off-road, 9 wall-hit
+  frames, and zero rescues; Turbo/Touge had zero off-road and zero rescues.
+- Resource gate remained 14 draw calls, 54,203 triangles, 14 geometries, 4 textures.
+- Headed Chromium smoke at 844×390 and 320×568 confirmed complete circular controls,
+  the larger primary gas button, readable HUD, widened road, and 6.9-unit car.
+- Browser touch-pointer smoke observed gas → brake → drift → released states correctly.
+- Actual menu clicks returned day `8fc7ef`, dusk `f0a06a`, and night `141c30`, with
+  matching persisted values. Only the pre-existing root favicon 404 appeared.
 
 ## Known issues and cautions
 
-- Desktop hardware and emulation still cannot certify phone heat, Mobile Safari/Chrome,
-  home-indicator ergonomics, gyro feel, or a sustained physical-device lap.
-- Performance reports continue to include every active race frame; do not hide real hitches.
-- Reports contain no user-agent or device identifier; ask Penny for model/browser separately.
+- Desktop Chromium and emulation do not certify phone heat, Safari home-indicator feel,
+  gyro feel, or a sustained physical-device lap.
+- Keep the wider road's guardrail offset unchanged unless self-clearance is re-audited.
+- Gas sliding uses directional sectors deliberately, so the gesture does not drop while
+  the thumb crosses the visual gap between circular buttons.
 
 ## Exact next action
 
-1. Receiving agent runs `./scripts/agent-context.sh --sync` before reading this file.
-2. Penny opens the live game on her phone, drives one full lap, rotates/backgrounds once,
-   returns to menu, taps `複製報告`, and pastes the report with phone/browser and heat feel.
-3. If physical controls, safe areas, average/minimum pacing, and heat pass, close the
-   original objective; otherwise tune against the measured report and exact device symptom.
+1. Receiving agent runs `./scripts/agent-context.sh --sync` and reads this checkpoint.
+2. Start the next visual/gameplay phase from this baseline; do not redo this control pass.
+3. On a future physical-phone check, verify one full lap, gas-slide comfort, rotation /
+   background recovery, and paste the privacy-safe performance report if tuning is needed.
 
 ## Do not redo
 
-- Do not reveal Start before the first complete 3D frame or move minimap/HUD warm-up back
-  into the first active frame.
-- Do not remove `viewport-fit=cover`, independent safe-area edges, or capture-loss reset.
-- Do not infer physical-device success from desktop emulation or software rendering.
-- Do not include user-agent, identifiers, credentials, or secrets in the report.
-- Do not let performance telemetry alter physics, collision, or track mesh.
-- Do not auto-resume after GPU, rotation, visibility, or page interruption.
-- Do not restore continuous WebGL rendering in static states.
+- Do not restore the 10.35-unit car, 24-unit road, fixed circle-only steering, or isolated
+  gas pointer unless Penny explicitly requests a reversal.
+- Do not remove safe-area handling, pointer capture/loss reset, first-frame warm-up,
+  adaptive DPR, interruption pause, or privacy-safe reporting.
+- Do not infer physical-device success from desktop emulation.
 - Do not amend, rebase, or force-push published `main` history.

@@ -18,8 +18,9 @@ export const CFG = {
     wheelBaseF: 1.35,    // 前軸距重心
     wheelBaseR: 1.45,    // 後軸距重心（後軸長少少＝直路穩定啲）
 
-    // 驅動力 N（後輪驅動）。8500 ≈ 後輪抓地上限（1.7 × 後軸載荷），
-    // 再大就變咗淨係空轉：摩擦圓會食晒側向抓地，一踩油就打圈、揸唔到。
+    // 低速額外扭力改善起步／慢彎出彎；速度上升後漸變返原本穩定輸出，
+    // 避免高速巡航同反打因全段加力而失控。traction clamp 仍限制落地力量。
+    launchForce: 10200,
     engineForce: 8500,
     brakeForce: 20000,
     reverseForce: 6000,
@@ -116,7 +117,11 @@ export class Car {
 
         // ---- 縱向力：引擎／煞車／阻力 ----
         let driveF = 0;
-        if (input.throttle > 0) driveF = CFG.engineForce * input.throttle;
+        if (input.throttle > 0) {
+            const torqueFade = Math.min(1, Math.abs(vLong) / 25);
+            const available = CFG.launchForce + (CFG.engineForce - CFG.launchForce) * torqueFade;
+            driveF = available * input.throttle;
+        }
         else if (input.throttle < 0) {
             driveF = vLong > 0.6 ? -CFG.brakeForce : CFG.reverseForce * input.throttle;
         }

@@ -55,7 +55,7 @@ for (const id of TRACK_IDS) {
     console.log('  ', JSON.stringify(info));
     // 半徑 180 米以上，喺 60 米嘅起步區內偏離中線唔夠 2.5 米，肉眼就係直路
     check(`${id}：起跑線喺直路（半徑 >180）`, info.straightR > 180, info.straightR);
-    check(`${id}：起跑線打橫鋪滿成條路`, info.halfSpan >= 10, info.halfSpan);
+    check(`${id}：起跑線鋪滿擴闊後行車面`, info.halfSpan >= 13.5, info.halfSpan);
 }
 
 // T2：畫面係連續 ribbon，而物理格網只留喺幕後做判定。
@@ -77,7 +77,7 @@ check('有連續護欄支柱同賽道樹木', geo.posts > 200 && geo.trees >= 10
 check('完整 3D 世界 draw calls 維持手機預算（<18）', geo.calls < 18, geo.calls);
 check('三角形數量喺手機預算（<120k）', geo.tris < 120000, geo.tris);
 
-// Penny 指定現有車身再放大 50%：6.9 -> 10.35；物理參數唔跟住改。
+// 車身由過大嘅 10.35 縮細三分之一返去 6.9；物理參數唔跟住改。
 const carScale = await page.evaluate(async () => {
     const THREE = await import('three');
     const { car, visualLength } = window.__racer;
@@ -92,8 +92,8 @@ const carScale = await page.evaluate(async () => {
     return { target: visualLength, measured: +Math.max(size.x, size.z).toFixed(2) };
 });
 console.log('  ', JSON.stringify(carScale));
-check('玩家車身由 6.9 再放大 50% 至 10.35', carScale.target === 10.35
-    && carScale.measured >= 10.3 && carScale.measured <= 10.4, carScale);
+check('玩家車身由 10.35 縮細三分之一至 6.9', carScale.target === 6.9
+    && carScale.measured >= 6.85 && carScale.measured <= 6.95, carScale);
 
 // T3：設定真係改到嘢，兼且記得住
 const set = await page.evaluate(() => {
@@ -110,18 +110,23 @@ const set = await page.evaluate(() => {
     const red = read();
     setColour('blue');
     const blue = read();
-    setTod('night');
+    document.querySelector('#tod-seg [data-tod="dusk"]').click();
+    const duskSky = window.__racer.scene.background.getHex();
+    document.querySelector('#tod-seg [data-tod="night"]').click();
     return {
         red, blue, changed: red !== blue,
         tod: window.__racer.tod,
+        duskSky,
         savedColour: localStorage.getItem('racer-colour'),
         savedTod: localStorage.getItem('racer-tod'),
+        selectedTod: document.querySelector('#tod-seg button.on')?.dataset.tod,
     };
 });
 console.log('  ', JSON.stringify(set));
 check('揀顏色會噴到車身', set.changed, set);
 check('顏色會存返落 localStorage', set.savedColour === 'blue', set.savedColour);
-check('揀夜晚會生效兼存返', set.tod === 'night' && set.savedTod === 'night', set);
+check('日／黃昏／夜按鈕可操作，揀夜晚會生效兼存返', set.duskSky === 0xf0a06a
+    && set.tod === 'night' && set.savedTod === 'night' && set.selectedTod === 'night', set);
 
 // 夜晚同日頭嘅場景設定要真係唔同（唔淨係換個名）
 const light = await page.evaluate(() => {
@@ -261,16 +266,23 @@ const touch = await page.evaluate(() => {
         bubbles: true, cancelable: true, pointerType: 'touch', pointerId, ...coords,
     }));
     const stick = document.getElementById('steer-stick');
-    const r = stick.getBoundingClientRect();
+    const zone = document.getElementById('steer-zone');
+    const z = zone.getBoundingClientRect();
     fire('pad-gas', 'pointerdown', 11);
-    fire('steer-stick', 'pointerdown', 12, {
-        clientX: r.left + r.width * 0.74,
-        clientY: r.top + r.height * 0.5,
+    // 喺原本圓盤之外起手，再拖出整個左手區；只要未放手就要持續右軚。
+    fire('steer-zone', 'pointerdown', 12, {
+        clientX: z.left + z.width * 0.78,
+        clientY: z.top + z.height * 0.5,
+    });
+    fire('steer-zone', 'pointermove', 12, {
+        clientX: z.right + 120,
+        clientY: z.top + z.height * 0.5,
     });
     const held = input.read(1);
     const atDrag = {
         aria: stick.getAttribute('aria-valuenow'),
         knob: document.getElementById('steer-knob').style.transform,
+        baseLeft: stick.getBoundingClientRect().left - z.left,
     };
     dispatchEvent(new Event('blur'));
     const released = input.read(1);
@@ -285,12 +297,48 @@ const touch = await page.evaluate(() => {
     return result;
 });
 console.log('  ', JSON.stringify(touch));
-check('兩指油門 + 類比右軚可以同時成立', touch.held.throttle === 1
-    && touch.held.steer > 0.5 && touch.held.steer < 1 && Number(touch.atDrag.aria) > 50
-    && touch.atDrag.knob.includes('translate'), touch);
+check('圓盤外起手／拖出感應區仍可兩指油門 + 持續右軚', touch.held.throttle === 1
+    && touch.held.steer > 0.9 && Number(touch.atDrag.aria) > 90
+    && touch.atDrag.baseLeft > 20 && touch.atDrag.knob.includes('translate'), touch);
 check('離開頁面會清走油門兼令搖桿回中', touch.released.throttle === 0
     && touch.released.steer === 0 && touch.heldControls === 0
     && touch.ariaAfter === '0' && touch.knobAfter === '', touch);
+
+// 右拇指唔使放手重撳：由油門向左／左上滑，應即時切換煞車／飄移。
+const actionSlide = await page.evaluate(() => {
+    const root = window.__racer;
+    const { input } = root;
+    root.startRace();
+    const gas = document.getElementById('pad-gas');
+    const r = gas.getBoundingClientRect();
+    const fire = (type, x, y) => gas.dispatchEvent(new PointerEvent(type, {
+        bubbles: true, cancelable: true, pointerType: 'touch', pointerId: 21,
+        clientX: x, clientY: y,
+    }));
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    fire('pointerdown', cx, cy);
+    const gasHeld = input.read(1 / 60);
+    fire('pointermove', cx - r.width * 0.75, cy);
+    const brakeHeld = input.read(1 / 60);
+    fire('pointermove', cx - r.width * 0.75, cy - r.height * 0.75);
+    const driftHeld = input.read(1 / 60);
+    const driftLit = document.getElementById('pad-drift').classList.contains('held');
+    fire('pointermove', cx, cy);
+    const gasAgain = input.read(1 / 60);
+    fire('pointerup', cx, cy);
+    const released = input.read(1 / 60);
+    root.pauseRace('滑動 action 測試完成');
+    root.toMenu();
+    return { gasHeld, brakeHeld, driftHeld, driftLit, gasAgain, released };
+});
+console.log('  ', JSON.stringify(actionSlide));
+check('按住油門滑向煞車／飄移可連續切換並滑返油門',
+    actionSlide.gasHeld.throttle === 1
+    && actionSlide.brakeHeld.throttle === -1
+    && actionSlide.driftHeld.throttle === 0 && actionSlide.driftHeld.handbrake
+    && actionSlide.driftLit && actionSlide.gasAgain.throttle === 1
+    && actionSlide.released.throttle === 0 && !actionSlide.released.handbrake,
+    actionSlide);
 
 // Mobile Safari／Android 系統 gesture 可以直接收走 pointer capture；唔一定先送 pointerup。
 const captureLoss = await page.evaluate(() => {
@@ -303,11 +351,12 @@ const captureLoss = await page.evaluate(() => {
     const stick = document.getElementById('steer-stick');
     const r = stick.getBoundingClientRect();
     fire('pad-gas', 'pointerdown', 31);
-    fire('steer-stick', 'pointerdown', 32, { clientX: r.right, clientY: r.top + r.height / 2 });
+    fire('steer-zone', 'pointerdown', 32, { clientX: r.right, clientY: r.top + r.height / 2 });
+    fire('steer-zone', 'pointermove', 32, { clientX: r.right + r.width, clientY: r.top + r.height / 2 });
     input.read(1);
     const before = { gas: input.touch.gas, steer: input.touch.steer, pointers: input.touchPointers.size };
     fire('pad-gas', 'lostpointercapture', 31);
-    fire('steer-stick', 'lostpointercapture', 32);
+    fire('steer-zone', 'lostpointercapture', 32);
     const afterRead = input.read(1);
     const after = {
         gas: input.touch.gas, steer: input.touch.steer, pointers: input.touchPointers.size,

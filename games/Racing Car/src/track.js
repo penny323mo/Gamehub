@@ -10,9 +10,9 @@ import * as THREE from 'three';
 
 // BLOCK 只係物理／查詢格網精度；畫面精度由 VISUAL_STEP 控制。
 export const BLOCK = 0.25;
-const ROAD_HALF_W = 12;              // 路面半闊（世界單位）→ 全闊 24
+const ROAD_HALF_W = 14;              // 路面半闊（世界單位）→ 全闊 28
 const KERB_W = 2;                    // 紅白路肩闊度
-const GRASS_W = 8;                   // 草地緩衝闊度（衝出去仲救得返）
+const GRASS_W = 6;                   // 外欄位置不變，擴闊部分由草地讓畀行車面
 const WALL_W = 3;                    // 欄杆帶闊度
 const WALL_H = 2.5;                  // 欄杆高度（世界單位）
 const ASPHALT_HALF_W = ROAD_HALF_W - KERB_W;

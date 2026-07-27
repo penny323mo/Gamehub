@@ -10,6 +10,7 @@ export class Input {
         this.keys = new Set();
         this.touch = { left: false, right: false, steer: 0, gas: false, brake: false, drift: false };
         this.touchPointers = new Map();
+        this.gasGestureAction = null;
         this.steerSmooth = 0;
 
         // 設定：轉向反轉係畀 Penny 嘅逃生門。所有量度（物理、鏡頭右向量、
@@ -28,15 +29,21 @@ export class Input {
         addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
         addEventListener('blur', () => this.reset(root));
 
-        // 觸控掣：pointer 事件一次過搞掂滑鼠同手指
-        for (const [id, prop] of [['pad-gas', 'gas'], ['pad-brake', 'brake'], ['pad-drift', 'drift']]) {
+        // 煞車／飄移可以直接撳；亦可以由主油門一路按住滑過去切換。
+        const actionIds = { gas: 'pad-gas', brake: 'pad-brake', drift: 'pad-drift' };
+        const syncActions = () => {
+            for (const [prop, id] of Object.entries(actionIds)) {
+                this.touch[prop] = this.touchPointers.has(prop) || this.gasGestureAction === prop;
+                root.querySelector(`#${id}`)?.classList.toggle('held', this.touch[prop]);
+            }
+        };
+        for (const [id, prop] of [['pad-brake', 'brake'], ['pad-drift', 'drift']]) {
             const el = root.querySelector(`#${id}`);
             if (!el) continue;
             const down = (ev) => {
                 ev.preventDefault();
                 this.touchPointers.set(prop, ev.pointerId);
-                this.touch[prop] = true;
-                el.classList.add('held');
+                syncActions();
                 // 手指稍為滑出圓角掣都繼續收 input，直到真正放手；兩隻手指
                 // 各自 capture 自己嗰粒掣，所以油門 + 轉向可以同時成立。
                 try { el.setPointerCapture(ev.pointerId); } catch { }
@@ -45,8 +52,7 @@ export class Input {
                 if (this.touchPointers.get(prop) !== ev.pointerId) return;
                 ev.preventDefault();
                 this.touchPointers.delete(prop);
-                this.touch[prop] = false;
-                el.classList.remove('held');
+                syncActions();
             };
             el.addEventListener('pointerdown', down);
             el.addEventListener('pointerup', up);
@@ -54,11 +60,66 @@ export class Input {
             el.addEventListener('lostpointercapture', up);
         }
 
-        // 王者榮耀式虛擬搖桿：圓盤內任何位置都可以落手，拖動距離直接
-        // 變成 -1..1 嘅連續轉向。Pointer capture 令手指拖出圓盤都唔會斷軚。
+        const gas = root.querySelector('#pad-gas');
+        if (gas) {
+            const actionAt = (x, y) => {
+                const gasRect = gas.getBoundingClientRect();
+                const cx = gasRect.left + gasRect.width / 2;
+                const cy = gasRect.top + gasRect.height / 2;
+                const dx = x - cx, dy = y - cy;
+                // 右拇指由油門向左滑：水平／左下係煞車，左上係飄移。
+                // 用方向區而唔係只靠另一粒圓形 hitbox，滑過兩掣之間都唔會斷動作。
+                if (dx < -gasRect.width * 0.28) {
+                    return dy < -gasRect.height * 0.34 ? 'drift' : 'brake';
+                }
+                return 'gas';
+            };
+            const move = (ev) => {
+                if (this.touchPointers.get('action') !== ev.pointerId) return;
+                ev.preventDefault();
+                this.gasGestureAction = actionAt(ev.clientX, ev.clientY);
+                syncActions();
+            };
+            const down = (ev) => {
+                ev.preventDefault();
+                this.touchPointers.set('action', ev.pointerId);
+                this.gasGestureAction = 'gas';
+                syncActions();
+                root.querySelector('.pad-side.right')?.classList.add('gesture-active');
+                try { gas.setPointerCapture(ev.pointerId); } catch { }
+            };
+            const up = (ev) => {
+                if (this.touchPointers.get('action') !== ev.pointerId) return;
+                ev.preventDefault();
+                this.touchPointers.delete('action');
+                this.gasGestureAction = null;
+                syncActions();
+                root.querySelector('.pad-side.right')?.classList.remove('gesture-active');
+            };
+            gas.addEventListener('pointerdown', down);
+            gas.addEventListener('pointermove', move);
+            gas.addEventListener('pointerup', up);
+            gas.addEventListener('pointercancel', up);
+            gas.addEventListener('lostpointercapture', up);
+        }
+
+        // 現代 MOBA 式浮動搖桿：左手區任何位置都可以落手，底盤會移到
+        // 拇指下面；拖動距離直接變成 -1..1 嘅連續轉向。Pointer capture
+        // 令手指拖出起手區同圓盤之後都繼續收 input，直到真正放手。
+        const zone = root.querySelector('#steer-zone');
         const stick = root.querySelector('#steer-stick');
         const knob = root.querySelector('#steer-knob');
-        if (stick && knob) {
+        if (zone && stick && knob) {
+            const placeBase = (ev) => {
+                const zoneRect = zone.getBoundingClientRect();
+                const size = stick.getBoundingClientRect().width;
+                const radius = size / 2;
+                const x = Math.max(radius, Math.min(zoneRect.width - radius, ev.clientX - zoneRect.left));
+                const y = Math.max(radius, Math.min(zoneRect.height - radius, ev.clientY - zoneRect.top));
+                stick.style.left = `${(x - radius).toFixed(1)}px`;
+                stick.style.top = `${(y - radius).toFixed(1)}px`;
+                stick.style.bottom = 'auto';
+            };
             const move = (ev) => {
                 if (this.touchPointers.get('steer') !== ev.pointerId) return;
                 ev.preventDefault();
@@ -76,8 +137,10 @@ export class Input {
             const down = (ev) => {
                 ev.preventDefault();
                 this.touchPointers.set('steer', ev.pointerId);
+                placeBase(ev);
                 stick.classList.add('held');
-                try { stick.setPointerCapture(ev.pointerId); } catch { }
+                zone.classList.add('held');
+                try { zone.setPointerCapture(ev.pointerId); } catch { }
                 move(ev);
             };
             const up = (ev) => {
@@ -86,28 +149,41 @@ export class Input {
                 this.touchPointers.delete('steer');
                 this.touch.steer = 0;
                 stick.classList.remove('held');
+                zone.classList.remove('held');
                 stick.setAttribute('aria-valuenow', '0');
                 knob.style.transform = '';
+                stick.style.left = '';
+                stick.style.top = '';
+                stick.style.bottom = '';
             };
-            stick.addEventListener('pointerdown', down);
-            stick.addEventListener('pointermove', move);
-            stick.addEventListener('pointerup', up);
-            stick.addEventListener('pointercancel', up);
-            stick.addEventListener('lostpointercapture', up);
+            zone.addEventListener('pointerdown', down);
+            zone.addEventListener('pointermove', move);
+            zone.addEventListener('pointerup', up);
+            zone.addEventListener('pointercancel', up);
+            zone.addEventListener('lostpointercapture', up);
         }
     }
 
     reset(root = document) {
         this.keys.clear();
         this.touchPointers.clear();
+        this.gasGestureAction = null;
         for (const key of Object.keys(this.touch)) this.touch[key] = false;
         this.steerSmooth = 0;
         root.querySelectorAll?.('.pad-btn.held').forEach(el => el.classList.remove('held'));
+        root.querySelector?.('.pad-side.right')?.classList.remove('gesture-active');
         const stick = root.querySelector?.('#steer-stick');
+        const zone = root.querySelector?.('#steer-zone');
         const knob = root.querySelector?.('#steer-knob');
         stick?.classList.remove('held');
+        zone?.classList.remove('held');
         stick?.setAttribute('aria-valuenow', '0');
         if (knob) knob.style.transform = '';
+        if (stick) {
+            stick.style.left = '';
+            stick.style.top = '';
+            stick.style.bottom = '';
+        }
     }
 
     setInvert(v) {

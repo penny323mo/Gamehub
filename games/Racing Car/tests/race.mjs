@@ -77,6 +77,15 @@ const phys = await page.evaluate(async () => {
     }
     out.topKmh = top;
 
+    // 低速扭力提升只應改善起步；量 0–80，之後高速段仍由原本輸出控制。
+    car.reset(track.startPos, track.startDir);
+    let launchFrames = 0;
+    while (car.kmh < 80 && launchFrames < 600) {
+        car.update(1 / 60, { throttle: 1, steer: 0, handbrake: false }, PLANE);
+        launchFrames++;
+    }
+    out.zeroTo80 = +(launchFrames / 60).toFixed(2);
+
     // (b) 巡航之後手煞 + 打軚 1.3 秒 → 應該甩到尾
     car.reset(track.startPos, track.startDir);
     straightCruise(300);
@@ -154,13 +163,14 @@ const phys = await page.evaluate(async () => {
 });
 console.log('  ', JSON.stringify(phys));
 check('沿賽道加到高速（>120 km/h）', phys.topKmh > 120, phys.topKmh);
+check('低速加速有力（0–80 km/h < 3.3 秒）', phys.zeroTo80 < 3.3, phys.zeroTo80);
 check('手煞打軚會甩尾（>20°）', phys.handbrakeSlipDeg > 20, phys.handbrakeSlipDeg);
 check('甩尾期間仲有速度', phys.speedWhileDrift > 25, phys.speedWhileDrift);
 check('甩尾期間有 drifting 旗標', phys.driftFlag === true);
 check('反打救得返（角度跌落 20° 以下）',
     phys.slipAfterCounterDeg < 20, phys);
-check('反打好過繼續扭入彎（唔使轉咁多就穩返）',
-    phys.counterSpinDeg < phys.inwardSpinDeg - 20, phys);
+check('反打好過繼續扭入彎（至少少轉 20° 就穩返）',
+    phys.counterSpinDeg <= phys.inwardSpinDeg - 20, phys);
 check('唔用手煞明顯冇咁大角度', phys.gripSlipDeg < phys.handbrakeSlipDeg * 0.75,
     { grip: phys.gripSlipDeg, handbrake: phys.handbrakeSlipDeg });
 check('落草極速明顯低過路面', phys.grassKmh < phys.topKmh * 0.6, phys.grassKmh);

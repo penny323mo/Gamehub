@@ -284,7 +284,7 @@ const clouds = new THREE.Group();
 const loader = new GLTFLoader();
 const draco = new DRACOLoader();
 draco.setDecoderPath('./vendor/draco/');
-const CAR_VISUAL_LENGTH = 10.35; // 現有 6.9 再放大 50%；相對原本 4.6 係 225%
+const CAR_VISUAL_LENGTH = 6.9; // 10.35 縮細三分之一；物理碰撞維持不變
 const CAR_VISUAL_SCALE = CAR_VISUAL_LENGTH / 4.6;
 loader.setDRACOLoader(draco);
 
@@ -368,7 +368,7 @@ loader.load('./assets/car.glb', (gltf) => {
     revealMenuAfterRender = true;
     // 畀自動化測試用；track 用 getter，換賽道之後攞到嘅係新嗰個
     window.__racer = {
-        car, race, renderer, camera, restart, startRace, buildTrack, TRACKS, input, minimap,
+        car, race, renderer, scene, camera, restart, startRace, buildTrack, TRACKS, input, minimap,
         setColour, setTod, setQuality, tuneAutoQuality, pauseRace, resumeRace, toMenu,
         performanceReport, performanceReportText, copyPerformanceReport,
         coarsePointer,
@@ -489,6 +489,10 @@ function buildSettings() {
     }
     setColour(colour.id);
     setTod(tod);
+
+    for (const b of document.querySelectorAll('#tod-seg button')) {
+        b.addEventListener('click', () => setTod(b.dataset.tod));
+    }
 
     for (const b of document.querySelectorAll('#quality-seg button')) {
         b.addEventListener('click', () => setQuality(b.dataset.quality));

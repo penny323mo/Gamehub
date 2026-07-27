@@ -179,12 +179,40 @@ body {
     pointer-events: auto;
 }
 
+/* 左半邊係透明浮動起手區：拇指唔使先對準圓盤，區內任何位置起手都得。 */
+.pad-side.steering {
+    position: relative;
+    width: min(38vw, 280px);
+    min-width: 136px;
+    height: 180px;
+    flex: 0 0 auto;
+    touch-action: none;
+}
+
 /* MOBA 技能區式弧形排列：油門係右下主掣，煞車同飄移圍住拇指行程。 */
 .pad-side.right {
     position: relative;
-    width: 220px;
-    height: 156px;
+    width: 244px;
+    height: 178px;
     flex: 0 0 auto;
+}
+
+.pad-side.right::after {
+    content: '';
+    position: absolute;
+    right: 40px;
+    bottom: 38px;
+    width: 138px;
+    height: 92px;
+    border-radius: 70% 0 0 0;
+    border-top: 2px solid rgba(210, 235, 248, .12);
+    transform: rotate(-9deg);
+    opacity: 0;
+    transition: opacity .12s ease;
+}
+
+.pad-side.right.gesture-active::after {
+    opacity: 1;
 }
 
 .pad-side.right .pad-btn {
@@ -197,13 +225,13 @@ body {
 }
 
 #pad-brake {
-    right: 102px;
-    bottom: 0;
+    right: 124px;
+    bottom: 4px;
 }
 
 #pad-drift {
-    right: 74px;
-    bottom: 96px;
+    right: 92px;
+    bottom: 112px;
 }
 
 .pad-btn {
@@ -211,26 +239,64 @@ body {
     height: 74px;
     border-radius: 50%;
     border: 2px solid rgba(255, 255, 255, .35);
-    background: rgba(15, 25, 35, .5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    overflow: hidden;
+    isolation: isolate;
+    background: radial-gradient(circle at 35% 28%, rgba(116, 143, 165, .48), rgba(15, 25, 35, .72) 68%);
     color: #fff;
-    font-size: 22px;
     font-weight: 800;
     cursor: pointer;
     touch-action: none;
+    box-shadow: inset 0 0 0 4px rgba(5, 12, 20, .26), 0 5px 18px rgba(0, 0, 0, .28);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .7);
+}
+
+.pad-btn::before {
+    content: '';
+    position: absolute;
+    inset: 5px;
+    z-index: -1;
+    border: 1px solid rgba(255, 255, 255, .18);
+    border-radius: inherit;
+}
+
+.action-icon {
+    font-size: 22px;
+    font-weight: 900;
+    line-height: .95;
+}
+
+.action-label {
+    font-size: 11px;
+    letter-spacing: .04em;
 }
 
 /* 類 MOBA 虛擬搖桿：大圓盤接觸區，細圓會跟手指移動。 */
 .steer-stick {
-    position: relative;
-    width: 126px;
-    height: 126px;
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 136px;
+    height: 136px;
     flex: 0 0 auto;
     border-radius: 50%;
     border: 3px solid rgba(255, 255, 255, .32);
-    background: radial-gradient(circle, rgba(44, 65, 82, .42) 0 38%, rgba(15, 25, 35, .55) 40% 100%);
-    box-shadow: inset 0 0 0 10px rgba(255, 255, 255, .04), 0 5px 18px rgba(0, 0, 0, .22);
+    background: radial-gradient(circle, rgba(83, 119, 145, .3) 0 37%, rgba(10, 22, 34, .46) 39% 68%, rgba(4, 10, 18, .6) 70% 100%);
+    box-shadow: inset 0 0 0 9px rgba(255, 255, 255, .035), 0 5px 18px rgba(0, 0, 0, .2);
     touch-action: none;
-    pointer-events: auto;
+    pointer-events: none;
+    transition: opacity .16s ease, border-color .16s ease;
+}
+
+.stick-guides {
+    position: absolute;
+    inset: 13px;
+    border: 1px dashed rgba(190, 225, 245, .2);
+    border-radius: 50%;
 }
 
 #steer-knob {
@@ -248,15 +314,37 @@ body {
     will-change: transform;
 }
 
+#steer-knob span {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: rgba(244, 252, 255, .82);
+    font-size: 24px;
+    font-weight: 900;
+    letter-spacing: 8px;
+    transform: translateX(4px);
+}
+
 .steer-stick.held {
     border-color: rgba(160, 225, 255, .72);
     background: radial-gradient(circle, rgba(65, 118, 151, .5) 0 38%, rgba(15, 35, 50, .62) 40% 100%);
 }
 
+.steering:not(.held) .steer-stick {
+    opacity: .78;
+}
+
 @media (max-width: 430px) and (orientation: portrait) {
     .steer-stick {
-        width: 108px;
-        height: 108px;
+        width: 116px;
+        height: 116px;
+    }
+
+    .pad-side.steering {
+        width: min(39vw, 168px);
+        min-width: 116px;
+        height: 160px;
     }
 
     #steer-knob {
@@ -266,36 +354,50 @@ body {
     }
 
     .pad-side.right {
-        width: 190px;
-        height: 156px;
+        width: 210px;
+        height: 170px;
     }
 
     #pad-brake {
-        right: 96px;
+        right: 108px;
     }
 
     #pad-drift {
-        right: 70px;
-        bottom: 96px;
+        right: 80px;
+        bottom: 104px;
     }
 }
 
 .pad-btn.small {
     width: 60px;
     height: 60px;
-    font-size: 13px;
 }
 
 .pad-btn.gas {
-    width: 92px;
-    height: 92px;
-    font-size: 16px;
-    background: rgba(60, 150, 70, .62);
-    border-color: rgba(170, 255, 180, .5);
+    width: 108px;
+    height: 108px;
+    background: radial-gradient(circle at 35% 28%, rgba(126, 235, 149, .94), rgba(33, 137, 66, .86) 60%, rgba(12, 76, 34, .94));
+    border-color: rgba(184, 255, 199, .72);
+    box-shadow: inset 0 0 0 5px rgba(8, 72, 28, .28), 0 0 0 3px rgba(75, 214, 106, .14), 0 7px 22px rgba(0, 0, 0, .32);
+}
+
+.pad-btn.gas .action-icon {
+    font-size: 31px;
+    transform: rotate(-90deg);
+}
+
+.pad-btn.brake {
+    border-color: rgba(255, 203, 132, .58);
+    background: radial-gradient(circle at 35% 28%, rgba(211, 143, 78, .66), rgba(94, 50, 28, .76) 70%);
+}
+
+.pad-btn.drift {
+    border-color: rgba(138, 215, 255, .58);
+    background: radial-gradient(circle at 35% 28%, rgba(75, 165, 213, .64), rgba(28, 62, 94, .78) 70%);
 }
 
 .pad-btn.held {
-    background: rgba(255, 255, 255, .38);
+    filter: brightness(1.28);
     transform: scale(.96);
 }
 
@@ -686,8 +788,14 @@ body {
     }
 
     .steer-stick {
-        width: 100px;
-        height: 100px;
+        width: 108px;
+        height: 108px;
+    }
+
+    .pad-side.steering {
+        width: min(39vw, 124px);
+        min-width: 108px;
+        height: 132px;
     }
 
     #steer-knob {
@@ -699,27 +807,30 @@ body {
     .pad-btn.small {
         width: 46px;
         height: 46px;
-        font-size: 12px;
     }
 
     .pad-btn.gas {
-        width: 70px;
-        height: 70px;
-        font-size: 14px;
+        width: 82px;
+        height: 82px;
     }
 
+    .action-icon { font-size: 18px; }
+    .action-label { font-size: 9px; }
+    .pad-btn.gas .action-icon { font-size: 24px; }
+
     .pad-side.right {
-        width: 170px;
-        height: 126px;
+        width: 180px;
+        height: 132px;
     }
 
     #pad-brake {
-        right: 74px;
+        right: 90px;
+        bottom: 4px;
     }
 
     #pad-drift {
-        right: 58px;
-        bottom: 74px;
+        right: 68px;
+        bottom: 86px;
     }
 }
 
@@ -727,7 +838,7 @@ body {
    避免兩塊 HUD 疊埋一齊。 */
 @media (max-height: 400px) and (orientation: landscape) {
     #speed-box {
-        bottom: calc(max(8px, env(safe-area-inset-bottom)) + 96px);
+        bottom: calc(max(8px, env(safe-area-inset-bottom)) + 122px);
     }
 }
 

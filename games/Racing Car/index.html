@@ -48,16 +48,23 @@
 
             <!-- 觸控盤：左手轉向、右手油門煞車 -->
             <div id="pad">
-                <div class="pad-side steering">
+                <div id="steer-zone" class="pad-side steering" aria-label="左手浮動轉向區">
                     <div id="steer-stick" class="steer-stick" role="slider"
                         aria-label="左右轉向搖桿" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
-                        <span id="steer-knob"></span>
+                        <span class="stick-guides" aria-hidden="true"></span>
+                        <span id="steer-knob"><span aria-hidden="true">‹ ›</span></span>
                     </div>
                 </div>
                 <div class="pad-side right">
-                    <button id="pad-drift" class="pad-btn small">飄移</button>
-                    <button id="pad-brake" class="pad-btn small">煞</button>
-                    <button id="pad-gas" class="pad-btn gas">油門</button>
+                    <button id="pad-drift" class="pad-btn small drift" aria-label="飄移">
+                        <span class="action-icon" aria-hidden="true">↶</span><span class="action-label">飄移</span>
+                    </button>
+                    <button id="pad-brake" class="pad-btn small brake" aria-label="煞車">
+                        <span class="action-icon" aria-hidden="true">Ⅱ</span><span class="action-label">煞車</span>
+                    </button>
+                    <button id="pad-gas" class="pad-btn gas" aria-label="油門">
+                        <span class="action-icon" aria-hidden="true">»</span><span class="action-label">油門</span>
+                    </button>
                 </div>
             </div>
         </div>

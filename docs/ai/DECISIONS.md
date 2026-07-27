@@ -537,3 +537,20 @@ follows what the tyres can use
   peaked at 18.7ms. Moving real Canvas2D/HUD work and WebGL compilation before player
   interaction reduced the first-race maximum to 31.8ms without excluding it from metrics
   or lowering DPR.
+
+## ADR-042: Racing Car prioritizes thumb continuity and a wider driving surface
+
+- Date: 2026-07-27
+- Status: accepted
+- Supersedes: ADR-038 visual size and ADR-039 fixed-joystick interaction only.
+- Decision: normalize the player car to 6.9 visual units while leaving its physics
+  footprint unchanged. Expand the road from 24 to 28 world units without moving the
+  guardrails by reallocating two units of grass per side. Use a larger floating left
+  steering zone whose captured pointer keeps steering outside the visible circle. Make
+  gas the 108px primary action and allow one held gas pointer to slide left into brake,
+  left-up into drift, and back into gas without releasing. Add low-speed launch torque
+  that fades to the established engine output by 25m/s.
+- Reason: the 10.35-unit car obscured the road, the fixed joystick demanded precise
+  initial thumb placement, and isolated right-side hitboxes forced unnecessary release
+  and reacquisition. A wider road and continuous thumb gestures improve phone play while
+  preserving high-speed stability, safe-area rules, capture-loss reset, and physics size.
