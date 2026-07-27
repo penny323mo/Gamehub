@@ -355,6 +355,7 @@ for (const id of TRACK_IDS) {
 // 舊嘅撞欄處理係逐條軸 next.x = pos.x，連沿住欄滑行都殺埋，自動駕駛實測
 // 撞完之後 v=0 一路到收場；呢項就係守住呢個回歸。
 const rescue = await page.evaluate(async () => {
+    const THREE = await import('three');
     window.__racer.buildTrack('turbo');
     const { car, track, race } = window.__racer;
     race.reset(); race.state = 'racing';
@@ -365,9 +366,26 @@ const rescue = await page.evaluate(async () => {
     // 搵一格欄杆，將車擺喺欄杆隔籬再踩實油頂住佢
     const wallCell = track.findCell('wall');
     car.reset(track.startPos, track.startDir);
+    const t = 0.31;
+    const p = track.curve.getPointAt(t);
+    const side = track.curve.getTangentAt(t).cross(new THREE.Vector3(0, 1, 0)).normalize();
+    let wallOffset = 16;
+    while (wallOffset < 28 && !track.isWall(p.x + side.x * wallOffset, p.z + side.z * wallOffset)) {
+        wallOffset += 0.25;
+    }
+    car.pos.set(p.x + side.x * (wallOffset - 7), 0, p.z + side.z * (wallOffset - 7));
+    car.yaw = Math.atan2(side.x, side.z);
+    car.vel.set(side.x * 20, 0, side.z * 20);
+    let highSpeedImpact = 0;
+    for (let i = 0; i < 40; i++) {
+        car.update(1 / 60, { throttle: 0, steer: 0, handbrake: false }, track);
+        highSpeedImpact = Math.max(highSpeedImpact, car.wallImpact);
+    }
+
+    car.reset(track.startPos, track.startDir);
     car.pos.set(wallCell[0] - 2, 0, wallCell[1]);
     car.yaw = Math.PI / 2;                       // 車頭向 +x，即係頂住欄
-    const out = { wallCell };
+    const out = { wallCell, wallOffset, highSpeedImpact };
     for (let i = 0; i < 60 * 6; i++) {
         car.update(1 / 60, { throttle: 1, steer: 0, handbrake: false }, track);
         race.update(1 / 60, car);
@@ -380,6 +398,7 @@ const rescue = await page.evaluate(async () => {
 });
 console.log('  ', JSON.stringify(rescue));
 check('頂住欄真係郁唔到', rescue.kmhWhileStuck < 12, rescue.kmhWhileStuck);
+check('高速撞欄會輸出實際撞擊速度畀視覺回饋', rescue.highSpeedImpact > 8, rescue.highSpeedImpact);
 check('卡死 3 秒會拖返賽道', rescue.rescues >= 1, rescue.rescues);
 check('拖完企返喺路面', rescue.onRoadAfter === true);
 

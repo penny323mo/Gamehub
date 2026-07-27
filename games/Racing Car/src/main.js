@@ -10,6 +10,7 @@ import { Race, fmtTime } from './race.js';
 import { Input, GYRO_KEY } from './input.js';
 import { Minimap } from './minimap.js';
 import { createEnvironment } from './environment.js';
+import { createDrivingEffects } from './driving-effects.js';
 import {
     COLOURS, TIMES, QUALITY_MODES,
     loadColour, saveColour, loadTod, saveTod, loadQuality, saveQuality, qualityDpr,
@@ -73,6 +74,7 @@ const hemi = new THREE.HemisphereLight(0xbfe3ff, 0x4a6a3a, 1.0);
 scene.add(hemi);
 
 const environment = createEnvironment(scene);
+const drivingEffects = createDrivingEffects(scene);
 let tod = loadTod();
 applyTime(tod, { scene, renderer, sun, hemi, environment });
 
@@ -255,6 +257,7 @@ function buildTrack(id) {
     track = new Track(trackDef.waypoints, trackDef.tension);
     track.build(scene);
     track.setTimeOfDay(tod);
+    drivingEffects.reset();
     minimap.setTrack(track);
     if (car) car.reset(track.startPos, track.startDir);
     if (race) { race.track = track; race.trackId = trackDef.id; race.reset(); }
@@ -381,7 +384,8 @@ loader.load('./assets/car.glb', (gltf) => {
     revealMenuAfterRender = true;
     // 畀自動化測試用；track 用 getter，換賽道之後攞到嘅係新嗰個
     window.__racer = {
-        car, race, renderer, scene, camera, environment, restart, startRace, buildTrack, TRACKS, input, minimap,
+        car, race, renderer, scene, camera, environment, drivingEffects,
+        restart, startRace, buildTrack, TRACKS, input, minimap,
         setColour, setTod, setQuality, tuneAutoQuality, pauseRace, resumeRace, toMenu,
         performanceReport, performanceReportText, copyPerformanceReport,
         coarsePointer,
@@ -438,7 +442,7 @@ function updateCamera(dt) {
     const lag = 6.5;
     camPos.lerp(want, Math.min(1, dt * lag));
     camLook.lerp(lookAt, Math.min(1, dt * 8));
-    camera.position.copy(camPos);
+    camera.position.copy(camPos).add(drivingEffects.cameraOffset());
     camera.lookAt(camLook);
     // 速度愈快視角愈闊，速度感靠呢個
     const fov = (wideMobile ? 58 : 62) + speedT * (wideMobile ? 9 : 12);
@@ -683,6 +687,7 @@ function startRace() {
     $('hud').classList.remove('hidden');
     input.reset();
     car.reset(track.startPos, track.startDir);
+    drivingEffects.reset();
     camInit = false;
     race.reset();
     hudCache = {};
@@ -784,6 +789,7 @@ function frame(now) {
             const cmd = race.state === 'racing' ? input.read(dt) : { throttle: 0, steer: 0, handbrake: false };
             car.update(dt, cmd, track);
             race.update(dt, car);
+            drivingEffects.update(dt, car);
             updateHud();
             minimap.draw(car);
         }

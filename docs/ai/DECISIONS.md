@@ -568,3 +568,19 @@ follows what the tyres can use
   driving information. Three bounded layers plus existing-material emissive changes make
   every preset visibly distinct and the road readable while keeping mobile GPU cost
   measurable and independent of track length.
+
+## ADR-044: Racing Car driving feedback stays in one bounded render layer
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: render rear-wheel marks, tyre smoke, off-road dust, and impact sparks through
+  one fixed-capacity instanced geometry and one shader material. Reuse 128 mark slots and
+  48 particle slots in circular pools, clear them on race/track reset, and keep the busy
+  night scene below 18 draw calls and 120,000 triangles. `car.js` may expose inward
+  `wallImpact` speed, but sparks and short camera shake remain visual consumers only.
+  Keep the floating steering disc at least 156px in standard landscape and 118px at the
+  320px portrait gate while preserving pointer capture and safe-area bounds.
+- Reason: tyre contact and collision need readable feedback, but a mesh/material per
+  particle would make cost grow with play time. A single capped layer gives drift,
+  surface, and impact cues at a measured one-draw cost; the larger left disc improves
+  thumb control without reverting to circle-bound input.

@@ -182,9 +182,9 @@ body {
 /* 左半邊係透明浮動起手區：拇指唔使先對準圓盤，區內任何位置起手都得。 */
 .pad-side.steering {
     position: relative;
-    width: min(38vw, 280px);
-    min-width: 136px;
-    height: 180px;
+    width: min(40vw, 300px);
+    min-width: 156px;
+    height: 194px;
     flex: 0 0 auto;
     touch-action: none;
 }
@@ -280,8 +280,8 @@ body {
     position: absolute;
     left: 0;
     bottom: 0;
-    width: 136px;
-    height: 136px;
+    width: 156px;
+    height: 156px;
     flex: 0 0 auto;
     border-radius: 50%;
     border: 3px solid rgba(255, 255, 255, .32);
@@ -303,9 +303,9 @@ body {
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 58px;
-    height: 58px;
-    margin: -29px 0 0 -29px;
+    width: 64px;
+    height: 64px;
+    margin: -32px 0 0 -32px;
     border-radius: 50%;
     border: 2px solid rgba(255, 255, 255, .52);
     background: linear-gradient(145deg, rgba(150, 205, 236, .88), rgba(65, 115, 151, .88));
@@ -337,20 +337,20 @@ body {
 
 @media (max-width: 430px) and (orientation: portrait) {
     .steer-stick {
-        width: 116px;
-        height: 116px;
+        width: 128px;
+        height: 128px;
     }
 
     .pad-side.steering {
-        width: min(39vw, 168px);
-        min-width: 116px;
-        height: 160px;
+        width: min(40vw, 174px);
+        min-width: 128px;
+        height: 168px;
     }
 
     #steer-knob {
-        width: 52px;
-        height: 52px;
-        margin: -26px 0 0 -26px;
+        width: 56px;
+        height: 56px;
+        margin: -28px 0 0 -28px;
     }
 
     .pad-side.right {
@@ -788,20 +788,20 @@ body {
     }
 
     .steer-stick {
-        width: 108px;
-        height: 108px;
+        width: 118px;
+        height: 118px;
     }
 
     .pad-side.steering {
-        width: min(39vw, 124px);
-        min-width: 108px;
-        height: 132px;
+        width: min(40vw, 132px);
+        min-width: 118px;
+        height: 142px;
     }
 
     #steer-knob {
-        width: 48px;
-        height: 48px;
-        margin: -24px 0 0 -24px;
+        width: 52px;
+        height: 52px;
+        margin: -26px 0 0 -26px;
     }
 
     .pad-btn.small {

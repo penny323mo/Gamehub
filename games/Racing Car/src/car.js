@@ -71,6 +71,7 @@ export class Car {
         this.drifting = false;
         this.offroad = false;
         this.wallHit = false;
+        this.wallImpact = 0;
         this.bodyRoll = 0;
     }
 
@@ -83,6 +84,7 @@ export class Car {
         this.slipAngle = 0;
         this.drifting = false;
         this.wallHit = false;
+        this.wallImpact = 0;
         this.#sync();
     }
 
@@ -198,6 +200,7 @@ export class Car {
         // ---- 位置 + 撞欄 ----
         const next = this.pos.clone().addScaledVector(this.vel, dt);
         this.wallHit = false;
+        this.wallImpact = 0;
         this.#collide(next, track);
         this.pos.copy(next);
 
@@ -239,6 +242,7 @@ export class Car {
         // 速度：入牆分量反彈，切向分量保留（再食少少摩擦）
         const into = this.vel.x * nx + this.vel.z * nz;
         if (into < 0) {
+            this.wallImpact = -into;
             this.vel.x -= nx * into * (1 + CFG.wallBounce);
             this.vel.z -= nz * into * (1 + CFG.wallBounce);
         }

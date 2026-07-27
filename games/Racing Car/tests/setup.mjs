@@ -178,6 +178,54 @@ console.log('  ', JSON.stringify(nightBudget));
 check('完整夜景仍守住手機 draw-call／三角形預算', nightBudget.calls < 18
     && nightBudget.triangles < 120000, nightBudget);
 
+const drivingFx = await page.evaluate(() => {
+    const root = window.__racer;
+    const { car, drivingEffects: fx } = root;
+    fx.reset();
+    root.setTod('night');
+    car.reset(root.track.startPos, root.track.startDir);
+    car.vel.set(Math.sin(car.yaw) * 24, 0, Math.cos(car.yaw) * 24);
+    car.drifting = true;
+    car.offroad = false;
+    for (let i = 0; i < 42; i++) {
+        car.pos.addScaledVector(car.vel, 1 / 60);
+        fx.update(1 / 60, car);
+    }
+    const drift = fx.snapshot();
+    root.renderer.render(root.scene, root.camera);
+    const activeBudget = {
+        calls: root.renderer.info.render.calls,
+        triangles: root.renderer.info.render.triangles,
+    };
+
+    car.drifting = false;
+    car.wallImpact = 18;
+    fx.update(1 / 60, car);
+    const impact = fx.snapshot();
+    car.wallImpact = 0;
+    for (let i = 0; i < 150; i++) fx.update(1 / 60, car);
+    const settled = fx.snapshot();
+    fx.reset();
+    const reset = fx.snapshot();
+    car.reset(root.track.startPos, root.track.startDir);
+    root.setTod('day');
+    return { drift, impact, settled, reset, activeBudget };
+});
+console.log('  ', JSON.stringify(drivingFx));
+check('漂移會留下雙輪胎痕同有上限輪胎煙', drivingFx.drift.marks >= 20
+    && drivingFx.drift.particles > 0 && drivingFx.drift.visible
+    && drivingFx.drift.maxInstances === 176
+    && drivingFx.drift.markCapacity === 128 && drivingFx.drift.particleCapacity === 48,
+    drivingFx.drift);
+check('撞擊強度會觸發碎光同短促鏡頭震動，之後自行衰減',
+    drivingFx.impact.particles >= drivingFx.drift.particles
+    && drivingFx.impact.shake > 0.3 && drivingFx.settled.shake < 0.002,
+    { impact: drivingFx.impact, settled: drivingFx.settled });
+check('最繁忙夜景駕駛效果仍只加一個 draw call', drivingFx.activeBudget.calls < 18
+    && drivingFx.activeBudget.triangles < 120000, drivingFx.activeBudget);
+check('新一場／換賽道可完整清空效果池', drivingFx.reset.marks === 0
+    && drivingFx.reset.particles === 0 && !drivingFx.reset.visible, drivingFx.reset);
+
 // T3b：手機畫質模式要有硬上限兼持久化；3× DPR 手機都唔可以四倍燒 GPU。
 const quality = await page.evaluate(async () => {
     const { qualityDpr } = await import('./src/settings.js');
@@ -590,8 +638,8 @@ console.log('  ', JSON.stringify(narrow));
 const narrowControls = [...narrow.buttons, narrow.stick];
 check('320px 直向搖桿同三粒 action 完整留喺 viewport', narrowControls.every(b =>
     b.left >= 0 && b.right <= narrow.viewport[0] && b.top >= 0 && b.bottom <= narrow.viewport[1]), narrow);
-check('窄屏 action 守住 44px、搖桿 100px，而且暫停掣唔撞 HUD', narrow.buttons.every(b =>
-    b.width >= 44 && b.height >= 44) && narrow.stick.width >= 100
+check('窄屏 action 守住 44px、放大搖桿至少 116px，而且暫停掣唔撞 HUD', narrow.buttons.every(b =>
+    b.width >= 44 && b.height >= 44) && narrow.stick.width >= 116
     && narrow.pause.width >= 44 && narrow.overlap === 0, narrow);
 check('搖桿、圓芯同三粒 action 全部係正圓形', [...narrow.buttons, narrow.stick, narrow.knob].every(b =>
     b.width === b.height && b.radius === '50%'), narrow);
@@ -626,7 +674,7 @@ const safeArea = await page.evaluate(() => {
 console.log('  ', JSON.stringify(safeArea));
 check('左右不對稱瀏海 safe-area 各自保護搖桿同油門', safeArea.viewportMeta.includes('viewport-fit=cover')
     && safeArea.stick.left >= 34 && safeArea.viewport[0] - safeArea.gas.right >= 52
-    && safeArea.viewport[1] - safeArea.stick.bottom >= 21
+    && safeArea.viewport[1] - safeArea.stick.bottom >= 21 && safeArea.stick.width >= 152
     && safeArea.viewport[1] - safeArea.gas.bottom >= 21, safeArea);
 await page.setViewportSize({ width: 667, height: 375 });
 const shortLandscape = await page.evaluate(() => {
