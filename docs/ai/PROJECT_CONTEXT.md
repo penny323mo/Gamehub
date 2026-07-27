@@ -147,7 +147,8 @@ loss/restore, orientation pause, settings, gyro mapping, and minimap.
 It also verifies the analogue joystick/right-thumb action cluster, dual-touch and
 capture-loss reset, asymmetric notch safe areas, `viewport-fit=cover`, and the on-device
 performance report contract (FPS windows, long frames, DPR, viewport, track, and copy
-feedback) used for physical-phone handoff evidence.
+feedback) used for physical-phone handoff evidence. The startup gate requires the first
+complete WebGL frame plus pre-drawn minimap/HUD before the loading overlay reveals Start.
 
 Royale has a committed regression suite. Run it for any change under
 `games/royale/`:

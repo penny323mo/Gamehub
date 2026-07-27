@@ -7,6 +7,27 @@ import { openRacer, check, checkNoErrors, finish } from './lib/harness.mjs';
 
 const r = await openRacer();
 const { page } = r;
+
+// Loading 遮罩要等第一個完整 WebGL frame；minimap/HUD 亦要喺玩家起跑前預熱。
+const startupWarm = await page.evaluate(() => {
+    const cv = document.getElementById('minimap');
+    const data = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    let ink = 0;
+    for (let i = 3; i < data.length; i += 4) if (data[i] > 8) ink++;
+    return {
+        ready: window.__racer.ready,
+        loadingHidden: document.getElementById('loading').classList.contains('hidden'),
+        menuVisible: !document.getElementById('screen-start').classList.contains('hidden'),
+        ink,
+        speed: document.getElementById('speed-num').textContent,
+        lap: document.getElementById('lap-num').textContent,
+    };
+});
+console.log('  ', JSON.stringify(startupWarm));
+check('第一個完整 3D frame 後先揭選單，並已預熱 HUD／minimap', startupWarm.ready
+    && startupWarm.loadingHidden && startupWarm.menuVisible && startupWarm.ink > 1000
+    && startupWarm.speed === '0' && startupWarm.lap === '1/3', startupWarm);
+
 const TRACK_IDS = await page.evaluate(() => window.__racer.TRACKS.map(t => t.id));
 
 // T1：起跑線喺直路上面，而且打橫過晒條路

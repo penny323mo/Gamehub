@@ -3,8 +3,8 @@
 Updated: 2026-07-27 (Asia/Macau)
 Prepared by: Codex (local)
 Integration branch: `main`
-Baseline before this task: `8722b60`
-Status: Racing Car mobile safe-area and forced-touch interruption gaps fixed
+Baseline before this task: `88d7ca5`
+Status: Racing Car first-race warm-up hitch removed and browser verified
 
 ## Current objective
 
@@ -14,45 +14,40 @@ safety, and readable portrait/landscape framing.
 
 ## Completed
 
-- Added `viewport-fit=cover` so Mobile Safari exposes real notch/home-indicator insets.
-- Split left, right, and bottom control safe areas into independent CSS properties;
-  right-side action controls no longer reuse the left notch inset.
-- Added dynamic viewport sizing while preserving fixed-inset fallback behavior.
-- Gas, brake, drift, and analogue joystick now release on `lostpointercapture` as well
-  as pointer up/cancel. Forced capture loss clears input, pointer ownership, held style,
-  joystick ARIA value, and knob translation. See ADR-040.
-- Preserved the 10.35-unit player car, modern analogue controls, physical-phone report,
-  interruption recovery, adaptive DPR, and smooth 3D track from ADR-032 to ADR-039.
+- Loading now remains visible until the first complete car/world WebGL frame renders.
+- Minimap Canvas2D and HUD text/layout initialize behind loading instead of on the first
+  active race frame. Start is revealed only after that warm-up and public ready state.
+- Added a committed gate proving ready/loading/menu state, pre-drawn minimap pixels, and
+  initialized speed/lap HUD. See ADR-041.
+- Preserved the 10.35-unit car, smooth 3D tracks, analogue/action controls, independent
+  notch safe areas, capture-loss reset, interruption recovery, adaptive DPR, idle GPU,
+  and privacy-safe physical-phone report from ADR-032 to ADR-040.
 
 ## Changed files
 
-- `games/Racing Car/index.html`, `style.css`, `src/input.js`
+- `games/Racing Car/src/main.js`
 - `games/Racing Car/tests/setup.mjs`
-- `docs/ai/PROJECT_CONTEXT.md`, `DECISIONS.md` (ADR-040), `HANDOFF.md`
+- `docs/ai/PROJECT_CONTEXT.md`, `DECISIONS.md` (ADR-041), `HANDOFF.md`
 
 ## Verification
 
-- `npm test` in `games/Racing Car/tests`: PASS — race 45/45 and setup 50/50.
-- Forced `lostpointercapture` with held gas + full-right joystick reset both values,
-  two pointer owners, held classes, ARIA value, and knob transform to neutral.
-- Simulated 844×390 landscape safe areas of left 34px, right 52px, bottom 21px:
-  joystick and gas retained their independent edge distances; viewport meta included
-  `viewport-fit=cover`.
-- 320×568 portrait and 667×375 landscape legacy gates remained green, including 44px
-  targets, 100px joystick, circular action hierarchy, minimap/speed/control non-overlap.
-- Headed hardware-accelerated 844×390 / DPR 3 / 4× CPU run for 12 seconds: average
-  53 fps, recent window 60 fps, minimum window 41 fps, Auto DPR 1.25, 13 draw calls,
-  53,941 triangles. Six long frames included the initial 500ms warm-up hitch.
-- SwiftShader contrast ran 1×/2×/4× CPU at 24/22/21 fps while JS script time stayed
-  only 54/68/133ms per six seconds; this identifies software rasterization, not game JS,
-  as that lane's bottleneck.
+- `npm test` in `games/Racing Car/tests`: PASS — race 45/45 and setup 51/51.
+- Startup gate at public ready: loading hidden, menu visible, minimap had 3,227 inked
+  pixels, speed `0`, lap `1/3`, and first complete 3D frame already rendered.
+- Same headed hardware A/B at 844×390, DPR 3, 4× CPU, five seconds per race:
+  - Before: first race 59.16 fps, one long frame, maximum 101.2ms.
+  - After: first race 59.96 fps, zero long frames, maximum 31.8ms.
+  - After warm cache: races two/three 60.01/60.09 fps, zero long frames, max 18.7ms.
+- DPR stayed 1.5 in all A/B rounds; the improvement did not trade away image quality.
+- Existing 320×568 and 667×375 layout, safe-area, touch/capture, GPU recovery,
+  three-track autopilot, resource, and performance-report gates all remained green.
 - No functional browser error; only the pre-existing root favicon 404.
 
 ## Known issues and cautions
 
 - Desktop hardware and emulation still cannot certify phone heat, Mobile Safari/Chrome,
   home-indicator ergonomics, gyro feel, or a sustained physical-device lap.
-- The first shader/model warm-up hitch is deliberately included in report data.
+- Performance reports continue to include every active race frame; do not hide real hitches.
 - Reports contain no user-agent or device identifier; ask Penny for model/browser separately.
 
 ## Exact next action
@@ -65,6 +60,8 @@ safety, and readable portrait/landscape framing.
 
 ## Do not redo
 
+- Do not reveal Start before the first complete 3D frame or move minimap/HUD warm-up back
+  into the first active frame.
 - Do not remove `viewport-fit=cover`, independent safe-area edges, or capture-loss reset.
 - Do not infer physical-device success from desktop emulation or software rendering.
 - Do not include user-agent, identifiers, credentials, or secrets in the report.

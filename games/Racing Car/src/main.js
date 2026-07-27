@@ -49,6 +49,7 @@ let frameHandle = 0;
 let renderDirty = true;
 let renderCount = 0;
 let carReadyRendered = false;
+let revealMenuAfterRender = false;
 function ensureFrame() {
     if (!frameHandle) frameHandle = requestAnimationFrame(frame);
 }
@@ -356,10 +357,15 @@ loader.load('./assets/car.glb', (gltf) => {
     scene.add(shadow);
     car.reset(track.startPos, track.startDir);
     race = new Race(track, { laps: 3, trackId: trackDef.id, onEvent: handleRaceEvent });
-    $('loading').classList.add('hidden');
-    $('screen-start').classList.remove('hidden');
     buildTrackButtons();
     buildSettings();
+    // 第一次 active frame 先畫 minimap／填 HUD 會喺手機產生明顯長幀。
+    // 趁 loading 遮罩仲喺度先預熱 Canvas2D 同文字 layout；WebGL 第一幀
+    // render 完先揭開選單，玩家唔會撳 Start 撞正 shader compile。
+    hudCache = {};
+    updateHud();
+    minimap.draw(car);
+    revealMenuAfterRender = true;
     // 畀自動化測試用；track 用 getter，換賽道之後攞到嘅係新嗰個
     window.__racer = {
         car, race, renderer, camera, restart, startRace, buildTrack, TRACKS, input, minimap,
@@ -771,7 +777,14 @@ function frame(now) {
     if (activeFrame || renderDirty) {
         renderer.render(scene, camera);
         renderCount += 1;
-        if (car) carReadyRendered = true;
+        if (car && !carReadyRendered) {
+            carReadyRendered = true;
+            if (revealMenuAfterRender) {
+                revealMenuAfterRender = false;
+                $('loading').classList.add('hidden');
+                $('screen-start').classList.remove('hidden');
+            }
+        }
         renderDirty = false;
     }
     sampleAutoQuality(now);

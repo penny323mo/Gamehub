@@ -525,3 +525,15 @@ follows what the tyres can use
 - Reason: an iPhone landscape notch can occupy either side, while browser chrome changes
   the visual viewport height. Safari or Android system gestures can also revoke pointer
   capture without a normal pointer-up event; stale throttle or steering is unsafe.
+
+## ADR-041: Racing Car completes first-frame warm-up behind loading
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: keep the loading overlay visible until the first car/world WebGL frame has
+  rendered. Pre-draw the minimap and initialize HUD text while that overlay is present;
+  only then reveal the start menu and set the public ready state.
+- Reason: under 4× CPU throttling the first race had one 101.2ms frame while later races
+  peaked at 18.7ms. Moving real Canvas2D/HUD work and WebGL compilation before player
+  interaction reduced the first-race maximum to 31.8ms without excluding it from metrics
+  or lowering DPR.
