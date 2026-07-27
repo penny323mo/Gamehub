@@ -162,6 +162,52 @@ const noPhysics = await page.evaluate(() => {
 console.log('  ', JSON.stringify(noPhysics));
 check('幽靈車唔會推到玩家', noPhysics.moved < 0.01, noPhysics.moved);
 
+// T6：真正最繁忙組合要一齊量。逐樣量會漏咗 night + rivals + ghost +
+// driving effects 疊埋原本係 19 calls，超出 ADR-044。
+const combinedBudget = await page.evaluate(() => {
+    const root = window.__racer;
+    root.setTod('night');
+    root.rivals.spawn(root.track, 4, 3);
+    root.ghostMesh.position.copy(root.car.pos);
+    root.ghostMesh.rotation.y = root.car.yaw;
+    root.ghostMesh.visible = true;
+    root.rivals.setGhost(root.ghostMesh.position, root.ghostMesh.rotation.y);
+    root.renderer.render(root.scene, root.camera);
+    const beforeFx = {
+        calls: root.renderer.info.render.calls,
+        triangles: root.renderer.info.render.triangles,
+        meshCount: root.rivals.mesh.count,
+        ghostFlag: root.rivals.mesh.geometry.getAttribute('instanceGhost').getX(4),
+    };
+    root.car.vel.set(Math.sin(root.car.yaw) * 24, 0, Math.cos(root.car.yaw) * 24);
+    root.car.drifting = true;
+    root.car.offroad = false;
+    for (let i = 0; i < 42; i++) {
+        root.car.pos.addScaledVector(root.car.vel, 1 / 60);
+        root.drivingEffects.update(1 / 60, root.car);
+    }
+    root.renderer.render(root.scene, root.camera);
+    const all = {
+        calls: root.renderer.info.render.calls,
+        triangles: root.renderer.info.render.triangles,
+        fx: root.drivingEffects.snapshot(),
+    };
+    root.rivals.clear();
+    root.drivingEffects.reset();
+    root.ghostMesh.visible = false;
+    root.setTod('day');
+    return { beforeFx, all };
+});
+console.log('  ', JSON.stringify(combinedBudget));
+check('四對手同幽靈共用一個五-instance draw', combinedBudget.beforeFx.meshCount === 5
+    && combinedBudget.beforeFx.ghostFlag === 1, combinedBudget.beforeFx);
+check('幽靈加入四對手後仍守住 16 calls', combinedBudget.beforeFx.calls <= 16,
+    combinedBudget.beforeFx.calls);
+check('夜景＋四對手＋幽靈＋甩尾效果守住 <18 calls', combinedBudget.all.calls < 18
+    && combinedBudget.all.fx.particles > 0 && combinedBudget.all.fx.marks > 0, combinedBudget.all);
+check('最繁忙組合三角形仍低過 120k', combinedBudget.all.triangles < 120000,
+    combinedBudget.all.triangles);
+
 checkNoErrors(r.errors);
 await r.close();
 finish('ghost');

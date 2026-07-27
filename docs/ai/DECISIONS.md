@@ -706,3 +706,19 @@ follows what the tyres can use
   races and three contenders it is entirely normal for everyone to have won once —
   the first version of this used best finish and a test caught it ranking a
   three-way tie by insertion order.
+
+## ADR-054: Mobile render budgets apply to the full feature composition
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: measure night, four rivals, ghost, and active driving effects together.
+  Keep that composition below 18 calls and 120,000 triangles. Render the four physical
+  rivals and one non-physical ghost as five instances of one `InstancedMesh`; identify
+  the ghost through an instanced shader flag and screen-door discard rather than a
+  separate transparent material pass. Do not draw the very-low-opacity cloud layer at
+  night; preserve clouds in day/dusk and preserve night stars, moon, headlights, and
+  reflective track materials.
+- Reason: isolated gates reported night 16, rivals +1, ghost +1, and effects +1 as
+  individually acceptable, while the actual combined scene reached 19 calls. Batching
+  the ghost and dropping the barely visible night cloud recover two calls without
+  removing an opponent, ghost timing, driving feedback, or important night readability.

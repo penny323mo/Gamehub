@@ -11,7 +11,7 @@ import { Input, GYRO_KEY } from './input.js';
 import { Minimap } from './minimap.js';
 import { createEnvironment } from './environment.js';
 import { createDrivingEffects } from './driving-effects.js';
-import { RivalField, trackDelta, signedFrac, blockCarGeometry } from './rivals.js';
+import { RivalField, trackDelta, signedFrac } from './rivals.js';
 import { GhostRecorder, GhostPlayer, clearGhost } from './ghost.js';
 import { Season } from './season.js';
 import {
@@ -254,17 +254,12 @@ const minimap = new Minimap($('minimap'));
 const rivals = new RivalField(scene);
 let rivalCount = loadRivals();
 
-// 幽靈車：半透明、唔會撞、唔會影響物理，純粹係「你上次最快嗰圈」嘅重播
+// 幽靈姿勢嘅相容介面；真正畫面併入 rivals 同一個 instanced draw（ADR-054）。
 let ghostOn = loadGhostOn();
 const ghostRecorder = new GhostRecorder();
 const ghostPlayer = new GhostPlayer();
-const ghostMesh = new THREE.Mesh(blockCarGeometry(), new THREE.MeshLambertMaterial({
-    color: 0x9fd8ff, transparent: true, opacity: 0.42, depthWrite: false,
-}));
-ghostMesh.renderOrder = 1;
-ghostMesh.frustumCulled = false;
+const ghostMesh = new THREE.Object3D();
 ghostMesh.visible = false;
-scene.add(ghostMesh);
 let ghostLapBest = null, lastLapCount = 0, lapProgressBase = 0;
 
 // 錦標賽：三條賽道連跑。載返上次未跑完嗰個，唔使由頭嚟過。
@@ -313,6 +308,9 @@ const clouds = new THREE.Group();
 function applyCloudTime(id) {
     const material = clouds.children[0]?.material;
     if (!material) return;
+    // 夜晚 0.2 opacity 嘅雲幾乎睇唔到，但仍食一個 draw。保留星空／月光／
+    // 車頭燈，夜雲就停畫，留返預算畀對手、幽靈同駕駛效果一齊出現。
+    clouds.visible = id !== 'night';
     material.color.setHex(id === 'night' ? 0x7384a8 : id === 'dusk' ? 0xffc3a2 : 0xffffff);
     material.opacity = id === 'night' ? 0.2 : id === 'dusk' ? 0.42 : 0.58;
 }
@@ -513,7 +511,10 @@ function setColour(id) {
 function setGhost(on) {
     ghostOn = !!on;
     saveGhostOn(ghostOn);
-    if (!ghostOn) ghostMesh.visible = false;
+    if (!ghostOn) {
+        ghostMesh.visible = false;
+        rivals.clearGhost();
+    }
     document.querySelectorAll('#ghost-seg button').forEach(b =>
         b.classList.toggle('on', (b.dataset.ghost === '1') === ghostOn));
     return ghostOn;
@@ -568,24 +569,6 @@ function buildSettings() {
         b.addEventListener('click', () => {
             input.setInvert(b.dataset.invert === '1');
             markSeg('#steer-seg', 'invert', input.invert ? 1 : 0);
-
-    for (const b of document.querySelectorAll('#rival-seg button')) {
-        b.addEventListener('click', () => setRivals(Number(b.dataset.rivals)));
-    }
-    setRivals(rivalCount);
-
-    for (const b of document.querySelectorAll('#ghost-seg button')) {
-        b.addEventListener('click', () => setGhost(b.dataset.ghost === '1'));
-    }
-    setGhost(ghostOn);
-    $('ghost-clear-btn').addEventListener('click', () => {
-        clearGhost(trackDef.id);
-        ghostPlayer.load(trackDef.id);
-        ghostMesh.visible = false;
-        const btn = $('ghost-clear-btn');
-        btn.textContent = '已清除';
-        setTimeout(() => { btn.textContent = '清除幽靈'; }, 1200);
-    });
         });
     }
     markSeg('#steer-seg', 'invert', input.invert ? 1 : 0);
@@ -603,6 +586,7 @@ function buildSettings() {
         clearGhost(trackDef.id);
         ghostPlayer.load(trackDef.id);
         ghostMesh.visible = false;
+        rivals.clearGhost();
         const btn = $('ghost-clear-btn');
         btn.textContent = '已清除';
         setTimeout(() => { btn.textContent = '清除幽靈'; }, 1200);
@@ -794,14 +778,16 @@ function updateGhost(dt) {
 
     if (!ghostOn || !ghostPlayer.available || race.state !== 'racing') {
         ghostMesh.visible = false;
+        rivals.clearGhost();
         ghostDelta = null;
         return;
     }
     const p = ghostPlayer.at(race.lapTime);
-    if (!p) { ghostMesh.visible = false; return; }
+    if (!p) { ghostMesh.visible = false; rivals.clearGhost(); return; }
     ghostMesh.position.set(p.x, 0, p.z);
     ghostMesh.rotation.y = p.yaw;
     ghostMesh.visible = true;
+    rivals.setGhost(ghostMesh.position, ghostMesh.rotation.y);
     const at = ghostPlayer.timeAtProgress(lapProgress);
     ghostDelta = at == null ? null : race.lapTime - at;
 }

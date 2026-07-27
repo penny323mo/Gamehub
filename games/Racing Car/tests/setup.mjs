@@ -312,6 +312,29 @@ check('預設：撳右向畫面右', inv.normal > 0.1, inv);
 check('反轉之後：撳右向畫面左', inv.flipped < -0.1, inv);
 check('反轉設定會存返', inv.saved === '0', inv.saved);
 
+// 改轉向唔可以順手再綁一次對手／幽靈 listener；舊版每撳一次「正常／反轉」
+// 就多一個 handler，之後一次對手 click 會重複寫設定。
+const listenerGate = await page.evaluate(() => {
+    const proto = Object.getPrototypeOf(localStorage);
+    const original = proto.setItem;
+    let rivalWrites = 0;
+    proto.setItem = function (key, value) {
+        if (key === 'racer-rivals') rivalWrites += 1;
+        return original.call(this, key, value);
+    };
+    try {
+        document.querySelector('#steer-seg button[data-invert="1"]').click();
+        document.querySelector('#rival-seg button[data-rivals="2"]').click();
+    } finally {
+        proto.setItem = original;
+        window.__racer.input.setInvert(false);
+        window.__racer.setRivals(0);
+    }
+    return { rivalWrites };
+});
+console.log('  ', JSON.stringify(listenerGate));
+check('改轉向之後對手設定仍只觸發一次', listenerGate.rivalWrites === 1, listenerGate);
+
 // T5：陀螺儀——傾側會變成軚，手指有輸入時以手指優先
 const gyro = await page.evaluate(() => {
     const { input } = window.__racer;
