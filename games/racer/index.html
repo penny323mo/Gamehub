@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#8fc7ef">
+    <title>方塊賽車 Block Racer</title>
+    <link rel="stylesheet" href="style.css">
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "./vendor/three.module.min.js"
+        }
+    }
+    </script>
+</head>
+
+<body>
+    <div id="game-root">
+        <div id="canvas-holder"></div>
+
+        <div id="loading">
+            <div class="loading-box">
+                <div class="loading-label">🏁 方塊賽車 · 載入中…</div>
+            </div>
+        </div>
+
+        <!-- 比賽 HUD -->
+        <div id="hud" class="hidden">
+            <div id="hud-top">
+                <div class="stat"><span class="stat-label">圈數</span><b id="lap-num">1/3</b></div>
+                <div class="stat"><span class="stat-label">本圈</span><b id="time-num">0:00.00</b></div>
+                <div class="stat"><span class="stat-label">最快</span><b id="best-num">--:--.--</b></div>
+            </div>
+            <div id="wrong-way" class="hidden">⚠️ 掉頭！行錯方向</div>
+            <div id="speed-box"><b id="speed-num">0</b><span>km/h</span></div>
+
+            <!-- 觸控盤：左手轉向、右手油門煞車 -->
+            <div id="pad">
+                <div class="pad-side">
+                    <button id="pad-left" class="pad-btn">◀</button>
+                    <button id="pad-right" class="pad-btn">▶</button>
+                </div>
+                <div class="pad-side right">
+                    <button id="pad-drift" class="pad-btn small">飄移</button>
+                    <button id="pad-brake" class="pad-btn small">煞</button>
+                    <button id="pad-gas" class="pad-btn gas">油門</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="banner" class="hidden"></div>
+
+        <!-- 開始畫面 -->
+        <div id="screen-start" class="screen hidden">
+            <button id="hub-btn" title="返回 Game Hub" onclick="window.location.href='../../index.html'">🏠</button>
+            <div class="panel">
+                <h1>🏁 方塊賽車</h1>
+                <p class="subtitle">Minecraft 風賽道 · 三圈計時賽</p>
+                <div class="howto">
+                    <div><b>鍵盤</b>：↑ 油門 · ↓ 煞車／倒車 · ← → 轉向 · 空白鍵 飄移</div>
+                    <div><b>手機</b>：左邊轉向，右邊油門煞車</div>
+                    <div>落草會慢好多，入彎前記得收油</div>
+                </div>
+                <button id="start-btn" class="big-btn">開始比賽</button>
+            </div>
+        </div>
+
+        <!-- 完賽結算 -->
+        <div id="screen-finish" class="screen hidden">
+            <div class="panel">
+                <h1>🏆 完賽！</h1>
+                <div class="result-row"><span>總時間</span><b id="finish-total">--</b></div>
+                <div class="result-row"><span>最快圈</span><b id="finish-best">--</b></div>
+                <div id="finish-laps"></div>
+                <div class="btn-row">
+                    <button id="again-btn" class="big-btn">再跑一次</button>
+                    <button id="menu-btn" class="big-btn ghost">返回</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+</body>
+
+</html>

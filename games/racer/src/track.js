@@ -1,0 +1,197 @@
+// Minecraft 風賽道：成個世界由 1×1×1 方塊砌成。
+//
+// 做法：先用封閉樣條定義賽道中線，密集取樣，再喺格網度「印」路面；
+// 之後掃一次格網，路面隔籬嘅空格就變路肩／欄杆。全部方塊塞入同一個
+// InstancedMesh（每格一個 instance + instanceColor），所以成條賽道
+// 得一個 draw call，手機都跑得郁。
+
+import * as THREE from 'three';
+
+export const BLOCK = 2;              // 一格方塊嘅世界尺寸
+export const ROAD_HALF = 6;          // 路面半闊（格數）→ 全闊 12 格 = 24 世界單位
+
+// 方塊種類：色 + 高度（y 係頂面高度，用嚟砌欄杆同小山）
+const KIND = {
+    road:    { color: 0x4a4a52, h: 0 },
+    line:    { color: 0xe8e2c8, h: 0 },   // 中線虛線
+    kerbA:   { color: 0xd6483b, h: 0 },   // 紅白路肩
+    kerbB:   { color: 0xf2f2f2, h: 0 },
+    grass:   { color: 0x5aa04a, h: 0 },
+    dirt:    { color: 0x8a6a3a, h: 0 },
+    wall:    { color: 0x9aa0a8, h: 1 },   // 欄杆：高一格
+    start:   { color: 0x1c1c1c, h: 0 },
+    startB:  { color: 0xf4f4f4, h: 0 },
+    water:   { color: 0x3b7fd4, h: 0 },
+};
+
+// 賽道中線（世界座標，會自動閉合）。刻意有長直路、髮夾彎同 S 彎，
+// 唔係淨係一個圈——咁樣「入彎收油」先至有意義。
+const WAYPOINTS = [
+    [0, 0], [60, 0], [110, 10], [140, 45], [135, 90], [100, 115],
+    [55, 110], [30, 130], [-20, 140], [-60, 120], [-75, 80],
+    [-55, 45], [-70, 10], [-45, -20], [0, -25],
+];
+
+export class Track {
+    constructor() {
+        const pts = WAYPOINTS.map(([x, z]) => new THREE.Vector3(x, 0, z));
+        this.curve = new THREE.CatmullRomCurve3(pts, true, 'catmullrom', 0.5);
+        this.length = this.curve.getLength();
+        // 取樣密度：每半格一個點，確保印路面唔會有窿
+        this.samples = Math.ceil(this.length / (BLOCK * 0.5));
+        this.cells = new Map();          // "x,z" -> kind
+        this.checkpoints = [];
+        this.#stampRoad();
+        this.#stampSurroundings();
+        this.#makeCheckpoints();
+    }
+
+    key(cx, cz) { return `${cx},${cz}`; }
+    cellAtWorld(x, z) {
+        return this.cells.get(this.key(Math.round(x / BLOCK), Math.round(z / BLOCK))) ?? null;
+    }
+    // 路面／路肩都算「有抓地」；草地同泥地會拖慢
+    isDrivable(x, z) {
+        const k = this.cellAtWorld(x, z);
+        return k === 'road' || k === 'line' || k === 'start' || k === 'startB' || k === 'kerbA' || k === 'kerbB';
+    }
+    isWall(x, z) { return this.cellAtWorld(x, z) === 'wall'; }
+
+    #set(cx, cz, kind, force = false) {
+        const k = this.key(cx, cz);
+        if (!force && this.cells.has(k)) return;
+        this.cells.set(k, kind);
+    }
+
+    #stampRoad() {
+        const up = new THREE.Vector3(0, 1, 0);
+        const tmp = new THREE.Vector3();
+        for (let i = 0; i < this.samples; i++) {
+            const t = i / this.samples;
+            const p = this.curve.getPointAt(t);
+            const tan = this.curve.getTangentAt(t);
+            const side = tmp.copy(tan).cross(up).normalize();
+            for (let w = -ROAD_HALF; w <= ROAD_HALF; w++) {
+                const x = p.x + side.x * w * BLOCK;
+                const z = p.z + side.z * w * BLOCK;
+                const cx = Math.round(x / BLOCK), cz = Math.round(z / BLOCK);
+                let kind = 'road';
+                if (Math.abs(w) === ROAD_HALF) {
+                    // 路肩紅白間條，跟住沿線距離變色
+                    kind = (Math.floor(i / 3) % 2 === 0) ? 'kerbA' : 'kerbB';
+                } else if (w === 0 && Math.floor(i / 4) % 2 === 0) {
+                    kind = 'line';                     // 中線虛線
+                }
+                this.#set(cx, cz, kind, true);
+            }
+        }
+        // 起跑／終點線：一條黑白格
+        const p0 = this.curve.getPointAt(0);
+        const tan0 = this.curve.getTangentAt(0);
+        const side0 = new THREE.Vector3().copy(tan0).cross(up).normalize();
+        for (let w = -ROAD_HALF + 1; w <= ROAD_HALF - 1; w++) {
+            for (let d = 0; d < 2; d++) {
+                const x = p0.x + side0.x * w * BLOCK + tan0.x * d * BLOCK;
+                const z = p0.z + side0.z * w * BLOCK + tan0.z * d * BLOCK;
+                this.#set(Math.round(x / BLOCK), Math.round(z / BLOCK),
+                    ((w + d) % 2 === 0) ? 'start' : 'startB', true);
+            }
+        }
+        this.startPos = p0.clone();
+        this.startDir = tan0.clone();
+    }
+
+    // 由所有路面格做多源 BFS 向外擴：1–4 格草地做緩衝區，5–6 格先至係欄杆。
+    // 之前只留兩格草，跌出路面即刻貼欄，速度被反覆撞擊鎖死——賽車遊戲要有
+    // 「衝出去仲救得返」嘅空間，唔係一出界就完。
+    #stampSurroundings() {
+        const GRASS_DEPTH = 4, WALL_DEPTH = 6;
+        let frontier = [...this.cells.keys()].map(k => k.split(',').map(Number));
+        const seen = new Set(this.cells.keys());
+        for (let depth = 1; depth <= WALL_DEPTH; depth++) {
+            const next = [];
+            for (const [cx, cz] of frontier) {
+                for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+                    const nx = cx + dx, nz = cz + dz;
+                    const k = this.key(nx, nz);
+                    if (seen.has(k)) continue;
+                    seen.add(k);
+                    this.cells.set(k, depth <= GRASS_DEPTH ? 'grass' : 'wall');
+                    next.push([nx, nz]);
+                }
+            }
+            frontier = next;
+        }
+        // 草地上撒少少泥同水，唔好一望無際都係綠色
+        for (const [k, kind] of [...this.cells]) {
+            if (kind !== 'grass') continue;
+            const [cx, cz] = k.split(',').map(Number);
+            const n = Math.sin(cx * 12.9898 + cz * 78.233) * 43758.5453;
+            const r = n - Math.floor(n);
+            if (r > 0.93) this.cells.set(k, 'dirt');
+            else if (r > 0.90) this.cells.set(k, 'water');
+        }
+    }
+
+    // 檢查點：沿賽道平均分佈，用嚟防止兜路兼計圈
+    #makeCheckpoints(count = 12) {
+        for (let i = 0; i < count; i++) {
+            const t = i / count;
+            const p = this.curve.getPointAt(t);
+            const tan = this.curve.getTangentAt(t);
+            this.checkpoints.push({ pos: p.clone(), dir: tan.clone(), t });
+        }
+    }
+
+    // 車喺賽道邊個位置（0..1）——用嚟判斷方向啱唔啱同計進度
+    nearestT(x, z, hintT = null) {
+        const probe = new THREE.Vector3(x, 0, z);
+        let bestT = 0, bestD = Infinity;
+        const N = 240;
+        for (let i = 0; i < N; i++) {
+            const t = i / N;
+            const p = this.curve.getPointAt(t);
+            const d = (p.x - probe.x) ** 2 + (p.z - probe.z) ** 2;
+            if (d < bestD) { bestD = d; bestT = t; }
+        }
+        return bestT;
+    }
+
+    // 砌 mesh：一個 InstancedMesh 裝晒所有方塊
+    build(scene) {
+        const geo = new THREE.BoxGeometry(BLOCK, BLOCK, BLOCK);
+        const mat = new THREE.MeshLambertMaterial({ vertexColors: false });
+        const mesh = new THREE.InstancedMesh(geo, mat, this.cells.size);
+        const m = new THREE.Matrix4();
+        const color = new THREE.Color();
+        let i = 0;
+        for (const [k, kind] of this.cells) {
+            const [cx, cz] = k.split(',').map(Number);
+            const def = KIND[kind];
+            const y = def.h * BLOCK;
+            m.makeTranslation(cx * BLOCK, y - BLOCK / 2, cz * BLOCK);
+            mesh.setMatrixAt(i, m);
+            // 每格輕微色差：Minecraft 嗰種手砌質感，唔會一片死色
+            const n = Math.sin(cx * 45.164 + cz * 23.14) * 43758.5453;
+            const jitter = 1 + ((n - Math.floor(n)) - 0.5) * 0.16;
+            color.setHex(def.color).multiplyScalar(jitter);
+            mesh.setColorAt(i, color);
+            i++;
+        }
+        mesh.instanceMatrix.needsUpdate = true;
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        mesh.castShadow = false;
+        mesh.receiveShadow = true;
+        scene.add(mesh);
+        this.mesh = mesh;
+        return mesh;
+    }
+
+    dispose(scene) {
+        if (!this.mesh) return;
+        scene.remove(this.mesh);
+        this.mesh.geometry.dispose();
+        this.mesh.material.dispose();
+        this.mesh = null;
+    }
+}

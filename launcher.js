@@ -66,6 +66,14 @@ const games = [
         playable: true
     },
     {
+        id: 'racer',
+        title: '方塊賽車',
+        subtitle: '🏁 Minecraft 風賽道！三圈計時挑戰最快圈',
+        icon: '🏎️',
+        link: 'games/racer/index.html',
+        playable: true
+    },
+    {
         id: 'ashenrail',
         title: '灰燼列車',
         subtitle: '🚂 3D 列車槍戰！守住能源核心殺退無人機',
