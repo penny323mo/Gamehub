@@ -2,7 +2,6 @@
 // 入彎收油會有回報」。核心係三樣：引擎推力、速度相關轉向、側向抓地。
 
 import * as THREE from 'three';
-import { BLOCK } from './track.js';
 
 const CFG = {
     engine: 26,          // 引擎加速度（單位/秒²）
@@ -89,7 +88,7 @@ export class Car {
 
     // 撞欄：分開 x／z 試探，撞到就抵返嗰個軸並反彈
     #collide(next, track) {
-        const r = BLOCK * 0.6;
+        const r = 1.2;   // 車身半闊（世界單位）——唔可以跟 BLOCK 縮，否則細格會鑽穿欄杆
         for (const [dx, dz] of [[r, 0], [-r, 0], [0, r], [0, -r]]) {
             if (!track.isWall(next.x + dx, next.z + dz)) continue;
             if (dx !== 0) {

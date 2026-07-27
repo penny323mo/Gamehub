@@ -1,4 +1,4 @@
-// Minecraft 風賽道：成個世界由 1×1×1 方塊砌成。
+// Minecraft 風賽道：成個世界由細方塊砌成（BLOCK 控制格仔大細）。
 //
 // 做法：先用封閉樣條定義賽道中線，密集取樣，再喺格網度「印」路面；
 // 之後掃一次格網，路面隔籬嘅空格就變路肩／欄杆。全部方塊塞入同一個
@@ -7,21 +7,28 @@
 
 import * as THREE from 'three';
 
-export const BLOCK = 2;              // 一格方塊嘅世界尺寸
-export const ROAD_HALF = 6;          // 路面半闊（格數）→ 全闊 12 格 = 24 世界單位
+// BLOCK 純粹係「解像度」旋鈕：所有尺寸都用世界單位寫，除返 BLOCK 先變格數。
+// 由 2 縮到 1 之後彎位嘅階梯細一半，望落係弧線而唔係鋸齒，方塊感照樣保留。
+export const BLOCK = 1;
+const ROAD_HALF_W = 12;              // 路面半闊（世界單位）→ 全闊 24
+const KERB_W = 2;                    // 紅白路肩闊度
+const GRASS_W = 8;                   // 草地緩衝闊度（衝出去仲救得返）
+const WALL_W = 3;                    // 欄杆帶闊度
+const WALL_H = 2.5;                  // 欄杆高度（世界單位）
+export const ROAD_HALF = Math.round(ROAD_HALF_W / BLOCK);
 
-// 方塊種類：色 + 高度（y 係頂面高度，用嚟砌欄杆同小山）
+// 方塊種類：色 + 高度（世界單位；地面全部 1 格厚，欄杆企高啲）
 const KIND = {
-    road:    { color: 0x4a4a52, h: 0 },
-    line:    { color: 0xe8e2c8, h: 0 },   // 中線虛線
-    kerbA:   { color: 0xd6483b, h: 0 },   // 紅白路肩
-    kerbB:   { color: 0xf2f2f2, h: 0 },
-    grass:   { color: 0x5aa04a, h: 0 },
-    dirt:    { color: 0x8a6a3a, h: 0 },
-    wall:    { color: 0x9aa0a8, h: 1 },   // 欄杆：高一格
-    start:   { color: 0x1c1c1c, h: 0 },
-    startB:  { color: 0xf4f4f4, h: 0 },
-    water:   { color: 0x3b7fd4, h: 0 },
+    road:    { color: 0x4a4a52, h: BLOCK },
+    line:    { color: 0xe8e2c8, h: BLOCK },   // 中線虛線
+    kerbA:   { color: 0xd6483b, h: BLOCK },   // 紅白路肩
+    kerbB:   { color: 0xf2f2f2, h: BLOCK },
+    grass:   { color: 0x5aa04a, h: BLOCK },
+    dirt:    { color: 0x8a6a3a, h: BLOCK },
+    wall:    { color: 0x9aa0a8, h: WALL_H },  // 欄杆：企高，一眼睇到係邊界
+    start:   { color: 0x1c1c1c, h: BLOCK },
+    startB:  { color: 0xf4f4f4, h: BLOCK },
+    water:   { color: 0x3b7fd4, h: BLOCK },
 };
 
 // 賽道中線（世界座標，會自動閉合）。刻意有長直路、髮夾彎同 S 彎，
@@ -76,10 +83,13 @@ export class Track {
                 const z = p.z + side.z * w * BLOCK;
                 const cx = Math.round(x / BLOCK), cz = Math.round(z / BLOCK);
                 let kind = 'road';
-                if (Math.abs(w) === ROAD_HALF) {
+                const wWorld = Math.abs(w) * BLOCK;
+                // 取樣間距係 BLOCK/2，所以「幾多個取樣＝幾多世界單位」要除返
+                const per = Math.max(1, Math.round(1.5 / (BLOCK * 0.5)));
+                if (wWorld > ROAD_HALF_W - KERB_W) {
                     // 路肩紅白間條，跟住沿線距離變色
-                    kind = (Math.floor(i / 3) % 2 === 0) ? 'kerbA' : 'kerbB';
-                } else if (w === 0 && Math.floor(i / 4) % 2 === 0) {
+                    kind = (Math.floor(i / per) % 2 === 0) ? 'kerbA' : 'kerbB';
+                } else if (wWorld < BLOCK && Math.floor(i / (per * 2)) % 2 === 0) {
                     kind = 'line';                     // 中線虛線
                 }
                 this.#set(cx, cz, kind, true);
@@ -89,12 +99,15 @@ export class Track {
         const p0 = this.curve.getPointAt(0);
         const tan0 = this.curve.getTangentAt(0);
         const side0 = new THREE.Vector3().copy(tan0).cross(up).normalize();
+        const startDepth = Math.max(2, Math.round(3 / BLOCK));   // 起跑線 3 個世界單位闊
         for (let w = -ROAD_HALF + 1; w <= ROAD_HALF - 1; w++) {
-            for (let d = 0; d < 2; d++) {
+            for (let d = 0; d < startDepth; d++) {
                 const x = p0.x + side0.x * w * BLOCK + tan0.x * d * BLOCK;
                 const z = p0.z + side0.z * w * BLOCK + tan0.z * d * BLOCK;
+                // 黑白格用世界單位分塊，唔係逐格跳（BLOCK 細咗都仲係睇得出格仔）
+                const cell = Math.floor(w * BLOCK / 2) + Math.floor(d * BLOCK / 2);
                 this.#set(Math.round(x / BLOCK), Math.round(z / BLOCK),
-                    ((w + d) % 2 === 0) ? 'start' : 'startB', true);
+                    (Math.abs(cell) % 2 === 0) ? 'start' : 'startB', true);
             }
         }
         this.startPos = p0.clone();
@@ -105,7 +118,8 @@ export class Track {
     // 之前只留兩格草，跌出路面即刻貼欄，速度被反覆撞擊鎖死——賽車遊戲要有
     // 「衝出去仲救得返」嘅空間，唔係一出界就完。
     #stampSurroundings() {
-        const GRASS_DEPTH = 4, WALL_DEPTH = 6;
+        const GRASS_DEPTH = Math.round(GRASS_W / BLOCK);
+        const WALL_DEPTH = GRASS_DEPTH + Math.round(WALL_W / BLOCK);
         let frontier = [...this.cells.keys()].map(k => k.split(',').map(Number));
         const seen = new Set(this.cells.keys());
         for (let depth = 1; depth <= WALL_DEPTH; depth++) {
@@ -165,11 +179,17 @@ export class Track {
         const m = new THREE.Matrix4();
         const color = new THREE.Color();
         let i = 0;
+        const scale = new THREE.Vector3();
+        const quat = new THREE.Quaternion();
+        const pos = new THREE.Vector3();
         for (const [k, kind] of this.cells) {
             const [cx, cz] = k.split(',').map(Number);
             const def = KIND[kind];
-            const y = def.h * BLOCK;
-            m.makeTranslation(cx * BLOCK, y - BLOCK / 2, cz * BLOCK);
+            // 地面方塊頂面對齊 y=0；欄杆用 scale 撐高，唔使疊幾層 instance
+            const hy = def.h / BLOCK;
+            scale.set(1, hy, 1);
+            pos.set(cx * BLOCK, def.h / 2 - BLOCK, cz * BLOCK);
+            m.compose(pos, quat, scale);
             mesh.setMatrixAt(i, m);
             // 每格輕微色差：Minecraft 嗰種手砌質感，唔會一片死色
             const n = Math.sin(cx * 45.164 + cz * 23.14) * 43758.5453;

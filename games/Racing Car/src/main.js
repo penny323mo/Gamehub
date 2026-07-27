@@ -68,12 +68,15 @@ const draco = new DRACOLoader();
 draco.setDecoderPath('./vendor/draco/');
 loader.setDRACOLoader(draco);
 
-// 模型可能係任何朝向／尺寸：量度包圍盒，轉到「車頭向 +z」再縮到指定長度
+// 模型可能係任何朝向／尺寸：量度包圍盒，轉到「車頭向 +z」再縮到指定長度。
+// 呢個模型（Tripo 生成）車頭係向 -z，所以對齊完之後仲要再轉 180°；
+// 唔轉嘅話成架車倒後行，玩家仲會覺得左右轉向係反嘅——其實物理啱晒，
+// 淨係模型朝向錯。
 function normalizeCar(obj, targetLength = 4.6) {
     const box = new THREE.Box3().setFromObject(obj);
     const size = box.getSize(new THREE.Vector3());
     // 水平最長嗰軸當車身長度方向
-    if (size.x > size.z) obj.rotation.y = Math.PI / 2;
+    obj.rotation.y = (size.x > size.z ? Math.PI / 2 : 0) + Math.PI;
     const box2 = new THREE.Box3().setFromObject(obj);
     const size2 = box2.getSize(new THREE.Vector3());
     const s = targetLength / Math.max(0.001, size2.z);

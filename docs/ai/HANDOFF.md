@@ -4,8 +4,8 @@ Updated: 2026-07-27 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Baseline before this task: `6518ff4`
-Status: new game shipped — Block Racer, a Minecraft-style time-trial racer
+Baseline before this task: `60a4bf7`
+Status: Block Racer shipped, then car facing fixed and track resolution doubled
 
 ## Current objective
 
@@ -14,6 +14,22 @@ Minecraft-style blocky track to keep the art direction cheap and consistent.
 Self-contained under `games/Racing Car/`, registered in the hub carousel.
 
 ## Completed
+
+- Fixed the car model facing backwards. The Tripo model's nose points at -z, so
+  `normalizeCar` now adds a 180-degree turn after aligning the long axis. Penny read
+  it as "steering is inverted" — the physics was always correct, only the body was
+  turned around, which makes every steering input look mirrored.
+- Halved the block size, 2 world units to 1, so corners read as curves instead of
+  a staircase. Every track dimension is now written in world units and divided by
+  `BLOCK`, so the block size is a pure resolution knob: road half-width 12, kerb 2,
+  grass runoff 8, barrier band 3, barrier height 2.5. Cell count went 6,100 to
+  29,552, still one `InstancedMesh` and one draw call.
+- Barrier height is applied through per-instance scale rather than stacked blocks.
+- The car's collision radius is now a fixed 1.2 world units instead of being derived
+  from `BLOCK`; at the finer resolution the old value would have let it clip through
+  a barrier.
+
+### 早前同一個任務入面做嘅
 
 - `games/Racing Car/`: `track.js` (voxel world), `car.js` (arcade physics), `race.js`
   (laps, checkpoints, timing, best-lap save), `input.js` (keyboard + touch),
@@ -39,9 +55,11 @@ Self-contained under `games/Racing Car/`, registered in the hub carousel.
 
 ## Verification
 
-- `npm test` in `games/Racing Car/tests`: 15/15 checks pass.
-- Autopilot completes three laps in 38.3 / 48.2 / 48.2 seconds with zero frames
-  stuck in a barrier and 1.9 percent of time off-road.
+- `npm test` in `games/Racing Car/tests`: 15/15 checks pass after the changes.
+- Autopilot still completes three laps at the finer resolution: 38.1 / 48.2 / 48.2
+  seconds, zero frames stuck in a barrier, 1.7 percent of time off-road.
+- Screenshot confirms the car now shows its rear to the chase camera, and the corner
+  ahead reads as a smooth arc.
 - Physics: full throttle reaches 180 km/h on tarmac, braking drops it to 50, and
   the same throttle on grass tops out at 19.
 - Resource gate: three race restarts leave geometries at 3 and textures at 1.
