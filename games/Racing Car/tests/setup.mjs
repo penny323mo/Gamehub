@@ -56,7 +56,7 @@ check('有連續護欄支柱同賽道樹木', geo.posts > 200 && geo.trees >= 10
 check('完整 3D 世界 draw calls 維持手機預算（<18）', geo.calls < 18, geo.calls);
 check('三角形數量喺手機預算（<120k）', geo.tris < 120000, geo.tris);
 
-// Penny 指定車身視覺比例放大 50%：4.6 -> 6.9；物理參數唔跟住改。
+// Penny 指定現有車身再放大 50%：6.9 -> 10.35；物理參數唔跟住改。
 const carScale = await page.evaluate(async () => {
     const THREE = await import('three');
     const { car, visualLength } = window.__racer;
@@ -71,8 +71,8 @@ const carScale = await page.evaluate(async () => {
     return { target: visualLength, measured: +Math.max(size.x, size.z).toFixed(2) };
 });
 console.log('  ', JSON.stringify(carScale));
-check('玩家車身視覺長度放大 50% 至 6.9', carScale.target === 6.9
-    && carScale.measured >= 6.85 && carScale.measured <= 6.95, carScale);
+check('玩家車身由 6.9 再放大 50% 至 10.35', carScale.target === 10.35
+    && carScale.measured >= 10.3 && carScale.measured <= 10.4, carScale);
 
 // T3：設定真係改到嘢，兼且記得住
 const set = await page.evaluate(() => {
@@ -147,6 +147,34 @@ check('清晰／省電 DPR 上限分別係 1.75×／1×',
 check('畫質模式會持久化兼 UI 只有一項 selected',
     quality.saved === 'auto' && quality.selected === 1 && quality.note.includes('自動'), quality);
 
+// 真機報告要將「順唔順」變成可複製數字；所有畫質模式都要繼續取樣。
+const perfReport = await page.evaluate(async () => {
+    const root = window.__racer;
+    root.startRace();
+    await new Promise(r => setTimeout(r, 220));
+    root.tuneAutoQuality(58);
+    root.tuneAutoQuality(42);
+    root.pauseRace('報告測試');
+    root.toMenu();
+    const data = root.performanceReport();
+    const text = root.performanceReportText();
+    const copiedText = await root.copyPerformanceReport();
+    return {
+        data, text, copiedText,
+        note: document.getElementById('device-report').textContent,
+        feedback: document.getElementById('copy-report-btn').textContent,
+        copyHeight: document.getElementById('copy-report-btn').getBoundingClientRect().height,
+    };
+});
+console.log('  ', JSON.stringify(perfReport));
+check('手機實測報告包含 FPS、DPR、viewport、賽道同長幀', perfReport.data.minFps === 42
+    && perfReport.data.frames > 0 && perfReport.text.includes('DPR')
+    && perfReport.text.includes('長幀') && perfReport.text.includes(perfReport.data.viewport)
+    && perfReport.text.includes(perfReport.data.track) && perfReport.note === perfReport.text, perfReport);
+check('複製實測報告有真實結果提示兼守住 44px', perfReport.copiedText === perfReport.text
+    && ['已複製', '請長按上面報告'].includes(perfReport.feedback)
+    && perfReport.copyHeight >= 44, perfReport);
+
 // T4：轉向反轉係逃生門——反轉之後同一個輸入要行相反方向
 const inv = await page.evaluate(async () => {
     const THREE = await import('three');
@@ -202,24 +230,46 @@ check('向左傾 = 向左轉', gyro.left < -0.9, gyro.left);
 check('細微晃動有死區', gyro.small === 0, gyro.small);
 check('撳住掣嘅時候以手指為準', gyro.touchWins < 0, gyro.touchWins);
 
-// T5b：真 DOM pointer 路徑要同時收到兩隻手指；blur 後唔可以卡住油門。
+// T5b：真 DOM pointer 路徑要收到類比搖桿 + 油門兩隻手指；blur 後全部回中。
 const touch = await page.evaluate(() => {
-    const { input } = window.__racer;
+    const root = window.__racer;
+    const { input } = root;
+    root.startRace();
     input.setInvert(false);
-    const fire = (id, type, pointerId) => document.getElementById(id).dispatchEvent(new PointerEvent(type, {
-        bubbles: true, cancelable: true, pointerType: 'touch', pointerId,
+    const fire = (id, type, pointerId, coords = {}) => document.getElementById(id).dispatchEvent(new PointerEvent(type, {
+        bubbles: true, cancelable: true, pointerType: 'touch', pointerId, ...coords,
     }));
+    const stick = document.getElementById('steer-stick');
+    const r = stick.getBoundingClientRect();
     fire('pad-gas', 'pointerdown', 11);
-    fire('pad-right', 'pointerdown', 12);
-    input.steerSmooth = 1;
-    const held = input.read(1 / 60);
+    fire('steer-stick', 'pointerdown', 12, {
+        clientX: r.left + r.width * 0.74,
+        clientY: r.top + r.height * 0.5,
+    });
+    const held = input.read(1);
+    const atDrag = {
+        aria: stick.getAttribute('aria-valuenow'),
+        knob: document.getElementById('steer-knob').style.transform,
+    };
     dispatchEvent(new Event('blur'));
-    const released = input.read(1 / 60);
-    return { held, released, heldButtons: document.querySelectorAll('.pad-btn.held').length };
+    const released = input.read(1);
+    const result = {
+        held, atDrag, released,
+        heldControls: document.querySelectorAll('.pad-btn.held, .steer-stick.held').length,
+        ariaAfter: stick.getAttribute('aria-valuenow'),
+        knobAfter: document.getElementById('steer-knob').style.transform,
+    };
+    root.pauseRace('搖桿測試完成');
+    root.toMenu();
+    return result;
 });
 console.log('  ', JSON.stringify(touch));
-check('兩指油門 + 右軚可以同時成立', touch.held.throttle === 1 && touch.held.steer > 0.9, touch);
-check('離開頁面會清走黐住嘅觸控', touch.released.throttle === 0 && touch.heldButtons === 0, touch);
+check('兩指油門 + 類比右軚可以同時成立', touch.held.throttle === 1
+    && touch.held.steer > 0.5 && touch.held.steer < 1 && Number(touch.atDrag.aria) > 50
+    && touch.atDrag.knob.includes('translate'), touch);
+check('離開頁面會清走油門兼令搖桿回中', touch.released.throttle === 0
+    && touch.released.steer === 0 && touch.heldControls === 0
+    && touch.ariaAfter === '0' && touch.knobAfter === '', touch);
 
 // T5c：暫停要凍結 running、清 input、顯示 overlay；恢復同返 menu 都要完整。
 const lifecycle = await page.evaluate(async () => {
@@ -374,7 +424,7 @@ check('Menu／暫停唔會持續重畫 3D 世界', idleRender.idleFrames === 0, 
 check('改設定只會按需補畫，之後再休眠', idleRender.settingFrames >= 1
     && idleRender.settingFrames <= 2 && idleRender.settledFrames === 0, idleRender);
 
-// T5g：最窄常見手機都要完整見到五粒掣，暫停掣唔可以遮住圈數 HUD。
+// T5g：最窄常見手機都要完整見到搖桿同三粒 action 掣，暫停掣唔撞 HUD。
 await page.setViewportSize({ width: 320, height: 568 });
 const narrow = await page.evaluate(() => {
     const root = window.__racer;
@@ -383,20 +433,36 @@ const narrow = await page.evaluate(() => {
         const r = el.getBoundingClientRect();
         return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
     };
-    const buttons = [...document.querySelectorAll('.pad-btn')].map(el => ({ id: el.id, ...rect(el) }));
+    const buttons = [...document.querySelectorAll('.pad-btn')].map(el => ({
+        id: el.id, ...rect(el), radius: getComputedStyle(el).borderRadius,
+    }));
+    const stickEl = document.getElementById('steer-stick');
+    const knobEl = document.getElementById('steer-knob');
+    const stick = { id: stickEl.id, ...rect(stickEl), radius: getComputedStyle(stickEl).borderRadius };
+    const knob = { id: knobEl.id, ...rect(knobEl), radius: getComputedStyle(knobEl).borderRadius };
     const pause = rect(document.getElementById('pause-btn'));
     const firstStat = rect(document.querySelector('#hud-top .stat'));
     const overlap = Math.max(0, Math.min(pause.right, firstStat.right) - Math.max(pause.left, firstStat.left))
         * Math.max(0, Math.min(pause.bottom, firstStat.bottom) - Math.max(pause.top, firstStat.top));
     root.pauseRace();
     root.toMenu();
-    return { viewport: [innerWidth, innerHeight], buttons, pause, firstStat, overlap };
+    return { viewport: [innerWidth, innerHeight], buttons, stick, knob, pause, firstStat, overlap };
 });
 console.log('  ', JSON.stringify(narrow));
-check('320px 直向五粒操控掣完整留喺 viewport', narrow.buttons.every(b =>
+const narrowControls = [...narrow.buttons, narrow.stick];
+check('320px 直向搖桿同三粒 action 完整留喺 viewport', narrowControls.every(b =>
     b.left >= 0 && b.right <= narrow.viewport[0] && b.top >= 0 && b.bottom <= narrow.viewport[1]), narrow);
-check('窄屏觸控掣守住 44px，而且暫停掣唔撞 HUD', narrow.buttons.every(b =>
-    b.width >= 44 && b.height >= 44) && narrow.pause.width >= 44 && narrow.overlap === 0, narrow);
+check('窄屏 action 守住 44px、搖桿 100px，而且暫停掣唔撞 HUD', narrow.buttons.every(b =>
+    b.width >= 44 && b.height >= 44) && narrow.stick.width >= 100
+    && narrow.pause.width >= 44 && narrow.overlap === 0, narrow);
+check('搖桿、圓芯同三粒 action 全部係正圓形', [...narrow.buttons, narrow.stick, narrow.knob].every(b =>
+    b.width === b.height && b.radius === '50%'), narrow);
+const gasButton = narrow.buttons.find(b => b.id === 'pad-gas');
+const brakeButton = narrow.buttons.find(b => b.id === 'pad-brake');
+const driftButton = narrow.buttons.find(b => b.id === 'pad-drift');
+check('右手控制係主油門 + 煞車／飄移弧形層級', gasButton.width > brakeButton.width
+    && gasButton.width > driftButton.width && brakeButton.left < gasButton.left
+    && driftButton.top < brakeButton.top, narrow.buttons);
 await page.setViewportSize({ width: 667, height: 375 });
 const shortLandscape = await page.evaluate(() => {
     const root = window.__racer;

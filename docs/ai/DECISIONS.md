@@ -474,3 +474,42 @@ follows what the tyres can use
   warning. Mobile browsers can reclaim WebGL under memory pressure or app switching;
   physics must not continue behind a black canvas. Rotation likewise relocates touch
   controls, so retaining a held pointer is unsafe.
+
+## ADR-037: Physical phone acceptance uses an in-game performance report
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: active race frames record elapsed time, average fps, minimum 3.5-second
+  fps window, frames above 34ms, slowest frame, render DPR, viewport, quality mode,
+  and track. Returning to the menu exposes one compact report and a 44px copy button.
+  Sampling continues in Auto, Sharp, and Battery; it never changes simulation.
+  Clipboard feedback says copied only after the Clipboard API or fallback confirms it.
+- Reason: desktop emulation cannot certify a physical phone's heat or browser-specific
+  frame pacing, and subjective “feels smooth” feedback is too weak to tune safely.
+  A report generated on the actual device makes the last acceptance run reproducible
+  without collecting user identity, user-agent, credentials, or other private data.
+
+## ADR-038: Racing Car player model is enlarged by another 50 percent
+
+- Date: 2026-07-27
+- Status: accepted
+- Supersedes: ADR-035 visual size only; its physics-isolation rule remains active.
+- Decision: normalize the player GLB to a 10.35-unit visual length, 1.5 times the
+  previous 6.9-unit presentation and 2.25 times the original 4.6-unit baseline.
+  Scale the contact shadow with it, while leaving `Car` physics, collision,
+  wheelbase, speed, camera, and track geometry unchanged.
+- Reason: Penny explicitly requested the currently displayed car be 50% larger.
+
+## ADR-039: Racing Car uses modern mobile analogue controls
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: replace the two digital steering arrows with one fixed circular analogue
+  joystick that emits continuous -1..1 steering, has a centre dead zone, captures its
+  pointer, and resets on release or interruption. Arrange circular gas, brake, and drift
+  actions as a right-thumb arc with gas as the largest primary action. Preserve keyboard,
+  gyro, invert-steering, dual-touch, safe-area, and minimum-target behavior.
+- Reason: a modern competitive-mobile control surface gives the left thumb progressive
+  steering and the right thumb a clearer primary/secondary action hierarchy than five
+  equally weighted buttons. The interaction model is generic; no third-party artwork or
+  branded game assets are copied.

@@ -28,6 +28,15 @@ const qualityState = {
     fps: null,
     changes: 0,
 };
+const performanceState = {
+    startedAt: 0,
+    elapsedMs: 0,
+    frames: 0,
+    windows: 0,
+    minWindowFps: null,
+    longFrames: 0,
+    maxFrameMs: 0,
+};
 renderer.setPixelRatio(qualityState.dpr);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -89,6 +98,83 @@ function updateQualityNote() {
     const fps = qualityState.fps == null ? '' : ` · ${Math.round(qualityState.fps)} fps`;
     el.textContent = `${mode} · ${qualityState.dpr.toFixed(2)}×${fps}`;
 }
+function resetPerformance() {
+    performanceState.startedAt = performance.now();
+    performanceState.elapsedMs = 0;
+    performanceState.frames = 0;
+    performanceState.windows = 0;
+    performanceState.minWindowFps = null;
+    performanceState.longFrames = 0;
+    performanceState.maxFrameMs = 0;
+    updatePerformanceNote();
+}
+function recordPerformanceFrame(ms) {
+    if (!Number.isFinite(ms) || ms <= 0 || ms > 1000) return;
+    performanceState.elapsedMs += ms;
+    performanceState.frames += 1;
+    performanceState.maxFrameMs = Math.max(performanceState.maxFrameMs, ms);
+    if (ms > 34) performanceState.longFrames += 1;
+}
+function recordPerformanceWindow(fps) {
+    if (!Number.isFinite(fps) || fps <= 0) return;
+    performanceState.windows += 1;
+    performanceState.minWindowFps = performanceState.minWindowFps == null
+        ? fps : Math.min(performanceState.minWindowFps, fps);
+}
+function performanceReport() {
+    const avgFps = performanceState.elapsedMs > 0
+        ? performanceState.frames * 1000 / performanceState.elapsedMs : null;
+    return {
+        seconds: performanceState.elapsedMs / 1000,
+        frames: performanceState.frames,
+        avgFps,
+        recentFps: qualityState.fps,
+        minFps: performanceState.minWindowFps,
+        longFrames: performanceState.longFrames,
+        maxFrameMs: performanceState.maxFrameMs,
+        dpr: qualityState.dpr,
+        quality: qualityMode,
+        viewport: `${innerWidth}x${innerHeight}`,
+        track: trackDef?.id ?? 'unknown',
+    };
+}
+function performanceReportText() {
+    const p = performanceReport();
+    const n = v => v == null ? '--' : Math.round(v);
+    const mode = QUALITY_MODES[p.quality]?.name ?? p.quality;
+    return `Racing Car 3D 手機報告｜${p.seconds.toFixed(1)}s｜${p.viewport}`
+        + `｜${mode} DPR ${p.dpr.toFixed(2)}｜平均 ${n(p.avgFps)} fps`
+        + `｜最低 ${n(p.minFps)} fps｜長幀 ${p.longFrames}`
+        + `｜最慢 ${n(p.maxFrameMs)} ms｜賽道 ${p.track}`;
+}
+function updatePerformanceNote() {
+    const el = $('device-report');
+    if (!el) return;
+    if (!performanceState.frames && !performanceState.windows) {
+        el.textContent = '跑一段路再返回選單，就會有實機 FPS 報告。';
+        return;
+    }
+    el.textContent = performanceReportText();
+}
+async function copyPerformanceReport() {
+    const text = performanceReportText();
+    let copied = false;
+    try {
+        if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
+        await navigator.clipboard.writeText(text);
+        copied = true;
+    } catch {
+        const box = document.createElement('textarea');
+        box.value = text;
+        box.style.position = 'fixed'; box.style.opacity = '0';
+        document.body.appendChild(box); box.select();
+        try { copied = document.execCommand('copy'); } finally { box.remove(); }
+    }
+    const btn = $('copy-report-btn');
+    btn.textContent = copied ? '已複製' : '請長按上面報告';
+    setTimeout(() => { btn.textContent = '複製報告'; }, 1200);
+    return text;
+}
 function applyRenderDpr(dpr) {
     const next = Math.max(1, Math.min(2, Math.round(dpr * 4) / 4));
     if (Math.abs(next - qualityState.dpr) < 0.01) return false;
@@ -115,6 +201,7 @@ function setQuality(id, persist = true) {
 }
 function tuneAutoQuality(fps) {
     qualityState.fps = fps;
+    recordPerformanceWindow(fps);
     if (qualityMode !== 'auto') { updateQualityNote(); return qualityState.dpr; }
     const ceiling = qualityDpr('auto', devicePixelRatio || 1, coarsePointer);
     if (fps < 43 && qualityState.dpr > 1) {
@@ -133,7 +220,7 @@ function tuneAutoQuality(fps) {
     return qualityState.dpr;
 }
 function sampleAutoQuality(now) {
-    if (!running || qualityMode !== 'auto' || document.hidden) {
+    if (!running || document.hidden) {
         qualityWindowStart = 0; qualityFrames = 0;
         return;
     }
@@ -196,7 +283,7 @@ const clouds = new THREE.Group();
 const loader = new GLTFLoader();
 const draco = new DRACOLoader();
 draco.setDecoderPath('./vendor/draco/');
-const CAR_VISUAL_LENGTH = 6.9; // 原本 4.6；按 Penny 要求視覺比例放大 50%
+const CAR_VISUAL_LENGTH = 10.35; // 現有 6.9 再放大 50%；相對原本 4.6 係 225%
 const CAR_VISUAL_SCALE = CAR_VISUAL_LENGTH / 4.6;
 loader.setDRACOLoader(draco);
 
@@ -277,6 +364,7 @@ loader.load('./assets/car.glb', (gltf) => {
     window.__racer = {
         car, race, renderer, camera, restart, startRace, buildTrack, TRACKS, input, minimap,
         setColour, setTod, setQuality, tuneAutoQuality, pauseRace, resumeRace, toMenu,
+        performanceReport, performanceReportText, copyPerformanceReport,
         coarsePointer,
         get track() { return track; },
         get trackDef() { return trackDef; },
@@ -289,6 +377,7 @@ loader.load('./assets/car.glb', (gltf) => {
         get contextLost() { return contextLost; },
         get ready() { return carReadyRendered; },
         get renderCount() { return renderCount; },
+        get performance() { return { ...performanceState }; },
         visualLength: CAR_VISUAL_LENGTH,
     };
     requestRender();
@@ -476,6 +565,7 @@ function showFinish({ total, laps, best, drift, bestDrift, bestScore }) {
     paused = false;
     input.reset();
     releaseWakeLock();
+    updatePerformanceNote();
     $('screen-pause').classList.add('hidden');
     $('finish-total').textContent = fmtTime(total);
     $('finish-best').textContent = fmtTime(best);
@@ -571,6 +661,7 @@ function startRace() {
     camInit = false;
     race.reset();
     hudCache = {};
+    resetPerformance();
     paused = false;
     running = true;
     last = performance.now();
@@ -586,6 +677,7 @@ function pauseRace(reason = '比賽進度已保留') {
     paused = true;
     input.reset();
     releaseWakeLock();
+    updatePerformanceNote();
     $('pause-reason').textContent = reason;
     $('screen-pause').classList.remove('hidden');
     return true;
@@ -605,6 +697,7 @@ function toMenu() {
     paused = false;
     input.reset();
     releaseWakeLock();
+    updatePerformanceNote();
     refreshBest();
     $('screen-finish').classList.add('hidden');
     $('screen-pause').classList.add('hidden');
@@ -619,6 +712,7 @@ $('pause-btn').addEventListener('click', () => pauseRace());
 $('resume-btn').addEventListener('click', resumeRace);
 $('reload-btn').addEventListener('click', () => location.reload());
 $('pause-menu-btn').addEventListener('click', toMenu);
+$('copy-report-btn').addEventListener('click', copyPerformanceReport);
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) pauseRace('你離開咗遊戲，進度已安全暫停');
 });
@@ -656,8 +750,10 @@ function frame(now) {
     // race.update 可能喺呢一幀觸發 finish 並將 running 變 false；記住入幀時
     // 嘅狀態，確保終點嗰一幀仍然畫得出，之後先停 loop。
     const activeFrame = running;
-    const dt = Math.min(0.05, (now - last) / 1000);   // 夾住 dt：切 tab 返嚟唔好一下衝出賽道
+    const rawFrameMs = Math.max(0, now - last);
+    const dt = Math.min(0.05, rawFrameMs / 1000);   // 夾住 dt：切 tab 返嚟唔好一下衝出賽道
     last = now;
+    if (activeFrame) recordPerformanceFrame(rawFrameMs);
     if (car && (activeFrame || renderDirty)) {
         if (activeFrame) {
             const cmd = race.state === 'racing' ? input.read(dt) : { throttle: 0, steer: 0, handbrake: false };

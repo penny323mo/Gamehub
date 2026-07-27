@@ -48,9 +48,11 @@
 
             <!-- 觸控盤：左手轉向、右手油門煞車 -->
             <div id="pad">
-                <div class="pad-side">
-                    <button id="pad-left" class="pad-btn">◀</button>
-                    <button id="pad-right" class="pad-btn">▶</button>
+                <div class="pad-side steering">
+                    <div id="steer-stick" class="steer-stick" role="slider"
+                        aria-label="左右轉向搖桿" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
+                        <span id="steer-knob"></span>
+                    </div>
                 </div>
                 <div class="pad-side right">
                     <button id="pad-drift" class="pad-btn small">飄移</button>
@@ -97,6 +99,11 @@
                         </div>
                     </div>
                     <div id="quality-note" class="set-note"></div>
+                    <div class="set-row">
+                        <span>手機實測</span>
+                        <button id="copy-report-btn" class="report-btn">複製報告</button>
+                    </div>
+                    <div id="device-report" class="set-note">跑一段路再返回選單，就會有實機 FPS 報告。</div>
                     <div class="set-row">
                         <span>轉向方向</span>
                         <div class="seg" id="steer-seg">

@@ -3,8 +3,8 @@
 Updated: 2026-07-27 (Asia/Macau)
 Prepared by: Codex (local)
 Integration branch: `main`
-Baseline before this task: `0f6b716`
-Status: Racing Car mobile GPU/orientation recovery implemented and browser verified
+Baseline before this task: `ee76bec`
+Status: Racing Car larger player car, modern mobile controls, and telemetry verified
 
 ## Current objective
 
@@ -14,59 +14,69 @@ and readable portrait/landscape framing.
 
 ## Completed
 
-- Added explicit WebGL context-loss recovery around Three.js resource restoration.
-- Context loss now freezes the race, clears input, releases Wake Lock, and displays a
-  recovery overlay above menu/finish with disabled Resume/Return and a reload fallback.
-- Context restore requests one render-on-demand frame, hides the reload fallback,
-  unlocks navigation, and requires the player to press Resume explicitly.
-- Rotation during a race now pauses and clears held input before controls move.
-- `pagehide` now uses the same progress-preserving pause path.
-- Added committed real `WEBGL_lose_context` and orientation lifecycle gates. See ADR-036.
+- Added a privacy-safe on-device performance report generated from active race frames.
+- Report includes active seconds, viewport, quality/DPR, average fps, lowest 3.5-second
+  fps window, >34ms frame count, slowest frame, and track id.
+- Auto, Sharp, and Battery now all collect fps windows; only Auto may alter DPR.
+- Returning to menu exposes the report and a 44px Copy Report button.
+- Copy uses the modern Clipboard API, falls back to `execCommand`, and only claims
+  success when the browser confirms it; otherwise it tells the player to long-press.
+- Added committed report-contract and copy-feedback gates. See ADR-037.
+- Enlarged the current 6.9-unit player car by another 50% to 10.35 units (225% of
+  the original 4.6-unit model), including its contact shadow. Physics is unchanged.
+- Updated the committed visual-scale gate. See ADR-038.
+- Replaced the left/right arrows with a MOBA-style analogue joystick: continuous
+  horizontal steering, pointer capture, dead zone, release/reset, and gyro arbitration.
+- Reworked the right controls into a MOBA-style thumb arc: large gas at bottom-right,
+  brake at bottom-left, and drift above. All action controls remain circular and stay
+  inside the 320px portrait viewport.
+- Added joystick analogue/dead-zone, pointer-capture, release/blur reset, dual-touch,
+  responsive hierarchy, and non-overlap gates. See ADR-039.
 
 ## Changed files
 
-- `games/Racing Car/index.html`, `style.css`, `src/main.js`
-- `games/Racing Car/tests/setup.mjs`, `README.md`
-- `docs/ai/PROJECT_CONTEXT.md`, `DECISIONS.md` (ADR-036), `HANDOFF.md`
+- `games/Racing Car/index.html`, `style.css`, `src/main.js`, `src/input.js`
+- `games/Racing Car/tests/setup.mjs`
+- `docs/ai/PROJECT_CONTEXT.md`, `DECISIONS.md` (ADR-037 to ADR-039), `HANDOFF.md`
 
 ## Verification
 
-- `npm test` in `games/Racing Car/tests`: PASS — race 45/45 and setup 44/44.
-- All three autopilot races still complete three laps; all have zero rescues.
-- Before fix, forced context loss left `running=true`, no overlay, and advanced render
-  attempts from 169 to 206 in 600ms despite a dead GPU context.
-- After fix, real `WEBGL_lose_context` produced `running=false`, `paused=true`, gas off,
-  steering zero, Resume/Return disabled, and visible reload fallback.
-- Real context restore produced exactly one dirty frame with the complete world still
-  present: 14 draw calls and 54,195 triangles. Explicit Resume restarted continuous frames.
-- 320×568 headed-browser recovery overlay passed visual inspection; all three actions
-  fit, disabled state is visible, and the overlay stays above the game HUD.
-- Synthetic orientation event during held gas/steer paused and reset both inputs; the
-  reason shown to the player names the orientation change.
-- Existing phone gates remain green: 150% car, 320×568/667×375 layout, dual touch,
-  adaptive DPR, idle zero-render, pause/Wake Lock, gyro mapping, and no functional errors.
+- `npm test` in `games/Racing Car/tests`: PASS — race 45/45 and setup 48/48.
+- Existing three-track physics, 225% car, smooth renderer, dual touch, smallest layouts,
+  adaptive DPR, idle GPU, Wake Lock, orientation, and WebGL recovery remain green.
+- Headed 430×900 / 3× device DPR / coarse pointer / 4× CPU slowdown generated:
+  `23.8s`, Auto DPR `1.50`, average `59 fps`, minimum `59 fps`, two long frames,
+  slowest `202ms`, turbo track.
+- The generated report appeared after Pause → Return to Menu, wrapped inside the
+  settings panel without overflow, and the 44px Copy Report action returned the same text.
+- Browser screenshot visually passed; settings, gyro controls, instructions, and Start
+  remained usable around the added report.
+- Headed 430×900 portrait verified a 108px analogue pad, 92px gas, 60px brake/drift,
+  visible 10.35-unit car, and live joystick drag (`aria=82`).
+- Headed 844×390 landscape verified a 126px analogue pad, the same right-thumb action
+  hierarchy, explicit post-rotation Resume, and zero overlap among controls/speed/minimap.
+- No functional browser error; only the pre-existing root favicon 404.
 
 ## Known issues and cautions
 
-- Automated mobile lifecycle evidence is now strong, but Penny's physical phone remains
-  the authority for sustained heat/FPS, browser-specific recovery, and gyro feel.
-- Do not automatically resume after visibility, orientation, or GPU interruption.
-- Three.js rebuilds GPU resources; app code owns state, input, overlay, and explicit resume.
+- This makes physical acceptance measurable but does not fabricate physical evidence.
+  Penny must still run it on her phone for heat, Mobile Safari/Chrome, and gyro feel.
+- The first shader/warm-up hitch is deliberately included in long-frame/max-frame data.
+- Reports contain no user-agent or device identifier; ask Penny for model/browser separately.
 
 ## Exact next action
 
 1. Receiving agent runs `./scripts/agent-context.sh --sync` before reading this file.
-2. Penny drives one full lap on her phone, rotates once, backgrounds once, resumes, and
-   reports heat/FPS plus touch and gyro feel.
-3. If that physical run passes, the original phone-playable smooth-3D objective can be
-   closed; otherwise use the measured symptom rather than changing physics by guesswork.
+2. Penny opens the live game, drives one full lap, rotates/backgrounds once, returns to
+   menu, taps `複製報告`, and pastes the one-line report with phone/browser and heat feel.
+3. If physical average/minimum pacing and controls pass, close the original objective;
+   otherwise tune against the measured DPR/fps/long-frame evidence.
 
 ## Do not redo
 
-- Do not remove WebGL context-loss pause, reload fallback, or explicit restore Resume.
-- Do not leave Resume/Return enabled while the GPU context is unavailable.
-- Do not auto-resume after rotation, visibility, or `pagehide`.
-- Do not restore continuous WebGL rendering in menu, pause, or finish states.
-- Do not render the hidden physics grid or change simulation based on fps.
-- Do not exceed phone DPR caps without physical-device measurements.
+- Do not infer physical-device success from desktop emulation or delete the report gate.
+- Do not include user-agent, identifiers, credentials, or secrets in the report.
+- Do not let performance telemetry alter physics, collision, or track mesh.
+- Do not auto-resume after GPU, rotation, visibility, or page interruption.
+- Do not restore continuous WebGL rendering in static states.
 - Do not amend, rebase, or force-push published `main` history.

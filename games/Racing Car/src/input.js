@@ -8,7 +8,7 @@ export const GYRO_SENS_KEY = 'racer-gyro-sens';
 export class Input {
     constructor(root) {
         this.keys = new Set();
-        this.touch = { left: false, right: false, gas: false, brake: false, drift: false };
+        this.touch = { left: false, right: false, steer: 0, gas: false, brake: false, drift: false };
         this.touchPointers = new Map();
         this.steerSmooth = 0;
 
@@ -29,8 +29,7 @@ export class Input {
         addEventListener('blur', () => this.reset(root));
 
         // 觸控掣：pointer 事件一次過搞掂滑鼠同手指
-        for (const [id, prop] of [['pad-left', 'left'], ['pad-right', 'right'],
-                                  ['pad-gas', 'gas'], ['pad-brake', 'brake'], ['pad-drift', 'drift']]) {
+        for (const [id, prop] of [['pad-gas', 'gas'], ['pad-brake', 'brake'], ['pad-drift', 'drift']]) {
             const el = root.querySelector(`#${id}`);
             if (!el) continue;
             const down = (ev) => {
@@ -53,6 +52,47 @@ export class Input {
             el.addEventListener('pointerup', up);
             el.addEventListener('pointercancel', up);
         }
+
+        // 王者榮耀式虛擬搖桿：圓盤內任何位置都可以落手，拖動距離直接
+        // 變成 -1..1 嘅連續轉向。Pointer capture 令手指拖出圓盤都唔會斷軚。
+        const stick = root.querySelector('#steer-stick');
+        const knob = root.querySelector('#steer-knob');
+        if (stick && knob) {
+            const move = (ev) => {
+                if (this.touchPointers.get('steer') !== ev.pointerId) return;
+                ev.preventDefault();
+                const rect = stick.getBoundingClientRect();
+                const max = Math.max(1, rect.width * 0.34);
+                let dx = ev.clientX - (rect.left + rect.width / 2);
+                let dy = ev.clientY - (rect.top + rect.height / 2);
+                const distance = Math.hypot(dx, dy);
+                if (distance > max) { dx *= max / distance; dy *= max / distance; }
+                this.touch.steer = Math.max(-1, Math.min(1, dx / max));
+                if (Math.abs(this.touch.steer) < 0.08) this.touch.steer = 0;
+                knob.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+                stick.setAttribute('aria-valuenow', String(Math.round(this.touch.steer * 100)));
+            };
+            const down = (ev) => {
+                ev.preventDefault();
+                this.touchPointers.set('steer', ev.pointerId);
+                stick.classList.add('held');
+                try { stick.setPointerCapture(ev.pointerId); } catch { }
+                move(ev);
+            };
+            const up = (ev) => {
+                if (this.touchPointers.get('steer') !== ev.pointerId) return;
+                ev.preventDefault();
+                this.touchPointers.delete('steer');
+                this.touch.steer = 0;
+                stick.classList.remove('held');
+                stick.setAttribute('aria-valuenow', '0');
+                knob.style.transform = '';
+            };
+            stick.addEventListener('pointerdown', down);
+            stick.addEventListener('pointermove', move);
+            stick.addEventListener('pointerup', up);
+            stick.addEventListener('pointercancel', up);
+        }
     }
 
     reset(root = document) {
@@ -61,6 +101,11 @@ export class Input {
         for (const key of Object.keys(this.touch)) this.touch[key] = false;
         this.steerSmooth = 0;
         root.querySelectorAll?.('.pad-btn.held').forEach(el => el.classList.remove('held'));
+        const stick = root.querySelector?.('#steer-stick');
+        const knob = root.querySelector?.('#steer-knob');
+        stick?.classList.remove('held');
+        stick?.setAttribute('aria-valuenow', '0');
+        if (knob) knob.style.transform = '';
     }
 
     setInvert(v) {
@@ -115,14 +160,16 @@ export class Input {
         const drift = k.has(' ') || k.has('shift') || this.touch.drift;
 
         // 轉向做平滑：直接 -1/0/1 會好突兀，尤其係鍵盤
-        const target = (right ? 1 : 0) - (left ? 1 : 0);
+        const keyTarget = (right ? 1 : 0) - (left ? 1 : 0);
+        const stickActive = this.touchPointers.has('steer') || Math.abs(this.touch.steer) > 0.01;
+        const target = stickActive ? this.touch.steer : keyTarget;
         this.steerSmooth += (target - this.steerSmooth) * Math.min(1, dt * 9);
         if (Math.abs(this.steerSmooth) < 0.01) this.steerSmooth = 0;
 
         // 陀螺儀：±22 度（乘靈敏度）打到盡。手指撳掣有輸入嗰陣以手指優先，
         // 唔係嘅話兩種輸入會打交。
         let steer = this.steerSmooth;
-        if (this.gyro.on && target === 0) {
+        if (this.gyro.on && target === 0 && !stickActive) {
             const span = 22 / Math.max(0.3, this.gyroSens);
             steer = Math.max(-1, Math.min(1, this.gyro.tilt / span));
             if (Math.abs(steer) < 0.06) steer = 0;      // 死區：唔會自己遊走

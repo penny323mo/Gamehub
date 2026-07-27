@@ -170,10 +170,37 @@ body {
     pointer-events: auto;
 }
 
+/* MOBA 技能區式弧形排列：油門係右下主掣，煞車同飄移圍住拇指行程。 */
+.pad-side.right {
+    position: relative;
+    width: 220px;
+    height: 156px;
+    flex: 0 0 auto;
+}
+
+.pad-side.right .pad-btn {
+    position: absolute;
+}
+
+#pad-gas {
+    right: 0;
+    bottom: 0;
+}
+
+#pad-brake {
+    right: 102px;
+    bottom: 0;
+}
+
+#pad-drift {
+    right: 74px;
+    bottom: 96px;
+}
+
 .pad-btn {
     width: 74px;
     height: 74px;
-    border-radius: 18px;
+    border-radius: 50%;
     border: 2px solid rgba(255, 255, 255, .35);
     background: rgba(15, 25, 35, .5);
     color: #fff;
@@ -181,6 +208,67 @@ body {
     font-weight: 800;
     cursor: pointer;
     touch-action: none;
+}
+
+/* 類 MOBA 虛擬搖桿：大圓盤接觸區，細圓會跟手指移動。 */
+.steer-stick {
+    position: relative;
+    width: 126px;
+    height: 126px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, .32);
+    background: radial-gradient(circle, rgba(44, 65, 82, .42) 0 38%, rgba(15, 25, 35, .55) 40% 100%);
+    box-shadow: inset 0 0 0 10px rgba(255, 255, 255, .04), 0 5px 18px rgba(0, 0, 0, .22);
+    touch-action: none;
+    pointer-events: auto;
+}
+
+#steer-knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 58px;
+    height: 58px;
+    margin: -29px 0 0 -29px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, .52);
+    background: linear-gradient(145deg, rgba(150, 205, 236, .88), rgba(65, 115, 151, .88));
+    box-shadow: 0 5px 12px rgba(0, 0, 0, .3);
+    pointer-events: none;
+    will-change: transform;
+}
+
+.steer-stick.held {
+    border-color: rgba(160, 225, 255, .72);
+    background: radial-gradient(circle, rgba(65, 118, 151, .5) 0 38%, rgba(15, 35, 50, .62) 40% 100%);
+}
+
+@media (max-width: 430px) and (orientation: portrait) {
+    .steer-stick {
+        width: 108px;
+        height: 108px;
+    }
+
+    #steer-knob {
+        width: 52px;
+        height: 52px;
+        margin: -26px 0 0 -26px;
+    }
+
+    .pad-side.right {
+        width: 190px;
+        height: 156px;
+    }
+
+    #pad-brake {
+        right: 96px;
+    }
+
+    #pad-drift {
+        right: 70px;
+        bottom: 96px;
+    }
 }
 
 .pad-btn.small {
@@ -586,7 +674,17 @@ body {
     .pad-btn {
         width: 58px;
         height: 58px;
-        border-radius: 15px;
+    }
+
+    .steer-stick {
+        width: 100px;
+        height: 100px;
+    }
+
+    #steer-knob {
+        width: 48px;
+        height: 48px;
+        margin: -24px 0 0 -24px;
     }
 
     .pad-btn.small {
@@ -599,6 +697,20 @@ body {
         width: 70px;
         height: 70px;
         font-size: 14px;
+    }
+
+    .pad-side.right {
+        width: 170px;
+        height: 126px;
+    }
+
+    #pad-brake {
+        right: 74px;
+    }
+
+    #pad-drift {
+        right: 58px;
+        bottom: 74px;
     }
 }
 
@@ -690,4 +802,16 @@ body {
     background: rgba(255, 255, 255, .04);
     border-radius: 9px;
     padding: 7px 9px;
+}
+
+.report-btn {
+    min-height: 44px;
+    padding: 5px 12px;
+    border-radius: 9px;
+    border: 2px solid rgba(126, 224, 138, .5);
+    background: rgba(126, 224, 138, .12);
+    color: #eafff0;
+    font-size: 12.5px;
+    font-weight: 800;
+    cursor: pointer;
 }
