@@ -5,6 +5,13 @@
     -webkit-tap-highlight-color: transparent;
 }
 
+:root {
+    /* 用 custom properties 包住 env()，測試可以模擬左右唔對稱嘅手機瀏海。 */
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 html,
 body {
     width: 100%;
@@ -20,6 +27,8 @@ body {
 #game-root {
     position: fixed;
     inset: 0;
+    width: 100dvw;
+    height: 100dvh;
 }
 
 #canvas-holder,
@@ -156,7 +165,7 @@ body {
 #pad {
     position: absolute;
     inset: auto 0 0 0;
-    padding: 0 max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-bottom));
+    padding: 0 max(12px, var(--safe-right)) max(12px, var(--safe-bottom)) max(12px, var(--safe-left));
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
@@ -662,9 +671,9 @@ body {
     }
 
     #pad {
-        padding-right: max(6px, env(safe-area-inset-right));
-        padding-bottom: max(8px, env(safe-area-inset-bottom));
-        padding-left: max(6px, env(safe-area-inset-left));
+        padding-right: max(6px, var(--safe-right));
+        padding-bottom: max(8px, var(--safe-bottom));
+        padding-left: max(6px, var(--safe-left));
     }
 
     .pad-side {

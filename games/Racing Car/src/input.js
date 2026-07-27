@@ -51,6 +51,7 @@ export class Input {
             el.addEventListener('pointerdown', down);
             el.addEventListener('pointerup', up);
             el.addEventListener('pointercancel', up);
+            el.addEventListener('lostpointercapture', up);
         }
 
         // 王者榮耀式虛擬搖桿：圓盤內任何位置都可以落手，拖動距離直接
@@ -92,6 +93,7 @@ export class Input {
             stick.addEventListener('pointermove', move);
             stick.addEventListener('pointerup', up);
             stick.addEventListener('pointercancel', up);
+            stick.addEventListener('lostpointercapture', up);
         }
     }
 

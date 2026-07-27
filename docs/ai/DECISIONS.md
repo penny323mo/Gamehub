@@ -513,3 +513,15 @@ follows what the tyres can use
   steering and the right thumb a clearer primary/secondary action hierarchy than five
   equally weighted buttons. The interaction model is generic; no third-party artwork or
   branded game assets are copied.
+
+## ADR-040: Mobile controls honor asymmetric safe areas and capture loss
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: request `viewport-fit=cover`, keep left/right/bottom safe-area values
+  independent, and position the fixed game root with dynamic viewport units plus the
+  existing fixed-inset fallback. Every held driving pointer must release on
+  `lostpointercapture` as well as pointer up/cancel, including joystick visual state.
+- Reason: an iPhone landscape notch can occupy either side, while browser chrome changes
+  the visual viewport height. Safari or Android system gestures can also revoke pointer
+  capture without a normal pointer-up event; stale throttle or steering is unsafe.

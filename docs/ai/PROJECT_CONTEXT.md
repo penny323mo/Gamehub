@@ -144,9 +144,10 @@ setup suite also guards the continuous-ribbon renderer, mobile geometry budget,
 idle render-on-demand, 320×568 portrait and 667×375 landscape control/HUD layout,
 dual-touch input, adaptive DPR limits, pause/wake-lock lifecycle, WebGL context
 loss/restore, orientation pause, settings, gyro mapping, and minimap.
-It also verifies the analogue joystick/right-thumb action cluster, dual-touch reset,
-and the on-device performance report contract (FPS windows, long frames, DPR, viewport,
-track, and copy feedback) used for physical-phone handoff evidence.
+It also verifies the analogue joystick/right-thumb action cluster, dual-touch and
+capture-loss reset, asymmetric notch safe areas, `viewport-fit=cover`, and the on-device
+performance report contract (FPS windows, long frames, DPR, viewport, track, and copy
+feedback) used for physical-phone handoff evidence.
 
 Royale has a committed regression suite. Run it for any change under
 `games/royale/`:

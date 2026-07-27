@@ -3,78 +3,70 @@
 Updated: 2026-07-27 (Asia/Macau)
 Prepared by: Codex (local)
 Integration branch: `main`
-Baseline before this task: `ee76bec`
-Status: Racing Car larger player car, modern mobile controls, and telemetry verified
+Baseline before this task: `8722b60`
+Status: Racing Car mobile safe-area and forced-touch interruption gaps fixed
 
 ## Current objective
 
 Move Racing Car from its old pixel/voxel presentation to a genuinely phone-playable,
-smooth 3D circuit, including sustained rendering, touch controls, interruption safety,
-and readable portrait/landscape framing.
+smooth 3D circuit, including sustained rendering, modern touch controls, interruption
+safety, and readable portrait/landscape framing.
 
 ## Completed
 
-- Added a privacy-safe on-device performance report generated from active race frames.
-- Report includes active seconds, viewport, quality/DPR, average fps, lowest 3.5-second
-  fps window, >34ms frame count, slowest frame, and track id.
-- Auto, Sharp, and Battery now all collect fps windows; only Auto may alter DPR.
-- Returning to menu exposes the report and a 44px Copy Report button.
-- Copy uses the modern Clipboard API, falls back to `execCommand`, and only claims
-  success when the browser confirms it; otherwise it tells the player to long-press.
-- Added committed report-contract and copy-feedback gates. See ADR-037.
-- Enlarged the current 6.9-unit player car by another 50% to 10.35 units (225% of
-  the original 4.6-unit model), including its contact shadow. Physics is unchanged.
-- Updated the committed visual-scale gate. See ADR-038.
-- Replaced the left/right arrows with a MOBA-style analogue joystick: continuous
-  horizontal steering, pointer capture, dead zone, release/reset, and gyro arbitration.
-- Reworked the right controls into a MOBA-style thumb arc: large gas at bottom-right,
-  brake at bottom-left, and drift above. All action controls remain circular and stay
-  inside the 320px portrait viewport.
-- Added joystick analogue/dead-zone, pointer-capture, release/blur reset, dual-touch,
-  responsive hierarchy, and non-overlap gates. See ADR-039.
+- Added `viewport-fit=cover` so Mobile Safari exposes real notch/home-indicator insets.
+- Split left, right, and bottom control safe areas into independent CSS properties;
+  right-side action controls no longer reuse the left notch inset.
+- Added dynamic viewport sizing while preserving fixed-inset fallback behavior.
+- Gas, brake, drift, and analogue joystick now release on `lostpointercapture` as well
+  as pointer up/cancel. Forced capture loss clears input, pointer ownership, held style,
+  joystick ARIA value, and knob translation. See ADR-040.
+- Preserved the 10.35-unit player car, modern analogue controls, physical-phone report,
+  interruption recovery, adaptive DPR, and smooth 3D track from ADR-032 to ADR-039.
 
 ## Changed files
 
-- `games/Racing Car/index.html`, `style.css`, `src/main.js`, `src/input.js`
+- `games/Racing Car/index.html`, `style.css`, `src/input.js`
 - `games/Racing Car/tests/setup.mjs`
-- `docs/ai/PROJECT_CONTEXT.md`, `DECISIONS.md` (ADR-037 to ADR-039), `HANDOFF.md`
+- `docs/ai/PROJECT_CONTEXT.md`, `DECISIONS.md` (ADR-040), `HANDOFF.md`
 
 ## Verification
 
-- `npm test` in `games/Racing Car/tests`: PASS — race 45/45 and setup 48/48.
-- Existing three-track physics, 225% car, smooth renderer, dual touch, smallest layouts,
-  adaptive DPR, idle GPU, Wake Lock, orientation, and WebGL recovery remain green.
-- Headed 430×900 / 3× device DPR / coarse pointer / 4× CPU slowdown generated:
-  `23.8s`, Auto DPR `1.50`, average `59 fps`, minimum `59 fps`, two long frames,
-  slowest `202ms`, turbo track.
-- The generated report appeared after Pause → Return to Menu, wrapped inside the
-  settings panel without overflow, and the 44px Copy Report action returned the same text.
-- Browser screenshot visually passed; settings, gyro controls, instructions, and Start
-  remained usable around the added report.
-- Headed 430×900 portrait verified a 108px analogue pad, 92px gas, 60px brake/drift,
-  visible 10.35-unit car, and live joystick drag (`aria=82`).
-- Headed 844×390 landscape verified a 126px analogue pad, the same right-thumb action
-  hierarchy, explicit post-rotation Resume, and zero overlap among controls/speed/minimap.
+- `npm test` in `games/Racing Car/tests`: PASS — race 45/45 and setup 50/50.
+- Forced `lostpointercapture` with held gas + full-right joystick reset both values,
+  two pointer owners, held classes, ARIA value, and knob transform to neutral.
+- Simulated 844×390 landscape safe areas of left 34px, right 52px, bottom 21px:
+  joystick and gas retained their independent edge distances; viewport meta included
+  `viewport-fit=cover`.
+- 320×568 portrait and 667×375 landscape legacy gates remained green, including 44px
+  targets, 100px joystick, circular action hierarchy, minimap/speed/control non-overlap.
+- Headed hardware-accelerated 844×390 / DPR 3 / 4× CPU run for 12 seconds: average
+  53 fps, recent window 60 fps, minimum window 41 fps, Auto DPR 1.25, 13 draw calls,
+  53,941 triangles. Six long frames included the initial 500ms warm-up hitch.
+- SwiftShader contrast ran 1×/2×/4× CPU at 24/22/21 fps while JS script time stayed
+  only 54/68/133ms per six seconds; this identifies software rasterization, not game JS,
+  as that lane's bottleneck.
 - No functional browser error; only the pre-existing root favicon 404.
 
 ## Known issues and cautions
 
-- This makes physical acceptance measurable but does not fabricate physical evidence.
-  Penny must still run it on her phone for heat, Mobile Safari/Chrome, and gyro feel.
-- The first shader/warm-up hitch is deliberately included in long-frame/max-frame data.
+- Desktop hardware and emulation still cannot certify phone heat, Mobile Safari/Chrome,
+  home-indicator ergonomics, gyro feel, or a sustained physical-device lap.
+- The first shader/model warm-up hitch is deliberately included in report data.
 - Reports contain no user-agent or device identifier; ask Penny for model/browser separately.
 
 ## Exact next action
 
 1. Receiving agent runs `./scripts/agent-context.sh --sync` before reading this file.
-2. Penny opens the live game, drives one full lap, rotates/backgrounds once, returns to
-   menu, taps `複製報告`, and pastes the one-line report with phone/browser and heat feel.
-3. If physical average/minimum pacing and controls pass, close the original objective;
-   otherwise tune against the measured DPR/fps/long-frame evidence.
+2. Penny opens the live game on her phone, drives one full lap, rotates/backgrounds once,
+   returns to menu, taps `複製報告`, and pastes the report with phone/browser and heat feel.
+3. If physical controls, safe areas, average/minimum pacing, and heat pass, close the
+   original objective; otherwise tune against the measured report and exact device symptom.
 
 ## Do not redo
 
-- Do not infer physical-device success from desktop emulation or delete the report gate.
+- Do not remove `viewport-fit=cover`, independent safe-area edges, or capture-loss reset.
+- Do not infer physical-device success from desktop emulation or software rendering.
 - Do not include user-agent, identifiers, credentials, or secrets in the report.
 - Do not let performance telemetry alter physics, collision, or track mesh.
 - Do not auto-resume after GPU, rotation, visibility, or page interruption.

@@ -271,6 +271,40 @@ check('離開頁面會清走油門兼令搖桿回中', touch.released.throttle =
     && touch.released.steer === 0 && touch.heldControls === 0
     && touch.ariaAfter === '0' && touch.knobAfter === '', touch);
 
+// Mobile Safari／Android 系統 gesture 可以直接收走 pointer capture；唔一定先送 pointerup。
+const captureLoss = await page.evaluate(() => {
+    const root = window.__racer;
+    const { input } = root;
+    root.startRace();
+    const fire = (id, type, pointerId, coords = {}) => document.getElementById(id).dispatchEvent(new PointerEvent(type, {
+        bubbles: true, cancelable: true, pointerType: 'touch', pointerId, ...coords,
+    }));
+    const stick = document.getElementById('steer-stick');
+    const r = stick.getBoundingClientRect();
+    fire('pad-gas', 'pointerdown', 31);
+    fire('steer-stick', 'pointerdown', 32, { clientX: r.right, clientY: r.top + r.height / 2 });
+    input.read(1);
+    const before = { gas: input.touch.gas, steer: input.touch.steer, pointers: input.touchPointers.size };
+    fire('pad-gas', 'lostpointercapture', 31);
+    fire('steer-stick', 'lostpointercapture', 32);
+    const afterRead = input.read(1);
+    const after = {
+        gas: input.touch.gas, steer: input.touch.steer, pointers: input.touchPointers.size,
+        held: document.querySelectorAll('.pad-btn.held, .steer-stick.held').length,
+        aria: stick.getAttribute('aria-valuenow'),
+        knob: document.getElementById('steer-knob').style.transform,
+    };
+    root.pauseRace('capture-loss 測試完成');
+    root.toMenu();
+    return { before, afterRead, after };
+});
+console.log('  ', JSON.stringify(captureLoss));
+check('pointer capture 被系統收走會即刻放油兼回中', captureLoss.before.gas
+    && captureLoss.before.steer > 0.9 && captureLoss.before.pointers === 2
+    && captureLoss.afterRead.throttle === 0 && captureLoss.afterRead.steer === 0
+    && !captureLoss.after.gas && captureLoss.after.steer === 0 && captureLoss.after.pointers === 0
+    && captureLoss.after.held === 0 && captureLoss.after.aria === '0' && captureLoss.after.knob === '', captureLoss);
+
 // T5c：暫停要凍結 running、清 input、顯示 overlay；恢復同返 menu 都要完整。
 const lifecycle = await page.evaluate(async () => {
     const root = window.__racer;
@@ -463,6 +497,33 @@ const driftButton = narrow.buttons.find(b => b.id === 'pad-drift');
 check('右手控制係主油門 + 煞車／飄移弧形層級', gasButton.width > brakeButton.width
     && gasButton.width > driftButton.width && brakeButton.left < gasButton.left
     && driftButton.top < brakeButton.top, narrow.buttons);
+
+// iPhone 橫屏瀏海可以喺任何一邊；兩邊 inset 必須獨立生效。
+await page.setViewportSize({ width: 844, height: 390 });
+const safeArea = await page.evaluate(() => {
+    document.documentElement.style.setProperty('--safe-left', '34px');
+    document.documentElement.style.setProperty('--safe-right', '52px');
+    document.documentElement.style.setProperty('--safe-bottom', '21px');
+    const root = window.__racer;
+    root.startRace();
+    const rect = id => document.getElementById(id).getBoundingClientRect().toJSON();
+    const out = {
+        viewport: [innerWidth, innerHeight],
+        viewportMeta: document.querySelector('meta[name="viewport"]').content,
+        stick: rect('steer-stick'), gas: rect('pad-gas'),
+    };
+    root.pauseRace('safe-area 測試完成');
+    root.toMenu();
+    document.documentElement.style.removeProperty('--safe-left');
+    document.documentElement.style.removeProperty('--safe-right');
+    document.documentElement.style.removeProperty('--safe-bottom');
+    return out;
+});
+console.log('  ', JSON.stringify(safeArea));
+check('左右不對稱瀏海 safe-area 各自保護搖桿同油門', safeArea.viewportMeta.includes('viewport-fit=cover')
+    && safeArea.stick.left >= 34 && safeArea.viewport[0] - safeArea.gas.right >= 52
+    && safeArea.viewport[1] - safeArea.stick.bottom >= 21
+    && safeArea.viewport[1] - safeArea.gas.bottom >= 21, safeArea);
 await page.setViewportSize({ width: 667, height: 375 });
 const shortLandscape = await page.evaluate(() => {
     const root = window.__racer;
