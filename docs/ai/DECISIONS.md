@@ -382,3 +382,17 @@ follows what the tyres can use
   screen once slip passes about 60 degrees — verified in a screenshot, the car was
   a sliver at the frame edge. In a game whose whole subject is drifting, the drift
   is the moment the player most needs to see the car.
+
+## ADR-031: Barriers merge into runs, which is what lets BLOCK reach 0.25
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: barrier cells merge along x into single scaled boxes, the same way the
+  ground merges into quads (ADR-028). `BLOCK` is 0.25 and the noise texture is
+  128x128 so one texel still covers one cell without visible tiling.
+- Reason: after ADR-028 the ground was nearly free and the barriers became the whole
+  cost — 15,421 cubes, 185k of the 222k triangles, and the reason the blocks could
+  not shrink further. Merged runs scale with the circuit's perimeter instead of with
+  1/BLOCK², so 2,364 runs cover the same barriers. At a quarter of the original
+  block size the whole world is 86k triangles in 5 draw calls, well under what it
+  cost at half the resolution.

@@ -18,7 +18,10 @@
 import * as THREE from 'three';
 
 // BLOCK 純粹係「解像度」旋鈕：所有尺寸都用世界單位寫，除返 BLOCK 先變格數。
-export const BLOCK = 0.5;
+// 0.25 = 原本嘅四分一。做得到係因為地面同欄杆都併咗條：turbo 由 50 萬格
+// 收成 19,594 個 quad ＋ 2,364 條欄杆＝六萬幾個三角形，反而少過未併之前
+// 用 0.5 嗰陣嘅二十二萬。
+export const BLOCK = 0.25;
 const ROAD_HALF_W = 12;              // 路面半闊（世界單位）→ 全闊 24
 const KERB_W = 2;                    // 紅白路肩闊度
 const GRASS_W = 8;                   // 草地緩衝闊度（衝出去仲救得返）
@@ -45,10 +48,11 @@ KINDS.forEach((k, i) => { if (k) C[k.name] = i; });
 const DRIVABLE = new Set([C.road, C.line, C.start, C.startB, C.kerbA, C.kerbB]);
 
 // 一格一個 texel 嘅光暗噪聲。整一次就成個 app 共用。
+// 128×128：BLOCK 0.25 之下每 32 個世界單位先重複一次，望唔出貼圖接縫。
 let _noiseTex = null;
 function noiseTexture() {
     if (_noiseTex) return _noiseTex;
-    const N = 64, data = new Uint8Array(N * N * 4);
+    const N = 128, data = new Uint8Array(N * N * 4);
     for (let i = 0; i < N * N; i++) {
         const n = Math.sin(i * 12.9898 + (i % N) * 78.233) * 43758.5453;
         const v = Math.round(238 + ((n - Math.floor(n)) - 0.5) * 34);   // 約 ±7%
@@ -295,8 +299,8 @@ export class Track {
                 const z0 = (z + this.minCZ) * BLOCK - half, z1 = z0 + BLOCK;
                 pos.push(x0, 0, z0, x1, 0, z0, x1, 0, z1, x0, 0, z1);
                 // UV 一格一個 texel（噪聲圖 64×64，nearest）
-                const u0 = (runStart + this.minCX) / 64, u1 = (endX + this.minCX) / 64;
-                const w0 = (z + this.minCZ) / 64, w1 = w0 + 1 / 64;
+                const u0 = (runStart + this.minCX) / 128, u1 = (endX + this.minCX) / 128;
+                const w0 = (z + this.minCZ) / 128, w1 = w0 + 1 / 128;
                 uv.push(u0, w0, u1, w0, u1, w1, u0, w1);
                 c.setHex(KINDS[run].color);
                 for (let k = 0; k < 4; k++) col.push(c.r, c.g, c.b);
@@ -323,27 +327,39 @@ export class Track {
         }));
     }
 
-    // 欄杆：企高，要真方塊，用 InstancedMesh 一個 draw call 出晒
+    // 欄杆：企高，所以要真方塊。同地面一樣沿 x 併埋成一條條長方體——
+    // 欄杆帶有六格深，逐格一個立方體嘅話佢一個就食晒八成三角形，
+    // 反而變咗「格仔想縮細」嘅樽頸。併咗之後個數同賽道周長成正比，
+    // 唔再同 BLOCK 嘅平方成反比。
     #buildWalls() {
-        let n = 0;
-        for (let i = 0; i < this.grid.length; i++) if (this.grid[i] === C.wall) n++;
-        const geo = new THREE.BoxGeometry(BLOCK, WALL_H, BLOCK);
-        const mesh = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial(), n);
+        const geo = new THREE.BoxGeometry(1, WALL_H, BLOCK);   // x 方向之後用 scale 撐長
+        const runs = [];
+        for (let z = 0; z < this.gh; z++) {
+            let start = -1;
+            for (let x = 0; x <= this.gw; x++) {
+                const isWall = x < this.gw && this.grid[z * this.gw + x] === C.wall;
+                if (isWall && start < 0) start = x;
+                else if (!isWall && start >= 0) { runs.push([start, x, z]); start = -1; }
+            }
+        }
+        const mesh = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial(), runs.length);
         const m = new THREE.Matrix4(), color = new THREE.Color();
-        let j = 0;
-        for (let i = 0; i < this.grid.length; i++) {
-            if (this.grid[i] !== C.wall) continue;
-            const cx = (i % this.gw) + this.minCX, cz = Math.floor(i / this.gw) + this.minCZ;
-            m.makeTranslation(cx * BLOCK, WALL_H / 2 - BLOCK, cz * BLOCK);
+        const p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+        runs.forEach(([x0, x1, z], j) => {
+            const len = (x1 - x0) * BLOCK;
+            const cx = (x0 + this.minCX) * BLOCK - BLOCK / 2 + len / 2;
+            const cz = (z + this.minCZ) * BLOCK;
+            p.set(cx, WALL_H / 2 - BLOCK, cz);
+            s.set(len, 1, 1);
+            m.compose(p, q, s);
             mesh.setMatrixAt(j, m);
-            const nz = Math.sin(cx * 45.164 + cz * 23.14) * 43758.5453;
+            const nz = Math.sin((x0 + this.minCX) * 45.164 + (z + this.minCZ) * 23.14) * 43758.5453;
             color.setHex(KINDS[C.wall].color).multiplyScalar(1 + ((nz - Math.floor(nz)) - 0.5) * 0.12);
             mesh.setColorAt(j, color);
-            j++;
-        }
+        });
         mesh.instanceMatrix.needsUpdate = true;
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-        this.wallCount = n;
+        this.wallCount = runs.length;
         return mesh;
     }
 

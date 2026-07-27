@@ -297,8 +297,13 @@ for (const id of TRACK_IDS) {
             const angErr = Math.atan2(fwd.x * to.z - fwd.z * to.x, fwd.dot(to));
             // 甩緊尾就先救車：油門收返、軚以反打為主。人揸車都係咁——
             // 一路滑一路照踩爆油追線，只會由細滑變成打圈。
+            // 收油救車只喺有速度嗰陣先有意義。慢車又減油嘅話，喺草地上面
+            // 油門推力細過 offroadDrag，架車永遠爬唔返上賽道，最後要拖——
+            // 實測 coast 每圈都係咁攞一次拖車。
             const slip = Math.abs(car.slipAngle);
-            const ease = slip > 0.3 ? Math.max(0.15, 1 - (slip - 0.3) * 2.2) : 1;
+            const ease = (slip > 0.3 && speed > 10)
+                ? Math.max(0.15, 1 - (slip - 0.3) * 2.2)
+                : 1;
             return {
                 throttle: Math.max(-1, Math.min(1, (vMax - speed) * 0.35)) * ease,
                 // 追線之餘要反打：甩緊尾就唔可以再死扭軚，否則一定打圈
@@ -331,10 +336,9 @@ for (const id of TRACK_IDS) {
     check(`${id}：自動駕駛完成三圈`, lap.state === 'finished' && lap.laps === 3, lap);
     check(`${id}：主要留喺路面（<20%）`, lap.offroadPct < 20, lap.offroadPct);
     check(`${id}：唔會長期撞欄`, lap.wallHits < 120, lap.wallHits);
-    // 拖車 = 車手完全揸失手。呢個測試車手係個好簡單嘅控制器，喺 coast
-    // 嗰兩個最快嘅彎偶然會overcook，所以容許少量；真正把關嘅係「跑得完
-    // 三圈」「留喺路面」「唔會一路刮欄」。全部歸零係車手嘅事，唔係賽道嘅事。
-    check(`${id}：唔會失控到要拖車（≤2）`, lap.rescues <= 2, lap.rescues);
+    // 拖車 = 完全揸失手。之前容許過兩次，其實係遮住咗車手自己嘅 bug
+    // （落草之後收油收到爬唔返出嚟）。改好之後三條賽道都係零，所以收返緊。
+    check(`${id}：唔使拖車`, lap.rescues === 0, lap.rescues);
 }
 
 // T4b：車頭頂正欄杆唔可以永遠釘死——踩住油卡夠 3 秒就要拖返賽道。
