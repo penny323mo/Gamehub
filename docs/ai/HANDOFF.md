@@ -97,10 +97,9 @@ computer rivals (someone else's pace) and a ghost of your own best lap (your own
 
 ## Do not redo
 
-- Do not give rivals the player's GLB, and do not give each rival its own mesh or
-  material — that is what breaks the phone budget (ADR-045).
-- Do not compute track position with a per-frame modulo (ADR-046).
-- Do not replace body-box separation with a single radius (ADR-047).
+- Do not give rivals the player's GLB or their own mesh/material (ADR-045), compute
+  track position with a per-frame modulo (ADR-046), or replace body-box separation
+  with a single radius (ADR-047).
 - Do not duplicate the driver back into the tests; the shared copy is the point.
 - Do not replay the ghost frame-by-frame, and do not let it touch physics (ADR-048).
 - Do not advance track progress from inside a getter or the HUD (ADR-049).
@@ -108,14 +107,13 @@ computer rivals (someone else's pace) and a ghost of your own best lap (your own
   collapse the pointer-to-action map into a single active action (ADR-050).
 - Do not restore per-frame overlapping thick skid segments or dotted opaque smoke,
   allocate a mesh per particle, or leave effects alive across restarts (ADR-044).
-- Do not shrink the 156px landscape / 118px narrow steering disc without Penny asking.
-- Do not remove safe-area, capture-loss, warm-up, adaptive-DPR, or interruption
-  recovery, and do not infer physical-device success from desktop emulation.
+- Do not shrink the 156px landscape / 118px steering disc without Penny asking, drop
+  safe-area, capture-loss, warm-up, adaptive-DPR or interruption recovery, or infer
+  physical-device success from desktop emulation.
 - Do not flip the steering sign in `car.js` without evidence from Penny's device.
-- Do not recompose the car's world velocity from post-rotation axes (ADR-025), or
-  subtract the yaw damping term from `latR` (ADR-026).
-- Do not zero a whole axis on barrier contact, and do not remove the stuck tow
-  (ADR-027) — rivals now rely on the same rule.
+- Do not recompose world velocity from post-rotation axes (ADR-025), subtract the
+  yaw damping term from `latR` (ADR-026), zero a whole axis on barrier contact, or
+  remove the stuck tow (ADR-027) — rivals rely on that tow too.
 - Do not remove the rear traction cap (ADR-029) or point the chase camera straight
   down the heading (ADR-030).
 - Do not write verification scripts outside the repository (ADR-022).
