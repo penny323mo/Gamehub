@@ -28,7 +28,7 @@ Chromium 點揀（`lib/harness.mjs`）：`PLAYWRIGHT_CHROMIUM` 環境變數 → 
 | `leak.mjs` | GPU 資源洩漏閘（ADR-008）：六個開場／收場回合，geometries 同 textures 必須完全持平 |
 | `gauntlet.mjs` | 連勝挑戰戰場條件（ADR-013）＋ AI 公平性（ADR-007）：條件要對雙方對稱 |
 | `combat.mjs` | 傷害漏斗 `Game#damage`：相剋、護甲、攻城加成、卡面文字同數據一致 |
-| `pvp-guest.mjs` | PvP guest 視角對調（ADR-011）：手牌／單位／塔／勝負／`pendingHand` |
+| `pvp-guest.mjs` | PvP guest 視角對調（ADR-011）：手牌／單位／塔／勝負／`pendingHand`，加建／棄四轉唔漏 GPU 資源 |
 | `match.mjs` | 一場對局嘅生命週期：投降入賬、返選單清場、AI 唔塞死、對局有結果 |
 | `rts.mjs` | LV2 RTS：雙方開局對稱、科技／年代／人口／花費閘、相剋倍率同 Clash 一致、進出四轉唔漏 GPU 資源 |
 | `session.mjs` | 長時間混合模式：五輪「兩場 Clash + 一轉 LV2 + 重播捕捉」之後，GPU 資源要回到基準（基準以上嘅 texture 要由傷害數字快取解釋到） |

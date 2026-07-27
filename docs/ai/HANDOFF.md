@@ -1,54 +1,44 @@
 # Current cross-agent handoff
 
-Updated: 2026-07-26 (Asia/Macau)
+Updated: 2026-07-27 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Baseline before this task: `17d1482`
-Status: mixed-mode session suite added; it found a second texture leak, now fixed
+Baseline before this task: `2953035`
+Status: guest render path now leak-gated too; it came back clean, no fix needed
 
 ## Current objective
 
-Cover what single-mode tests structurally cannot: a long session that keeps switching
-modes. Leaks live in the seams between modes, and a rising GPU texture count is the
-mechanism behind the player's "it flashes black after a while" report. The new test
-failed on first run and exposed a second leak.
+Close the last unguarded teardown path. Two leaks had just been found in two different
+dispose paths, and the PvP guest renderer — which builds its own entities, HP bars, and
+one-shot effects from host snapshots — had never been leak-tested. It can be driven
+offline with fake snapshots, so no Supabase access was needed.
 
 ## Completed
 
-- Added `games/royale/tests/session.mjs`: five rounds of two full Clash matches plus
-  an LV2 entry and exit, checking GPU resources at every round boundary. The suite is
-  now eight files and 110 checks.
-- Fixed the leak it found. The crown-pop effect owns a `CanvasTexture` and released it
-  in `onEnd`, but killing a king tower ends the match immediately, so cleanup ran
-  first and the texture leaked every match.
-- Split the two meanings that were sharing `onEnd`. Effects now release owned
-  resources in `onDispose`, which runs both on natural completion and on teardown;
-  `onEnd` stays "the duration elapsed, do the thing" and is still never called during
-  cleanup, because for spells it detonates the impact. ADR-024 records this.
-- Exported `dmgTextureCacheSize()` so a test can tell a filling cache apart from a
-  leak. The damage-number cache is deliberately kept across matches and bounded at 96,
-  so texture count legitimately sits above the boot baseline.
+- Extended `pvp-guest.mjs` with a construct/dispose leak gate: four rounds of building
+  a `GuestGame`, feeding snapshots that carry every one-shot effect the host can send
+  (spell telegraph, explosion ring, heal pulse), ticking, and disposing.
+- Result is a clean bill: geometries 116 and textures 19, identical in all four rounds.
+  The guest path was already correct — `dispose()` clears entities, HP bars, and the
+  `fxRings` set, and guest telegraphs use plain materials with no textures.
+- This is a deliberate negative result. It is worth having because the guest renderer
+  is the one teardown path a cloud agent cannot reach through real matchmaking, so
+  without this gate a future regression there would only surface on a player's device.
+- The suite is now eight files and 112 checks; no production code changed.
 
 ## Changed files
 
-- `games/royale/tests/session.mjs` (new), `run-all.mjs`, `README.md`
-- `games/royale/src/game.js` (`onDispose` hook, `dmgTextureCacheSize`)
-- `games/royale/src/main.js` (`cleanupMatch` releases effect-owned resources)
-- `docs/ai/DECISIONS.md` (ADR-024), `docs/ai/HANDOFF.md`
+- `games/royale/tests/pvp-guest.mjs`, `README.md`
+- `docs/ai/HANDOFF.md`
 
 ## Verification
 
-- `npm test` in `games/royale/tests`: 8/8 suites, 110 checks, all pass.
-- The leak, measured before the fix: three mixed rounds gave textures 24, 27, 30 with
-  geometries flat at 117 — three lost textures per round.
-- After the crown fix the same shape of run gives 23, 24, 25, 25, 26 across five
-  rounds, and every texture above the boot baseline is accounted for: excess 7 against
-  a damage-number cache holding 62 entries, cache under its 96 cap.
-- Geometries stayed flat at 117 in every round and returned to within one of the boot
-  baseline of 116.
-- `leak.mjs` and `rts.mjs` still pass unchanged, so neither the `onDispose` split nor
-  the cleanup change disturbed the single-mode paths.
+- `npm test` in `games/royale/tests`: 8/8 suites, 112 checks, all pass.
+- Guest gate: rounds 1-4 all report 116 geometries and 19 textures, so nothing is
+  retained across construct/dispose cycles even with telegraphs and rings in flight.
+- The three earlier gates still hold: Clash 116/20 flat over six cycles, LV2 20/20/20/20
+  over four enter/exit cycles, mixed session excess 7 against a 62-entry cache.
 - `./scripts/check-handoff.sh`: PASS.
 
 ## Known issues and cautions

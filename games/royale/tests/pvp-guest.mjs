@@ -92,6 +92,52 @@ check('pendingHand 鎖住未確認嘅格', out.stillLocked);
 check('手牌換咗就解鎖', out.unlockedByChange);
 check('超時亦會解鎖', out.unlockedByTimeout);
 
+// T2：guest 渲染路徑嘅洩漏閘。guest 有自己一套 dispose（entities/hpBars/fxRings），
+// 同 Clash 嗰邊唔同條路，而且 host 廣播落嚟嘅一次性特效（法術預警／爆炸／治療）
+// 全部係 guest 自己建嘅 mesh——最容易漏就係呢啲。
+const cycles = [];
+for (let round = 1; round <= 4; round++) {
+    const m = await r.page.evaluate(async (round) => {
+        const THREE = await import('three');
+        const { GuestGame } = await import('./src/pvp.js');
+        const g = new GuestGame(window.__royaleScene ?? new THREE.Scene());
+        const snap = (fx) => ({
+            time: 170, phase: 'regulation', mult: 1, crowns: { 0: 0, 1: 0 },
+            players: {
+                0: { elixir: 6, hand: ['militia', 'archers', 'knight', 'ram'], next: 'fireball' },
+                1: { elixir: 6, hand: ['pikemen', 'ram', 'catapult', 'freeze'], next: 'arrows' },
+            },
+            playedCards: { 0: [], 1: [] },
+            entities: [
+                { id: 1, team: 0, cardId: 'knight', isTower: false, x: 0, z: 3, hp: 780, maxHp: 780, dead: false, facing: 0, moving: true, attackT: -1 },
+                { id: 2, team: 1, cardId: 'archers', isTower: false, x: 1, z: -3, hp: 140, maxHp: 140, dead: false, facing: 0, moving: true, attackT: -1 },
+                { id: 3, team: 0, cardId: null, isTower: true, towerKind: 'left_princess', x: -4.5, z: 10.5, hp: 1500, maxHp: 1500, dead: false, facing: 0, moving: false, attackT: -1 },
+            ],
+            fx,
+        });
+        // 一次性特效全部走一次：法術預警、爆炸、治療脈衝、王塔甦醒
+        g.applySnapshot(snap([
+            { k: 'spell', x: 0, z: -6, r: 1.9, d: 0.6, team: 0, id: 'fireball' },
+            { x: 2, z: 1, r: 2, color: 0xff7a3c },
+            { x: -2, z: 2, r: 1.4, color: 0x6ad07a },
+        ]));
+        for (let f = 0; f < 90; f++) g.tick(1 / 60);
+        g.applySnapshot(snap([{ k: 'spell', x: 3, z: 4, r: 3, d: 0.5, team: 1, id: 'arrows' }]));
+        for (let f = 0; f < 90; f++) g.tick(1 / 60);
+        g.dispose();
+        await new Promise(res => setTimeout(res, 60));
+        const info = window.__royaleRenderer.info.memory;
+        return { round, geometries: info.geometries, textures: info.textures };
+    }, round);
+    console.log('  ', JSON.stringify(m));
+    cycles.push(m);
+}
+// 第一轉會建立共用資源，由第二轉起要完全持平
+const gGeo = cycles.slice(1).map(x => x.geometries);
+const gTex = cycles.slice(1).map(x => x.textures);
+check('guest 建／棄四轉 geometries 持平', new Set(gGeo).size === 1, cycles.map(x => x.geometries));
+check('guest 建／棄四轉 textures 持平', new Set(gTex).size === 1, cycles.map(x => x.textures));
+
 checkNoErrors(r.errors);
 await r.close();
 finish('pvp-guest');
