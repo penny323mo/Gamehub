@@ -261,8 +261,17 @@ body {
     overflow: visible;
 }
 
+#screen-pause {
+    z-index: 70; /* context-loss recovery 必須蓋過 menu 同 finish */
+}
+
 .pause-panel .big-btn + .big-btn {
     margin-top: 10px;
+}
+
+.pause-panel .big-btn:disabled {
+    opacity: .45;
+    cursor: wait;
 }
 
 .panel h1 {

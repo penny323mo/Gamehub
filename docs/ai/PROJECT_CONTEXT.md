@@ -142,8 +142,8 @@ The autopilot lap is the load-bearing gameplay check: a broken track shape, an
 impossible corner, or barriers too close to the road all fail it immediately. The
 setup suite also guards the continuous-ribbon renderer, mobile geometry budget,
 idle render-on-demand, 320×568 portrait and 667×375 landscape control/HUD layout,
-dual-touch input, adaptive DPR limits, pause/wake-lock lifecycle, settings, gyro
-mapping, and minimap.
+dual-touch input, adaptive DPR limits, pause/wake-lock lifecycle, WebGL context
+loss/restore, orientation pause, settings, gyro mapping, and minimap.
 
 Royale has a committed regression suite. Run it for any change under
 `games/royale/`:

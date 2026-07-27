@@ -277,7 +277,79 @@ check('Wake Lock 會比賽時保持亮屏、暫停／過期 request 會釋放',
 check('暫停後返回選單會清乾淨 lifecycle', !lifecycle.atMenu.running
     && !lifecycle.atMenu.paused && lifecycle.atMenu.menu && lifecycle.atMenu.hud, lifecycle);
 
-// T5d：非比賽畫面唔可以繼續 60 fps 燒 GPU；設定改動就只補畫一幀。
+// T5d：真 WebGL context loss 要凍結比賽；GPU 回復後畀玩家明確繼續。
+const gpuRecovery = await page.evaluate(async () => {
+    const root = window.__racer;
+    const ext = root.renderer.getContext().getExtension('WEBGL_lose_context');
+    if (!ext) return { supported: false };
+    root.startRace();
+    root.input.touch.gas = true;
+    root.input.steerSmooth = 1;
+    ext.loseContext();
+    await new Promise(r => setTimeout(r, 180));
+    const atLoss = {
+        lost: root.contextLost, running: root.running, paused: root.paused,
+        gas: root.input.touch.gas, steer: root.input.steerSmooth,
+        overlay: !document.getElementById('screen-pause').classList.contains('hidden'),
+        disabled: document.getElementById('resume-btn').disabled,
+        menuDisabled: document.getElementById('pause-menu-btn').disabled,
+        reload: !document.getElementById('reload-btn').classList.contains('hidden'),
+        reason: document.getElementById('pause-reason').textContent,
+    };
+    const beforeRestore = root.renderCount;
+    ext.restoreContext();
+    const limit = performance.now() + 3000;
+    while (root.contextLost && performance.now() < limit) await new Promise(r => setTimeout(r, 40));
+    if (!root.contextLost) await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const atRestore = {
+        lost: root.contextLost,
+        disabled: document.getElementById('resume-btn').disabled,
+        menuDisabled: document.getElementById('pause-menu-btn').disabled,
+        reload: !document.getElementById('reload-btn').classList.contains('hidden'),
+        reason: document.getElementById('pause-reason').textContent,
+        frames: root.renderCount - beforeRestore,
+        calls: root.renderer.info.render.calls,
+        tris: root.renderer.info.render.triangles,
+    };
+    const resumed = root.resumeRace();
+    root.pauseRace();
+    root.toMenu();
+    return { supported: true, atLoss, atRestore, resumed };
+});
+console.log('  ', JSON.stringify(gpuRecovery));
+check('WebGL context loss 會凍結物理、清 input、顯示 reload fallback', gpuRecovery.supported
+    && gpuRecovery.atLoss.lost && !gpuRecovery.atLoss.running && gpuRecovery.atLoss.paused
+    && !gpuRecovery.atLoss.gas && gpuRecovery.atLoss.steer === 0 && gpuRecovery.atLoss.overlay
+    && gpuRecovery.atLoss.disabled && gpuRecovery.atLoss.menuDisabled && gpuRecovery.atLoss.reload
+    && gpuRecovery.atLoss.reason.includes('3D'), gpuRecovery);
+check('WebGL context restored 後只容許玩家明確繼續', !gpuRecovery.atRestore?.lost
+    && !gpuRecovery.atRestore?.disabled && !gpuRecovery.atRestore?.menuDisabled
+    && !gpuRecovery.atRestore?.reload
+    && gpuRecovery.atRestore?.reason.includes('已恢復') && gpuRecovery.atRestore?.frames >= 1
+    && gpuRecovery.atRestore?.calls > 0 && gpuRecovery.atRestore?.tris > 0
+    && gpuRecovery.resumed, gpuRecovery);
+
+// T5e：旋轉手機會搬走操控掣，先清 input 暫停，唔可以黐住油門繼續衝。
+const rotatePause = await page.evaluate(async () => {
+    const root = window.__racer;
+    root.startRace();
+    root.input.touch.gas = true;
+    root.input.steerSmooth = -1;
+    dispatchEvent(new Event('orientationchange'));
+    await new Promise(r => setTimeout(r, 180));
+    const out = {
+        running: root.running, paused: root.paused,
+        gas: root.input.touch.gas, steer: root.input.steerSmooth,
+        reason: document.getElementById('pause-reason').textContent,
+    };
+    root.toMenu();
+    return out;
+});
+console.log('  ', JSON.stringify(rotatePause));
+check('旋轉手機會安全暫停兼清走黐住嘅操控', !rotatePause.running && rotatePause.paused
+    && !rotatePause.gas && rotatePause.steer === 0 && rotatePause.reason.includes('方向'), rotatePause);
+
+// T5f：非比賽畫面唔可以繼續 60 fps 燒 GPU；設定改動就只補畫一幀。
 const idleRender = await page.evaluate(async () => {
     const root = window.__racer;
     root.toMenu();
@@ -302,7 +374,7 @@ check('Menu／暫停唔會持續重畫 3D 世界', idleRender.idleFrames === 0, 
 check('改設定只會按需補畫，之後再休眠', idleRender.settingFrames >= 1
     && idleRender.settingFrames <= 2 && idleRender.settledFrames === 0, idleRender);
 
-// T5e：最窄常見手機都要完整見到五粒掣，暫停掣唔可以遮住圈數 HUD。
+// T5g：最窄常見手機都要完整見到五粒掣，暫停掣唔可以遮住圈數 HUD。
 await page.setViewportSize({ width: 320, height: 568 });
 const narrow = await page.evaluate(() => {
     const root = window.__racer;

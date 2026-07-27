@@ -73,7 +73,10 @@ function resize() {
     requestRender();
 }
 addEventListener('resize', resize);
-addEventListener('orientationchange', () => setTimeout(resize, 120));
+addEventListener('orientationchange', () => {
+    if (running) pauseRace('手機方向已改變，進度已安全暫停');
+    setTimeout(resize, 120);
+});
 
 // ---------- 手機畫質 ----------
 // Auto 只調 pixel ratio，唔會喺比賽中拆 mesh／改 physics。低幀率連續一個
@@ -283,6 +286,7 @@ loader.load('./assets/car.glb', (gltf) => {
         get running() { return running; },
         get paused() { return paused; },
         get wakeLockActive() { return !!wakeLock; },
+        get contextLost() { return contextLost; },
         get ready() { return carReadyRendered; },
         get renderCount() { return renderCount; },
         visualLength: CAR_VISUAL_LENGTH,
@@ -527,6 +531,7 @@ function updateHud() {
 // ---------- 畫面切換 ----------
 let running = false;
 let paused = false;
+let contextLost = false;
 let wakeLock = null;
 let wakeLockRequest = 0;
 let last = performance.now();
@@ -556,6 +561,7 @@ function releaseWakeLock() {
 }
 
 function startRace() {
+    if (contextLost) return false;
     $('screen-start').classList.add('hidden');
     $('screen-finish').classList.add('hidden');
     $('screen-pause').classList.add('hidden');
@@ -571,6 +577,7 @@ function startRace() {
     if (qualityMode === 'auto') setQuality('auto', false); // 每場由裝置安全上限重新量
     requestWakeLock();
     ensureFrame();
+    return true;
 }
 function restart() { startRace(); }
 function pauseRace(reason = '比賽進度已保留') {
@@ -584,7 +591,7 @@ function pauseRace(reason = '比賽進度已保留') {
     return true;
 }
 function resumeRace() {
-    if (!paused || race?.state === 'finished') return false;
+    if (contextLost || !paused || race?.state === 'finished') return false;
     paused = false;
     running = true;
     last = performance.now();
@@ -610,9 +617,37 @@ $('again-btn').addEventListener('click', restart);
 $('menu-btn').addEventListener('click', toMenu);
 $('pause-btn').addEventListener('click', () => pauseRace());
 $('resume-btn').addEventListener('click', resumeRace);
+$('reload-btn').addEventListener('click', () => location.reload());
 $('pause-menu-btn').addEventListener('click', toMenu);
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) pauseRace('你離開咗遊戲，進度已安全暫停');
+});
+addEventListener('pagehide', () => pauseRace('遊戲頁面已暫停，進度已保留'));
+
+// 手機瀏覽器喺記憶體壓力／切 App 時可以收走 WebGL context。Three.js 會重建
+// GPU 資源，但遊戲亦必須同步凍結物理同 input；否則黑畫面期間架車照樣撞牆。
+renderer.domElement.addEventListener('webglcontextlost', (event) => {
+    event.preventDefault();
+    contextLost = true;
+    if (running) pauseRace('手機暫停咗 3D 畫面，正在恢復…');
+    else {
+        input.reset();
+        releaseWakeLock();
+        $('pause-reason').textContent = '手機暫停咗 3D 畫面，正在恢復…';
+        $('screen-pause').classList.remove('hidden');
+    }
+    $('resume-btn').disabled = true;
+    $('pause-menu-btn').disabled = true;
+    $('reload-btn').classList.remove('hidden');
+});
+renderer.domElement.addEventListener('webglcontextrestored', () => {
+    contextLost = false;
+    requestRender();
+    $('resume-btn').disabled = false;
+    $('pause-menu-btn').disabled = false;
+    $('reload-btn').classList.add('hidden');
+    if (paused) $('pause-reason').textContent = '3D 畫面已恢復，可以繼續比賽';
+    else $('screen-pause').classList.add('hidden');
 });
 
 // ---------- 主迴圈 ----------

@@ -459,3 +459,18 @@ follows what the tyres can use
 - Reason: Penny explicitly requested the car proportion be 50% larger. This is a
   readability/composition change; coupling it to the proven drift model would alter
   control feel and invalidate the three-track gameplay baseline unnecessarily.
+
+## ADR-036: Mobile GPU and orientation interruptions pause before recovery
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: a `webglcontextlost` event immediately prevents default teardown, pauses
+  the race, clears input, releases wake lock, disables Resume and Return to Menu,
+  and exposes a reload fallback. `webglcontextrestored` requests one dirty frame,
+  unlocks the controls, and still requires explicit Resume. Orientation change and
+  `pagehide` also pause rather than moving controls or leaving the page under held input.
+- Reason: forced browser evidence showed the old game remained `running=true` and
+  advanced 37 render attempts in 600ms after its GPU context was gone, with no player
+  warning. Mobile browsers can reclaim WebGL under memory pressure or app switching;
+  physics must not continue behind a black canvas. Rotation likewise relocates touch
+  controls, so retaining a held pointer is unsafe.
