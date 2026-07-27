@@ -110,13 +110,20 @@ const set = await page.evaluate(() => {
     const red = read();
     setColour('blue');
     const blue = read();
+    document.querySelector('#tod-seg [data-tod="day"]').click();
+    const dayEnvironment = window.__racer.environment.snapshot();
     document.querySelector('#tod-seg [data-tod="dusk"]').click();
     const duskSky = window.__racer.scene.background.getHex();
+    const duskEnvironment = window.__racer.environment.snapshot();
     document.querySelector('#tod-seg [data-tod="night"]').click();
+    const nightEnvironment = window.__racer.environment.snapshot();
     return {
         red, blue, changed: red !== blue,
         tod: window.__racer.tod,
         duskSky,
+        dayEnvironment, duskEnvironment, nightEnvironment,
+        nightRoadGlow: window.__racer.track.road.material.emissiveIntensity,
+        nightRailGlow: window.__racer.track.walls.children[0].material.emissiveIntensity,
         savedColour: localStorage.getItem('racer-colour'),
         savedTod: localStorage.getItem('racer-tod'),
         selectedTod: document.querySelector('#tod-seg button.on')?.dataset.tod,
@@ -127,6 +134,17 @@ check('揀顏色會噴到車身', set.changed, set);
 check('顏色會存返落 localStorage', set.savedColour === 'blue', set.savedColour);
 check('日／黃昏／夜按鈕可操作，揀夜晚會生效兼存返', set.duskSky === 0xf0a06a
     && set.tod === 'night' && set.savedTod === 'night' && set.selectedTod === 'night', set);
+check('三個時段有獨立天空／星光／車頭燈狀態',
+    !set.dayEnvironment.starsVisible && set.dayEnvironment.headlightIntensity === 0
+    && set.duskEnvironment.starsVisible && set.duskEnvironment.starOpacity > 0
+    && set.duskEnvironment.headlightIntensity > 0
+    && set.nightEnvironment.starOpacity > set.duskEnvironment.starOpacity
+    && set.nightEnvironment.headlightIntensity > set.duskEnvironment.headlightIntensity
+    && set.nightEnvironment.headlightAttached
+    && set.dayEnvironment.skyZenith !== set.nightEnvironment.skyZenith,
+    { day: set.dayEnvironment, dusk: set.duskEnvironment, night: set.nightEnvironment });
+check('夜晚路面同護欄會發出低成本反光提示', set.nightRoadGlow >= 0.4
+    && set.nightRailGlow >= 0.9, { road: set.nightRoadGlow, rail: set.nightRailGlow });
 
 // 夜晚同日頭嘅場景設定要真係唔同（唔淨係換個名）
 const light = await page.evaluate(() => {
@@ -143,6 +161,22 @@ const light = await page.evaluate(() => {
 });
 console.log('  ', JSON.stringify(light));
 check('日／夜曝光唔同', light.day.exposure !== light.night.exposure, light);
+
+const nightBudget = await page.evaluate(async () => {
+    const root = window.__racer;
+    root.setTod('night');
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const night = {
+        calls: root.renderer.info.render.calls,
+        triangles: root.renderer.info.render.triangles,
+    };
+    root.setTod('day');
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    return night;
+});
+console.log('  ', JSON.stringify(nightBudget));
+check('完整夜景仍守住手機 draw-call／三角形預算', nightBudget.calls < 18
+    && nightBudget.triangles < 120000, nightBudget);
 
 // T3b：手機畫質模式要有硬上限兼持久化；3× DPR 手機都唔可以四倍燒 GPU。
 const quality = await page.evaluate(async () => {

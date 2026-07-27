@@ -504,6 +504,36 @@ export class Track {
         return group;
     }
 
+    setTimeOfDay(id) {
+        this.timeOfDay = id;
+        if (!this.visualRoot) return;
+        const night = id === 'night';
+        const dusk = id === 'dusk';
+        const setEmissive = (material, color, intensity) => {
+            if (!material?.emissive) return;
+            material.emissive.setHex(color);
+            material.emissiveIntensity = intensity;
+        };
+
+        this.road.material.color.setHex(night ? 0x526071 : dusk ? 0x777277 : 0x777b80);
+        setEmissive(this.road.material, night ? 0x172a43 : 0x000000, night ? 0.42 : 0);
+        this.ground.material.color.setHex(night ? 0x415c43 : dusk ? 0x7f825d : 0x82a968);
+        setEmissive(this.ground.material, night ? 0x101b14 : 0x000000, night ? 0.16 : 0);
+        setEmissive(this.kerbs.material, night ? 0x35252d : dusk ? 0x2a160c : 0x000000,
+            night ? 0.62 : dusk ? 0.18 : 0);
+        setEmissive(this.startLine.material, night ? 0x303744 : 0x000000, night ? 0.5 : 0);
+
+        this.walls.traverse((object) => {
+            if (!object.material) return;
+            setEmissive(object.material, night ? 0x29476d : dusk ? 0x291d13 : 0x000000,
+                night ? 0.95 : dusk ? 0.12 : 0);
+        });
+        const [trunks, crowns] = this.trees.children;
+        trunks?.material?.color.setHex(night ? 0x44372f : dusk ? 0x68503d : 0x70513a);
+        crowns?.material?.color.setHex(night ? 0x1d3828 : dusk ? 0x40533a : 0x315f35);
+        setEmissive(crowns?.material, night ? 0x07150e : 0x000000, night ? 0.2 : 0);
+    }
+
     build(scene) {
         this.visualStyle = 'smooth-ribbon';
         this.visualSegments = Math.max(320, Math.ceil(this.length / VISUAL_STEP));
@@ -517,6 +547,7 @@ export class Track {
         this.trees = this.#buildTrees();
         this.visualRoot.add(this.ground, this.road, this.kerbs, this.startLine, this.walls, this.trees);
         scene.add(this.visualRoot);
+        this.setTimeOfDay(this.timeOfDay ?? 'day');
         this.groundQuads = this.visualSegments;
         return this.road;
     }

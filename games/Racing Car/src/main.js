@@ -9,6 +9,7 @@ import { Car } from './car.js';
 import { Race, fmtTime } from './race.js';
 import { Input, GYRO_KEY } from './input.js';
 import { Minimap } from './minimap.js';
+import { createEnvironment } from './environment.js';
 import {
     COLOURS, TIMES, QUALITY_MODES,
     loadColour, saveColour, loadTod, saveTod, loadQuality, saveQuality, qualityDpr,
@@ -71,8 +72,9 @@ scene.add(sun);
 const hemi = new THREE.HemisphereLight(0xbfe3ff, 0x4a6a3a, 1.0);
 scene.add(hemi);
 
+const environment = createEnvironment(scene);
 let tod = loadTod();
-applyTime(tod, { scene, renderer, sun, hemi });
+applyTime(tod, { scene, renderer, sun, hemi, environment });
 
 function resize() {
     const w = holder.clientWidth || innerWidth;
@@ -252,6 +254,7 @@ function buildTrack(id) {
     track?.dispose(scene);
     track = new Track(trackDef.waypoints, trackDef.tension);
     track.build(scene);
+    track.setTimeOfDay(tod);
     minimap.setTrack(track);
     if (car) car.reset(track.startPos, track.startDir);
     if (race) { race.track = track; race.trackId = trackDef.id; race.reset(); }
@@ -279,6 +282,14 @@ const clouds = new THREE.Group();
     clouds.add(im);
     scene.add(clouds);
 }
+
+function applyCloudTime(id) {
+    const material = clouds.children[0]?.material;
+    if (!material) return;
+    material.color.setHex(id === 'night' ? 0x7384a8 : id === 'dusk' ? 0xffc3a2 : 0xffffff);
+    material.opacity = id === 'night' ? 0.2 : id === 'dusk' ? 0.42 : 0.58;
+}
+applyCloudTime(tod);
 
 // ---------- 載車 ----------
 const loader = new GLTFLoader();
@@ -353,6 +364,8 @@ loader.load('./assets/car.glb', (gltf) => {
     wrap.add(model);
     car = new Car(wrap);
     scene.add(car.root);
+    environment.attachCar(car.root);
+    environment.apply(TIMES[tod], tod);
     shadow = contactShadow();
     scene.add(shadow);
     car.reset(track.startPos, track.startDir);
@@ -368,7 +381,7 @@ loader.load('./assets/car.glb', (gltf) => {
     revealMenuAfterRender = true;
     // 畀自動化測試用；track 用 getter，換賽道之後攞到嘅係新嗰個
     window.__racer = {
-        car, race, renderer, scene, camera, restart, startRace, buildTrack, TRACKS, input, minimap,
+        car, race, renderer, scene, camera, environment, restart, startRace, buildTrack, TRACKS, input, minimap,
         setColour, setTod, setQuality, tuneAutoQuality, pauseRace, resumeRace, toMenu,
         performanceReport, performanceReportText, copyPerformanceReport,
         coarsePointer,
@@ -465,7 +478,9 @@ function setColour(id) {
 function setTod(id) {
     tod = TIMES[id] ? id : 'day';
     saveTod(tod);
-    applyTime(tod, { scene, renderer, sun, hemi });
+    applyTime(tod, { scene, renderer, sun, hemi, environment });
+    applyCloudTime(tod);
+    track?.setTimeOfDay(tod);
     document.querySelectorAll('#tod-seg button').forEach(b =>
         b.classList.toggle('on', b.dataset.tod === tod));
     requestRender();
@@ -779,6 +794,7 @@ function frame(now) {
         updateCamera(dt);
     }
     if (activeFrame || renderDirty) {
+        environment.follow(camera);
         renderer.render(scene, camera);
         renderCount += 1;
         if (car && !carReadyRendered) {

@@ -554,3 +554,17 @@ follows what the tyres can use
   initial thumb placement, and isolated right-side hitboxes forced unnecessary release
   and reacquisition. A wider road and continuous thumb gestures improve phone play while
   preserving high-speed stability, safe-area rules, capture-loss reset, and physics size.
+
+## ADR-043: Racing Car day/night uses three bounded environment layers
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: render time of day with one camera-following shader sky dome, one reusable
+  sun/moon sprite, and one deterministic star Points layer. Attach one shadowless
+  SpotLight to the player car for dusk/night, and change existing road, kerb, start-line,
+  guardrail, terrain, tree, and cloud materials for each time preset. Keep night below 18
+  draw calls and 120,000 triangles; do not create per-post or per-tree real lights.
+- Reason: flat background colors did not provide a credible time system or enough night
+  driving information. Three bounded layers plus existing-material emissive changes make
+  every preset visibly distinct and the road readable while keeping mobile GPU cost
+  measurable and independent of track length.

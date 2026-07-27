@@ -23,12 +23,22 @@ export const TIMES = {
         sun: { color: 0xfff2d8, intensity: 2.1, pos: [60, 120, 40] },
         hemi: { sky: 0xbfe3ff, ground: 0x4a6a3a, intensity: 1.0 },
         exposure: 1.05,
+        environment: {
+            horizon: 0xcceaff, zenith: 0x4d9ee3, glowColor: 0xffe2a8, glowStrength: 0.48,
+            celestialColor: 0xfff0bd, celestialOpacity: 0.96, celestialSize: 34,
+            starOpacity: 0, headlight: 0, headlightColor: 0xfff1cf,
+        },
     },
     dusk: {
         name: '黃昏', sky: 0xf0a06a, fog: [100, 280],
         sun: { color: 0xffb066, intensity: 1.7, pos: [-90, 34, 30] },
         hemi: { sky: 0xffc9a0, ground: 0x4a3a2a, intensity: 0.85 },
         exposure: 1.0,
+        environment: {
+            horizon: 0xffb16f, zenith: 0x5b6fae, glowColor: 0xffc06b, glowStrength: 0.72,
+            celestialColor: 0xffd08a, celestialOpacity: 0.98, celestialSize: 38,
+            starOpacity: 0.12, headlight: 95, headlightColor: 0xffdcb0,
+        },
     },
     night: {
         name: '夜晚', sky: 0x141c30, fog: [70, 220],
@@ -37,6 +47,11 @@ export const TIMES = {
         sun: { color: 0x9fb6ff, intensity: 1.15, pos: [40, 90, -60] },
         hemi: { sky: 0x5a76b8, ground: 0x1d2c3c, intensity: 1.5 },
         exposure: 1.35,
+        environment: {
+            horizon: 0x263657, zenith: 0x050916, glowColor: 0x8aa5e8, glowStrength: 0.2,
+            celestialColor: 0xdce8ff, celestialOpacity: 0.9, celestialSize: 25,
+            starOpacity: 0.94, headlight: 450, headlightColor: 0xe8f2ff,
+        },
     },
 };
 
@@ -110,7 +125,7 @@ function isBodywork(m) {
     return lum > 0.45 && spread < 0.16;
 }
 
-export function applyTime(id, { scene, renderer, sun, hemi }) {
+export function applyTime(id, { scene, renderer, sun, hemi, environment }) {
     const t = TIMES[id] ?? TIMES.day;
     scene.background = new THREE.Color(t.sky);
     scene.fog.color.setHex(t.sky);
@@ -123,5 +138,6 @@ export function applyTime(id, { scene, renderer, sun, hemi }) {
     hemi.groundColor.setHex(t.hemi.ground);
     hemi.intensity = t.hemi.intensity;
     renderer.toneMappingExposure = t.exposure;
+    environment?.apply(t, id);
     return t;
 }
