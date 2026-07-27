@@ -4,63 +4,70 @@ Updated: 2026-07-27 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Baseline before this task: `2953035`
-Status: guest render path now leak-gated too; it came back clean, no fix needed
+Baseline before this task: `b5532c8`
+Status: Empire Royale wrapped up. No active task. Only real-device checks remain.
 
 ## Current objective
 
-Close the last unguarded teardown path. Two leaks had just been found in two different
-dispose paths, and the PvP guest renderer — which builds its own entities, HP bars, and
-one-shot effects from host snapshots — had never been leak-tested. It can be driven
-offline with fake snapshots, so no Supabase access was needed.
+Close out Empire Royale: one final verification pass over everything that shipped,
+and a handoff that tells the next agent the game is finished rather than mid-task.
+Nothing new was built here on purpose.
 
 ## Completed
 
-- Extended `pvp-guest.mjs` with a construct/dispose leak gate: four rounds of building
-  a `GuestGame`, feeding snapshots that carry every one-shot effect the host can send
-  (spell telegraph, explosion ring, heal pulse), ticking, and disposing.
-- Result is a clean bill: geometries 116 and textures 19, identical in all four rounds.
-  The guest path was already correct — `dispose()` clears entities, HP bars, and the
-  `fxRings` set, and guest telegraphs use plain materials with no textures.
-- This is a deliberate negative result. It is worth having because the guest renderer
-  is the one teardown path a cloud agent cannot reach through real matchmaking, so
-  without this gate a future regression there would only surface on a player's device.
-- The suite is now eight files and 112 checks; no production code changed.
+- Final full-suite run: eight files, 112 checks, all pass. This is the state of the
+  code at `main`, not a historical number.
+- Visual smoke at a 420x900 phone viewport across the three surfaces a player sees:
+  the menu, a live Clash match, a gauntlet stage with its condition chip, and the LV2
+  map. All render correctly with no console errors.
+- Handoff rewritten as a closing statement. The suite, the ADRs, and the device
+  checklist below are the durable artifacts; day-to-day task state is now empty.
+
+## Where the game stands
+
+- Clash mode: 21 cards, counters via `bonusVs` tags, healer/bomber/armour mechanics,
+  overtime with a river fountain, procedural bone animation, synthesized combat audio.
+- Gauntlet: six-stage condition cycle, deterministic opponent rotation, all conditions
+  symmetric — difficulty comes from AI tactics, never from resources (ADR-007/013).
+- PvP: host-authoritative relay, reconnect with a persisted snapshot, 30s disconnect
+  grace, effects synchronized through the snapshot `fx` channel.
+- LV2 RTS: economy, ages, tech tree, towers, counters that match Clash.
+- Progression: trophies, card levels, daily challenges, achievements, global
+  leaderboard, local player profiles with hashed codes.
+- Quality: two GPU texture leaks found and fixed this session, graphics self-heal that
+  converges, and a committed regression suite both agents can run.
 
 ## Changed files
 
-- `games/royale/tests/pvp-guest.mjs`, `README.md`
 - `docs/ai/HANDOFF.md`
 
 ## Verification
 
 - `npm test` in `games/royale/tests`: 8/8 suites, 112 checks, all pass.
-- Guest gate: rounds 1-4 all report 116 geometries and 19 textures, so nothing is
-  retained across construct/dispose cycles even with telegraphs and rings in flight.
-- The three earlier gates still hold: Clash 116/20 flat over six cycles, LV2 20/20/20/20
-  over four enter/exit cycles, mixed session excess 7 against a 62-entry cache.
+- Leak gates all flat: Clash 116 geometries / 20 textures over six cycles, LV2 20
+  textures over four enter/exit cycles, guest 116/19 over four construct/dispose
+  cycles, mixed session excess 7 fully explained by a 62-entry damage-number cache.
+- Screenshots at 420x900: menu, Clash mid-fight with lane pressure and damage numbers,
+  gauntlet stage 4 showing the 堅城 chip, LV2 map with resources and villagers.
 - `./scripts/check-handoff.sh`: PASS.
+- Deploy for the previous commit `b5532c8` verified success.
 
 ## Known issues and cautions
 
 - Deploy for this commit must be confirmed on `deploy-pages.yml` after merge.
-- Two texture leaks have now been fixed in a row (ADR-023 bone textures, ADR-024
-  crown pop). Both made long sessions consume more GPU memory over time, which is the
-  same pressure that triggers the black-flash downgrade. Worth telling the player that
-  a long session should behave better now.
-- `session.mjs` intentionally does not require textures to return to the boot
-  baseline; the damage-number cache is designed to persist. It requires the excess to
-  be explained by the cache size.
-- The RTS suite covers simulation rules and cleanup, not RTS input (selection box,
-  gestures, camera pan) and not the HUD panels. Those still need a real device.
-- The black-flash fix from `d0fae14` is still unconfirmed on the player's device.
-- Gauntlet condition balance is simulated, not played.
-- Live PvP flows (reconnect on both roles, 30s grace, walkover) remain unverified on
-  real hardware; the sandbox cannot reach Supabase.
+- Everything below needs Penny on a real device; the cloud sandbox cannot do it.
+  1. Black-screen flash: play a long session mixing Clash and LV2 and report whether
+     it still happens. Two leaks that fed that memory pressure were fixed this
+     session, so this is the highest-value check.
+  2. PvP on two devices: reconnect on both roles, the 30s disconnect grace, walkover.
+  3. Gauntlet feel: the five battlefield conditions are balanced by simulation only.
+  4. Spell telegraph legibility and enemy warning volume during a dense fight.
+  5. LV2 touch input: selection box, two-finger zoom and pan.
+- If a condition feels swingy, tune the table in `gauntlet.js`, never the AI.
 - Running the suite needs `npm install` in `games/royale/tests` once, plus
   `npx playwright install chromium` where no browser is preinstalled.
-- Commits show as Unverified because this environment has no signing key, not a
-  wrong identity. Do not rewrite pushed history, do not change `git config`.
+- Commits show as Unverified because this environment has no signing key, not a wrong
+  identity. Do not rewrite pushed history, do not change `git config`.
 - Earlier cautions still apply: root `progress.md` is historical, some old remote
   branches are not ancestors of `main`, Pages CI runs the full lint/test/build
   sequence only for Ashen Rail.
@@ -68,12 +75,10 @@ offline with fake snapshots, so no Supabase access was needed.
 ## Exact next action
 
 1. Run `./scripts/agent-context.sh --sync` on the intended branch.
-2. Read `PROJECT_CONTEXT.md`, this handoff, and the ADRs relevant to your scope
-   before editing anything under `games/royale/`.
-3. Run `npm test` in `games/royale/tests` before and after any Royale change, and
-   quote the real result in the handoff.
-4. There is no active implementation task. Open candidates: RTS input/HUD coverage,
-   or wait for Penny's next scoped request.
+2. There is no active implementation task. Royale is feature-complete and shipped.
+3. If Penny reports a device issue from the checklist above, start there; reproduce it
+   in `games/royale/tests` first so the fix has a gate.
+4. Otherwise wait for Penny's next scoped request, on Royale or another game.
 
 ## Do not redo
 
@@ -87,7 +92,7 @@ offline with fake snapshots, so no Supabase access was needed.
   UI-driving test times out on the ADR-014 modal.
 - Do not raise a leak baseline to silence a failure. Flat across cycles is the gate.
 - Do not use `window.__rts.scene`; `__rts` is the mode module and the game is
-  `__rts.game`. That mistake made a texture sweep report zero textures.
+  `__rts.game`.
 - Do not make a gauntlet stage harder with AI elixir, HP, or hidden information, and
   do not give the RTS AI a different starting position from the player.
 - Do not read `GAME_RULES` directly inside match code; use `game.rules`, and never
