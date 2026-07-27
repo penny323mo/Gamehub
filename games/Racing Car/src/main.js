@@ -9,16 +9,26 @@ import { Car } from './car.js';
 import { Race, fmtTime } from './race.js';
 import { Input, GYRO_KEY } from './input.js';
 import { Minimap } from './minimap.js';
-import { COLOURS, TIMES, loadColour, saveColour, loadTod, saveTod, paintCar, applyTime } from './settings.js';
+import {
+    COLOURS, TIMES, QUALITY_MODES,
+    loadColour, saveColour, loadTod, saveTod, loadQuality, saveQuality, qualityDpr,
+    paintCar, applyTime,
+} from './settings.js';
 
 const $ = (id) => document.getElementById(id);
 const holder = $('canvas-holder');
 
 // ---------- 渲染器 ----------
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-// 手機 2× DPR 即係四倍 fragment workload；1.5× 仍然清楚，但長時間跑會穩定好多。
 const coarsePointer = matchMedia('(pointer: coarse)').matches;
-renderer.setPixelRatio(Math.min(devicePixelRatio || 1, coarsePointer ? 1.5 : 2));
+let qualityMode = loadQuality();
+const qualityState = {
+    mode: qualityMode,
+    dpr: qualityDpr(qualityMode, devicePixelRatio || 1, coarsePointer),
+    fps: null,
+    changes: 0,
+};
+renderer.setPixelRatio(qualityState.dpr);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
@@ -49,6 +59,74 @@ function resize() {
 }
 addEventListener('resize', resize);
 addEventListener('orientationchange', () => setTimeout(resize, 120));
+
+// ---------- 手機畫質 ----------
+// Auto 只調 pixel ratio，唔會喺比賽中拆 mesh／改 physics。低幀率連續一個
+// 3.5 秒窗口就降 0.25×；穩定高幀率三個窗口先升返，避免來回跳畫質。
+let qualityWindowStart = 0, qualityFrames = 0, qualityHighWindows = 0;
+function updateQualityNote() {
+    const el = $('quality-note');
+    if (!el) return;
+    const mode = QUALITY_MODES[qualityMode]?.name ?? QUALITY_MODES.auto.name;
+    const fps = qualityState.fps == null ? '' : ` · ${Math.round(qualityState.fps)} fps`;
+    el.textContent = `${mode} · ${qualityState.dpr.toFixed(2)}×${fps}`;
+}
+function applyRenderDpr(dpr) {
+    const next = Math.max(1, Math.min(2, Math.round(dpr * 4) / 4));
+    if (Math.abs(next - qualityState.dpr) < 0.01) return false;
+    qualityState.dpr = next;
+    qualityState.changes += 1;
+    renderer.setPixelRatio(next);
+    resize();
+    updateQualityNote();
+    return true;
+}
+function setQuality(id, persist = true) {
+    qualityMode = QUALITY_MODES[id] ? id : 'auto';
+    qualityState.mode = qualityMode;
+    qualityState.fps = null;
+    qualityHighWindows = 0;
+    qualityWindowStart = 0;
+    qualityFrames = 0;
+    if (persist) saveQuality(qualityMode);
+    applyRenderDpr(qualityDpr(qualityMode, devicePixelRatio || 1, coarsePointer));
+    document.querySelectorAll('#quality-seg button').forEach(b =>
+        b.classList.toggle('on', b.dataset.quality === qualityMode));
+    updateQualityNote();
+    return qualityState.dpr;
+}
+function tuneAutoQuality(fps) {
+    qualityState.fps = fps;
+    if (qualityMode !== 'auto') { updateQualityNote(); return qualityState.dpr; }
+    const ceiling = qualityDpr('auto', devicePixelRatio || 1, coarsePointer);
+    if (fps < 43 && qualityState.dpr > 1) {
+        qualityHighWindows = 0;
+        applyRenderDpr(qualityState.dpr - 0.25);
+    } else if (fps > 57 && qualityState.dpr < ceiling) {
+        qualityHighWindows += 1;
+        if (qualityHighWindows >= 3) {
+            applyRenderDpr(Math.min(ceiling, qualityState.dpr + 0.25));
+            qualityHighWindows = 0;
+        }
+    } else {
+        qualityHighWindows = 0;
+    }
+    updateQualityNote();
+    return qualityState.dpr;
+}
+function sampleAutoQuality(now) {
+    if (!running || qualityMode !== 'auto' || document.hidden) {
+        qualityWindowStart = 0; qualityFrames = 0;
+        return;
+    }
+    if (!qualityWindowStart) qualityWindowStart = now;
+    qualityFrames += 1;
+    const elapsed = now - qualityWindowStart;
+    if (elapsed < 3500) return;
+    tuneAutoQuality(qualityFrames * 1000 / elapsed);
+    qualityWindowStart = now;
+    qualityFrames = 0;
+}
 
 // ---------- 世界 ----------
 // car／race 要喺 buildTrack 之前宣告：換賽道會順手 reset 佢哋，
@@ -177,12 +255,16 @@ loader.load('./assets/car.glb', (gltf) => {
     // 畀自動化測試用；track 用 getter，換賽道之後攞到嘅係新嗰個
     window.__racer = {
         car, race, renderer, camera, restart, startRace, buildTrack, TRACKS, input, minimap,
-        setColour, setTod,
+        setColour, setTod, setQuality, tuneAutoQuality, pauseRace, resumeRace, toMenu,
         coarsePointer,
         get track() { return track; },
         get trackDef() { return trackDef; },
         get tod() { return tod; },
         get colour() { return colour; },
+        get quality() { return { ...qualityState }; },
+        get running() { return running; },
+        get paused() { return paused; },
+        get wakeLockActive() { return !!wakeLock; },
     };
 }, undefined, (err) => {
     $('loading').innerHTML = `<div class="loading-box"><div class="loading-label">⚠️ 載入失敗</div></div>`;
@@ -285,6 +367,11 @@ function buildSettings() {
     setColour(colour.id);
     setTod(tod);
 
+    for (const b of document.querySelectorAll('#quality-seg button')) {
+        b.addEventListener('click', () => setQuality(b.dataset.quality));
+    }
+    setQuality(qualityMode, false);
+
     for (const b of document.querySelectorAll('#steer-seg button')) {
         b.addEventListener('click', () => {
             input.setInvert(b.dataset.invert === '1');
@@ -357,6 +444,11 @@ function banner(text, dur) {
 }
 
 function showFinish({ total, laps, best, drift, bestDrift, bestScore }) {
+    running = false;
+    paused = false;
+    input.reset();
+    releaseWakeLock();
+    $('screen-pause').classList.add('hidden');
     $('finish-total').textContent = fmtTime(total);
     $('finish-best').textContent = fmtTime(best);
     $('finish-drift').textContent = drift.toLocaleString();
@@ -409,21 +501,80 @@ function updateHud() {
 }
 
 // ---------- 畫面切換 ----------
+let running = false;
+let paused = false;
+let wakeLock = null;
+let wakeLockRequest = 0;
+let last = performance.now();
+
+async function requestWakeLock() {
+    if (!running || document.hidden || !navigator.wakeLock?.request || wakeLock) return false;
+    const requestId = ++wakeLockRequest;
+    try {
+        const lock = await navigator.wakeLock.request('screen');
+        // request 係 async：等緊系統回覆期間玩家可能已經暫停／切 App。
+        // generation 仲要一致：舊 request 唔可以喺「暫停再恢復」之後冒認新場次。
+        if (requestId !== wakeLockRequest || !running || document.hidden) {
+            try { await lock.release(); } catch { }
+            return false;
+        }
+        wakeLock = lock;
+        lock.addEventListener?.('release', () => { if (wakeLock === lock) wakeLock = null; });
+        return true;
+    } catch { return false; }
+}
+function releaseWakeLock() {
+    wakeLockRequest += 1; // 即使 lock 未 resolve，都即刻令舊 request 過期
+    if (!wakeLock) return;
+    const held = wakeLock;
+    wakeLock = null;
+    try { held.release(); } catch { }
+}
+
 function startRace() {
     $('screen-start').classList.add('hidden');
     $('screen-finish').classList.add('hidden');
+    $('screen-pause').classList.add('hidden');
     $('hud').classList.remove('hidden');
+    input.reset();
     car.reset(track.startPos, track.startDir);
     camInit = false;
     race.reset();
     hudCache = {};
+    paused = false;
     running = true;
+    last = performance.now();
+    if (qualityMode === 'auto') setQuality('auto', false); // 每場由裝置安全上限重新量
+    requestWakeLock();
 }
 function restart() { startRace(); }
+function pauseRace(reason = '比賽進度已保留') {
+    if (!running) return false;
+    running = false;
+    paused = true;
+    input.reset();
+    releaseWakeLock();
+    $('pause-reason').textContent = reason;
+    $('screen-pause').classList.remove('hidden');
+    return true;
+}
+function resumeRace() {
+    if (!paused || race?.state === 'finished') return false;
+    paused = false;
+    running = true;
+    last = performance.now();
+    $('screen-pause').classList.add('hidden');
+    requestWakeLock();
+    return true;
+}
 function toMenu() {
     running = false;
+    paused = false;
+    input.reset();
+    releaseWakeLock();
     refreshBest();
     $('screen-finish').classList.add('hidden');
+    $('screen-pause').classList.add('hidden');
     $('hud').classList.add('hidden');
     $('screen-start').classList.remove('hidden');
 }
@@ -431,10 +582,14 @@ function toMenu() {
 $('start-btn').addEventListener('click', startRace);
 $('again-btn').addEventListener('click', restart);
 $('menu-btn').addEventListener('click', toMenu);
+$('pause-btn').addEventListener('click', () => pauseRace());
+$('resume-btn').addEventListener('click', resumeRace);
+$('pause-menu-btn').addEventListener('click', toMenu);
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) pauseRace('你離開咗遊戲，進度已安全暫停');
+});
 
 // ---------- 主迴圈 ----------
-let running = false;
-let last = performance.now();
 function frame(now) {
     requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - last) / 1000);   // 夾住 dt：切 tab 返嚟唔好一下衝出賽道
@@ -454,6 +609,7 @@ function frame(now) {
         updateCamera(dt);
     }
     renderer.render(scene, camera);
+    sampleAutoQuality(now);
 }
 resize();
 requestAnimationFrame(frame);

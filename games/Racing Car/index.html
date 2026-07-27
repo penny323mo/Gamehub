@@ -28,6 +28,7 @@
 
         <!-- 比賽 HUD -->
         <div id="hud" class="hidden">
+            <button id="pause-btn" aria-label="暫停比賽">Ⅱ</button>
             <div id="hud-top">
                 <div class="stat"><span class="stat-label">圈數</span><b id="lap-num">1/3</b></div>
                 <div class="stat"><span class="stat-label">本圈</span><b id="time-num">0:00.00</b></div>
@@ -88,6 +89,15 @@
                         </div>
                     </div>
                     <div class="set-row">
+                        <span>手機畫質</span>
+                        <div class="seg" id="quality-seg">
+                            <button data-quality="auto">自動</button>
+                            <button data-quality="sharp">清晰</button>
+                            <button data-quality="battery">省電</button>
+                        </div>
+                    </div>
+                    <div id="quality-note" class="set-note"></div>
+                    <div class="set-row">
                         <span>轉向方向</span>
                         <div class="seg" id="steer-seg">
                             <button data-invert="0">正常</button>
@@ -114,6 +124,16 @@
                     <div>角度愈大、速度愈快、連得愈耐，分數愈高；撞欄會報銷未入袋嗰筆</div>
                 </div>
                 <button id="start-btn" class="big-btn">開始比賽</button>
+            </div>
+        </div>
+
+        <!-- 電話切 App／來電會停喺呢度，唔會返嚟先發現架車已撞牆 -->
+        <div id="screen-pause" class="screen hidden">
+            <div class="panel pause-panel">
+                <h1>⏸ 已暫停</h1>
+                <p id="pause-reason" class="subtitle">比賽進度已保留</p>
+                <button id="resume-btn" class="big-btn">繼續比賽</button>
+                <button id="pause-menu-btn" class="big-btn ghost">返回選單</button>
             </div>
         </div>
 

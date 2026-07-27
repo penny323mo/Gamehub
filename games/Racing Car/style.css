@@ -60,6 +60,23 @@ body {
     pointer-events: none;
 }
 
+#pause-btn {
+    position: absolute;
+    top: max(10px, env(safe-area-inset-top));
+    left: max(12px, env(safe-area-inset-left));
+    width: 46px;
+    height: 46px;
+    border-radius: 13px;
+    border: 2px solid rgba(255, 255, 255, .3);
+    background: rgba(15, 25, 35, .62);
+    color: #fff;
+    font-size: 19px;
+    font-weight: 900;
+    pointer-events: auto;
+    touch-action: manipulation;
+    z-index: 8;
+}
+
 #hud-top {
     position: absolute;
     top: max(10px, env(safe-area-inset-top));
@@ -237,6 +254,15 @@ body {
     box-shadow: 0 16px 40px rgba(0, 0, 0, .5);
     color: #eaf3fa;
     text-align: center;
+}
+
+.pause-panel {
+    width: min(86vw, 340px);
+    overflow: visible;
+}
+
+.pause-panel .big-btn + .big-btn {
+    margin-top: 10px;
 }
 
 .panel h1 {

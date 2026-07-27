@@ -415,3 +415,20 @@ follows what the tyres can use
   memory on half a million cells' visual representation. Separating rules from
   rendering preserves the proven three-lap physics while reducing the observed
   scene from 86,121 to about 54–59k triangles and upgrading it to smooth 3D.
+
+## ADR-033: Racing Car owns phone quality and session lifecycle explicitly
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: phone users can choose Auto, Sharp, or Battery quality. Coarse-pointer
+  DPR caps are 1.5, 1.75, and 1 respectively. Auto samples only active, visible race
+  frames in 3.5-second windows, drops DPR by 0.25 below 43 fps, and requires three
+  windows above 57 fps before raising it. It never changes simulation or mesh shape.
+  Every race offers an explicit pause overlay; visibility loss pauses rather than
+  auto-resuming, clears held input, invalidates any pending asynchronous wake-lock
+  request, and releases the screen wake lock. Resume resets
+  the frame timestamp and reacquires wake lock when the browser supports it.
+- Reason: one fixed pixel ratio cannot represent both a recent flagship and a warm,
+  throttled older phone. A backgrounded mobile tab can also return with stale touch
+  state or surprise motion. Rendering resolution is the safest runtime load control,
+  and visible user-controlled resume is safer than guessing when play should restart.

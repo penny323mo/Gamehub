@@ -100,6 +100,35 @@ const light = await page.evaluate(() => {
 console.log('  ', JSON.stringify(light));
 check('日／夜曝光唔同', light.day.exposure !== light.night.exposure, light);
 
+// T3b：手機畫質模式要有硬上限兼持久化；3× DPR 手機都唔可以四倍燒 GPU。
+const quality = await page.evaluate(async () => {
+    const { qualityDpr } = await import('./src/settings.js');
+    const root = window.__racer;
+    root.setQuality('battery');
+    const battery = root.quality;
+    root.setQuality('sharp');
+    const sharp = root.quality;
+    root.setQuality('auto');
+    const auto = root.quality;
+    return {
+        battery, sharp, auto,
+        caps: {
+            autoPhone: qualityDpr('auto', 3, true),
+            sharpPhone: qualityDpr('sharp', 3, true),
+            batteryPhone: qualityDpr('battery', 3, true),
+        },
+        saved: localStorage.getItem('racer-quality'),
+        selected: document.querySelectorAll('#quality-seg button.on').length,
+        note: document.getElementById('quality-note').textContent,
+    };
+});
+console.log('  ', JSON.stringify(quality));
+check('Auto 手機 DPR 封頂 1.5×', quality.caps.autoPhone === 1.5, quality.caps);
+check('清晰／省電 DPR 上限分別係 1.75×／1×',
+    quality.caps.sharpPhone === 1.75 && quality.caps.batteryPhone === 1, quality.caps);
+check('畫質模式會持久化兼 UI 只有一項 selected',
+    quality.saved === 'auto' && quality.selected === 1 && quality.note.includes('自動'), quality);
+
 // T4：轉向反轉係逃生門——反轉之後同一個輸入要行相反方向
 const inv = await page.evaluate(async () => {
     const THREE = await import('three');
@@ -173,6 +202,62 @@ const touch = await page.evaluate(() => {
 console.log('  ', JSON.stringify(touch));
 check('兩指油門 + 右軚可以同時成立', touch.held.throttle === 1 && touch.held.steer > 0.9, touch);
 check('離開頁面會清走黐住嘅觸控', touch.released.throttle === 0 && touch.heldButtons === 0, touch);
+
+// T5c：暫停要凍結 running、清 input、顯示 overlay；恢復同返 menu 都要完整。
+const lifecycle = await page.evaluate(async () => {
+    const root = window.__racer;
+    const ownWake = Object.getOwnPropertyDescriptor(navigator, 'wakeLock');
+    let releases = 0;
+    Object.defineProperty(navigator, 'wakeLock', {
+        configurable: true,
+        value: {
+            request: async () => ({
+                addEventListener() {},
+                async release() { releases += 1; },
+            }),
+        },
+    });
+    root.startRace();
+    root.input.touch.gas = true;
+    root.input.steerSmooth = 1;
+    const didPause = root.pauseRace('自動化暫停測試');
+    const atPause = {
+        running: root.running, paused: root.paused,
+        gas: root.input.touch.gas, steer: root.input.steerSmooth,
+        shown: !document.getElementById('screen-pause').classList.contains('hidden'),
+        reason: document.getElementById('pause-reason').textContent,
+    };
+    const didResume = root.resumeRace();
+    await new Promise(r => setTimeout(r, 80));
+    const atResume = {
+        running: root.running, paused: root.paused,
+        hidden: document.getElementById('screen-pause').classList.contains('hidden'),
+        wakeActive: root.wakeLockActive,
+    };
+    root.pauseRace();
+    await new Promise(r => setTimeout(r, 30));
+    const wakeAfterPause = root.wakeLockActive;
+    root.toMenu();
+    const atMenu = {
+        running: root.running, paused: root.paused,
+        menu: !document.getElementById('screen-start').classList.contains('hidden'),
+        hud: document.getElementById('hud').classList.contains('hidden'),
+    };
+    if (ownWake) Object.defineProperty(navigator, 'wakeLock', ownWake);
+    else delete navigator.wakeLock;
+    return { didPause, didResume, atPause, atResume, wakeAfterPause, releases, atMenu };
+});
+console.log('  ', JSON.stringify(lifecycle));
+check('暫停會凍結比賽、清 input、顯示原因', lifecycle.didPause
+    && !lifecycle.atPause.running && lifecycle.atPause.paused
+    && !lifecycle.atPause.gas && lifecycle.atPause.steer === 0
+    && lifecycle.atPause.shown && lifecycle.atPause.reason.includes('自動化'), lifecycle);
+check('恢復會重新 running 並收起 overlay', lifecycle.didResume
+    && lifecycle.atResume.running && !lifecycle.atResume.paused && lifecycle.atResume.hidden, lifecycle);
+check('Wake Lock 會比賽時保持亮屏、暫停／過期 request 會釋放',
+    lifecycle.atResume.wakeActive && !lifecycle.wakeAfterPause && lifecycle.releases === 2, lifecycle);
+check('暫停後返回選單會清乾淨 lifecycle', !lifecycle.atMenu.running
+    && !lifecycle.atMenu.paused && lifecycle.atMenu.menu && lifecycle.atMenu.hud, lifecycle);
 
 // T6：賽道縮圖畫得出嘢，而且換賽道會跟住換
 const map = await page.evaluate(() => {

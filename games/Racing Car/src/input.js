@@ -26,12 +26,7 @@ export class Input {
             this.keys.add(e.key.toLowerCase());
         });
         addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
-        addEventListener('blur', () => {
-            this.keys.clear();
-            this.touchPointers.clear();
-            for (const key of Object.keys(this.touch)) this.touch[key] = false;
-            root.querySelectorAll('.pad-btn.held').forEach(el => el.classList.remove('held'));
-        });
+        addEventListener('blur', () => this.reset(root));
 
         // 觸控掣：pointer 事件一次過搞掂滑鼠同手指
         for (const [id, prop] of [['pad-left', 'left'], ['pad-right', 'right'],
@@ -58,6 +53,14 @@ export class Input {
             el.addEventListener('pointerup', up);
             el.addEventListener('pointercancel', up);
         }
+    }
+
+    reset(root = document) {
+        this.keys.clear();
+        this.touchPointers.clear();
+        for (const key of Object.keys(this.touch)) this.touch[key] = false;
+        this.steerSmooth = 0;
+        root.querySelectorAll?.('.pad-btn.held').forEach(el => el.classList.remove('held'));
     }
 
     setInvert(v) {

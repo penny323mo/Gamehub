@@ -1,4 +1,4 @@
-// 玩家設定：車身顏色、時間（日／黃昏／夜）。
+// 玩家設定：車身顏色、時間（日／黃昏／夜）、手機畫質。
 // 全部存 localStorage，落次入返嚟照舊。
 
 import * as THREE from 'three';
@@ -40,8 +40,15 @@ export const TIMES = {
     },
 };
 
+export const QUALITY_MODES = {
+    auto: { name: '自動' },
+    sharp: { name: '清晰' },
+    battery: { name: '省電' },
+};
+
 const KEY_COLOUR = 'racer-colour';
 const KEY_TOD = 'racer-tod';
+const KEY_QUALITY = 'racer-quality';
 
 export function loadColour() {
     const id = localStorage.getItem(KEY_COLOUR);
@@ -53,6 +60,19 @@ export function loadTod() {
     return TIMES[id] ? id : 'day';
 }
 export function saveTod(id) { try { localStorage.setItem(KEY_TOD, id); } catch { } }
+export function loadQuality() {
+    const id = localStorage.getItem(KEY_QUALITY);
+    return QUALITY_MODES[id] ? id : 'auto';
+}
+export function saveQuality(id) { try { localStorage.setItem(KEY_QUALITY, id); } catch { } }
+
+// 純函數，測試可以用虛擬 3× DPR 驗證手機上限，唔需要真係開高解像 canvas。
+export function qualityDpr(id, deviceDpr = 1, coarse = false) {
+    const dpr = Math.max(1, Number(deviceDpr) || 1);
+    if (id === 'battery') return 1;
+    if (id === 'sharp') return Math.min(dpr, coarse ? 1.75 : 2);
+    return Math.min(dpr, coarse ? 1.5 : 2);
+}
 
 // 車身上色：只噴「原本已經接近白／灰」嗰啲面，唔郁玻璃、輪胎、格柵。
 // 個模型嘅材質係共用嘅，所以要 clone 一份先改，否則揀色會污染其他 mesh。
