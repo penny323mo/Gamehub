@@ -37,6 +37,7 @@
             <div id="wrong-way" class="hidden">⚠️ 掉頭！行錯方向</div>
             <div id="speed-box"><b id="speed-num">0</b><span>km/h</span></div>
             <div id="score-box">💨 <b id="score-num">0</b></div>
+            <div id="place-box" class="hidden"><b>1</b><span>/3</span></div>
             <!-- 賽道縮圖：睇到自己而家喺賽道邊個位 -->
             <canvas id="minimap" width="150" height="150"></canvas>
 
@@ -88,6 +89,14 @@
                     <div class="set-row">
                         <span>車身顏色</span>
                         <div id="colour-list"></div>
+                    </div>
+                    <div class="set-row">
+                        <span>對手</span>
+                        <div class="seg" id="rival-seg">
+                            <button data-rivals="0">獨自計時</button>
+                            <button data-rivals="2">2 架</button>
+                            <button data-rivals="4">4 架</button>
+                        </div>
                     </div>
                     <div class="set-row">
                         <span>時間</span>
@@ -156,6 +165,7 @@
         <div id="screen-finish" class="screen hidden">
             <div class="panel">
                 <h1>🏆 完賽！</h1>
+                <div class="result-row hidden" id="finish-place-row"><span>名次</span><b id="finish-place">--</b></div>
                 <div class="result-row"><span>總時間</span><b id="finish-total">--</b></div>
                 <div class="result-row"><span>最快圈</span><b id="finish-best">--</b></div>
                 <div class="result-row"><span>漂移總分</span><b id="finish-drift">--</b></div>

@@ -11,9 +11,11 @@ import { Input, GYRO_KEY } from './input.js';
 import { Minimap } from './minimap.js';
 import { createEnvironment } from './environment.js';
 import { createDrivingEffects } from './driving-effects.js';
+import { RivalField, trackDelta, signedFrac } from './rivals.js';
 import {
     COLOURS, TIMES, QUALITY_MODES,
     loadColour, saveColour, loadTod, saveTod, loadQuality, saveQuality, qualityDpr,
+    loadRivals, saveRivals,
     paintCar, applyTime,
 } from './settings.js';
 
@@ -247,6 +249,8 @@ let camInit = false;      // 鏡頭要唔要即刻歸位（換賽道／重開都
 
 // 賽道可以換：換嗰陣要 dispose 舊嗰個，唔係每揀一次就漏一份 3D 世界
 const minimap = new Minimap($('minimap'));
+const rivals = new RivalField(scene);
+let rivalCount = loadRivals();
 
 let trackDef = trackById(localStorage.getItem('racer-track') ?? TRACKS[0].id);
 let track = null;
@@ -258,6 +262,7 @@ function buildTrack(id) {
     track.build(scene);
     track.setTimeOfDay(tod);
     drivingEffects.reset();
+    rivals.clear();
     minimap.setTrack(track);
     if (car) car.reset(track.startPos, track.startDir);
     if (race) { race.track = track; race.trackId = trackDef.id; race.reset(); }
@@ -384,8 +389,9 @@ loader.load('./assets/car.glb', (gltf) => {
     revealMenuAfterRender = true;
     // 畀自動化測試用；track 用 getter，換賽道之後攞到嘅係新嗰個
     window.__racer = {
-        car, race, renderer, scene, camera, environment, drivingEffects,
-        restart, startRace, buildTrack, TRACKS, input, minimap,
+        car, race, renderer, scene, camera, environment, drivingEffects, rivals,
+        restart, startRace, buildTrack, TRACKS, input, minimap, setRivals,
+        get rivalCount() { return rivalCount; },
         setColour, setTod, setQuality, tuneAutoQuality, pauseRace, resumeRace, toMenu,
         performanceReport, performanceReportText, copyPerformanceReport,
         coarsePointer,
@@ -479,6 +485,13 @@ function setColour(id) {
         b.classList.toggle('on', b.dataset.id === colour.id));
     requestRender();
 }
+function setRivals(n) {
+    rivalCount = Math.max(0, Math.min(4, n | 0));
+    saveRivals(rivalCount);
+    document.querySelectorAll('#rival-seg button').forEach(b =>
+        b.classList.toggle('on', Number(b.dataset.rivals) === rivalCount));
+    return rivalCount;
+}
 function setTod(id) {
     tod = TIMES[id] ? id : 'day';
     saveTod(tod);
@@ -522,9 +535,19 @@ function buildSettings() {
         b.addEventListener('click', () => {
             input.setInvert(b.dataset.invert === '1');
             markSeg('#steer-seg', 'invert', input.invert ? 1 : 0);
+
+    for (const b of document.querySelectorAll('#rival-seg button')) {
+        b.addEventListener('click', () => setRivals(Number(b.dataset.rivals)));
+    }
+    setRivals(rivalCount);
         });
     }
     markSeg('#steer-seg', 'invert', input.invert ? 1 : 0);
+
+    for (const b of document.querySelectorAll('#rival-seg button')) {
+        b.addEventListener('click', () => setRivals(Number(b.dataset.rivals)));
+    }
+    setRivals(rivalCount);
 
     const note = $('gyro-note');
     for (const b of document.querySelectorAll('#gyro-seg button')) {
@@ -601,6 +624,12 @@ function showFinish({ total, laps, best, drift, bestDrift, bestScore }) {
     $('finish-drift').textContent = drift.toLocaleString();
     $('finish-bestdrift').textContent = bestDrift.toLocaleString();
     $('finish-record').textContent = bestScore.toLocaleString();
+    const placeRow = $('finish-place-row');
+    if (rivals.count) {
+        placeRow.classList.remove('hidden');
+        // 收線嗰刻仲有對手未到，佢哋嘅名次就係「跑緊嗰個進度」嘅排位
+        $('finish-place').textContent = `第 ${rivals.playerPlace(playerProgress())} / ${rivals.count + 1}`;
+    } else placeRow.classList.add('hidden');
     const list = $('finish-laps');
     list.innerHTML = '';
     laps.forEach((t, i) => {
@@ -610,6 +639,19 @@ function showFinish({ total, laps, best, drift, bestDrift, bestScore }) {
         list.appendChild(row);
     });
     $('screen-finish').classList.remove('hidden');
+}
+
+// 玩家進度用同對手一模一樣嘅累積計法，名次先至比得埋一齊
+let playerT = 0, playerProgressValue = 0;
+function resetPlayerProgress() {
+    playerT = track.nearestT(car.pos.x, car.pos.z);
+    playerProgressValue = signedFrac(playerT, track.startT);
+}
+function playerProgress() {
+    const t = track.nearestT(car.pos.x, car.pos.z);
+    playerProgressValue += trackDelta(t, playerT);
+    playerT = t;
+    return playerProgressValue;
 }
 
 let hudCache = {};
@@ -635,6 +677,14 @@ function updateHud() {
 
     const kmh = car.kmh;
     if (kmh !== hudCache.kmh) { $('speed-num').textContent = kmh; hudCache.kmh = kmh; }
+    // 名次：對手同玩家一齊按進度排。冇對手就唔顯示，唔好霸位。
+    const place = rivals.count ? rivals.playerPlace(playerProgress()) : 0;
+    if (place !== hudCache.place) {
+        const box = $('place-box');
+        box.classList.toggle('hidden', !place);
+        if (place) box.innerHTML = `<b>${place}</b><span>/${rivals.count + 1}</span>`;
+        hudCache.place = place;
+    }
     const lapLabel = `${Math.min(race.lap + 1, race.totalLaps)}/${race.totalLaps}`;
     if (lapLabel !== hudCache.lap) { $('lap-num').textContent = lapLabel; hudCache.lap = lapLabel; }
     const t = fmtTime(race.lapTime);
@@ -688,6 +738,8 @@ function startRace() {
     input.reset();
     car.reset(track.startPos, track.startDir);
     drivingEffects.reset();
+    rivals.spawn(track, rivalCount, race.totalLaps);
+    resetPlayerProgress();
     camInit = false;
     race.reset();
     hudCache = {};
@@ -789,6 +841,8 @@ function frame(now) {
             const cmd = race.state === 'racing' ? input.read(dt) : { throttle: 0, steer: 0, handbrake: false };
             car.update(dt, cmd, track);
             race.update(dt, car);
+            // 對手行喺玩家之後：咁樣分開兩架車嗰下推力已經用咗今幀嘅新位置
+            rivals.update(dt, track, car);
             drivingEffects.update(dt, car);
             updateHud();
             minimap.draw(car);

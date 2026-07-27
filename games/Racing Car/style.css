@@ -935,3 +935,29 @@ body {
     font-weight: 800;
     cursor: pointer;
 }
+
+/* ---------- 名次 ---------- */
+#place-box {
+    position: absolute;
+    left: max(12px, env(safe-area-inset-left));
+    top: 116px;
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+    padding: 4px 11px;
+    border-radius: 12px;
+    background: rgba(15, 25, 35, .62);
+    border: 2px solid rgba(255, 255, 255, .22);
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+}
+
+#place-box b {
+    font-size: 19px;
+    font-weight: 900;
+}
+
+#place-box span {
+    font-size: 12px;
+    color: #b9c6d6;
+}

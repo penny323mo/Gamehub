@@ -61,6 +61,7 @@ export const QUALITY_MODES = {
     battery: { name: '省電' },
 };
 
+const KEY_RIVALS = 'racer-rivals';
 const KEY_COLOUR = 'racer-colour';
 const KEY_TOD = 'racer-tod';
 const KEY_QUALITY = 'racer-quality';
@@ -75,6 +76,13 @@ export function loadTod() {
     return TIMES[id] ? id : 'day';
 }
 export function saveTod(id) { try { localStorage.setItem(KEY_TOD, id); } catch { } }
+
+// 對手數目。預設 2：夠有追逐感，又唔會塞爆條路
+export function loadRivals() {
+    const n = Number(localStorage.getItem(KEY_RIVALS));
+    return Number.isFinite(n) && n >= 0 && n <= 4 ? n : 2;
+}
+export function saveRivals(n) { try { localStorage.setItem(KEY_RIVALS, String(n)); } catch { } }
 export function loadQuality() {
     const id = localStorage.getItem(KEY_QUALITY);
     return QUALITY_MODES[id] ? id : 'auto';

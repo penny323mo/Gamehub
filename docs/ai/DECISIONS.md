@@ -584,3 +584,39 @@ follows what the tyres can use
   particle would make cost grow with play time. A single capped layer gives drift,
   surface, and impact cues at a measured one-draw cost; the larger left disc improves
   thumb control without reverting to circle-bound input.
+
+## ADR-045: Rivals share the player's physics but not the player's model
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: computer rivals in `src/rivals.js` run the full `car.js` bicycle model
+  driven by `src/driver.js`, but are drawn as a low-poly block car in a single
+  `InstancedMesh`. The pure-pursuit driver moved out of `tests/race.mjs` so the game
+  and the lap gates run the same controller.
+- Reason: the player's GLB is 17,843 triangles and one draw call, so two rivals alone
+  would breach the phone budget set in ADR-044 (<18 calls, <120k triangles). The whole
+  four-car field now costs one draw call and 288 triangles, and the visual difference
+  makes the player's own car unmistakable at a glance. Sharing the driver means every
+  test run of the three circuits is also a test of the opponents.
+
+## ADR-046: Track position is accumulated, never taken modulo per frame
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: both the player and each rival keep a running position along the circuit,
+  advanced each frame by the shortest signed step along the curve. Standings compare
+  those accumulated values.
+- Reason: computing `(t - startT + 1) % 1` fresh each frame cannot tell "just short of
+  the line" from "just short of a full lap". With the grid placed off the line, a player
+  sitting on pole was ranked last, and a car a metre behind the line read as 0.99 laps
+  ahead. Accumulation also survives the grid being moved ahead of or behind the line.
+
+## ADR-047: Cars separate with a body box, not a circle
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: car-to-car separation resolves along whichever axis of the shared body
+  frame is less deeply overlapped, using half-extents of 2.5 by 1.15.
+- Reason: a circle cannot express a 4.6 by 2.0 metre car. A radius large enough to stop
+  nose-to-tail interpenetration also shoves cars apart when they run side by side,
+  which removes wheel-to-wheel racing — the reason for having rivals at all.
