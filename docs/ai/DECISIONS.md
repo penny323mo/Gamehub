@@ -691,3 +691,18 @@ follows what the tyres can use
   by track progress versus finishing time — and a screenshot caught them disagreeing:
   第 1 / 5 above a table putting the player 4th. Finished rivals stop advancing
   progress, so the two rankings drift apart exactly when the result is shown.
+
+## ADR-053: The championship scales its points and breaks ties by countback
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: `src/season.js` runs the three circuits in order, awarding
+  `(entrants - place + 1) * 2` points, and resolves equal totals by countback —
+  most wins first, then most seconds, and so on. Progress persists so a season
+  survives closing the page.
+- Reason: a fixed points table would need rewriting for every rival count the
+  設定 offers; deriving it means two rivals and four rivals both work with no
+  special cases. Countback rather than "best single finish" because with three
+  races and three contenders it is entirely normal for everyone to have won once —
+  the first version of this used best finish and a test caught it ranking a
+  three-way tie by insertion order.

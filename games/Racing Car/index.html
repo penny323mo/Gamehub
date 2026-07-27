@@ -156,6 +156,8 @@
                     <div>角度愈大、速度愈快、連得愈耐，分數愈高；撞欄會報銷未入袋嗰筆</div>
                 </div>
                 <button id="start-btn" class="big-btn">開始比賽</button>
+                <button id="season-btn" class="big-btn ghost">🏆 錦標賽（三場）</button>
+                <div id="season-note" class="set-note"></div>
             </div>
         </div>
 
@@ -182,7 +184,12 @@
                 <div class="result-row"><span>本賽道紀錄</span><b id="finish-record">--</b></div>
                 <div id="finish-standings" class="hidden"></div>
                 <div id="finish-laps"></div>
+                <div id="season-box" class="hidden">
+                    <div class="section-label" id="season-title">錦標賽</div>
+                    <div id="season-rows"></div>
+                </div>
                 <div class="btn-row">
+                    <button id="next-race-btn" class="big-btn hidden">下一場</button>
                     <button id="again-btn" class="big-btn">再跑一次</button>
                     <button id="menu-btn" class="big-btn ghost">返回</button>
                 </div>
