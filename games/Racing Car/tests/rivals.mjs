@@ -186,6 +186,38 @@ console.log('  ', JSON.stringify(swap));
 check('換賽道會清走對手', swap.after === 0 && swap.meshCount === 0, swap);
 check('冇對手嗰陣唔會畫', swap.visible === false);
 
+// T7：完賽名次表——跑完嘅按時間排，未跑完嘅排喺後面兼唔報時間
+const table = await page.evaluate(() => {
+    const { rivals, track } = window.__racer;
+    rivals.spawn(track, 4, 3);
+    const rv = rivals.rivals;
+    // 兩架跑完（一快一慢）、兩架仲喺路上（進度唔同）
+    rv[0].finished = true; rv[0].time = 95.5;
+    rv[1].finished = true; rv[1].time = 88.25;
+    rv[2].progress = 2.4;
+    rv[3].progress = 1.1;
+    const rows = rivals.results(91.0, 3.0);
+    return {
+        order: rows.map(r => `${r.place}:${r.label}`),
+        winnerGap: rows[0].gap,
+        playerRow: rows.find(r => r.player),
+        unfinished: rows.filter(r => !r.finished).map(r => ({ place: r.place, time: r.time })),
+        gaps: rows.filter(r => r.finished).map(r => r.gap),
+    };
+});
+console.log('  ', JSON.stringify(table));
+// 88.25（對手2）< 91.0（你）< 95.5（對手1），之後先至係未完成嗰兩架
+check('跑完嘅按時間排', table.order.slice(0, 3).join('|') === '1:對手 2|2:你|3:對手 1', table.order);
+check('未跑完嘅排喺跑完嘅後面',
+    table.unfinished.every(u => u.place > 3), table.unfinished);
+check('未跑完嘅唔會作個時間出嚟',
+    table.unfinished.every(u => u.time === null), table.unfinished);
+check('未跑完嘅按進度排', table.order[3] === '4:對手 3', table.order);
+check('冠軍冇差距', table.winnerGap === null, table.winnerGap);
+check('其他人報同冠軍嘅差距',
+    Math.abs(table.gaps[1] - 2.75) < 0.01 && Math.abs(table.gaps[2] - 7.25) < 0.01, table.gaps);
+check('玩家自己嗰行標得到', table.playerRow.player === true && table.playerRow.place === 2, table.playerRow);
+
 checkNoErrors(r.errors);
 await r.close();
 finish('rivals');

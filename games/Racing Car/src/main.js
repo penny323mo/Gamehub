@@ -678,11 +678,30 @@ function showFinish({ total, laps, best, drift, bestDrift, bestScore }) {
     $('finish-bestdrift').textContent = bestDrift.toLocaleString();
     $('finish-record').textContent = bestScore.toLocaleString();
     const placeRow = $('finish-place-row');
+    const board = $('finish-standings');
     if (rivals.count) {
         placeRow.classList.remove('hidden');
-        // 收線嗰刻仲有對手未到，佢哋嘅名次就係「跑緊嗰個進度」嘅排位
+        board.classList.remove('hidden');
         $('finish-place').textContent = `第 ${rivals.playerPlace(playerProgress())} / ${rivals.count + 1}`;
-    } else placeRow.classList.add('hidden');
+        board.innerHTML = '';
+        for (const row of rivals.results(total, playerProgress())) {
+            const el = document.createElement('div');
+            el.className = 'stand-row' + (row.player ? ' me' : '');
+            const swatch = `#${row.colour.toString(16).padStart(6, '0')}`;
+            // 未跑完嘅唔報時間——報咗就等於作大一個佢未跑到嘅數字
+            const right = row.finished
+                ? (row.gap == null ? fmtTime(row.time) : `+${row.gap.toFixed(2)}`)
+                : '未完成';
+            el.innerHTML = `<span class="stand-place">${row.place}</span>`
+                + `<i class="stand-dot" style="background:${swatch}"></i>`
+                + `<span class="stand-name">${row.label}</span>`
+                + `<b class="stand-time">${right}</b>`;
+            board.appendChild(el);
+        }
+    } else {
+        placeRow.classList.add('hidden');
+        board.classList.add('hidden');
+    }
     const list = $('finish-laps');
     list.innerHTML = '';
     laps.forEach((t, i) => {

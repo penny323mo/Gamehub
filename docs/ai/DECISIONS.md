@@ -665,3 +665,15 @@ follows what the tyres can use
   vertically, so dragging up did nothing. Keeping a pointer-to-action map rather
   than a single active action is what preserves holding throttle and handbrake
   together, which is the game's own documented drift technique.
+
+## ADR-051: The finish table ranks unfinished rivals without inventing a time
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: the finish screen lists every car. Finishers sort by total time and show
+  a gap to the winner; cars still on track sort below them by track position and
+  show 未完成 rather than any number.
+- Reason: the race ends when the player crosses the line, so rivals are usually still
+  running. Extrapolating a finish time for them would put a fabricated number next to
+  real ones on the same screen. Position order is knowable and honest; their time is
+  not, so it is not shown.

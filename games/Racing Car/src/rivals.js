@@ -271,6 +271,30 @@ export class RivalField {
         return rows;
     }
 
+    // 完賽名次表：跑完嘅按時間排，未跑完嘅按進度排喺後面。
+    // 玩家過線就收工，所以對手多數仲喺賽道上面——照樣要有個位排。
+    results(playerTime, playerProgress) {
+        const rows = this.rivals.map((r, i) => ({
+            label: `對手 ${i + 1}`, colour: r.colour, player: false,
+            finished: r.finished, time: r.finished ? r.time : null, progress: r.progress,
+        }));
+        rows.push({
+            label: '你', colour: 0xffffff, player: true,
+            finished: true, time: playerTime, progress: playerProgress,
+        });
+        rows.sort((a, b) => {
+            if (a.finished !== b.finished) return a.finished ? -1 : 1;
+            if (a.finished) return a.time - b.time;
+            return b.progress - a.progress;
+        });
+        const winner = rows[0]?.finished ? rows[0].time : null;
+        return rows.map((row, i) => ({
+            ...row,
+            place: i + 1,
+            gap: row.finished && winner != null && i > 0 ? row.time - winner : null,
+        }));
+    }
+
     playerPlace(playerProgress) {
         let place = 1;
         for (const r of this.rivals) if (r.progress > playerProgress) place++;

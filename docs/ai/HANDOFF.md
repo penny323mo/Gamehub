@@ -4,7 +4,7 @@ Updated: 2026-07-27 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Baseline before this task: `b5ae2ab`
+Baseline before this task: `3a6f89c`
 Status: rivals, best-lap ghost, and the right-hand touch cluster rebuilt
 
 ## Current objective
@@ -16,14 +16,16 @@ computer rivals (someone else's pace) and a ghost of your own best lap (your own
 
 - `src/driver.js`: the pure-pursuit plus curvature-limit controller, moved out of
   `tests/race.mjs` so the game and the lap gates run the same code. Skill levels
-  differ mainly in look-ahead and braking; dropping `latG` below about 5.5
-  measurably makes the controller worse, not safer.
+  differ mainly in look-ahead and braking; `latG` below about 5.5 measurably makes
+  the controller worse, not safer.
 - `src/rivals.js`: up to four rivals running the full `car.js` physics — they drift,
   brake, hit barriers, and get towed when stuck exactly as the player does. Drawn as
   low-poly block cars in one `InstancedMesh` (ADR-045): one draw call, 288 triangles.
 - Grid sits ahead of the player so rivals are on screen from the first frame and
   there is something to chase. Lap records are unaffected: timing starts at the line.
-- Standings: a position readout in the HUD and a 名次 row on the finish screen.
+- Standings: a live position readout in the HUD, and a finish table listing every
+  car — finishers by time with a gap to the winner, cars still running below them by
+  track position marked 未完成 rather than given a made-up time (ADR-051).
 - Setting 對手: 獨自計時 / 2 架 / 4 架, persisted. Zero rivals restores the old
   time-trial exactly and draws nothing.
 - Two real bugs found building the rivals: per-frame modulo ranked a player on pole
@@ -54,18 +56,19 @@ computer rivals (someone else's pace) and a ghost of your own best lap (your own
 ## Verification
 
 - `npm test` in `games/Racing Car/tests`: race 47/47, setup 59/59, rivals 32/32,
-  ghost 25/25 (setup gained 9 control gates; Codex's 59 were not modified).
+  ghost 25/25 (setup gained 9 control gates, rivals 7 table gates; Codex's 59
+  control gates were not modified).
 - Four rivals finish three laps on every circuit (turbo 110–133s, coast 122–134s,
-  touge 120–157s) with 2.6 / 11.0 / 5.7 percent off-road, and each circuit produces
-  a spread of times — which is what proves the skill levels do something.
+  touge 120–157s) with 2.6 / 11.0 / 5.7 percent off-road and a spread of times —
+  which is what proves the skill levels do something.
 - Budget with four rivals: 16 draw calls, 55,115 triangles, inside ADR-044's `<18`
   and `<120k`. The field adds exactly one draw call and 288 triangles.
 - Separation: four cars forced onto one point push apart to 4.51 m; two running side
-  by side 2.6 m apart stay 2.46 m apart instead of being shoved off line.
-- Ranking gate: a player on pole with four rivals ahead reads their progress as
-  0.012–0.025, not 0.9x.
+  by side 2.6 m apart stay 2.46 m apart. Ranking gate: a player on pole with four
+  rivals ahead reads their progress as 0.012–0.025, not 0.9x.
 - Screenshots at 430x900: the grid at lights-out, mid-race passing wheel-to-wheel,
-  and lap 2 showing −2.92 against the recorded best.
+  lap 2 showing −2.92 against the recorded best, and the finish table with the
+  player 4th of 5 at +10.97 and one rival still 未完成.
 - Ghost gates cover interpolation, shortest-path yaw across ±pi, clamping outside
   the recorded range, only-faster-overwrites, and clearing.
 - Penny's exact sequence is now a gate: gas, slide up to drift, slide to brake,
@@ -92,8 +95,8 @@ computer rivals (someone else's pace) and a ghost of your own best lap (your own
 1. Run `./scripts/agent-context.sh --sync` on the intended branch.
 2. Ask Penny whether the rebuilt cluster fixes what she reported, and how the rival
    pace feels. `SKILLS` in `driver.js` is the one knob for pace.
-3. Natural next steps: a finish-screen standings table, and the ghost as an entry
-   in the standings.
+3. Natural next steps: rival names/liveries so the table reads as characters, and a
+   season or championship that carries results across races.
 
 ## Do not redo
 
