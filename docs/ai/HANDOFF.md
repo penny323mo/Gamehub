@@ -4,8 +4,8 @@ Updated: 2026-07-27 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Baseline before this task: `94a4d13`
-Status: Racing Car has rivals, standings, and a best-lap ghost
+Baseline before this task: `b5ae2ab`
+Status: rivals, best-lap ghost, and the right-hand touch cluster rebuilt
 
 ## Current objective
 
@@ -15,30 +15,32 @@ computer rivals (someone else's pace) and a ghost of your own best lap (your own
 ## Completed
 
 - `src/driver.js`: the pure-pursuit plus curvature-limit controller, moved out of
-  `tests/race.mjs` so the game and the lap gates run the same code. Three skill
-  levels differ mainly in look-ahead and braking, not in cornering appetite —
-  dropping `latG` below about 5.5 measurably makes the controller worse, not safer.
-- `src/rivals.js`: up to four rivals running the full `car.js` physics. They drift,
-  brake, hit barriers, and get towed after three seconds stuck exactly as the player
-  does. Drawn as one low-poly block car per instance in a single `InstancedMesh`
-  (ADR-045) — the whole field is one draw call and 288 triangles.
-- Grid sits ahead of the player so the rivals are on screen from the first frame and
-  there is immediately something to chase. Lap records are unaffected because timing
-  starts when the player crosses the line.
+  `tests/race.mjs` so the game and the lap gates run the same code. Skill levels
+  differ mainly in look-ahead and braking; dropping `latG` below about 5.5
+  measurably makes the controller worse, not safer.
+- `src/rivals.js`: up to four rivals running the full `car.js` physics — they drift,
+  brake, hit barriers, and get towed when stuck exactly as the player does. Drawn as
+  low-poly block cars in one `InstancedMesh` (ADR-045): one draw call, 288 triangles.
+- Grid sits ahead of the player so rivals are on screen from the first frame and
+  there is something to chase. Lap records are unaffected: timing starts at the line.
 - Standings: a position readout in the HUD and a 名次 row on the finish screen.
 - Setting 對手: 獨自計時 / 2 架 / 4 架, persisted. Zero rivals restores the old
   time-trial exactly and draws nothing.
-- Two real bugs found while building the rivals: per-frame modulo made a player on
-  pole rank last (ADR-046), and circular separation could not hold a 4.6 m car apart
+- Two real bugs found building the rivals: per-frame modulo ranked a player on pole
+  last (ADR-046), and circular separation could not hold a 4.6 m car apart
   nose-to-tail without also forbidding side-by-side racing (ADR-047).
-- `src/ghost.js`: the player's best lap on each track, sampled at 10 Hz as pose plus
-  lap-progress and replayed as a translucent car, with a live gap readout in the HUD
-  — green when up on your best, red when down (ADR-048). Only a faster lap overwrites
-  it. Setting 幽靈車 開/關/清除幽靈, on by default. It is scenery: no physics, no
-  contact with the player.
+- `src/ghost.js`: the best lap per track, sampled at 10 Hz as pose plus lap-progress
+  and replayed as a translucent car, with a live gap readout — green when up on your
+  best, red when down (ADR-048). Only a faster lap overwrites it. Setting 幽靈車
+  開/關/清除幽靈, on by default. Scenery only: no physics, no contact.
 - A third real bug came out of that: the player's accumulated lap position was
   advanced as a side effect of a getter that only the HUD called, so standings and
   the ghost both depended on whether the HUD had drawn (ADR-049).
+- Penny's touch report fixed: the right-hand cluster is now one gesture surface
+  (ADR-050). Each of gas/brake/drift used to capture its own pointer, so the first
+  button a thumb landed on owned it for the whole press — after braking she could
+  not get back on the throttle. Sliding between buttons now works in every
+  direction, and holding throttle plus handbrake together still works.
 
 ## Changed files
 
@@ -46,41 +48,41 @@ computer rivals (someone else's pace) and a ghost of your own best lap (your own
 - `games/Racing Car/src/main.js`, `src/settings.js`
 - `games/Racing Car/index.html`, `style.css`
 - `games/Racing Car/tests/rivals.mjs`, `tests/ghost.mjs` (both new), `tests/run-all.mjs`
-- `docs/ai/DECISIONS.md` (ADR-045 to ADR-049), `docs/ai/HANDOFF.md`
+- `games/Racing Car/src/input.js`
+- `docs/ai/DECISIONS.md` (ADR-045 to ADR-050), `docs/ai/HANDOFF.md`
 
 ## Verification
 
 - `npm test` in `games/Racing Car/tests`: race 47/47, setup 59/59, rivals 32/32,
-  ghost 25/25. Codex's existing gates were not modified.
-- Four rivals finish three laps on every circuit: turbo 110.1/110.6/112.0/132.7s,
-  coast 122.1/125.4/127.6/133.9s, touge 120.3/121.9/122.3/156.5s. Off-road time is
-  2.6 / 11.0 / 5.7 percent and each circuit produces a spread of finishing times,
-  which is what proves the skill levels are actually doing something.
-- Budget with four rivals on track: 16 draw calls and 55,115 triangles, inside
-  ADR-044's `<18` and `<120k`. The field adds exactly one draw call and 288 triangles.
-- Separation: four cars forced onto one point push apart to 4.51 m; two cars running
-  side by side 2.6 m apart stay 2.46 m apart instead of being shoved off line.
-- Ranking regression gate: a player on pole with four rivals ahead reads their
-  progress as 0.012–0.025, not 0.9x.
-- Screenshots at 430x900: the four-car grid ahead of the player at lights-out,
-  mid-race passing wheel-to-wheel, and lap 2 showing −2.92 against the recorded best.
-- Ghost unit gates cover interpolation, shortest-path yaw across the ±pi wrap,
-  clamping outside the recorded range, only-faster-overwrites, and clearing.
+  ghost 25/25 (setup gained 9 control gates; Codex's 59 were not modified).
+- Four rivals finish three laps on every circuit (turbo 110–133s, coast 122–134s,
+  touge 120–157s) with 2.6 / 11.0 / 5.7 percent off-road, and each circuit produces
+  a spread of times — which is what proves the skill levels do something.
+- Budget with four rivals: 16 draw calls, 55,115 triangles, inside ADR-044's `<18`
+  and `<120k`. The field adds exactly one draw call and 288 triangles.
+- Separation: four cars forced onto one point push apart to 4.51 m; two running side
+  by side 2.6 m apart stay 2.46 m apart instead of being shoved off line.
+- Ranking gate: a player on pole with four rivals ahead reads their progress as
+  0.012–0.025, not 0.9x.
+- Screenshots at 430x900: the grid at lights-out, mid-race passing wheel-to-wheel,
+  and lap 2 showing −2.92 against the recorded best.
+- Ghost gates cover interpolation, shortest-path yaw across ±pi, clamping outside
+  the recorded range, only-faster-overwrites, and clearing.
+- Penny's exact sequence is now a gate: gas, slide up to drift, slide to brake,
+  release, press brake, back to gas, then two fingers on gas plus handbrake, then
+  all up with no leftover pointers. Codex's 59 control gates still pass unchanged.
 - Two rivals plus the ghost on track: 17 draw calls, 55,133 triangles.
 
 ## Known issues and cautions
 
 - Deploy must be confirmed on `deploy-pages.yml` after merge. The sandbox network
   policy blocks `penny323mo.github.io`, so only the workflow result is checkable.
-- The player starts last by design. If Penny wants to start on pole, move `GRID` in
-  `rivals.js` behind the line — but then the rivals are behind the camera and
-  invisible until they overtake, which is why it is this way round.
-- Rivals do not drift for score and do not affect the player's drift banking. They
-  are racing opponents, not a scoring mechanic.
-- Separation is positional only. It is deliberately not a collision model: contact
-  nudges cars apart, it does not transfer spin or damage.
-- Still unanswered from Penny's device: whether steering now reads correctly (the
-  轉向方向 反轉 toggle is the escape hatch) and whether the gyro default suits her.
+- The player starts last by design. Moving `GRID` behind the line puts the rivals
+  behind the camera, invisible until they overtake — which is why it is this way.
+- Rivals do not drift for score. Separation is positional only, deliberately not a
+  collision model: contact nudges cars apart, it does not transfer spin or damage.
+- Still unanswered from her device: whether steering reads correctly (the 轉向方向
+  反轉 toggle is the escape hatch) and whether the gyro default suits her.
 - Royale is finished and needs no work; its device checklist still stands.
 - Commits show as Unverified because this environment has no signing key, not a
   wrong identity. Do not rewrite pushed history, do not change `git config`.
@@ -88,10 +90,10 @@ computer rivals (someone else's pace) and a ghost of your own best lap (your own
 ## Exact next action
 
 1. Run `./scripts/agent-context.sh --sync` on the intended branch.
-2. Ask Penny how the rivals feel before tuning them: pace, aggression, and whether
-   four cars is too busy on a phone screen. `SKILLS` in `driver.js` is the one knob.
-3. Remaining natural steps: a finish-screen standings table listing every finisher,
-   and letting the ghost race as a fifth entry in the standings.
+2. Ask Penny whether the rebuilt cluster fixes what she reported, and how the rival
+   pace feels. `SKILLS` in `driver.js` is the one knob for pace.
+3. Natural next steps: a finish-screen standings table, and the ghost as an entry
+   in the standings.
 
 ## Do not redo
 
@@ -102,6 +104,8 @@ computer rivals (someone else's pace) and a ghost of your own best lap (your own
 - Do not duplicate the driver back into the tests; the shared copy is the point.
 - Do not replay the ghost frame-by-frame, and do not let it touch physics (ADR-048).
 - Do not advance track progress from inside a getter or the HUD (ADR-049).
+- Do not give the action buttons individual pointer capture again, and do not
+  collapse the pointer-to-action map into a single active action (ADR-050).
 - Do not restore per-frame overlapping thick skid segments or dotted opaque smoke,
   allocate a mesh per particle, or leave effects alive across restarts (ADR-044).
 - Do not shrink the 156px landscape / 118px narrow steering disc without Penny asking.

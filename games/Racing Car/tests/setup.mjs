@@ -722,6 +722,70 @@ console.log('  ', JSON.stringify(map));
 check('縮圖畫到賽道', map.turbo > 800, map.turbo);
 check('換賽道縮圖跟住換', Math.abs(map.turbo - map.touge) > 40, map);
 
+// T7：Penny 實測嗰個次序——撳油門 → 拉上去 → 放手 → 撳煞車 → 換返油門。
+// 舊做法三粒掣各自 capture，手指鎖死喺第一粒；而且「滑去其他掣」淨係認
+// 向左移動，但三粒掣係打直疊住嘅。呢一組就係守住呢兩件事。
+const cluster = await page.evaluate(async () => {
+    const { input } = window.__racer;
+    // 要量得到掣嘅位置，HUD 一定要顯示緊
+    document.getElementById('hud').classList.remove('hidden');
+    input.reset(document);
+    const at = (id) => {
+        const r = document.getElementById(id).getBoundingClientRect();
+        return { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+    };
+    const fire = (id, type, pointerId, coords) => document.getElementById(id)
+        .dispatchEvent(new PointerEvent(type, {
+            bubbles: true, cancelable: true, pointerId, pointerType: 'touch', ...coords,
+        }));
+    const snap = () => ({ ...input.read(1 / 60) });
+    const out = {};
+
+    // 1. 撳油門
+    fire('pad-gas', 'pointerdown', 1, at('pad-gas'));
+    out.gasDown = snap();
+    // 2. 唔放手，拉上去飄移
+    fire('pad-gas', 'pointermove', 1, at('pad-drift'));
+    out.slidToDrift = snap();
+    // 3. 再拉去煞車
+    fire('pad-gas', 'pointermove', 1, at('pad-brake'));
+    out.slidToBrake = snap();
+    // 4. 放手
+    fire('pad-gas', 'pointerup', 1, at('pad-brake'));
+    out.released = snap();
+    // 5. 直接撳煞車
+    fire('pad-brake', 'pointerdown', 2, at('pad-brake'));
+    out.brakeDown = snap();
+    fire('pad-brake', 'pointerup', 2, at('pad-brake'));
+    // 6. 換返去油門——舊版就係喺呢一步冇反應
+    fire('pad-gas', 'pointerdown', 3, at('pad-gas'));
+    out.gasAgain = snap();
+    // 7. 兩隻手指：踩住油門再撳手煞（甩尾基本手法）
+    fire('pad-drift', 'pointerdown', 4, at('pad-drift'));
+    out.bothFingers = snap();
+    fire('pad-drift', 'pointerup', 4, at('pad-drift'));
+    out.afterDriftUp = snap();
+    fire('pad-gas', 'pointerup', 3, at('pad-gas'));
+    out.allUp = snap();
+    out.leftover = input.touchPointers.size;
+    return out;
+});
+console.log('  ', JSON.stringify(cluster));
+check('撳油門 = 加速', cluster.gasDown.throttle === 1, cluster.gasDown);
+check('唔放手拉上去飄移會轉做手煞',
+    cluster.slidToDrift.handbrake === true && cluster.slidToDrift.throttle === 0, cluster.slidToDrift);
+check('再拉去煞車會轉做煞車',
+    cluster.slidToBrake.throttle === -1 && cluster.slidToBrake.handbrake === false, cluster.slidToBrake);
+check('放手全部清返', cluster.released.throttle === 0 && cluster.released.handbrake === false, cluster.released);
+check('直接撳煞車有反應', cluster.brakeDown.throttle === -1, cluster.brakeDown);
+check('煞完換返去油門要有反應', cluster.gasAgain.throttle === 1, cluster.gasAgain);
+check('踩住油門同時撳手煞（甩尾手法）',
+    cluster.bothFingers.throttle === 1 && cluster.bothFingers.handbrake === true, cluster.bothFingers);
+check('放開手煞油門照踩住',
+    cluster.afterDriftUp.throttle === 1 && cluster.afterDriftUp.handbrake === false, cluster.afterDriftUp);
+check('全部放手唔會有殘留',
+    cluster.allUp.throttle === 0 && cluster.leftover === 0, cluster);
+
 checkNoErrors(r.errors);
 await r.close();
 finish('setup');

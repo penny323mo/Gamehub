@@ -9,8 +9,8 @@ export class Input {
     constructor(root) {
         this.keys = new Set();
         this.touch = { left: false, right: false, steer: 0, gas: false, brake: false, drift: false };
+        // pointerId -> 'gas' | 'brake' | 'drift' | 'steer'
         this.touchPointers = new Map();
-        this.gasGestureAction = null;
         this.steerSmooth = 0;
 
         // 設定：轉向反轉係畀 Penny 嘅逃生門。所有量度（物理、鏡頭右向量、
@@ -29,78 +29,107 @@ export class Input {
         addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
         addEventListener('blur', () => this.reset(root));
 
-        // 煞車／飄移可以直接撳；亦可以由主油門一路按住滑過去切換。
-        const actionIds = { gas: 'pad-gas', brake: 'pad-brake', drift: 'pad-drift' };
+        // 右手動作區當成「一塊」手勢面，唔係三粒各自為政嘅掣。
+        //
+        // 舊做法係三粒掣各自 setPointerCapture：手指一落咗喺其中一粒，
+        // 之後所有事件都鎖死喺嗰粒度，滑去第二粒係完全收唔到——Penny 實測
+        // 「撳完煞車再換返去油門好似冇反應」就係咁嚟。另外舊嗰套「由油門
+        // 滑去其他掣」淨係認向左移動，但三粒掣係打直疊住嘅，向上拉自然
+        // 冇反應。
+        //
+        // 而家：capture 喺容器度，逐隻手指記住佢而家喺邊粒掣上面，郁到
+        // 邊就即刻轉做邊個動作。同時容得落多隻手指——踩住油門再撳手煞
+        // 係呢隻遊戲入面最基本嘅甩尾手法，唔可以做唔到。
+        const cluster = root.querySelector('.pad-side.right');
+        const actionEls = {
+            gas: root.querySelector('#pad-gas'),
+            brake: root.querySelector('#pad-brake'),
+            drift: root.querySelector('#pad-drift'),
+        };
         const syncActions = () => {
-            for (const [prop, id] of Object.entries(actionIds)) {
-                this.touch[prop] = this.touchPointers.has(prop) || this.gasGestureAction === prop;
-                root.querySelector(`#${id}`)?.classList.toggle('held', this.touch[prop]);
+            const live = new Set(this.touchPointers.values());
+            for (const [prop, el] of Object.entries(actionEls)) {
+                this.touch[prop] = live.has(prop);
+                el?.classList.toggle('held', this.touch[prop]);
             }
         };
-        for (const [id, prop] of [['pad-brake', 'brake'], ['pad-drift', 'drift']]) {
-            const el = root.querySelector(`#${id}`);
-            if (!el) continue;
-            const down = (ev) => {
-                ev.preventDefault();
-                this.touchPointers.set(prop, ev.pointerId);
-                syncActions();
-                // 手指稍為滑出圓角掣都繼續收 input，直到真正放手；兩隻手指
-                // 各自 capture 自己嗰粒掣，所以油門 + 轉向可以同時成立。
-                try { el.setPointerCapture(ev.pointerId); } catch { }
-            };
-            const up = (ev) => {
-                if (this.touchPointers.get(prop) !== ev.pointerId) return;
-                ev.preventDefault();
-                this.touchPointers.delete(prop);
-                syncActions();
-            };
-            el.addEventListener('pointerdown', down);
-            el.addEventListener('pointerup', up);
-            el.addEventListener('pointercancel', up);
-            el.addEventListener('lostpointercapture', up);
-        }
+        this.syncActions = syncActions;
 
-        const gas = root.querySelector('#pad-gas');
-        if (gas) {
-            const actionAt = (x, y) => {
-                const gasRect = gas.getBoundingClientRect();
-                const cx = gasRect.left + gasRect.width / 2;
-                const cy = gasRect.top + gasRect.height / 2;
-                const dx = x - cx, dy = y - cy;
-                // 右拇指由油門向左滑：水平／左下係煞車，左上係飄移。
-                // 用方向區而唔係只靠另一粒圓形 hitbox，滑過兩掣之間都唔會斷動作。
-                if (dx < -gasRect.width * 0.28) {
-                    return dy < -gasRect.height * 0.34 ? 'drift' : 'brake';
-                }
-                return 'gas';
+        // 落手嗰下信瀏覽器自己嘅命中判斷（ev.target）——佢比我哋自己度
+        // rect 準，而且合成事件唔一定帶座標。手指郁動嗰陣就唔可以靠
+        // target 了：capture 之後 target 永遠係容器，唯一嘅訊號係座標。
+        const actionOfElement = (node) => {
+            const el = node?.closest?.('#pad-gas, #pad-brake, #pad-drift');
+            if (!el) return null;
+            return el.id === 'pad-gas' ? 'gas' : el.id === 'pad-brake' ? 'brake' : 'drift';
+        };
+
+        // 手指喺邊粒掣上面。要先掃一次「真正落喺個掣入面」，掃完冇先至放寬——
+        // 一次過用放寬咗嘅範圍嘅話，最大粒嗰個（油門）會食埋隔籬掣嘅位置，
+        // 由油門拉去飄移永遠都變唔到。
+        const actionAt = (x, y) => {
+            const rects = [];
+            for (const [prop, el] of Object.entries(actionEls)) {
+                const r = el?.getBoundingClientRect();
+                // 量到零尺寸即係個 HUD 未顯示／已隱藏。呢種情況下面所有
+                // 「最近嗰粒」嘅距離都係零，隨便揀一粒就會亂跳動作。
+                if (r && r.width > 0 && r.height > 0) rects.push([prop, r]);
+            }
+            if (!rects.length) return null;
+            for (const [prop, r] of rects) {
+                if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return prop;
+            }
+            // 掣同掣之間有罅，滑過罅位唔應該斷開動作
+            for (const [prop, r] of rects) {
+                const padX = r.width * 0.2, padY = r.height * 0.2;
+                if (x >= r.left - padX && x <= r.right + padX
+                    && y >= r.top - padY && y <= r.bottom + padY) return prop;
+            }
+            let best = null, bestDist = Infinity;
+            for (const [prop, r] of rects) {
+                const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2));
+                if (d < bestDist) { bestDist = d; best = prop; }
+            }
+            return best;
+        };
+
+        if (cluster) {
+            const down = (ev) => {
+                const action = actionOfElement(ev.target) ?? actionAt(ev.clientX, ev.clientY);
+                if (!action) return;
+                ev.preventDefault();
+                this.touchPointers.set(ev.pointerId, action);
+                syncActions();
+                cluster.classList.add('gesture-active');
+                try { cluster.setPointerCapture(ev.pointerId); } catch { }
             };
             const move = (ev) => {
-                if (this.touchPointers.get('action') !== ev.pointerId) return;
+                if (!this.touchPointers.has(ev.pointerId)) return;
                 ev.preventDefault();
-                this.gasGestureAction = actionAt(ev.clientX, ev.clientY);
-                syncActions();
-            };
-            const down = (ev) => {
-                ev.preventDefault();
-                this.touchPointers.set('action', ev.pointerId);
-                this.gasGestureAction = 'gas';
-                syncActions();
-                root.querySelector('.pad-side.right')?.classList.add('gesture-active');
-                try { gas.setPointerCapture(ev.pointerId); } catch { }
+                // 量唔到位置就維持原本動作，唔好亂跳
+                const action = actionAt(ev.clientX, ev.clientY);
+                if (action && action !== this.touchPointers.get(ev.pointerId)) {
+                    this.touchPointers.set(ev.pointerId, action);
+                    syncActions();
+                }
             };
             const up = (ev) => {
-                if (this.touchPointers.get('action') !== ev.pointerId) return;
+                if (!this.touchPointers.has(ev.pointerId)) return;
                 ev.preventDefault();
-                this.touchPointers.delete('action');
-                this.gasGestureAction = null;
+                this.touchPointers.delete(ev.pointerId);
                 syncActions();
-                root.querySelector('.pad-side.right')?.classList.remove('gesture-active');
+                if (![...this.touchPointers.values()].some(a => a !== 'steer')) {
+                    cluster.classList.remove('gesture-active');
+                }
             };
-            gas.addEventListener('pointerdown', down);
-            gas.addEventListener('pointermove', move);
-            gas.addEventListener('pointerup', up);
-            gas.addEventListener('pointercancel', up);
-            gas.addEventListener('lostpointercapture', up);
+            cluster.addEventListener('pointerdown', down);
+            cluster.addEventListener('pointermove', move);
+            cluster.addEventListener('pointerup', up);
+            cluster.addEventListener('pointercancel', up);
+            // 手機喺記憶體壓力／來電嗰陣會收走 capture。收走即刻當放手，
+            // 否則油門會一直「撳住」，玩家返到嚟先發現架車已經衝咗出去。
+            // pointerup 一定行喺 lostpointercapture 之前，所以唔會重覆處理。
+            cluster.addEventListener('lostpointercapture', up);
         }
 
         // 現代 MOBA 式浮動搖桿：左手區任何位置都可以落手，底盤會移到
@@ -121,7 +150,7 @@ export class Input {
                 stick.style.bottom = 'auto';
             };
             const move = (ev) => {
-                if (this.touchPointers.get('steer') !== ev.pointerId) return;
+                if (this.touchPointers.get(ev.pointerId) !== 'steer') return;
                 ev.preventDefault();
                 const rect = stick.getBoundingClientRect();
                 const max = Math.max(1, rect.width * 0.34);
@@ -136,7 +165,7 @@ export class Input {
             };
             const down = (ev) => {
                 ev.preventDefault();
-                this.touchPointers.set('steer', ev.pointerId);
+                this.touchPointers.set(ev.pointerId, 'steer');
                 placeBase(ev);
                 stick.classList.add('held');
                 zone.classList.add('held');
@@ -144,9 +173,9 @@ export class Input {
                 move(ev);
             };
             const up = (ev) => {
-                if (this.touchPointers.get('steer') !== ev.pointerId) return;
+                if (this.touchPointers.get(ev.pointerId) !== 'steer') return;
                 ev.preventDefault();
-                this.touchPointers.delete('steer');
+                this.touchPointers.delete(ev.pointerId);
                 this.touch.steer = 0;
                 stick.classList.remove('held');
                 zone.classList.remove('held');
@@ -167,8 +196,8 @@ export class Input {
     reset(root = document) {
         this.keys.clear();
         this.touchPointers.clear();
-        this.gasGestureAction = null;
         for (const key of Object.keys(this.touch)) this.touch[key] = false;
+        this.touch.steer = 0;
         this.steerSmooth = 0;
         root.querySelectorAll?.('.pad-btn.held').forEach(el => el.classList.remove('held'));
         root.querySelector?.('.pad-side.right')?.classList.remove('gesture-active');

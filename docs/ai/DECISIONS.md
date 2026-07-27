@@ -647,3 +647,21 @@ follows what the tyres can use
   which only the HUD called. Standings and the ghost both consume that value, so
   "how far round the lap is the player" silently depended on whether the HUD had
   been drawn this frame. It was caught when a headless run produced a null gap.
+
+## ADR-050: The right-hand action cluster is one gesture surface
+
+- Date: 2026-07-27
+- Status: accepted
+- Decision: gas, brake and drift no longer capture pointers individually. The
+  container captures, each live pointer is mapped to whichever button it is
+  currently over, and that mapping updates as the finger moves. Which button a
+  press starts on comes from `ev.target`; movement resolves by coordinates,
+  exact-rect first and only then a widened rect.
+- Reason: Penny reported that after braking she could not get back on the throttle.
+  With per-button capture, the first button a finger lands on owns that pointer for
+  its whole lifetime, so sliding to another button is silently ignored and the
+  release lands on the wrong element. The previous "slide off the throttle" gesture
+  also only recognised leftward movement while the three buttons are stacked
+  vertically, so dragging up did nothing. Keeping a pointer-to-action map rather
+  than a single active action is what preserves holding throttle and handbrake
+  together, which is the game's own documented drift technique.
