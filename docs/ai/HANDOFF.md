@@ -70,16 +70,16 @@ computer rivals (someone else's pace) and a ghost of your own best lap (your own
   lap 2 showing −2.92 against the recorded best, and the finish table with the
   player 4th of 5 at +10.97 and one rival still 未完成.
 - Ghost gates cover interpolation, shortest-path yaw across ±pi, clamping outside
-  the recorded range, only-faster-overwrites, and clearing.
+  the recorded range, only-faster-overwrites, and clearing. Two rivals plus the
+  ghost on track: 17 draw calls, 55,133 triangles.
 - Penny's exact sequence is now a gate: gas, slide up to drift, slide to brake,
-  release, press brake, back to gas, then two fingers on gas plus handbrake, then
-  all up with no leftover pointers. Codex's 59 control gates still pass unchanged.
-- Two rivals plus the ghost on track: 17 draw calls, 55,133 triangles.
+  release, press brake, back to gas, two fingers on gas plus handbrake, then all up
+  with no leftover pointers. Codex's 59 control gates still pass unchanged.
 
 ## Known issues and cautions
 
-- Deploy must be confirmed on `deploy-pages.yml` after merge. The sandbox network
-  policy blocks `penny323mo.github.io`, so only the workflow result is checkable.
+- Deploy is confirmed on `deploy-pages.yml`; the sandbox network policy blocks
+  `penny323mo.github.io`, so only the workflow result is checkable.
 - The player starts last by design. Moving `GRID` behind the line puts the rivals
   behind the camera, invisible until they overtake — which is why it is this way.
 - Rivals do not drift for score. Separation is positional only, deliberately not a
