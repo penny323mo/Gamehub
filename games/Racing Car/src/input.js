@@ -9,6 +9,7 @@ export class Input {
     constructor(root) {
         this.keys = new Set();
         this.touch = { left: false, right: false, gas: false, brake: false, drift: false };
+        this.touchPointers = new Map();
         this.steerSmooth = 0;
 
         // 設定：轉向反轉係畀 Penny 嘅逃生門。所有量度（物理、鏡頭右向量、
@@ -25,18 +26,37 @@ export class Input {
             this.keys.add(e.key.toLowerCase());
         });
         addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
-        addEventListener('blur', () => this.keys.clear());
+        addEventListener('blur', () => {
+            this.keys.clear();
+            this.touchPointers.clear();
+            for (const key of Object.keys(this.touch)) this.touch[key] = false;
+            root.querySelectorAll('.pad-btn.held').forEach(el => el.classList.remove('held'));
+        });
 
         // 觸控掣：pointer 事件一次過搞掂滑鼠同手指
         for (const [id, prop] of [['pad-left', 'left'], ['pad-right', 'right'],
                                   ['pad-gas', 'gas'], ['pad-brake', 'brake'], ['pad-drift', 'drift']]) {
             const el = root.querySelector(`#${id}`);
             if (!el) continue;
-            const on = (v) => (ev) => { ev.preventDefault(); this.touch[prop] = v; el.classList.toggle('held', v); };
-            el.addEventListener('pointerdown', on(true));
-            el.addEventListener('pointerup', on(false));
-            el.addEventListener('pointercancel', on(false));
-            el.addEventListener('pointerleave', on(false));
+            const down = (ev) => {
+                ev.preventDefault();
+                this.touchPointers.set(prop, ev.pointerId);
+                this.touch[prop] = true;
+                el.classList.add('held');
+                // 手指稍為滑出圓角掣都繼續收 input，直到真正放手；兩隻手指
+                // 各自 capture 自己嗰粒掣，所以油門 + 轉向可以同時成立。
+                try { el.setPointerCapture(ev.pointerId); } catch { }
+            };
+            const up = (ev) => {
+                if (this.touchPointers.get(prop) !== ev.pointerId) return;
+                ev.preventDefault();
+                this.touchPointers.delete(prop);
+                this.touch[prop] = false;
+                el.classList.remove('held');
+            };
+            el.addEventListener('pointerdown', down);
+            el.addEventListener('pointerup', up);
+            el.addEventListener('pointercancel', up);
         }
     }
 

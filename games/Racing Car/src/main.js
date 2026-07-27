@@ -1,9 +1,9 @@
-// 方塊賽車 —— 入口：載模型、砌世界、跑主迴圈、駁 HUD。
+// Racing Car 3D —— 入口：載模型、砌世界、跑主迴圈、駁 HUD。
 
 import * as THREE from 'three';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { DRACOLoader } from '../vendor/DRACOLoader.js';
-import { Track, BLOCK } from './track.js';
+import { Track } from './track.js';
 import { TRACKS, trackById } from './tracks.js';
 import { Car } from './car.js';
 import { Race, fmtTime } from './race.js';
@@ -16,7 +16,9 @@ const holder = $('canvas-holder');
 
 // ---------- 渲染器 ----------
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+// 手機 2× DPR 即係四倍 fragment workload；1.5× 仍然清楚，但長時間跑會穩定好多。
+const coarsePointer = matchMedia('(pointer: coarse)').matches;
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, coarsePointer ? 1.5 : 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
@@ -24,8 +26,8 @@ holder.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x8fc7ef);
-// 霧：方塊世界一望到底會見到格網盡頭，起霧就自然好多
-scene.fog = new THREE.Fog(0x8fc7ef, 120, 320);
+// 空氣透視收走地形平面邊界，同時令遠景有真正深度。
+scene.fog = new THREE.Fog(0x8fc7ef, 150, 390);
 
 const camera = new THREE.PerspectiveCamera(62, 1, 0.5, 600);
 
@@ -55,7 +57,7 @@ let car = null;
 let race = null;
 let camInit = false;      // 鏡頭要唔要即刻歸位（換賽道／重開都會用到）
 
-// 賽道可以換：換嗰陣要 dispose 舊嗰個，唔係每揀一次就漏一份方塊世界
+// 賽道可以換：換嗰陣要 dispose 舊嗰個，唔係每揀一次就漏一份 3D 世界
 const minimap = new Minimap($('minimap'));
 
 let trackDef = trackById(localStorage.getItem('racer-track') ?? TRACKS[0].id);
@@ -73,19 +75,22 @@ function buildTrack(id) {
 }
 buildTrack(trackDef.id);
 
-// 幾隻雲：純白方塊，飄喺高空，加返 Minecraft 感覺
+// 低成本柔和雲層：一個 instanced mesh，唔再用方塊破壞順滑世界觀。
 const clouds = new THREE.Group();
 {
-    const geo = new THREE.BoxGeometry(BLOCK * 4, BLOCK * 2, BLOCK * 3);
-    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-    const im = new THREE.InstancedMesh(geo, mat, 60);
-    const m = new THREE.Matrix4();
-    for (let i = 0; i < 60; i++) {
-        const a = (i / 60) * Math.PI * 2 + i * 0.7;
-        const r = 90 + (i % 7) * 26;
-        m.makeTranslation(Math.cos(a) * r, 55 + (i % 5) * 7, Math.sin(a) * r);
+    const geo = new THREE.SphereGeometry(1, 10, 6);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.58, depthWrite: false });
+    const im = new THREE.InstancedMesh(geo, mat, 42);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+    for (let i = 0; i < 42; i++) {
+        const a = (i / 42) * Math.PI * 2 + i * 0.73;
+        const r = 175 + (i % 7) * 30;
+        const p = new THREE.Vector3(Math.cos(a) * r, 68 + (i % 5) * 8, Math.sin(a) * r);
+        s.set(8 + (i % 3) * 2.5, 2.3 + (i % 2), 4.5 + (i % 4));
+        m.compose(p, q, s);
         im.setMatrixAt(i, m);
     }
+    im.instanceMatrix.needsUpdate = true;
     clouds.add(im);
     scene.add(clouds);
 }
@@ -173,6 +178,7 @@ loader.load('./assets/car.glb', (gltf) => {
     window.__racer = {
         car, race, renderer, camera, restart, startRace, buildTrack, TRACKS, input, minimap,
         setColour, setTod,
+        coarsePointer,
         get track() { return track; },
         get trackDef() { return trackDef; },
         get tod() { return tod; },
@@ -201,12 +207,15 @@ function updateCamera(dt) {
     chaseDir.lerp(want3, Math.min(1, dt * 5)).normalize();
     const fwd = chaseDir;
     const speedT = Math.min(1, car.speed / 60);
+    const wideMobile = camera.aspect > 1.45;
     // 鏡頭要高同望遠：低機位睇落好有速度感，但玩家見唔到下一個彎就變咗盲揸。
     // 實測 5.4 高度嗰陣天空霸咗三分二畫面，路面得底下嗰條。
-    const dist = 13 + speedT * 4;
+    // 橫向手機嘅垂直像素得直向一半；沿用同一距離會令車細到難以讀取姿態，
+    // 所以寬畫面用更近、更低嘅 chase framing，但仍保留 16m 前望。
+    const dist = (13 + speedT * 4) * (wideMobile ? 0.72 : 1);
     const want = car.pos.clone().addScaledVector(fwd, -dist);
-    want.y = 9.0 + speedT * 1.8;
-    const lookAt = car.pos.clone().addScaledVector(fwd, 22).setY(0.6);
+    want.y = (9.0 + speedT * 1.8) * (wideMobile ? 0.74 : 1);
+    const lookAt = car.pos.clone().addScaledVector(fwd, wideMobile ? 16 : 22).setY(0.6);
     if (!camInit) { camPos.copy(want); camLook.copy(lookAt); camInit = true; }
     // 追car 用指數平滑。唔可以再喺漂移時特登放鬆——方向本身已經跟住
     // 行進方向擺，位置再拖就會framing唔到架車。
@@ -216,7 +225,7 @@ function updateCamera(dt) {
     camera.position.copy(camPos);
     camera.lookAt(camLook);
     // 速度愈快視角愈闊，速度感靠呢個
-    const fov = 62 + speedT * 12;
+    const fov = (wideMobile ? 58 : 62) + speedT * (wideMobile ? 9 : 12);
     if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
 }
 

@@ -373,7 +373,7 @@ check('頂住欄真係郁唔到', rescue.kmhWhileStuck < 12, rescue.kmhWhileStuc
 check('卡死 3 秒會拖返賽道', rescue.rescues >= 1, rescue.rescues);
 check('拖完企返喺路面', rescue.onRoadAfter === true);
 
-// T5：換賽道唔會漏 GPU 資源（每換一次都會 dispose 舊方塊世界）
+// T5：換賽道唔會漏 GPU 資源（每換一次都會 dispose 舊 3D 世界）
 const leak = [];
 for (let i = 0; i < 4; i++) {
     const id = TRACK_IDS[i % TRACK_IDS.length];

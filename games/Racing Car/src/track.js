@@ -1,35 +1,26 @@
-// Minecraft 風賽道：成個世界由細方塊砌成（BLOCK 控制格仔大細）。
+// 連續 3D 賽道。Catmull-Rom 曲線同 Uint8Array 格網各有一份工：
 //
-// 做法：先用封閉樣條定義賽道中線，密集取樣，再喺格網度「印」路面；
-// 之後由所有路面格做多源 BFS 向外長草地同欄杆。
+//   - 曲線生成玩家真正見到嘅連續柏油、路肩、起跑線同金屬護欄；
+//   - 格網只做碰撞、落草、檢查點同測試，唔再直接變成畫面上嘅像素地板。
 //
-// 兩個令格仔可以縮細嘅設計（Penny 話「一格一格好奇怪，睇吓可唔可以最小化」）：
-//
-//   1. 格網用 Uint8Array，唔用 Map<string>。BLOCK 0.5 有成十二萬格，
-//      每格一條 "x,z" 字串 key 嘅話單係 Map 就食十幾 MB，手機頂唔順。
-//   2. 地面唔再逐格畫一個立方體。地面本來就係平嘅——由上面望落去
-//      淨係見到頂面，所以每格 2 個三角形就夠（本來 12 個），而且同色
-//      嘅格仔可以沿住 x 併埋一條長條。欄杆企高，仍然要真方塊。
-//
-// 每格嘅光暗差異改用一張 64×64 nearest-filter 噪聲圖，UV 啱啱好一格
-// 一個 texel。咁樣手砌質感照樣喺度，但幾何可以併埋——如果將 jitter 直接
-// 寫落 vertex color，就會逼住每格獨立，永遠併唔到。
+// 呢個分層刻意保留成熟嘅賽車規則，同時唔需要靠將 BLOCK 無限縮細嚟扮
+// 平滑。視覺 mesh 沿弧長取樣，手機端三角形反而比舊 voxel renderer 少。
 
 import * as THREE from 'three';
 
-// BLOCK 純粹係「解像度」旋鈕：所有尺寸都用世界單位寫，除返 BLOCK 先變格數。
-// 0.25 = 原本嘅四分一。做得到係因為地面同欄杆都併咗條：turbo 由 50 萬格
-// 收成 19,594 個 quad ＋ 2,364 條欄杆＝六萬幾個三角形，反而少過未併之前
-// 用 0.5 嗰陣嘅二十二萬。
+// BLOCK 只係物理／查詢格網精度；畫面精度由 VISUAL_STEP 控制。
 export const BLOCK = 0.25;
 const ROAD_HALF_W = 12;              // 路面半闊（世界單位）→ 全闊 24
 const KERB_W = 2;                    // 紅白路肩闊度
 const GRASS_W = 8;                   // 草地緩衝闊度（衝出去仲救得返）
 const WALL_W = 3;                    // 欄杆帶闊度
 const WALL_H = 2.5;                  // 欄杆高度（世界單位）
+const ASPHALT_HALF_W = ROAD_HALF_W - KERB_W;
+const RAIL_OFFSET = ROAD_HALF_W + GRASS_W + WALL_W * 0.5;
+const VISUAL_STEP = 1.25;
 export const ROAD_HALF = Math.round(ROAD_HALF_W / BLOCK);
 
-// 方塊種類。code 係格網入面存嘅數字（0 = 空）
+// 物理地表種類。code 係幕後格網入面存嘅數字（0 = 空）
 const KINDS = [
     null,
     { name: 'road', color: 0x4a4a52 },
@@ -47,23 +38,38 @@ const C = {};
 KINDS.forEach((k, i) => { if (k) C[k.name] = i; });
 const DRIVABLE = new Set([C.road, C.line, C.start, C.startB, C.kerbA, C.kerbB]);
 
-// 一格一個 texel 嘅光暗噪聲。整一次就成個 app 共用。
-// 128×128：BLOCK 0.25 之下每 32 個世界單位先重複一次，望唔出貼圖接縫。
-let _noiseTex = null;
-function noiseTexture() {
-    if (_noiseTex) return _noiseTex;
+const _surfaceTextures = new Map();
+function surfaceTexture(kind) {
+    if (_surfaceTextures.has(kind)) return _surfaceTextures.get(kind);
     const N = 128, data = new Uint8Array(N * N * 4);
-    for (let i = 0; i < N * N; i++) {
-        const n = Math.sin(i * 12.9898 + (i % N) * 78.233) * 43758.5453;
-        const v = Math.round(238 + ((n - Math.floor(n)) - 0.5) * 34);   // 約 ±7%
-        data[i * 4] = data[i * 4 + 1] = data[i * 4 + 2] = v;
-        data[i * 4 + 3] = 255;
+    for (let y = 0; y < N; y++) {
+        for (let x = 0; x < N; x++) {
+            const i = y * N + x;
+            const seed = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+            const n = seed - Math.floor(seed);
+            let r, g, b;
+            if (kind === 'asphalt') {
+                const grain = Math.round((n - 0.5) * 22);
+                const seam = (x % 47 === 0 && y % 9 < 6) ? -12 : 0;
+                r = 62 + grain + seam; g = 64 + grain + seam; b = 68 + grain + seam;
+            } else {
+                const broad = Math.sin(x * 0.17) * Math.cos(y * 0.13) * 12;
+                r = 67 + broad + n * 18; g = 116 + broad + n * 28; b = 53 + broad + n * 13;
+            }
+            data[i * 4] = Math.max(0, Math.min(255, r));
+            data[i * 4 + 1] = Math.max(0, Math.min(255, g));
+            data[i * 4 + 2] = Math.max(0, Math.min(255, b));
+            data[i * 4 + 3] = 255;
+        }
     }
-    _noiseTex = new THREE.DataTexture(data, N, N);
-    _noiseTex.wrapS = _noiseTex.wrapT = THREE.RepeatWrapping;
-    _noiseTex.magFilter = _noiseTex.minFilter = THREE.NearestFilter;
-    _noiseTex.needsUpdate = true;
-    return _noiseTex;
+    const tex = new THREE.DataTexture(data, N, N);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.magFilter = THREE.LinearFilter;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.needsUpdate = true;
+    _surfaceTextures.set(kind, tex);
+    return tex;
 }
 
 export class Track {
@@ -283,102 +289,250 @@ export class Track {
         return bestT;
     }
 
-    // ---------- 砌 mesh ----------
-    // 地面：同色格仔沿 x 併成長條，每條 2 個三角形
-    #buildGround() {
-        const pos = [], col = [], uv = [], idx = [];
-        const c = new THREE.Color();
-        const half = BLOCK / 2;
+    // ---------- 連續視覺 mesh ----------
+    #stripGeometry(offsetA, offsetB, y = 0) {
+        const pos = [], uv = [], idx = [];
+        const up = new THREE.Vector3(0, 1, 0);
+        const segments = this.visualSegments;
+        for (let i = 0; i <= segments; i++) {
+            const t = (i % segments) / segments;
+            const p = this.curve.getPointAt(t);
+            const side = this.curve.getTangentAt(t).cross(up).normalize();
+            pos.push(
+                p.x + side.x * offsetA, y, p.z + side.z * offsetA,
+                p.x + side.x * offsetB, y, p.z + side.z * offsetB,
+            );
+            const along = i / segments * this.length / 5;
+            uv.push(along, 0, along, 1);
+        }
+        for (let i = 0; i < segments; i++) {
+            const a = i * 2, b = a + 1, c = a + 2, d = a + 3;
+            idx.push(a, b, c, b, d, c);
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+        geo.setIndex(idx);
+        geo.computeVertexNormals();
+        return geo;
+    }
+
+    #buildRoad() {
+        const mat = new THREE.MeshStandardMaterial({
+            color: 0x777b80, map: surfaceTexture('asphalt'),
+            roughness: 0.88, metalness: 0.02,
+        });
+        const mesh = new THREE.Mesh(this.#stripGeometry(-ASPHALT_HALF_W, ASPHALT_HALF_W, 0.015), mat);
+        mesh.name = 'smooth-asphalt';
+        mesh.receiveShadow = true;
+        return mesh;
+    }
+
+    // 路肩每段獨立頂點，紅白之間唔會被 vertex interpolation 溝成粉紅。
+    #buildKerbs() {
+        const pos = [], col = [], idx = [];
+        const up = new THREE.Vector3(0, 1, 0);
+        const red = new THREE.Color(0xc62828), white = new THREE.Color(0xf4f1e8);
         let v = 0;
-        for (let z = 0; z < this.gh; z++) {
-            let run = 0, runStart = 0;
-            const flush = (endX) => {
-                if (!run) return;
-                const x0 = (runStart + this.minCX) * BLOCK - half;
-                const x1 = (endX - 1 + this.minCX) * BLOCK + half;
-                const z0 = (z + this.minCZ) * BLOCK - half, z1 = z0 + BLOCK;
-                pos.push(x0, 0, z0, x1, 0, z0, x1, 0, z1, x0, 0, z1);
-                // UV 一格一個 texel（噪聲圖 64×64，nearest）
-                const u0 = (runStart + this.minCX) / 128, u1 = (endX + this.minCX) / 128;
-                const w0 = (z + this.minCZ) / 128, w1 = w0 + 1 / 128;
-                uv.push(u0, w0, u1, w0, u1, w1, u0, w1);
-                c.setHex(KINDS[run].color);
-                for (let k = 0; k < 4; k++) col.push(c.r, c.g, c.b);
-                idx.push(v, v + 2, v + 1, v, v + 3, v + 2);
-                v += 4;
-                run = 0;
-            };
-            for (let x = 0; x < this.gw; x++) {
-                const code = this.grid[z * this.gw + x];
-                const paint = (code && code !== C.wall) ? code : 0;
-                if (paint !== run) { flush(x); run = paint; runStart = x; }
-            }
-            flush(this.gw);
+        const addBand = (p0, s0, p1, s1, a, b, color) => {
+            pos.push(
+                p0.x + s0.x * a, 0.035, p0.z + s0.z * a,
+                p0.x + s0.x * b, 0.035, p0.z + s0.z * b,
+                p1.x + s1.x * a, 0.035, p1.z + s1.z * a,
+                p1.x + s1.x * b, 0.035, p1.z + s1.z * b,
+            );
+            for (let k = 0; k < 4; k++) col.push(color.r, color.g, color.b);
+            idx.push(v, v + 1, v + 2, v + 1, v + 3, v + 2);
+            v += 4;
+        };
+        for (let i = 0; i < this.visualSegments; i++) {
+            const t0 = i / this.visualSegments, t1 = (i + 1) / this.visualSegments;
+            const p0 = this.curve.getPointAt(t0), p1 = this.curve.getPointAt(t1 % 1);
+            const s0 = this.curve.getTangentAt(t0).cross(up).normalize();
+            const s1 = this.curve.getTangentAt(t1 % 1).cross(up).normalize();
+            const color = Math.floor(i * this.length / this.visualSegments / 2.5) % 2 ? white : red;
+            addBand(p0, s0, p1, s1, -ROAD_HALF_W, -ASPHALT_HALF_W, color);
+            addBand(p0, s0, p1, s1, ASPHALT_HALF_W, ROAD_HALF_W, color);
         }
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
         geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
         geo.setIndex(idx);
         geo.computeVertexNormals();
-        this.groundQuads = v / 4;
-        return new THREE.Mesh(geo, new THREE.MeshLambertMaterial({
-            vertexColors: true, map: noiseTexture(),
+        const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+            vertexColors: true, roughness: 0.7, metalness: 0.02,
         }));
-    }
-
-    // 欄杆：企高，所以要真方塊。同地面一樣沿 x 併埋成一條條長方體——
-    // 欄杆帶有六格深，逐格一個立方體嘅話佢一個就食晒八成三角形，
-    // 反而變咗「格仔想縮細」嘅樽頸。併咗之後個數同賽道周長成正比，
-    // 唔再同 BLOCK 嘅平方成反比。
-    #buildWalls() {
-        const geo = new THREE.BoxGeometry(1, WALL_H, BLOCK);   // x 方向之後用 scale 撐長
-        const runs = [];
-        for (let z = 0; z < this.gh; z++) {
-            let start = -1;
-            for (let x = 0; x <= this.gw; x++) {
-                const isWall = x < this.gw && this.grid[z * this.gw + x] === C.wall;
-                if (isWall && start < 0) start = x;
-                else if (!isWall && start >= 0) { runs.push([start, x, z]); start = -1; }
-            }
-        }
-        const mesh = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial(), runs.length);
-        const m = new THREE.Matrix4(), color = new THREE.Color();
-        const p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
-        runs.forEach(([x0, x1, z], j) => {
-            const len = (x1 - x0) * BLOCK;
-            const cx = (x0 + this.minCX) * BLOCK - BLOCK / 2 + len / 2;
-            const cz = (z + this.minCZ) * BLOCK;
-            p.set(cx, WALL_H / 2 - BLOCK, cz);
-            s.set(len, 1, 1);
-            m.compose(p, q, s);
-            mesh.setMatrixAt(j, m);
-            const nz = Math.sin((x0 + this.minCX) * 45.164 + (z + this.minCZ) * 23.14) * 43758.5453;
-            color.setHex(KINDS[C.wall].color).multiplyScalar(1 + ((nz - Math.floor(nz)) - 0.5) * 0.12);
-            mesh.setColorAt(j, color);
-        });
-        mesh.instanceMatrix.needsUpdate = true;
-        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-        this.wallCount = runs.length;
+        mesh.name = 'continuous-kerbs';
+        mesh.receiveShadow = true;
         return mesh;
     }
 
+    #buildStartLine() {
+        const pos = [], col = [], idx = [];
+        const up = new THREE.Vector3(0, 1, 0);
+        const p = this.startPos, tan = this.startDir.clone().normalize();
+        const side = tan.clone().cross(up).normalize();
+        const dark = new THREE.Color(0x17191c), light = new THREE.Color(0xf5f3eb);
+        const cell = 1.5, depth = 3;
+        let v = 0, row = 0;
+        for (let d = 0; d < depth - 0.01; d += cell, row++) {
+            let column = 0;
+            for (let w = -ASPHALT_HALF_W; w < ASPHALT_HALF_W - 0.01; w += cell, column++) {
+                const w1 = Math.min(ASPHALT_HALF_W, w + cell);
+                const d1 = Math.min(depth, d + cell);
+                const point = (ww, dd) => p.clone().addScaledVector(side, ww).addScaledVector(tan, dd);
+                const a = point(w, d), b = point(w1, d), c = point(w, d1), e = point(w1, d1);
+                pos.push(a.x, 0.045, a.z, b.x, 0.045, b.z, c.x, 0.045, c.z, e.x, 0.045, e.z);
+                const color = (row + column) % 2 ? dark : light;
+                for (let k = 0; k < 4; k++) col.push(color.r, color.g, color.b);
+                idx.push(v, v + 1, v + 2, v + 1, v + 3, v + 2);
+                v += 4;
+            }
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+        geo.setIndex(idx);
+        geo.computeVertexNormals();
+        const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72 }));
+        mesh.name = 'start-finish-line';
+        return mesh;
+    }
+
+    #offsetCurve(offset, y) {
+        const points = [], up = new THREE.Vector3(0, 1, 0);
+        const count = Math.max(96, Math.ceil(this.length / 3));
+        for (let i = 0; i < count; i++) {
+            const t = i / count;
+            const p = this.curve.getPointAt(t);
+            const side = this.curve.getTangentAt(t).cross(up).normalize();
+            points.push(new THREE.Vector3(p.x + side.x * offset, y, p.z + side.z * offset));
+        }
+        return new THREE.CatmullRomCurve3(points, true, 'catmullrom', 0.5);
+    }
+
+    #buildGuardrails() {
+        const group = new THREE.Group();
+        group.name = 'metal-guardrails';
+        const railSegments = Math.max(128, Math.ceil(this.length / 1.8));
+        for (const sign of [-1, 1]) {
+            for (const y of [0.68, 1.26]) {
+                const geo = new THREE.TubeGeometry(this.#offsetCurve(sign * RAIL_OFFSET, y), railSegments, 0.16, 6, true);
+                const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+                    color: 0xc7cdd1, roughness: 0.3, metalness: 0.82,
+                }));
+                mesh.receiveShadow = true;
+                group.add(mesh);
+            }
+        }
+
+        const spacing = 4.5;
+        const perSide = Math.max(32, Math.ceil(this.length / spacing));
+        const posts = new THREE.InstancedMesh(
+            new THREE.BoxGeometry(0.18, 1.55, 0.18),
+            new THREE.MeshStandardMaterial({ color: 0x8f989f, roughness: 0.4, metalness: 0.7 }),
+            perSide * 2,
+        );
+        const up = new THREE.Vector3(0, 1, 0), matrix = new THREE.Matrix4();
+        let at = 0;
+        for (const sign of [-1, 1]) {
+            for (let i = 0; i < perSide; i++) {
+                const t = i / perSide;
+                const p = this.curve.getPointAt(t);
+                const side = this.curve.getTangentAt(t).cross(up).normalize();
+                matrix.makeTranslation(p.x + side.x * sign * RAIL_OFFSET, 0.76, p.z + side.z * sign * RAIL_OFFSET);
+                posts.setMatrixAt(at++, matrix);
+            }
+        }
+        posts.instanceMatrix.needsUpdate = true;
+        group.add(posts);
+        this.wallCount = at;
+        return group;
+    }
+
+    #buildTerrain() {
+        const width = this.gw * BLOCK, depth = this.gh * BLOCK;
+        const tex = surfaceTexture('grass');
+        tex.repeat.set(Math.max(1, width / 18), Math.max(1, depth / 18));
+        const mesh = new THREE.Mesh(
+            new THREE.PlaneGeometry(width, depth),
+            new THREE.MeshStandardMaterial({ color: 0x82a968, map: tex, roughness: 1, metalness: 0 }),
+        );
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.set((this.minCX + this.gw / 2) * BLOCK, -0.07, (this.minCZ + this.gh / 2) * BLOCK);
+        mesh.receiveShadow = true;
+        mesh.name = 'smooth-terrain';
+        return mesh;
+    }
+
+    #buildTrees() {
+        const group = new THREE.Group();
+        group.name = 'trackside-trees';
+        const target = 130, positions = [];
+        let seed = (this.gw * 73856093 ^ this.gh * 19349663) >>> 0;
+        const rnd = () => {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            return seed / 4294967296;
+        };
+        const minX = this.minCX * BLOCK, minZ = this.minCZ * BLOCK;
+        const width = this.gw * BLOCK, depth = this.gh * BLOCK;
+        for (let tries = 0; tries < 1300 && positions.length < target; tries++) {
+            const x = minX + rnd() * width, z = minZ + rnd() * depth;
+            const t = this.nearestT(x, z), p = this.curve.getPointAt(t);
+            if (Math.hypot(x - p.x, z - p.z) < RAIL_OFFSET + 8) continue;
+            positions.push({ x, z, s: 0.75 + rnd() * 0.75 });
+        }
+        const trunks = new THREE.InstancedMesh(
+            new THREE.CylinderGeometry(0.34, 0.48, 3.8, 7),
+            new THREE.MeshStandardMaterial({ color: 0x70513a, roughness: 1 }), positions.length,
+        );
+        const crowns = new THREE.InstancedMesh(
+            new THREE.ConeGeometry(2.15, 5.6, 9),
+            new THREE.MeshStandardMaterial({ color: 0x315f35, roughness: 0.92 }), positions.length,
+        );
+        const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+        positions.forEach((p, i) => {
+            s.setScalar(p.s);
+            m.compose(new THREE.Vector3(p.x, 1.9 * p.s - 0.06, p.z), q, s);
+            trunks.setMatrixAt(i, m);
+            m.compose(new THREE.Vector3(p.x, 5.4 * p.s - 0.06, p.z), q, s);
+            crowns.setMatrixAt(i, m);
+        });
+        trunks.instanceMatrix.needsUpdate = crowns.instanceMatrix.needsUpdate = true;
+        group.add(trunks, crowns);
+        this.treeCount = positions.length;
+        return group;
+    }
+
     build(scene) {
-        this.ground = this.#buildGround();
-        this.walls = this.#buildWalls();
-        this.ground.receiveShadow = true;
-        scene.add(this.ground);
-        scene.add(this.walls);
-        return this.ground;
+        this.visualStyle = 'smooth-ribbon';
+        this.visualSegments = Math.max(320, Math.ceil(this.length / VISUAL_STEP));
+        this.visualRoot = new THREE.Group();
+        this.visualRoot.name = 'smooth-racing-circuit';
+        this.ground = this.#buildTerrain();
+        this.road = this.#buildRoad();
+        this.kerbs = this.#buildKerbs();
+        this.startLine = this.#buildStartLine();
+        this.walls = this.#buildGuardrails();
+        this.trees = this.#buildTrees();
+        this.visualRoot.add(this.ground, this.road, this.kerbs, this.startLine, this.walls, this.trees);
+        scene.add(this.visualRoot);
+        this.groundQuads = this.visualSegments;
+        return this.road;
     }
 
     dispose(scene) {
-        for (const m of [this.ground, this.walls]) {
-            if (!m) continue;
-            scene.remove(m);
-            m.geometry.dispose();
-            m.material.dispose();          // 噪聲圖係共用嘅，唔可以喺度 dispose
-        }
-        this.ground = this.walls = null;
+        if (!this.visualRoot) return;
+        scene.remove(this.visualRoot);
+        const geometries = new Set(), materials = new Set();
+        this.visualRoot.traverse((o) => {
+            if (o.geometry) geometries.add(o.geometry);
+            if (Array.isArray(o.material)) o.material.forEach(m => materials.add(m));
+            else if (o.material) materials.add(o.material);
+        });
+        geometries.forEach(g => g.dispose());
+        materials.forEach(m => m.dispose()); // surface DataTexture 係 app 共用，唔喺度 dispose
+        this.visualRoot.clear();
+        this.visualRoot = this.ground = this.road = this.kerbs = this.startLine = this.walls = this.trees = null;
     }
 }

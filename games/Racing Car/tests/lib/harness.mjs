@@ -1,4 +1,4 @@
-// 方塊賽車回歸測試共用骨架：靜態伺服器 + Chromium + 錯誤收集 + 斷言計分。
+// Racing Car 3D 回歸測試共用骨架：靜態伺服器 + Chromium + 錯誤收集 + 斷言計分。
 //
 // 同 Royale 一樣：測試要入 repo，第二個 agent 先至驗證得返 handoff 講嘅數字
 // （ADR-022）。

@@ -67,8 +67,8 @@ const games = [
     },
     {
         id: 'racer',
-        title: '方塊賽車',
-        subtitle: '🏁 Minecraft 風賽道！三圈計時挑戰最快圈',
+        title: 'Racing Car 3D',
+        subtitle: '🏁 順滑 3D 賽道！三圈競速兼漂移挑戰',
         icon: '🏎️',
         link: 'games/Racing%20Car/index.html',
         playable: true

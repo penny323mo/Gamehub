@@ -28,7 +28,7 @@ Ashen Rail during deployment.
 | Tower Defense | `games/tower/dist/index.html` | Vite + TypeScript + Three.js; tracked `dist/` is the hub target. |
 | Neon Snake | `games/snake-game/dist/index.html` | React + Vite + TypeScript; tracked `dist/` is the hub target. |
 | Empire Royale | `games/royale/index.html` | Static ES modules + vendored Three.js. Two modes: Clash-style lane battle (`game.js`, `ai.js`) and LV2 age-of-empires RTS (`src/rts/`). Shared: `models.js`, `rig.js` (procedural bone animation), `sfx.js`, `net.js`/`pvp.js` (Supabase PvP), `leaderboard.js`, `storage.js`, `gauntlet.js`, `profiles.js`. Regression suite in `games/royale/tests/`. |
-| 方塊賽車 | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Voxel track built from a closed spline (`track.js`), arcade car physics (`car.js`), lap/checkpoint rules (`race.js`). Draco-compressed car model. Tests in `games/Racing Car/tests/`. |
+| Racing Car 3D | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Continuous spline road/kerb/guardrail renderer over a hidden collision grid (`track.js`), arcade car physics (`car.js`), lap/checkpoint rules (`race.js`). Draco-compressed car model. Tests in `games/Racing Car/tests/`. |
 | Ashen Rail | `games/ashen-rail/dist/index.html` | Self-contained Vite + TypeScript + Babylon.js bonus game; CI builds `dist/`. |
 | Xiangqi AI | `games/xiangqi-ai/dist/index.html` | Vite + Three.js; hub targets tracked `dist/`. |
 | Database | `supabase/migrations/` | Append-only numbered migrations; never edit an applied migration casually. |
@@ -128,7 +128,7 @@ useful, and a real browser smoke for the changed flow. Online-mode changes requi
 multi-client verification and must state whether Supabase migrations were merely
 added or actually applied.
 
-Block Racer has its own suite; run it for any change under `games/Racing Car/`.
+Racing Car 3D has its own suite; run it for any change under `games/Racing Car/`.
 The folder name contains a space, so quote it in shell commands and percent-encode
 it in links (`games/Racing%20Car/index.html`):
 
@@ -138,8 +138,10 @@ npm install        # once
 npm test           # track build, physics, a full three-lap autopilot run, resource gate
 ```
 
-The autopilot lap is the load-bearing check: a broken track shape, an impossible
-corner, or barriers too close to the road all fail it immediately.
+The autopilot lap is the load-bearing gameplay check: a broken track shape, an
+impossible corner, or barriers too close to the road all fail it immediately. The
+setup suite also guards the continuous-ribbon renderer, mobile geometry budget,
+dual-touch input, settings, gyro mapping, and minimap.
 
 Royale has a committed regression suite. Run it for any change under
 `games/royale/`:

@@ -1,4 +1,4 @@
-// 順序跑晒方塊賽車嘅回歸測試；任何一個失敗都會令 exit code 非零。
+// 順序跑晒 Racing Car 3D 嘅回歸測試；任何一個失敗都會令 exit code 非零。
 import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';

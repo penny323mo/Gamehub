@@ -396,3 +396,22 @@ follows what the tyres can use
   1/BLOCK², so 2,364 runs cover the same barriers. At a quarter of the original
   block size the whole world is 86k triangles in 5 draw calls, well under what it
   cost at half the resolution.
+
+## ADR-032: Racing Car separates continuous visuals from its collision grid
+
+- Date: 2026-07-27
+- Status: accepted
+- Supersedes: the player-visible rendering portions of ADR-028 and ADR-031;
+  their compact grid representation remains in force for physics queries only.
+- Decision: `Track` keeps the 0.25-unit `Uint8Array` grid solely for drivable
+  surface, wall, checkpoint, rescue, and regression queries. Player-visible track
+  geometry comes from the closed Catmull-Rom curve: a continuous textured asphalt
+  ribbon, segment-coloured kerbs, mesh start line, tube guardrails, instanced posts,
+  smooth terrain, and instanced trees. Visual tessellation follows world-space arc
+  length and is independent of `BLOCK`. Coarse-pointer devices cap render DPR at
+  1.5, and landscape uses a closer chase-camera composition.
+- Reason: shrinking voxel cells reduced the obvious square size but could never turn
+  coloured grass cells and box walls into a realistic circuit; it also spent mobile
+  memory on half a million cells' visual representation. Separating rules from
+  rendering preserves the proven three-lap physics while reducing the observed
+  scene from 86,121 to about 54–59k triangles and upgrading it to smooth 3D.

@@ -1,7 +1,7 @@
-// 起跑線位置、方塊解像度、設定（車色／日夜／轉向／陀螺儀）、賽道縮圖。
+// 起跑線位置、順滑 3D renderer、設定（車色／日夜／轉向／陀螺儀）、賽道縮圖。
 //
 // 呢個檔案守住嘅係「Penny 一眼睇到」嗰批嘢：起跑線唔可以落喺彎中、
-// 格仔唔可以粗到一格格、揀完設定要真係生效兼記得住。
+// 賽道唔可以退化成格仔地板、揀完設定要真係生效兼記得住。
 
 import { openRacer, check, checkNoErrors, finish } from './lib/harness.mjs';
 
@@ -37,22 +37,24 @@ for (const id of TRACK_IDS) {
     check(`${id}：起跑線打橫鋪滿成條路`, info.halfSpan >= 10, info.halfSpan);
 }
 
-// T2：方塊夠細、而且地面已經併埋做長條（唔係逐格一個立方體）
+// T2：畫面係連續 ribbon，而物理格網只留喺幕後做判定。
 const geo = await page.evaluate(async () => {
     const { BLOCK } = await import('./src/track.js');
     const { track, renderer } = window.__racer;
     return {
-        block: BLOCK, cells: track.cellCount,
-        quads: track.groundQuads, walls: track.wallCount,
+        gridCell: BLOCK, cells: track.cellCount,
+        style: track.visualStyle, segments: track.visualSegments,
+        posts: track.wallCount, trees: track.treeCount,
         calls: renderer.info.render.calls,
         tris: renderer.info.render.triangles,
     };
 });
 console.log('  ', JSON.stringify(geo));
-check('方塊 ≤0.5 世界單位', geo.block <= 0.5, geo.block);
-check('地面有併埋（quad 數少過格數十分一）', geo.quads < geo.cells / 10, geo);
-check('draw call 保持個位數', geo.calls < 10, geo.calls);
-check('三角形數量喺手機頂得順嘅範圍（<400k）', geo.tris < 400000, geo.tris);
+check('視覺層係連續曲線 ribbon', geo.style === 'smooth-ribbon', geo.style);
+check('彎位取樣夠密（>=320 段）', geo.segments >= 320, geo.segments);
+check('有連續護欄支柱同賽道樹木', geo.posts > 200 && geo.trees >= 100, geo);
+check('完整 3D 世界 draw calls 維持手機預算（<18）', geo.calls < 18, geo.calls);
+check('三角形數量喺手機預算（<120k）', geo.tris < 120000, geo.tris);
 
 // T3：設定真係改到嘢，兼且記得住
 const set = await page.evaluate(() => {
@@ -152,6 +154,25 @@ check('向右傾 = 向右轉', gyro.right > 0.9, gyro.right);
 check('向左傾 = 向左轉', gyro.left < -0.9, gyro.left);
 check('細微晃動有死區', gyro.small === 0, gyro.small);
 check('撳住掣嘅時候以手指為準', gyro.touchWins < 0, gyro.touchWins);
+
+// T5b：真 DOM pointer 路徑要同時收到兩隻手指；blur 後唔可以卡住油門。
+const touch = await page.evaluate(() => {
+    const { input } = window.__racer;
+    input.setInvert(false);
+    const fire = (id, type, pointerId) => document.getElementById(id).dispatchEvent(new PointerEvent(type, {
+        bubbles: true, cancelable: true, pointerType: 'touch', pointerId,
+    }));
+    fire('pad-gas', 'pointerdown', 11);
+    fire('pad-right', 'pointerdown', 12);
+    input.steerSmooth = 1;
+    const held = input.read(1 / 60);
+    dispatchEvent(new Event('blur'));
+    const released = input.read(1 / 60);
+    return { held, released, heldButtons: document.querySelectorAll('.pad-btn.held').length };
+});
+console.log('  ', JSON.stringify(touch));
+check('兩指油門 + 右軚可以同時成立', touch.held.throttle === 1 && touch.held.steer > 0.9, touch);
+check('離開頁面會清走黐住嘅觸控', touch.released.throttle === 0 && touch.heldButtons === 0, touch);
 
 // T6：賽道縮圖畫得出嘢，而且換賽道會跟住換
 const map = await page.evaluate(() => {
