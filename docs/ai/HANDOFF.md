@@ -4,7 +4,7 @@ Updated: 2026-07-28 (Asia/Macau)
 Prepared by: Codex (local)
 Integration branch: `main`
 Baseline before this task: `cc3258a`
-Status: one-copy physical-phone release report implemented and verified locally
+Status: one-copy physical-phone release report implemented, deployed, and verified
 
 ## Current objective
 
@@ -39,6 +39,10 @@ acceptance still needs Penny's actual phone sensors, speakers, and frame pacing.
   `操控 簡易/正常`, `陀螺 關/預設/靈敏 1.4`, orientation, and `音效 開/已啟動`.
 - Visual inspection confirmed the longer report wraps inside its card without overflow.
 - Copy button changed to `已複製`; console had zero errors and zero warnings.
+- GitHub Pages run `30340578744` deployed checkpoint `a1ce10e` successfully.
+- Fresh production Chrome at 390x844 completed Start → drive → Pause → Return to Menu →
+  Copy. The deployed report contained every new field, Copy changed to `已複製`, and the
+  production console remained at zero errors and zero warnings.
 
 ## Remaining release gates
 
@@ -59,8 +63,7 @@ acceptance still needs Penny's actual phone sensors, speakers, and frame pacing.
 
 1. Receiving agent runs `./scripts/agent-context.sh --sync`, then reads ADR-037 and
    ADR-062 to ADR-064.
-2. After deployment, verify production generates the expanded report and Copy says 已複製.
-3. Penny sends the copied physical-phone report plus three short judgements: gyro direction,
+2. Penny sends the copied physical-phone report plus three short judgements: gyro direction,
    sensitivity (slow/right/fast), and audio balance. Tune only contradicted items.
 
 ## Do not redo
