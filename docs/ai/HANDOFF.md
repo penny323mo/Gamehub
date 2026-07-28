@@ -4,7 +4,7 @@ Updated: 2026-07-28 (Asia/Macau)
 Prepared by: Codex (local)
 Integration branch: `main`
 Baseline before this task: `8c6577e`
-Status: release-browser audit complete; production favicon 404 removed locally
+Status: release-browser audit complete; production favicon 404 removed and deployed
 
 ## Current objective
 
@@ -39,8 +39,9 @@ preserving the phone-only gyro/audio checks for Penny's real device.
 - Targeted setup suite: 83/83 passed, including the new inline-favicon gate.
 - Fresh local Chrome context, 390x844: game menu and all five track choices loaded; favicon
   resolved to a `data:image/svg+xml` URL; console errors and page errors were both zero.
-- The deployed build used for the first audit still contained the old favicon; repeat the
-  production console check after this checkpoint deploys.
+- GitHub Pages run `30339560219` built and deployed checkpoint `a8c85cf` successfully.
+- Fresh deployed Chrome context, 390x844: HTTP 200, menu ready, all five tracks present,
+  inline favicon active, and both console-error and page-error lists empty.
 
 ## Known issues and cautions
 
@@ -55,8 +56,7 @@ preserving the phone-only gyro/audio checks for Penny's real device.
 ## Exact next action
 
 1. Receiving agent runs `./scripts/agent-context.sh --sync`, then reads ADR-062 to ADR-064.
-2. Verify the deployed checkpoint in a fresh browser context has zero console errors.
-3. Ask Penny to test gyro direction/sensitivity and audio balance on her phone. Tune only
+2. Ask Penny to test gyro direction/sensitivity and audio balance on her phone. Tune only
    from that real-device report; desktop emulation cannot validate device orientation.
 
 ## Do not redo
