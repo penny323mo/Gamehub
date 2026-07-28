@@ -3,52 +3,45 @@
 Updated: 2026-07-28 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
-Baseline before this task: `aadfa87`
-Status: braking physics rewritten per axle; ABS added; AI retuned in the same pass
+Baseline before this task: `e53e4be`
+Status: driver aids now yield to a countersteering player; drift mechanic restored
 
 ## Current objective
 
-Fix Penny's report that straight-line braking turns the car sideways, put the
-throttle/brake/drift relationship on a physical footing, then add ABS.
+Continue the physics balance toward playable: characterise limit behaviour, drift hold
+and recovery, then fix whichever of them is actually broken.
 
 ## Completed
 
-- Reproduced the fault deterministically: with one small disturbance, coasting drifts 4°
-  while braking spins 229° and never stops.
-- Rewrote the longitudinal model. Brake demand is distributed across axles; each axle's
-  longitudinal force is capped by its own μ·N; each axle's lateral capacity is cut by its
-  own longitudinal usage. Loads and brake forces are solved in two passes since each
-  depends on the other. `loadTransfer` returns to a physical 0.19 (ADR-068).
-- Three compounding faults were behind one symptom: braking was charged entirely to the
-  rear friction circle with the front never debited; the load estimate used the unclamped
-  20,000 N demand (1.84 g) which drove rear load to a 476 N floor; and load transfer was
-  set as if the centre of gravity were 0.78 m high.
-- Added ABS (`racer-abs`, default on) as a real system: front axle does the main braking,
-  each axle stays below its limit, brake force is released as steering increases, no lock.
-  With ABS off a fixed 62/38 split can lock an axle — sliding friction, no lateral force.
-- Retuned the AI in the same pass as the previous handoff demanded: `brakeA` 8.6/9.0/9.6
-  becomes 7.2/7.6/8.1, since the old numbers were fitted to 1.84 g braking.
+- Characterised the car rather than guessing at feel. At the limit on steering alone it
+  understeers safely (3.7° / 5.7° / 6.7° of body slip at quarter, half and full lock, no
+  spin at any input), a 40° slide is catchable in 0.7 s, and trail braking rotates
+  progressively — those three were already right after the braking rewrite.
+- Found the one that was broken: a deliberate drift could not be held. A 40° handbrake
+  entry lasted 2.1 s on raw physics but only 1.6 s with the assists on, because the
+  countersteer assist, traction cut and yaw damping could not tell a chosen drift from a
+  mistake and fought both.
+- Assists now scale by how hard the player is countersteering (ADR-069). Full opposite
+  lock disables them entirely; no correction still gets the full rescue.
+- Measured after: assisted and raw drift durations are identical at 2.1 s, recovery from a
+  40° slide improves from 0.70 s to 0.55 s, and a player who holds the wheel into the
+  corner instead of correcting is still straightened in 1.7 s.
 
 ## Changed files
 
-- `games/Racing Car/src/car.js`, `src/driver.js`, `src/settings.js`, `src/main.js`, `index.html`
-- `games/Racing Car/tests/race.mjs`, `tests/setup.mjs`
-- `docs/ai/DECISIONS.md`, `HANDOFF.md`
+- `games/Racing Car/src/car.js`
+- `games/Racing Car/tests/race.mjs`
 - `docs/ai/DECISIONS.md`, `HANDOFF.md`
 
 ## Verification
 
-- Suites: race 91/91, setup 98/98, rivals 59/59, ghost 29/29, season 55/55, audio 32/32
-  (364/364); `run-all` green.
-- Straight-line stop is 1.19 g with 0.0° of heading change and under 1° of body slip.
-- Over a bump then braking: 1.9° slip with ABS, 87.6° without — the setting has a real,
-  measured consequence rather than a label.
-- Trail braking at quarter, half and full steering gives 3.9° / 21° / 31.5° of body slip:
-  a progressive drift entry, which is what Penny asked braking into a corner to feel like.
-- Handbrake drift unchanged at 89°, cruise 122 km/h, 0–80 km/h 2.77s — the rewrite did not
-  quietly change acceleration or the drift mechanic.
-- AI over all six circuits: zero wall-contact frames, zero rescues, zero off-road, and
-  faster than before (Coast 36.4s to 30.9s). This is the cleanest the field has measured.
+- Suites: race 94/94, setup 98/98, rivals 59/59, ghost 29/29, season 55/55, audio 32/32
+  (367/367); `run-all` green.
+- New gate asserts all three halves of the rule at once: assisted drift duration matches
+  raw physics within 0.35 s, a drift survives at least 1.8 s, and a player who does not
+  countersteer is still recovered inside 3 s.
+- Rivals are unaffected — `driver.js` sends `assist: false`, and all six circuits still
+  run with zero wall contact, zero rescues and zero off-road.
 
 ## Remaining release gates
 
@@ -66,6 +59,9 @@ throttle/brake/drift relationship on a physical footing, then add ABS.
   decision to keep Turbo reversed out, not its measurements.
 - Brake force is now demand, not delivered force; delivered force comes from the friction
   circle. Any further change to it must retune `SKILLS.brakeA` in the same pass.
+- A drift still decays after about 2 s because the car sheds speed (120 to 86 km/h) and
+  hooks up. That is the next balance question and it is a tyre/longitudinal one, not an
+  aid one — measure before touching (ADR-069).
 - Commits may show Unverified without a signing key; do not rewrite published history.
 
 ## Exact next action
@@ -89,5 +85,6 @@ throttle/brake/drift relationship on a physical footing, then add ABS.
 - Do not charge braking to one axle's friction circle, and do not raise `loadTransfer`
   back above 0.2 — that is what put the rear wheels in the air (ADR-068).
 - Do not make braking proportional without retuning the AI driver in the same pass.
+- Do not let driver aids act while the player is holding opposite lock (ADR-069).
 - Do not add audio files or allocate audio nodes per frame; keep audio off-race silent.
 - Do not amend, rebase, or force-push published `main` history.

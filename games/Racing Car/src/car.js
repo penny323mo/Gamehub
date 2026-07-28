@@ -152,11 +152,18 @@ export class Car {
         // 輕量反打。輔助量有上限，玩家仍然決定路線，唔會變成自動駕駛。
         let steerCommand = input.steer;
         const assistSlip = Math.abs(this.slipAngle);
-        if (assists && !input.handbrake && speed > 8 && assistSlip > 0.08) {
+        // 玩家已經喺度反打＝佢係特登甩尾，唔係失手。呢個時候輔助要讓路，
+        // 否則就變成「機器同玩家爭軚」：實測輔助開嘅時候一個 40° 起手嘅
+        // 漂移 1.6 秒就被拉返直，玩家做乜都維持唔到——一隻漂移計分遊戲
+        // 唔可以係咁。反打得愈實，輔助愈細；完全冇反打就照救足。
+        const counterInput = this.slipAngle === 0 ? 0
+            : Math.max(0, Math.min(1, -input.steer * Math.sign(this.slipAngle)));
+        const assistScale = 1 - counterInput;
+        if (assists && assistScale > 0.02 && !input.handbrake && speed > 8 && assistSlip > 0.08) {
             const counter = Math.min(
                 CFG.assistMaxSteer,
                 (assistSlip - 0.08) * CFG.assistCountersteer,
-            );
+            ) * assistScale;
             steerCommand -= Math.sign(this.slipAngle) * counter;
         }
         steerCommand = Math.max(-1, Math.min(1, steerCommand));
@@ -178,7 +185,7 @@ export class Car {
             // 車尾已經開始滑時略收動力，模擬循跡控制；直路起步同玩家拉手煞
             // 漂移都唔會被削，出彎就少啲「再踩一下即打圈」。
             if (assists && !input.handbrake && assistSlip > 0.12) {
-                const cut = Math.min(CFG.assistTractionCut, (assistSlip - 0.12) * 0.7);
+                const cut = Math.min(CFG.assistTractionCut, (assistSlip - 0.12) * 0.7) * assistScale;
                 driveF *= 1 - cut;
             }
         }
@@ -274,7 +281,7 @@ export class Car {
         const torque = CFG.wheelBaseF * latF * Math.cos(this.steer) - CFG.wheelBaseR * latR;
         this.yawRate += (torque / CFG.inertia) * dt;
         if (assists && !input.handbrake && assistSlip > 0.12) {
-            const damp = Math.min(CFG.assistYawDamp, (assistSlip - 0.12) * 7);
+            const damp = Math.min(CFG.assistYawDamp, (assistSlip - 0.12) * 7) * assistScale;
             this.yawRate *= Math.max(0, 1 - damp * dt);
         }
         if (speed < 1.2) this.yawRate *= Math.max(0, 1 - dt * 6);   // 停定唔好殘餘自轉

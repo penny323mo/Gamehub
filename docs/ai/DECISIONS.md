@@ -975,3 +975,22 @@ follows what the tyres can use
   from 8.6/9.0/9.6 to 7.2/7.6/8.1 because the old values were fitted to 1.84 g braking.
   All six circuits now run with zero wall contact, zero rescues and zero off-road, and
   lap times improve (Coast 36.4s to 30.9s).
+
+## ADR-069: Driver aids yield to a countersteering player
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: the arcade assists (countersteer, traction cut, yaw damping) scale by
+  `1 - clamp(-steer · sign(slipAngle), 0, 1)`. A player holding full opposite lock gets
+  none of them; a player not correcting at all gets the full set.
+- Reason: the assists could not tell a deliberate drift from a mistake, so they fought
+  both. Measured: a 40° handbrake entry held for 2.1 s on raw physics but only 1.6 s with
+  assists on, because the machine kept pulling the wheel straight. In a game whose scoring
+  is built on drifting, the aid was deleting the mechanic. Countersteer is the honest
+  signal of intent — nobody applies opposite lock by accident — so it is what gates the
+  aid. With the change, assisted and raw drift durations are identical (2.1 s), recovery
+  from a 40° slide improves to 0.55 s, and a player who instead holds the wheel into the
+  corner is still rescued in 1.7 s.
+- Not addressed here: a drift still decays after about 2 s because the car sheds speed
+  (120 km/h to 86 km/h) and hooks up once the rear regains grip. That is a tyre and
+  longitudinal balance question, not an aid question, and it needs its own measured pass.

@@ -430,6 +430,52 @@ check('減速入彎：軚愈大車身角度愈大（可控漂移）',
     braking.trail[0.45] > braking.trail[0.2] && braking.trail[0.8] > braking.trail[0.45]
     && braking.trail[0.8] < 60, braking.trail);
 
+// T3c：輔助要識讓路。玩家反打緊＝佢係特登甩尾，唔係失手；機器再搶軚
+// 就變成同玩家爭。實測未修之前：40° 起手嘅漂移，輔助開嘅話 1.6 秒就
+// 被拉直，輔助關 2.1 秒——一隻漂移計分遊戲唔可以係咁。
+const assistYield = await page.evaluate(async () => {
+    window.__racer.buildTrack('coast');
+    const { car, track } = window.__racer;
+    const PLANE = { isDrivable: () => true, isWall: () => false };
+    const drift = (assist) => {
+        car.reset(track.startPos, track.startDir);
+        car.abs = true; car.arcadeAssist = assist;
+        for (let i = 0; i < 600 && car.kmh < 120; i++) {
+            car.update(1 / 60, { throttle: 1, steer: 0, handbrake: false }, PLANE);
+        }
+        for (let i = 0; i < 40; i++) car.update(1 / 60, { throttle: 0.7, steer: 0.8, handbrake: true }, PLANE);
+        let held = 0;
+        for (let i = 0; i < 300; i++) {
+            // 玩家式反打
+            const counter = Math.max(-1, Math.min(1, -car.slipAngle * 1.6));
+            car.update(1 / 60, { throttle: 0.65, steer: counter, handbrake: false }, PLANE);
+            if (Math.abs(car.slipAngle) * 57.3 > 15) held++;
+        }
+        return +(held / 60).toFixed(1);
+    };
+    const withAssist = drift(true);
+    const raw = drift(false);
+
+    // 但係唔反打（撳住入彎方向唔放）就一定要救得返
+    car.reset(track.startPos, track.startDir);
+    car.arcadeAssist = true;
+    for (let i = 0; i < 600 && car.kmh < 120; i++) {
+        car.update(1 / 60, { throttle: 1, steer: 0, handbrake: false }, PLANE);
+    }
+    for (let i = 0; i < 40; i++) car.update(1 / 60, { throttle: 0.7, steer: 0.8, handbrake: true }, PLANE);
+    let rescued = -1;
+    for (let i = 0; i < 300; i++) {
+        car.update(1 / 60, { throttle: 0.5, steer: 0.8, handbrake: false }, PLANE);   // 死扭入彎
+        if (rescued < 0 && Math.abs(car.slipAngle) * 57.3 < 12) rescued = i;
+    }
+    return { withAssist, raw, rescuedSec: rescued < 0 ? null : +(rescued / 60).toFixed(1) };
+});
+console.log('  ', JSON.stringify(assistYield));
+check('反打緊嘅時候輔助讓路（同純物理一樣長）',
+    Math.abs(assistYield.withAssist - assistYield.raw) < 0.35, assistYield);
+check('甩尾維持得到（唔會一秒就被拉直）', assistYield.withAssist >= 1.8, assistYield);
+check('唔反打就仍然救得返', assistYield.rescuedSec !== null && assistYield.rescuedSec < 3, assistYield);
+
 // T3b：車身側傾唔可以令架車望落離地。模型係一整件硬嘢（車身連輪胎），
 // 側傾角一大，一邊輪胎就會離地、另一邊插落路面——Penny 實機報告
 // 「架車好似浮起、轉左轉右好似飛機咁」，量到嗰陣係 9.2° 側傾、
