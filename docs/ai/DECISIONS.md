@@ -1187,3 +1187,33 @@ follows what the tyres can use
 - Gates: pulling the stick to full reach at 0°, 20°, 40° and 60° below horizontal must all
   give full lock; the knob must still stay inside the dial; and full lock must arrive within
   0.12 s (now 0.10 s).
+
+## ADR-077: The stick gets an expo curve, because the top of its travel did nothing
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: the joystick's steering value passes through `steerExpo()`,
+  `x·(0.45 + 0.55·x²)` — the same family as `gyroSteer()`'s curve but shallower, since a
+  thumb is more precise than a wrist. It is applied in `Input`, so it shapes the player's
+  stick and keyboard ramp only: the AI driver's commands and the arcade countersteer assist
+  are untouched.
+- Reason: measured on flat ground at a held speed, the fraction of maximum yaw rate reached
+  per unit of stick was badly front-loaded. At 40 m/s, 20% of travel already produced 75% of
+  the car's maximum cornering and 40% produced 94%; at 30 m/s, 40% produced 86%. The car
+  reaches its friction limit long before the stick reaches its stop, so the top half of the
+  travel could not change anything while the bottom fifth changed everything — twitchy at
+  speed and, from the player's side, indistinguishable from "a big pull does nothing".
+  After the curve: 40 m/s reads 0.44/0.77/0.93 at 20/40/60%, and 30 m/s reads
+  0.30/0.61/0.85.
+- Nothing was taken away. The curve passes 0 and ±1 through unchanged, so full lock is still
+  full lock and the countersteer needed to catch a slide is unaffected. Maximum yaw rate at
+  each speed is identical before and after (0.636 / 0.432 / 0.327 rad/s at 20 / 30 / 40 m/s),
+  as is the time to reach 90% of it (0.21 / 0.16 / 0.13 s).
+- Reducing the wheel angle itself was considered and rejected: shrinking `steerMax` or
+  steepening `steerSpeedDrop` would fix the same curve, but it also removes the lock
+  available for countersteering out of a drift, and it changes what the AI's own steering
+  commands mean — which the handoff requires retuning `SKILLS.brakeA` alongside. Shaping the
+  player's input has neither cost.
+- The 90%-of-lock timing gate moved from 0.12 s to 0.15 s, because the curve makes the last
+  stretch of output need the last stretch of travel. Measured 0.133 s, against 0.25 s before
+  ADR-076.
