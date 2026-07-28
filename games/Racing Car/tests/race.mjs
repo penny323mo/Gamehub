@@ -10,7 +10,7 @@ const r = await openRacer();
 const { page } = r;
 
 const TRACK_IDS = await page.evaluate(() => window.__racer.TRACKS.map(t => t.id));
-check('有五條賽道（三正向＋兩逆向）', TRACK_IDS.length === 5, TRACK_IDS);
+check('有六條賽道（三正向＋三逆向）', TRACK_IDS.length === 6, TRACK_IDS);
 
 // T0：逆向賽道真係倒轉行——同一段路上嘅行車方向要相反
 const rev = await page.evaluate(async () => {
@@ -24,7 +24,7 @@ const rev = await page.evaluate(async () => {
         return { x: d.x, z: d.z, start: [track.startPos.x, track.startPos.z], len: track.length };
     };
     const out = {};
-    for (const base of ['coast', 'touge']) {
+    for (const base of ['turbo', 'coast', 'touge']) {
         // 用正向賽道嘅起點做取樣點，兩邊喺同一段路上比較
         buildTrack(base);
         const p = window.__racer.track.startPos;
@@ -38,7 +38,7 @@ const rev = await page.evaluate(async () => {
     return out;
 });
 console.log('  ', JSON.stringify(rev));
-for (const base of ['coast', 'touge']) {
+for (const base of ['turbo', 'coast', 'touge']) {
     check(`${base}-rev：同一段路方向相反`, rev[base].dot < -0.9, rev[base]);
     // 同一串中線倒轉排，長度應該一樣（曲線張力一樣，收尾接返同一個環）
     check(`${base}-rev：賽道長度同正向一致`, rev[base].lenDiff < 2, rev[base]);
@@ -395,6 +395,52 @@ check('側傾仍然睇得出（唔係死板冇動態）', roll.peakDeg > 1.5, ro
 // 亦唔跟側傾，所以望落仍然貼地。舊嗰個 9.2° 側傾係 27 厘米，就係
 // Penny 講嗰種「飛機打側飛」。
 check('過彎時車身唔會插落路面超過 10 厘米', roll.lowest > -0.1, roll.lowest);
+
+// T4a：打圈之後車手要自己救得返（ADR-065）。
+// 舊行為：一路 steer 1.0 ＋ throttle 1.0 原地兜圈，兜到三秒拖車為止。
+const recover = await page.evaluate(async () => {
+    const { createDriver, SKILLS } = await import('./src/driver.js');
+    window.__racer.buildTrack('turbo-rev');
+    const { car, track, race } = window.__racer;
+    const d = createDriver(track, SKILLS.quick);
+    race.reset(); race.state = 'racing';
+    let rescues = 0;
+    const prev = race.onEvent;
+    race.onEvent = (k) => { if (k === 'rescue') rescues++; };
+
+    // 人手整一個「打完圈」嘅狀態：企喺賽道上面但車頭指返轉頭、近乎停定
+    car.reset(track.startPos, track.startDir);
+    car.yaw += Math.PI * 0.85;
+    car.vel.set(0, 0, 0);
+    const t0 = track.nearestT(car.pos.x, car.pos.z);
+    let entered = false, reversedOnce = false, frames = 0, recoveredAt = -1;
+    for (let i = 0; i < 60 * 12; i++) {
+        const t = track.nearestT(car.pos.x, car.pos.z);
+        const cmd = d.read(car, t);
+        if (d.recovering) entered = true;
+        if (cmd.throttle < 0) reversedOnce = true;
+        car.update(1 / 60, cmd, track);
+        race.update(1 / 60, car);
+        frames++;
+        // 救返＝車頭指返賽道方向兼有速度向前行
+        const fwd = { x: Math.sin(car.yaw), z: Math.cos(car.yaw) };
+        const tan = track.curve.getTangentAt(t);
+        if (recoveredAt < 0 && fwd.x * tan.x + fwd.z * tan.z > 0.8 && car.speed > 8) recoveredAt = i;
+        if (recoveredAt >= 0 && i > recoveredAt + 60) break;
+    }
+    race.onEvent = prev;
+    return {
+        entered, reversedOnce, rescues,
+        recoveredSec: recoveredAt < 0 ? null : +(recoveredAt / 60).toFixed(1),
+        stillRecovering: d.recovering, frames,
+    };
+});
+console.log('  ', JSON.stringify(recover));
+check('打咗圈會入復原狀態', recover.entered === true, recover);
+check('復原時會煞停／倒車，唔係一路踩爆油', recover.reversedOnce === true, recover);
+check('唔使拖車就自己救得返', recover.rescues === 0 && recover.recoveredSec !== null, recover);
+check('六秒之內救返出嚟', recover.recoveredSec !== null && recover.recoveredSec < 6, recover.recoveredSec);
+check('救完會退出復原狀態', recover.stillRecovering === false, recover);
 
 // T4b：車頭頂正欄杆唔可以永遠釘死——踩住油卡夠 3 秒就要拖返賽道。
 // 舊嘅撞欄處理係逐條軸 next.x = pos.x，連沿住欄滑行都殺埋，自動駕駛實測

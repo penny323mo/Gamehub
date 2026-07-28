@@ -25,6 +25,16 @@ export function createDriver(track, skill = SKILLS.quick) {
     const P = new THREE.Vector3(), Q = new THREE.Vector3(), R = new THREE.Vector3();
     const to = new THREE.Vector3(), fwd = new THREE.Vector3();
 
+    // 打圈之後嘅復原：獨立狀態，唔係喺賽車控制律入面加修正項。
+    //
+    // ADR-062 記低咗四個「調一個常數」嘅方案點解全部失敗：賽車同救車係兩件
+    // 相反嘅事（一個要快、一個要停），夾埋一條式度，改到救得返就一定會拖慢
+    // 正常過彎。真正嘅分別喺入場條件夠辣——慢過 6 m/s 而且車頭指錯 80° 以上，
+    // 正常揸車永遠唔會踩中，所以賽車路徑完全冇被碰過。
+    const RECOVER_ENTER_SPEED = 6, RECOVER_ENTER_ANGLE = 1.4;
+    const RECOVER_EXIT_ANGLE = 0.7, RECOVER_MAX = 3.5;
+    let recoverFor = 0;
+
     // 三點定圓：估中線喺 t 附近嘅曲率半徑。
     //
     // 取樣窗口 0.008（≈ ±6 米）唔係求其揀：原本用 0.012（±8.4 米）對短促
@@ -45,8 +55,9 @@ export function createDriver(track, skill = SKILLS.quick) {
 
     return {
         radiusAt,
+        get recovering() { return recoverFor > 0; },
         // lateral：想行喺中線嘅左／右幾多米（用嚟分開起跑格同走位）
-        read(car, t, lateral = 0) {
+        read(car, t, lateral = 0, dt = 1 / 60) {
             const speed = car.speed;
             const aheadT = (t + (8 + speed * skill.look) / track.length) % 1;
             const aim = track.curve.getPointAt(aheadT);
@@ -68,6 +79,27 @@ export function createDriver(track, skill = SKILLS.quick) {
             }
 
             const angErr = Math.atan2(fwd.x * to.z - fwd.z * to.x, fwd.dot(to));
+
+            // ---- 復原狀態 ----
+            if (recoverFor <= 0 && speed < RECOVER_ENTER_SPEED
+                && Math.abs(angErr) > RECOVER_ENTER_ANGLE) {
+                recoverFor = RECOVER_MAX;
+            }
+            if (recoverFor > 0) {
+                recoverFor -= dt;
+                const done = Math.abs(angErr) < RECOVER_EXIT_ANGLE && !car.offroad;
+                if (done || recoverFor <= 0) recoverFor = 0;
+                else {
+                    // throttle -1 喺 car.js 度會自動分工：仲向前行就係煞車，
+                    // 停咗就變倒車。所以一條指令就做齊「停低」同「退返出嚟」。
+                    // 軚打反方向：倒車嗰陣車尾行先，軚反打先擺得返車頭向賽道。
+                    return {
+                        throttle: -1,
+                        steer: Math.max(-1, Math.min(1, -angErr * 1.2)),
+                        handbrake: false, assist: false,
+                    };
+                }
+            }
 
             // 收油救車只喺有速度嗰陣先有意義。慢車又減油嘅話，喺草地上面
             // 油門推力細過 offroadDrag，架車永遠爬唔返上賽道。

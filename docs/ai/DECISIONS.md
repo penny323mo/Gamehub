@@ -887,3 +887,22 @@ follows what the tyres can use
   settle which way a phone feels, and the axis choice already varies with
   `screen.orientation.angle`. The default follows her measurement; the switch covers
   devices or grips that disagree.
+
+## ADR-065: Spin recovery is a separate state, and Turbo reversed ships
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: `createDriver` holds a recovery state entered when the car is slower than
+  6 m/s and pointing more than 80° away from the line, exited when the heading error is
+  under 40° and the car is back on the road, with a 3.5 s cap. While recovering it
+  commands `throttle: -1` and counter-aimed steer. `REVERSIBLE` now includes Turbo, so
+  all six circuits ship. This supersedes ADR-062's decision to keep Turbo reversed out.
+- Reason: ADR-062 recorded why four in-line tuning attempts failed — racing and rescuing
+  want opposite things, so any correction term strong enough to rescue also slows normal
+  cornering. A separate state avoids the trade entirely because the entry condition is
+  unreachable while actually racing: no lap in the six-circuit gate enters it except at
+  the corner that used to end in a tow. `throttle: -1` needs no phase logic, since
+  `car.js` already brakes while rolling forward and reverses once stopped.
+- Measured: Turbo reversed goes from 521 wall-contact frames and 3 rescues to 74 and 0.
+  Every circuit now needs zero rescues (turbo 0, coast 8, touge 0, turbo-rev 74,
+  coast-rev 2, touge-rev 0), and forward lap times are unchanged.

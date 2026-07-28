@@ -275,7 +275,7 @@ const ui = await page.evaluate(async () => {
 });
 console.log('  ', JSON.stringify(ui));
 check('每條賽道各有一個掣，預設全開',
-    ui.chips === ui.trackCount && ui.trackCount === 5 && ui.allOn === true, ui);
+    ui.chips === ui.trackCount && ui.trackCount === 6 && ui.allOn === true, ui);
 check('撳一下就剔走嗰條',
     ui.midOn === false && ui.afterToggle === ui.trackCount - 1, ui);
 check('掣面寫住實際場數', new RegExp(`${ui.trackCount - 1} 場`).test(ui.label), ui.label);
@@ -284,7 +284,7 @@ check('加返賽道跟賽道次序排', ui.reorder === 'turbo,touge', ui.reorder
 check('預設賽程係正向三條，唔係全部賽道',
     ui.defaultList === 'turbo,coast,touge', ui.defaultList);
 check('逆向賽道有自己嘅 id',
-    ui.reverseIds === 'coast-rev,touge-rev', ui.reverseIds);
+    ui.reverseIds === 'turbo-rev,coast-rev,touge-rev', ui.reverseIds);
 check('冇歷屆紀錄就唔顯示', ui.emptyHidden === true, ui);
 check('有紀錄就出到歷屆榜', ui.shown === true && ui.rows === 1 && /阿烈/.test(ui.text), ui);
 check('清除掣清得走歷屆榜', ui.afterClearHidden === true, ui);
