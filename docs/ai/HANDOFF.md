@@ -3,67 +3,71 @@
 Updated: 2026-07-28 (Asia/Macau)
 Prepared by: Codex (local)
 Integration branch: `main`
-Baseline before this task: `8c6577e`
-Status: release-browser audit complete; production favicon 404 removed and deployed
+Baseline before this task: `62047b3`
+Status: automated publish-readiness audit complete; physical-phone acceptance remains
 
 ## Current objective
 
-Move Racing Car toward publish-ready status with evidence from the deployed game, while
-preserving the phone-only gyro/audio checks for Penny's real device.
+Finish Racing Car as a publish-ready mobile game. Automated release evidence is green;
+the remaining acceptance items require Penny's actual phone sensors and speakers.
 
 ## Completed
 
-- Audited the deployed Racing Car build in real Chrome mobile viewports.
-- Confirmed Simple mode auto-accelerates, and the brake/drift touch controls produce the
-  intended live input states when held.
-- Confirmed WebAudio starts cleanly during a race and body roll remains level on a straight.
-- Found the only production console error: the browser requested the site's missing root
-  `/favicon.ico`.
-- Added an inline chequered-flag SVG favicon, removing that external request and keeping
-  future console errors meaningful.
-- Added a setup regression gate so the game cannot silently return to the root favicon 404.
+- Re-ran the entire committed Racing Car regression matrix instead of relying on the
+  earlier targeted setup gate.
+- Verified the deployed hub card opens the percent-encoded Racing Car production path.
+- Verified a separate fresh direct-navigation session at 844x390 landscape.
+- Let the real countdown finish and confirmed Simple mode auto-accelerates in production.
+- Visually inspected the live landscape scene: car, road, HUD, minimap, joystick, drift,
+  brake, and auto-throttle controls are readable and unobstructed.
+- Reconfirmed the inline favicon fix and zero production console errors.
 
 ## Changed files
 
-- `games/Racing Car/index.html`
-- `games/Racing Car/tests/setup.mjs`
 - `docs/ai/HANDOFF.md`
 
 ## Verification
 
-- Deployed build, Chrome 844x390: Simple mode reached 80 km/h in 2.78 s; brake held gave
-  `throttle=-1`; drift held gave `throttle=0.72` and `handbrake=true`; release restored
-  auto-throttle. WebAudio was running with no broken state.
-- Deployed build visual smoke: HUD, car, track, minimap, joystick, brake, drift, and throttle
-  controls were readable and correctly placed in landscape.
-- Targeted setup suite: 83/83 passed, including the new inline-favicon gate.
-- Fresh local Chrome context, 390x844: game menu and all five track choices loaded; favicon
-  resolved to a `data:image/svg+xml` URL; console errors and page errors were both zero.
-- GitHub Pages run `30339560219` built and deployed checkpoint `a8c85cf` successfully.
-- Fresh deployed Chrome context, 390x844: HTTP 200, menu ready, all five tracks present,
-  inline favicon active, and both console-error and page-error lists empty.
+- Full suite: race 71/71, setup 83/83, rivals 55/55, ghost 29/29, season 55/55,
+  audio 32/32 — 325/325 passed.
+- All five forward/reverse circuits completed three autopilot laps; four rivals also
+  completed three laps on all five circuits with no rescue requirement.
+- Production hub → Racing Car: correct URL and title, menu ready, all five tracks visible.
+- Fresh production 844x390 run after countdown: 143 km/h, finite car speed, Simple mode,
+  WebAudio running and not broken, 14 draw calls, 54,565 triangles, zero console warnings
+  or errors. All runtime asset requests returned successfully.
+- Visual smoke matched the control and HUD layout protected by the 667x375/844x390 gates.
+- `HANDOFF_CHECK=PASS`; GitHub Pages checkpoint `62047b3` was already deployed before the
+  production acceptance run.
+
+## Remaining release gates
+
+- Penny must confirm on her physical phone that gyro direction now matches hand motion.
+- Penny must judge whether gyro sensitivity 1.4 / ±16° feels right.
+- Penny must listen to the synthesized engine, tyre, wind, collision, and event balance.
+- For useful performance evidence, run on the phone for a representative period, return to
+  the menu, and copy the built-in 手機實測 report. Desktop SwiftShader FPS is not evidence.
 
 ## Known issues and cautions
 
-- Physical-phone evidence is still required before final publish-ready sign-off: confirm
-  gyro direction/sensitivity and listen to the synthesized audio balance on Penny's device.
-- Turbo reversed stays out until its AI gains a recovery state machine; read ADR-062 before
-  touching it.
-- `car.js` still applies full brake force for any negative throttle. Retune the driver in the
+- Turbo reversed stays out until its AI gains a recovery state machine; read ADR-062.
+- `car.js` applies full brake force for any negative throttle. Retune the AI driver in the
   same pass if that behavior changes.
 - Commits may show Unverified without a signing key; do not rewrite published history.
 
 ## Exact next action
 
 1. Receiving agent runs `./scripts/agent-context.sh --sync`, then reads ADR-062 to ADR-064.
-2. Ask Penny to test gyro direction/sensitivity and audio balance on her phone. Tune only
-   from that real-device report; desktop emulation cannot validate device orientation.
+2. Penny tests gyro direction/sensitivity and audio balance on her phone and sends the
+   built-in performance report after driving a representative run.
+3. Tune only the item contradicted by that real-device evidence, then repeat the relevant
+   automated suite and physical-phone check before final release sign-off.
 
 ## Do not redo
 
 - Do not raise body roll past 3.5°, and do not roll the contact shadow (ADR-063).
-- Do not merge the gyro-only direction switch into the shared touch direction (ADR-064).
-- Do not flip gyro signs or retune sensitivity without physical-device evidence.
+- Do not merge the gyro-only direction switch into shared touch direction (ADR-064).
+- Do not flip gyro signs or tune sensitivity/audio without physical-device evidence.
 - Do not retry the four rejected Turbo-reversed constant tweaks in ADR-062.
 - Do not make braking proportional without retuning the AI driver in the same pass.
 - Do not add audio files or allocate audio nodes per frame; keep audio off-race silent.
