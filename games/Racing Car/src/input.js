@@ -191,13 +191,19 @@ export class Input {
                 const size = stick.offsetWidth || 156;
                 const max = Math.max(1, size * 0.34);
                 const p = this.localPoint(stick, ev.clientX, ev.clientY);
-                let dx = p.x - size / 2;
-                let dy = p.y - size / 2;
-                const distance = Math.hypot(dx, dy);
-                if (distance > max) { dx *= max / distance; dy *= max / distance; }
+                const dx = p.x - size / 2;
+                const dy = p.y - size / 2;
+                // 轉向淨係用得着 x 軸，所以 x 要自己夾自己。舊寫法將 (dx, dy)
+                // 一齊夾入個圓，拇指順住手腕弧線拉落斜就會連 x 一齊縮細：
+                // 實測拉 40° 得 0.77 軚、60° 得 0.50，即係 Penny 講嘅「點拉
+                // 都唔夠幅度」。個圓形只係顯示用，唔應該食走轉向量。
                 this.touch.steer = Math.max(-1, Math.min(1, dx / max));
                 if (Math.abs(this.touch.steer) < 0.08) this.touch.steer = 0;
-                knob.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+                // 圓芯仍然留喺個圓入面，睇落先似搖桿
+                let kx = dx, ky = dy;
+                const distance = Math.hypot(kx, ky);
+                if (distance > max) { kx *= max / distance; ky *= max / distance; }
+                knob.style.transform = `translate(${kx.toFixed(1)}px, ${ky.toFixed(1)}px)`;
                 stick.setAttribute('aria-valuenow', String(Math.round(this.touch.steer * 100)));
             };
             const down = (ev) => {
@@ -333,11 +339,14 @@ export class Input {
         const right = k.has('arrowright') || k.has('d') || this.touch.right;
         const drift = k.has(' ') || k.has('shift') || this.touch.drift;
 
-        // 轉向做平滑：直接 -1/0/1 會好突兀，尤其係鍵盤
+        // 轉向做平滑：鍵盤係 -1/0/1，唔平滑就好突兀。
+        // 但搖桿唔同——手指位置本身已經係連續值，再平滑就係純粹加延遲：
+        // 實測要 0.25 秒先到九成、0.48 秒先到底，而架車自己仲有 steerRate
+        // 嘅過渡，兩層疊埋就係「點打都唔夠幅度」。所以搖桿行快好多嘅係數。
         const keyTarget = (right ? 1 : 0) - (left ? 1 : 0);
         const stickActive = this.touchPointers.has('steer') || Math.abs(this.touch.steer) > 0.01;
         const target = stickActive ? this.touch.steer : keyTarget;
-        this.steerSmooth += (target - this.steerSmooth) * Math.min(1, dt * 9);
+        this.steerSmooth += (target - this.steerSmooth) * Math.min(1, dt * (stickActive ? 20 : 9));
         if (Math.abs(this.steerSmooth) < 0.01) this.steerSmooth = 0;
 
         // 陀螺儀：曲線見 gyroSteer()。手指有輸入嗰陣以手指優先，

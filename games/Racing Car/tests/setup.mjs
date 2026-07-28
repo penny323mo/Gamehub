@@ -719,6 +719,64 @@ check('陀螺儀方向掣唔會掂到觸控轉向', gyro.touchUnaffected < 0, gy
 check('細微晃動有死區', gyro.small === 0, gyro.small);
 check('撳住掣嘅時候以手指為準', gyro.touchWins < 0, gyro.touchWins);
 
+// T5a2：搖桿要畀到足軚。Penny：「左右好似唔夠幅度，做唔到較大轉向」。
+// 兩個原因，兩樣都要守住：
+//   1. 舊寫法將 (dx, dy) 一齊夾入個圓，拇指順住手腕弧線拉落斜就連 x 一齊
+//      縮細——實測 40° 得 0.77 軚、60° 得 0.50；
+//   2. 搖桿本身已經係連續值，仲要再過一層平滑，0.25 秒先到九成。
+const reach = await page.evaluate(async () => {
+    const { input, startRace, pauseRace, toMenu } = window.__racer;
+    startRace();
+    input.setControlMode('standard');
+    input.setInvert(false);
+    const stick = document.getElementById('steer-stick');
+    const fire = (type, coords) => document.getElementById('steer-zone')
+        .dispatchEvent(new PointerEvent(type, {
+            bubbles: true, cancelable: true, pointerType: 'touch', pointerId: 7, ...coords,
+        }));
+    const byAngle = {};
+    for (const deg of [0, 20, 40, 60]) {
+        input.reset();
+        const r = stick.getBoundingClientRect();
+        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        fire('pointerdown', { clientX: cx, clientY: cy });
+        const rad = deg * Math.PI / 180;
+        fire('pointermove', { clientX: cx + Math.cos(rad) * 120, clientY: cy + Math.sin(rad) * 120 });
+        byAngle[deg] = +input.touch.steer.toFixed(2);
+        fire('pointerup', { clientX: cx, clientY: cy });
+    }
+    // 圓芯唔可以跌出個圓（顯示仍然要似搖桿）
+    input.reset();
+    const r = stick.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    fire('pointerdown', { clientX: cx, clientY: cy });
+    fire('pointermove', { clientX: cx + 120, clientY: cy + 120 });
+    const m = /translate\(([-\d.]+)px, ?([-\d.]+)px\)/.exec(
+        document.getElementById('steer-knob').style.transform) || [];
+    const knobDist = m.length ? Math.round(Math.hypot(+m[1], +m[2])) : null;
+    const knobMax = Math.round(stick.offsetWidth * 0.34);   // 要喺 HUD 未收埋之前量
+    fire('pointerup', { clientX: cx, clientY: cy });
+
+    // 拉到底之後，幾耐先真係出到足軚
+    input.reset();
+    input.touch.steer = 1;
+    const dt = 1 / 60;
+    let t90 = null;
+    for (let i = 1; i <= 120 && t90 === null; i++) {
+        if (input.read(dt).steer >= 0.9) t90 = +(i * dt).toFixed(3);
+    }
+    input.reset();
+    pauseRace('搖桿幅度測試完成');
+    toMenu();
+    return { byAngle, knobDist, knobMax, t90 };
+});
+console.log('  ', JSON.stringify(reach));
+check('拇指順住弧線拉都出到足軚（唔會畀圓形夾細）',
+    [0, 20, 40, 60].every(d => reach.byAngle[d] >= 0.99), reach.byAngle);
+check('圓芯仍然留喺圓盤入面', reach.knobDist !== null
+    && reach.knobDist <= reach.knobMax + 1, reach);
+check('拉到底之後 0.12 秒內出到九成軚', reach.t90 !== null && reach.t90 <= 0.12, reach.t90);
+
 // T5b：真 DOM pointer 路徑要收到類比搖桿 + 油門兩隻手指；blur 後全部回中。
 const touch = await page.evaluate(() => {
     const root = window.__racer;

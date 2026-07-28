@@ -1161,3 +1161,29 @@ follows what the tyres can use
   directly — no event of any kind — still resizes the canvas and the drawing buffer to
   match. The canvas is asserted to fill the frame, and the frame to equal the (swapped
   where rotated) viewport, in all three orientation states.
+
+## ADR-076: The steering stick is one axis, and it is not smoothed twice
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: the joystick's steering value comes from `dx` clamped on its own, not from the
+  point clamped into a circle; the circle is applied only to the knob's drawn position. The
+  input smoothing rate rises from 9/s to 20/s while the stick is active, and stays at 9/s
+  for keyboard input.
+- Reason: Penny reported she could not get a big turn. Two separate limiters, both in the
+  input, neither in the car. First, clamping `(dx, dy)` into a circle scales `dx` by
+  `max/hypot(dx, dy)` — a thumb that arcs downward as it sweeps right, which is how a thumb
+  pivoting at the palm actually moves, loses steering in proportion to the arc: measured
+  0.77 of full lock at 40° and 0.50 at 60°. Steering only reads x, so y must not take any
+  of it. Second, the stick's position is already a continuous analogue value, so the
+  first-order smoothing on top of it was pure latency: 0.25 s to 90% and 0.48 s to full,
+  before the car's own `steerRate` transition. The two stacked into "no matter how I pull
+  it, there is not enough lock".
+- The car was measured and left alone. On flat ground at full lock it holds 1.22–1.26 g at
+  every speed from 12 to 42 m/s, settling into an 18–41 m radius, with the arcade assists
+  making almost no difference in steady state. Nothing about the vehicle limits the turn,
+  so no grip, `steerMax`, or `steerSpeedDrop` value was touched — and `steerRate` stays at
+  ADR-071's 7.2, which the drift-overshoot gate still protects.
+- Gates: pulling the stick to full reach at 0°, 20°, 40° and 60° below horizontal must all
+  give full lock; the knob must still stay inside the dial; and full lock must arrive within
+  0.12 s (now 0.10 s).
