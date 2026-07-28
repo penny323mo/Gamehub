@@ -3,66 +3,42 @@
 Updated: 2026-07-28 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
-Baseline before this task: `b4d02e3`
-Status: drift balance reworked — tyre peak, damping floor, drift refund, handbrake lock
+Baseline before this task: `c7c78da`
+Status: landscape-only orientation handling; spurious mid-race pause fixed
 
 ## Current objective
 
-Refine the physics so the game is easier and more exciting: make a drift something a
-player can actually hold, without giving up the safety won in the braking rewrite.
+Fix Penny's report that the race pauses by itself while she is already in landscape using
+gyro steering, and lock the game to landscape.
 
 ## Completed
 
-- Diagnosed why a drift could not be held, with force traces rather than feel. Two causes.
-  The tyre peaked at 11° of slip, so everything past it produced less force and the car
-  was bistable: a 35° entry ran to 78° then snapped to 0° in one step. And sliding
-  sideways scrubs speed hard — 11,500 N of body force while decelerating 118 km/h to
-  40 km/h, because the body axis sat 50–87° away from travel.
-- Moved the tyre peak to about 18° (`tyreB` 8.2 to 5.0). The same entry now overshoots to
-  62° and settles into a shallow slide instead of snapping; full-lock steering rotates
-  10.9° instead of 6.7°, so the car feels alive without ever spinning.
-- Kept a 45% floor of yaw damping while countersteering. ADR-069 gave the player all
-  authority including damping, and that removal is what made the car bistable — damping
-  resists the rate of change, not the angle the player chose.
-- Added an explicit, documented arcade drift aid: a refund of at most 70% of the speed a
-  frame actually scrubbed, only on throttle, only past 17° of slip, never on grass or
-  handbrake. A drift now keeps 125 km/h instead of bleeding to 86.
-- Caught and fixed my own exploit in the same round: the first version used a fixed
-  5200 N push and produced 148 km/h while drifting against 122 km/h cruising, which made
-  drifting an accelerator. A refund cannot exceed the loss, so it is self-limiting —
-  measured 186 km/h straight, 142 km/h drifting, 127 km/h spinning.
-- Moved the drift-scoring threshold with the tyre peak (0.19 to 0.26 rad) so ordinary
-  full-commitment cornering no longer trickles drift score.
-- Made the handbrake work the way a phone player uses it. Measured with the real
-  simple-mode command stream, a 0.33 s tap gave 6° of slip and a 0.5 s pull 17° — no
-  drift. Sweeping `handbrakeGrip` 0.45 to 0.22 moved the tap by one degree, proving grip
-  was never the limiter: the handbrake only scaled grip instead of locking the rear axle,
-  and the wheel took 0.18 s to reach the commanded angle. It now locks the rear through
-  the same friction-circle path as any locked wheel, and `steerRate` is 7.2/s (ADR-071).
-- A half-second pull now gives 19° of entry settling at 31°, and the damping floor moved
-  to 0.62 in the same pass because the faster wheel had pushed overshoot back to 75°.
-- Rewrote the drift gate to measure controllability rather than duration: the old check
-  rewarded a wild 42-to-79-degree swing for spending longer sideways.
+- Diagnosed from her screenshot: the pause banner said 手機方向已改變 while the phone was
+  in landscape. `orientationchange` fires on landscape-left to landscape-right flips and
+  when a near-flat phone is re-classified, and gyro steering means tilting the phone
+  continuously — so the old unconditional pause fired mid-race (ADR-072).
+- Pausing now reads the `(orientation: portrait)` media query. Landscape-to-landscape no
+  longer pauses; portrait pauses with 請打橫手機再繼續 and clears stuck touch inputs.
+- Added a full-screen rotate prompt shown whenever the phone is portrait, on the menu as
+  well as in a race, and attempted `screen.orientation.lock('landscape')` on race start
+  for platforms that support it (iOS Safari does not, hence the prompt).
+- Rewrote the old rotation gate, which asserted the very behaviour being removed.
 
 ## Changed files
 
-- `games/Racing Car/src/car.js`
-- `games/Racing Car/tests/race.mjs`
+- `games/Racing Car/src/main.js`, `index.html`, `style.css`
+- `games/Racing Car/tests/setup.mjs`
 - `docs/ai/DECISIONS.md`, `HANDOFF.md`
 
 ## Verification
 
-- Suites: race 101/101, setup 98/98, rivals 59/59, ghost 29/29, season 55/55, audio 32/32
-  (374/374); `run-all` green.
-- Everything won in the braking rewrite still holds: straight-line braking 2° slip and
-  0.2° of heading change with ABS against 87.9° without, trail braking progressive at
-  5.4° / 18.4° / 30.4°, handbrake drift 87°, cruise 122 km/h, 0–80 km/h 2.77s.
-- New: full-lock steering rotates 10.9° with no spin at any input, a 40° slide is caught
-  in 0.57s, a 35° drift entry peaks at 62° and holds 125 km/h.
-- New gate on the exploit: drifting and spinning must both stay under straight-line speed,
-  while a drift must still keep over 70% of it.
-- AI over all six circuits: zero wall contact, zero rescues, zero off-road, lap times
-  within 0.2s of before (Coast 31.1s).
+- Suites: race 101/101, setup 104/104, rivals 59/59, ghost 29/29, season 55/55,
+  audio 32/32 (380/380); `run-all` green.
+- New gates encode her exact bug: dispatching `orientationchange` while landscape leaves
+  the race running with touch input untouched; switching the viewport to portrait pauses,
+  clears a stuck throttle and steering, and shows the prompt; returning to landscape hides
+  it again.
+- Headed Chromium at 390×844 confirms the prompt covers the menu in portrait.
 
 ## Remaining release gates
 
@@ -114,5 +90,7 @@ player can actually hold, without giving up the safety won in the braking rewrit
   actually scrubbed, or drifting becomes faster than driving straight (ADR-070).
 - Do not model the handbrake as a grip multiplier alone, and do not raise `steerRate`
   without re-checking drift overshoot against the damping floor (ADR-071).
+- Do not pause on `orientationchange`; landscape-to-landscape must never interrupt a race
+  (ADR-072).
 - Do not add audio files or allocate audio nodes per frame; keep audio off-race silent.
 - Do not amend, rebase, or force-push published `main` history.

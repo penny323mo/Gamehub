@@ -93,10 +93,35 @@ function resize() {
     requestRender();
 }
 addEventListener('resize', resize);
-addEventListener('orientationchange', () => {
-    if (running) pauseRace('手機方向已改變，進度已安全暫停');
+
+// ---------- 方向：鎖死打橫 ----------
+// 舊寫法一收到 orientationchange 就無條件暫停。問題係 iOS 喺你打側手機、
+// 攤平、或者喺 landscape-left / landscape-right 之間跳嗰陣都會報方向轉變
+// ——用陀螺儀揸車正正就係一路喺度扭手機，所以比賽會無端端彈「已暫停」
+// （Penny 影到嗰張截圖，本身已經係打橫）。
+//
+// 而家改成睇「橫定直」呢個真正嘅分類（matchMedia），橫轉橫唔會當方向變。
+// 打直先至停，而且停嗰陣直接叫你打橫返。
+const portraitQuery = matchMedia('(orientation: portrait)');
+const isPortrait = () => portraitQuery.matches;
+
+function applyOrientation() {
+    const hint = $('rotate-hint');
+    if (hint) hint.classList.toggle('hidden', !isPortrait());
+    if (isPortrait() && running) pauseRace('請打橫手機再繼續');
     setTimeout(resize, 120);
-});
+}
+
+// 真正鎖得到方向嘅平台（Android Chrome 全螢幕）就鎖；iOS Safari 唔支援，
+// 咁就靠上面嗰個提示 + 暫停。鎖唔到唔可以當錯誤，所以靜靜哋吞咗。
+function tryLockLandscape() {
+    try { screen.orientation?.lock?.('landscape')?.catch?.(() => { }); } catch { }
+}
+
+if (portraitQuery.addEventListener) portraitQuery.addEventListener('change', applyOrientation);
+else portraitQuery.addListener?.(applyOrientation);
+// orientationchange 淨係用嚟補一次 resize，唔再負責暫停
+addEventListener('orientationchange', () => setTimeout(resize, 120));
 
 // ---------- 手機畫質 ----------
 // Auto 只調 pixel ratio，唔會喺比賽中拆 mesh／改 physics。低幀率連續一個
@@ -432,6 +457,7 @@ loader.load('./assets/car.glb', (gltf) => {
     buildTrackButtons();
     buildSettings();
     buildSeasonPicker();
+    applyOrientation();          // 一入嚟就要知打緊直定橫
     // 第一次 active frame 先畫 minimap／填 HUD 會喺手機產生明顯長幀。
     // 趁 loading 遮罩仲喺度先預熱 Canvas2D 同文字 layout；WebGL 第一幀
     // render 完先揭開選單，玩家唔會撳 Start 撞正 shader compile。
@@ -454,7 +480,8 @@ loader.load('./assets/car.glb', (gltf) => {
         get ghostOn() { return ghostOn; },
         get ghostDelta() { return ghostDelta; }, tuneAutoQuality, pauseRace, resumeRace, toMenu,
         performanceReport, performanceReportText, copyPerformanceReport,
-        coarsePointer,
+        coarsePointer, applyOrientation,
+        get portrait() { return isPortrait(); },
         get track() { return track; },
         get trackDef() { return trackDef; },
         get tod() { return tod; },
@@ -1116,6 +1143,7 @@ function startRace() {
     last = performance.now();
     if (qualityMode === 'auto') setQuality('auto', false); // 每場由裝置安全上限重新量
     requestWakeLock();
+    tryLockLandscape();
     audio.startRace();
     ensureFrame();
     return true;

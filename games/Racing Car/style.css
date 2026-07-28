@@ -411,6 +411,42 @@ body.simple-controls #pad-gas .action-icon {
 }
 
 /* ---------- 橫額 ---------- */
+/* 打直提示：蓋住成個畫面，因為打直根本玩唔到 */
+#rotate-hint {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(8, 12, 20, 0.94);
+    backdrop-filter: blur(6px);
+    padding: 24px;
+    text-align: center;
+}
+
+#rotate-hint.hidden {
+    display: none;
+}
+
+.rotate-icon {
+    font-size: 3.4rem;
+    margin-bottom: 14px;
+}
+
+.rotate-title {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #eafff0;
+    margin-bottom: 8px;
+}
+
+.rotate-note {
+    font-size: 0.95rem;
+    color: #9fb0c4;
+    line-height: 1.6;
+}
+
 #banner {
     position: absolute;
     top: 30%;

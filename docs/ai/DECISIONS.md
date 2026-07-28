@@ -1045,3 +1045,20 @@ follows what the tyres can use
   68° while the tap entry stays at 19°. Every other measurement holds: full-lock steering
   still rotates 11° with no spin, straight-line braking is unchanged, and the AI runs all
   six circuits with zero wall contact, zero rescues and zero off-road.
+
+## ADR-072: Landscape only, and rotation stops pausing the race
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: Racing Car is a landscape-only game. Pausing is driven by the
+  `(orientation: portrait)` media query, not by `orientationchange`. Portrait pauses the
+  race with 請打橫手機再繼續 and covers the screen with a rotate prompt; landscape hides it.
+  `screen.orientation.lock('landscape')` is attempted on race start where the platform
+  supports it and its failure is ignored.
+- Reason: Penny's screenshot shows 已暫停 / 手機方向已改變 while the phone was already in
+  landscape. `orientationchange` fires on landscape-left to landscape-right flips and when
+  a phone near flat is re-classified by the OS — and steering by gyro means continuously
+  tilting the phone, so the pause fired in the middle of races. Reading the portrait
+  media query instead makes the pause mean what its message says.
+- The rotate prompt is what enforces landscape on iOS Safari, which does not implement
+  orientation locking. On platforms that do, the lock attempt saves the player the step.

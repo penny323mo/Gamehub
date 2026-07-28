@@ -395,6 +395,57 @@ check('簡易模式會保存並清楚標示自動加速', simpleMode.saved === '
     && simpleMode.selected === 'simple' && simpleMode.bodyClass
     && simpleMode.gasLabel.includes('自動'), simpleMode);
 
+// T4b：方向鎖死打橫。Penny 實機報告：打橫玩緊、用緊陀螺儀扭手機，
+// 就彈咗「手機方向已改變，進度已安全暫停」——因為舊 handler 一收到
+// orientationchange 就無條件暫停，而 iOS 喺打側／攤平／landscape 左右
+// 互換嗰陣都會報。用陀螺儀揸車本身就係一路扭手機，所以必中。
+const orient = await page.evaluate(() => {
+    const { startRace, race } = window.__racer;
+    startRace();
+    race.countdown = 0; race.state = 'racing';
+    const before = { running: window.__racer.running, paused: window.__racer.paused };
+    // 橫轉橫：唔可以暫停
+    dispatchEvent(new Event('orientationchange'));
+    return {
+        before,
+        afterLandscapeEvent: { running: window.__racer.running, paused: window.__racer.paused },
+        hintHidden: document.getElementById('rotate-hint').classList.contains('hidden'),
+        portrait: window.__racer.portrait,
+    };
+});
+console.log('  ', JSON.stringify(orient));
+check('打橫玩緊，扭手機唔可以彈暫停',
+    orient.afterLandscapeEvent.running === true && orient.afterLandscapeEvent.paused === false, orient);
+check('打橫唔會出「請打橫」提示', orient.hintHidden === true && orient.portrait === false, orient);
+
+// 真係轉成打直：先至暫停，兼且出提示
+await page.setViewportSize({ width: 420, height: 900 });
+await page.waitForTimeout(220);
+const portrait = await page.evaluate(() => ({
+    portrait: window.__racer.portrait,
+    paused: window.__racer.paused,
+    reason: document.getElementById('pause-reason').textContent,
+    hintShown: !document.getElementById('rotate-hint').classList.contains('hidden'),
+}));
+console.log('  ', JSON.stringify(portrait));
+check('打直會暫停兼叫你打橫返',
+    portrait.portrait === true && portrait.paused === true && /打橫/.test(portrait.reason), portrait);
+check('打直會蓋住「請打橫手機」', portrait.hintShown === true, portrait);
+
+// 轉返打橫：提示要收返
+await page.setViewportSize({ width: 900, height: 760 });
+await page.waitForTimeout(220);
+const backLand = await page.evaluate(() => {
+    const out = {
+        portrait: window.__racer.portrait,
+        hintHidden: document.getElementById('rotate-hint').classList.contains('hidden'),
+    };
+    window.__racer.toMenu();
+    return out;
+});
+console.log('  ', JSON.stringify(backLand));
+check('轉返打橫提示會收返', backLand.portrait === false && backLand.hintHidden === true, backLand);
+
 // T4c：ABS 設定要真係接落物理，兼且記得住
 const abs = await page.evaluate(() => {
     const { setAbs, car } = window.__racer;
@@ -759,25 +810,42 @@ check('WebGL context restored 後只容許玩家明確繼續', !gpuRecovery.atRe
     && gpuRecovery.atRestore?.calls > 0 && gpuRecovery.atRestore?.tris > 0
     && gpuRecovery.resumed, gpuRecovery);
 
-// T5e：旋轉手機會搬走操控掣，先清 input 暫停，唔可以黐住油門繼續衝。
+// T5e：真係轉成打直先暫停，而且要清走黐住嘅操控（掣位會搬走）。
+// 橫轉橫唔可以停——Penny 用陀螺儀揸車就係一路扭手機，舊寫法一收到
+// orientationchange 就停，於是比賽中無端端彈暫停。
 const rotatePause = await page.evaluate(async () => {
     const root = window.__racer;
     root.startRace();
     root.input.touch.gas = true;
     root.input.steerSmooth = -1;
+    // 橫轉橫：唔停，操控亦唔應該被清（玩家仲揸緊）
     dispatchEvent(new Event('orientationchange'));
     await new Promise(r => setTimeout(r, 180));
+    return {
+        stillRacing: root.running && !root.paused,
+        gasKept: root.input.touch.gas,
+    };
+});
+console.log('  ', JSON.stringify(rotatePause));
+check('橫轉橫唔會停低比賽', rotatePause.stillRacing === true && rotatePause.gasKept === true, rotatePause);
+
+await page.setViewportSize({ width: 420, height: 900 });
+await page.waitForTimeout(240);
+const toPortrait = await page.evaluate(() => {
+    const root = window.__racer;
     const out = {
         running: root.running, paused: root.paused,
         gas: root.input.touch.gas, steer: root.input.steerSmooth,
         reason: document.getElementById('pause-reason').textContent,
     };
-    root.toMenu();
     return out;
 });
-console.log('  ', JSON.stringify(rotatePause));
-check('旋轉手機會安全暫停兼清走黐住嘅操控', !rotatePause.running && rotatePause.paused
-    && !rotatePause.gas && rotatePause.steer === 0 && rotatePause.reason.includes('方向'), rotatePause);
+console.log('  ', JSON.stringify(toPortrait));
+check('轉成打直會安全暫停兼清走黐住嘅操控', !toPortrait.running && toPortrait.paused
+    && !toPortrait.gas && toPortrait.steer === 0 && toPortrait.reason.includes('打橫'), toPortrait);
+await page.setViewportSize({ width: 900, height: 760 });
+await page.waitForTimeout(240);
+await page.evaluate(() => window.__racer.toMenu());
 
 // T5f：非比賽畫面唔可以繼續 60 fps 燒 GPU；設定改動就只補畫一幀。
 const idleRender = await page.evaluate(async () => {
