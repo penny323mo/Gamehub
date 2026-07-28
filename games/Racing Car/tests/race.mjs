@@ -357,6 +357,79 @@ for (const id of TRACK_IDS) {
     check(`${id}：唔使拖車`, lap.rescues === 0, lap.rescues);
 }
 
+// T3a：制動物理。Penny 實機報告「直線冇轉向都會打橫」——根源係制動力
+// 全部記帳落後軸嘅摩擦圓，而前軸嘅側向抓地一分錢都冇扣，加上載荷轉移
+// 誇張到後軸負荷跌到 476 N（等於後輪離地）。呢度守住修好之後嘅因果。
+const braking = await page.evaluate(async () => {
+    const THREE = await import('three');
+    window.__racer.buildTrack('coast');
+    const { car, track } = window.__racer;
+    const PLANE = { isDrivable: () => true, isWall: () => false };
+    const cruise = (abs) => {
+        car.reset(track.startPos, track.startDir);
+        car.abs = abs; car.arcadeAssist = true;
+        for (let i = 0; i < 300; i++) car.update(1 / 60, { throttle: 1, steer: 0, handbrake: false }, PLANE);
+    };
+    const out = {};
+
+    // 直線煞停：減速度要似真車（唔可以係 1.8 g 咁誇張），車頭唔可以自己轉
+    cruise(true);
+    const v0 = car.speed, yaw0 = car.yaw;
+    let n = 0, peak = 0;
+    while (car.speed > 3 && n < 900) {
+        car.update(1 / 60, { throttle: -1, steer: 0, handbrake: false }, PLANE);
+        peak = Math.max(peak, Math.abs(car.slipAngle)); n++;
+    }
+    out.straight = {
+        decelG: +((v0 - car.speed) / (n / 60) / 9.81).toFixed(2),
+        yaw: +((car.yaw - yaw0) * 57.3).toFixed(1), slip: +(peak * 57.3).toFixed(1),
+    };
+
+    // 直線煞車 + 側向擾動（好似輾過一個坑）：ABS 開唔可以打橫，關就會
+    for (const abs of [true, false]) {
+        cruise(abs);
+        const f = { x: Math.sin(car.yaw), z: Math.cos(car.yaw) };
+        const l = { x: Math.cos(car.yaw), z: -Math.sin(car.yaw) };
+        const v = car.speed;
+        car.vel.set(f.x * v + l.x * 1.2, 0, f.z * v + l.z * 1.2);
+        const y0 = car.yaw;
+        let m = 0, pk = 0;
+        while (car.speed > 4 && m < 900) {
+            car.update(1 / 60, { throttle: -1, steer: 0, handbrake: false }, PLANE);
+            pk = Math.max(pk, Math.abs(car.slipAngle)); m++;
+        }
+        out[abs ? 'bumpAbs' : 'bumpNoAbs'] = {
+            slip: +(pk * 57.3).toFixed(1), yaw: +((car.yaw - y0) * 57.3).toFixed(1),
+        };
+    }
+
+    // 減速入彎：軚愈大，車身角度愈大，但唔可以直接打圈
+    out.trail = {};
+    for (const st of [0.2, 0.45, 0.8]) {
+        cruise(true);
+        let k = 0, pk = 0;
+        while (car.speed > 8 && k < 900) {
+            car.update(1 / 60, { throttle: -1, steer: st, handbrake: false }, PLANE);
+            pk = Math.max(pk, Math.abs(car.slipAngle)); k++;
+        }
+        out.trail[st] = +(pk * 57.3).toFixed(1);
+    }
+    return out;
+});
+console.log('  ', JSON.stringify(braking));
+check('直線煞停減速度似真車（0.9–1.4 g）',
+    braking.straight.decelG > 0.9 && braking.straight.decelG < 1.4, braking.straight.decelG);
+check('直線煞車唔會自己轉', Math.abs(braking.straight.yaw) < 1
+    && braking.straight.slip < 1, braking.straight);
+check('ABS 開：輾過坑再煞車都唔會打橫',
+    braking.bumpAbs.slip < 6 && Math.abs(braking.bumpAbs.yaw) < 10, braking.bumpAbs);
+check('ABS 關：踩死會鎖死打滑（真實行為，亦係 ABS 嘅價值）',
+    braking.bumpNoAbs.slip > 40, braking.bumpNoAbs);
+check('減速入彎：輕軚要企得穩', braking.trail[0.2] < 12, braking.trail);
+check('減速入彎：軚愈大車身角度愈大（可控漂移）',
+    braking.trail[0.45] > braking.trail[0.2] && braking.trail[0.8] > braking.trail[0.45]
+    && braking.trail[0.8] < 60, braking.trail);
+
 // T3b：車身側傾唔可以令架車望落離地。模型係一整件硬嘢（車身連輪胎），
 // 側傾角一大，一邊輪胎就會離地、另一邊插落路面——Penny 實機報告
 // 「架車好似浮起、轉左轉右好似飛機咁」，量到嗰陣係 9.2° 側傾、

@@ -395,6 +395,25 @@ check('簡易模式會保存並清楚標示自動加速', simpleMode.saved === '
     && simpleMode.selected === 'simple' && simpleMode.bodyClass
     && simpleMode.gasLabel.includes('自動'), simpleMode);
 
+// T4c：ABS 設定要真係接落物理，兼且記得住
+const abs = await page.evaluate(() => {
+    const { setAbs, car } = window.__racer;
+    const btn = (v) => document.querySelector(`#abs-seg button[data-abs="${v}"]`);
+    setAbs(true);
+    const on = { car: car.abs, saved: localStorage.getItem('racer-abs'), lit: btn('1').classList.contains('on') };
+    btn('0').click();
+    const off = { car: car.abs, saved: localStorage.getItem('racer-abs'), lit: btn('0').classList.contains('on') };
+    btn('1').click();
+    const back = { car: car.abs, saved: localStorage.getItem('racer-abs') };
+    return { on, off, back, report: window.__racer.performanceReportText() };
+});
+console.log('  ', JSON.stringify(abs));
+check('ABS 設定會接落架車', abs.on.car === true && abs.off.car === false && abs.back.car === true, abs);
+check('ABS 設定存得返兼著正粒掣',
+    abs.on.saved === '1' && abs.off.saved === '0' && abs.back.saved === '1'
+    && abs.on.lit && abs.off.lit, abs);
+check('手機報告寫住 ABS 狀態', /ABS 開/.test(abs.report), abs.report);
+
 // T5：陀螺儀轉向曲線。實機報告「轉向比例奇怪」＝ 11° 就打到盡、直線、
 // 冇平滑，手腕郁少少就由零彈到全軚。呢度驗返條新曲線嘅性質。
 const curve = await page.evaluate(async () => {

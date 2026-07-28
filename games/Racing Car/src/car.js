@@ -22,8 +22,29 @@ export const CFG = {
     // 避免高速巡航同反打因全段加力而失控。traction clamp 仍限制落地力量。
     launchForce: 11600,
     engineForce: 8500,
-    brakeForce: 20000,
+    brakeForce: 20000,   // 制動「需求」，唔係實際落地力——落地幾多由摩擦圓決定
     reverseForce: 6000,
+
+    // 制動前後分配。真車典型 60–70% 落前軸（煞車時載荷轉去前面，前輪
+    // 先食得起）。之前呢個模型完全冇分配：制動力全部記帳落後軸嘅摩擦圓，
+    // 而前軸嘅側向抓地一分錢都冇扣——即係「前輪滿抓、後輪冇抓」，
+    // 直線踩煞都會打圈（實測同一擾動：滑行偏 4°，煞車轉 229°）。
+    brakeSplitF: 0.62,
+    // ABS 唔係「用盡抓地」——真 ABS 係鎖定喺約 10–15% 滑移率，即係峰值
+    // 之下，特登留返側向抓地畀你轉軚。用 0.95 就等於一腳踩死：兩條軸都
+    // 淨返三成側向力，架車照直衝兼一有擾動就轉。0.65 換返嚟：減速度約
+    // 1.0 g（真車水準），而側向仲有 sqrt(1-0.65²) ≈ 76% 用。
+    absCap: 0.9,
+    absSteerReserve: 0.55, // 打緊軚就大幅讓返畀側向——即係「減速入彎」揸得順
+    // 制動偏前。真車嘅比例閥／EBD 特登畀前軸多過「理想分配」，因為後輪
+    // 一鎖就即刻轉圈，前輪鎖只係推頭——安全好多。呢度做同一件事：後軸
+    // 最多只用自己摩擦圓嘅 55%，側向仲有 sqrt(1-0.36²) ≈ 93% 用得。
+    // 冇呢樣嘅話，煞車時前輪最大側向力係後輪 2.4 倍（載荷差），
+    // 隨便一個轉向擾動都會滾成打圈。
+    absRearBias: 0.35,
+    brakeFrontShare: 0.86, // 前軸食幾多制動需求（餘數先落後軸）
+    lockLong: 0.85,      // 鎖死之後係滑動摩擦，比峰值低
+    lockLateral: 0.12,   // 鎖死嘅輪幾乎produce唔到側向力，所以會直衝／甩尾
     maxSpeed: 62,        // m/s 上限
     dragCoef: 2.6,       // 空氣阻力
     rollResist: 220,     // 滾動阻力
@@ -47,11 +68,14 @@ export const CFG = {
     handbrakeGrip: 0.45, // 手煞期間後輪抓地剩返幾多（太低會一拉就打圈、救唔返）
     yawDamp: 2.6,        // 偏航阻尼：控制「甩到幾盡」。太細直接打圈，太大就甩唔郁
 
-    // 加減速嘅前後載荷轉移比例。物理上應該係「重心高 ÷ 軸距」≈ 0.16，
-    // 但實測跌到 0.16 之後煞車壓唔到前軸，入彎變成死推頭直接撞外欄。
-    // 0.28 誇張咗少少（好似重心高咗），換返嚟嘅係一部肯轉頭、肯甩尾嘅車，
-    // 呢隻遊戲要嘅正正係咁。
-    loadTransfer: 0.28,
+    // 加減速嘅前後載荷轉移比例＝重心高 ÷ 軸距。0.19 對應重心高約 0.53 米，
+    // 係一部貼地跑車嘅真實數字。
+    //
+    // 之前用 0.28（即係當重心成 0.78 米高）。喺舊模型度佢做到「肯轉頭」嘅
+    // 手感，但代價係煞車時後軸負荷跌到 476 N——即係後輪離緊地。後輪冇負荷
+    // 就冇側向力（實測 -250 N 對前輪 -5000 N），前輪一有側力就直接將架車
+    // 扭埋去：Penny 報嘅「直線踩煞都會打橫」就係咁嚟。
+    loadTransfer: 0.19,
     offroadGrip: 0.45,   // 落草抓地
     offroadDrag: 2600,
     wallBounce: 0.4,
@@ -77,9 +101,13 @@ export class Car {
         this.wallHit = false;
         this.wallImpact = 0;
         this.bodyRoll = 0;
+        this.lockFront = false;
+        this.lockRear = false;
         // 預設定位係爽快街機，而唔係硬核模擬。保留成員方便物理因果測試，
         // 遊戲 UI 唔要求玩家先理解一堆電子輔助設定先可以揸得順。
         this.arcadeAssist = true;
+        // ABS：預設開。關咗就會出現真實嘅鎖死行為（前輪鎖推頭、後輪鎖甩尾）。
+        this.abs = true;
     }
 
     reset(pos, dir) {
@@ -136,9 +164,13 @@ export class Car {
         this.steer += (target - this.steer) * Math.min(1, dt * CFG.steerRate);
 
         this.offroad = !track.isDrivable(this.pos.x, this.pos.z);
+        const surface = this.offroad ? CFG.offroadGrip : 1;
+        const frontGrip = CFG.gripFront * surface;
+        const rearGrip = CFG.gripRear * surface * (input.handbrake ? CFG.handbrakeGrip : 1);
 
-        // ---- 縱向力：引擎／煞車／阻力 ----
-        let driveF = 0;
+        // ---- 縱向需求：引擎／煞車／阻力 ----
+        // 煞車只係「需求」，真正落地幾多，下面按軸同摩擦圓計。
+        let driveF = 0, brakeDemand = 0;
         if (input.throttle > 0) {
             const torqueFade = Math.min(1, Math.abs(vLong) / 25);
             const available = CFG.launchForce + (CFG.engineForce - CFG.launchForce) * torqueFade;
@@ -151,21 +183,54 @@ export class Car {
             }
         }
         else if (input.throttle < 0) {
-            driveF = vLong > 0.6 ? -CFG.brakeForce : CFG.reverseForce * input.throttle;
+            if (vLong > 0.6) brakeDemand = CFG.brakeForce * Math.min(1, -input.throttle);
+            else driveF = CFG.reverseForce * input.throttle;
         }
         if (speed > CFG.maxSpeed) driveF = Math.min(driveF, 0);
         const dragF = -CFG.dragCoef * vLong * Math.abs(vLong)
             - Math.sign(vLong) * (CFG.rollResist + (this.offroad ? CFG.offroadDrag : 0));
 
-        // ---- 載荷轉移：加速壓後軸、煞車壓前軸，直接影響各軸抓地上限 ----
-        // 用未夾過嘅驅動力估載荷（差一幀，實際察覺唔到）
-        const accelLong = (driveF + dragF) / CFG.mass;
+        // ---- 載荷轉移同制動分配：兩者互為因果，所以行兩趟 ----
+        // 載荷靠縱向加速度，而縱向加速度又靠「輪胎傳得到幾多」，即係靠載荷。
+        // 之前用未夾過嘅制動需求（20000 N ＝ 1.84 g，超出任何輪胎）去估，
+        // 估出嚟嘅後軸負荷直接跌到地板。兩趟迭代就解到：第一趟用靜態負荷
+        // 算出真實得到嘅制動力，第二趟先用嗰個加速度去轉移載荷。
         const wb = CFG.wheelBaseF + CFG.wheelBaseR;
         const staticF = CFG.mass * G * CFG.wheelBaseR / wb;
         const staticR = CFG.mass * G * CFG.wheelBaseF / wb;
+        const applyBrakes = (lf, lr) => {
+            const cF = Math.max(1, frontGrip * lf);
+            const cR = Math.max(1, rearGrip * lr);
+            if (brakeDemand <= 0) return { capF: cF, capR: cR, brakeF: 0, brakeR: 0, lockF: false, lockR: false };
+            if (this.abs) {
+                // ABS + EBD：按「當刻軸荷」分配，唔用固定比例。煞車時載荷
+                // 轉去前軸，固定 62/38 就等於過度制動已經冇乜負荷嘅後軸。
+                // 按 μ·N 分配，兩軸用到同一比例嘅摩擦圓，偏航保持中性。
+                const steerUse = Math.min(1, Math.abs(this.steer) / CFG.steerMax);
+                const room = CFG.absCap * (1 - CFG.absSteerReserve * steerUse);
+                // 前軸做主力：佢載荷大，制動時用自己個圈嘅大部分。咁樣前輪
+                // 側向抓地跌得多過後輪，車就變成推頭傾向——安全，亦係真車
+                // 嘅設定。平均分配反而令前輪保住太多側向，邊煞邊轉會被前輪
+                // 扭入去變打圈（實測輕輕轉 0.2 都甩到 66°）。
+                const bF = Math.min(brakeDemand * CFG.brakeFrontShare, cF * room);
+                const bR = Math.min(brakeDemand - bF, cR * room * CFG.absRearBias);
+                return { capF: cF, capR: cR, lockF: false, lockR: false, brakeF: bF, brakeR: bR };
+            }
+            // 冇 ABS：固定液壓比例，超出上限就鎖死（滑動摩擦 + 冇側向力）
+            const dF = brakeDemand * CFG.brakeSplitF;
+            const dR = brakeDemand * (1 - CFG.brakeSplitF);
+            const lockF = dF > cF, lockR = dR > cR;
+            return {
+                capF: cF, capR: cR, lockF, lockR,
+                brakeF: lockF ? cF * CFG.lockLong : dF,
+                brakeR: lockR ? cR * CFG.lockLong : dR,
+            };
+        };
+        const pass1 = applyBrakes(staticF, staticR);
+        const accelLong = (driveF + dragF - pass1.brakeF - pass1.brakeR) / CFG.mass;
         const shift = CFG.mass * accelLong * CFG.loadTransfer;
-        const loadF = Math.max(200, staticF - shift);
-        const loadR = Math.max(200, staticR + shift);
+        const loadF = Math.max(500, staticF - shift);
+        const loadR = Math.max(500, staticR + shift);
 
         // ---- 滑移角：輪胎指向 vs 該軸實際行進方向 ----
         const vRef = Math.max(2.5, Math.abs(vLong));   // 低速唔好除到爆
@@ -173,25 +238,26 @@ export class Car {
         const slipF = Math.atan2(vLat + this.yawRate * CFG.wheelBaseF, vRef) - this.steer * dir;
         const slipR = Math.atan2(vLat - this.yawRate * CFG.wheelBaseR, vRef);
 
-        // ---- 輪胎側向力 ＋ 摩擦圓 ----
-        const surface = this.offroad ? CFG.offroadGrip : 1;
-        const frontGrip = CFG.gripFront * surface;
-        const rearGrip = CFG.gripRear * surface * (input.handbrake ? CFG.handbrakeGrip : 1);
-        // 後輪最多傳到 μ·N 咁多力，多出嘅只係空轉。之前冇呢個上限：車照樣
-        // 攞到全部驅動力向前衝，同時側向抓地又被摩擦圓扣到剩一兩成——
-        // 出彎踩油變成「又快又冇軚」，低速都照打圈。
-        const traction = rearGrip * loadR;
-        if (driveF > 0) driveF = Math.min(driveF, traction);
-        const longForce = driveF + dragF;
+        // ---- 第二趟：用真實載荷再計一次制動同抓地上限 ----
+        const { capF, capR, brakeF, brakeR, lockF, lockR } = applyBrakes(loadF, loadR);
+        this.lockFront = lockF;
+        this.lockRear = lockR;
 
-        // 驅動／煞車用咗幾多抓地，側向就剩返幾多——踩爆油會甩尾就係呢度嚟
-        const rearLongUse = Math.min(0.95, Math.abs(driveF) / Math.max(1, traction));
-        const rearCircle = Math.sqrt(Math.max(0, 1 - rearLongUse * rearLongUse));
+        // 後輪最多傳到 μ·N 咁多力，多出嘅只係空轉。
+        if (driveF > 0) driveF = Math.min(driveF, capR);
+        const longForce = driveF + dragF - brakeF - brakeR;
+
+        // 摩擦圓：每條軸用咗幾多縱向，側向就剩返幾多。之前淨係後軸有呢個
+        // 帳，而且連制動都記落後軸——所以踩煞等於單方面攞走後輪嘅側向力。
+        const useF = Math.min(0.98, brakeF / capF);
+        const useR = Math.min(0.98, (Math.abs(driveF) + brakeR) / capR);
+        const frontCircle = lockF ? CFG.lockLateral : Math.sqrt(1 - useF * useF);
+        const rearCircle = lockR ? CFG.lockLateral : Math.sqrt(1 - useR * useR);
 
         const tyre = (slip, grip, load) =>
             -grip * load * Math.sin(CFG.tyreC * Math.atan(CFG.tyreB * slip));
 
-        const latF = tyre(slipF, frontGrip, loadF);
+        const latF = tyre(slipF, frontGrip * frontCircle, loadF);
         let latR = tyre(slipR, rearGrip * rearCircle, loadR);
         // 偏航阻尼：模擬輪胎鬆弛同懸掛，防止細小擾動滾成原地打圈。
         // 後軸力矩係 -wheelBaseR·latR，所以要「加」先至同 yawRate 反方向；

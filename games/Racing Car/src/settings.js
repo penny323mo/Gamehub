@@ -102,6 +102,13 @@ export function saveSeasonList(ids) {
     try { localStorage.setItem(KEY_SEASON_LIST, JSON.stringify(ids)); } catch { }
 }
 
+// ABS 預設開。關咗就係真實嘅無 ABS 行為：踩死煞車會鎖死，前輪鎖推頭、
+// 後輪鎖甩尾（實測直線煞車一有擾動就轉 128°）。
+export function loadAbs() { return localStorage.getItem('racer-abs') !== '0'; }
+export function saveAbs(on) {
+    try { localStorage.setItem('racer-abs', on ? '1' : '0'); } catch { }
+}
+
 // 幽靈車預設開：獨自計時模式冇咗佢就完全冇參照物
 export function loadGhostOn() { return localStorage.getItem('racer-ghost-on') !== '0'; }
 export function saveGhostOn(on) {

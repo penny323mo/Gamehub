@@ -15,10 +15,14 @@ import * as THREE from 'three';
 // 三個難度嘅 latG 特登夾得好埋（6.0 / 6.2 / 6.4）。實測 latG 一低過 5.5
 // 反而更差：慢入彎令車喺彎入面留耐咗，個簡單控制器有更多時間累積追線
 // 誤差。差異主要靠望前距離同煞車能力，唔係靠「肯唔肯食 g」。
+// brakeA 要對得返實際攞得到嘅減速度。物理改成「制動受摩擦圓限制」之後，
+// 直線煞車係 1.19 g（11.7 m/s²），但一打軚 ABS 就讓返抓地畀側向，實際
+// 得七八成。舊值 8.6–9.6 係對住舊嘅 1.84 g 制動調嘅，煞車點太遲——
+// 海岸即刻由 6 幀掂欄變 259 幀。
 export const SKILLS = {
-    steady: { latG: 6.0, look: 0.5, brakeA: 8.6, name: '穩陣' },
-    quick: { latG: 6.2, look: 0.55, brakeA: 9, name: '進取' },
-    ace: { latG: 6.4, look: 0.62, brakeA: 9.6, name: '好手' },
+    steady: { latG: 6.0, look: 0.5, brakeA: 7.2, name: '穩陣' },
+    quick: { latG: 6.2, look: 0.55, brakeA: 7.6, name: '進取' },
+    ace: { latG: 6.4, look: 0.62, brakeA: 8.1, name: '好手' },
 };
 
 export function createDriver(track, skill = SKILLS.quick) {

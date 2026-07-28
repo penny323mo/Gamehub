@@ -19,6 +19,7 @@ import {
     COLOURS, TIMES, QUALITY_MODES,
     loadColour, saveColour, loadTod, saveTod, loadQuality, saveQuality, qualityDpr,
     loadRivals, saveRivals, loadGhostOn, saveGhostOn, loadSeasonList, saveSeasonList,
+    loadAbs, saveAbs,
     paintCar, applyTime,
 } from './settings.js';
 
@@ -156,6 +157,7 @@ function performanceReport() {
         gyroSensitivity: input.gyroSens,
         orientation: orientation?.type ?? 'unknown',
         orientationAngle: orientation?.angle ?? window.orientation ?? 0,
+        abs: absOn,
         audioEnabled: audioState.enabled,
         audioReady: audioState.ready,
         audioBroken: audioState.broken,
@@ -174,7 +176,7 @@ function performanceReportText() {
         + `｜${mode} DPR ${p.dpr.toFixed(2)}｜平均 ${n(p.avgFps)} fps`
         + `｜最低 ${n(p.minFps)} fps｜長幀 ${p.longFrames}`
         + `｜最慢 ${n(p.maxFrameMs)} ms｜賽道 ${p.track}`
-        + `｜操控 ${controls}/${steer}`
+        + `｜操控 ${controls}/${steer}/ABS ${p.abs ? '開' : '關'}`
         + `｜陀螺 ${gyro}/${gyroDirection}/靈敏 ${p.gyroSensitivity.toFixed(1)}`
         + `｜方向 ${p.orientation}@${p.orientationAngle}°`
         + `｜音效 ${audioLabel}${p.audioEnabled && p.audioReady ? '/已啟動' : ''}`;
@@ -279,6 +281,7 @@ let rivalCount = loadRivals();
 
 // 幽靈姿勢嘅相容介面；真正畫面併入 rivals 同一個 instanced draw（ADR-054）。
 let ghostOn = loadGhostOn();
+let absOn = loadAbs();
 const ghostRecorder = new GhostRecorder();
 const ghostPlayer = new GhostPlayer();
 const ghostMesh = new THREE.Object3D();
@@ -418,6 +421,7 @@ loader.load('./assets/car.glb', (gltf) => {
     const wrap = new THREE.Group();
     wrap.add(model);
     car = new Car(wrap);
+    car.abs = absOn;
     scene.add(car.root);
     environment.attachCar(car.root);
     environment.apply(TIMES[tod], tod);
@@ -440,7 +444,7 @@ loader.load('./assets/car.glb', (gltf) => {
         car, race, renderer, scene, camera, environment, drivingEffects, rivals,
         restart, startRace, buildTrack, TRACKS, input, minimap, setRivals,
         get rivalCount() { return rivalCount; },
-        setColour, setTod, setQuality, setGhost, season, startSeason, renderSeasonPanel, ghostRecorder, ghostPlayer, ghostMesh,
+        setColour, setTod, setQuality, setGhost, setAbs, get abs() { return absOn; }, season, startSeason, renderSeasonPanel, ghostRecorder, ghostPlayer, ghostMesh,
         setSeasonList, seasonHistory: loadHistory, clearSeasonHistory: clearHistory, audio,
         updateSeasonMenu,
         get seasonList() { return [...seasonList]; },
@@ -541,6 +545,13 @@ function setColour(id) {
         b.classList.toggle('on', b.dataset.id === colour.id));
     requestRender();
 }
+function setAbs(on) {
+    absOn = !!on;
+    saveAbs(absOn);
+    if (car) car.abs = absOn;
+    markSeg('#abs-seg', 'abs', absOn ? 1 : 0);
+    return absOn;
+}
 function setGhost(on) {
     ghostOn = !!on;
     saveGhostOn(ghostOn);
@@ -636,6 +647,11 @@ function buildSettings() {
         b.addEventListener('click', () => setRivals(Number(b.dataset.rivals)));
     }
     setRivals(rivalCount);
+
+    for (const b of document.querySelectorAll('#abs-seg button')) {
+        b.addEventListener('click', () => setAbs(b.dataset.abs === '1'));
+    }
+    setAbs(absOn);
 
     for (const b of document.querySelectorAll('#ghost-seg button')) {
         b.addEventListener('click', () => setGhost(b.dataset.ghost === '1'));

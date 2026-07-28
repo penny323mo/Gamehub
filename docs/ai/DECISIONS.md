@@ -946,3 +946,32 @@ follows what the tyres can use
 - A real difficulty scale needs a driver that holds its line at any pace — lateral-error
   feedback against a racing line, not a centreline chase with a speed cap. That is its
   own phase with its own evidence, not a setting bolted onto today's controller.
+
+## ADR-068: Braking is modelled per axle, and ABS is a real system rather than a label
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: rewrite the longitudinal model. Brake force is a demand distributed across
+  axles, each axle's longitudinal force is limited by its own μ·N, and each axle's lateral
+  capacity is reduced by its own longitudinal usage. Axle loads and brake forces are
+  solved with two passes because they determine each other. `loadTransfer` returns to a
+  physical 0.19. ABS (default on, `racer-abs`) keeps the front axle as the main brake,
+  caps each axle below its friction limit, releases brake force as steering increases, and
+  never locks. With ABS off, a fixed 62/38 hydraulic split can exceed an axle's limit and
+  that axle locks — sliding friction longitudinally and almost no lateral force.
+- Reason: Penny reported that braking in a straight line with no steering turned the car
+  sideways. Reproduced: with the same small disturbance, coasting drifts 4° while braking
+  spins 229°. Three compounding faults. Braking was charged entirely to the rear axle's
+  friction circle while the front's lateral grip was never debited, so any brake input
+  meant "front gripping, rear free". The load-transfer estimate used the unclamped 20,000 N
+  demand — 1.84 g, beyond any tyre — which drove rear axle load to the 476 N floor, i.e. a
+  rear wheel with no weight on it and therefore no lateral force (−250 N against the
+  front's −5000 N). And `loadTransfer` was 0.28, a centre of gravity 0.78 m high.
+- Measured after: straight-line stop 1.19 g with 0.0° of heading change; over a bump then
+  braking, 1.9° slip with ABS and 87.6° without; trail braking gives 3.9° / 21° / 31.5° of
+  body slip at a quarter, half and full steering — a progressive drift entry rather than a
+  spin. Handbrake drift is unchanged at 89°, and 0–80 km/h stays 2.77s.
+- The AI was retuned in the same pass, as the previous handoff required: `brakeA` drops
+  from 8.6/9.0/9.6 to 7.2/7.6/8.1 because the old values were fitted to 1.84 g braking.
+  All six circuits now run with zero wall contact, zero rescues and zero off-road, and
+  lap times improve (Coast 36.4s to 30.9s).
