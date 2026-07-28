@@ -17,8 +17,18 @@
     padding: 0;
 }
 
+/* 卡片係絕對定位嘅，左右兩邊嗰啲會伸出畫面之外。淨係喺 body 落
+   overflow-x: hidden 唔夠——文件本身仍然係嗰個闊度（實測 500px 闊嘅
+   手機，文件闊 3446px），所以手指一撥就係喺度拉成版嘢，唔係揭卡片。
+   html 同 body 一齊夾實，再喺 carousel 度真正裁走。 */
+html {
+    overflow-x: hidden;
+    width: 100%;
+}
+
 body {
     font-family: var(--font-stack);
+    width: 100%;
     background-color: var(--bg-darker);
     background-image:
         radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.15) 0%, transparent 20%),
@@ -77,8 +87,13 @@ body {
 
 .carousel-track-container {
     width: 100%;
-    overflow: visible;
-    /* Allow cards to show fully on mobile */
+    /* 真正裁走伸出畫面嘅卡片。上下留 padding 再用等量負 margin 抵消，
+       咁陰影同 hover 嘅放大唔會被切到，但橫向就實牙實齒裁乾淨。 */
+    overflow: hidden;
+    padding: 48px 0;
+    margin: -48px 0;
+    /* 手指橫掃留返畀 carousel 自己處理，唔好變成頁面平移 */
+    touch-action: pan-y;
     position: relative;
     display: flex;
     justify-content: center;
@@ -249,15 +264,33 @@ body {
     right: 0;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 700px) {
+    /* 手機：卡片本身已經佔咗成個闊度（85vw），箭咀擺喺左右兩邊一定會
+       壓住張卡（實測 320px 闊嘅機，箭咀 30–70 疊住卡片 24–296）。
+       手指掃已經係主要操作，所以箭咀搬落卡片下面並排擺，唔再擋住內容。 */
     .carousel-container {
-        padding: 0 40px;
+        padding: 0 12px 72px;
     }
 
     .nav-btn {
-        width: 40px;
-        height: 40px;
+        width: 44px;
+        height: 44px;
         font-size: 1.2rem;
+        top: auto;
+        bottom: 8px;
+        transform: none;
+    }
+
+    .nav-btn:hover {
+        transform: scale(1.08);
+    }
+
+    .prev-btn {
+        left: calc(50% - 56px);
+    }
+
+    .next-btn {
+        right: calc(50% - 56px);
     }
 
     .game-hub-card {
