@@ -4,6 +4,7 @@
 export const STEER_KEY = 'racer-invert-steer';
 export const GYRO_KEY = 'racer-gyro';
 export const GYRO_SENS_KEY = 'racer-gyro-sens';
+export const GYRO_INVERT_KEY = 'racer-gyro-invert';
 export const CONTROL_MODE_KEY = 'racer-control-mode';
 
 export class Input {
@@ -19,6 +20,9 @@ export class Input {
         // 靠估，不如畀佢一撳就掉轉。
         this.invert = localStorage.getItem(STEER_KEY) === '1';
         this.gyroSens = Number(localStorage.getItem(GYRO_SENS_KEY) ?? 1.4);
+        // 陀螺儀方向獨立於觸控轉向。Penny 實機報告：觸控方向啱，陀螺儀
+        // 相反。兩者共用一個 invert 掣嘅話，修好一個就整壞另一個。
+        this.gyroInvert = localStorage.getItem(GYRO_INVERT_KEY) !== '0';
         this.controlMode = localStorage.getItem(CONTROL_MODE_KEY) === 'standard'
             ? 'standard'
             : 'simple';
@@ -227,6 +231,11 @@ export class Input {
         this.gyroSens = v;
         try { localStorage.setItem(GYRO_SENS_KEY, String(v)); } catch { }
     }
+    setGyroInvert(on) {
+        this.gyroInvert = !!on;
+        try { localStorage.setItem(GYRO_INVERT_KEY, this.gyroInvert ? '1' : '0'); } catch { }
+        return this.gyroInvert;
+    }
     setControlMode(mode) {
         this.controlMode = mode === 'standard' ? 'standard' : 'simple';
         try { localStorage.setItem(CONTROL_MODE_KEY, this.controlMode); } catch { }
@@ -288,7 +297,10 @@ export class Input {
         let steer = this.steerSmooth;
         if (this.gyro.on && target === 0 && !stickActive) {
             const span = 16 / Math.max(0.3, this.gyroSens);
-            steer = Math.max(-1, Math.min(1, this.gyro.tilt / span));
+            // 預設反轉：實機（Penny 部機，直度揸）扭右邊落去係向左轉，
+            // 同直覺相反。裝置係最終標準，desktop 點推導都冇用。
+            const sign = this.gyroInvert ? -1 : 1;
+            steer = Math.max(-1, Math.min(1, sign * this.gyro.tilt / span));
             if (Math.abs(steer) < 0.06) steer = 0;      // 死區：唔會自己遊走
         }
 

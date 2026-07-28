@@ -3,53 +3,40 @@
 Updated: 2026-07-28 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
-Baseline before this task: `8aabd14`
-Status: reverse circuits added; AI curvature estimate fixed; duplicate test driver removed
+Baseline before this task: `c2c42ea`
+Status: two phone-reported faults fixed — gyro direction and the aeroplane-like body roll
 
 ## Current objective
 
-Grow circuit content without weakening any gate, and fix what the new content exposed.
+Act on Penny's first real-device report of this phase: gyro steered the wrong way, and
+the car looked airborne when cornering.
 
 ## Completed
 
-- `tracks.js` derives reverse variants from a circuit's centreline. Coast and Touge ship
-  reversed (5 circuits total); each has its own id, best lap, ghost, per-circuit career
-  record, and can be picked into a championship schedule.
-- Turbo reversed is deliberately not shipped. The AI spins at one infield corner every
-  lap and wedges against a barrier until the 3-second rescue. Excluding it keeps one
-  strict gate for every circuit instead of a per-circuit exemption (ADR-060).
-- Championship default is still the three forward circuits, not every circuit, so adding
-  content did not silently double the default championship length.
-- Fixed a real AI defect the reverse circuits exposed: curvature was estimated over a
-  ±0.012 window, which smooths short corners into gentle ones and lets the driver enter
-  far too fast. At ±0.008 the six-circuit totals go from 1290 wall-contact frames and
-  7 rescues to 559 and 3, forward circuits unchanged, lap times not meaningfully slower.
-- Removed the duplicated controller in `tests/race.mjs`; T4 now imports `createDriver`.
-  That duplicate is why the defect survived: changing the shipped driver moved the gate
-  by nothing, because the gate measured a controller nothing else used (ADR-061).
+- Body roll cut from 9.2° to 3°. The roll applies to the whole car group, wheels
+  included, so the old value lifted one side and drove the other 0.27 m through the
+  road — measured, and exactly the "floating / banking like a plane" she described.
+  Now about 9 cm of height difference, invisible at this car size (ADR-063).
+- Gyro steering gained its own direction switch (`racer-gyro-invert`), defaulting to
+  inverted per her device. The existing 轉向方向 switch still covers touch and gyro
+  together; a single shared switch could not express "touch right, gyro wrong" (ADR-064).
+- 設定 gained a 陀螺儀方向 預設/反轉 row next to the existing gyro rows.
 
 ## Changed files
 
-- `games/Racing Car/src/tracks.js`, `src/driver.js`, `src/main.js`, `src/settings.js`
-- `games/Racing Car/tests/race.mjs`, `tests/season.mjs`
+- `games/Racing Car/src/car.js`, `src/input.js`, `src/main.js`, `index.html`
+- `games/Racing Car/tests/race.mjs`, `tests/setup.mjs`
 - `docs/ai/DECISIONS.md`, `HANDOFF.md`
 
 ## Verification
 
-- Suites: race 67/67, setup 80/80, rivals 55/55, ghost 29/29, season 55/55, audio 32/32
-  (318/318), and `run-all` now green twice in a row. The long-standing `setup.mjs` flake
-  is fixed rather than re-excused: the FPS-report test waited a fixed 220 ms and asserted
-  on frames that a busy machine had not yet rendered. It now waits for three sampled
-  frames with a 5 s deadline.
-- Reverse geometry proven, not assumed: tangent dot −1.000 and length difference 0.0 m
-  against the forward circuit at the same point, for both reversed circuits.
-- Shipped-AI lap gate over all five circuits: 1, 6, 0, 3, 0 wall-contact frames and zero
-  rescues; every circuit completes three laps.
-- Rival field: all four rivals complete three laps on every circuit, off-road 7.5–13%.
-- Rejected on measurement, not taste: an apex/inside-line bias (worse everywhere), a
-  stuck-reverse recovery (no gain on shipped circuits), and proportional braking in
-  `car.js` (much worse — the controller is tuned against binary full braking, and one
-  circuit stopped finishing).
+- Suites: race 71/71, setup 82/82, rivals 55/55, ghost 29/29, season 55/55, audio 32/32
+  (324/324); `run-all` green.
+- New roll gate measures the rendered bounding box, not the intent: at rest the body sits
+  exactly on the road, peak roll 3.0° cornering and drifting, lowest point −0.088 m.
+  It also asserts roll stays above 1.5° so the fix cannot silently become no roll at all.
+- New gyro gates: both tilt directions produce opposite steer, the default is inverted,
+  the switch flips and persists, and flipping it leaves touch steering untouched.
 
 ## Known issues and cautions
 
@@ -58,20 +45,23 @@ Grow circuit content without weakening any gate, and fix what the new content ex
 - `car.js` still applies full brake force for any negative throttle, so the AI cannot
   trail-brake. Changing it needs the driver retuned in the same pass, not alone.
 - Nobody has listened to the new audio on a phone; balance is unjudged.
-- Still unconfirmed on Penny's device: gyro 1.4 / ±16°, simple mode, touch cluster,
-  steering direction, rival pace.
+- Still unconfirmed on Penny's device: whether the gyro now reads correctly and whether
+  1.4 / ±16° is the right sensitivity, simple mode feel, touch cluster, rival pace, and
+  audio balance.
 - The sandbox blocks `penny323mo.github.io`; only the deploy workflow result is checkable.
 - Commits may show Unverified without a signing key; do not rewrite published history.
 
 ## Exact next action
 
-1. Receiving agent runs `./scripts/agent-context.sh --sync` and reads ADR-060 to ADR-061.
-2. Get phone evidence for audio balance, gyro, and simple mode before tuning any of them.
+1. Receiving agent runs `./scripts/agent-context.sh --sync` and reads ADR-063 to ADR-064.
+2. Wait for Penny's next phone check before tuning gyro sensitivity or audio balance.
 3. Turbo reversed needs a recovery state machine, not constant tuning — read ADR-062
    first; four single-constant attempts are already measured and rejected there.
 
 ## Do not redo
 
+- Do not raise body roll past 3.5°, and do not roll the contact shadow with it (ADR-063).
+- Do not merge the gyro direction switch back into 轉向方向 (ADR-064).
 - Do not ship a reverse variant without measuring its wall-contact and rescue counts.
 - Do not retry the rejected Turbo-reversed fixes in ADR-062; they are measured, not guessed.
 - Do not keep a second copy of the driver in tests; import `createDriver` (ADR-061).

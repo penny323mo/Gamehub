@@ -654,6 +654,14 @@ function buildSettings() {
         note.textContent = '上次你開咗陀螺儀。iOS 要每次入嚟撳一次「開」先攞得到權限。';
     }
 
+    for (const b of document.querySelectorAll('#gyro-dir-seg button')) {
+        b.addEventListener('click', () => {
+            input.setGyroInvert(b.dataset.gyroinv === '1');
+            markSeg('#gyro-dir-seg', 'gyroinv', input.gyroInvert ? 1 : 0);
+        });
+    }
+    markSeg('#gyro-dir-seg', 'gyroinv', input.gyroInvert ? 1 : 0);
+
     const sens = $('gyro-sens');
     sens.value = String(input.gyroSens);
     sens.addEventListener('input', () => input.setGyroSens(Number(sens.value)));

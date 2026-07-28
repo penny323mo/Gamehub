@@ -247,7 +247,12 @@ export class Car {
         // 之前符號掉轉，成場都係向內壓，望落成架車轉緊嘅方向都似係反嘅。
         // 車身 local +x 係畫面左，繞 local +z 正轉會抬起左邊，所以右轉
         //（aLat < 0）要負 roll ⇒ roll 同 aLat 同號。
-        const targetRoll = THREE.MathUtils.clamp(aLat / 26, -0.16, 0.16);
+        //
+        // 幅度要細。之前用 0.16 rad（9.2°）：真車嘅極限側傾都只係 3° 左右，
+        // 而我哋個模型係一整件硬嘢（車身連輪胎），一 roll 就一邊輪胎離地、
+        // 另一邊插落路面（實測最低點 −0.27 米）。Penny 喺實機一眼睇出——
+        // 「架車好似浮起、轉左轉右好似飛機咁」，講嘅就係呢個。
+        const targetRoll = THREE.MathUtils.clamp(aLat / 105, -0.052, 0.052);
         this.bodyRoll += (targetRoll - this.bodyRoll) * Math.min(1, dt * 7);
         this.#sync();
     }

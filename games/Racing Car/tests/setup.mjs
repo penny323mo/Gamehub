@@ -402,7 +402,20 @@ const gyro = await page.evaluate(async () => {
     dispatchEvent(new MockOrientationEvent('deviceorientation', { beta: 0, gamma: -6 }));
     const eventLeft = input.read(1 / 60).steer;
 
+    // 方向掣：同觸控轉向分開兩件事（Penny 實機：觸控啱、陀螺儀相反）
     input.gyro.zero = 0;
+    input.gyro.tilt = 22;
+    const invDefault = { on: input.gyroInvert, steer: +input.read(1 / 60).steer.toFixed(3) };
+    input.setGyroInvert(false);
+    const invOff = { saved: localStorage.getItem('racer-gyro-invert'), steer: +input.read(1 / 60).steer.toFixed(3) };
+    input.setGyroInvert(true);
+    const invBack = { saved: localStorage.getItem('racer-gyro-invert'), steer: +input.read(1 / 60).steer.toFixed(3) };
+    // 陀螺儀方向掣唔可以掂到觸控轉向
+    input.gyro.on = false;
+    input.touch.left = true; input.steerSmooth = -1;
+    const touchUnaffected = +input.read(1 / 60).steer.toFixed(3);
+    input.touch.left = false; input.steerSmooth = 0; input.gyro.on = true;
+
     const at = (tilt, touchLeft = false) => {
         input.gyro.tilt = tilt;
         input.touch.left = touchLeft;
@@ -416,6 +429,7 @@ const gyro = await page.evaluate(async () => {
         small: at(0.7), touchWins: at(22, true),
         enabled, calibrated: +calibrated.toFixed(3),
         eventRight: +eventRight.toFixed(3), eventLeft: +eventLeft.toFixed(3),
+        invDefault, invOff, invBack, touchUnaffected,
     };
     input.disableGyro();
     input.setGyroSens(oldSens);
@@ -425,11 +439,18 @@ const gyro = await page.evaluate(async () => {
 });
 console.log('  ', JSON.stringify(gyro));
 check('真陀螺儀事件首個姿勢會校正做中間', gyro.enabled && gyro.calibrated === 0, gyro);
-check('真陀螺儀事件向右／向左各自輸出正／負軚',
-    gyro.eventRight > 0.9 && gyro.eventLeft < -0.9, gyro);
+// 預設係「反轉」——Penny 實機報告扭嘅方向同轉向相反。呢度守住嘅係
+// 「兩邊各自輸出相反嘅軚」加「預設跟返實機嗰個方向」。
+check('真陀螺儀事件兩邊各自輸出相反嘅軚',
+    gyro.eventRight < -0.9 && gyro.eventLeft > 0.9, gyro);
 check('打平唔會自己轉', gyro.flat === 0, gyro.flat);
-check('向右傾 = 向右轉', gyro.right > 0.9, gyro.right);
-check('向左傾 = 向左轉', gyro.left < -0.9, gyro.left);
+check('兩邊傾側各自輸出相反嘅軚', gyro.right < -0.9 && gyro.left > 0.9, gyro);
+check('陀螺儀方向預設係反轉（實機證據）',
+    gyro.invDefault.on === true && gyro.invDefault.steer < 0, gyro.invDefault);
+check('撳「反轉」會真係掉轉兼存得返',
+    gyro.invOff.steer === -gyro.invDefault.steer && gyro.invOff.saved === '0'
+    && gyro.invBack.steer === gyro.invDefault.steer && gyro.invBack.saved === '1', gyro);
+check('陀螺儀方向掣唔會掂到觸控轉向', gyro.touchUnaffected < 0, gyro.touchUnaffected);
 check('細微晃動有死區', gyro.small === 0, gyro.small);
 check('撳住掣嘅時候以手指為準', gyro.touchWins < 0, gyro.touchWins);
 

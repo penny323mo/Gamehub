@@ -357,6 +357,45 @@ for (const id of TRACK_IDS) {
     check(`${id}：唔使拖車`, lap.rescues === 0, lap.rescues);
 }
 
+// T3b：車身側傾唔可以令架車望落離地。模型係一整件硬嘢（車身連輪胎），
+// 側傾角一大，一邊輪胎就會離地、另一邊插落路面——Penny 實機報告
+// 「架車好似浮起、轉左轉右好似飛機咁」，量到嗰陣係 9.2° 側傾、
+// 最低點插落 -0.27 米。
+const roll = await page.evaluate(async () => {
+    const THREE = await import('three');
+    window.__racer.buildTrack('coast');
+    const { car, track } = window.__racer;
+    const PLANE = { isDrivable: () => true, isWall: () => false };
+    car.reset(track.startPos, track.startDir);
+    for (let i = 0; i < 240; i++) car.update(1 / 60, { throttle: 1, steer: 0, handbrake: false }, PLANE);
+    const rest = new THREE.Box3().setFromObject(car.root).min.y;
+    let peak = 0, lowest = 0;
+    for (let i = 0; i < 240; i++) {
+        car.update(1 / 60, { throttle: 0.8, steer: 0.85, handbrake: false }, PLANE);
+        peak = Math.max(peak, Math.abs(car.bodyRoll));
+        lowest = Math.min(lowest, new THREE.Box3().setFromObject(car.root).min.y);
+    }
+    // 手煞甩尾嗰陣側傾亦唔可以爆
+    let peakDrift = 0;
+    for (let i = 0; i < 120; i++) {
+        car.update(1 / 60, { throttle: 0.8, steer: 0.85, handbrake: true }, PLANE);
+        peakDrift = Math.max(peakDrift, Math.abs(car.bodyRoll));
+    }
+    return {
+        rest: +rest.toFixed(3), peakDeg: +(peak * 57.3).toFixed(1),
+        driftDeg: +(peakDrift * 57.3).toFixed(1), lowest: +lowest.toFixed(3),
+    };
+});
+console.log('  ', JSON.stringify(roll));
+check('企定嗰陣車底貼實地面', Math.abs(roll.rest) < 0.01, roll.rest);
+check('側傾唔超過 3.5°（真車極限約 3°）', roll.peakDeg <= 3.5 && roll.driftDeg <= 3.5, roll);
+check('側傾仍然睇得出（唔係死板冇動態）', roll.peakDeg > 1.5, roll.peakDeg);
+// 模型硬身，3° 側傾喺呢個車寬度下必然有約 9 厘米高低差（一邊插落路面、
+// 一邊抬起）。9 厘米對一架 6.9 米長嘅車嚟講肉眼幾乎睇唔到，接地陰影
+// 亦唔跟側傾，所以望落仍然貼地。舊嗰個 9.2° 側傾係 27 厘米，就係
+// Penny 講嗰種「飛機打側飛」。
+check('過彎時車身唔會插落路面超過 10 厘米', roll.lowest > -0.1, roll.lowest);
+
 // T4b：車頭頂正欄杆唔可以永遠釘死——踩住油卡夠 3 秒就要拖返賽道。
 // 舊嘅撞欄處理係逐條軸 next.x = pos.x，連沿住欄滑行都殺埋，自動駕駛實測
 // 撞完之後 v=0 一路到收場；呢項就係守住呢個回歸。

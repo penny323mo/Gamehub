@@ -859,3 +859,29 @@ follows what the tyres can use
   needs yaw rate to turn at all.
 - The real fix is a state machine that recognises "spun, pointing wrong, low speed" and
   drives a deliberate recovery, rather than one control law asked to both race and rescue.
+
+## ADR-063: Body roll is bounded by the fact that the car model is one rigid piece
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: peak body roll is 3°, not 9.2°. `tests/race.mjs` gates roll at 3.5° and the
+  body's lowest point at −0.10 m during hard cornering.
+- Reason: the roll is applied to the whole car group, wheels included, so any roll lifts
+  one side's wheels off the road and pushes the other side through it. At the previous
+  0.16 rad the lowest point reached −0.27 m, and Penny's phone report was exactly that —
+  "架車好似浮起、轉左轉右好似飛機咁". Three degrees matches a real car's limit and leaves
+  about 9 cm of height difference across the body, which is invisible on a 6.9 m car; the
+  contact shadow deliberately does not roll, so the car keeps reading as planted.
+
+## ADR-064: Gyro steering has its own direction switch, defaulting to inverted
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: `racer-gyro-invert` inverts only the gyro contribution and defaults to on.
+  The existing 轉向方向 setting continues to affect touch and gyro together.
+- Reason: Penny reports touch steering correct and gyro reversed on her phone. One shared
+  switch cannot express that — fixing either input would break the other. The device is
+  the only authority here: no desktop derivation of `gamma`/`beta` sign conventions can
+  settle which way a phone feels, and the axis choice already varies with
+  `screen.orientation.angle`. The default follows her measurement; the switch covers
+  devices or grips that disagree.
