@@ -101,6 +101,141 @@ check('由第一條賽道開始', live.firstTrack === 'turbo', live.firstTrack);
 check('完賽畫面出到積分榜', live.panelVisible === true && live.rowCount >= 3, live);
 check('「下一場」寫住下一條賽道', /下一場/.test(live.nextLabel), live.nextLabel);
 
+// T4：自選賽程——揀邊幾條、跑幾多場由玩家話事，而且要續得返
+const custom = await page.evaluate(async () => {
+    const { Season } = await import('./src/season.js');
+    localStorage.removeItem('racer-season-v1');
+    localStorage.removeItem('racer-season-hist-v1');
+    const pool = ['a', 'b', 'c'];
+    const one = new Season(pool).start(['c']);
+    const out = { oneRounds: one.totalRounds, oneTrack: one.currentTrack };
+    one.record([{ label: '你', colour: 0, player: true, place: 1 }]);
+    out.oneFinished = one.finished;
+
+    // 次序跟玩家揀嗰個，重複同唔存在嘅賽道要濾走
+    const two = new Season(pool).start(['c', 'a', 'c', 'zz']);
+    out.order = [...two.trackIds];
+    two.record([{ label: '你', colour: 0, player: true, place: 1 }]);
+    out.secondTrack = two.currentTrack;
+
+    // 續得返：賽程要跟存檔，唔可以跌返做「全部賽道」
+    const resumed = new Season(pool);
+    resumed.load();
+    out.resumedIds = [...resumed.trackIds];
+    out.resumedTrack = resumed.currentTrack;
+
+    // 賽程空／全部無效 ⇒ 跌返成個池，唔可以開零場
+    out.emptyIds = [...new Season(pool).start([]).trackIds];
+    out.junkIds = [...new Season(pool).start(['zz', 'yy']).trackIds];
+    new Season(pool).clear();
+    localStorage.removeItem('racer-season-hist-v1');
+    return out;
+});
+console.log('  ', JSON.stringify(custom));
+check('揀一條就得一場', custom.oneRounds === 1 && custom.oneTrack === 'c', custom);
+check('一場跑完即完結', custom.oneFinished === true, custom);
+check('賽程跟玩家次序兼去重', custom.order.join() === 'c,a', custom.order);
+check('第二場行到賽程第二條', custom.secondTrack === 'a', custom.secondTrack);
+check('續返嗰屆用返存檔賽程',
+    custom.resumedIds.join() === 'c,a' && custom.resumedTrack === 'a', custom);
+check('空賽程跌返全部賽道', custom.emptyIds.join() === 'a,b,c', custom.emptyIds);
+check('全部無效都跌返全部賽道', custom.junkIds.join() === 'a,b,c', custom.junkIds);
+
+// T5：歷屆紀錄——跑完最後一場即刻封存，唔使等玩家撳「完結」
+const hist = await page.evaluate(async () => {
+    const { Season, loadHistory, clearHistory } = await import('./src/season.js');
+    localStorage.removeItem('racer-season-v1');
+    clearHistory();
+    const pool = ['a', 'b', 'c'];
+    const race = (s, order) => s.record(order.map((label, i) => ({
+        label, colour: 0, player: label === '你', place: i + 1,
+    })));
+    const s = new Season(pool).start(['a', 'b']);
+    race(s, ['阿烈', '你', '阿藍']);
+    const midway = loadHistory().length;          // 未跑完唔應該封存
+    race(s, ['你', '阿藍', '阿烈']);
+    const after = loadHistory();
+    // 玩家撳「完結錦標賽」會 clear()，紀錄唔可以跟住冇埋
+    s.clear();
+    const afterClear = loadHistory().length;
+
+    // 再跑幾屆：最新嗰屆排頭，最多留五屆
+    for (let i = 0; i < 6; i++) {
+        const t = new Season(pool).start(['a']);
+        race(t, i % 2 ? ['你', '阿烈'] : ['阿烈', '你']);
+        t.clear();
+    }
+    const many = loadHistory();
+    clearHistory();
+    return {
+        midway, count: after.length, top: after[0], afterClear,
+        capped: many.length, newestFirst: many[0].playerPlace,
+        cleared: loadHistory().length,
+    };
+});
+console.log('  ', JSON.stringify(hist));
+check('未跑完唔會封存', hist.midway === 0, hist.midway);
+check('跑完最後一場即刻入歷屆榜', hist.count === 1, hist);
+// 你 4 + 6 = 10 分，阿烈 6 + 2 = 8 分 ⇒ 你冠軍
+check('封存記低冠軍同你嘅名次',
+    hist.top.champion === '你' && hist.top.playerPlace === 1
+    && hist.top.rounds === 2 && hist.top.tracks.join() === 'a,b', hist.top);
+check('清咗嗰屆，歷屆紀錄仍然在', hist.afterClear === 1, hist.afterClear);
+check('最多留五屆', hist.capped === 5, hist.capped);
+check('最新嗰屆排最前', hist.newestFirst === 1, hist.newestFirst);
+check('清除歷屆紀錄清得走', hist.cleared === 0, hist.cleared);
+
+// T6：入返遊戲——揀賽程嘅掣、掣上面嘅場數、歷屆榜都要真係郁到
+const ui = await page.evaluate(async () => {
+    const { setSeasonList, season, clearSeasonHistory, TRACKS, updateSeasonMenu } = window.__racer;
+    season.clear();
+    clearSeasonHistory();
+    setSeasonList(TRACKS.map(t => t.id));
+    const seg = document.getElementById('season-track-seg');
+    const btn = (id) => [...seg.children].find(b => b.dataset.track === id);
+    const out = { chips: seg.children.length, allOn: [...seg.children].every(b => b.classList.contains('on')) };
+
+    btn(TRACKS[1].id).click();                       // 撳走中間嗰條
+    out.afterToggle = window.__racer.seasonList.join();
+    out.label = document.getElementById('season-btn').textContent;
+    out.midOn = btn(TRACKS[1].id).classList.contains('on');
+
+    // 撳走淨低嗰啲，最少要留一條
+    btn(TRACKS[0].id).click();
+    btn(TRACKS[2].id).click();
+    out.floor = window.__racer.seasonList.length;
+
+    // 撳返轉頭要跟返賽道原本次序，唔係跟撳嘅次序
+    setSeasonList([TRACKS[2].id]);
+    btn(TRACKS[0].id).click();
+    out.reorder = window.__racer.seasonList.join();
+
+    // 歷屆榜：冇紀錄唔顯示，有紀錄就一屆一行
+    const box = document.getElementById('season-history');
+    out.emptyHidden = box.classList.contains('hidden');
+    localStorage.setItem('racer-season-hist-v1', JSON.stringify([
+        { at: Date.now(), tracks: ['turbo'], rounds: 1, champion: '阿烈', championPoints: 10, playerPlace: 2, playerPoints: 8, standings: [] },
+    ]));
+    updateSeasonMenu();
+    out.shown = !box.classList.contains('hidden');
+    out.rows = box.querySelectorAll('.stand-row').length;
+    out.text = box.textContent;
+    document.getElementById('season-hist-clear').click();
+    out.afterClearHidden = box.classList.contains('hidden');
+
+    setSeasonList(TRACKS.map(t => t.id));
+    return out;
+});
+console.log('  ', JSON.stringify(ui));
+check('三條賽道各有一個掣，預設全開', ui.chips === 3 && ui.allOn === true, ui);
+check('撳一下就剔走嗰條', ui.midOn === false && ui.afterToggle.split(',').length === 2, ui);
+check('掣面寫住實際場數', /2 場/.test(ui.label), ui.label);
+check('唔畀剔到一條都唔剩', ui.floor === 1, ui.floor);
+check('加返賽道跟賽道次序排', ui.reorder === 'turbo,touge', ui.reorder);
+check('冇歷屆紀錄就唔顯示', ui.emptyHidden === true, ui);
+check('有紀錄就出到歷屆榜', ui.shown === true && ui.rows === 1 && /阿烈/.test(ui.text), ui);
+check('清除掣清得走歷屆榜', ui.afterClearHidden === true, ui);
+
 checkNoErrors(r.errors);
 await r.close();
 finish('season');

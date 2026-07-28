@@ -1030,3 +1030,19 @@ body {
     font-variant-numeric: tabular-nums;
     color: #e6edf5;
 }
+
+/* 歷屆錦標賽：一行一屆，冠軍名做主角，場數同你自己嘅名次做小字 */
+.hist-sub {
+    flex: 0 1 auto;
+    font-size: 11.5px;
+    color: #9fb0c4;
+}
+
+#season-history .stand-row {
+    margin-bottom: 4px;
+}
+
+#season-history .report-btn {
+    width: 100%;
+    margin-top: 2px;
+}

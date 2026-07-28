@@ -722,3 +722,20 @@ follows what the tyres can use
   individually acceptable, while the actual combined scene reached 19 calls. Batching
   the ghost and dropping the barely visible night cloud recover two calls without
   removing an opponent, ghost timing, driving feedback, or important night readability.
+
+## ADR-055: The player composes the championship, and finished seasons are archived
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: `設定` offers a per-circuit 錦標賽賽程 picker. `Season.start(list)` takes
+  that composition, cleans it against the circuit pool (unknown ids and duplicates
+  removed, player order preserved, empty falls back to the whole pool), and persists it
+  with the season so a resumed season keeps the schedule it was started with rather than
+  the schedule currently selected. Completing the last round archives the standings to
+  `racer-season-hist-v1` (newest first, five kept) at the moment `record()` finishes the
+  season, not when the player dismisses the finish screen.
+- Reason: the fixed three-race order made a championship a 20-minute commitment with no
+  shorter form, and clearing a finished season erased every trace of it — the menu could
+  not answer "who won last time". Archiving inside `record()` is the only point that
+  survives closing the tab. Cleaning the list rather than trusting it prevents a
+  zero-round season, which starts already `finished` and can never be raced.

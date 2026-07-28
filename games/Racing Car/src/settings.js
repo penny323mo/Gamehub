@@ -84,6 +84,22 @@ export function loadRivals() {
 }
 export function saveRivals(n) { try { localStorage.setItem(KEY_RIVALS, String(n)); } catch { } }
 
+// 錦標賽賽程：預設跑晒所有賽道。存低嘅 id 一定要對返而家真係存在嗰批，
+// 淨低空嘅話當「全部」——一個零場嘅錦標賽開波即完，仲衰過重設。
+const KEY_SEASON_LIST = 'racer-season-list';
+export function loadSeasonList(pool) {
+    let raw = null;
+    try { raw = JSON.parse(localStorage.getItem(KEY_SEASON_LIST)); } catch { }
+    const out = [];
+    for (const id of Array.isArray(raw) ? raw : []) {
+        if (pool.includes(id) && !out.includes(id)) out.push(id);
+    }
+    return out.length ? out : [...pool];
+}
+export function saveSeasonList(ids) {
+    try { localStorage.setItem(KEY_SEASON_LIST, JSON.stringify(ids)); } catch { }
+}
+
 // 幽靈車預設開：獨自計時模式冇咗佢就完全冇參照物
 export function loadGhostOn() { return localStorage.getItem('racer-ghost-on') !== '0'; }
 export function saveGhostOn(on) {

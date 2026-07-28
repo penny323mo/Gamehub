@@ -13,11 +13,11 @@ import { createEnvironment } from './environment.js';
 import { createDrivingEffects } from './driving-effects.js';
 import { RivalField, trackDelta, signedFrac } from './rivals.js';
 import { GhostRecorder, GhostPlayer, clearGhost } from './ghost.js';
-import { Season } from './season.js';
+import { Season, loadHistory, clearHistory } from './season.js';
 import {
     COLOURS, TIMES, QUALITY_MODES,
     loadColour, saveColour, loadTod, saveTod, loadQuality, saveQuality, qualityDpr,
-    loadRivals, saveRivals, loadGhostOn, saveGhostOn,
+    loadRivals, saveRivals, loadGhostOn, saveGhostOn, loadSeasonList, saveSeasonList,
     paintCar, applyTime,
 } from './settings.js';
 
@@ -262,8 +262,10 @@ const ghostMesh = new THREE.Object3D();
 ghostMesh.visible = false;
 let ghostLapBest = null, lastLapCount = 0, lapProgressBase = 0;
 
-// 錦標賽：三條賽道連跑。載返上次未跑完嗰個，唔使由頭嚟過。
-const season = new Season(TRACKS.map(t => t.id));
+// 錦標賽：自選賽程連跑。載返上次未跑完嗰個，唔使由頭嚟過。
+const TRACK_POOL = TRACKS.map(t => t.id);
+const season = new Season(TRACK_POOL);
+let seasonList = loadSeasonList(TRACK_POOL);
 season.load();
 
 let trackDef = trackById(localStorage.getItem('racer-track') ?? TRACKS[0].id);
@@ -397,7 +399,7 @@ loader.load('./assets/car.glb', (gltf) => {
     race = new Race(track, { laps: 3, trackId: trackDef.id, onEvent: handleRaceEvent });
     buildTrackButtons();
     buildSettings();
-    updateSeasonMenu();
+    buildSeasonPicker();
     // 第一次 active frame 先畫 minimap／填 HUD 會喺手機產生明顯長幀。
     // 趁 loading 遮罩仲喺度先預熱 Canvas2D 同文字 layout；WebGL 第一幀
     // render 完先揭開選單，玩家唔會撳 Start 撞正 shader compile。
@@ -411,6 +413,9 @@ loader.load('./assets/car.glb', (gltf) => {
         restart, startRace, buildTrack, TRACKS, input, minimap, setRivals,
         get rivalCount() { return rivalCount; },
         setColour, setTod, setQuality, setGhost, season, startSeason, renderSeasonPanel, ghostRecorder, ghostPlayer, ghostMesh,
+        setSeasonList, seasonHistory: loadHistory, clearSeasonHistory: clearHistory,
+        updateSeasonMenu,
+        get seasonList() { return [...seasonList]; },
         // 測試要喺唔行 rAF 嘅情況下推進幽靈邏輯
         updateGhostForTest: (dt) => { advancePlayerProgress(); updateGhost(dt); },
         playerProgressForTest: playerProgress,
@@ -651,25 +656,93 @@ function renderSeasonPanel() {
 }
 
 function startSeason() {
-    season.start();
+    season.start(seasonList);
     buildTrack(season.currentTrack);
     if (rivalCount < 2) setRivals(2);
     updateSeasonMenu();
     startRace();
 }
 
+// 賽程自選：邊幾條賽道、乜嘢次序，全部由玩家話事。跑緊嗰屆用返開波
+// 嗰刻鎖低嘅賽程（存喺 Season 度），改設定唔會偷換到跑緊嗰張表。
+function setSeasonList(ids) {
+    const cleaned = [];
+    for (const id of Array.isArray(ids) ? ids : []) {
+        if (TRACK_POOL.includes(id) && !cleaned.includes(id)) cleaned.push(id);
+    }
+    // 揀到一條都唔剩會開出一個「零場」錦標賽，所以最少留返一條
+    seasonList = cleaned.length ? cleaned : [TRACK_POOL[0]];
+    saveSeasonList(seasonList);
+    document.querySelectorAll('#season-track-seg button').forEach(b =>
+        b.classList.toggle('on', seasonList.includes(b.dataset.track)));
+    updateSeasonMenu();
+    return seasonList;
+}
+
+function buildSeasonPicker() {
+    const seg = $('season-track-seg');
+    if (!seg) return;
+    seg.innerHTML = '';
+    for (const t of TRACKS) {
+        const b = document.createElement('button');
+        b.dataset.track = t.id;
+        b.textContent = t.name;
+        b.addEventListener('click', () => {
+            const next = seasonList.includes(t.id)
+                ? seasonList.filter(id => id !== t.id)
+                : [...TRACK_POOL].filter(id => id === t.id || seasonList.includes(id));
+            setSeasonList(next);
+        });
+        seg.appendChild(b);
+    }
+    setSeasonList(seasonList);
+}
+
 function updateSeasonMenu() {
     const note = $('season-note');
     if (!note) return;
+    const names = seasonList.map(id => trackById(id).name).join(' → ');
+    const btn = $('season-btn');
+    if (btn) btn.textContent = `🏆 錦標賽（${seasonList.length} 場）`;
     if (!season.active) {
-        note.textContent = '三條賽道連跑，逐場儲積分。';
+        note.textContent = `連跑 ${names}，逐場儲積分。`;
     } else if (season.finished) {
         const champ = season.standings()[0];
-        note.textContent = `上次錦標賽已完成，冠軍：${champ?.label ?? '--'}。再撳就重新開始。`;
+        note.textContent = `上次錦標賽已完成，冠軍：${champ?.label ?? '--'}。再撳就用新賽程重新開始。`;
     } else {
         note.textContent = `跑緊第 ${season.round + 1} / ${season.totalRounds} 場 · `
             + `${trackById(season.currentTrack).name}`;
+        if (season.trackIds.join() !== seasonList.join()) {
+            note.textContent += '（改咗賽程？下屆先生效）';
+        }
     }
+    renderSeasonHistory();
+}
+
+// 歷屆榜：淨係報冠軍同你自己排第幾。錦標賽一 clear 就冇晒紀錄嘅話，
+// 連「上次係邊個贏」都答唔到，跨屆根本冇任何延續感。
+function renderSeasonHistory() {
+    const box = $('season-history');
+    if (!box) return;
+    const hist = loadHistory();
+    if (!hist.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+    box.classList.remove('hidden');
+    box.innerHTML = '<div class="section-label">歷屆錦標賽</div>';
+    for (const h of hist) {
+        const el = document.createElement('div');
+        el.className = 'stand-row' + (h.playerPlace === 1 ? ' me' : '');
+        const mine = h.playerPlace ? `你第 ${h.playerPlace}` : '未參賽';
+        el.innerHTML = `<span class="stand-name">🏆 ${h.champion ?? '--'}</span>`
+            + `<span class="hist-sub">${h.rounds} 場 · ${mine}</span>`
+            + `<b class="stand-time">${h.championPoints} 分</b>`;
+        box.appendChild(el);
+    }
+    const clear = document.createElement('button');
+    clear.className = 'report-btn';
+    clear.id = 'season-hist-clear';
+    clear.textContent = '清除歷屆紀錄';
+    clear.addEventListener('click', () => { clearHistory(); renderSeasonHistory(); });
+    box.appendChild(clear);
 }
 
 function refreshBest() {

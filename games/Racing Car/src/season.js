@@ -9,16 +9,45 @@
 // 分數自動縮返，唔使為每個人數手寫一張表。
 
 const KEY = 'racer-season-v1';
+const HIST_KEY = 'racer-season-hist-v1';
+const HIST_MAX = 5;
 
 export function pointsFor(place, entrants) {
     if (!Number.isFinite(place) || place < 1 || place > entrants) return 0;
     return (entrants - place + 1) * 2;
 }
 
+// 歷屆紀錄：跑完一屆就封存落嚟。冇咗呢樣，錦標賽一完結就即刻清走，
+// 上屆邊個攞冠軍、你自己排第幾完全冇跡可尋。
+export function loadHistory() {
+    try {
+        const v = JSON.parse(localStorage.getItem(HIST_KEY));
+        return Array.isArray(v) ? v : [];
+    } catch { return []; }
+}
+
+export function clearHistory() {
+    try { localStorage.removeItem(HIST_KEY); } catch { }
+}
+
 export class Season {
+    // trackIds 係「可以揀嘅賽道池」；每屆真正跑邊幾條由 start() 決定。
     constructor(trackIds) {
-        this.trackIds = trackIds;
+        this.pool = [...trackIds];
+        this.trackIds = [...trackIds];
+        this.playerLabel = null;
         this.reset();
+    }
+
+    // 淨返池入面真係存在嘅賽道，保住玩家揀嘅次序，重複嘅剔走。
+    // 空咗（例如舊存檔寫住一條已經冇咗嘅賽道）就跌返落成個池，
+    // 唔好開一個零場嘅錦標賽——嗰種一開波就「已完成」。
+    #clean(list) {
+        const out = [];
+        for (const id of Array.isArray(list) ? list : []) {
+            if (this.pool.includes(id) && !out.includes(id)) out.push(id);
+        }
+        return out.length ? out : [...this.pool];
     }
 
     reset() {
@@ -33,8 +62,9 @@ export class Season {
     get currentTrack() { return this.trackIds[Math.min(this.round, this.totalRounds - 1)]; }
     get finished() { return this.round >= this.totalRounds; }
 
-    start() {
+    start(trackIds = null) {
         this.reset();
+        if (trackIds) this.trackIds = this.#clean(trackIds);
         this.active = true;
         this.save();
         return this;
@@ -47,12 +77,36 @@ export class Season {
         const awarded = rows.map(r => {
             const gained = pointsFor(r.place, entrants);
             this.points[r.label] = (this.points[r.label] ?? 0) + gained;
+            if (r.player) this.playerLabel = r.label;
             return { label: r.label, colour: r.colour, player: r.player, place: r.place, gained };
         });
         this.results.push({ track: this.currentTrack, rows: awarded });
         this.round += 1;
         this.save();
+        if (this.finished) this.#archive();
         return awarded;
+    }
+
+    // 封存嗰刻要係「跑完最後一場」，唔可以留到玩家撳「完結錦標賽」先做——
+    // 佢隨時直接熄咗個 tab，咁樣就連冠軍都冇記低。
+    #archive() {
+        const table = this.standings();
+        const mine = table.find(row => row.label === this.playerLabel);
+        const entry = {
+            at: Date.now(),
+            tracks: [...this.trackIds],
+            rounds: this.totalRounds,
+            champion: table[0]?.label ?? null,
+            championPoints: table[0]?.points ?? 0,
+            playerLabel: this.playerLabel,
+            playerPlace: mine?.place ?? null,
+            playerPoints: mine?.points ?? 0,
+            standings: table.map(({ label, points, place, wins }) => ({ label, points, place, wins })),
+        };
+        try {
+            localStorage.setItem(HIST_KEY, JSON.stringify([entry, ...loadHistory()].slice(0, HIST_MAX)));
+        } catch { /* 私隱模式：唔存都照玩 */ }
+        return entry;
     }
 
     // 總積分榜：分高排前。同分用賽車界嗰套 countback——先比邊個攞多啲冠軍，
@@ -89,6 +143,7 @@ export class Season {
             localStorage.setItem(KEY, JSON.stringify({
                 round: this.round, points: this.points,
                 results: this.results, active: this.active,
+                trackIds: this.trackIds, playerLabel: this.playerLabel,
             }));
         } catch { /* 私隱模式：唔存都照玩，淨係唔續得 */ }
     }
@@ -97,6 +152,10 @@ export class Season {
         try {
             const v = JSON.parse(localStorage.getItem(KEY));
             if (!v || typeof v.round !== 'number') return false;
+            // 賽程要跟返存檔，唔可以用而家設定嗰個：中途改咗設定再返嚟續，
+            // 續到嘅會係另一張賽程表，已經跑咗嘅場數對唔上。
+            this.trackIds = this.#clean(v.trackIds);
+            this.playerLabel = v.playerLabel ?? null;
             this.round = v.round;
             this.points = v.points ?? {};
             this.results = Array.isArray(v.results) ? v.results : [];
