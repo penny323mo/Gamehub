@@ -4,7 +4,7 @@ Updated: 2026-07-28 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Baseline before this task: `b4d02e3`
-Status: drift balance reworked — wider tyre peak, damping floor, explicit drift push
+Status: drift balance reworked — tyre peak, damping floor, drift refund, handbrake lock
 
 ## Current objective
 
@@ -33,6 +33,14 @@ player can actually hold, without giving up the safety won in the braking rewrit
   measured 186 km/h straight, 142 km/h drifting, 127 km/h spinning.
 - Moved the drift-scoring threshold with the tyre peak (0.19 to 0.26 rad) so ordinary
   full-commitment cornering no longer trickles drift score.
+- Made the handbrake work the way a phone player uses it. Measured with the real
+  simple-mode command stream, a 0.33 s tap gave 6° of slip and a 0.5 s pull 17° — no
+  drift. Sweeping `handbrakeGrip` 0.45 to 0.22 moved the tap by one degree, proving grip
+  was never the limiter: the handbrake only scaled grip instead of locking the rear axle,
+  and the wheel took 0.18 s to reach the commanded angle. It now locks the rear through
+  the same friction-circle path as any locked wheel, and `steerRate` is 7.2/s (ADR-071).
+- A half-second pull now gives 19° of entry settling at 31°, and the damping floor moved
+  to 0.62 in the same pass because the faster wheel had pushed overshoot back to 75°.
 - Rewrote the drift gate to measure controllability rather than duration: the old check
   rewarded a wild 42-to-79-degree swing for spending longer sideways.
 
@@ -44,8 +52,8 @@ player can actually hold, without giving up the safety won in the braking rewrit
 
 ## Verification
 
-- Suites: race 98/98, setup 98/98, rivals 59/59, ghost 29/29, season 55/55, audio 32/32
-  (371/371); `run-all` green.
+- Suites: race 101/101, setup 98/98, rivals 59/59, ghost 29/29, season 55/55, audio 32/32
+  (374/374); `run-all` green.
 - Everything won in the braking rewrite still holds: straight-line braking 2° slip and
   0.2° of heading change with ABS against 87.9° without, trail braking progressive at
   5.4° / 18.4° / 30.4°, handbrake drift 87°, cruise 122 km/h, 0–80 km/h 2.77s.
@@ -104,5 +112,7 @@ player can actually hold, without giving up the safety won in the braking rewrit
   and tyre peak independently of each other (ADR-070).
 - Do not turn the drift refund back into a fixed force; it must stay bounded by the speed
   actually scrubbed, or drifting becomes faster than driving straight (ADR-070).
+- Do not model the handbrake as a grip multiplier alone, and do not raise `steerRate`
+  without re-checking drift overshoot against the damping floor (ADR-071).
 - Do not add audio files or allocate audio nodes per frame; keep audio off-race silent.
 - Do not amend, rebase, or force-push published `main` history.

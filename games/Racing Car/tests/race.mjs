@@ -482,6 +482,36 @@ check('漂移唔會慢到唔想用（收返速度）',
 check('唔反打就仍然救得返',
     driftFeel.rescuedSec !== null && driftFeel.rescuedSec < 3, driftFeel);
 
+// T3e：手機上「快撳一下手煞」要真係入到漂移。手煞喺物理上係鎖死後軸
+// （縱向食晒摩擦圓、側向近乎冇），唔係淨係將後輪抓地打個折。
+const tapDrift = await page.evaluate(async () => {
+    window.__racer.buildTrack('coast');
+    const { car, track } = window.__racer;
+    const PLANE = { isDrivable: () => true, isWall: () => false };
+    // 用返簡易模式嘅真實指令流（油門自動、手煞期間 0.72）
+    const cmd = (steer, drift) => ({ throttle: drift ? 0.72 : 1, steer, handbrake: drift });
+    const tap = (frames) => {
+        car.reset(track.startPos, track.startDir);
+        car.abs = true; car.arcadeAssist = true;
+        for (let i = 0; i < 600 && car.kmh < 115; i++) car.update(1 / 60, cmd(0, false), PLANE);
+        for (let i = 0; i < frames; i++) car.update(1 / 60, cmd(0.85, true), PLANE);
+        const entry = Math.abs(car.slipAngle) * 57.3;
+        let peak = entry, lockedRear = car.lockRear;
+        for (let i = 0; i < 240; i++) {
+            const sl = car.slipAngle, err = Math.abs(sl) - 35 / 57.3;
+            const counter = Math.max(-1, Math.min(1, -Math.sign(sl) * err * 3.2));
+            car.update(1 / 60, cmd(counter, false), PLANE);
+            peak = Math.max(peak, Math.abs(car.slipAngle) * 57.3);
+        }
+        return { entry: Math.round(entry), peak: Math.round(peak), lockedRear };
+    };
+    return { half: tap(30), long: tap(40) };
+});
+console.log('  ', JSON.stringify(tapDrift));
+check('手煞真係鎖死後軸', tapDrift.half.lockedRear === true, tapDrift.half);
+check('半秒手煞入到漂移（>18°）', tapDrift.half.entry > 18, tapDrift.half);
+check('但唔會一撳就打圈', tapDrift.half.peak < 60 && tapDrift.long.peak < 80, tapDrift);
+
 // T3d：漂移退款唔可以變成加速外掛。第一版用固定推力，實測維持 50° 漂移
 // 去到 148 km/h，比直路巡航 122 仲快——成隻遊戲反轉。而家退款上限就係
 // 今幀實際刮走嘅速度，所以漂移永遠快唔過直路。

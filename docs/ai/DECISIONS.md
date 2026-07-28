@@ -1024,3 +1024,24 @@ follows what the tyres can use
 - Yaw damping is separated from steering authority because they do different jobs: damping
   resists the rate of change, not the angle the player chose. Removing it entirely (the
   first version of ADR-069) is what made the car bistable.
+
+## ADR-071: The handbrake locks the rear axle, and the wheel turns fast enough to flick
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: the handbrake now sets the rear axle's brake force to its sliding-friction
+  limit and marks it locked, so it loses lateral grip through the same friction-circle
+  path as any other locked wheel (ADR-068). `steerRate` rises from 5.5 to 7.2/s and the
+  assist damping floor from 0.45 to 0.62.
+- Reason: on a phone nobody holds the handbrake — they tap it. Measured with the real
+  simple-mode command stream, a 0.33 s tap produced 6° of body slip and a 0.5 s pull 17°:
+  no drift at all. Sweeping `handbrakeGrip` from 0.45 down to 0.22 changed the tap by one
+  degree, which showed the rear's grip was never the limiter. Two things were: the
+  handbrake only scaled grip instead of modelling a locked wheel, and the wheel itself
+  took 0.18 s to reach the commanded angle, so a quick flick was over before the steering
+  arrived. With both fixed, a half-second pull now gives 19° of entry and settles at 31°.
+- The damping floor rose in the same pass because faster steering re-introduced overshoot:
+  the 35° target entry peaked at 75°, past the 70° gate. At 0.62 and 7.2/s it peaks at
+  68° while the tap entry stays at 19°. Every other measurement holds: full-lock steering
+  still rotates 11° with no spin, straight-line braking is unchanged, and the AI runs all
+  six circuits with zero wall contact, zero rescues and zero off-road.

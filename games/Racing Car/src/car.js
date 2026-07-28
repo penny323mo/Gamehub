@@ -54,12 +54,16 @@ export const CFG = {
     // 食到 1g（定圓半徑 111 米）。舊值 0.55 喺同一速度容許 22°，即係玩家
     // 隨手一撳就過咗輪胎峰值——車頭反而冇力，跟住車尾自己盪出去打圈。
     steerSpeedDrop: 2.4,
-    steerRate: 5.5,      // 軚盤打得幾快（每秒）
+    // 軚盤打得幾快（每秒）。5.5 即係約 0.18 秒先到位——喺手機上「快撳
+    // 一下手煞 + 打軚」根本未打到軚就已經放咗手，實測 0.33 秒嘅快撳
+    // 得 6° 起手。7.2 之後半秒起手由 17° 升到 20°，而純打軚極限維持 11°
+    // （即係唔會因為軚快咗而變得易打圈）。
+    steerRate: 7.2,
     assistCountersteer: 0.9, // 放開手煞後輕推反打，降低手機細軚輸入嘅救車門檻
     assistMaxSteer: 0.38,
     assistYawDamp: 2.2,  // 大角度開始時穩住偏航，唔會細失誤即刻打圈
     assistTractionCut: 0.22,
-    assistDampFloor: 0.45,   // 反打期間仍然保留幾多偏航阻尼（見上面註解）
+    assistDampFloor: 0.62,   // 反打期間仍然保留幾多偏航阻尼（見上面註解）
 
     // 輪胎（Pacejka 簡化）：F = D·sin(C·atan(B·α))
     //
@@ -270,7 +274,18 @@ export class Car {
         const slipR = Math.atan2(vLat - this.yawRate * CFG.wheelBaseR, vRef);
 
         // ---- 第二趟：用真實載荷再計一次制動同抓地上限 ----
-        const { capF, capR, brakeF, brakeR, lockF, lockR } = applyBrakes(loadF, loadR);
+        const solved = applyBrakes(loadF, loadR);
+        const { capF, capR, brakeF, lockF } = solved;
+        let { brakeR, lockR } = solved;
+
+        // 手煞＝鎖死後軸。之前個模型淨係將後輪抓地打個折，唔夠力：實測
+        // 輕撳 0.33 秒得 5° 起手，喺手機上根本入唔到漂移（冇人會長撳）。
+        // 而家行返 ADR-068 嗰套——後輪鎖死，縱向食晒自己個摩擦圓，側向
+        // 就跌到剩 lockLateral，車尾即刻拋得出去。呢個亦係真手煞嘅原理。
+        if (input.handbrake && vLong > 0.6) {
+            brakeR = Math.max(brakeR, capR * CFG.lockLong);
+            lockR = true;
+        }
         this.lockFront = lockF;
         this.lockRear = lockR;
 
