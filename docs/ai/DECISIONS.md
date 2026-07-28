@@ -1011,12 +1011,16 @@ follows what the tyres can use
   snapping. Pure steering at full lock rotates 10.9° instead of 6.7°, so the car feels
   alive without ever spinning, and the AI is unaffected (Coast 30.9s to 31.1s, still zero
   wall contact on all six circuits).
-- The drift push is an explicit arcade layer, not physics, and is documented as such.
+- The drift aid is an explicit arcade layer, not physics, and is documented as such.
   Sliding sideways scrubs speed for real — a full-throttle drift measured 11,500 N of
   body-longitudinal force while the car slowed from 118 km/h to 40 km/h, because the body
   axis was 50–87° away from travel. That is correct and it makes drifting pure punishment.
-  The push only counteracts the scrub: it acts along travel, never faster than the player
-  is already going, and it is off on grass, off under handbrake, and off below 17° of slip.
+  It is implemented as a refund of at most 70% of the speed the frame actually scrubbed,
+  not as a fixed force. The first version used a fixed 5200 N push and measured 148 km/h
+  while drifting against 122 km/h cruising — drifting became an accelerator and inverted
+  the game. A refund is self-limiting: no scrub, no refund. Measured now: 186 km/h flat
+  out straight, 142 km/h sustained drifting, 127 km/h spinning on full lock.
+  It is off on grass, off under handbrake, and off below 17° of slip.
 - Yaw damping is separated from steering authority because they do different jobs: damping
   resists the rate of change, not the angle the player chose. Removing it entirely (the
   first version of ADR-069) is what made the car bistable.

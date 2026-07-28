@@ -94,7 +94,11 @@ export const CFG = {
     // 所以喺輔助層補返一部分：踩住油、真係喺漂移角度先有，落草冇，
     // 手煞起手嗰陣冇（唔可以用嚟無限加速）。方向係沿住「行進方向」，
     // 唔係車頭——即係佢淨係抵消側滑損失，唔會變成一個加速外掛。
-    driftPush: 5200,
+    // 用「退返幾多成刮走嘅速度」而唔係固定推力。固定推力有個致命問題：
+    // 佢同實際損失冇關係，實測維持 50° 漂移最後去到 148 km/h，快過直路
+    // 巡航 122——漂移變咗加速外掛，成隻遊戲反轉。退款制自我封頂：
+    // 冇刮走就冇得退，所以漂移永遠唔會快過直路，但唔會再係純懲罰。
+    driftRefund: 0.7,
     driftPushMinSlip: 0.3,   // 約 17°，即係真係甩緊尾先計
     offroadGrip: 0.45,   // 落草抓地
     offroadDrag: 2600,
@@ -326,17 +330,19 @@ export class Car {
             fwdZ * newVLong + latZ * newVLat,
         );
 
-        // ---- 漂移推進（街機層）----
+        // ---- 漂移退款（街機層）----
+        // 橫住滑會刮走速度，呢個係真物理；但喺一隻靠漂移計分嘅遊戲入面，
+        // 「用得愈多、跑得愈慢」等於叫玩家唔好用。所以退返嗰筆嘅一部分。
+        // 退款上限就係今幀實際刮走咗嘅量——即係漂移永遠唔會快過直路。
         if (assists && !this.offroad && !input.handbrake && input.throttle > 0.3) {
             const slipNow = Math.abs(this.slipAngle);
             const amount = Math.min(1, (slipNow - CFG.driftPushMinSlip) / 0.45);
-            if (amount > 0) {
-                const vMag = Math.hypot(this.vel.x, this.vel.z);
-                if (vMag > 4) {
-                    const push = CFG.driftPush * input.throttle * amount / CFG.mass * dt;
-                    this.vel.x += this.vel.x / vMag * push;
-                    this.vel.z += this.vel.z / vMag * push;
-                }
+            const vMag = Math.hypot(this.vel.x, this.vel.z);
+            const scrub = speed - vMag;                  // 今幀真係跌咗幾多
+            if (amount > 0 && scrub > 0 && vMag > 4) {
+                const refund = scrub * CFG.driftRefund * amount * input.throttle;
+                this.vel.x += this.vel.x / vMag * refund;
+                this.vel.z += this.vel.z / vMag * refund;
             }
         }
 

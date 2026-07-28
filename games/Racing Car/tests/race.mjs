@@ -482,6 +482,46 @@ check('漂移唔會慢到唔想用（收返速度）',
 check('唔反打就仍然救得返',
     driftFeel.rescuedSec !== null && driftFeel.rescuedSec < 3, driftFeel);
 
+// T3d：漂移退款唔可以變成加速外掛。第一版用固定推力，實測維持 50° 漂移
+// 去到 148 km/h，比直路巡航 122 仲快——成隻遊戲反轉。而家退款上限就係
+// 今幀實際刮走嘅速度，所以漂移永遠快唔過直路。
+const driftSpeed = await page.evaluate(async () => {
+    window.__racer.buildTrack('coast');
+    const { car, track } = window.__racer;
+    const PLANE = { isDrivable: () => true, isWall: () => false };
+    car.reset(track.startPos, track.startDir); car.abs = true; car.arcadeAssist = true;
+    for (let i = 0; i < 60 * 12; i++) car.update(1 / 60, { throttle: 1, steer: 0, handbrake: false }, PLANE);
+    const straight = car.kmh;
+
+    car.reset(track.startPos, track.startDir);
+    for (let i = 0; i < 300 && car.kmh < 110; i++) car.update(1 / 60, { throttle: 1, steer: 0, handbrake: false }, PLANE);
+    for (let i = 0; i < 40; i++) car.update(1 / 60, { throttle: 0.8, steer: 0.8, handbrake: true }, PLANE);
+    let drifting = 0;
+    for (let i = 0; i < 60 * 12; i++) {
+        const sl = car.slipAngle, err = Math.abs(sl) - 40 / 57.3;
+        const counter = Math.max(-1, Math.min(1, -Math.sign(sl) * err * 3.2));
+        car.update(1 / 60, { throttle: 1, steer: counter, handbrake: false }, PLANE);
+        drifting = Math.max(drifting, car.kmh);
+    }
+
+    // 原地打圈都唔可以刷速度
+    car.reset(track.startPos, track.startDir);
+    car.vel.set(Math.sin(car.yaw) * 6, 0, Math.cos(car.yaw) * 6);
+    car.yawRate = 2;
+    let spin = 0;
+    for (let i = 0; i < 60 * 8; i++) {
+        car.update(1 / 60, { throttle: 1, steer: 1, handbrake: false }, PLANE);
+        spin = Math.max(spin, car.kmh);
+    }
+    return { straight: Math.round(straight), drifting: Math.round(drifting), spin: Math.round(spin) };
+});
+console.log('  ', JSON.stringify(driftSpeed));
+check('漂移永遠快唔過直路（退款唔可以變外掛）',
+    driftSpeed.drifting < driftSpeed.straight, driftSpeed);
+check('原地打圈都刷唔到速度', driftSpeed.spin < driftSpeed.straight, driftSpeed);
+check('但漂移都唔可以慢到冇人用（保住七成以上）',
+    driftSpeed.drifting > driftSpeed.straight * 0.7, driftSpeed);
+
 // T3b：車身側傾唔可以令架車望落離地。模型係一整件硬嘢（車身連輪胎），
 // 側傾角一大，一邊輪胎就會離地、另一邊插落路面——Penny 實機報告
 // 「架車好似浮起、轉左轉右好似飛機咁」，量到嗰陣係 9.2° 側傾、

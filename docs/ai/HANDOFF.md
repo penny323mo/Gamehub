@@ -24,9 +24,13 @@ player can actually hold, without giving up the safety won in the braking rewrit
 - Kept a 45% floor of yaw damping while countersteering. ADR-069 gave the player all
   authority including damping, and that removal is what made the car bistable — damping
   resists the rate of change, not the angle the player chose.
-- Added an explicit, documented arcade `driftPush` along the travel direction: only on
-  throttle, only past 17° of slip, never on grass or handbrake. It offsets the scrub so a
-  drift keeps 126 km/h instead of bleeding to 86.
+- Added an explicit, documented arcade drift aid: a refund of at most 70% of the speed a
+  frame actually scrubbed, only on throttle, only past 17° of slip, never on grass or
+  handbrake. A drift now keeps 125 km/h instead of bleeding to 86.
+- Caught and fixed my own exploit in the same round: the first version used a fixed
+  5200 N push and produced 148 km/h while drifting against 122 km/h cruising, which made
+  drifting an accelerator. A refund cannot exceed the loss, so it is self-limiting —
+  measured 186 km/h straight, 142 km/h drifting, 127 km/h spinning.
 - Moved the drift-scoring threshold with the tyre peak (0.19 to 0.26 rad) so ordinary
   full-commitment cornering no longer trickles drift score.
 - Rewrote the drift gate to measure controllability rather than duration: the old check
@@ -40,13 +44,15 @@ player can actually hold, without giving up the safety won in the braking rewrit
 
 ## Verification
 
-- Suites: race 95/95, setup 98/98, rivals 59/59, ghost 29/29, season 55/55, audio 32/32
-  (368/368); `run-all` green.
+- Suites: race 98/98, setup 98/98, rivals 59/59, ghost 29/29, season 55/55, audio 32/32
+  (371/371); `run-all` green.
 - Everything won in the braking rewrite still holds: straight-line braking 2° slip and
   0.2° of heading change with ABS against 87.9° without, trail braking progressive at
   5.4° / 18.4° / 30.4°, handbrake drift 87°, cruise 122 km/h, 0–80 km/h 2.77s.
 - New: full-lock steering rotates 10.9° with no spin at any input, a 40° slide is caught
-  in 0.57s, a 35° drift entry peaks at 62° and holds 126 km/h.
+  in 0.57s, a 35° drift entry peaks at 62° and holds 125 km/h.
+- New gate on the exploit: drifting and spinning must both stay under straight-line speed,
+  while a drift must still keep over 70% of it.
 - AI over all six circuits: zero wall contact, zero rescues, zero off-road, lap times
   within 0.2s of before (Coast 31.1s).
 
@@ -96,5 +102,7 @@ player can actually hold, without giving up the safety won in the braking rewrit
   but do not remove the yaw-damping floor either — that is what made the car bistable.
 - Do not move the tyre peak back to 11° of slip, and do not raise the drift threshold
   and tyre peak independently of each other (ADR-070).
+- Do not turn the drift refund back into a fixed force; it must stay bounded by the speed
+  actually scrubbed, or drifting becomes faster than driving straight (ADR-070).
 - Do not add audio files or allocate audio nodes per frame; keep audio off-race silent.
 - Do not amend, rebase, or force-push published `main` history.
