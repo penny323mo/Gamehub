@@ -21,12 +21,15 @@ const startupWarm = await page.evaluate(() => {
         ink,
         speed: document.getElementById('speed-num').textContent,
         lap: document.getElementById('lap-num').textContent,
+        favicon: document.querySelector('link[rel="icon"]')?.href ?? '',
     };
 });
 console.log('  ', JSON.stringify(startupWarm));
 check('第一個完整 3D frame 後先揭選單，並已預熱 HUD／minimap', startupWarm.ready
     && startupWarm.loadingHidden && startupWarm.menuVisible && startupWarm.ink > 1000
     && startupWarm.speed === '0' && startupWarm.lap === '1/3', startupWarm);
+check('遊戲自帶 favicon，production 唔會再請求網站根目錄 404',
+    startupWarm.favicon.startsWith('data:image/svg+xml,'), startupWarm.favicon);
 
 const TRACK_IDS = await page.evaluate(() => window.__racer.TRACKS.map(t => t.id));
 
