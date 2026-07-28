@@ -5,7 +5,7 @@
 // 賽道之間要留夠闊（唔同段落唔可以貼太近），否則檢查點會誤判，
 // tests/race.mjs 有專門一項守住呢件事。
 
-export const TRACKS = [
+const FORWARD = [
     {
         id: 'turbo',
         name: '渦輪場地',
@@ -55,6 +55,40 @@ export const TRACKS = [
         ],
     },
 ];
+
+// 逆向：同一條賽道倒轉行。呢個唔係「慳工夫嘅假內容」——彎位嘅次序、
+// 煞車點、邊個彎要早開油全部變晒，山道嗰啲尖角彎倒轉行嘅入彎角度同
+// 原本完全唔同。而且六條賽道各自有自己嘅最快圈、幽靈車、分站紀錄，
+// 亦可以獨立揀入錦標賽賽程。
+//
+// 幾何完全一樣（同一串中線，淨係次序倒轉），所以路面闊度、最細半徑、
+// 唔同段落之間嘅距離呢啲已經驗證過嘅性質自動繼承，唔會引入新嘅檢查點誤判。
+function reversed(t) {
+    return {
+        ...t,
+        id: `${t.id}-rev`,
+        name: `${t.name}（逆向）`,
+        desc: `${t.desc}——倒轉行，煞車點同入彎角度全部唔同`,
+        waypoints: [...t.waypoints].reverse(),
+        reverse: true,
+        forwardId: t.id,
+    };
+}
+
+// 渦輪場地暫時唔出逆向：倒轉行嗰陣，內場嗰個由快路段接落嘅急彎，電腦
+// 車手每圈都會喺同一點打圈然後頂住欄，要靠三秒拖車先郁得返。海岸同山道
+// 逆向量到掂欄 3 幀同 0 幀、零拖車，同正向一樣乾淨，所以照出。
+// 呢個係車手嘅限制，唔係賽道有問題——修好嗰個彎位之後就可以開返。
+const REVERSIBLE = ['coast', 'touge'];
+
+export const TRACKS = [
+    ...FORWARD,
+    ...FORWARD.filter(t => REVERSIBLE.includes(t.id)).map(reversed),
+];
+
+// 錦標賽預設賽程：三條正向。全部六條連跑對手機一次坐低嚟講太長，
+// 想跑就自己喺設定揀。
+export const DEFAULT_SEASON = FORWARD.map(t => t.id);
 
 export function trackById(id) {
     return TRACKS.find(t => t.id === id) ?? TRACKS[0];

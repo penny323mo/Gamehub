@@ -803,3 +803,36 @@ follows what the tyres can use
   on a phone, which would trade feel for sound — the wrong trade for a driving game.
   Suspending the context off-race matters because an oscillator left running costs
   battery on a screen the player is not racing on.
+
+## ADR-060: Reverse circuits ship only where the AI can lap them cleanly
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: `tracks.js` derives reverse variants by reversing a circuit's centreline, but
+  only for circuits listed in `REVERSIBLE`. Coast and Touge ship reversed; Turbo does not.
+  Each variant is a full circuit with its own id, best lap, ghost, per-circuit career
+  record, and championship eligibility. The championship default stays the three forward
+  circuits rather than everything.
+- Reason: reversing the point list of a closed uniform Catmull-Rom yields the identical
+  loop travelled backwards — measured tangent dot −1.000 and length difference 0.0 m — so
+  road width, minimum radius, and section clearance are inherited, not re-risked, while
+  braking points and corner entry all change. Turbo reversed is excluded on evidence: the
+  AI spins at one infield corner every lap and wedges against a barrier until the 3-second
+  rescue (521 wall-contact frames, 3 rescues), where Coast and Touge reversed measure 3
+  and 0 frames with no rescues. Excluding one variant keeps a single strict gate for every
+  circuit instead of a per-circuit exemption.
+
+## ADR-061: One driver implementation, and a curvature window sized to real corners
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: `driver.js` estimates curvature over a ±0.008 window of the lap instead of
+  ±0.012, and `tests/race.mjs` imports `createDriver` instead of keeping its own copy of
+  the controller.
+- Reason: the wider window smooths short corners, overestimating their radius and letting
+  the driver enter far too fast; across six circuits it cost 1290 wall-contact frames and
+  7 rescues against 559 and 3 at ±0.008, with forward circuits unchanged (0/9/0 → 1/6/0)
+  and no meaningful lap-time loss. Narrower windows (±0.006, ±0.004) regress because
+  straights start reading as curves. The duplicate controller in the test hid the whole
+  effect: changing the shipped driver moved nothing, because the gate was measuring a
+  controller nothing else used.

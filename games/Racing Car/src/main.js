@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { DRACOLoader } from '../vendor/DRACOLoader.js';
 import { Track } from './track.js';
-import { TRACKS, trackById } from './tracks.js';
+import { TRACKS, DEFAULT_SEASON, trackById } from './tracks.js';
 import { Car } from './car.js';
 import { Race, fmtTime } from './race.js';
 import { Input, GYRO_KEY } from './input.js';
@@ -266,7 +266,7 @@ let ghostLapBest = null, lastLapCount = 0, lapProgressBase = 0;
 // 錦標賽：自選賽程連跑。載返上次未跑完嗰個，唔使由頭嚟過。
 const TRACK_POOL = TRACKS.map(t => t.id);
 const season = new Season(TRACK_POOL);
-let seasonList = loadSeasonList(TRACK_POOL);
+let seasonList = loadSeasonList(TRACK_POOL, DEFAULT_SEASON);
 season.load();
 
 let trackDef = trackById(localStorage.getItem('racer-track') ?? TRACKS[0].id);
@@ -719,7 +719,7 @@ function setSeasonList(ids) {
         if (TRACK_POOL.includes(id) && !cleaned.includes(id)) cleaned.push(id);
     }
     // 揀到一條都唔剩會開出一個「零場」錦標賽，所以最少留返一條
-    seasonList = cleaned.length ? cleaned : [TRACK_POOL[0]];
+    seasonList = cleaned.length ? cleaned : [DEFAULT_SEASON[0]];
     saveSeasonList(seasonList);
     document.querySelectorAll('#season-track-seg button').forEach(b =>
         b.classList.toggle('on', seasonList.includes(b.dataset.track)));

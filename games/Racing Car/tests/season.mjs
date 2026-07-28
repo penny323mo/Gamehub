@@ -230,22 +230,32 @@ const ui = await page.evaluate(async () => {
     setSeasonList(TRACKS.map(t => t.id));
     const seg = document.getElementById('season-track-seg');
     const btn = (id) => [...seg.children].find(b => b.dataset.track === id);
-    const out = { chips: seg.children.length, allOn: [...seg.children].every(b => b.classList.contains('on')) };
+    const out = {
+        trackCount: TRACKS.length,
+        chips: seg.children.length,
+        allOn: [...seg.children].every(b => b.classList.contains('on')),
+    };
 
-    btn(TRACKS[1].id).click();                       // 撳走中間嗰條
-    out.afterToggle = window.__racer.seasonList.join();
+    btn(TRACKS[1].id).click();                       // 撳走其中一條
+    out.afterToggle = window.__racer.seasonList.length;
     out.label = document.getElementById('season-btn').textContent;
     out.midOn = btn(TRACKS[1].id).classList.contains('on');
 
     // 撳走淨低嗰啲，最少要留一條
-    btn(TRACKS[0].id).click();
-    btn(TRACKS[2].id).click();
+    for (const t of TRACKS) if (t.id !== TRACKS[1].id) btn(t.id).click();
     out.floor = window.__racer.seasonList.length;
 
     // 撳返轉頭要跟返賽道原本次序，唔係跟撳嘅次序
     setSeasonList([TRACKS[2].id]);
     btn(TRACKS[0].id).click();
     out.reorder = window.__racer.seasonList.join();
+
+    // 冇存檔嘅話，預設賽程係正向三條，唔係全部六條
+    localStorage.removeItem('racer-season-list');
+    const { loadSeasonList } = await import('./src/settings.js');
+    const { DEFAULT_SEASON } = await import('./src/tracks.js');
+    out.defaultList = loadSeasonList(TRACKS.map(t => t.id), DEFAULT_SEASON).join();
+    out.reverseIds = TRACKS.filter(t => t.reverse).map(t => t.id).join();
 
     // 歷屆榜：冇紀錄唔顯示，有紀錄就一屆一行
     const box = document.getElementById('season-history');
@@ -264,11 +274,17 @@ const ui = await page.evaluate(async () => {
     return out;
 });
 console.log('  ', JSON.stringify(ui));
-check('三條賽道各有一個掣，預設全開', ui.chips === 3 && ui.allOn === true, ui);
-check('撳一下就剔走嗰條', ui.midOn === false && ui.afterToggle.split(',').length === 2, ui);
-check('掣面寫住實際場數', /2 場/.test(ui.label), ui.label);
+check('每條賽道各有一個掣，預設全開',
+    ui.chips === ui.trackCount && ui.trackCount === 5 && ui.allOn === true, ui);
+check('撳一下就剔走嗰條',
+    ui.midOn === false && ui.afterToggle === ui.trackCount - 1, ui);
+check('掣面寫住實際場數', new RegExp(`${ui.trackCount - 1} 場`).test(ui.label), ui.label);
 check('唔畀剔到一條都唔剩', ui.floor === 1, ui.floor);
 check('加返賽道跟賽道次序排', ui.reorder === 'turbo,touge', ui.reorder);
+check('預設賽程係正向三條，唔係全部賽道',
+    ui.defaultList === 'turbo,coast,touge', ui.defaultList);
+check('逆向賽道有自己嘅 id',
+    ui.reverseIds === 'coast-rev,touge-rev', ui.reverseIds);
 check('冇歷屆紀錄就唔顯示', ui.emptyHidden === true, ui);
 check('有紀錄就出到歷屆榜', ui.shown === true && ui.rows === 1 && /阿烈/.test(ui.text), ui);
 check('清除掣清得走歷屆榜', ui.afterClearHidden === true, ui);

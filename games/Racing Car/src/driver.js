@@ -25,11 +25,19 @@ export function createDriver(track, skill = SKILLS.quick) {
     const P = new THREE.Vector3(), Q = new THREE.Vector3(), R = new THREE.Vector3();
     const to = new THREE.Vector3(), fwd = new THREE.Vector3();
 
-    // 三點定圓：估中線喺 t 附近嘅曲率半徑
+    // 三點定圓：估中線喺 t 附近嘅曲率半徑。
+    //
+    // 取樣窗口 0.008（≈ ±6 米）唔係求其揀：原本用 0.012（±8.4 米）對短促
+    // 嘅急彎會「平滑」咗個彎，半徑估得太大，於是入彎速度批得太高。實測
+    // 六條賽道嘅掂欄總幀數 1290 → 559、拖車 7 → 3，山道逆向由 569 幀變 0，
+    // 正向三條基本上唔變（0/9/0 → 1/6/0），單圈時間亦冇明顯變慢。
+    // 再窄（0.006、0.004）反而差返轉頭：估得太局部，直路上嘅微小彎曲
+    // 都會被當成彎，車手無端端喺直路收油。
+    const CURVE_WINDOW = 0.008;
     const radiusAt = (t) => {
-        P.copy(track.curve.getPointAt((t + 1 - 0.012) % 1));
+        P.copy(track.curve.getPointAt((t + 1 - CURVE_WINDOW) % 1));
         Q.copy(track.curve.getPointAt(t % 1));
-        R.copy(track.curve.getPointAt((t + 0.012) % 1));
+        R.copy(track.curve.getPointAt((t + CURVE_WINDOW) % 1));
         const a = P.distanceTo(Q), b = Q.distanceTo(R), c = P.distanceTo(R);
         const area = Math.abs((Q.x - P.x) * (R.z - P.z) - (R.x - P.x) * (Q.z - P.z)) / 2;
         return area < 1e-4 ? 1e4 : (a * b * c) / (4 * area);
@@ -60,6 +68,7 @@ export function createDriver(track, skill = SKILLS.quick) {
             }
 
             const angErr = Math.atan2(fwd.x * to.z - fwd.z * to.x, fwd.dot(to));
+
             // 收油救車只喺有速度嗰陣先有意義。慢車又減油嘅話，喺草地上面
             // 油門推力細過 offroadDrag，架車永遠爬唔返上賽道。
             const slip = Math.abs(car.slipAngle);

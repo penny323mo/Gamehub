@@ -10,7 +10,39 @@ const r = await openRacer();
 const { page } = r;
 
 const TRACK_IDS = await page.evaluate(() => window.__racer.TRACKS.map(t => t.id));
-check('有三條賽道', TRACK_IDS.length === 3, TRACK_IDS);
+check('有五條賽道（三正向＋兩逆向）', TRACK_IDS.length === 5, TRACK_IDS);
+
+// T0：逆向賽道真係倒轉行——同一段路上嘅行車方向要相反
+const rev = await page.evaluate(async () => {
+    const THREE = await import('three');
+    const { buildTrack } = window.__racer;
+    const dirAt = (id, x, z) => {
+        buildTrack(id);
+        const { track } = window.__racer;
+        const t = track.nearestT(x, z);
+        const d = track.curve.getTangentAt(t);
+        return { x: d.x, z: d.z, start: [track.startPos.x, track.startPos.z], len: track.length };
+    };
+    const out = {};
+    for (const base of ['coast', 'touge']) {
+        // 用正向賽道嘅起點做取樣點，兩邊喺同一段路上比較
+        buildTrack(base);
+        const p = window.__racer.track.startPos;
+        const f = dirAt(base, p.x, p.z);
+        const b = dirAt(`${base}-rev`, p.x, p.z);
+        out[base] = {
+            dot: +(f.x * b.x + f.z * b.z).toFixed(3),
+            lenDiff: +Math.abs(f.len - b.len).toFixed(1),
+        };
+    }
+    return out;
+});
+console.log('  ', JSON.stringify(rev));
+for (const base of ['coast', 'touge']) {
+    check(`${base}-rev：同一段路方向相反`, rev[base].dot < -0.9, rev[base]);
+    // 同一串中線倒轉排，長度應該一樣（曲線張力一樣，收尾接返同一個環）
+    check(`${base}-rev：賽道長度同正向一致`, rev[base].lenDiff < 2, rev[base]);
+}
 
 // T1：每條賽道都砌得成，起點喺路面，而且賽道唔會自己貼自己
 for (const id of TRACK_IDS) {
@@ -289,52 +321,12 @@ for (const id of TRACK_IDS) {
         window.__racer.buildTrack(id);
         const { car, track, race } = window.__racer;
 
-        const P = new THREE.Vector3(), Q = new THREE.Vector3(), R = new THREE.Vector3();
-        // 三點定圓：估中線喺 t 附近嘅曲率半徑
-        const radiusAt = (t) => {
-            P.copy(track.curve.getPointAt((t + 1 - 0.012) % 1));
-            Q.copy(track.curve.getPointAt(t % 1));
-            R.copy(track.curve.getPointAt((t + 0.012) % 1));
-            const a = P.distanceTo(Q), b = Q.distanceTo(R), c = P.distanceTo(R);
-            const area = Math.abs((Q.x - P.x) * (R.z - P.z) - (R.x - P.x) * (Q.z - P.z)) / 2;
-            return area < 1e-4 ? 1e4 : (a * b * c) / (4 * area);
-        };
-        const drive = () => {
-            const t = track.nearestT(car.pos.x, car.pos.z);
-            const speed = car.speed;
-            const aim = track.curve.getPointAt((t + (8 + speed * 0.55) / track.length) % 1);
-            const to = new THREE.Vector3(aim.x - car.pos.x, 0, aim.z - car.pos.z).normalize();
-            const fwd = new THREE.Vector3(Math.sin(car.yaw), 0, Math.cos(car.yaw));
-            // 望幾遠要由煞車距離反推：coast 有段 989 米半徑嘅高速彎，
-            // 出彎即刻接住個 73 米嘅彎。由 78 m/s 減到 21 m/s 要三百米，
-            // 死板咁淨係望前 90 米嘅話，車手見到個彎嗰陣已經一定入唔到。
-            const scan = Math.min(400, speed * speed / (2 * 9) + 30);
-            let vMax = 70;
-            for (let d = 0; d <= scan; d += 6) {
-                // 6.2 m/s² ≈ 0.63g。架車食到成 1g，留返餘裕。
-                // （試過再保守啲用 5.4，反而差咗：慢入彎令車喺彎入面留耐咗，
-                //  個簡單控制器有更多時間累積追線誤差。）
-                const vc = Math.sqrt(6.2 * radiusAt((t + d / track.length) % 1));
-                vMax = Math.min(vMax, Math.sqrt(vc * vc + 2 * 9 * d));              // 加返煞車距離
-            }
-            const angErr = Math.atan2(fwd.x * to.z - fwd.z * to.x, fwd.dot(to));
-            // 甩緊尾就先救車：油門收返、軚以反打為主。人揸車都係咁——
-            // 一路滑一路照踩爆油追線，只會由細滑變成打圈。
-            // 收油救車只喺有速度嗰陣先有意義。慢車又減油嘅話，喺草地上面
-            // 油門推力細過 offroadDrag，架車永遠爬唔返上賽道，最後要拖——
-            // 實測 coast 每圈都係咁攞一次拖車。
-            const slip = Math.abs(car.slipAngle);
-            const ease = (slip > 0.3 && speed > 10)
-                ? Math.max(0.15, 1 - (slip - 0.3) * 2.2)
-                : 1;
-            return {
-                throttle: Math.max(-1, Math.min(1, (vMax - speed) * 0.35)) * ease,
-                // 追線之餘要反打：甩緊尾就唔可以再死扭軚，否則一定打圈
-                steer: Math.max(-1, Math.min(1, angErr * 1.7 * ease - car.slipAngle * 1.3)),
-                handbrake: false,
-                assist: false,
-            };
-        };
+        // 用返出街嗰個車手（src/driver.js），唔好喺測試度養第二份。
+        // 之前呢度有一份一模一樣嘅 copy：改咗 driver.js 嘅曲率取樣窗口之後
+        // 個 gate 完全冇反應，因為佢量緊嘅係一個已經冇人用嘅控制器。
+        const { createDriver, SKILLS } = await import('./src/driver.js');
+        const driver = createDriver(track, SKILLS.quick);
+        const drive = () => driver.read(car, track.nearestT(car.pos.x, car.pos.z));
 
         car.reset(track.startPos, track.startDir);
         race.reset(); race.state = 'racing';
