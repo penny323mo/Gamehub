@@ -259,7 +259,13 @@ check('畫質模式會持久化兼 UI 只有一項 selected',
 const perfReport = await page.evaluate(async () => {
     const root = window.__racer;
     root.startRace();
-    await new Promise(r => setTimeout(r, 220));
+    // 等到真係取到樣先好報告。之前寫死等 220ms：機器一忙（run-all 連續開
+    // 幾個瀏覽器）rAF 可以一幀都未行，於是 frames=0，個 gate 就無辜紅一次。
+    // 呢個 flake 一直被當成「已知問題」，其實係測試等錯嘢。
+    const deadline = Date.now() + 5000;
+    while (root.performanceReport().frames < 3 && Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 40));
+    }
     root.tuneAutoQuality(58);
     root.tuneAutoQuality(42);
     root.pauseRace('報告測試');

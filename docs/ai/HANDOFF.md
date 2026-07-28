@@ -37,9 +37,10 @@ Grow circuit content without weakening any gate, and fix what the new content ex
 ## Verification
 
 - Suites: race 67/67, setup 80/80, rivals 55/55, ghost 29/29, season 55/55, audio 32/32
-  (318/318). `setup.mjs` failed once inside `run-all` on the FPS-report assertion with
-  zero frames sampled and passed twice standalone right after — the known back-to-back
-  browser-launch flake, not a new regression.
+  (318/318), and `run-all` now green twice in a row. The long-standing `setup.mjs` flake
+  is fixed rather than re-excused: the FPS-report test waited a fixed 220 ms and asserted
+  on frames that a busy machine had not yet rendered. It now waits for three sampled
+  frames with a 5 s deadline.
 - Reverse geometry proven, not assumed: tangent dot −1.000 and length difference 0.0 m
   against the forward circuit at the same point, for both reversed circuits.
 - Shipped-AI lap gate over all five circuits: 1, 6, 0, 3, 0 wall-contact frames and zero
