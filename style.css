@@ -293,22 +293,45 @@ body {
         right: calc(50% - 56px);
     }
 
+    /* 手機：一次淨係見一張（隔籬張嘅排位由 launcher.js 計，見嗰度註解），
+       所以張卡可以放到差唔多成個闊度。外圍嘅 padding 一併收窄，唔係嘅話
+       body 20 + switch 10 + carousel 12 一邊就食咗 42px。 */
+    body {
+        padding: 20px 10px;
+    }
+
+    .switch-container {
+        padding: 0;
+    }
+
+    .carousel-container {
+        padding: 0 8px 72px;
+    }
+
+    /* 用 % 而唔係 vw：張卡量度嘅係 carousel 個框，唔係成個 viewport。
+       留返 4%，因為活躍嗰張會 scale(1.02)，而個框係 overflow:hidden——
+       唔留就會裁走張卡嘅左右圓角同邊框。 */
     .game-hub-card {
-        width: min(85vw, 280px);
-        max-width: 280px;
-        padding: 30px 20px;
+        width: 96%;
+        max-width: 420px;
+        padding: 36px 26px;
     }
 
     .card-icon {
-        font-size: 3.5rem;
+        font-size: 4.2rem;
+    }
+
+    .card-icon-img {
+        width: 120px;
+        height: 120px;
     }
 
     .game-hub-card h2 {
-        font-size: 1.4rem;
+        font-size: 1.6rem;
     }
 
     .game-hub-card p {
-        font-size: 0.85rem;
+        font-size: 0.95rem;
         min-height: auto;
     }
 

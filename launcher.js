@@ -136,14 +136,26 @@ function updateCarousel() {
     // Get actual width from the first card (they should be identical)
     const cardWidth = cards[0].offsetWidth;
     const gap = 30; // Gap between cards
-    const cardStep = cardWidth + gap;
+
+    // 隔籬張卡唔可以「露半條邊」：要就見到成張，要就完全唔見。
+    // 闊螢幕擺得落三張，就照 cardWidth + gap 排（正常 carousel 樣）；
+    // 手機得一張卡嘅位，就將隔籬張推到完全出界，得中間嗰張。
+    // 非活躍卡縮咗 SIDE_SCALE，所以計「見唔見到」要用縮完之後嘅半闊。
+    const SIDE_SCALE = 0.9;
+    const viewHalf = (document.querySelector('.carousel-track-container')?.clientWidth
+        || cardWidth) / 2;
+    const sideHalf = cardWidth * SIDE_SCALE / 2;
+    const tightStep = cardWidth + gap;
+    const cardStep = tightStep + sideHalf <= viewHalf
+        ? tightStep
+        : viewHalf + sideHalf + gap;
 
     // Update card positions using transform
     cards.forEach((card, i) => {
         const offset = (i - currentIndex) * cardStep;
         // Cards are positioned at left: 50%, so we need translateX(-50%) to center
         // Then add the offset to move them left/right
-        card.style.transform = `translateX(calc(-50% + ${offset}px)) scale(${i === currentIndex ? 1.02 : 0.9})`;
+        card.style.transform = `translateX(calc(-50% + ${offset}px)) scale(${i === currentIndex ? 1.02 : SIDE_SCALE})`;
 
         // Update active state
         if (i === currentIndex) {

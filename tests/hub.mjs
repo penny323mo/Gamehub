@@ -53,15 +53,29 @@ const read = (page) => page.evaluate(() => {
         const q = b.getBoundingClientRect();
         return q.right > r.left && q.left < r.right && q.bottom > r.top && q.top < r.bottom;
     });
+    // 隔籬張卡：要就完全見到，要就完全唔見——唔可以露半條邊
+    const view = document.querySelector('.carousel-track-container').getBoundingClientRect();
+    const sides = cards.filter(c => c !== act).map(c => {
+        const q = c.getBoundingClientRect();
+        return {
+            inside: q.left >= view.left - 1 && q.right <= view.right + 1,
+            outside: q.right <= view.left + 1 || q.left >= view.right - 1,
+        };
+    });
     return {
         index: cards.indexOf(act),
         count: cards.length,
         title: act.querySelector('h2').textContent,
         centreOffset: Math.round((r.left + r.right) / 2 - innerWidth / 2),
         fullyInView: r.left >= -1 && r.right <= innerWidth + 1,
+        cardWidth: Math.round(r.width),
         docWidth: document.documentElement.scrollWidth,
         innerWidth,
         arrowOverlapsCard: overlap,
+        sidesClean: sides.every(s => s.inside || s.outside),
+        sidesHidden: sides.every(s => s.outside),
+        // 個框係 overflow:hidden，張卡闊過個框就會連圓角同邊框一齊裁走
+        cardClipped: r.left < view.left - 0.5 || r.right > view.right + 0.5,
     };
 });
 
@@ -71,7 +85,7 @@ for (const vp of [{ width: 320, height: 568 }, { width: 440, height: 956 }, { wi
     const errors = [];
     page.on('pageerror', e => errors.push(String(e)));
     await page.goto(INDEX);
-    await page.waitForTimeout(350);
+    await page.waitForTimeout(600);   // 卡片入場 transform 有 0.3s transition
 
     const start = await read(page);
     const label = `${vp.width}px`;
@@ -79,13 +93,21 @@ for (const vp of [{ width: 320, height: 568 }, { width: 440, height: 956 }, { wi
         start.docWidth <= start.innerWidth, { doc: start.docWidth, inner: start.innerWidth });
     check(`${label}：卡片置中`, Math.abs(start.centreOffset) <= 2, start.centreOffset);
     check(`${label}：卡片完整喺畫面入面`, start.fullyInView, start);
+    check(`${label}：隔籬張唔會露半條邊`, start.sidesClean, start);
+    check(`${label}：卡片唔會畀 carousel 個框裁走邊`, start.cardClipped === false, start);
+    if (phone) {
+        // Penny 部機影到嗰張：左右兩邊各露一條卡邊，同時中間張卡細過必要。
+        check(`${label}：手機一次淨係見中間嗰張`, start.sidesHidden, start);
+        check(`${label}：卡片食到最少 82% 闊度`,
+            start.cardWidth >= start.innerWidth * 0.82, start);
+    }
 
     // 向左掃三次：每次剛好行一張，而且每張都要置返中
     let prev = start;
     let oneStep = true, centred = true;
     for (let i = 0; i < 3; i++) {
         await swipe(page, -200);
-        await page.waitForTimeout(320);
+        await page.waitForTimeout(420);
         const now = await read(page);
         if ((prev.index + 1) % now.count !== now.index) oneStep = false;
         if (Math.abs(now.centreOffset) > 2 || !now.fullyInView) centred = false;
@@ -96,7 +118,7 @@ for (const vp of [{ width: 320, height: 568 }, { width: 440, height: 956 }, { wi
 
     // 掃返轉頭要行返轉頭
     await swipe(page, 200);
-    await page.waitForTimeout(320);
+    await page.waitForTimeout(420);
     const back = await read(page);
     check(`${label}：反方向掃會退返一張`,
         (back.index + 1) % back.count === prev.index, { from: prev.index, to: back.index });

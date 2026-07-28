@@ -14,52 +14,55 @@ manual switch, no automatic behaviour at all.
 ## Completed
 
 - Added the 畫面方向 setting (`racer-orient`, default `portrait`). 打直 renders into the
-  viewport with no transform ever; 打橫 renders into a landscape frame, rotating
-  `#game-root` 90° only while the viewport is taller than wide (ADR-074).
-- Rotation is now a class (`.rot90`) toggled by `applyOrientation()`, not a media query —
-  the media query was the automatic behaviour. The same boolean goes into
-  `Input.setRotated()`, so touch mapping and CSS cannot disagree; `Input` no longer reads
-  `matchMedia` itself.
+  viewport with no transform ever; 打橫 rotates `#game-root` 90° only while the viewport is
+  taller than wide (ADR-074).
+- Rotation is a class (`.rot90`) toggled by `applyOrientation()`, not a media query — the
+  media query was the automatic behaviour. The same boolean goes into `Input.setRotated()`,
+  so touch mapping and CSS cannot disagree; `Input` no longer reads `matchMedia` itself.
 - Layout inside the frame is measured against the frame: `#game-root` defines `--fw`/`--fh`
   (swapped under `.rot90`) and every proportional size uses them instead of `vw`/`vh`; the
-  phone-layout media queries are scoped to `#game-root:not(.rot90)`, with a rotated
+  phone-layout media queries are scoped to `#game-root:not(.rot90)`, plus a rotated
   equivalent of the short-side rule keyed on viewport width.
-- Fixed two latent bugs this exposed in ADR-073's shipped state: the menu panel's
-  `max-height: 88vh` resolved to 743px inside a 390px-tall rotated frame, and a rotated
-  landscape frame was taking the narrow-portrait pad layout.
-- Removed a stray `this.rotatedOverride = null` that had landed inside `Input.read()`'s
-  gyro branch, where it ran every frame.
+- Fixed two latent bugs this exposed in ADR-073's shipped state (menu panel `max-height:
+  88vh` resolving to 743px inside a 390px-tall rotated frame; a rotated landscape frame
+  taking the narrow-portrait pad layout), plus a stray `this.rotatedOverride = null` that
+  had landed inside `Input.read()`'s gyro branch, where it ran every frame.
 - `screen.orientation.lock('landscape')` is attempted only when the setting is 打橫.
+- Hub carousel on phones: the card fills the frame (90% of a 440px viewport, up from 64%)
+  and neighbours are pushed fully off-screen. `updateCarousel()` picks the step from a rule
+  — a neighbour is wholly visible or wholly hidden, never cut — so desktop keeps its
+  three-card look with no breakpoint in the JS.
 
 ## Changed files
 
 - `games/Racing Car/src/settings.js`, `src/main.js`, `src/input.js`, `style.css`, `index.html`
 - `games/Racing Car/tests/setup.mjs`, `tests/season.mjs`
+- `style.css`, `launcher.js`, `tests/hub.mjs` (hub carousel)
 - `docs/ai/DECISIONS.md`, `HANDOFF.md`
 
 ## Verification
 
 - Suites: race 101/101, setup 112/112, rivals 59/59, ghost 29/29, season 55/55,
-  audio 32/32 (388/388); `run-all` green. Hub 23/23 unchanged.
-- T4b now gates the switch itself: default at 390×844 gives a 390×844 frame,
-  `rotated === false`, canvas aspect below 1; tapping 打橫 gives 844×390, `rotated === true`,
-  aspect above 1, and persists; tapping 打直 puts it back and the joystick axes swap with it.
-  `orientationchange` pauses in neither mode.
+  audio 32/32 (388/388); `run-all` green.
+- T4b gates the switch itself: default at 390×844 gives a 390×844 frame, `rotated === false`,
+  canvas aspect below 1; 打橫 gives 844×390, `rotated === true`, aspect above 1, and persists;
+  打直 puts it back and the joystick axes swap with it. `orientationchange` never pauses.
+- Hub 33/33, including new gates: no neighbour card is partially visible, the active card is
+  not clipped by the `overflow: hidden` frame, and it spans at least 82% of a phone viewport.
 - Headed Chromium at 390×844: 打直 frame [390,844]; 打橫 frame [844,390] with the menu panel
   at 420×343 inside it (the `--fh` fix — it was 743px tall before); 打橫 on an 844×390
   device does not rotate at all.
 
 ## Remaining release gates
 
-- Penny picks 打直 or 打橫 on her phone and confirms the picture behaves and the steering
-  still reads the way her thumb moves in whichever she picked.
+- Penny picks 打直 or 打橫 on her phone, confirms the picture behaves and the steering still
+  reads the way her thumb moves, and checks the enlarged hub card.
 - Penny re-tries gyro on her phone: is the new travel (full lock at about 21° at her stored
   sensitivity 1.4) and the finer middle range better, and is the direction correct?
 - Penny drives the new braking: straight-line braking should stay straight, and braking into
   a corner should rotate progressively with more steering.
-- Penny listens to the synthesized engine, tyre, wind, collision, and event balance.
-- Penny drives a representative run, returns to the menu, taps 複製報告, and pastes the
-  one-line report. That single line proves the settings used alongside performance.
+- Penny listens to the synthesized engine, tyre, wind, collision, and event balance, then
+  taps 複製報告 after a representative run and pastes the one-line report.
 
 ## Known issues and cautions
 
@@ -68,6 +71,8 @@ manual switch, no automatic behaviour at all.
   account for it. Rect-based hit tests are already correct.
 - Inside `#game-root`, use `--fw`/`--fh`, never `vw`/`vh`: under `.rot90` they are swapped
   and the viewport units point at the wrong edge.
+- Hub cards are sized in `%` of the carousel frame, not `vw`: body, `.switch-container` and
+  `.carousel-container` padding eat 42px a side, so `vw` overflows the clipping frame.
 - ADR-062's rejected tuning attempts remain rejected; ADR-065 supersedes only its decision
   to keep Turbo reversed out, not its measurements.
 - Brake force is now demand, not delivered force; delivered force comes from the friction
