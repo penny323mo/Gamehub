@@ -4,6 +4,7 @@
 export const STEER_KEY = 'racer-invert-steer';
 export const GYRO_KEY = 'racer-gyro';
 export const GYRO_SENS_KEY = 'racer-gyro-sens';
+export const CONTROL_MODE_KEY = 'racer-control-mode';
 
 export class Input {
     constructor(root) {
@@ -17,7 +18,10 @@ export class Input {
         // 端到端撳掣測試）都話而家個方向啱，但玩家先係最終標準——與其
         // 靠估，不如畀佢一撳就掉轉。
         this.invert = localStorage.getItem(STEER_KEY) === '1';
-        this.gyroSens = Number(localStorage.getItem(GYRO_SENS_KEY) ?? 1);
+        this.gyroSens = Number(localStorage.getItem(GYRO_SENS_KEY) ?? 1.4);
+        this.controlMode = localStorage.getItem(CONTROL_MODE_KEY) === 'standard'
+            ? 'standard'
+            : 'simple';
 
         // 陀螺儀
         this.gyro = { on: false, tilt: 0, zero: null, supported: 'DeviceOrientationEvent' in window };
@@ -223,6 +227,10 @@ export class Input {
         this.gyroSens = v;
         try { localStorage.setItem(GYRO_SENS_KEY, String(v)); } catch { }
     }
+    setControlMode(mode) {
+        this.controlMode = mode === 'standard' ? 'standard' : 'simple';
+        try { localStorage.setItem(CONTROL_MODE_KEY, this.controlMode); } catch { }
+    }
 
     // iOS 要喺一個真實 user gesture 入面問權限，所以呢個一定要由撳掣叫。
     async enableGyro() {
@@ -273,17 +281,24 @@ export class Input {
         this.steerSmooth += (target - this.steerSmooth) * Math.min(1, dt * 9);
         if (Math.abs(this.steerSmooth) < 0.01) this.steerSmooth = 0;
 
-        // 陀螺儀：±22 度（乘靈敏度）打到盡。手指撳掣有輸入嗰陣以手指優先，
+        // 陀螺儀：±16 度（再乘靈敏度）打到盡。舊版要扭到 ±22 度先有全軚，
+        // 實機感覺太鈍；縮短行程之後用細幅度手腕動作已經睇得出左右反應。
+        // 手指撳掣有輸入嗰陣以手指優先，
         // 唔係嘅話兩種輸入會打交。
         let steer = this.steerSmooth;
         if (this.gyro.on && target === 0 && !stickActive) {
-            const span = 22 / Math.max(0.3, this.gyroSens);
+            const span = 16 / Math.max(0.3, this.gyroSens);
             steer = Math.max(-1, Math.min(1, this.gyro.tilt / span));
             if (Math.abs(steer) < 0.06) steer = 0;      // 死區：唔會自己遊走
         }
 
+        // 簡易模式只要求玩家掌軚、煞車同漂移。比賽未開始時主迴圈唔會 read，
+        // 所以自動油門只會喺綠燈後生效；煞車永遠優先，漂移時保留少量動力。
+        const throttle = this.controlMode === 'simple'
+            ? (down ? -1 : drift ? 0.72 : 1)
+            : (up ? 1 : 0) - (down ? 1 : 0);
         return {
-            throttle: (up ? 1 : 0) - (down ? 1 : 0),
+            throttle,
             steer: this.invert ? -steer : steer,
             handbrake: drift,
         };

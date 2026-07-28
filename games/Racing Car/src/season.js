@@ -11,6 +11,25 @@
 const KEY = 'racer-season-v1';
 const HIST_KEY = 'racer-season-hist-v1';
 const HIST_MAX = 5;
+const RECORD_KEY = 'racer-season-records-v1';
+
+function emptyRecords() {
+    return { seasons: 0, titles: 0, bestPlace: null, lastPlace: null, tracks: {} };
+}
+
+function loadRecords() {
+    try {
+        const value = JSON.parse(localStorage.getItem(RECORD_KEY));
+        if (!value || typeof value !== 'object') return emptyRecords();
+        return {
+            seasons: Math.max(0, value.seasons | 0),
+            titles: Math.max(0, value.titles | 0),
+            bestPlace: Number.isFinite(value.bestPlace) ? value.bestPlace : null,
+            lastPlace: Number.isFinite(value.lastPlace) ? value.lastPlace : null,
+            tracks: value.tracks && typeof value.tracks === 'object' ? value.tracks : {},
+        };
+    } catch { return emptyRecords(); }
+}
 
 export function pointsFor(place, entrants) {
     if (!Number.isFinite(place) || place < 1 || place > entrants) return 0;
@@ -36,6 +55,8 @@ export class Season {
         this.pool = [...trackIds];
         this.trackIds = [...trackIds];
         this.playerLabel = null;
+        this.career = loadRecords();
+        this.lastCompletion = null;
         this.reset();
     }
 
@@ -55,6 +76,7 @@ export class Season {
         this.points = {};            // 名 -> 分
         this.results = [];           // 每場嘅名次表（用嚟顯示）
         this.active = false;
+        this.lastCompletion = null;
         return this;
     }
 
@@ -73,6 +95,7 @@ export class Season {
     // 收一場嘅名次（results() 出嘅嗰個 shape），派分再入下一場
     record(rows) {
         if (!this.active || this.finished) return null;
+        const track = this.currentTrack;
         const entrants = rows.length;
         const awarded = rows.map(r => {
             const gained = pointsFor(r.place, entrants);
@@ -80,8 +103,11 @@ export class Season {
             if (r.player) this.playerLabel = r.label;
             return { label: r.label, colour: r.colour, player: r.player, place: r.place, gained };
         });
-        this.results.push({ track: this.currentTrack, rows: awarded });
+        this.results.push({ track, rows: awarded });
+        const mine = awarded.find(r => r.player);
+        if (mine) this.#recordTrack(track, mine.place);
         this.round += 1;
+        if (this.finished && mine) this.#recordCompletion(mine.label);
         this.save();
         if (this.finished) this.#archive();
         return awarded;
@@ -146,6 +172,48 @@ export class Season {
                 trackIds: this.trackIds, playerLabel: this.playerLabel,
             }));
         } catch { /* 私隱模式：唔存都照玩，淨係唔續得 */ }
+    }
+
+    #recordTrack(track, place) {
+        const old = this.career.tracks[track] ?? { races: 0, wins: 0, bestPlace: null, lastPlace: null };
+        this.career.tracks[track] = {
+            races: old.races + 1,
+            wins: old.wins + (place === 1 ? 1 : 0),
+            bestPlace: old.bestPlace == null ? place : Math.min(old.bestPlace, place),
+            lastPlace: place,
+        };
+        this.#saveRecords();
+    }
+
+    #recordCompletion(playerLabel) {
+        const row = this.standings().find(r => r.label === playerLabel);
+        if (!row) return;
+        const previousBest = this.career.bestPlace;
+        this.career.seasons += 1;
+        if (row.place === 1) this.career.titles += 1;
+        this.career.bestPlace = previousBest == null ? row.place : Math.min(previousBest, row.place);
+        this.career.lastPlace = row.place;
+        this.lastCompletion = {
+            place: row.place,
+            champion: row.place === 1,
+            newBest: previousBest == null || row.place < previousBest,
+        };
+        this.#saveRecords();
+    }
+
+    #saveRecords() {
+        try { localStorage.setItem(RECORD_KEY, JSON.stringify(this.career)); } catch { }
+    }
+
+    trackRecord(track) {
+        const row = this.career.tracks[track];
+        return row ? { ...row } : { races: 0, wins: 0, bestPlace: null, lastPlace: null };
+    }
+
+    clearRecords() {
+        this.career = emptyRecords();
+        this.lastCompletion = null;
+        try { localStorage.removeItem(RECORD_KEY); } catch { }
     }
 
     load() {

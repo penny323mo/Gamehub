@@ -224,6 +224,15 @@ body {
     bottom: 0;
 }
 
+body.simple-controls #pad-gas {
+    opacity: .82;
+}
+
+body.simple-controls #pad-gas .action-icon {
+    font-size: 17px;
+    transform: none;
+}
+
 #pad-brake {
     right: 124px;
     bottom: 4px;
@@ -636,6 +645,47 @@ body {
 #menu-records b {
     font-size: 15px;
     font-variant-numeric: tabular-nums;
+}
+
+#season-records {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+}
+
+#season-records div {
+    min-width: 0;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(255, 205, 92, .08);
+    border: 1px solid rgba(255, 205, 92, .16);
+}
+
+#season-records span {
+    display: block;
+    color: #c8af73;
+    font-size: 10.5px;
+}
+
+#season-records b {
+    display: block;
+    white-space: normal;
+    line-height: 1.35;
+    color: #ffe6a8;
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+}
+
+#season-record-note {
+    margin-top: 7px;
+    text-align: center;
+}
+
+#season-record-note.record-hot {
+    color: #ffe49a;
+    border: 1px solid rgba(255, 214, 102, .32);
+    background: rgba(255, 205, 92, .11);
 }
 
 /* ---------- 漂移 HUD ---------- */

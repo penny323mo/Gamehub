@@ -70,6 +70,8 @@ export function createDriver(track, skill = SKILLS.quick) {
                 throttle: Math.max(-1, Math.min(1, (vMax - speed) * 0.35)) * ease,
                 steer: Math.max(-1, Math.min(1, angErr * 1.7 * ease - car.slipAngle * 1.3)),
                 handbrake: false,
+                // AI 已經有自己嘅路線、收油同反打控制器，唔可以再疊玩家輔助搶軚。
+                assist: false,
             };
         },
     };

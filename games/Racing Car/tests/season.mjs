@@ -23,6 +23,7 @@ check('名次無效唔會派分', pts.bad.every(v => v === 0), pts.bad);
 const run = await page.evaluate(async () => {
     const { Season } = await import('./src/season.js');
     localStorage.removeItem('racer-season-v1');
+    localStorage.removeItem('racer-season-records-v1');
     const s = new Season(['a', 'b', 'c']).start();
     const race = (order) => s.record(order.map((label, i) => ({
         label, colour: 0, player: label === '你', place: i + 1,
@@ -37,6 +38,8 @@ const run = await page.evaluate(async () => {
     out.afterTwo = s.standings();
     race(['你', '阿藍', '阿烈']);          // 你 +6 = 16；阿藍 +4 = 10；阿烈 +2 = 10
     out.final = s.standings();
+    out.career = JSON.parse(JSON.stringify(s.career));
+    out.turbo = s.trackRecord('a');
     out.finished = s.finished;
     out.roundEnd = s.round;
     // 跑完之後再收成績唔應該再加分
@@ -46,9 +49,11 @@ const run = await page.evaluate(async () => {
     // 續得返：另開一個 Season 由 localStorage 讀
     const again = new Season(['a', 'b', 'c']);
     const loaded = again.load();
-    out.resume = { loaded, round: again.round, mine: again.points['你'] };
+    out.resume = { loaded, round: again.round, mine: again.points['你'], career: again.career };
     again.clear();
     out.afterClear = new Season(['a', 'b', 'c']).load();
+    out.careerAfterClear = new Season(['a', 'b', 'c']).career;
+    again.clearRecords();
     return out;
 });
 console.log('  ', JSON.stringify(run));
@@ -63,13 +68,20 @@ check('同分要靠 countback 分高下',
     && run.final[1].label === '阿烈' && run.final[1].wins === 1
     && run.final[2].label === '阿藍' && run.final[2].wins === 0, run.final);
 check('三場跑完就完結', run.finished === true && run.roundEnd === 3, run);
+check('完成一屆會留下冠軍同最佳總排名', run.career.seasons === 1
+    && run.career.titles === 1 && run.career.bestPlace === 1, run.career);
+check('每條分站各自記出賽、勝場同最佳名次', run.turbo.races === 1
+    && run.turbo.wins === 0 && run.turbo.bestPlace === 2, run.turbo);
 check('完咗再收成績唔會再加分',
     run.extra === null && run.pointsAfterExtra === 16, run);
 check('中途離開續得返', run.resume.loaded === true && run.resume.round === 3
-    && run.resume.mine === 16, run.resume);
+    && run.resume.mine === 16 && run.resume.career.titles === 1, run.resume);
 check('清除之後唔會再續', run.afterClear === false, run.afterClear);
+check('完結今屆唔會清走生涯紀錄', run.careerAfterClear.seasons === 1
+    && run.careerAfterClear.titles === 1, run.careerAfterClear);
 
 // T3：入返遊戲——撳錦標賽會鎖住當場賽道、迫夠對手、完賽會派分
+await page.setViewportSize({ width: 320, height: 568 });
 const live = await page.evaluate(async () => {
     const { season, setRivals, startSeason, buildTrack, TRACKS } = window.__racer;
     season.clear();
@@ -89,8 +101,25 @@ const live = await page.evaluate(async () => {
     out.panelVisible = !document.getElementById('season-box').classList.contains('hidden');
     out.rowCount = document.getElementById('season-rows').children.length;
     out.nextLabel = document.getElementById('next-race-btn').textContent;
+    out.roundRecord = document.getElementById('season-record-note').textContent;
     out.round = season.round;
+    // 補埋兩場，驗證總成績同 menu 生涯紀錄真係呈現。
+    season.record(rows);
+    season.record(rows);
+    window.__racer.renderSeasonPanel();
+    window.__racer.toMenu();
+    out.doneRecord = document.getElementById('season-record-note').textContent;
+    out.menuCareer = document.getElementById('season-career').textContent;
+    out.trackCareer = document.getElementById('season-track-career').textContent;
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    const panel = document.querySelector('#screen-start .panel');
+    const cards = [...document.querySelectorAll('#season-records > div')].map(el => {
+        const b = el.getBoundingClientRect();
+        return { left: b.left, right: b.right, width: b.width };
+    });
+    out.recordCards = { cards, panelWidth: panel.clientWidth, panelScroll: panel.scrollWidth };
     season.clear();
+    season.clearRecords();
     return out;
 });
 console.log('  ', JSON.stringify(live));
@@ -100,6 +129,14 @@ check('獨自計時會被迫升到最少兩架對手', live.forcedRivals >= 2, l
 check('由第一條賽道開始', live.firstTrack === 'turbo', live.firstTrack);
 check('完賽畫面出到積分榜', live.panelVisible === true && live.rowCount >= 3, live);
 check('「下一場」寫住下一條賽道', /下一場/.test(live.nextLabel), live.nextLabel);
+check('中途面板講清楚分站已保存', /分站紀錄已保存/.test(live.roundRecord), live.roundRecord);
+check('完成三場會顯示生涯屆數同最佳名次', /生涯 1 屆/.test(live.doneRecord)
+    && /最佳第/.test(live.doneRecord), live.doneRecord);
+check('開始畫面保留錦標賽生涯紀錄', /1 屆/.test(live.menuCareer)
+    && /戰/.test(live.trackCareer), live);
+check('兩張生涯紀錄卡唔會撐闊開始面板', live.recordCards.cards.length === 2
+    && live.recordCards.panelScroll <= live.recordCards.panelWidth + 1
+    && live.recordCards.cards.every(card => card.width > 90), live.recordCards);
 
 // T4：自選賽程——揀邊幾條、跑幾多場由玩家話事，而且要續得返
 const custom = await page.evaluate(async () => {

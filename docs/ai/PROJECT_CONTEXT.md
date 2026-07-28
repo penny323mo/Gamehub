@@ -28,7 +28,7 @@ Ashen Rail during deployment.
 | Tower Defense | `games/tower/dist/index.html` | Vite + TypeScript + Three.js; tracked `dist/` is the hub target. |
 | Neon Snake | `games/snake-game/dist/index.html` | React + Vite + TypeScript; tracked `dist/` is the hub target. |
 | Empire Royale | `games/royale/index.html` | Static ES modules + vendored Three.js. Two modes: Clash-style lane battle (`game.js`, `ai.js`) and LV2 age-of-empires RTS (`src/rts/`). Shared: `models.js`, `rig.js` (procedural bone animation), `sfx.js`, `net.js`/`pvp.js` (Supabase PvP), `leaderboard.js`, `storage.js`, `gauntlet.js`, `profiles.js`. Regression suite in `games/royale/tests/`. |
-| Racing Car 3D | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Continuous spline track (`track.js`), day/dusk/night environment (`environment.js`), bounded driving effects, arcade physics, four physical AI rivals plus a dithered ghost in one instanced field (`rivals.js`, `ghost.js`), and a persistent three-race championship (`season.js`). Draco-compressed player car. Tests in `games/Racing Car/tests/`. |
+| Racing Car 3D | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Continuous spline track (`track.js`), day/dusk/night environment (`environment.js`), bounded driving effects, player-only arcade assists and simple auto-throttle controls, four physical AI rivals plus a dithered ghost in one instanced field (`rivals.js`, `ghost.js`), and a persistent three-race championship with career records (`season.js`). Draco-compressed player car. Tests in `games/Racing Car/tests/`. |
 | Ashen Rail | `games/ashen-rail/dist/index.html` | Self-contained Vite + TypeScript + Babylon.js bonus game; CI builds `dist/`. |
 | Xiangqi AI | `games/xiangqi-ai/dist/index.html` | Vite + Three.js; hub targets tracked `dist/`. |
 | Database | `supabase/migrations/` | Append-only numbered migrations; never edit an applied migration casually. |
@@ -146,7 +146,8 @@ dual-touch input, adaptive DPR limits, pause/wake-lock lifecycle, WebGL context
 loss/restore, orientation pause, settings, gyro mapping, and minimap.
 It also verifies the enlarged floating analogue joystick/right-thumb slide-action cluster, the
 day/dusk/night sky, stars, headlight, reflective-track states, fixed-capacity driving
-effects, rivals/ghost/season rules, and the combined night + rivals + ghost + effects
+effects, player-only arcade assists, simple-mode/gyro input, rivals/ghost/season career
+rules, and the combined night + rivals + ghost + effects
 render budget, dual-touch and
 capture-loss reset, asymmetric notch safe areas, `viewport-fit=cover`, and the on-device
 performance report contract (FPS windows, long frames, DPR, viewport, track, and copy

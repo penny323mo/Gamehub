@@ -578,6 +578,22 @@ function buildSettings() {
     }
     markSeg('#steer-seg', 'invert', input.invert ? 1 : 0);
 
+    const showControlMode = () => {
+        markSeg('#control-mode-seg', 'controls', input.controlMode);
+        document.body.classList.toggle('simple-controls', input.controlMode === 'simple');
+        const gas = $('pad-gas');
+        gas.setAttribute('aria-label', input.controlMode === 'simple' ? '自動加速中' : '油門');
+        gas.querySelector('.action-icon').textContent = input.controlMode === 'simple' ? 'AUTO' : '»';
+        gas.querySelector('.action-label').textContent = input.controlMode === 'simple' ? '自動' : '油門';
+    };
+    for (const b of document.querySelectorAll('#control-mode-seg button')) {
+        b.addEventListener('click', () => {
+            input.setControlMode(b.dataset.controls);
+            showControlMode();
+        });
+    }
+    showControlMode();
+
     for (const b of document.querySelectorAll('#rival-seg button')) {
         b.addEventListener('click', () => setRivals(Number(b.dataset.rivals)));
     }
@@ -653,6 +669,17 @@ function renderSeasonPanel() {
     }
     nextBtn.classList.remove('hidden');
     nextBtn.textContent = done ? '完結錦標賽' : `下一場：${trackById(season.currentTrack).name}`;
+    const record = $('season-record-note');
+    if (done) {
+        const c = season.career;
+        const latest = season.lastCompletion;
+        record.textContent = `${latest?.champion ? '🏆 今屆冠軍 · ' : ''}`
+            + `生涯 ${c.seasons} 屆 · ${c.titles} 冠 · 最佳第 ${c.bestPlace ?? '--'}`;
+        record.classList.toggle('record-hot', !!latest?.newBest);
+    } else {
+        record.textContent = `分站紀錄已保存 · 尚餘 ${season.totalRounds - season.round} 場`;
+        record.classList.remove('record-hot');
+    }
 }
 
 function startSeason() {
@@ -717,6 +744,7 @@ function updateSeasonMenu() {
         }
     }
     renderSeasonHistory();
+    renderSeasonRecords();
 }
 
 // 歷屆榜：淨係報冠軍同你自己排第幾。錦標賽一 clear 就冇晒紀錄嘅話，
@@ -745,11 +773,24 @@ function renderSeasonHistory() {
     box.appendChild(clear);
 }
 
+function renderSeasonRecords() {
+    const c = season.career;
+    $('season-career').textContent = c.seasons
+        ? `${c.seasons} 屆 · ${c.titles} 冠 · 最佳第 ${c.bestPlace}`
+        : '未完成過';
+    const tr = season.trackRecord(trackDef.id);
+    $('season-track-label').textContent = `${trackDef.name}分站`;
+    $('season-track-career').textContent = tr.races
+        ? `${tr.races} 戰 · ${tr.wins} 勝 · 最佳第 ${tr.bestPlace}`
+        : '未出賽';
+}
+
 function refreshBest() {
     if (!race) return;
     const saved = race.loadBest();
     $('menu-best').textContent = saved.bestLap == null ? '未有紀錄' : fmtTime(saved.bestLap);
     $('menu-score').textContent = saved.bestScore ? saved.bestScore.toLocaleString() : '0';
+    renderSeasonRecords();
 }
 
 // ---------- HUD ----------

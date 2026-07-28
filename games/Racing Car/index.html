@@ -130,6 +130,13 @@
                     </div>
                     <div id="device-report" class="set-note">跑一段路再返回選單，就會有實機 FPS 報告。</div>
                     <div class="set-row">
+                        <span>操控模式</span>
+                        <div class="seg" id="control-mode-seg">
+                            <button data-controls="simple">簡易（自動加速）</button>
+                            <button data-controls="standard">標準</button>
+                        </div>
+                    </div>
+                    <div class="set-row">
                         <span>轉向方向</span>
                         <div class="seg" id="steer-seg">
                             <button data-invert="0">正常</button>
@@ -150,6 +157,8 @@
                     <div id="gyro-note" class="set-note hidden"></div>
                 </div>
                 <div class="howto">
+                    <div><b>爽快輔助</b>：自動穩定車尾、輕量反打同出彎循跡；拉手煞仍可主動漂移</div>
+                    <div><b>簡易模式</b>：自動加速，只需控制左右；需要時撳煞車／飄移</div>
                     <div><b>鍵盤</b>：↑ 油門 · ↓ 煞車 · ← → 轉向 · <b>空白鍵 手煞（甩尾）</b></div>
                     <div><b>手機</b>：左邊轉向，右邊油門／煞車／手煞</div>
                     <div><b>點樣甩尾</b>：入彎前撳手煞打軚，車尾滑出去之後<b>反打</b>頂住，油門控制角度</div>
@@ -163,6 +172,10 @@
                     <div class="seg" id="season-track-seg"></div>
                 </div>
                 <div id="season-history" class="set-note hidden"></div>
+                <div id="season-records">
+                    <div><span>錦標賽生涯</span><b id="season-career">未完成過</b></div>
+                    <div><span id="season-track-label">本賽道分站</span><b id="season-track-career">未出賽</b></div>
+                </div>
             </div>
         </div>
 
@@ -192,6 +205,7 @@
                 <div id="season-box" class="hidden">
                     <div class="section-label" id="season-title">錦標賽</div>
                     <div id="season-rows"></div>
+                    <div id="season-record-note" class="set-note"></div>
                 </div>
                 <div class="btn-row">
                     <button id="next-race-btn" class="big-btn hidden">下一場</button>

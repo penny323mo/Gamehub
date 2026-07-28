@@ -739,3 +739,32 @@ follows what the tyres can use
   not answer "who won last time". Archiving inside `record()` is the only point that
   survives closing the tab. Cleaning the list rather than trusting it prevents a
   zero-round season, which starts already `finished` and can never be raced.
+
+## ADR-056: Racing Car defaults to simple player-only arcade assistance
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: fresh players start in persistent `simple` control mode: throttle is
+  automatic, brake overrides it, and handbrake drift retains 72% drive. `standard`
+  remains available for manual throttle. The player's car receives bounded
+  countersteer, yaw damping, and traction reduction only after handbrake release.
+  AI commands set `assist: false`. Gyro reaches full steer at ±16° and starts at
+  sensitivity 1.4, while touch steering still overrides orientation input.
+- Reason: Penny explicitly prioritised responsiveness and low control burden over
+  simulation technique. Requiring simultaneous steering and throttle made mobile play
+  needlessly difficult, but route choice, braking, and drift timing still provide the
+  decisions. Applying the same helper to AI duplicated its existing controller and
+  caused wall hits, so the assist boundary must remain player-only.
+
+## ADR-057: Championship career history is separate from the active season
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: keep resumable current-season state in `racer-season-v1` and completed
+  career history in `racer-season-records-v1`. Career history stores seasons, titles,
+  overall best/last place, and per-track races, wins, and best/last place. Resetting or
+  clearing a current season must not clear career history.
+- Reason: resumable progress and lifetime achievement have different lifecycles.
+  Keeping them in one object made "start a new championship" liable to erase the reason
+  to replay. Career records compare places and wins rather than total points because
+  championship points scale with the selected number of entrants.

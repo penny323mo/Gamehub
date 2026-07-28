@@ -335,10 +335,68 @@ const listenerGate = await page.evaluate(() => {
 console.log('  ', JSON.stringify(listenerGate));
 check('改轉向之後對手設定仍只觸發一次', listenerGate.rivalWrites === 1, listenerGate);
 
-// T5：陀螺儀——傾側會變成軚，手指有輸入時以手指優先
-const gyro = await page.evaluate(() => {
+// T5：簡易模式會自動加速，但煞車／漂移仍然即時接管，並記住玩家選擇。
+const simpleMode = await page.evaluate(() => {
     const { input } = window.__racer;
-    input.gyro.on = true; input.gyro.zero = 0;
+    input.reset(document);
+    const initialMode = input.controlMode;
+    document.querySelector('#control-mode-seg [data-controls="simple"]').click();
+    const cruise = input.read(1 / 60);
+    input.touch.brake = true;
+    const braking = input.read(1 / 60);
+    input.touch.brake = false;
+    input.touch.drift = true;
+    const drifting = input.read(1 / 60);
+    input.touch.drift = false;
+    document.querySelector('#control-mode-seg [data-controls="standard"]').click();
+    const standardIdle = input.read(1 / 60);
+    document.querySelector('#control-mode-seg [data-controls="simple"]').click();
+    return {
+        initialMode, cruise, braking, drifting, standardIdle,
+        saved: localStorage.getItem('racer-control-mode'),
+        selected: document.querySelector('#control-mode-seg button.on')?.dataset.controls,
+        bodyClass: document.body.classList.contains('simple-controls'),
+        gasLabel: document.getElementById('pad-gas').getAttribute('aria-label'),
+    };
+});
+console.log('  ', JSON.stringify(simpleMode));
+check('新玩家預設用簡易模式', simpleMode.initialMode === 'simple', simpleMode.initialMode);
+check('簡易模式放手都會自動加速，煞車就即時反轉', simpleMode.cruise.throttle === 1
+    && simpleMode.braking.throttle === -1, simpleMode);
+check('簡易模式拉手煞保留少量動力，仍可爽快漂移',
+    simpleMode.drifting.handbrake && simpleMode.drifting.throttle > 0.6
+    && simpleMode.drifting.throttle < 0.8, simpleMode.drifting);
+check('切返標準模式放手唔會加速', simpleMode.standardIdle.throttle === 0, simpleMode.standardIdle);
+check('簡易模式會保存並清楚標示自動加速', simpleMode.saved === 'simple'
+    && simpleMode.selected === 'simple' && simpleMode.bodyClass
+    && simpleMode.gasLabel.includes('自動'), simpleMode);
+
+// T5a：陀螺儀——真 deviceorientation event 會經校正基準變成左右軚；
+// 手指有輸入時仍然以手指優先。
+const gyro = await page.evaluate(async () => {
+    const { input } = window.__racer;
+    const hadCtor = 'DeviceOrientationEvent' in window;
+    const originalCtor = window.DeviceOrientationEvent;
+    const oldSens = input.gyroSens;
+    class MockOrientationEvent extends Event {
+        constructor(type, init = {}) {
+            super(type);
+            this.beta = init.beta ?? 0;
+            this.gamma = init.gamma ?? 0;
+        }
+    }
+    window.DeviceOrientationEvent = MockOrientationEvent;
+    input.gyro.supported = true;
+    input.setGyroSens(1);
+    const enabled = await input.enableGyro();
+    dispatchEvent(new MockOrientationEvent('deviceorientation', { beta: 0, gamma: 10 }));
+    const calibrated = input.read(1 / 60).steer;
+    dispatchEvent(new MockOrientationEvent('deviceorientation', { beta: 0, gamma: 26 }));
+    const eventRight = input.read(1 / 60).steer;
+    dispatchEvent(new MockOrientationEvent('deviceorientation', { beta: 0, gamma: -6 }));
+    const eventLeft = input.read(1 / 60).steer;
+
+    input.gyro.zero = 0;
     const at = (tilt, touchLeft = false) => {
         input.gyro.tilt = tilt;
         input.touch.left = touchLeft;
@@ -349,12 +407,20 @@ const gyro = await page.evaluate(() => {
     };
     const out = {
         flat: at(0), right: at(22), left: at(-22),
-        small: at(1), touchWins: at(22, true),
+        small: at(0.7), touchWins: at(22, true),
+        enabled, calibrated: +calibrated.toFixed(3),
+        eventRight: +eventRight.toFixed(3), eventLeft: +eventLeft.toFixed(3),
     };
-    input.gyro.on = false; input.gyro.tilt = 0;
+    input.disableGyro();
+    input.setGyroSens(oldSens);
+    if (hadCtor) window.DeviceOrientationEvent = originalCtor;
+    else delete window.DeviceOrientationEvent;
     return out;
 });
 console.log('  ', JSON.stringify(gyro));
+check('真陀螺儀事件首個姿勢會校正做中間', gyro.enabled && gyro.calibrated === 0, gyro);
+check('真陀螺儀事件向右／向左各自輸出正／負軚',
+    gyro.eventRight > 0.9 && gyro.eventLeft < -0.9, gyro);
 check('打平唔會自己轉', gyro.flat === 0, gyro.flat);
 check('向右傾 = 向右轉', gyro.right > 0.9, gyro.right);
 check('向左傾 = 向左轉', gyro.left < -0.9, gyro.left);
@@ -365,6 +431,7 @@ check('撳住掣嘅時候以手指為準', gyro.touchWins < 0, gyro.touchWins);
 const touch = await page.evaluate(() => {
     const root = window.__racer;
     const { input } = root;
+    input.setControlMode('standard');
     root.startRace();
     input.setInvert(false);
     const fire = (id, type, pointerId, coords = {}) => document.getElementById(id).dispatchEvent(new PointerEvent(type, {

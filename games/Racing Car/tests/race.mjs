@@ -123,10 +123,10 @@ const phys = await page.evaluate(async () => {
     // 除咗滑移角，仲要量「車身總共轉咗幾多度」。淨係睇滑移角會誤導：
     // 繼續向彎內扭都會令滑移角變細——因為車頭追上咗行進方向，但代價係成架車
     // 轉多咗大半個圈（即係打緊圈）。反打嘅價值喺於「唔使轉咁多就穩返」。
-    const settle = (steer, throttle = 0.55) => {
+    const settle = (steer, throttle = 0.55, assist = false, frames = 150) => {
         const yaw0 = car.yaw;
-        for (let i = 0; i < 150; i++) {
-            car.update(1 / 60, { throttle, steer, handbrake: false }, PLANE);
+        for (let i = 0; i < frames; i++) {
+            car.update(1 / 60, { throttle, steer, handbrake: false, assist }, PLANE);
         }
         return {
             spin: Math.round(Math.abs(car.yaw - yaw0) * 180 / Math.PI),
@@ -139,10 +139,18 @@ const phys = await page.evaluate(async () => {
     const inwardRun = settle(-counter * 0.85);             // 繼續向彎內扭：應該轉多好多
     restore(mid);
     const liftRun = settle(counter, 0);                    // 反打但收晒油（記錄用）
+    restore(mid);
+    const assistedRun = settle(0, 0.55, true, 60);         // 玩家唔識反打，由爽快輔助救車
+    restore(mid);
+    const unassistedRun = settle(0, 0.55, false, 60);
     out.slipAfterCounterDeg = counterRun.end;
     out.counterSpinDeg = counterRun.spin;
     out.inwardSpinDeg = inwardRun.spin;
     out.slipAfterLiftDeg = liftRun.end;
+    out.assistedNeutralSlipDeg = assistedRun.end;
+    out.assistedNeutralSpinDeg = assistedRun.spin;
+    out.unassistedNeutralSlipDeg = unassistedRun.end;
+    out.unassistedNeutralSpinDeg = unassistedRun.spin;
 
     // (d) 同樣速度、同樣打軚，但唔用手煞：後輪抓得住，角度要明顯細啲
     car.reset(track.startPos, track.startDir);
@@ -163,7 +171,8 @@ const phys = await page.evaluate(async () => {
 });
 console.log('  ', JSON.stringify(phys));
 check('沿賽道加到高速（>120 km/h）', phys.topKmh > 120, phys.topKmh);
-check('低速加速有力（0–80 km/h < 3.3 秒）', phys.zeroTo80 < 3.3, phys.zeroTo80);
+check('低速加速更爽快（0–80 km/h 介乎 2.3–2.85 秒）',
+    phys.zeroTo80 > 2.3 && phys.zeroTo80 < 2.85, phys.zeroTo80);
 check('手煞打軚會甩尾（>20°）', phys.handbrakeSlipDeg > 20, phys.handbrakeSlipDeg);
 check('甩尾期間仲有速度', phys.speedWhileDrift > 25, phys.speedWhileDrift);
 check('甩尾期間有 drifting 旗標', phys.driftFlag === true);
@@ -171,6 +180,10 @@ check('反打救得返（角度跌落 20° 以下）',
     phys.slipAfterCounterDeg < 20, phys);
 check('反打好過繼續扭入彎（至少少轉 20° 就穩返）',
     phys.counterSpinDeg <= phys.inwardSpinDeg - 20, phys);
+check('爽快輔助可代玩家穩住車尾（首秒中性軚少轉至少 2°）',
+    phys.assistedNeutralSpinDeg <= phys.unassistedNeutralSpinDeg - 2, phys);
+check('爽快輔助首秒滑移角細過無輔助',
+    phys.assistedNeutralSlipDeg < phys.unassistedNeutralSlipDeg, phys);
 check('唔用手煞明顯冇咁大角度', phys.gripSlipDeg < phys.handbrakeSlipDeg * 0.75,
     { grip: phys.gripSlipDeg, handbrake: phys.handbrakeSlipDeg });
 check('落草極速明顯低過路面', phys.grassKmh < phys.topKmh * 0.6, phys.grassKmh);
@@ -319,6 +332,7 @@ for (const id of TRACK_IDS) {
                 // 追線之餘要反打：甩緊尾就唔可以再死扭軚，否則一定打圈
                 steer: Math.max(-1, Math.min(1, angErr * 1.7 * ease - car.slipAngle * 1.3)),
                 handbrake: false,
+                assist: false,
             };
         };
 

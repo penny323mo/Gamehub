@@ -20,7 +20,7 @@ export const CFG = {
 
     // 低速額外扭力改善起步／慢彎出彎；速度上升後漸變返原本穩定輸出，
     // 避免高速巡航同反打因全段加力而失控。traction clamp 仍限制落地力量。
-    launchForce: 10200,
+    launchForce: 11600,
     engineForce: 8500,
     brakeForce: 20000,
     reverseForce: 6000,
@@ -34,6 +34,10 @@ export const CFG = {
     // 隨手一撳就過咗輪胎峰值——車頭反而冇力，跟住車尾自己盪出去打圈。
     steerSpeedDrop: 2.4,
     steerRate: 5.5,      // 軚盤打得幾快（每秒）
+    assistCountersteer: 0.9, // 放開手煞後輕推反打，降低手機細軚輸入嘅救車門檻
+    assistMaxSteer: 0.38,
+    assistYawDamp: 2.2,  // 大角度開始時穩住偏航，唔會細失誤即刻打圈
+    assistTractionCut: 0.22,
 
     // 輪胎（Pacejka 簡化）：F = D·sin(C·atan(B·α))
     tyreB: 8.2,
@@ -73,6 +77,9 @@ export class Car {
         this.wallHit = false;
         this.wallImpact = 0;
         this.bodyRoll = 0;
+        // 預設定位係爽快街機，而唔係硬核模擬。保留成員方便物理因果測試，
+        // 遊戲 UI 唔要求玩家先理解一堆電子輔助設定先可以揸得順。
+        this.arcadeAssist = true;
     }
 
     reset(pos, dir) {
@@ -106,13 +113,26 @@ export class Car {
         const vLong = this.vel.x * fwdX + this.vel.z * fwdZ;
         const vLat = this.vel.x * latX + this.vel.z * latZ;
         const speed = Math.hypot(vLong, vLat);
+        const assists = this.arcadeAssist && input.assist !== false;
 
         // ---- 轉向：目標角度隨速度收窄，再平滑過渡（軚盤唔會瞬間到底）----
         const speedFactor = 1 / (1 + Math.max(0, speed) * CFG.steerSpeedDrop / 30);
         // input.steer > 0 = 玩家想向畫面右邊；畫面右 = local -x，所以要負號。
         // 唔加呢個負號嘅話，撳右會向左行——同 Penny 早前報嘅「轉向反方向」
         // 係同一個病，只不過嗰次係模型掉轉，今次係物理側向軸嘅符號。
-        const target = -input.steer * CFG.steerMax * speedFactor;
+        // 玩家拉手煞時完全唔干預，等佢主動拋車尾；一放手就按上一幀滑移角
+        // 輕量反打。輔助量有上限，玩家仍然決定路線，唔會變成自動駕駛。
+        let steerCommand = input.steer;
+        const assistSlip = Math.abs(this.slipAngle);
+        if (assists && !input.handbrake && speed > 8 && assistSlip > 0.08) {
+            const counter = Math.min(
+                CFG.assistMaxSteer,
+                (assistSlip - 0.08) * CFG.assistCountersteer,
+            );
+            steerCommand -= Math.sign(this.slipAngle) * counter;
+        }
+        steerCommand = Math.max(-1, Math.min(1, steerCommand));
+        const target = -steerCommand * CFG.steerMax * speedFactor;
         this.steer += (target - this.steer) * Math.min(1, dt * CFG.steerRate);
 
         this.offroad = !track.isDrivable(this.pos.x, this.pos.z);
@@ -123,6 +143,12 @@ export class Car {
             const torqueFade = Math.min(1, Math.abs(vLong) / 25);
             const available = CFG.launchForce + (CFG.engineForce - CFG.launchForce) * torqueFade;
             driveF = available * input.throttle;
+            // 車尾已經開始滑時略收動力，模擬循跡控制；直路起步同玩家拉手煞
+            // 漂移都唔會被削，出彎就少啲「再踩一下即打圈」。
+            if (assists && !input.handbrake && assistSlip > 0.12) {
+                const cut = Math.min(CFG.assistTractionCut, (assistSlip - 0.12) * 0.7);
+                driveF *= 1 - cut;
+            }
         }
         else if (input.throttle < 0) {
             driveF = vLong > 0.6 ? -CFG.brakeForce : CFG.reverseForce * input.throttle;
@@ -181,6 +207,10 @@ export class Car {
         // 偏航力矩：前軸推頭、後軸擺尾
         const torque = CFG.wheelBaseF * latF * Math.cos(this.steer) - CFG.wheelBaseR * latR;
         this.yawRate += (torque / CFG.inertia) * dt;
+        if (assists && !input.handbrake && assistSlip > 0.12) {
+            const damp = Math.min(CFG.assistYawDamp, (assistSlip - 0.12) * 7);
+            this.yawRate *= Math.max(0, 1 - damp * dt);
+        }
         if (speed < 1.2) this.yawRate *= Math.max(0, 1 - dt * 6);   // 停定唔好殘餘自轉
         this.yaw += this.yawRate * dt;
 
