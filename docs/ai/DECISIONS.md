@@ -922,3 +922,27 @@ follows what the tyres can use
   half travel, so the middle of the range is where fine corrections live, while full lock
   is still reachable. Smoothstep was tried first and rejected: it is 0.5 at half travel,
   which is exactly the property that had to change.
+
+## ADR-067: No rival difficulty setting until the driver's pace is a smooth control
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: do not ship a 對手強弱 setting. The `pace` multiplier on the driver's target
+  speed exists as a concept but is not exposed, because it does not map monotonically to
+  lap time or cleanliness.
+- Reason: a difficulty dial has to mean what its label says on every circuit. Measured
+  solo, one driver, six circuits, three paces (best lap / off-road / wall frames):
+  Turbo 0.82 → 40.7s clean, 0.92 → 44.3s with 7.3% off-road and 8 wall frames,
+  1.00 → 36.0s clean. Turbo reversed inverts it: 1.00 → 41.0s with 74 wall frames,
+  0.92 → 36.9s clean. Coast is worst in the middle too. A four-car field is no better:
+  at full pace the field is slower than at 0.82 on Coast (130.6s vs 115.5s mean) because
+  it spends 9.5% of the race off-road instead of 0.4%.
+- The cause is that pace shifts where the car arrives at every corner, and this
+  centreline pure-pursuit controller either takes a corner cleanly or does not. Lap time
+  is therefore chaotic in the parameter rather than smooth.
+- Also rejected on measurement: raising pace above 1 (111–138s becomes 160–193s with 15%
+  off-road) and promoting every rival one skill tier (112–167s, 13% off-road) — both make
+  the field slower, which is the opposite of "harder".
+- A real difficulty scale needs a driver that holds its line at any pace — lateral-error
+  feedback against a racing line, not a centreline chase with a speed cap. That is its
+  own phase with its own evidence, not a setting bolted onto today's controller.

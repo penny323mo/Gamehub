@@ -3,46 +3,39 @@
 Updated: 2026-07-28 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
-Baseline before this task: `becf071`
-Status: gyro steering reworked after Penny's phone verdict; sixth circuit shipped earlier this session
+Baseline before this task: `094e8e8`
+Status: rival difficulty investigated and deliberately not shipped; nothing in the game changed
 
 ## Current objective
 
-Act on Penny's phone verdict "陀螺儀體驗好差，轉向比例奇怪" — the gyro response curve,
-not its direction.
+Give Penny a 對手強弱 dial so rival pace stops needing a round trip through her phone —
+if the measurements support it.
 
 ## Completed
 
-- Reworked gyro steering into `gyroSteer(tiltDeg, sens)`: 2° deadzone measured in degrees,
-  full lock at `30 / sens` degrees instead of 11°, and shaping `x * (0.3 + 0.7x²)` so half
-  travel is about 24% steer. `Input.read` now low-passes the result at ~11/s (ADR-066).
-- Three separate faults were behind one complaint: travel far too short, a linear map, and
-  no smoothing at all — touch had smoothing, gyro bypassed it and fed raw sensor noise
-  straight to the wheel.
-- Added the 校正 button the setting text has always promised, and the note now states the
-  actual full-lock angle for the current sensitivity.
-- Earlier in this session: spin recovery state and the sixth circuit (ADR-065).
+- Built the setting end to end (pace multiplier on the driver's target speed, 設定 row,
+  persistence, spawn plumbing), measured it, and reverted all of it.
+- It cannot be labelled honestly. Solo, six circuits, three paces: Turbo is worst in the
+  middle (0.92 gives 44.3s, 7.3% off-road, 8 wall frames, against 40.7s and 36.0s clean
+  either side), while Turbo reversed is best in the middle (36.9s clean at 0.92 against
+  41.0s with 74 wall frames at full pace). A four-car field agrees: on Coast the full-pace
+  field is 15s per car slower than the slowest setting because it spends 9.5% of the race
+  off-road instead of 0.4%.
+- Two ways of making rivals harder were also measured and rejected: pace above 1
+  (111–138s becomes 160–193s) and promoting every rival a skill tier (112–167s). Both make
+  the field slower, because the controller is already at its own limit.
+- Recorded all of it in ADR-067, including what a real difficulty scale would require.
 
 ## Changed files
 
-- `games/Racing Car/src/input.js`, `src/main.js`, `index.html`
-- `games/Racing Car/src/driver.js`, `src/tracks.js` (earlier in session)
-- `games/Racing Car/tests/setup.mjs`, `tests/race.mjs`, `tests/season.mjs`
+- `docs/ai/DECISIONS.md`, `HANDOFF.md` only — no game code changed this round
 - `docs/ai/DECISIONS.md`, `HANDOFF.md`
 
 ## Verification
 
-- Suites: race 85/85, setup 95/95, rivals 59/59, ghost 29/29, season 55/55, audio 32/32
-  (355/355); `run-all` green.
-- The curve is tested as a pure function: deadzone in degrees, full lock exactly at span,
-  clamped beyond it, monotonic across the range, left/right symmetric, sensitivity scaling
-  in the right direction, half travel between 15% and 30% steer, and no NaN from junk.
-- Smoothing is tested through real `deviceorientation` events: one frame after a full tilt
-  the wheel is under 0.4, and it settles to full lock over about a second.
-- Turbo reversed lap gate holds at 74 wall-contact frames and zero rescues; all six
-  circuits still need zero rescues.
-- Headed Chromium at 390×844: the 校正 button is 44×49 px and the settings panel does not
-  overflow (scrollWidth == clientWidth == 355).
+- Working tree returned to `094e8e8` for all game code; race 85/85 confirms the revert.
+- The rejected measurements are reproducible: a solo driver over six circuits at pace
+  0.82/0.92/1.00, and a four-car field over four circuits at the same three paces.
 
 ## Remaining release gates
 
@@ -77,6 +70,7 @@ not its direction.
 - Do not fold spin recovery back into the racing control law (ADR-065).
 - Do not make the gyro map linear again, shorten its travel below 30/sens degrees, or
   remove its smoothing (ADR-066).
+- Do not add a rival difficulty setting on top of today's driver; read ADR-067 first.
 - Do not make braking proportional without retuning the AI driver in the same pass.
 - Do not add audio files or allocate audio nodes per frame; keep audio off-race silent.
 - Do not amend, rebase, or force-push published `main` history.
