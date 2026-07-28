@@ -26,7 +26,9 @@ body {
 
 /* --fw / --fh 係「遊戲版面」嘅闊高，唔一定等於 viewport。轉咗 90° 之後
    兩者對調，所以入面所有按比例嘅尺寸都要跟呢兩個變數，唔可以直接寫
-   vw／vh——否則轉咗之後會攞錯條邊嚟計（例如 panel 嘅 88vh 會高過個框）。 */
+   vw／vh——否則轉咗之後會攞錯條邊嚟計（例如 panel 嘅 88vh 會高過個框）。
+   闊高本身留返畀 dvw／dvh 而唔係由 JS 寫 px：唔使等 resize event 到，
+   viewport 一變就即刻啱。JS 淨係決定轉唔轉（.rot90），唔負責度尺。 */
 #game-root {
     position: fixed;
     top: 0;

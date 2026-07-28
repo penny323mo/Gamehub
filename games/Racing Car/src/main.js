@@ -100,18 +100,39 @@ function resize() {
 // 遊戲永遠唔會自己改方向——會唔會轉，只係睇個設定同部機而家嘅形狀。
 // 之前試過「一律強制打橫」（ADR-073）同「打直就暫停」（ADR-072），
 // 兩樣 Penny 用落都唔啱：由頭到尾佢想要嘅係自己揀。
-const isPortrait = () => innerHeight > innerWidth;
+//
+// iOS 嗰邊唔可以「量一次就當數」。轉方向嘅時候 Safari 會連續報幾次尺寸，
+// 中間嗰啲仲係舊值（甚至係轉到一半嘅過渡值），而 orientationchange 通常
+// 喺 viewport 真正變之前就到。舊寫法喺事件嗰刻量一次就落 class，量錯咗
+// 就一直錯落去——Penny 見到嘅「轉方向就亂曬」。而家三重保險：
+//   1. 每次事件都「重新判斷」，唔淨係補 resize；
+//   2. orientationchange 之後連續補判幾次，等 Safari 自己安定落嚟；
+//   3. 個框嘅闊高留返畀 CSS（dvw／dvh）同 ResizeObserver，唔靠 JS 度尺——
+//      就算所有事件都遲到，畫面都唔會停留喺舊尺寸。
+function viewportSize() {
+    // visualViewport 喺 iOS 轉緊方向嗰陣比 innerWidth／innerHeight 準。
+    const vv = window.visualViewport;
+    return {
+        w: Math.round(vv?.width || innerWidth),
+        h: Math.round(vv?.height || innerHeight),
+    };
+}
+const isPortrait = () => { const v = viewportSize(); return v.h > v.w; };
 let orientMode = loadOrient();
 
 function applyOrientation() {
+    const { w, h } = viewportSize();
     // 打橫模式先要轉，而且淨係喺部機真係打直嗰陣先轉。
-    const rot = orientMode === 'landscape' && isPortrait();
+    const rot = orientMode === 'landscape' && h > w;
     root.classList.toggle('rot90', rot);
     input?.setRotated(rot);
     resize();
-    // iOS 報 innerWidth／clientWidth 會慢半拍，所以補多一次。
-    setTimeout(resize, 120);
     return rot;
+}
+
+// 轉方向之後連續補判幾次：唔係為咗郁畫面，係為咗接住 Safari 最尾嗰個尺寸。
+function settleOrientation() {
+    for (const delay of [0, 80, 200, 450, 800]) setTimeout(applyOrientation, delay);
 }
 
 function setOrient(mode) {
@@ -130,8 +151,12 @@ function tryLockLandscape() {
 }
 
 addEventListener('resize', applyOrientation);
-// orientationchange 淨係用嚟重新計一次版面，唔會暫停亦唔會改設定
-addEventListener('orientationchange', () => setTimeout(applyOrientation, 60));
+// orientationchange 淨係用嚟重新計版面，唔會暫停亦唔會改設定
+addEventListener('orientationchange', settleOrientation);
+visualViewport?.addEventListener('resize', applyOrientation);
+// 最後一道保險：唔理邊個事件有冇到、幾時到，個框一變就即刻重新 setSize。
+// （只做 resize，唔重新判斷方向，所以唔會同上面互相觸發。）
+try { new ResizeObserver(() => resize()).observe(holder); } catch { }
 
 // ---------- 手機畫質 ----------
 // Auto 只調 pixel ratio，唔會喺比賽中拆 mesh／改 physics。低幀率連續一個
@@ -1219,6 +1244,8 @@ $('pause-menu-btn').addEventListener('click', toMenu);
 $('copy-report-btn').addEventListener('click', copyPerformanceReport);
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) pauseRace('你離開咗遊戲，進度已安全暫停');
+    // 返嚟嗰陣重新判斷一次：喺背景嗰時轉咗方向，iOS 未必補派事件畀我哋。
+    else settleOrientation();
 });
 addEventListener('pagehide', () => pauseRace('遊戲頁面已暫停，進度已保留'));
 

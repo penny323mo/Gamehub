@@ -1134,3 +1134,30 @@ follows what the tyres can use
   and the joystick's axes swap with it (screen-right steers right unrotated, screen-down
   steers right rotated). `orientationchange` never pauses in either mode. The two suites
   that measure phone layout are back on 320×568, the shape the default now presents.
+
+## ADR-075: Orientation is re-decided, never measured once
+
+- Date: 2026-07-28
+- Status: accepted (refines ADR-074's mechanism; the setting itself is unchanged)
+- Decision: `applyOrientation()` measures through `visualViewport` (falling back to
+  `innerWidth`/`innerHeight`) and is re-run — not merely followed by a `resize()` — on
+  `resize`, `visualViewport.resize`, and on returning from the background. An
+  `orientationchange` schedules five re-decisions (0/80/200/450/800 ms) instead of one. The
+  frame's own width and height stay in CSS as `dvw`/`dvh`, and a `ResizeObserver` on
+  `#canvas-holder` re-runs `renderer.setSize()` whenever the box changes.
+- Reason: Penny reported that rotating the iPhone still scrambled the display under
+  ADR-074. iOS Safari fires `orientationchange` before the viewport actually changes and
+  reports intermediate sizes during the rotation, so a single measurement at event time can
+  be the pre-rotation one. The old code then latched that wrong answer into the `.rot90`
+  class and never revisited it — every later event only re-ran `resize()`. Anything that
+  measures once on iOS is wrong; the fix is to keep asking.
+- Sizing the frame from JS pixels was tried and reverted in the same pass. It makes the
+  frame depend on an event arriving, which is exactly the dependency being removed — a
+  viewport change with a late handler left the frame at the old pixel size. `dvw`/`dvh`
+  are correct the moment the viewport changes, with no JS involved.
+- Gates: with a stubbed `visualViewport` returning the pre-rotation size, an
+  `orientationchange` makes the game decide wrongly, and it recovers to the correct class
+  within a second with no further event dispatched. Separately, resizing `#game-root`
+  directly — no event of any kind — still resizes the canvas and the drawing buffer to
+  match. The canvas is asserted to fill the frame, and the frame to equal the (swapped
+  where rotated) viewport, in all three orientation states.

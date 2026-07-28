@@ -433,6 +433,13 @@ const readFrame = () => page.evaluate(() => {
         screenBox: { w: Math.round(box.width), h: Math.round(box.height) },
         canvasAspect: canvas ? +(canvas.clientWidth / canvas.clientHeight).toFixed(2) : null,
         inputRotated: window.__racer.input.rotated,
+        // canvas 一定要填滿個框：對唔上就係 Penny 講嘅「轉方向亂曬顯示」
+        canvasFits: !!canvas && Math.abs(canvas.clientWidth - el.offsetWidth) <= 1
+            && Math.abs(canvas.clientHeight - el.offsetHeight) <= 1,
+        // 個框亦要等於 viewport（轉咗就係對調）
+        frameFitsViewport: window.__racer.rotated
+            ? Math.abs(el.offsetWidth - innerHeight) <= 1 && Math.abs(el.offsetHeight - innerWidth) <= 1
+            : Math.abs(el.offsetWidth - innerWidth) <= 1 && Math.abs(el.offsetHeight - innerHeight) <= 1,
     };
 });
 
@@ -446,6 +453,8 @@ check('打直唔會暫停比賽',
     upright.paused === false && upright.running === true, upright);
 check('打直模式下畫布跟住部機（直度）', upright.canvasAspect < 1, upright.canvasAspect);
 check('打直模式下 input 唔會當自己轉咗', upright.inputRotated === false, upright);
+check('打直模式下 canvas 填滿個框、個框等於 viewport',
+    upright.canvasFits && upright.frameFitsViewport, upright);
 
 // 手動撳「打橫」：同一部打直嘅機，畫面即刻變橫
 await page.evaluate(() => document.querySelector('#orient-seg button[data-orient="landscape"]').click());
@@ -459,8 +468,31 @@ check('打橫模式下畫布係橫嘅（鏡頭比例啱）', portrait.canvasAspe
 check('打橫模式下 input 知道自己轉咗', portrait.inputRotated === true, portrait);
 check('轉方向唔會暫停比賽',
     portrait.paused === false && portrait.running === true, portrait);
+check('打橫模式下 canvas 填滿個框、個框等於對調咗嘅 viewport',
+    portrait.canvasFits && portrait.frameFitsViewport, portrait);
 const savedOrient = await page.evaluate(() => localStorage.getItem('racer-orient'));
 check('畫面方向會記得住', savedOrient === 'landscape', savedOrient);
+
+// iOS 會喺 viewport 真正變之前就派 orientationchange，嗰刻量到嘅仲係舊尺寸。
+// 呢度就係咁樣整：暫時餵一個「打橫」嘅假尺寸，派一次 orientationchange，
+// 睇住佢判錯，然後收返個假值——之後一個事件都唔派，靠補判自己追返。
+const stale = await page.evaluate(async () => {
+    const el = document.getElementById('game-root');
+    const real = window.visualViewport;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    Object.defineProperty(window, 'visualViewport', {
+        configurable: true, get: () => ({ width: 844, height: 390 }),
+    });
+    dispatchEvent(new Event('orientationchange'));
+    await sleep(120);
+    const afterStale = el.classList.contains('rot90');
+    Object.defineProperty(window, 'visualViewport', { configurable: true, get: () => real });
+    await sleep(1000);
+    return { afterStale, recovered: el.classList.contains('rot90'), rotated: window.__racer.rotated };
+});
+console.log('  ', JSON.stringify(stale));
+check('量到舊尺寸判錯咗，之後唔使再派事件都會自己追返啱',
+    stale.afterStale === false && stale.recovered === true && stale.rotated === true, stale);
 
 // 轉咗之後觸控仍然要準：撳「油門」要收到油門，搖桿向遊戲右邊要出正數
 const rotatedTouch = await page.evaluate(() => {
@@ -520,6 +552,31 @@ console.log('  ', JSON.stringify({ back, backTouch }));
 check('撳返「打直」即刻收返個 90°',
     back.orient === 'portrait' && back.rotated === false
     && back.gameH > back.gameW && back.inputRotated === false, back);
+check('收返之後 canvas 同個框仍然對得住', back.canvasFits && back.frameFitsViewport, back);
+
+// iOS 轉方向嗰陣，resize／orientationchange 報嘅尺寸可以係舊值，落錯咗
+// class 就一直錯落去（Penny：「轉方向仍然會亂曬顯示」）。所以個框一變就
+// 一定要重新 setSize，唔可以靠事件——呢度直接改個框、一個事件都唔派。
+const observed = await page.evaluate(async () => {
+    const el = document.getElementById('game-root');
+    el.style.width = '500px';
+    el.style.height = '300px';
+    await new Promise(r => setTimeout(r, 300));
+    const canvas = document.querySelector('#canvas-holder canvas');
+    const out = {
+        canvas: [canvas.clientWidth, canvas.clientHeight],
+        frame: [el.offsetWidth, el.offsetHeight],
+        drawing: [window.__racer.renderer.domElement.width, window.__racer.renderer.domElement.height],
+    };
+    el.style.width = '';
+    el.style.height = '';
+    window.__racer.applyOrientation();
+    return out;
+});
+console.log('  ', JSON.stringify(observed));
+check('冇派任何事件，個框一變 canvas 都要跟住變（ResizeObserver 兜底）',
+    Math.abs(observed.canvas[0] - observed.frame[0]) <= 1
+    && Math.abs(observed.canvas[1] - observed.frame[1]) <= 1, observed);
 check('打直模式下搖桿向螢幕右邊＝右軚', backTouch > 0.3, backTouch);
 
 await page.setViewportSize({ width: 900, height: 760 });

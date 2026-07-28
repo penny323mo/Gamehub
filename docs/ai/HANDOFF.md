@@ -4,7 +4,7 @@ Updated: 2026-07-28 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Baseline before this task: `2dec492`
-Status: 畫面方向 is a two-value player setting; nothing rotates or pauses on its own
+Status: 畫面方向 is a two-value player setting, now re-decided on every signal (ADR-075)
 
 ## Current objective
 
@@ -19,19 +19,20 @@ manual switch, no automatic behaviour at all.
 - Rotation is a class (`.rot90`) toggled by `applyOrientation()`, not a media query — the
   media query was the automatic behaviour. The same boolean goes into `Input.setRotated()`,
   so touch mapping and CSS cannot disagree; `Input` no longer reads `matchMedia` itself.
-- Layout inside the frame is measured against the frame: `#game-root` defines `--fw`/`--fh`
-  (swapped under `.rot90`) and every proportional size uses them instead of `vw`/`vh`; the
-  phone-layout media queries are scoped to `#game-root:not(.rot90)`, plus a rotated
-  equivalent of the short-side rule keyed on viewport width.
-- Fixed two latent bugs this exposed in ADR-073's shipped state (menu panel `max-height:
-  88vh` resolving to 743px inside a 390px-tall rotated frame; a rotated landscape frame
-  taking the narrow-portrait pad layout), plus a stray `this.rotatedOverride = null` that
-  had landed inside `Input.read()`'s gyro branch, where it ran every frame.
+- Layout inside the frame is measured against the frame: `--fw`/`--fh` (swapped under
+  `.rot90`) replace `vw`/`vh` everywhere, and the phone-layout media queries are scoped to
+  `#game-root:not(.rot90)` plus a rotated equivalent of the short-side rule.
+- Fixed two latent bugs this exposed (menu panel `max-height: 88vh` resolving to 743px in a
+  390px-tall rotated frame; a rotated frame taking the narrow-portrait pad layout), plus a
+  stray `this.rotatedOverride = null` sitting inside `Input.read()`'s gyro branch.
 - `screen.orientation.lock('landscape')` is attempted only when the setting is 打橫.
-- Hub carousel on phones: the card fills the frame (90% of a 440px viewport, up from 64%)
-  and neighbours are pushed fully off-screen. `updateCarousel()` picks the step from a rule
-  — a neighbour is wholly visible or wholly hidden, never cut — so desktop keeps its
-  three-card look with no breakpoint in the JS.
+- Penny then reported the iPhone still scrambled on rotation. Fixed by never measuring once
+  (ADR-075): `applyOrientation()` reads `visualViewport`, re-runs on every resize signal and
+  on return from background, `orientationchange` schedules five re-decisions, the frame's
+  size stays in CSS `dvw`/`dvh`, and a `ResizeObserver` re-runs `renderer.setSize()`.
+- Hub carousel on phones: the card fills the frame (90% of a 440px viewport, up from 64%),
+  neighbours pushed fully off-screen. `updateCarousel()` picks the step from a rule — a
+  neighbour is wholly visible or wholly hidden, never cut — so desktop is unchanged.
 
 ## Changed files
 
@@ -42,50 +43,47 @@ manual switch, no automatic behaviour at all.
 
 ## Verification
 
-- Suites: race 101/101, setup 112/112, rivals 59/59, ghost 29/29, season 55/55,
-  audio 32/32 (388/388); `run-all` green.
-- T4b gates the switch itself: default at 390×844 gives a 390×844 frame, `rotated === false`,
-  canvas aspect below 1; 打橫 gives 844×390, `rotated === true`, aspect above 1, and persists;
-  打直 puts it back and the joystick axes swap with it. `orientationchange` never pauses.
-- Hub 33/33, including new gates: no neighbour card is partially visible, the active card is
+- Suites: race 101/101, setup 117/117, rivals 59/59, ghost 29/29, season 55/55,
+  audio 32/32 (393/393); `run-all` green.
+- T4b gates the switch: at 390×844 the default gives a 390×844 frame with `rotated === false`;
+  打橫 gives 844×390, `rotated === true`, and persists; 打直 puts it back and the joystick axes
+  swap with it. `orientationchange` never pauses.
+- Hub 33/33, including gates: no neighbour card is partially visible, the active card is
   not clipped by the `overflow: hidden` frame, and it spans at least 82% of a phone viewport.
+- New gates reproduce the iPhone bug: a stubbed stale `visualViewport` makes the game decide
+  wrongly on `orientationchange`, and it recovers within a second with no further event;
+  resizing `#game-root` with no event at all still resizes the canvas and drawing buffer.
 - Headed Chromium at 390×844: 打直 frame [390,844]; 打橫 frame [844,390] with the menu panel
-  at 420×343 inside it (the `--fh` fix — it was 743px tall before); 打橫 on an 844×390
-  device does not rotate at all.
+  at 420×343 inside it; 打橫 on an 844×390 device does not rotate at all.
 
 ## Remaining release gates
 
-- Penny picks 打直 or 打橫 on her phone, confirms the picture behaves and the steering still
-  reads the way her thumb moves, and checks the enlarged hub card.
-- Penny re-tries gyro on her phone: is the new travel (full lock at about 21° at her stored
-  sensitivity 1.4) and the finer middle range better, and is the direction correct?
-- Penny drives the new braking: straight-line braking should stay straight, and braking into
-  a corner should rotate progressively with more steering.
-- Penny listens to the synthesized engine, tyre, wind, collision, and event balance, then
-  taps 複製報告 after a representative run and pastes the one-line report.
+- Penny rotates the iPhone in both 打直 and 打橫 and confirms the picture no longer scrambles,
+  the steering still reads the way her thumb moves, and checks the enlarged hub card.
+- Penny re-tries gyro: is the new travel (full lock at ~21° at her stored sensitivity 1.4)
+  and finer middle range better, and is the direction correct?
+- Penny drives the new braking: straight-line braking stays straight; braking into a corner
+  rotates progressively with more steering.
+- Penny checks audio balance, then taps 複製報告 after a run and pastes the one-line report.
 
 ## Known issues and cautions
 
-- 打橫 mode is a CSS transform, so anything new that reads pointer coordinates must go
-  through `Input.localPoint()`, and anything that positions an element from `clientX/Y` must
-  account for it. Rect-based hit tests are already correct.
-- Inside `#game-root`, use `--fw`/`--fh`, never `vw`/`vh`: under `.rot90` they are swapped
-  and the viewport units point at the wrong edge.
-- Hub cards are sized in `%` of the carousel frame, not `vw`: body, `.switch-container` and
-  `.carousel-container` padding eat 42px a side, so `vw` overflows the clipping frame.
-- ADR-062's rejected tuning attempts remain rejected; ADR-065 supersedes only its decision
-  to keep Turbo reversed out, not its measurements.
-- Brake force is now demand, not delivered force; delivered force comes from the friction
-  circle. Any further change to it must retune `SKILLS.brakeA` in the same pass.
-- A drift now holds speed and settles rather than snapping, but it still needs throttle and
-  countersteer coordination to sustain past a few seconds. Whether that is the right
-  difficulty is Penny's call on a phone, not a desktop measurement.
+- 打橫 mode is a CSS transform: anything reading pointer coordinates must go through
+  `Input.localPoint()`. Rect-based hit tests are already correct.
+- Inside `#game-root` use `--fw`/`--fh`, never `vw`/`vh`: under `.rot90` they are swapped.
+- Hub cards are sized in `%` of the carousel frame, not `vw`: the outer padding eats 42px a
+  side, so `vw` overflows the clipping frame.
+- ADR-062's rejected attempts stay rejected; ADR-065 supersedes only its Turbo decision.
+- Brake force is demand, not delivered force; delivered force comes from the friction circle.
+  Any further change must retune `SKILLS.brakeA` in the same pass.
+- A drift holds speed and settles rather than snapping, but sustaining one past a few seconds
+  still needs throttle and countersteer together. Whether that is right is Penny's call.
 - Commits may show Unverified without a signing key; do not rewrite published history.
 
 ## Exact next action
 
-1. Receiving agent runs `./scripts/agent-context.sh --sync`, then reads ADR-074 and
-   ADR-068 to ADR-071.
+1. Receiving agent runs `./scripts/agent-context.sh --sync`, then reads ADR-074, ADR-075,
+   and ADR-068 to ADR-071.
 2. Penny sends the copied physical-phone report plus short judgements: which 畫面方向 she
    settled on and whether it behaves, gyro direction, sensitivity (slow/right/fast), and
    audio balance. Tune only contradicted items.
@@ -96,6 +94,8 @@ manual switch, no automatic behaviour at all.
   value, or any code that changes 畫面方向 on the player's behalf (ADR-074, superseding
   ADR-072 and ADR-073). Three attempts failed for the same reason: the game deciding.
 - Do not read raw `clientX/clientY` for in-game positioning; use `Input.localPoint()`.
+- Do not decide the orientation from a single measurement, and do not size `#game-root` from
+  JS pixels — both make the frame depend on an event arriving on time (ADR-075).
 - Do not add user-agent, identity, credential, or persistent device identifiers to reports.
 - Do not raise body roll past 3.5°, and do not roll the contact shadow (ADR-063).
 - Do not merge the gyro-only direction switch into shared touch direction (ADR-064).
