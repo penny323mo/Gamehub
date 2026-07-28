@@ -59,9 +59,17 @@ export const CFG = {
     assistMaxSteer: 0.38,
     assistYawDamp: 2.2,  // 大角度開始時穩住偏航，唔會細失誤即刻打圈
     assistTractionCut: 0.22,
+    assistDampFloor: 0.45,   // 反打期間仍然保留幾多偏航阻尼（見上面註解）
 
     // 輪胎（Pacejka 簡化）：F = D·sin(C·atan(B·α))
-    tyreB: 8.2,
+    //
+    // B 決定峰值出喺幾多滑移角（α ≈ 1.6/B）。8.2 即係 11° 就到頂，之後
+    // 一路跌——所以 30–40° 嗰段冇力扶返架車，一甩就衝到 78° 再一下彈返 0：
+    // 雙穩態，中間冇平衡點，即係點揸都維持唔到一個中角度漂移。
+    // 5.0 將峰值推到約 18°（真漂移胎就係呢種闊峰值）。實測：甩尾過衝由
+    // 78° 收到 56°，唔再彈返 0 而係停喺一個淺角度；純打軚極限由 6.7° 升到
+    // 約 11°（車肯轉頭啲，玩落生動啲）；AI 圈速幾乎唔變（30.9 → 31.1 秒）。
+    tyreB: 5.0,
     tyreC: 1.55,
     gripFront: 1.45,     // 摩擦係數
     gripRear: 1.7,       // 後 > 前 ＝ 直路穩定；甩尾靠手煞同摩擦圓，唔係靠後輪本身鬆
@@ -76,6 +84,18 @@ export const CFG = {
     // 就冇側向力（實測 -250 N 對前輪 -5000 N），前輪一有側力就直接將架車
     // 扭埋去：Penny 報嘅「直線踩煞都會打橫」就係咁嚟。
     loadTransfer: 0.19,
+    // 漂移推進：呢個係明確嘅街機層，唔係物理層。
+    //
+    // 物理上，橫住滑就係會刮走速度：實測踩住全油漂移，車身推力有成
+    // 11,500 N，但車頭同行進方向差 50–87°，force 全部用咗嚟轉向，速度
+    // 由 118 跌到 40 km/h。真實，但令「漂移」喺一隻漂移計分遊戲入面
+    // 變成純粹嘅懲罰——冇人會想用。
+    //
+    // 所以喺輔助層補返一部分：踩住油、真係喺漂移角度先有，落草冇，
+    // 手煞起手嗰陣冇（唔可以用嚟無限加速）。方向係沿住「行進方向」，
+    // 唔係車頭——即係佢淨係抵消側滑損失，唔會變成一個加速外掛。
+    driftPush: 5200,
+    driftPushMinSlip: 0.3,   // 約 17°，即係真係甩緊尾先計
     offroadGrip: 0.45,   // 落草抓地
     offroadDrag: 2600,
     wallBounce: 0.4,
@@ -280,8 +300,14 @@ export class Car {
         // 偏航力矩：前軸推頭、後軸擺尾
         const torque = CFG.wheelBaseF * latF * Math.cos(this.steer) - CFG.wheelBaseR * latR;
         this.yawRate += (torque / CFG.inertia) * dt;
+        // 偏航阻尼唔同反打輔助：佢唔會搶你揀嘅角度，只係壓住「角度變化
+        // 幾快」。反打緊嘅時候完全讓路（上一版）會令架車變雙穩態——實測
+        // 42° 起手一下衝到 79°，跟住彈返 0，中間冇平衡點，即係點揸都
+        // 維持唔到一個中角度漂移。所以反打嗰陣阻尼保底 45%：軚仲係你話事，
+        // 但擺動收窄咗，就有得「揸住」個角度。
         if (assists && !input.handbrake && assistSlip > 0.12) {
-            const damp = Math.min(CFG.assistYawDamp, (assistSlip - 0.12) * 7) * assistScale;
+            const dampScale = Math.max(CFG.assistDampFloor, assistScale);
+            const damp = Math.min(CFG.assistYawDamp, (assistSlip - 0.12) * 7) * dampScale;
             this.yawRate *= Math.max(0, 1 - damp * dt);
         }
         if (speed < 1.2) this.yawRate *= Math.max(0, 1 - dt * 6);   // 停定唔好殘餘自轉
@@ -300,6 +326,20 @@ export class Car {
             fwdZ * newVLong + latZ * newVLat,
         );
 
+        // ---- 漂移推進（街機層）----
+        if (assists && !this.offroad && !input.handbrake && input.throttle > 0.3) {
+            const slipNow = Math.abs(this.slipAngle);
+            const amount = Math.min(1, (slipNow - CFG.driftPushMinSlip) / 0.45);
+            if (amount > 0) {
+                const vMag = Math.hypot(this.vel.x, this.vel.z);
+                if (vMag > 4) {
+                    const push = CFG.driftPush * input.throttle * amount / CFG.mass * dt;
+                    this.vel.x += this.vel.x / vMag * push;
+                    this.vel.z += this.vel.z / vMag * push;
+                }
+            }
+        }
+
         // ---- 位置 + 撞欄 ----
         const next = this.pos.clone().addScaledVector(this.vel, dt);
         this.wallHit = false;
@@ -313,7 +353,9 @@ export class Car {
         const sLong = this.vel.x * nFwdX + this.vel.z * nFwdZ;
         const sLat = this.vel.x * nFwdZ - this.vel.z * nFwdX;
         this.slipAngle = Math.abs(sLong) < 0.5 ? 0 : Math.atan2(sLat, Math.abs(sLong));
-        this.drifting = Math.abs(this.slipAngle) > 0.19 && this.speed > 7;   // 約 11°
+        // 門檻跟住輪胎峰值一齊搬：峰值 18° 之後，全力過彎本身就有 11° 左右
+        // 車身角，用返舊嘅 11° 門檻就變成「正常過彎都當漂移」，分數會自己流。
+        this.drifting = Math.abs(this.slipAngle) > 0.26 && this.speed > 7;   // 約 15°
 
         // 車身側傾：跟離心力，唔係跟軚盤——甩緊尾嗰陣兩者方向唔同。
         // 車身要向彎外側傾（右轉＝左邊沉），唔係好似電單車咁向內壓。

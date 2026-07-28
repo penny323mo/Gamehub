@@ -3,29 +3,34 @@
 Updated: 2026-07-28 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
-Baseline before this task: `e53e4be`
-Status: driver aids now yield to a countersteering player; drift mechanic restored
+Baseline before this task: `b4d02e3`
+Status: drift balance reworked — wider tyre peak, damping floor, explicit drift push
 
 ## Current objective
 
-Continue the physics balance toward playable: characterise limit behaviour, drift hold
-and recovery, then fix whichever of them is actually broken.
+Refine the physics so the game is easier and more exciting: make a drift something a
+player can actually hold, without giving up the safety won in the braking rewrite.
 
 ## Completed
 
-- Characterised the car rather than guessing at feel. At the limit on steering alone it
-  understeers safely (3.7° / 5.7° / 6.7° of body slip at quarter, half and full lock, no
-  spin at any input), a 40° slide is catchable in 0.7 s, and trail braking rotates
-  progressively — those three were already right after the braking rewrite.
-- Found the one that was broken: a deliberate drift could not be held. A 40° handbrake
-  entry lasted 2.1 s on raw physics but only 1.6 s with the assists on, because the
-  countersteer assist, traction cut and yaw damping could not tell a chosen drift from a
-  mistake and fought both.
-- Assists now scale by how hard the player is countersteering (ADR-069). Full opposite
-  lock disables them entirely; no correction still gets the full rescue.
-- Measured after: assisted and raw drift durations are identical at 2.1 s, recovery from a
-  40° slide improves from 0.70 s to 0.55 s, and a player who holds the wheel into the
-  corner instead of correcting is still straightened in 1.7 s.
+- Diagnosed why a drift could not be held, with force traces rather than feel. Two causes.
+  The tyre peaked at 11° of slip, so everything past it produced less force and the car
+  was bistable: a 35° entry ran to 78° then snapped to 0° in one step. And sliding
+  sideways scrubs speed hard — 11,500 N of body force while decelerating 118 km/h to
+  40 km/h, because the body axis sat 50–87° away from travel.
+- Moved the tyre peak to about 18° (`tyreB` 8.2 to 5.0). The same entry now overshoots to
+  62° and settles into a shallow slide instead of snapping; full-lock steering rotates
+  10.9° instead of 6.7°, so the car feels alive without ever spinning.
+- Kept a 45% floor of yaw damping while countersteering. ADR-069 gave the player all
+  authority including damping, and that removal is what made the car bistable — damping
+  resists the rate of change, not the angle the player chose.
+- Added an explicit, documented arcade `driftPush` along the travel direction: only on
+  throttle, only past 17° of slip, never on grass or handbrake. It offsets the scrub so a
+  drift keeps 126 km/h instead of bleeding to 86.
+- Moved the drift-scoring threshold with the tyre peak (0.19 to 0.26 rad) so ordinary
+  full-commitment cornering no longer trickles drift score.
+- Rewrote the drift gate to measure controllability rather than duration: the old check
+  rewarded a wild 42-to-79-degree swing for spending longer sideways.
 
 ## Changed files
 
@@ -35,13 +40,15 @@ and recovery, then fix whichever of them is actually broken.
 
 ## Verification
 
-- Suites: race 94/94, setup 98/98, rivals 59/59, ghost 29/29, season 55/55, audio 32/32
-  (367/367); `run-all` green.
-- New gate asserts all three halves of the rule at once: assisted drift duration matches
-  raw physics within 0.35 s, a drift survives at least 1.8 s, and a player who does not
-  countersteer is still recovered inside 3 s.
-- Rivals are unaffected — `driver.js` sends `assist: false`, and all six circuits still
-  run with zero wall contact, zero rescues and zero off-road.
+- Suites: race 95/95, setup 98/98, rivals 59/59, ghost 29/29, season 55/55, audio 32/32
+  (368/368); `run-all` green.
+- Everything won in the braking rewrite still holds: straight-line braking 2° slip and
+  0.2° of heading change with ABS against 87.9° without, trail braking progressive at
+  5.4° / 18.4° / 30.4°, handbrake drift 87°, cruise 122 km/h, 0–80 km/h 2.77s.
+- New: full-lock steering rotates 10.9° with no spin at any input, a 40° slide is caught
+  in 0.57s, a 35° drift entry peaks at 62° and holds 126 km/h.
+- AI over all six circuits: zero wall contact, zero rescues, zero off-road, lap times
+  within 0.2s of before (Coast 31.1s).
 
 ## Remaining release gates
 
@@ -59,9 +66,9 @@ and recovery, then fix whichever of them is actually broken.
   decision to keep Turbo reversed out, not its measurements.
 - Brake force is now demand, not delivered force; delivered force comes from the friction
   circle. Any further change to it must retune `SKILLS.brakeA` in the same pass.
-- A drift still decays after about 2 s because the car sheds speed (120 to 86 km/h) and
-  hooks up. That is the next balance question and it is a tyre/longitudinal one, not an
-  aid one — measure before touching (ADR-069).
+- A drift now holds speed and settles rather than snapping, but it still needs throttle
+  and countersteer coordination to sustain past a few seconds. Whether that is the right
+  difficulty is Penny's call on a phone, not a desktop measurement.
 - Commits may show Unverified without a signing key; do not rewrite published history.
 
 ## Exact next action
@@ -85,6 +92,9 @@ and recovery, then fix whichever of them is actually broken.
 - Do not charge braking to one axle's friction circle, and do not raise `loadTransfer`
   back above 0.2 — that is what put the rear wheels in the air (ADR-068).
 - Do not make braking proportional without retuning the AI driver in the same pass.
-- Do not let driver aids act while the player is holding opposite lock (ADR-069).
+- Do not let driver aids steal steering while the player holds opposite lock (ADR-069),
+  but do not remove the yaw-damping floor either — that is what made the car bistable.
+- Do not move the tyre peak back to 11° of slip, and do not raise the drift threshold
+  and tyre peak independently of each other (ADR-070).
 - Do not add audio files or allocate audio nodes per frame; keep audio off-race silent.
 - Do not amend, rebase, or force-push published `main` history.

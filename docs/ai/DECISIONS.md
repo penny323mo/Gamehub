@@ -994,3 +994,29 @@ follows what the tyres can use
 - Not addressed here: a drift still decays after about 2 s because the car sheds speed
   (120 km/h to 86 km/h) and hooks up once the rear regains grip. That is a tyre and
   longitudinal balance question, not an aid question, and it needs its own measured pass.
+
+## ADR-070: A wider tyre peak and an explicit drift push make the car playable
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: `tyreB` drops from 8.2 to 5.0, moving the tyre's force peak from 11° of slip
+  to about 18°. The drift threshold moves with it, 0.19 rad to 0.26 rad. Driver aids keep
+  a floor of 45% yaw damping while the player countersteers, even though they give up
+  steering authority entirely (ADR-069). A `driftPush` of 5200 N is added along the
+  velocity vector while genuinely drifting on throttle, on road, without handbrake.
+- Reason: with the peak at 11°, everything past it produced less force, so a drift had no
+  equilibrium. Measured: a 35° entry ran away to 78° and then snapped back to 0° in one
+  step — bistable, with nothing holdable in between, in a game scored on drifting. At
+  peak 18° the same entry overshoots to 62° and settles into a shallow slide instead of
+  snapping. Pure steering at full lock rotates 10.9° instead of 6.7°, so the car feels
+  alive without ever spinning, and the AI is unaffected (Coast 30.9s to 31.1s, still zero
+  wall contact on all six circuits).
+- The drift push is an explicit arcade layer, not physics, and is documented as such.
+  Sliding sideways scrubs speed for real — a full-throttle drift measured 11,500 N of
+  body-longitudinal force while the car slowed from 118 km/h to 40 km/h, because the body
+  axis was 50–87° away from travel. That is correct and it makes drifting pure punishment.
+  The push only counteracts the scrub: it acts along travel, never faster than the player
+  is already going, and it is off on grass, off under handbrake, and off below 17° of slip.
+- Yaw damping is separated from steering authority because they do different jobs: damping
+  resists the rate of change, not the angle the player chose. Removing it entirely (the
+  first version of ADR-069) is what made the car bistable.
