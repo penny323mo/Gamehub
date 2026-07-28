@@ -52,11 +52,11 @@ export class Input {
         this.gyro = { on: false, tilt: 0, zero: null, supported: 'DeviceOrientationEvent' in window };
         // 陀螺儀讀數本身有雜訊，而且之前完全冇平滑（觸控有，陀螺儀繞過咗）。
         this.gyroSmooth = 0;
-        // 部機打直嗰陣，CSS 會將成個遊戲轉 90° 去強制打橫（ADR-073）。
-        // 按鈕嘅命中測試用螢幕座標 AABB，轉唔轉都啱；但搖桿要嘅係「遊戲
-        // 座標」嘅左右，喺轉咗之後對應螢幕嘅上下，所以要換軸。
-        // 直接問 matchMedia，唔靠人手同步狀態——少一個「有冇記得叫」嘅位。
-        this.rotatedOverride = null;
+        // 玩家喺設定揀咗「打橫」而部機又報打直嗰陣，CSS 會將成個遊戲轉 90°
+        // （ADR-074）。按鈕嘅命中測試用螢幕座標 AABB，轉唔轉都啱；但搖桿要
+        // 嘅係「遊戲座標」嘅左右，喺轉咗之後對應螢幕嘅上下，所以要換軸。
+        // 呢個 flag 由 main.js 同 CSS class 一齊 set，唔喺呢度自己估。
+        this.rotated = false;
 
         addEventListener('keydown', (e) => {
             if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
@@ -260,14 +260,8 @@ export class Input {
         this.gyroSens = v;
         try { localStorage.setItem(GYRO_SENS_KEY, String(v)); } catch { }
     }
-    get rotated() {
-        if (this.rotatedOverride != null) return this.rotatedOverride;
-        try { return matchMedia('(orientation: portrait)').matches; } catch { return false; }
-    }
-
-    // 測試可以強制；傳 null 就交返畀 matchMedia
     setRotated(on) {
-        this.rotatedOverride = on == null ? null : !!on;
+        this.rotated = !!on;
         return this.rotated;
     }
 
@@ -360,11 +354,6 @@ export class Input {
             steer = this.gyroSmooth;
         } else {
             this.gyroSmooth = 0;
-        // 部機打直嗰陣，CSS 會將成個遊戲轉 90° 去強制打橫（ADR-073）。
-        // 按鈕嘅命中測試用螢幕座標 AABB，轉唔轉都啱；但搖桿要嘅係「遊戲
-        // 座標」嘅左右，喺轉咗之後對應螢幕嘅上下，所以要換軸。
-        // 直接問 matchMedia，唔靠人手同步狀態——少一個「有冇記得叫」嘅位。
-        this.rotatedOverride = null;
         }
 
         // 簡易模式只要求玩家掌軚、煞車同漂移。比賽未開始時主迴圈唔會 read，

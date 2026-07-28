@@ -102,6 +102,22 @@ export function saveSeasonList(ids) {
     try { localStorage.setItem(KEY_SEASON_LIST, JSON.stringify(ids)); } catch { }
 }
 
+// 畫面方向：只由玩家自己揀，遊戲永遠唔會自己轉。
+//   portrait（預設）＝ 畫面跟部機，攞成點就顯示成點，一個 transform 都冇。
+//   landscape        ＝ 畫面永遠打橫；部機報打直嗰陣，成個遊戲轉 90° 去填滿。
+// 揀咗 portrait 之後，就算部機打橫打直咁轉，遊戲都只係跟 viewport 變形，
+// 唔會自己 rotate；揀咗 landscape 就兩種攞法都睇到同一個橫向畫面。
+const KEY_ORIENT = 'racer-orient';
+export const ORIENTS = { portrait: '打直', landscape: '打橫' };
+export function loadOrient() {
+    return localStorage.getItem(KEY_ORIENT) === 'landscape' ? 'landscape' : 'portrait';
+}
+export function saveOrient(v) {
+    const id = v === 'landscape' ? 'landscape' : 'portrait';
+    try { localStorage.setItem(KEY_ORIENT, id); } catch { }
+    return id;
+}
+
 // ABS 預設開。關咗就係真實嘅無 ABS 行為：踩死煞車會鎖死，前輪鎖推頭、
 // 後輪鎖甩尾（實測直線煞車一有擾動就轉 128°）。
 export function loadAbs() { return localStorage.getItem('racer-abs') !== '0'; }

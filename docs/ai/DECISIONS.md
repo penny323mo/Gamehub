@@ -1049,7 +1049,7 @@ follows what the tyres can use
 ## ADR-072: Landscape only, and rotation stops pausing the race
 
 - Date: 2026-07-28
-- Status: superseded by ADR-073 for the portrait half of the decision; its
+- Status: superseded by ADR-073, then ADR-074, for the portrait half of the decision; its
   landscape-to-landscape finding still stands
 - Decision: Racing Car is a landscape-only game. Pausing is driven by the
   `(orientation: portrait)` media query, not by `orientationchange`. Portrait pauses the
@@ -1067,7 +1067,8 @@ follows what the tyres can use
 ## ADR-073: The game frame is always landscape, so orientation stops existing
 
 - Date: 2026-07-28
-- Status: accepted
+- Status: superseded by ADR-074 — the frame's orientation is now a player setting, not a
+  fixed choice; the coordinate mapping it introduced is still in use
 - Decision: Racing Car renders in a permanently landscape frame. When the device reports
   `(orientation: portrait)`, CSS gives `#game-root` swapped dimensions
   (`width: 100dvh; height: 100dvw`) and rotates it 90° about its top-left corner, so the
@@ -1097,3 +1098,39 @@ follows what the tyres can use
   and toward the top steers left. Two older gates measured screen-space rectangles in a
   portrait viewport and were re-pointed at 568×320, which is the shape a phone actually
   presents this game.
+
+## ADR-074: Screen orientation is a manual setting with two values and no automatic mode
+
+- Date: 2026-07-28
+- Status: accepted (supersedes ADR-073 and the remainder of ADR-072)
+- Decision: 畫面方向 is a player setting stored in `racer-orient`, with exactly two values.
+  `portrait` (the default) renders the game into the viewport as-is, with no transform at
+  any time. `landscape` renders the game into a landscape frame: while the viewport is
+  taller than it is wide, `#game-root` carries `.rot90`, which swaps its dimensions and
+  rotates it 90° about the top-left corner; on an already-landscape viewport it does
+  nothing. There is no third "automatic" value, and no code path changes the setting on the
+  player's behalf. `screen.orientation.lock('landscape')` is attempted at race start only
+  when the setting is `landscape`.
+- Reason: this is the third answer to the same question, and the first two both failed on
+  Penny's phone for the same underlying reason — the game was deciding. ADR-072 paused in
+  portrait, which fired mid-race because the OS reclassifies a tilted phone and gyro
+  steering means tilting constantly. ADR-073 removed the decision by always rotating, and
+  she rejected that too. A setting ends the argument: the only automatic behaviour left is
+  the one that implements her choice.
+- The rotation must be a class, not a media query, because the media query *is* the
+  automatic behaviour. `.rot90` is toggled by `applyOrientation()`, which also pushes the
+  same boolean into `Input.setRotated()` so touch mapping and CSS can never disagree —
+  `Input` no longer reads `matchMedia` itself.
+- Layout inside the frame must be measured against the frame, not the viewport. Two things
+  followed: `#game-root` now defines `--fw`/`--fh` (swapped under `.rot90`) and every
+  proportional size uses them instead of `vw`/`vh`, and the phone-layout media queries are
+  scoped to `#game-root:not(.rot90)` with a rotated equivalent keyed on viewport width for
+  the short-side rule. Without the first, the menu panel's `max-height: 88vh` resolved to
+  743px inside a 390px-tall frame; without the second, a rotated landscape frame took the
+  narrow-portrait pad layout.
+- Gates: at 390×844 the default renders a 390×844 frame with `rotated === false` and a
+  canvas aspect below 1; tapping 打橫 turns the same device into an 844×390 frame with
+  `rotated === true`, aspect above 1, and the choice persisted; tapping 打直 puts it back
+  and the joystick's axes swap with it (screen-right steers right unrotated, screen-down
+  steers right rotated). `orientationchange` never pauses in either mode. The two suites
+  that measure phone layout are back on 320×568, the shape the default now presents.

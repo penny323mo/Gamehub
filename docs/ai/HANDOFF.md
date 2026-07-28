@@ -3,52 +3,56 @@
 Updated: 2026-07-28 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
-Baseline before this task: `9174142`
-Status: game frame is permanently landscape; orientation no longer affects the race at all
+Baseline before this task: `2dec492`
+Status: 畫面方向 is a two-value player setting; nothing rotates or pauses on its own
 
 ## Current objective
 
-Penny's clarification: the game must never change direction because of the phone. Not a
-better pause, not a nicer prompt — no orientation reaction of any kind.
+Penny's third and final word on orientation: "不如設置成只可以手動切換橫向定直向" — make it a
+manual switch, no automatic behaviour at all.
 
 ## Completed
 
-- `#game-root` now rotates itself. In `(orientation: portrait)` CSS swaps its dimensions
-  and applies `rotate(90deg) translateY(-100%)` about the top-left corner, so the game
-  fills a portrait viewport sideways and always looks landscape (ADR-073).
-- Deleted the rotate prompt (markup, CSS) and the portrait pause from ADR-072. Portrait no
-  longer pauses, prompts, or clears input; `applyOrientation()` only re-runs `resize()`
-  because the frame's width and height swap. `screen.orientation.lock('landscape')` is
-  still attempted at race start, now only as a convenience.
-- Touch coordinates are mapped into the rotated frame: `Input.rotated` reads the same media
-  query, `Input.localPoint()` converts a screen point to game-frame coordinates, and the
-  joystick's `placeBase`/`move` use it. Buttons are untouched — their hit test uses
-  screen-space rectangles the browser has already transformed. `setRotated()` lets tests
-  force either frame.
-- Re-pointed two older gates that measured screen-space rectangles in a 320×568 viewport;
-  the shape a phone presents this game is 568×320.
+- Added the 畫面方向 setting (`racer-orient`, default `portrait`). 打直 renders into the
+  viewport with no transform ever; 打橫 renders into a landscape frame, rotating
+  `#game-root` 90° only while the viewport is taller than wide (ADR-074).
+- Rotation is now a class (`.rot90`) toggled by `applyOrientation()`, not a media query —
+  the media query was the automatic behaviour. The same boolean goes into
+  `Input.setRotated()`, so touch mapping and CSS cannot disagree; `Input` no longer reads
+  `matchMedia` itself.
+- Layout inside the frame is measured against the frame: `#game-root` defines `--fw`/`--fh`
+  (swapped under `.rot90`) and every proportional size uses them instead of `vw`/`vh`; the
+  phone-layout media queries are scoped to `#game-root:not(.rot90)`, with a rotated
+  equivalent of the short-side rule keyed on viewport width.
+- Fixed two latent bugs this exposed in ADR-073's shipped state: the menu panel's
+  `max-height: 88vh` resolved to 743px inside a 390px-tall rotated frame, and a rotated
+  landscape frame was taking the narrow-portrait pad layout.
+- Removed a stray `this.rotatedOverride = null` that had landed inside `Input.read()`'s
+  gyro branch, where it ran every frame.
+- `screen.orientation.lock('landscape')` is attempted only when the setting is 打橫.
 
 ## Changed files
 
-- `games/Racing Car/style.css`, `index.html`, `src/main.js`, `src/input.js`
+- `games/Racing Car/src/settings.js`, `src/main.js`, `src/input.js`, `style.css`, `index.html`
 - `games/Racing Car/tests/setup.mjs`, `tests/season.mjs`
 - `docs/ai/DECISIONS.md`, `HANDOFF.md`
 
 ## Verification
 
-- Suites: race 101/101, setup 104/104, rivals 59/59, ghost 29/29, season 55/55,
-  audio 32/32 (380/380); `run-all` green.
-- New gates: `orientationchange` in either orientation leaves the race running; at a 390×844
-  viewport the game frame measures 844×390 with `input.rotated === true` and a canvas aspect
-  above 1; the gas button still fires; on the rotated frame a stick drag toward the bottom of
-  the screen gives steer +1 and toward the top gives −1.
-- Headed Chromium at 390×844: device `[390, 844]` → game frame `[844, 390]`; screenshot
-  confirms the whole menu and HUD render sideways with no letterbox.
+- Suites: race 101/101, setup 112/112, rivals 59/59, ghost 29/29, season 55/55,
+  audio 32/32 (388/388); `run-all` green. Hub 23/23 unchanged.
+- T4b now gates the switch itself: default at 390×844 gives a 390×844 frame,
+  `rotated === false`, canvas aspect below 1; tapping 打橫 gives 844×390, `rotated === true`,
+  aspect above 1, and persists; tapping 打直 puts it back and the joystick axes swap with it.
+  `orientationchange` pauses in neither mode.
+- Headed Chromium at 390×844: 打直 frame [390,844]; 打橫 frame [844,390] with the menu panel
+  at 420×343 inside it (the `--fh` fix — it was 743px tall before); 打橫 on an 844×390
+  device does not rotate at all.
 
 ## Remaining release gates
 
-- Penny plays a race holding the phone upright and confirms the picture stays landscape and
-  the steering still reads the way her thumb moves.
+- Penny picks 打直 or 打橫 on her phone and confirms the picture behaves and the steering
+  still reads the way her thumb moves in whichever she picked.
 - Penny re-tries gyro on her phone: is the new travel (full lock at about 21° at her stored
   sensitivity 1.4) and the finer middle range better, and is the direction correct?
 - Penny drives the new braking: straight-line braking should stay straight, and braking into
@@ -59,9 +63,11 @@ better pause, not a nicer prompt — no orientation reaction of any kind.
 
 ## Known issues and cautions
 
-- The rotated frame is a CSS transform, so anything new that reads pointer coordinates must
-  go through `Input.localPoint()`, and anything that positions an element from `clientX/Y`
-  must account for it. Rect-based hit tests are already correct.
+- 打橫 mode is a CSS transform, so anything new that reads pointer coordinates must go
+  through `Input.localPoint()`, and anything that positions an element from `clientX/Y` must
+  account for it. Rect-based hit tests are already correct.
+- Inside `#game-root`, use `--fw`/`--fh`, never `vw`/`vh`: under `.rot90` they are swapped
+  and the viewport units point at the wrong edge.
 - ADR-062's rejected tuning attempts remain rejected; ADR-065 supersedes only its decision
   to keep Turbo reversed out, not its measurements.
 - Brake force is now demand, not delivered force; delivered force comes from the friction
@@ -73,16 +79,17 @@ better pause, not a nicer prompt — no orientation reaction of any kind.
 
 ## Exact next action
 
-1. Receiving agent runs `./scripts/agent-context.sh --sync`, then reads ADR-073, ADR-068 to
-   ADR-071.
-2. Penny sends the copied physical-phone report plus short judgements: does the picture stay
-   landscape, gyro direction, sensitivity (slow/right/fast), and audio balance. Tune only
-   contradicted items.
+1. Receiving agent runs `./scripts/agent-context.sh --sync`, then reads ADR-074 and
+   ADR-068 to ADR-071.
+2. Penny sends the copied physical-phone report plus short judgements: which 畫面方向 she
+   settled on and whether it behaves, gyro direction, sensitivity (slow/right/fast), and
+   audio balance. Tune only contradicted items.
 
 ## Do not redo
 
-- Do not reintroduce a portrait pause, a rotate prompt, or any orientation-triggered state
-  change; the frame rotates instead (ADR-073, superseding ADR-072's portrait half).
+- Do not reintroduce a portrait pause, a rotate prompt, an "automatic" third orientation
+  value, or any code that changes 畫面方向 on the player's behalf (ADR-074, superseding
+  ADR-072 and ADR-073). Three attempts failed for the same reason: the game deciding.
 - Do not read raw `clientX/clientY` for in-game positioning; use `Input.localPoint()`.
 - Do not add user-agent, identity, credential, or persistent device identifiers to reports.
 - Do not raise body roll past 3.5°, and do not roll the contact shadow (ADR-063).

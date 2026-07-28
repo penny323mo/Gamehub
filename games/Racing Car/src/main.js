@@ -19,12 +19,13 @@ import {
     COLOURS, TIMES, QUALITY_MODES,
     loadColour, saveColour, loadTod, saveTod, loadQuality, saveQuality, qualityDpr,
     loadRivals, saveRivals, loadGhostOn, saveGhostOn, loadSeasonList, saveSeasonList,
-    loadAbs, saveAbs,
+    loadAbs, saveAbs, loadOrient, saveOrient,
     paintCar, applyTime,
 } from './settings.js';
 
 const $ = (id) => document.getElementById(id);
 const holder = $('canvas-holder');
+const root = $('game-root');
 
 // ---------- 渲染器 ----------
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -92,35 +93,45 @@ function resize() {
     camera.updateProjectionMatrix();
     requestRender();
 }
-addEventListener('resize', resize);
-
-// ---------- 方向：遊戲畫面永遠打橫 ----------
-// 唔再理部機打緊直定橫——CSS 喺打直嗰陣將成個 #game-root 轉 90°，所以
-// 遊戲睇落永遠係橫。咁就根本冇「方向改變」呢件事：用陀螺儀扭手機唔會
-// 令畫面反轉，亦唔使暫停叫人打橫。
-//
-// 舊寫法係一收到 orientationchange 就暫停，而 iOS 喺 landscape 左右互換、
-// 手機接近攤平嗰陣都會報——揸車就係一路扭手機，所以必中（Penny 嗰張
-// 截圖本身已經係打橫）。
-const portraitQuery = matchMedia('(orientation: portrait)');
-const isPortrait = () => portraitQuery.matches;
+// ---------- 畫面方向：得玩家自己揀（ADR-074）----------
+// 兩個選擇，冇第三個「自動」：
+//   打直 = 畫面跟部機，一個 transform 都冇；
+//   打橫 = 畫面永遠打橫，部機報打直嗰陣就將 #game-root 轉 90° 去填滿。
+// 遊戲永遠唔會自己改方向——會唔會轉，只係睇個設定同部機而家嘅形狀。
+// 之前試過「一律強制打橫」（ADR-073）同「打直就暫停」（ADR-072），
+// 兩樣 Penny 用落都唔啱：由頭到尾佢想要嘅係自己揀。
+const isPortrait = () => innerHeight > innerWidth;
+let orientMode = loadOrient();
 
 function applyOrientation() {
-    // Input 自己問 matchMedia，所以呢度淨係要補一次 resize（轉完之後
-    // 遊戲版面嘅闊高會對調）。
+    // 打橫模式先要轉，而且淨係喺部機真係打直嗰陣先轉。
+    const rot = orientMode === 'landscape' && isPortrait();
+    root.classList.toggle('rot90', rot);
+    input?.setRotated(rot);
+    resize();
+    // iOS 報 innerWidth／clientWidth 會慢半拍，所以補多一次。
     setTimeout(resize, 120);
+    return rot;
 }
 
-// 真正鎖得到方向嘅平台（Android Chrome 全螢幕）就鎖；iOS Safari 唔支援，
-// 咁就靠上面嗰個提示 + 暫停。鎖唔到唔可以當錯誤，所以靜靜哋吞咗。
+function setOrient(mode) {
+    orientMode = mode === 'landscape' ? 'landscape' : 'portrait';
+    saveOrient(orientMode);
+    markSeg('#orient-seg', 'orient', orientMode);
+    applyOrientation();
+    return orientMode;
+}
+
+// 真正鎖得到方向嘅平台（Android Chrome 全螢幕）就鎖，慳返玩家自己扭；
+// iOS Safari 唔支援，咁就靠上面自己轉。鎖唔到唔算錯，所以靜靜哋吞咗。
 function tryLockLandscape() {
+    if (orientMode !== 'landscape') return;
     try { screen.orientation?.lock?.('landscape')?.catch?.(() => { }); } catch { }
 }
 
-if (portraitQuery.addEventListener) portraitQuery.addEventListener('change', applyOrientation);
-else portraitQuery.addListener?.(applyOrientation);
-// orientationchange 淨係用嚟補一次 resize，唔再負責暫停
-addEventListener('orientationchange', () => setTimeout(resize, 120));
+addEventListener('resize', applyOrientation);
+// orientationchange 淨係用嚟重新計一次版面，唔會暫停亦唔會改設定
+addEventListener('orientationchange', () => setTimeout(applyOrientation, 60));
 
 // ---------- 手機畫質 ----------
 // Auto 只調 pixel ratio，唔會喺比賽中拆 mesh／改 physics。低幀率連續一個
@@ -456,7 +467,7 @@ loader.load('./assets/car.glb', (gltf) => {
     buildTrackButtons();
     buildSettings();
     buildSeasonPicker();
-    applyOrientation();          // 一入嚟就要知打緊直定橫
+    applyOrientation();          // 照玩家揀咗嘅方向擺好版面
     // 第一次 active frame 先畫 minimap／填 HUD 會喺手機產生明顯長幀。
     // 趁 loading 遮罩仲喺度先預熱 Canvas2D 同文字 layout；WebGL 第一幀
     // render 完先揭開選單，玩家唔會撳 Start 撞正 shader compile。
@@ -479,7 +490,9 @@ loader.load('./assets/car.glb', (gltf) => {
         get ghostOn() { return ghostOn; },
         get ghostDelta() { return ghostDelta; }, tuneAutoQuality, pauseRace, resumeRace, toMenu,
         performanceReport, performanceReportText, copyPerformanceReport,
-        coarsePointer, applyOrientation,
+        coarsePointer, applyOrientation, setOrient,
+        get orient() { return orientMode; },
+        get rotated() { return root.classList.contains('rot90'); },
         get portrait() { return isPortrait(); },
         get track() { return track; },
         get trackDef() { return trackDef; },
@@ -678,6 +691,11 @@ function buildSettings() {
         b.addEventListener('click', () => setAbs(b.dataset.abs === '1'));
     }
     setAbs(absOn);
+
+    for (const b of document.querySelectorAll('#orient-seg button')) {
+        b.addEventListener('click', () => setOrient(b.dataset.orient));
+    }
+    setOrient(orientMode);
 
     for (const b of document.querySelectorAll('#ghost-seg button')) {
         b.addEventListener('click', () => setGhost(b.dataset.ghost === '1'));

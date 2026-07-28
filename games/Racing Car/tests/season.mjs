@@ -81,9 +81,8 @@ check('完結今屆唔會清走生涯紀錄', run.careerAfterClear.seasons === 1
     && run.careerAfterClear.titles === 1, run.careerAfterClear);
 
 // T3：入返遊戲——撳錦標賽會鎖住當場賽道、迫夠對手、完賽會派分
-// 568×320：遊戲強制打橫（ADR-073），320×568 嘅手機喺遊戲入面就係咁。
-// 用打直視窗量嘅話，量到嘅係轉咗 90° 之後嘅螢幕 AABB，唔係版面本身。
-await page.setViewportSize({ width: 568, height: 320 });
+// 320×568：預設「打直」（ADR-074），畫面唔轉，螢幕框就係遊戲版面本身。
+await page.setViewportSize({ width: 320, height: 568 });
 const live = await page.evaluate(async () => {
     const { season, setRivals, startSeason, buildTrack, TRACKS } = window.__racer;
     season.clear();
