@@ -273,6 +273,49 @@ check('冇歷屆紀錄就唔顯示', ui.emptyHidden === true, ui);
 check('有紀錄就出到歷屆榜', ui.shown === true && ui.rows === 1 && /阿烈/.test(ui.text), ui);
 check('清除掣清得走歷屆榜', ui.afterClearHidden === true, ui);
 
+// T7：完賽後撳「再跑一次」係練習，唔可以偷走賽程一場
+// 舊行為：record() 唔理你實際跑咗邊條，照計落 currentTrack。重跑第一條
+// 賽道嘅成績會記落第二條名下，賽程無端少一場，最後一條永遠跑唔到。
+const rerun = await page.evaluate(async () => {
+    const { season, setSeasonList, startSeason, rivals, TRACKS, buildTrack } = window.__racer;
+    season.clear();
+    localStorage.removeItem('racer-season-records-v1');
+    localStorage.removeItem('racer-season-hist-v1');
+    setSeasonList(TRACKS.map(t => t.id));
+    startSeason();
+    const rows = () => rivals.results(100, 3).map((row, i) => ({ ...row, place: i + 1 }));
+    const first = TRACKS[0].id;
+
+    const race1 = season.record(rows(), first);          // 正常跑完第一場
+    const afterFirst = { round: season.round, next: season.currentTrack };
+    const replay = season.record(rows(), first);         // 「再跑一次」重跑第一條
+    const afterReplay = { round: season.round, next: season.currentTrack };
+    // 要即刻影低分站紀錄：跑埋下一場之後 coast 就會合法咁出現
+    const careerAfterReplay = JSON.parse(localStorage.getItem('racer-season-records-v1'))?.tracks ?? {};
+    const race2 = season.record(rows(), season.currentTrack);   // 「下一場」
+    const out = {
+        counted: race1 !== null, replayCounted: replay !== null, secondCounted: race2 !== null,
+        afterFirst, afterReplay, round: season.round,
+        tracks: season.results.map(r => r.track),
+        careerAfterReplay,
+    };
+    season.clear();
+    localStorage.removeItem('racer-season-records-v1');
+    buildTrack(TRACKS[0].id);
+    return out;
+});
+console.log('  ', JSON.stringify(rerun));
+check('正常完賽照計', rerun.counted === true && rerun.afterFirst.round === 1, rerun);
+check('重跑同一條賽道唔計入賽程',
+    rerun.replayCounted === false && rerun.afterReplay.round === 1
+    && rerun.afterReplay.next === rerun.afterFirst.next, rerun);
+check('練習賽唔會污染分站紀錄',
+    rerun.careerAfterReplay[rerun.afterFirst.next] === undefined
+    && rerun.careerAfterReplay.turbo.races === 1, rerun.careerAfterReplay);
+check('落一場返到正常賽程',
+    rerun.secondCounted === true && rerun.round === 2
+    && rerun.tracks.join() === 'turbo,coast', rerun);
+
 checkNoErrors(r.errors);
 await r.close();
 finish('season');

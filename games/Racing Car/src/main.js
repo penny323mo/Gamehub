@@ -643,7 +643,9 @@ function buildSettings() {
     sens.addEventListener('input', () => input.setGyroSens(Number(sens.value)));
 }
 
-// 錦標賽面板：完賽畫面顯示總積分，同埋「下一場」定「睇總成績」
+// 錦標賽面板：完賽畫面顯示總積分，同埋「下一場」定「睇總成績」。
+// seasonCounted 記住啱啱嗰場有冇計入賽程——重跑同一條賽道係練習，唔計。
+let seasonCounted = true;
 function renderSeasonPanel() {
     const box = $('season-box');
     const nextBtn = $('next-race-btn');
@@ -677,7 +679,10 @@ function renderSeasonPanel() {
             + `生涯 ${c.seasons} 屆 · ${c.titles} 冠 · 最佳第 ${c.bestPlace ?? '--'}`;
         record.classList.toggle('record-hot', !!latest?.newBest);
     } else {
-        record.textContent = `分站紀錄已保存 · 尚餘 ${season.totalRounds - season.round} 場`;
+        // 唔計入賽程嗰陣一定要講明，否則個表照住升，玩家以為跑咗一場
+        record.textContent = seasonCounted
+            ? `分站紀錄已保存 · 尚餘 ${season.totalRounds - season.round} 場`
+            : `練習賽 · 唔計入錦標賽 · 下一場：${trackById(season.currentTrack).name}`;
         record.classList.remove('record-hot');
     }
 }
@@ -841,7 +846,7 @@ function showFinish({ total, laps, best, drift, bestDrift, bestScore }) {
         // 浮點數，於是出現「第 1 / 5」但個表寫你第 4 咁樣自打嘴巴。
         const rows = rivals.results(total, playerProgress());
         const mine = rows.find(row => row.player);
-        if (season.active && !season.finished) season.record(rows);
+        seasonCounted = season.record(rows, trackDef.id) !== null;
         $('finish-place').textContent = `第 ${mine.place} / ${rows.length}`;
         board.innerHTML = '';
         for (const row of rows) {

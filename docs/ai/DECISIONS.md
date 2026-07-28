@@ -768,3 +768,18 @@ follows what the tyres can use
   Keeping them in one object made "start a new championship" liable to erase the reason
   to replay. Career records compare places and wins rather than total points because
   championship points scale with the selected number of entrants.
+
+## ADR-058: A championship round is credited only to the circuit it was raced on
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: `Season.record(rows, trackId)` rejects a result whose `trackId` is not the
+  season's `currentTrack`. `showFinish` passes the circuit actually raced, and the finish
+  panel labels a rejected result 練習賽 · 唔計入錦標賽 rather than reporting a saved round.
+- Reason: `record()` filed every result under whatever `currentTrack` happened to be,
+  and 再跑一次 replays the circuit just finished — after the round had already advanced.
+  A measured three-circuit season that used 再跑一次 once recorded the replay of circuit
+  one under circuit two's name, advanced the schedule anyway, and never raced circuit
+  three; ADR-057's per-circuit career store inherited the same wrong attribution. The
+  check belongs in `record()`, not in the finish handler, so a later caller cannot skip
+  it — the finish handler was the only caller and still got it wrong.

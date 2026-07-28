@@ -92,9 +92,15 @@ export class Season {
         return this;
     }
 
-    // 收一場嘅名次（results() 出嘅嗰個 shape），派分再入下一場
-    record(rows) {
+    // 收一場嘅名次（results() 出嘅嗰個 shape），派分再入下一場。
+    //
+    // trackId 係「玩家實際跑咗邊條」。唔對版就唔收——完賽之後撳「再跑一次」
+    // 係重跑返啱啱嗰條，但嗰陣賽程已經行咗去下一條，照收落去就會：本場成績
+    // 記錯落下一條賽道嘅名下、賽程平白少咗一場、最後一條永遠跑唔到。呢個
+    // 判斷放喺 record() 入面而唔係 UI，先至冇得由第二個 caller 繞過。
+    record(rows, trackId = null) {
         if (!this.active || this.finished) return null;
+        if (trackId != null && trackId !== this.currentTrack) return null;
         const track = this.currentTrack;
         const entrants = rows.length;
         const awarded = rows.map(r => {
