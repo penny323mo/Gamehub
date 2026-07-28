@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const TESTS = ['race.mjs', 'setup.mjs', 'rivals.mjs', 'ghost.mjs', 'season.mjs'];
+const TESTS = ['race.mjs', 'setup.mjs', 'rivals.mjs', 'ghost.mjs', 'season.mjs', 'audio.mjs'];
 
 const run = (file) => new Promise(resolve => {
     console.log(`\n===== ${file} =====`);

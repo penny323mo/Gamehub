@@ -783,3 +783,23 @@ follows what the tyres can use
   three; ADR-057's per-circuit career store inherited the same wrong attribution. The
   check belongs in `record()`, not in the finish handler, so a later caller cannot skip
   it — the finish handler was the only caller and still got it wrong.
+
+## ADR-059: Racing Car synthesises its audio instead of shipping sound files
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: `src/audio.js` builds engine, tyre, wind, impact, and event sounds with
+  WebAudio primitives and no audio assets. Continuous sounds use nodes built once and
+  driven per frame through `setTargetAtTime`; short event sounds allocate per call.
+  Audio exists only while a race is running — leaving a race silences the graph and
+  suspends the context, and a deferred suspend is cancelled if a new race starts first.
+  A 音效 開/關 setting persists in `racer-audio`, and with audio off no `AudioContext`
+  is ever constructed. Any failure to build a context marks audio broken and the game
+  continues silently.
+- Reason: an engine note must follow speed continuously; a looped sample pitched by
+  `playbackRate` becomes metallic under the 4:1 speed range this car covers, and sound
+  files are real mobile data cost for a game that currently ships one 3 MB model. Per
+  frame parameter writes avoid the GC pauses that per frame node allocation would cause
+  on a phone, which would trade feel for sound — the wrong trade for a driving game.
+  Suspending the context off-race matters because an oscillator left running costs
+  battery on a screen the player is not racing on.

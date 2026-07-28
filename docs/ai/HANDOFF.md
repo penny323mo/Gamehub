@@ -3,70 +3,77 @@
 Updated: 2026-07-28 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
-Baseline before this task: `5ceff2d`
-Status: verified Codex's arcade-controls checkpoint; fixed one championship attribution bug
+Baseline before this task: `cbccc9e`
+Status: Racing Car now has synthesised audio; new `audio.mjs` suite added
 
 ## Current objective
 
-Verify `5ceff2d` by measurement rather than by reading its handoff, and repair whatever
-the verification finds.
+Close the largest remaining feel gap: the racer had no sound at all. Add engine, tyre,
+wind, impact, and event audio without shipping assets or spending render budget.
 
 ## Completed
 
-- Re-ran every suite from a clean sandbox: race 49/49, setup 76/76, rivals 47/47,
-  ghost 29/29, season 49/49 — matching `5ceff2d`'s claimed 250/250 exactly.
-- Probed the new arcade assists directly instead of trusting the combined figure.
-  With yaw damping and traction cut disabled, countersteer alone is small but correctly
-  signed and exactly mirror-symmetric; the spin-arresting work comes from yaw damping
-  (28.2° peak slip to 25.7°). Handbrake input produces zero assist steer, as designed.
-- Confirmed simple mode cannot creep before the lights: `main.js` feeds a zeroed command
-  unless `race.state === 'racing'`, so auto throttle only exists during a race.
-- Found and fixed a real bug: `record()` credited a result to whatever circuit the season
-  had advanced to, not the circuit raced. Using 再跑一次 mid-championship filed the replay
-  of circuit one under circuit two, consumed a scheduled round, and left the last circuit
-  never raced — and ADR-057's per-circuit career store recorded the same wrong circuit.
-- `record(rows, trackId)` now rejects a mismatched circuit, `showFinish` passes the raced
-  circuit, and the finish panel says 練習賽 · 唔計入錦標賽 instead of claiming a saved round.
-- Added ADR-058 and a season regression test that fails on the previous behaviour.
+- Added `src/audio.js`: a WebAudio synthesiser with no audio files. Engine is two
+  detuned sawtooths plus a sub sine through a throttle-driven lowpass, with five gear
+  bands so acceleration has shape; tyre noise is band-passed and gated on slip angle,
+  speed, handbrake, and surface; wind is a low-passed noise bed above 8 m/s; wall
+  impacts and the eight `race.js` events get short synthesised sounds.
+- Continuous nodes are built once and driven per frame with `setTargetAtTime`. Nothing
+  is allocated per frame, so sound cannot introduce GC stutter into the driving loop.
+- Audio exists only during a race. `startRace`/`stopRace`/`pauseRace`/`resumeRace`/
+  `toMenu`/`showFinish` and the visibility handler all drive it, and the context is
+  suspended off-race so no oscillator burns battery on a static screen.
+- Fixed a defect my own test caught: the post-race suspend is deferred 220 ms, and a
+  quick 再跑一次 would land inside that window, so the late suspend silenced the entire
+  next race. `startRace` now cancels the pending timer and the timer re-checks state.
+- 設定 gained a 音效 開/關 row, persisted in `racer-audio`. With audio off no
+  `AudioContext` is constructed at all; the first pointerdown/keydown unlocks it for iOS.
+- Added ADR-059 and `tests/audio.mjs` (32 assertions), registered in `run-all.mjs`.
 
 ## Changed files
 
-- `games/Racing Car/src/season.js`, `src/main.js`
-- `games/Racing Car/tests/season.mjs`
+- `games/Racing Car/src/audio.js` (new), `src/main.js`, `index.html`
+- `games/Racing Car/tests/audio.mjs` (new), `tests/run-all.mjs`
 - `docs/ai/DECISIONS.md`, `HANDOFF.md`
 
 ## Verification
 
 - `node run-all.mjs`: PASS — race 49/49, setup 76/76, rivals 47/47, ghost 29/29,
-  season 53/53 (254/254). Season gained four assertions.
-- The new test drives a three-circuit season: a normal finish counts; replaying the same
-  circuit returns null, leaves `round` and `currentTrack` untouched, and adds nothing to
-  the per-circuit career store; the following scheduled race resumes normally, leaving
-  results filed as `turbo,coast`.
-- Assist isolation measurements (headless, deterministic slides at 25 m/s): mirrored
-  spin cases produced identical magnitudes with opposite signs, so no axis-sign error.
+  season 53/53, audio 32/32 (286/286).
+- Audio suite measures parameters and node state rather than listening: gear bands drop
+  pitch at each change, throttle raises both gain and filter cutoff, tyre noise stays
+  silent while straight or slow and opens on slip/handbrake, wind is clamped, no context
+  is built while audio is off, leaving a race silences and suspends within 350 ms,
+  a quick restart stays running, all eight race events plus wall impact fire, and a
+  context factory that throws or returns null leaves the game playable and silent.
+- Headed Chromium at 390×844: the 音效 row renders in 設定 with no panel overflow
+  (scrollWidth == clientWidth == 355).
+- Audio adds no draw calls or triangles, so the ADR-044/054 render gates are untouched.
 
 ## Known issues and cautions
 
-- Still unconfirmed on Penny's own phone: gyro at 1.4 / ±16°, simple mode feel, the
-  rebuilt touch cluster, steering direction, and rival pace. Every one of these needs a
-  physical device; desktop Chromium cannot settle them.
-- 再跑一次 mid-championship is now explicitly a practice run. If Penny would rather it
-  re-run the scheduled circuit, that is a UI decision, not a bug fix — ask first.
-- Career per-circuit records count championship races only, not standalone races.
-- The sandbox network policy blocks `penny323mo.github.io`, so only the deploy workflow
+- Nobody has actually listened to this on a phone. Balance, harshness of the sawtooth
+  engine at high gears, and whether the tyre bed is too loud need Penny's ears.
+- Still unconfirmed on her device: gyro at 1.4 / ±16°, simple mode feel, the rebuilt
+  touch cluster, steering direction, and rival pace.
+- 再跑一次 mid-championship is a practice run and does not score (ADR-058). If she wants
+  it to re-run the scheduled circuit instead, that is a UI decision — ask first.
+- The sandbox network policy blocks `penny323mo.github.io`; only the deploy workflow
   result is checkable from here, never the live page.
 - Commits may show Unverified without a signing key; do not rewrite published history.
 
 ## Exact next action
 
-1. Receiving agent runs `./scripts/agent-context.sh --sync` and reads ADR-058.
-2. Get phone evidence for gyro sensitivity and simple mode before tuning either further.
-3. Continue one coherent gameplay phase while preserving both championship storage
-   lifecycles and the combined mobile render-budget gate.
+1. Receiving agent runs `./scripts/agent-context.sh --sync` and reads ADR-058 to ADR-059.
+2. Get phone evidence for audio balance, gyro sensitivity, and simple mode before tuning
+   any of them further; every one is a taste judgement desktop cannot settle.
+3. Continue one coherent gameplay phase while preserving the championship storage
+   lifecycles, the combined render-budget gate, and the off-race silence rule.
 
 ## Do not redo
 
+- Do not add audio files or allocate audio nodes per frame; do not let sound keep
+  playing off-race or leave the context running on menus (ADR-059).
 - Do not credit a championship round without checking the circuit raced (ADR-058).
 - Do not read a running season's schedule from current settings; use its stored `trackIds`.
 - Do not move archive creation out of `record()` or let season reset clear archive/career.

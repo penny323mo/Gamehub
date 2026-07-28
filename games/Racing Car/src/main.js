@@ -14,6 +14,7 @@ import { createDrivingEffects } from './driving-effects.js';
 import { RivalField, trackDelta, signedFrac } from './rivals.js';
 import { GhostRecorder, GhostPlayer, clearGhost } from './ghost.js';
 import { Season, loadHistory, clearHistory } from './season.js';
+import { createRacerAudio } from './audio.js';
 import {
     COLOURS, TIMES, QUALITY_MODES,
     loadColour, saveColour, loadTod, saveTod, loadQuality, saveQuality, qualityDpr,
@@ -349,6 +350,11 @@ function normalizeCar(obj, targetLength = CAR_VISUAL_LENGTH) {
 
 const input = new Input(document);
 
+// 音效：即時合成，唔載音檔。第一下觸碰就 unlock，唔係嘅話 iOS 會靜曬。
+const audio = createRacerAudio();
+addEventListener('pointerdown', () => audio.unlock(), { once: true });
+addEventListener('keydown', () => audio.unlock(), { once: true });
+
 // 接地陰影：一塊帶徑向漸變嘅平面貼喺車底。
 // 冇佢嘅話架車望落好似浮起（Penny 一眼就睇到）——真陰影貼圖喺手機太貴，
 // 而賽車其實得一個投影體，一塊圖就夠。
@@ -413,7 +419,7 @@ loader.load('./assets/car.glb', (gltf) => {
         restart, startRace, buildTrack, TRACKS, input, minimap, setRivals,
         get rivalCount() { return rivalCount; },
         setColour, setTod, setQuality, setGhost, season, startSeason, renderSeasonPanel, ghostRecorder, ghostPlayer, ghostMesh,
-        setSeasonList, seasonHistory: loadHistory, clearSeasonHistory: clearHistory,
+        setSeasonList, seasonHistory: loadHistory, clearSeasonHistory: clearHistory, audio,
         updateSeasonMenu,
         get seasonList() { return [...seasonList]; },
         // 測試要喺唔行 rAF 嘅情況下推進幽靈邏輯
@@ -560,6 +566,16 @@ function buildSettings() {
     }
     setColour(colour.id);
     setTod(tod);
+
+    for (const b of document.querySelectorAll('#audio-seg button')) {
+        b.addEventListener('click', () => {
+            audio.setEnabled(b.dataset.audio === '1');
+            // 一定要喺呢下 click 入面 unlock：iOS 淨係認真手勢
+            if (audio.enabled) audio.unlock();
+            markSeg('#audio-seg', 'audio', audio.enabled ? 1 : 0);
+        });
+    }
+    markSeg('#audio-seg', 'audio', audio.enabled ? 1 : 0);
 
     for (const b of document.querySelectorAll('#tod-seg button')) {
         b.addEventListener('click', () => setTod(b.dataset.tod));
@@ -800,6 +816,7 @@ function refreshBest() {
 
 // ---------- HUD ----------
 function handleRaceEvent(kind, data) {
+    audio.event(kind, data);
     if (kind === 'count') banner(String(data), 900);
     else if (kind === 'go') banner('GO!', 900);
     else if (kind === 'lap') banner(`第 ${data} 圈`, 1100);
@@ -829,6 +846,7 @@ function showFinish({ total, laps, best, drift, bestDrift, bestScore }) {
     paused = false;
     input.reset();
     releaseWakeLock();
+    audio.stopRace();
     updatePerformanceNote();
     $('screen-pause').classList.add('hidden');
     $('finish-total').textContent = fmtTime(total);
@@ -1043,6 +1061,7 @@ function startRace() {
     last = performance.now();
     if (qualityMode === 'auto') setQuality('auto', false); // 每場由裝置安全上限重新量
     requestWakeLock();
+    audio.startRace();
     ensureFrame();
     return true;
 }
@@ -1053,6 +1072,7 @@ function pauseRace(reason = '比賽進度已保留') {
     paused = true;
     input.reset();
     releaseWakeLock();
+    audio.suspend();
     updatePerformanceNote();
     $('pause-reason').textContent = reason;
     $('screen-pause').classList.remove('hidden');
@@ -1065,6 +1085,7 @@ function resumeRace() {
     last = performance.now();
     $('screen-pause').classList.add('hidden');
     requestWakeLock();
+    audio.resume();
     ensureFrame();
     return true;
 }
@@ -1073,6 +1094,7 @@ function toMenu() {
     paused = false;
     input.reset();
     releaseWakeLock();
+    audio.stopRace();
     updatePerformanceNote();
     refreshBest();
     $('screen-finish').classList.add('hidden');
@@ -1140,6 +1162,7 @@ function frame(now) {
         if (activeFrame) {
             const cmd = race.state === 'racing' ? input.read(dt) : { throttle: 0, steer: 0, handbrake: false };
             car.update(dt, cmd, track);
+            audio.update(dt, car, cmd);
             race.update(dt, car);
             // 對手行喺玩家之後：咁樣分開兩架車嗰下推力已經用咗今幀嘅新位置
             advancePlayerProgress();
