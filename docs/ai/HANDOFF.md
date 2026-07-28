@@ -3,48 +3,51 @@
 Updated: 2026-07-28 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
-Baseline before this task: `38dac73`
-Status: sixth circuit unblocked — the AI now recovers from a spin instead of being towed
+Baseline before this task: `becf071`
+Status: gyro steering reworked after Penny's phone verdict; sixth circuit shipped earlier this session
 
 ## Current objective
 
-Do the one task ADR-062 named: give the AI a real spin recovery, and ship Turbo reversed
-if — and only if — the measurements say it earned its place.
+Act on Penny's phone verdict "陀螺儀體驗好差，轉向比例奇怪" — the gyro response curve,
+not its direction.
 
 ## Completed
 
-- Verified Codex's `38dac73` before building on it: full suite green, and the richer
-  one-copy phone report matches its handoff.
-- Added a recovery state to `createDriver`: entered below 6 m/s when pointing more than
-  80° off line, exited under 40° once back on road, 3.5 s cap. It commands `throttle: -1`
-  and counter-aimed steer; `car.js` already turns that into brake-then-reverse (ADR-065).
-- The entry condition is deliberately unreachable while racing, which is why this works
-  where ADR-062's four in-line tuning attempts all failed — no correction term is added
-  to the racing control law at all.
-- Turbo reversed now ships. Six circuits: three forward, three reverse.
+- Reworked gyro steering into `gyroSteer(tiltDeg, sens)`: 2° deadzone measured in degrees,
+  full lock at `30 / sens` degrees instead of 11°, and shaping `x * (0.3 + 0.7x²)` so half
+  travel is about 24% steer. `Input.read` now low-passes the result at ~11/s (ADR-066).
+- Three separate faults were behind one complaint: travel far too short, a linear map, and
+  no smoothing at all — touch had smoothing, gyro bypassed it and fed raw sensor noise
+  straight to the wheel.
+- Added the 校正 button the setting text has always promised, and the note now states the
+  actual full-lock angle for the current sensitivity.
+- Earlier in this session: spin recovery state and the sixth circuit (ADR-065).
 
 ## Changed files
 
-- `games/Racing Car/src/driver.js`, `src/tracks.js`
-- `games/Racing Car/tests/race.mjs`, `tests/season.mjs`
+- `games/Racing Car/src/input.js`, `src/main.js`, `index.html`
+- `games/Racing Car/src/driver.js`, `src/tracks.js` (earlier in session)
+- `games/Racing Car/tests/setup.mjs`, `tests/race.mjs`, `tests/season.mjs`
 - `docs/ai/DECISIONS.md`, `HANDOFF.md`
 
 ## Verification
 
-- Suites: race 85/85, setup 86/86, rivals 59/59, ghost 29/29, season 55/55, audio 32/32
-  (346/346); `run-all` green.
-- Turbo reversed: 521 wall-contact frames and 3 rescues before, 74 and 0 after. Every
-  circuit now needs zero rescues (0, 8, 0, 74, 2, 0) and forward lap times are unchanged.
-- New recovery test spins the car 153° on the road at a standstill and asserts the driver
-  enters recovery, commands reverse rather than full throttle, rejoins pointing along the
-  track above 8 m/s within 3.7 s, needs no tow, and leaves the state afterwards.
-- All four rivals still complete three laps on every circuit, including the three reverse
-  variants, and the night render budget gate still measures 16 draw calls.
+- Suites: race 85/85, setup 95/95, rivals 59/59, ghost 29/29, season 55/55, audio 32/32
+  (355/355); `run-all` green.
+- The curve is tested as a pure function: deadzone in degrees, full lock exactly at span,
+  clamped beyond it, monotonic across the range, left/right symmetric, sensitivity scaling
+  in the right direction, half travel between 15% and 30% steer, and no NaN from junk.
+- Smoothing is tested through real `deviceorientation` events: one frame after a full tilt
+  the wheel is under 0.4, and it settles to full lock over about a second.
+- Turbo reversed lap gate holds at 74 wall-contact frames and zero rescues; all six
+  circuits still need zero rescues.
+- Headed Chromium at 390×844: the 校正 button is 44×49 px and the settings panel does not
+  overflow (scrollWidth == clientWidth == 355).
 
 ## Remaining release gates
 
-- Penny enables gyro on her physical phone, confirms right-hand motion turns right, and
-  judges whether sensitivity 1.4 / ±16° feels right.
+- Penny re-tries gyro on her phone: is the new travel (full lock at about 21° at her
+  stored sensitivity 1.4) and the finer middle range better, and is the direction correct?
 - Penny listens to the synthesized engine, tyre, wind, collision, and event balance.
 - Penny drives a representative run, returns to the menu, taps 複製報告, and pastes the
   new one-line report. That single line now proves the settings used alongside performance.
@@ -72,6 +75,8 @@ if — and only if — the measurements say it earned its place.
 - Do not flip gyro signs or tune sensitivity/audio without physical-device evidence.
 - Do not retry the four rejected Turbo-reversed constant tweaks in ADR-062.
 - Do not fold spin recovery back into the racing control law (ADR-065).
+- Do not make the gyro map linear again, shorten its travel below 30/sens degrees, or
+  remove its smoothing (ADR-066).
 - Do not make braking proportional without retuning the AI driver in the same pass.
 - Do not add audio files or allocate audio nodes per frame; keep audio off-race silent.
 - Do not amend, rebase, or force-push published `main` history.

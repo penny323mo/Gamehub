@@ -7,6 +7,27 @@ export const GYRO_SENS_KEY = 'racer-gyro-sens';
 export const GYRO_INVERT_KEY = 'racer-gyro-invert';
 export const CONTROL_MODE_KEY = 'racer-control-mode';
 
+// 由傾角（度）算軚。抽出嚟做純函數，先至測得到條曲線本身。
+//
+// 舊版：11° 就打到盡、直線、冇平滑。手腕郁少少就由零跳到全軚，中間位
+// 幾乎冇得微調——Penny 實機講「轉向比例奇怪」，講嘅就係呢個。
+//
+// 而家三樣一齊改：
+//   1. 行程拉長到 30°／靈敏度（正常手腕範圍），唔使死忍住唔郁
+//   2. 用低增益曲線而唔係直線：一半行程只係約兩成軚，中間位好幼細，
+//      要扭到盡先有全軚。試過 smoothstep，但佢一半行程就已經半軚——
+//      「中間好郁」呢個要求佢做唔到
+//   3. 死區用「度」而唔係用比例：手係唔可能攞到完全水平嘅
+export function gyroSteer(tiltDeg, sens = 1) {
+    const s = Math.min(3, Math.max(0.3, Number(sens) || 1));
+    const DEAD = 2;
+    const span = 30 / s;
+    const t = Math.abs(Number(tiltDeg) || 0);
+    if (t <= DEAD) return 0;
+    const x = Math.min(1, (t - DEAD) / Math.max(1, span - DEAD));
+    return Math.sign(tiltDeg) * x * (0.3 + 0.7 * x * x);
+}
+
 export class Input {
     constructor(root) {
         this.keys = new Set();
@@ -19,7 +40,7 @@ export class Input {
         // 端到端撳掣測試）都話而家個方向啱，但玩家先係最終標準——與其
         // 靠估，不如畀佢一撳就掉轉。
         this.invert = localStorage.getItem(STEER_KEY) === '1';
-        this.gyroSens = Number(localStorage.getItem(GYRO_SENS_KEY) ?? 1.4);
+        this.gyroSens = Number(localStorage.getItem(GYRO_SENS_KEY) ?? 1.2);
         // 陀螺儀方向獨立於觸控轉向。Penny 實機報告：觸控方向啱，陀螺儀
         // 相反。兩者共用一個 invert 掣嘅話，修好一個就整壞另一個。
         this.gyroInvert = localStorage.getItem(GYRO_INVERT_KEY) !== '0';
@@ -29,6 +50,8 @@ export class Input {
 
         // 陀螺儀
         this.gyro = { on: false, tilt: 0, zero: null, supported: 'DeviceOrientationEvent' in window };
+        // 陀螺儀讀數本身有雜訊，而且之前完全冇平滑（觸控有，陀螺儀繞過咗）。
+        this.gyroSmooth = 0;
 
         addEventListener('keydown', (e) => {
             if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
@@ -260,7 +283,7 @@ export class Input {
         try { localStorage.setItem(GYRO_KEY, '0'); } catch { }
     }
     // 而家個姿勢當「軚盤打直」——打橫揸、攤喺床上都用得
-    calibrateGyro() { this.gyro.zero = null; }
+    calibrateGyro() { this.gyro.zero = null; this.gyroSmooth = 0; return true; }
 
     #onTilt = (e) => {
         if (e.beta === null || e.gamma === null) return;
@@ -290,18 +313,20 @@ export class Input {
         this.steerSmooth += (target - this.steerSmooth) * Math.min(1, dt * 9);
         if (Math.abs(this.steerSmooth) < 0.01) this.steerSmooth = 0;
 
-        // 陀螺儀：±16 度（再乘靈敏度）打到盡。舊版要扭到 ±22 度先有全軚，
-        // 實機感覺太鈍；縮短行程之後用細幅度手腕動作已經睇得出左右反應。
-        // 手指撳掣有輸入嗰陣以手指優先，
+        // 陀螺儀：曲線見 gyroSteer()。手指有輸入嗰陣以手指優先，
         // 唔係嘅話兩種輸入會打交。
         let steer = this.steerSmooth;
         if (this.gyro.on && target === 0 && !stickActive) {
-            const span = 16 / Math.max(0.3, this.gyroSens);
             // 預設反轉：實機（Penny 部機，直度揸）扭右邊落去係向左轉，
             // 同直覺相反。裝置係最終標準，desktop 點推導都冇用。
             const sign = this.gyroInvert ? -1 : 1;
-            steer = Math.max(-1, Math.min(1, sign * this.gyro.tilt / span));
-            if (Math.abs(steer) < 0.06) steer = 0;      // 死區：唔會自己遊走
+            const want = sign * gyroSteer(this.gyro.tilt, this.gyroSens);
+            // 平滑：感應器一格格跳，直接出去就會覺得架車自己抽搐
+            this.gyroSmooth += (want - this.gyroSmooth) * Math.min(1, dt * 11);
+            if (Math.abs(this.gyroSmooth) < 0.004) this.gyroSmooth = 0;
+            steer = this.gyroSmooth;
+        } else {
+            this.gyroSmooth = 0;
         }
 
         // 簡易模式只要求玩家掌軚、煞車同漂移。比賽未開始時主迴圈唔會 read，

@@ -906,3 +906,19 @@ follows what the tyres can use
 - Measured: Turbo reversed goes from 521 wall-contact frames and 3 rescues to 74 and 0.
   Every circuit now needs zero rescues (turbo 0, coast 8, touge 0, turbo-rev 74,
   coast-rev 2, touge-rev 0), and forward lap times are unchanged.
+
+## ADR-066: Gyro steering is a shaped low-gain curve with travel, smoothing, and a reset
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: `gyroSteer(tiltDeg, sens)` maps tilt to steer with a 2° deadzone in degrees,
+  full lock at `30 / sens` degrees, and the shaping `x * (0.3 + 0.7x²)`. `Input.read`
+  low-passes the result at ~11/s. Fresh-install sensitivity is 1.2. A 校正 button now
+  exists next to the gyro toggle, as the setting text always promised.
+- Reason: Penny's phone verdict was "陀螺儀體驗好差，轉向比例奇怪". The old mapping
+  reached full lock at 11°, was linear, and — unlike touch — had no smoothing at all, so
+  a wrist twitch swung from nothing to full lock and raw sensor noise reached the wheel.
+  Three separate faults presented as one bad feel. The curve gives about 24% steer at
+  half travel, so the middle of the range is where fine corrections live, while full lock
+  is still reachable. Smoothstep was tried first and rejected: it is 0.5 at half travel,
+  which is exactly the property that had to change.

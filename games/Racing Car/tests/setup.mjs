@@ -395,7 +395,38 @@ check('簡易模式會保存並清楚標示自動加速', simpleMode.saved === '
     && simpleMode.selected === 'simple' && simpleMode.bodyClass
     && simpleMode.gasLabel.includes('自動'), simpleMode);
 
-// T5a：陀螺儀——真 deviceorientation event 會經校正基準變成左右軚；
+// T5：陀螺儀轉向曲線。實機報告「轉向比例奇怪」＝ 11° 就打到盡、直線、
+// 冇平滑，手腕郁少少就由零彈到全軚。呢度驗返條新曲線嘅性質。
+const curve = await page.evaluate(async () => {
+    const { gyroSteer } = await import('./src/input.js');
+    const at = (d, s = 1) => +gyroSteer(d, s).toFixed(3);
+    return {
+        centre: [at(0), at(1), at(2)],
+        小: at(6), 中: at(16), 大: at(30), 爆: at(90),
+        左右對稱: [at(12), at(-12)],
+        // 中間位要幼細：一半行程唔可以已經半軚
+        半程: at(16),
+        靈敏預設: at(5, 1),
+        // 靈敏度：高＝細啲角度就打到盡
+        靈敏: [at(15, 0.6), at(15, 1), at(15, 2)],
+        單調: [at(4), at(8), at(12), at(16), at(20), at(24), at(28)],
+        亂數據: [at(NaN), at(undefined)],
+        亂靈敏度: at(5, NaN),
+    };
+});
+console.log('  ', JSON.stringify(curve));
+check('死區用「度」計，手拎唔穩唔會自己轉', curve.centre.every(v => v === 0), curve.centre);
+check('要扭到 30° 先有全軚（唔再係 11°）', curve.大 === 1 && curve.中 < 1, curve);
+check('超出行程夾住 1', curve.爆 === 1, curve.爆);
+check('中間位幼細：一半行程只係約兩成軚', curve.半程 < 0.3 && curve.半程 > 0.15, curve.半程);
+check('左右對稱', curve.左右對稱[0] === -curve.左右對稱[1], curve.左右對稱);
+check('全程單調遞增', curve.單調.every((v, i, a) => i === 0 || v > a[i - 1]), curve.單調);
+check('靈敏度愈高，同一角度愈大軚',
+    curve.靈敏[0] < curve.靈敏[1] && curve.靈敏[1] < curve.靈敏[2], curve.靈敏);
+check('亂數據唔會出 NaN', curve.亂數據.every(v => v === 0)
+    && curve.亂靈敏度 === curve.靈敏預設, curve);
+
+// T5a：真 deviceorientation event 會經校正基準變成左右軚；
 // 手指有輸入時仍然以手指優先。
 const gyro = await page.evaluate(async () => {
     const { input } = window.__racer;
@@ -415,19 +446,24 @@ const gyro = await page.evaluate(async () => {
     const enabled = await input.enableGyro();
     dispatchEvent(new MockOrientationEvent('deviceorientation', { beta: 0, gamma: 10 }));
     const calibrated = input.read(1 / 60).steer;
-    dispatchEvent(new MockOrientationEvent('deviceorientation', { beta: 0, gamma: 26 }));
+    // 平滑要行夠幾幀先到位（之前冇平滑，一幀就跳到盡）
+    dispatchEvent(new MockOrientationEvent('deviceorientation', { beta: 0, gamma: 60 }));
+    const firstFrame = input.read(1 / 60).steer;
+    for (let i = 0; i < 60; i++) input.read(1 / 60);
     const eventRight = input.read(1 / 60).steer;
-    dispatchEvent(new MockOrientationEvent('deviceorientation', { beta: 0, gamma: -6 }));
+    dispatchEvent(new MockOrientationEvent('deviceorientation', { beta: 0, gamma: -40 }));
+    for (let i = 0; i < 60; i++) input.read(1 / 60);
     const eventLeft = input.read(1 / 60).steer;
 
     // 方向掣：同觸控轉向分開兩件事（Penny 實機：觸控啱、陀螺儀相反）
     input.gyro.zero = 0;
     input.gyro.tilt = 22;
-    const invDefault = { on: input.gyroInvert, steer: +input.read(1 / 60).steer.toFixed(3) };
+    const settle = () => { let s = 0; for (let i = 0; i < 60; i++) s = input.read(1 / 60).steer; return +s.toFixed(3); };
+    const invDefault = { on: input.gyroInvert, steer: settle() };
     input.setGyroInvert(false);
-    const invOff = { saved: localStorage.getItem('racer-gyro-invert'), steer: +input.read(1 / 60).steer.toFixed(3) };
+    const invOff = { saved: localStorage.getItem('racer-gyro-invert'), steer: settle() };
     input.setGyroInvert(true);
-    const invBack = { saved: localStorage.getItem('racer-gyro-invert'), steer: +input.read(1 / 60).steer.toFixed(3) };
+    const invBack = { saved: localStorage.getItem('racer-gyro-invert'), steer: settle() };
     // 陀螺儀方向掣唔可以掂到觸控轉向
     input.gyro.on = false;
     input.touch.left = true; input.steerSmooth = -1;
@@ -438,7 +474,8 @@ const gyro = await page.evaluate(async () => {
         input.gyro.tilt = tilt;
         input.touch.left = touchLeft;
         input.steerSmooth = touchLeft ? -1 : 0;
-        const s = input.read(1 / 60).steer;
+        let s = 0;
+        for (let i = 0; i < 60; i++) s = input.read(1 / 60).steer;   // 等平滑到位
         input.touch.left = false;
         return +s.toFixed(3);
     };
@@ -447,7 +484,7 @@ const gyro = await page.evaluate(async () => {
         small: at(0.7), touchWins: at(22, true),
         enabled, calibrated: +calibrated.toFixed(3),
         eventRight: +eventRight.toFixed(3), eventLeft: +eventLeft.toFixed(3),
-        invDefault, invOff, invBack, touchUnaffected,
+        invDefault, invOff, invBack, touchUnaffected, firstFrame: +firstFrame.toFixed(3),
     };
     input.disableGyro();
     input.setGyroSens(oldSens);
@@ -461,8 +498,11 @@ check('真陀螺儀事件首個姿勢會校正做中間', gyro.enabled && gyro.c
 // 「兩邊各自輸出相反嘅軚」加「預設跟返實機嗰個方向」。
 check('真陀螺儀事件兩邊各自輸出相反嘅軚',
     gyro.eventRight < -0.9 && gyro.eventLeft > 0.9, gyro);
+check('唔會一幀就彈到盡（有平滑）',
+    Math.abs(gyro.firstFrame) < 0.4, gyro.firstFrame);
 check('打平唔會自己轉', gyro.flat === 0, gyro.flat);
-check('兩邊傾側各自輸出相反嘅軚', gyro.right < -0.9 && gyro.left > 0.9, gyro);
+check('兩邊傾側各自輸出大小一樣、方向相反嘅軚',
+    gyro.right < -0.3 && gyro.right === -gyro.left, gyro);
 check('陀螺儀方向預設係反轉（實機證據）',
     gyro.invDefault.on === true && gyro.invDefault.steer < 0, gyro.invDefault);
 check('撳「反轉」會真係掉轉兼存得返',

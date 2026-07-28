@@ -665,7 +665,9 @@ function buildSettings() {
             markSeg('#gyro-seg', 'gyro', ok ? 1 : 0);
             note.classList.remove('hidden');
             note.textContent = ok
-                ? '揸車嗰陣扭手機轉向。開波果陣手機咩姿勢就當「軚盤打直」，撳「校正」可以重設。'
+                ? '揸車嗰陣扭手機轉向。開嗰刻手機咩姿勢就當「軚盤打直」，'
+                + '坐姿變咗就撳「校正」重設。扭到約 ' + Math.round(30 / input.gyroSens)
+                + '° 就係全軚，中間位特登做得幼細。'
                 : '呢部機／呢個瀏覽器唔畀用陀螺儀（iPhone 要喺 Safari 而且係 https）。';
         });
     }
@@ -683,6 +685,13 @@ function buildSettings() {
         });
     }
     markSeg('#gyro-dir-seg', 'gyroinv', input.gyroInvert ? 1 : 0);
+
+    $('gyro-cal-btn').addEventListener('click', () => {
+        input.calibrateGyro();
+        const btn = $('gyro-cal-btn');
+        btn.textContent = '已校正';
+        setTimeout(() => { btn.textContent = '校正'; }, 1200);
+    });
 
     const sens = $('gyro-sens');
     sens.value = String(input.gyroSens);
