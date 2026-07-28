@@ -481,7 +481,9 @@ follows what the tyres can use
 - Status: accepted
 - Decision: active race frames record elapsed time, average fps, minimum 3.5-second
   fps window, frames above 34ms, slowest frame, render DPR, viewport, quality mode,
-  and track. Returning to the menu exposes one compact report and a 44px copy button.
+  track, control mode/direction, gyro support/on/direction/sensitivity, screen orientation,
+  and audio enabled/ready/broken state. Returning to the menu exposes one compact report
+  and a 44px copy button.
   Sampling continues in Auto, Sharp, and Battery; it never changes simulation.
   Clipboard feedback says copied only after the Clipboard API or fallback confirms it.
 - Reason: desktop emulation cannot certify a physical phone's heat or browser-specific

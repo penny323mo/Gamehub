@@ -134,6 +134,8 @@ function recordPerformanceWindow(fps) {
 function performanceReport() {
     const avgFps = performanceState.elapsedMs > 0
         ? performanceState.frames * 1000 / performanceState.elapsedMs : null;
+    const audioState = audio.snapshot();
+    const orientation = screen.orientation;
     return {
         seconds: performanceState.elapsedMs / 1000,
         frames: performanceState.frames,
@@ -146,16 +148,36 @@ function performanceReport() {
         quality: qualityMode,
         viewport: `${innerWidth}x${innerHeight}`,
         track: trackDef?.id ?? 'unknown',
+        controlMode: input.controlMode,
+        steerInverted: input.invert,
+        gyroSupported: input.gyro.supported,
+        gyroEnabled: input.gyro.on,
+        gyroInverted: input.gyroInvert,
+        gyroSensitivity: input.gyroSens,
+        orientation: orientation?.type ?? 'unknown',
+        orientationAngle: orientation?.angle ?? window.orientation ?? 0,
+        audioEnabled: audioState.enabled,
+        audioReady: audioState.ready,
+        audioBroken: audioState.broken,
     };
 }
 function performanceReportText() {
     const p = performanceReport();
     const n = v => v == null ? '--' : Math.round(v);
     const mode = QUALITY_MODES[p.quality]?.name ?? p.quality;
+    const controls = p.controlMode === 'simple' ? '簡易' : '標準';
+    const steer = p.steerInverted ? '反轉' : '正常';
+    const gyro = !p.gyroSupported ? '不支援' : p.gyroEnabled ? '開' : '關';
+    const gyroDirection = p.gyroInverted ? '預設' : '反轉';
+    const audioLabel = !p.audioEnabled ? '關' : p.audioBroken ? '故障' : '開';
     return `Racing Car 3D 手機報告｜${p.seconds.toFixed(1)}s｜${p.viewport}`
         + `｜${mode} DPR ${p.dpr.toFixed(2)}｜平均 ${n(p.avgFps)} fps`
         + `｜最低 ${n(p.minFps)} fps｜長幀 ${p.longFrames}`
-        + `｜最慢 ${n(p.maxFrameMs)} ms｜賽道 ${p.track}`;
+        + `｜最慢 ${n(p.maxFrameMs)} ms｜賽道 ${p.track}`
+        + `｜操控 ${controls}/${steer}`
+        + `｜陀螺 ${gyro}/${gyroDirection}/靈敏 ${p.gyroSensitivity.toFixed(1)}`
+        + `｜方向 ${p.orientation}@${p.orientationAngle}°`
+        + `｜音效 ${audioLabel}${p.audioEnabled && p.audioReady ? '/已啟動' : ''}`;
 }
 function updatePerformanceNote() {
     const el = $('device-report');

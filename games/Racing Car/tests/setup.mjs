@@ -261,6 +261,11 @@ check('畫質模式會持久化兼 UI 只有一項 selected',
 // 真機報告要將「順唔順」變成可複製數字；所有畫質模式都要繼續取樣。
 const perfReport = await page.evaluate(async () => {
     const root = window.__racer;
+    root.input.setControlMode('simple');
+    root.input.setInvert(false);
+    root.input.setGyroSens(1.4);
+    root.input.setGyroInvert(true);
+    root.audio.setEnabled(true);
     root.startRace();
     // 等到真係取到樣先好報告。之前寫死等 220ms：機器一忙（run-all 連續開
     // 幾個瀏覽器）rAF 可以一幀都未行，於是 frames=0，個 gate 就無辜紅一次。
@@ -288,6 +293,16 @@ check('手機實測報告包含 FPS、DPR、viewport、賽道同長幀', perfRep
     && perfReport.data.frames > 0 && perfReport.text.includes('DPR')
     && perfReport.text.includes('長幀') && perfReport.text.includes(perfReport.data.viewport)
     && perfReport.text.includes(perfReport.data.track) && perfReport.note === perfReport.text, perfReport);
+check('手機實測報告記低操控、陀螺儀方向／靈敏度、螢幕方向同音效狀態',
+    perfReport.data.controlMode === 'simple' && perfReport.data.steerInverted === false
+    && typeof perfReport.data.gyroSupported === 'boolean' && perfReport.data.gyroEnabled === false
+    && perfReport.data.gyroInverted === true && perfReport.data.gyroSensitivity === 1.4
+    && typeof perfReport.data.orientation === 'string'
+    && Number.isFinite(perfReport.data.orientationAngle)
+    && perfReport.data.audioEnabled === true && perfReport.data.audioBroken === false
+    && perfReport.text.includes('操控 簡易/正常')
+    && perfReport.text.includes('陀螺') && perfReport.text.includes('預設/靈敏 1.4')
+    && perfReport.text.includes('方向 ') && perfReport.text.includes('音效 開'), perfReport);
 check('複製實測報告有真實結果提示兼守住 44px', perfReport.copiedText === perfReport.text
     && ['已複製', '請長按上面報告'].includes(perfReport.feedback)
     && perfReport.copyHeight >= 44, perfReport);

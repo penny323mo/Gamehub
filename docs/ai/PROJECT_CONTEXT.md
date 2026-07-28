@@ -150,8 +150,9 @@ effects, player-only arcade assists, simple-mode/gyro input, rivals/ghost/season
 rules, and the combined night + rivals + ghost + effects
 render budget, dual-touch and
 capture-loss reset, asymmetric notch safe areas, `viewport-fit=cover`, and the on-device
-performance report contract (FPS windows, long frames, DPR, viewport, track, and copy
-feedback) used for physical-phone handoff evidence. The startup gate requires the first
+performance report contract (FPS windows, long frames, DPR, viewport, track, control mode,
+gyro direction/sensitivity, screen orientation, audio state, and copy feedback) used for
+physical-phone handoff evidence. The startup gate requires the first
 complete WebGL frame plus pre-drawn minimap/HUD before the loading overlay reveals Start.
 
 Royale has a committed regression suite. Run it for any change under
