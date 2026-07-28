@@ -52,8 +52,8 @@ Grow circuit content without weakening any gate, and fix what the new content ex
 
 ## Known issues and cautions
 
-- Turbo reversed stays out until the AI can take that infield corner. That is the exact
-  next AI task if someone wants the sixth circuit.
+- Turbo reversed stays out until the AI stops power-spinning at that infield corner.
+  The mechanism is traced and four fixes are rejected with numbers in ADR-062.
 - `car.js` still applies full brake force for any negative throttle, so the AI cannot
   trail-brake. Changing it needs the driver retuned in the same pass, not alone.
 - Nobody has listened to the new audio on a phone; balance is unjudged.
@@ -66,12 +66,13 @@ Grow circuit content without weakening any gate, and fix what the new content ex
 
 1. Receiving agent runs `./scripts/agent-context.sh --sync` and reads ADR-060 to ADR-061.
 2. Get phone evidence for audio balance, gyro, and simple mode before tuning any of them.
-3. Continue one coherent phase. Making Turbo reversed drivable by the AI, or a small
-   career reward, are the natural candidates.
+3. Turbo reversed needs a recovery state machine, not constant tuning — read ADR-062
+   first; four single-constant attempts are already measured and rejected there.
 
 ## Do not redo
 
 - Do not ship a reverse variant without measuring its wall-contact and rescue counts.
+- Do not retry the rejected Turbo-reversed fixes in ADR-062; they are measured, not guessed.
 - Do not keep a second copy of the driver in tests; import `createDriver` (ADR-061).
 - Do not widen the curvature window back to ±0.012, or narrow it past ±0.008.
 - Do not make braking proportional in `car.js` without retuning the driver together.

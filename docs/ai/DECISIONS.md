@@ -836,3 +836,26 @@ follows what the tyres can use
   straights start reading as curves. The duplicate controller in the test hid the whole
   effect: changing the shipped driver moved nothing, because the gate was measuring a
   controller nothing else used.
+
+## ADR-062: The AI's wrong-way spin is a control-law problem, not a tuning constant
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: Turbo reversed stays unshipped until the driver's spin recovery is redesigned.
+  Do not reopen it by adjusting single constants. Four attempts are recorded as rejected
+  with their measurements, so nobody spends the same day twice.
+- Reason: a frame-by-frame trace of the failure shows the mechanism precisely. Once the
+  car loses the rear, the controller holds `steer` saturated at 1.0 and, because
+  `(vMax - speed) * 0.35` is large at low speed, also commands full throttle. Full lock
+  plus full throttle on a rear-drive car is a donut: the trace shows 2.5 s of steer 1.0 /
+  throttle 1.0 with slip cycling −37° → −86° → 0 → −84° and the lap parameter frozen near
+  t = 0.25, until the 3-second rescue fires. It recurs every lap at the same corner.
+- Rejected, each measured over all six circuits (wall-contact frames / rescues):
+  a throttle cap proportional to heading error fixed Turbo reversed (0/0) but cost Coast
+  25% of its lap time (36 s → 48 s); adding a deadzone to that cap moved the damage to
+  Coast (9/4); exempting low speed from the cap sent Turbo reversed back to 374/2 because
+  the car needs power to climb out of grass; and yaw-rate damping in the steer command
+  wrecked ordinary cornering everywhere (turbo 1706/9, touge 1943/11) since the controller
+  needs yaw rate to turn at all.
+- The real fix is a state machine that recognises "spun, pointing wrong, low speed" and
+  drives a deliberate recovery, rather than one control law asked to both race and rescue.
