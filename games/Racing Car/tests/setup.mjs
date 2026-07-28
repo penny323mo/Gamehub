@@ -395,56 +395,88 @@ check('簡易模式會保存並清楚標示自動加速', simpleMode.saved === '
     && simpleMode.selected === 'simple' && simpleMode.bodyClass
     && simpleMode.gasLabel.includes('自動'), simpleMode);
 
-// T4b：方向鎖死打橫。Penny 實機報告：打橫玩緊、用緊陀螺儀扭手機，
-// 就彈咗「手機方向已改變，進度已安全暫停」——因為舊 handler 一收到
-// orientationchange 就無條件暫停，而 iOS 喺打側／攤平／landscape 左右
-// 互換嗰陣都會報。用陀螺儀揸車本身就係一路扭手機，所以必中。
+// T4b：遊戲畫面永遠打橫。Penny 實機報告：打橫玩緊、用緊陀螺儀扭手機，
+// 就彈咗「手機方向已改變，進度已安全暫停」。而家唔再理部機方向——
+// 打直嗰陣 CSS 將成個 #game-root 轉 90°，所以根本冇「方向改變」呢件事。
 const orient = await page.evaluate(() => {
     const { startRace, race } = window.__racer;
     startRace();
     race.countdown = 0; race.state = 'racing';
-    const before = { running: window.__racer.running, paused: window.__racer.paused };
-    // 橫轉橫：唔可以暫停
     dispatchEvent(new Event('orientationchange'));
+    const holder = document.getElementById('canvas-holder').getBoundingClientRect();
     return {
-        before,
-        afterLandscapeEvent: { running: window.__racer.running, paused: window.__racer.paused },
-        hintHidden: document.getElementById('rotate-hint').classList.contains('hidden'),
+        running: window.__racer.running, paused: window.__racer.paused,
+        landscape: holder.width > holder.height,
         portrait: window.__racer.portrait,
     };
 });
 console.log('  ', JSON.stringify(orient));
-check('打橫玩緊，扭手機唔可以彈暫停',
-    orient.afterLandscapeEvent.running === true && orient.afterLandscapeEvent.paused === false, orient);
-check('打橫唔會出「請打橫」提示', orient.hintHidden === true && orient.portrait === false, orient);
+check('扭手機唔會彈暫停',
+    orient.running === true && orient.paused === false, orient);
 
-// 真係轉成打直：先至暫停，兼且出提示
+// 轉成打直：畫面仍然要係橫，比賽亦唔可以停
 await page.setViewportSize({ width: 420, height: 900 });
-await page.waitForTimeout(220);
-const portrait = await page.evaluate(() => ({
-    portrait: window.__racer.portrait,
-    paused: window.__racer.paused,
-    reason: document.getElementById('pause-reason').textContent,
-    hintShown: !document.getElementById('rotate-hint').classList.contains('hidden'),
-}));
-console.log('  ', JSON.stringify(portrait));
-check('打直會暫停兼叫你打橫返',
-    portrait.portrait === true && portrait.paused === true && /打橫/.test(portrait.reason), portrait);
-check('打直會蓋住「請打橫手機」', portrait.hintShown === true, portrait);
-
-// 轉返打橫：提示要收返
-await page.setViewportSize({ width: 900, height: 760 });
-await page.waitForTimeout(220);
-const backLand = await page.evaluate(() => {
-    const out = {
+await page.waitForTimeout(260);
+const portrait = await page.evaluate(() => {
+    const root = document.getElementById('game-root').getBoundingClientRect();
+    const canvas = document.querySelector('#canvas-holder canvas');
+    return {
         portrait: window.__racer.portrait,
-        hintHidden: document.getElementById('rotate-hint').classList.contains('hidden'),
+        paused: window.__racer.paused,
+        running: window.__racer.running,
+        // 轉咗 90° 之後，元素喺螢幕上嘅 AABB 係窄長嘅，但佢自己嘅版面
+        // （offsetWidth/Height）先係遊戲座標——嗰個一定要係橫
+        gameW: document.getElementById('game-root').offsetWidth,
+        gameH: document.getElementById('game-root').offsetHeight,
+        screenBox: { w: Math.round(root.width), h: Math.round(root.height) },
+        canvasAspect: canvas ? +(canvas.clientWidth / canvas.clientHeight).toFixed(2) : null,
+        rotatedFlag: window.__racer.input.rotated,
     };
-    window.__racer.toMenu();
-    return out;
 });
-console.log('  ', JSON.stringify(backLand));
-check('轉返打橫提示會收返', backLand.portrait === false && backLand.hintHidden === true, backLand);
+console.log('  ', JSON.stringify(portrait));
+check('部機打直，遊戲版面仍然係橫',
+    portrait.portrait === true && portrait.gameW > portrait.gameH, portrait);
+check('打直唔會暫停比賽',
+    portrait.paused === false && portrait.running === true, portrait);
+check('畫布本身係橫嘅（鏡頭比例啱）', portrait.canvasAspect > 1, portrait.canvasAspect);
+check('input 知道自己轉咗', portrait.rotatedFlag === true, portrait);
+
+// 轉咗之後觸控仍然要準：撳「油門」要收到油門，搖桿向遊戲右邊要出正數
+const rotatedTouch = await page.evaluate(() => {
+    const { input } = window.__racer;
+    input.setControlMode('standard');
+    input.setInvert(false);
+    input.reset();
+    const fire = (id, type, pointerId, coords = {}) => document.getElementById(id)
+        .dispatchEvent(new PointerEvent(type, {
+            bubbles: true, cancelable: true, pointerType: 'touch', pointerId, ...coords,
+        }));
+    fire('pad-gas', 'pointerdown', 11);
+    const gasOn = input.read(1).throttle;
+    fire('pad-gas', 'pointerup', 11);
+
+    // 搖桿：遊戲座標「向右」＝ 螢幕座標「向下」（成個遊戲順時針轉咗 90°）
+    const z = document.getElementById('steer-zone').getBoundingClientRect();
+    const cx = z.left + z.width / 2, cy = z.top + z.height / 2;
+    fire('steer-zone', 'pointerdown', 12, { clientX: cx, clientY: cy });
+    fire('steer-zone', 'pointermove', 12, { clientX: cx, clientY: cy + 90 });
+    let right = 0;
+    for (let i = 0; i < 40; i++) right = input.read(1).steer;
+    fire('steer-zone', 'pointermove', 12, { clientX: cx, clientY: cy - 90 });
+    let left = 0;
+    for (let i = 0; i < 40; i++) left = input.read(1).steer;
+    dispatchEvent(new Event('blur'));
+    input.reset();
+    return { gasOn, right: +right.toFixed(2), left: +left.toFixed(2) };
+});
+console.log('  ', JSON.stringify(rotatedTouch));
+check('轉咗之後油門掣仍然撳得到', rotatedTouch.gasOn > 0, rotatedTouch);
+check('轉咗之後搖桿左右仍然啱（一正一負）',
+    rotatedTouch.right > 0.3 && rotatedTouch.left < -0.3, rotatedTouch);
+
+await page.setViewportSize({ width: 900, height: 760 });
+await page.waitForTimeout(420);
+await page.evaluate(() => window.__racer.toMenu());
 
 // T4c：ABS 設定要真係接落物理，兼且記得住
 const abs = await page.evaluate(() => {
@@ -810,42 +842,8 @@ check('WebGL context restored 後只容許玩家明確繼續', !gpuRecovery.atRe
     && gpuRecovery.atRestore?.calls > 0 && gpuRecovery.atRestore?.tris > 0
     && gpuRecovery.resumed, gpuRecovery);
 
-// T5e：真係轉成打直先暫停，而且要清走黐住嘅操控（掣位會搬走）。
-// 橫轉橫唔可以停——Penny 用陀螺儀揸車就係一路扭手機，舊寫法一收到
-// orientationchange 就停，於是比賽中無端端彈暫停。
-const rotatePause = await page.evaluate(async () => {
-    const root = window.__racer;
-    root.startRace();
-    root.input.touch.gas = true;
-    root.input.steerSmooth = -1;
-    // 橫轉橫：唔停，操控亦唔應該被清（玩家仲揸緊）
-    dispatchEvent(new Event('orientationchange'));
-    await new Promise(r => setTimeout(r, 180));
-    return {
-        stillRacing: root.running && !root.paused,
-        gasKept: root.input.touch.gas,
-    };
-});
-console.log('  ', JSON.stringify(rotatePause));
-check('橫轉橫唔會停低比賽', rotatePause.stillRacing === true && rotatePause.gasKept === true, rotatePause);
-
-await page.setViewportSize({ width: 420, height: 900 });
-await page.waitForTimeout(240);
-const toPortrait = await page.evaluate(() => {
-    const root = window.__racer;
-    const out = {
-        running: root.running, paused: root.paused,
-        gas: root.input.touch.gas, steer: root.input.steerSmooth,
-        reason: document.getElementById('pause-reason').textContent,
-    };
-    return out;
-});
-console.log('  ', JSON.stringify(toPortrait));
-check('轉成打直會安全暫停兼清走黐住嘅操控', !toPortrait.running && toPortrait.paused
-    && !toPortrait.gas && toPortrait.steer === 0 && toPortrait.reason.includes('打橫'), toPortrait);
-await page.setViewportSize({ width: 900, height: 760 });
-await page.waitForTimeout(240);
-await page.evaluate(() => window.__racer.toMenu());
+// T5e：（舊嗰個「轉方向就暫停」嘅測試已經移除——ADR-073 之後遊戲畫面
+// 永遠打橫，根本冇方向改變，覆蓋喺 T4b。）
 
 // T5f：非比賽畫面唔可以繼續 60 fps 燒 GPU；設定改動就只補畫一幀。
 const idleRender = await page.evaluate(async () => {
@@ -873,7 +871,9 @@ check('改設定只會按需補畫，之後再休眠', idleRender.settingFrames 
     && idleRender.settingFrames <= 2 && idleRender.settledFrames === 0, idleRender);
 
 // T5g：最窄常見手機都要完整見到搖桿同三粒 action 掣，暫停掣唔撞 HUD。
-await page.setViewportSize({ width: 320, height: 568 });
+// 用 568×320：遊戲而家強制打橫（ADR-073），一部 320×568 嘅手機喺遊戲
+// 入面嘅框就係咁——量呢個先係量玩家真係見到嗰個版面。
+await page.setViewportSize({ width: 568, height: 320 });
 const narrow = await page.evaluate(() => {
     const root = window.__racer;
     root.startRace();
@@ -898,7 +898,7 @@ const narrow = await page.evaluate(() => {
 });
 console.log('  ', JSON.stringify(narrow));
 const narrowControls = [...narrow.buttons, narrow.stick];
-check('320px 直向搖桿同三粒 action 完整留喺 viewport', narrowControls.every(b =>
+check('最窄手機（橫向 568×320）搖桿同三粒 action 完整留喺 viewport', narrowControls.every(b =>
     b.left >= 0 && b.right <= narrow.viewport[0] && b.top >= 0 && b.bottom <= narrow.viewport[1]), narrow);
 check('窄屏 action 守住 44px、放大搖桿至少 116px，而且暫停掣唔撞 HUD', narrow.buttons.every(b =>
     b.width >= 44 && b.height >= 44) && narrow.stick.width >= 116

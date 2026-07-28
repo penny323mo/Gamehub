@@ -94,21 +94,20 @@ function resize() {
 }
 addEventListener('resize', resize);
 
-// ---------- 方向：鎖死打橫 ----------
-// 舊寫法一收到 orientationchange 就無條件暫停。問題係 iOS 喺你打側手機、
-// 攤平、或者喺 landscape-left / landscape-right 之間跳嗰陣都會報方向轉變
-// ——用陀螺儀揸車正正就係一路喺度扭手機，所以比賽會無端端彈「已暫停」
-// （Penny 影到嗰張截圖，本身已經係打橫）。
+// ---------- 方向：遊戲畫面永遠打橫 ----------
+// 唔再理部機打緊直定橫——CSS 喺打直嗰陣將成個 #game-root 轉 90°，所以
+// 遊戲睇落永遠係橫。咁就根本冇「方向改變」呢件事：用陀螺儀扭手機唔會
+// 令畫面反轉，亦唔使暫停叫人打橫。
 //
-// 而家改成睇「橫定直」呢個真正嘅分類（matchMedia），橫轉橫唔會當方向變。
-// 打直先至停，而且停嗰陣直接叫你打橫返。
+// 舊寫法係一收到 orientationchange 就暫停，而 iOS 喺 landscape 左右互換、
+// 手機接近攤平嗰陣都會報——揸車就係一路扭手機，所以必中（Penny 嗰張
+// 截圖本身已經係打橫）。
 const portraitQuery = matchMedia('(orientation: portrait)');
 const isPortrait = () => portraitQuery.matches;
 
 function applyOrientation() {
-    const hint = $('rotate-hint');
-    if (hint) hint.classList.toggle('hidden', !isPortrait());
-    if (isPortrait() && running) pauseRace('請打橫手機再繼續');
+    // Input 自己問 matchMedia，所以呢度淨係要補一次 resize（轉完之後
+    // 遊戲版面嘅闊高會對調）。
     setTimeout(resize, 120);
 }
 

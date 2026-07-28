@@ -52,6 +52,11 @@ export class Input {
         this.gyro = { on: false, tilt: 0, zero: null, supported: 'DeviceOrientationEvent' in window };
         // 陀螺儀讀數本身有雜訊，而且之前完全冇平滑（觸控有，陀螺儀繞過咗）。
         this.gyroSmooth = 0;
+        // 部機打直嗰陣，CSS 會將成個遊戲轉 90° 去強制打橫（ADR-073）。
+        // 按鈕嘅命中測試用螢幕座標 AABB，轉唔轉都啱；但搖桿要嘅係「遊戲
+        // 座標」嘅左右，喺轉咗之後對應螢幕嘅上下，所以要換軸。
+        // 直接問 matchMedia，唔靠人手同步狀態——少一個「有冇記得叫」嘅位。
+        this.rotatedOverride = null;
 
         addEventListener('keydown', (e) => {
             if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
@@ -171,11 +176,11 @@ export class Input {
         const knob = root.querySelector('#steer-knob');
         if (zone && stick && knob) {
             const placeBase = (ev) => {
-                const zoneRect = zone.getBoundingClientRect();
-                const size = stick.getBoundingClientRect().width;
+                const p = this.localPoint(zone, ev.clientX, ev.clientY);
+                const size = stick.offsetWidth || 156;
                 const radius = size / 2;
-                const x = Math.max(radius, Math.min(zoneRect.width - radius, ev.clientX - zoneRect.left));
-                const y = Math.max(radius, Math.min(zoneRect.height - radius, ev.clientY - zoneRect.top));
+                const x = Math.max(radius, Math.min(p.w - radius, p.x));
+                const y = Math.max(radius, Math.min(p.h - radius, p.y));
                 stick.style.left = `${(x - radius).toFixed(1)}px`;
                 stick.style.top = `${(y - radius).toFixed(1)}px`;
                 stick.style.bottom = 'auto';
@@ -183,10 +188,11 @@ export class Input {
             const move = (ev) => {
                 if (this.touchPointers.get(ev.pointerId) !== 'steer') return;
                 ev.preventDefault();
-                const rect = stick.getBoundingClientRect();
-                const max = Math.max(1, rect.width * 0.34);
-                let dx = ev.clientX - (rect.left + rect.width / 2);
-                let dy = ev.clientY - (rect.top + rect.height / 2);
+                const size = stick.offsetWidth || 156;
+                const max = Math.max(1, size * 0.34);
+                const p = this.localPoint(stick, ev.clientX, ev.clientY);
+                let dx = p.x - size / 2;
+                let dy = p.y - size / 2;
                 const distance = Math.hypot(dx, dy);
                 if (distance > max) { dx *= max / distance; dy *= max / distance; }
                 this.touch.steer = Math.max(-1, Math.min(1, dx / max));
@@ -254,6 +260,33 @@ export class Input {
         this.gyroSens = v;
         try { localStorage.setItem(GYRO_SENS_KEY, String(v)); } catch { }
     }
+    get rotated() {
+        if (this.rotatedOverride != null) return this.rotatedOverride;
+        try { return matchMedia('(orientation: portrait)').matches; } catch { return false; }
+    }
+
+    // 測試可以強制；傳 null 就交返畀 matchMedia
+    setRotated(on) {
+        this.rotatedOverride = on == null ? null : !!on;
+        return this.rotated;
+    }
+
+    // 將螢幕上嘅一點，換成「相對某個元素、喺遊戲座標系」嘅位置。
+    // 轉咗 90°（rotate(90deg) translateY(-100%)，原點左上）之後：
+    // 遊戲 x 沿住螢幕由上往下走，遊戲 y 沿住螢幕由右往左走。
+    localPoint(el, clientX, clientY) {
+        const r = el.getBoundingClientRect();
+        if (!this.rotated) {
+            return { x: clientX - r.left, y: clientY - r.top, w: r.width, h: r.height };
+        }
+        return {
+            x: clientY - r.top,
+            y: r.width - (clientX - r.left),
+            w: r.height,
+            h: r.width,
+        };
+    }
+
     setGyroInvert(on) {
         this.gyroInvert = !!on;
         try { localStorage.setItem(GYRO_INVERT_KEY, this.gyroInvert ? '1' : '0'); } catch { }
@@ -327,6 +360,11 @@ export class Input {
             steer = this.gyroSmooth;
         } else {
             this.gyroSmooth = 0;
+        // 部機打直嗰陣，CSS 會將成個遊戲轉 90° 去強制打橫（ADR-073）。
+        // 按鈕嘅命中測試用螢幕座標 AABB，轉唔轉都啱；但搖桿要嘅係「遊戲
+        // 座標」嘅左右，喺轉咗之後對應螢幕嘅上下，所以要換軸。
+        // 直接問 matchMedia，唔靠人手同步狀態——少一個「有冇記得叫」嘅位。
+        this.rotatedOverride = null;
         }
 
         // 簡易模式只要求玩家掌軚、煞車同漂移。比賽未開始時主迴圈唔會 read，

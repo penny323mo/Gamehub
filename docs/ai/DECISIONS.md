@@ -1049,7 +1049,8 @@ follows what the tyres can use
 ## ADR-072: Landscape only, and rotation stops pausing the race
 
 - Date: 2026-07-28
-- Status: accepted
+- Status: superseded by ADR-073 for the portrait half of the decision; its
+  landscape-to-landscape finding still stands
 - Decision: Racing Car is a landscape-only game. Pausing is driven by the
   `(orientation: portrait)` media query, not by `orientationchange`. Portrait pauses the
   race with 請打橫手機再繼續 and covers the screen with a rotate prompt; landscape hides it.
@@ -1062,3 +1063,37 @@ follows what the tyres can use
   media query instead makes the pause mean what its message says.
 - The rotate prompt is what enforces landscape on iOS Safari, which does not implement
   orientation locking. On platforms that do, the lock attempt saves the player the step.
+
+## ADR-073: The game frame is always landscape, so orientation stops existing
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: Racing Car renders in a permanently landscape frame. When the device reports
+  `(orientation: portrait)`, CSS gives `#game-root` swapped dimensions
+  (`width: 100dvh; height: 100dvw`) and rotates it 90° about its top-left corner, so the
+  game fills the portrait viewport sideways. Nothing pauses, nothing prompts, and no
+  rotate hint exists any more — the markup and CSS for it are deleted. `screen.orientation
+  .lock('landscape')` is still attempted at race start on platforms that implement it, but
+  it is now only a convenience, not the mechanism.
+- Reason: ADR-072 made portrait pause the race and cover the screen with 請打橫手機再繼續.
+  Penny's requirement is the opposite: the game must never change direction because of the
+  phone. Gyro steering means the phone is tilted continuously, and the OS re-classifies a
+  near-flat phone as portrait on its own — so a portrait-triggered pause is the same bug as
+  the `orientationchange` pause, just one classification later. Rotating the frame removes
+  the trigger instead of making it more selective: there is no orientation the game reacts
+  to, because the game only has one.
+- Touch input is the part that does not come free. Pointer coordinates arrive in screen
+  space, and CSS transforms do not rewrite them, so in a rotated frame a horizontal swipe
+  reads as vertical. `Input` gained a `rotated` getter that asks the same media query and a
+  `localPoint()` that maps a screen point into the game frame
+  (`x = clientY - top`, `y = width - (clientX - left)`, with width and height swapped). The
+  joystick's `placeBase` and `move` go through it; the buttons do not need it, because their
+  hit test compares screen-space rectangles that the browser has already transformed.
+  `setRotated()` exists so tests can force either frame without a real device.
+- The rotated frame is what the gates measure, not the CSS: the setup suite now asserts that
+  an `orientationchange` in either orientation leaves the race running, that the game frame
+  is wider than it is tall while the viewport is 390×844, that the canvas aspect stays above
+  1, and that on a rotated frame a stick drag toward the bottom of the screen steers right
+  and toward the top steers left. Two older gates measured screen-space rectangles in a
+  portrait viewport and were re-pointed at 568×320, which is the shape a phone actually
+  presents this game.
