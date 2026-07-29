@@ -104,6 +104,23 @@ export const CFG = {
     // 冇刮走就冇得退，所以漂移永遠唔會快過直路，但唔會再係純懲罰。
     driftRefund: 0.7,
     driftPushMinSlip: 0.3,   // 約 17°，即係真係甩緊尾先計
+
+    // 動力過彎（power oversteer）：踩住油喺漂移角度，後軸再鬆一截。
+    // 呢個係維持漂移嘅唯一來源——實測未加之前，放咗手煞之後就算踩住全油，
+    // 26° 嘅漂移 0.8 秒就自己收返，而且玩家點反打都改變唔到（反打 gain 由
+    // 0.4 掃到 2.0，維持時間全部 0.80–0.81 秒）。
+    //
+    // 掃過 power × 收窗 × 反打力度之後揀 0.30 配 24°–39° 收窗：維持由 0.8
+    // 升到 1.6 秒、角度由 26° 升到 31°，同時 35° 起手嘅過衝維持喺 68°
+    // （上限 70），漂移速度保住直路嘅 76%（下限 70%）。
+    // 放鬆到 0.38 配 27°–46° 可以維持成 6.4 秒、企喺 36°，但漂移速度會跌到
+    // 55%——即係要拆咗 ADR-070 嗰條「唔可以慢到冇人用」先得。留返畀 Penny
+    // 上機試完先決定值唔值。
+    driftPowerLo: 0.26,      // 15°：同 drifting 門檻一樣，計分開始嗰刻先計
+    driftPower: 0.30,        // 後軸抓地鬆幾多
+    driftPowerHi: 0.42,      // 24°：過咗呢度開始收
+    driftPowerOut: 0.68,     // 39°：完全收晒，唔畀漂移自己推到打圈
+    driftPowerThrottle: 0.5, // 要踩過呢個油門先計
     offroadGrip: 0.45,   // 落草抓地
     offroadDrag: 2600,
     wallBounce: 0.4,
@@ -201,7 +218,26 @@ export class Car {
         this.offroad = !track.isDrivable(this.pos.x, this.pos.z);
         const surface = this.offroad ? CFG.offroadGrip : 1;
         const frontGrip = CFG.gripFront * surface;
-        const rearGrip = CFG.gripRear * surface * (input.handbrake ? CFG.handbrakeGrip : 1);
+        let rearGrip = CFG.gripRear * surface * (input.handbrake ? CFG.handbrakeGrip : 1);
+        // 動力過彎（power oversteer）。摩擦圓本身已經有呢個效果，但實測唔夠:
+        // 放咗手煞之後，就算踩住全油，一個 26° 嘅漂移 0.8 秒就自己收返；
+        // 連偏航阻尼一齊熄埋都只係捱到 1.5 秒，而且玩家點反打都改變唔到
+        // （反打 gain 由 0.4 掃到 2.0，維持時間全部一樣）。
+        // 呢度明確加多一層街機效果：已經喺漂移角度、又踩住油，後軸就再鬆
+        // 一截。條件同 driftRefund 一樣（要踩油、要真係甩緊、落草冇、拉緊
+        // 手煞冇），所以佢係「油門控制角度」嘅來源，唔係一個免費加速。
+        if (assists && !input.handbrake && !this.offroad
+            && input.throttle > CFG.driftPowerThrottle && assistSlip > CFG.driftPowerLo) {
+            // 角度窗：由 15° 升上嚟，過咗 driftPowerHi 就一路收返到零。
+            // 冇呢個上限嘅話佢會自己推到 89°——即係漂移變咗一條單程路，
+            // 唔再係玩家揸得住嘅嘢（committed gate 就係咁樣捉到）。
+            const rise = Math.min(1, (assistSlip - CFG.driftPowerLo) / 0.2);
+            const fall = Math.min(1, Math.max(0,
+                (CFG.driftPowerOut - assistSlip) / (CFG.driftPowerOut - CFG.driftPowerHi)));
+            const angle = rise * fall;
+            const gas = (input.throttle - CFG.driftPowerThrottle) / (1 - CFG.driftPowerThrottle);
+            rearGrip *= 1 - CFG.driftPower * angle * gas;
+        }
 
         // ---- 縱向需求：引擎／煞車／阻力 ----
         // 煞車只係「需求」，真正落地幾多，下面按軸同摩擦圓計。
@@ -324,6 +360,11 @@ export class Car {
         // 42° 起手一下衝到 79°，跟住彈返 0，中間冇平衡點，即係點揸都
         // 維持唔到一個中角度漂移。所以反打嗰陣阻尼保底 45%：軚仲係你話事，
         // 但擺動收窄咗，就有得「揸住」個角度。
+        //
+        // 試過喺呢度開一個「漂移窗」（15°–46° 之間淡出阻尼），量完之後拆走：
+        // 佢完全冇延長到漂移（有窗冇窗都係 0.8–0.9 秒），但就將 35° 起手嘅
+        // 過衝由 68° 推到 75°。維持漂移嘅係後軸動力（見上面 driftPower），
+        // 唔係阻尼。呢度照舊壓「角度變化幾快」。
         if (assists && !input.handbrake && assistSlip > 0.12) {
             const dampScale = Math.max(CFG.assistDampFloor, assistScale);
             const damp = Math.min(CFG.assistYawDamp, (assistSlip - 0.12) * 7) * dampScale;

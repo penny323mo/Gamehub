@@ -1217,3 +1217,34 @@ follows what the tyres can use
 - The 90%-of-lock timing gate moved from 0.12 s to 0.15 s, because the curve makes the last
   stretch of output need the last stretch of travel. Measured 0.133 s, against 0.25 s before
   ADR-076.
+
+## ADR-078: Power oversteer is what holds a drift; yaw damping never was
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: while the assists are on, the player is not braking or on the handbrake, the car
+  is on tarmac, the throttle is above `driftPowerThrottle` and the body slip is already past
+  `driftPowerLo` (15°), the rear axle's grip is reduced by up to `driftPower` (0.30). The
+  reduction rises from 15° to `driftPowerHi` (24°) and falls back to zero by `driftPowerOut`
+  (39°), so the effect cannot drive the angle past the band it is meant to hold. This is an
+  arcade layer, declared as such, on the same conditions as ADR-070's drift refund.
+- Reason: a drift could not be held and, worse, the player had no say in it. From a handbrake
+  entry at 30 m/s the slide peaked at 26° and collapsed in 0.81 s, and sweeping the player's
+  countersteer gain from 0.4 to 2.0 changed the held time by less than a hundredth of a
+  second — in a drift-scoring game, the scoring mechanic was not a skill. With the change the
+  same entry holds 1.56 s at an average 25° and a 31° peak, and the gain sweep now separates:
+  weaker countersteer gives shorter drifts.
+- The yaw-damping "drift window" tried first is rejected and removed. Fading the damping
+  between 15° and 46° bought nothing at all — held time stayed at 0.8–0.9 s with the window
+  open or shut, at any damping level — while pushing the 35°-entry overshoot from 68° to 75°,
+  past its 70° gate. Damping resists the rate of change, so it never was what ended the
+  drift; the rear axle regaining grip was.
+- The looser tuning is documented rather than shipped. `driftPower` 0.38 with a 27°–46° taper
+  holds the full 6.4 s measurement window at 36°, but the sustained angle drops drift speed to
+  55% of the straight-line figure, below ADR-070's 70% floor. Sitting that sideways genuinely
+  is that slow, so raising the hold further means deciding that ADR-070's floor is the wrong
+  rule — Penny's call on a phone, not a desktop one.
+- Gates: the drift must hold at least 1.3 s from a phone-shaped entry, settle in a 25–40°
+  band without spinning, and be measurably shorter with `driftPower` at zero. The existing
+  overshoot (≤70°), refund-exploit (drift slower than straight) and speed-retention (≥70%)
+  gates all still pass, as does the AI at 0–0.3% off-road across all six circuits.

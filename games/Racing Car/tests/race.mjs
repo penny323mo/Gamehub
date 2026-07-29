@@ -512,6 +512,56 @@ check('手煞真係鎖死後軸', tapDrift.half.lockedRear === true, tapDrift.ha
 check('半秒手煞入到漂移（>18°）', tapDrift.half.entry > 18, tapDrift.half);
 check('但唔會一撳就打圈', tapDrift.half.peak < 60 && tapDrift.long.peak < 80, tapDrift);
 
+// T3c2：漂移要維持得住，而且要維持得住喺玩家手上。實測未加動力過彎
+// 之前：放咗手煞之後 26° 嘅漂移 0.8 秒就自己收返，而且玩家點反打都
+// 改變唔到（反打 gain 由 0.4 掃到 2.0，維持時間全部 0.80–0.81 秒）——
+// 一隻漂移計分遊戲入面，玩家對漂移長短完全冇話事權。
+const driftHold = await page.evaluate(async () => {
+    const { steerExpo } = await import('./src/input.js');
+    const { CFG } = await import('./src/car.js');
+    const { car, track } = window.__racer;
+    const PLANE = { isDrivable: () => true, isWall: () => false };
+    const D = 57.2958;
+    // 手機玩家：撳一下手煞打軚起手，之後按滑移角反打，目標 30°
+    const run = () => {
+        car.reset(track.startPos, track.startDir);
+        car.arcadeAssist = true;
+        const d = track.startDir;
+        car.vel.x = d.x * 30; car.vel.z = d.z * 30;
+        let held = 0, peak = 0, settled = 0, n = 0;
+        for (let i = 0; i < 900; i++) {
+            const t = i / 120;
+            let steer = 0, hb = false;
+            if (t < 0.6) steer = 0;
+            else if (t < 1.05) { steer = 1; hb = true; }
+            else {
+                const sl = car.slipAngle;
+                steer = Math.max(-1, Math.min(1, -Math.sign(sl) * (Math.abs(sl) - 30 / D) * D / 45));
+            }
+            car.update(1 / 120, { throttle: 0.85, steer: steerExpo(steer), handbrake: hb }, PLANE);
+            if (t > 0.6) {
+                const a = Math.abs(car.slipAngle) * D;
+                peak = Math.max(peak, a);
+                if (car.drifting) { held += 1 / 120; settled += a; n++; }
+            }
+        }
+        return { held: +held.toFixed(2), peak: Math.round(peak), avg: n ? Math.round(settled / n) : 0 };
+    };
+    const now = run();
+    const power = CFG.driftPower;
+    CFG.driftPower = 0;
+    const without = run();
+    CFG.driftPower = power;
+    return { now, without };
+});
+console.log('  ', JSON.stringify(driftHold));
+check('踩住油可以真係維持到漂移（至少 1.3 秒）',
+    driftHold.now.held >= 1.3, driftHold.now);
+check('維持到嘅係一個揸得住嘅角度（25–40°），唔係打圈',
+    driftHold.now.avg >= 20 && driftHold.now.peak <= 40, driftHold.now);
+check('動力過彎就係維持漂移嗰樣嘢（熄咗會短一大截）',
+    driftHold.without.held < driftHold.now.held * 0.75, driftHold);
+
 // T3d：漂移退款唔可以變成加速外掛。第一版用固定推力，實測維持 50° 漂移
 // 去到 148 km/h，比直路巡航 122 仲快——成隻遊戲反轉。而家退款上限就係
 // 今幀實際刮走嘅速度，所以漂移永遠快唔過直路。
