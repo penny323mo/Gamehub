@@ -38,6 +38,9 @@ Close out phone-only complaints (orientation, hub card, steering reach), then ra
   track at ≤1.5 rad/s while below 5 m/s and more than 80° out, holding until within 25°. Before
   it, a 150° spin at walking pace was unrecoverable for a simple-mode player in 25s; now 150°
   comes back in 1.47s. It declines at speed and at small angles, so real driving is untouched.
+- The combo ladder is reachable (ADR-084): the step was 1.6s while the best measured single
+  drift holds 1.56s, so 2× was 0.04s out of reach and the whole ladder to 5× was invisible.
+  Now 1.2s — a good single drift earns 2× and banks points; 3×/4×/5× still need linked corners.
 - Hub carousel on phones: the card fills 90% of a 440px viewport (was 64%); neighbours wholly
   visible or wholly hidden. Also fixed: `max-height: 88vh` → 743px in a rotated frame, a rotated
   frame taking the narrow-portrait pad layout, a stray `rotatedOverride`.
@@ -50,15 +53,16 @@ Close out phone-only complaints (orientation, hub card, steering reach), then ra
 
 ## Verification
 
-- Suites: race 115/115, setup 125/125, rivals 61/61, ghost 29/29, season 55/55,
-  audio 32/32 (417/417); `run-all` green. AI 0–0.3% off-road on all six circuits. Hub 33/33.
+- Suites: race 117/117, setup 125/125, rivals 61/61, ghost 29/29, season 55/55,
+  audio 32/32 (419/419); `run-all` green. AI 0–0.3% off-road on all six circuits. Hub 33/33.
 - Orientation gates: 打直/打橫 give the right frame at 390×844 and persist, the joystick axes
   swap, the canvas fills the frame, `orientationchange` never pauses, a stubbed stale
   `visualViewport` recovers within a second, and resizing `#game-root` with no event still works.
 - Steering gates: full reach at 0/20/40/60° gives full lock in 0.10s; half-stick `t45`
   ≤1.45/1.55/1.80s, killing the boost slows it; simple-mode lift 0.6 at full lock, −1 braking.
   Drift: held ≥1.3s, settled 25–40°. Spin: 150° back in 2s, declines at speed and small angles.
-  Wall: a 10° graze stays >20 km/h and recovers past 50. Hub: neighbours hidden, card unclipped.
+  Wall: a 10° graze stays >20 km/h and recovers past 50; the same drift entry reaches combo 2.
+  Hub: neighbours hidden, card unclipped, ≥82% wide.
 
 ## Remaining release gates
 
@@ -79,8 +83,7 @@ Close out phone-only complaints (orientation, hub card, steering reach), then ra
 
 ## Exact next action
 
-1. Receiving agent runs `./scripts/agent-context.sh --sync`, then reads ADR-074 to ADR-076
-   and ADR-068 to ADR-071.
+1. Receiving agent runs `./scripts/agent-context.sh --sync`, then reads ADR-074 to ADR-084.
 2. Penny sends the copied phone report plus judgements: which 畫面方向 she settled on and
    whether it behaves, gyro direction and sensitivity, audio balance. Tune only those.
 
@@ -89,28 +92,23 @@ Close out phone-only complaints (orientation, hub card, steering reach), then ra
 - Do not reintroduce a portrait pause, a rotate prompt, an "automatic" third orientation
   value, or code that changes 畫面方向 for the player (ADR-074, superseding 072 and 073).
 - Do not read raw `clientX/clientY` for in-game positioning; use `Input.localPoint()`.
-- Do not decide the orientation from one measurement, and do not size `#game-root` from JS
-  pixels — both make the frame depend on an event arriving on time (ADR-075).
-- Do not clamp the steering stick into a circle, and do not smooth an analogue stick input;
-  the car is not what limits the turn (ADR-076).
+- Do not decide the orientation from one measurement or size `#game-root` from JS pixels; do not
+  clamp the steering stick into a circle or smooth an analogue stick (ADR-075, ADR-076).
 - Do not put a curve back on the stick, raise `gripFront` unconditionally, or lower
-  `steerSpeedDrop` below 2.4 — all measured, all cost more than they buy. Turn-in belongs to
-  the 8°-windowed front-grip assist (ADR-079).
+  `steerSpeedDrop` below 2.4 — turn-in belongs to the 8° front-grip window (ADR-079).
 - Do not lengthen a drift with yaw damping; it buys nothing and costs overshoot (ADR-078).
-- Do not give `unspin` a single threshold: stopping at 80° leaves the car sideways under
-  automatic throttle. Entry 80°, exit 25° (ADR-083).
+- Do not give `unspin` a single threshold — entry 80°, exit 25° (ADR-083) — and do not raise the
+  combo step back to 1.6s: the best measured drift holds 1.56s (ADR-084).
 - Do not give simple mode an automatic brake, and do not tune constants against a novice model
   with reaction delay in the loop — it is a feedback loop, not an instrument (ADR-082).
-- Do not add identity/credential/device identifiers to reports, raise body roll past 3.5°, or
-  roll the contact shadow (ADR-063).
+- Do not add device identifiers to reports, raise body roll past 3.5°, or roll the contact
+  shadow (ADR-063).
 - Do not merge the gyro-only direction switch into shared touch direction (ADR-064), flip gyro
-  signs or tune sensitivity/audio without physical-device evidence, retry
-  ADR-062's four rejected Turbo tweaks, or fold spin recovery back into the control law.
-  Do not make the gyro map linear or remove its smoothing (ADR-066).
-- Do not add a rival difficulty setting on top of today's driver (ADR-067), and do not raise
-  `latG` past 7.8 — 9.0 breaks Coast-reverse, 10.5 breaks Coast (ADR-082).
-- Do not charge braking to one axle's friction circle, raise `loadTransfer` above 0.2 (that
-  put the rear wheels in the air, ADR-068), or change braking without retuning the AI.
+  signs or tune sensitivity/audio without device evidence, retry ADR-062's four rejected Turbo
+  tweaks, fold spin recovery into the control law, or make the gyro map linear (ADR-066).
+- Do not add a rival difficulty setting (ADR-067) or raise `latG` past 7.8 (ADR-082).
+- Do not charge braking to one axle's friction circle, raise `loadTransfer` above 0.2, or change
+  braking without retuning the AI (ADR-068).
 - Do not let aids steal steering while the player holds opposite lock (ADR-069), but do not
   remove the yaw-damping floor either — that is what made the car bistable.
 - Do not move the tyre peak back to 11°, raise the drift threshold and tyre peak

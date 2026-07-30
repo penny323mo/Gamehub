@@ -1390,3 +1390,20 @@ follows what the tyres can use
   measurement of the game.
 - Gates: 150° recovers within 2 s, 90° within 1.5 s, and the assist declines both at speed and
   at small angles.
+
+## ADR-084: The combo ladder has to be reachable
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: the drift combo steps every `COMBO_STEP` = 1.2 s instead of 1.6 s. `COMBO_MAX`
+  stays at 5.
+- Reason: 1.6 s was a bad coincidence. After ADR-078 the best a well-executed single-corner
+  drift holds is 1.56 s, measured — four hundredths of a second short of 2×. So the whole
+  ladder up to 5× was unreachable except by chaining corners inside the 0.55 s grace window,
+  which means the reward for the skill ADR-078 had just made possible was invisible. At 1.2 s
+  the first rung is earned by a good single drift (measured: 1.57 s held, combo 2, 143 points
+  banked), while 3× at 2.4 s, 4× at 3.6 s and 5× at 4.8 s still require linking corners, so
+  the ladder keeps its headroom.
+- Gate: the same phone-shaped handbrake entry used by ADR-078's hold gate must reach combo 2
+  and bank a non-zero score. Tying the gate to the same scenario means the two constants
+  cannot drift apart again: if the achievable hold time changes, this gate fails.

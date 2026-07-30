@@ -9,6 +9,11 @@
 const SAVE_KEY = 'racer-best-v2';
 const DRIFT_END_GRACE = 0.55;    // 甩完幾耐先當一段結束（連續彎之間會短暫擺正）
 const COMBO_MAX = 5;
+// 倍率每幾秒升一級。1.6 秒係一個壞巧合：ADR-078 之後，一個做得好嘅單彎
+// 漂移實測維持 1.56 秒——即係差 0.04 秒都升唔到 2×，成條倍率階梯（去到
+// 5×）除咗連續彎串埋之外根本摸唔到。1.2 秒之下第一級變成攞得到，而
+// 3×（2.4 秒）4×（3.6 秒）5×（4.8 秒）仍然要靠串連續彎，階梯有返意義。
+const COMBO_STEP = 1.2;
 // 卡死幾耐先拖返賽道。車頭頂正欄杆而又踩住油嘅話，物理上係真係郁唔到——
 // 唔畀個出路嘅話一次失誤就要重開成場。
 const STUCK_LIMIT = 3;
@@ -107,8 +112,8 @@ export class Race {
             // 角度愈大、速度愈快，得分愈高；角度封頂避免原地打圈刷分
             const angle = Math.min(Math.abs(car.slipAngle), 1.1);
             this.pending += angle * car.speed * dt * 6 * this.combo;
-            // 連續甩尾每 1.6 秒升一級倍率
-            this.combo = Math.min(COMBO_MAX, 1 + Math.floor(this.driftTime / 1.6));
+            // 連續甩尾每 COMBO_STEP 秒升一級倍率
+            this.combo = Math.min(COMBO_MAX, 1 + Math.floor(this.driftTime / COMBO_STEP));
         } else {
             this.sinceDrift += dt;
             if (this.sinceDrift > DRIFT_END_GRACE && this.pending > 0) this.#bank();

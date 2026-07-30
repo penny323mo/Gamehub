@@ -600,6 +600,46 @@ check('中角度撞欄要罰得多過擦欄，但都追得返',
 check('貼牆矯正真係有出力（熄咗就會停死）',
     wallGraze.oldWay.minKmh < wallGraze.shallow.minKmh * 0.5, wallGraze);
 
+// T3c0：倍率階梯要摸得到。ADR-078 之後一個做得好嘅單彎漂移實測維持 1.56 秒，
+// 而舊嘅倍率步長係 1.6 秒——即係差 0.04 秒都升唔到 2×，成條去到 5× 嘅階梯
+// 除咗串連續彎之外係摸唔到嘅。呢個 gate 用真實維持時間去檢查第一級攞得到。
+const combo = await page.evaluate(async () => {
+    const { Race } = await import('./src/race.js');
+    const { car, track } = window.__racer;
+    const PLANE = { isDrivable: () => true, isWall: () => false };
+    const D = 57.2958;
+    // 同 T3c2 一樣嘅手機式起手，但今次記低倍率
+    car.reset(track.startPos, track.startDir);
+    car.arcadeAssist = true;
+    const d = track.startDir;
+    car.vel.x = d.x * 30; car.vel.z = d.z * 30;
+    const race = new Race(track, { laps: 3, trackId: track.id, onEvent: () => { } });
+    race.state = 'racing';
+    let held = 0, best = 1;
+    for (let i = 0; i < 900; i++) {
+        const t = i / 120;
+        let steer = 0, hb = false;
+        if (t < 0.6) steer = 0;
+        else if (t < 1.05) { steer = 1; hb = true; }
+        else {
+            const sl = car.slipAngle;
+            steer = Math.max(-1, Math.min(1, -Math.sign(sl) * (Math.abs(sl) - 30 / D) * D / 45));
+        }
+        car.update(1 / 120, { throttle: 0.85, steer, handbrake: hb }, PLANE);
+        race.update(1 / 120, car);
+        if (car.drifting) held += 1 / 120;
+        best = Math.max(best, race.combo);
+    }
+    // 漂移結束之後 pending 會入袋（清零），所以要睇袋咗嘅加未袋嘅
+    return {
+        held: +held.toFixed(2), combo: best,
+        scored: Math.round(race.driftScore + race.pending),
+    };
+});
+console.log('  ', JSON.stringify(combo));
+check('一個做得好嘅漂移升得到 2× 倍率', combo.combo >= 2, combo);
+check('而且真係袋到分', combo.scored > 0, combo);
+
 // T3c1：轉向要夠靈。Penny 講咗三次「超難轉向」，量度用 t45——由直路打軚
 // 到車頭真係轉咗 45° 要幾多秒。最初：半軚 14/22/30 m/s 係 1.91/2.02/2.17
 // 秒，全軚 30 m/s 1.66 秒。逐個 lever 掃過（expo、慣量、軚速、高速收窄、
