@@ -1331,3 +1331,34 @@ follows what the tyres can use
 - Gates: a 10° graze must stay above 20 km/h and recover past 50 km/h within three seconds, a
   25° hit must cost more than the 10° one yet still recover past 60, and restoring the old
   constants must measurably re-break it.
+
+## ADR-082: Rivals were using half the car; auto-braking for simple mode is rejected
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: `SKILLS.latG` rises from 6.0/6.2/6.4 to 7.2/7.5/7.8 m/s², keeping the tight spread
+  ADR-061 argued for. Simple mode does **not** get an automatic brake; it keeps ADR-080's
+  auto-lift only.
+- Reason: the car's measured steady-state cornering limit is 1.25 g (12.3 m/s²), and the
+  turn-in assist of ADR-079 is available to the AI as well, so at 6.2 the rivals were cornering
+  at half of what the car can do. A deliberately handicapped novice — the AI's own line with
+  0.25 s of reaction delay and steering quantised to five positions — completed three laps in
+  84–91 s on three circuits while the rivals took 95–112 s. A race a hobbled driver wins by
+  twenty seconds is a procession, not a race.
+- 7.5 is the ceiling that stays clean, established by sweeping all six circuits: at 7.5 the
+  three-lap times fall to 88–107 s with wall contacts, off-road frames and rescues all still
+  exactly zero; at 9.0 Coast-reverse breaks (291 rescue frames, 6% off-road); at 10.5 Coast
+  breaks instead. Nothing was given to the rivals that the player does not have — this is
+  calibration to the car, not an economy bonus, and ADR-007's rule still holds.
+- The auto-brake attempt is rejected on its own evidence. Simple mode has no active
+  deceleration at all, so the novice model failed to finish Turbo. Adding a brake that fires on
+  large steering above a speed threshold fixed Coast (395 s → 104 s, wall frames 17,532 → 33)
+  but wrecked Touge (84 → 152 s), Coast-reverse (91 → 259 s) and Touge-reverse (90 → 228 s),
+  and never fixed Turbo. Sweeping its three constants produced no combination that helped more
+  than one circuit at a time.
+- The deeper lesson is about the instrument, not the feature. A novice model with reaction
+  delay in the loop is unstable: the delay and the brake assist form a feedback loop whose
+  oscillations dominate the result, so the numbers measure the model rather than the game. It
+  is fine for spotting a disaster (Turbo at 79–89% off-road) and unfit for tuning constants.
+  Anything that must be tuned needs a deterministic scenario, like the single-corner
+  measurement behind ADR-080 or the six-circuit AI sweep above.

@@ -4,7 +4,7 @@ Updated: 2026-07-28 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Baseline before this task: `2dec492`
-Status: turn-in, drift hold and simple-mode throttle all rebuilt around measurements
+Status: turn-in, drift hold, simple-mode throttle, wall grazes and rival pace all remeasured
 
 ## Current objective
 
@@ -12,34 +12,28 @@ Close out phone-only complaints (orientation, hub card, steering reach), then ra
 
 ## Completed
 
-- 畫面方向 is a setting (`racer-orient`, default `portrait`), not a behaviour: 打直 never
-  transforms, 打橫 rotates `#game-root` 90° only while the viewport is taller than wide, and no
-  "automatic" value exists (ADR-074). iOS still scrambled because it reports stale sizes and
-  fires `orientationchange` early, so nothing measures once any more (ADR-075):
-  `applyOrientation()` reads `visualViewport`, re-runs on every resize signal and on waking,
-  `orientationchange` schedules five re-decisions, and a `ResizeObserver` re-sizes the buffer.
-- Steering reach (ADR-076): the value comes from `dx` clamped alone (the circle only draws the
-  knob), smoothing at 20/s. A thumb arcing 40°/60° used to lose 23%/50% of lock.
-- Turn-in (ADR-079, reverting ADR-077's expo curve, which cost mid-stick authority): the stick
-  is unshaped and the front axle gains up to 70% grip while the throttle is not negative, the
-  handbrake is off and slip is under 8°. `t45` (straight line to 45° of heading) at half stick
-  1.91/2.02/2.17s → 1.25/1.38/1.70s at 14/22/30 m/s; full lock at 30 m/s 1.66 → 1.49s. The 8°
-  window keeps it out of braking-into-a-corner and out of any slide, so the 35° overshoot
-  (68°), drift speed (76%) and handbrake entry (34°) are unchanged. `gripFront` unconditionally
-  broke eleven gates; every other lever bought ≤0.04s.
-- Drifts hold (ADR-078): past 15° of slip with the throttle down, the rear axle loses up to 30%
-  grip, peaking at 24° and tapering to zero by 39° so it cannot drive the angle past its band.
-  A handbrake entry used to peak at 26° and collapse in 0.81s with the countersteer gain making
-  no difference; it now holds 1.56s at 25° average and the gain sweep separates. The yaw-damping
-  "drift window" tried first is removed — no held time at any setting, and it cost overshoot.
-- 簡易模式 (the default) no longer pins the throttle at 1.0: it is `1 - 0.4·|steer|`, so full
-  lock leaves 60% (ADR-080). Full throttle spends 86% of the rear friction circle
-  longitudinally, leaving 51% of lateral grip; 60% leaves 85%. One 90° corner at 28 m/s and
-  full lock took 107 m of travel, now 72 m — on a 15 m road, wall versus corner.
-- Grazing a wall no longer ends the race (ADR-081). A 10° contact at 30 m/s took the car from
-  108 km/h to 0 and left it at 1 km/h three seconds later — worse than a 25° hit (42). Now only
-  the along-wall component is scaled (0.97) and the heading turns 25% toward the tangent: the
-  10° graze bottoms at 34 km/h and is back to 70 in three seconds. Off-road left alone.
+- 畫面方向 is a player setting (`racer-orient`, default `portrait`) with no "automatic" value
+  (ADR-074); iOS reports stale sizes, so nothing measures once — `applyOrientation()` reads
+  `visualViewport` and re-runs on every signal, plus a `ResizeObserver` (ADR-075). Stick reach:
+  `dx` clamped alone, smoothing 20/s; a thumb arcing 40°/60° lost 23%/50% of lock (ADR-076).
+- Turn-in (ADR-079, reverting ADR-077's expo curve): the stick is unshaped and the front axle
+  gains up to 70% grip while the throttle is not negative, the handbrake is off and slip is
+  under 8°. Half-stick `t45` 1.91/2.02/2.17s → 1.25/1.38/1.70s at 14/22/30 m/s. The 8° window
+  keeps the 35° overshoot, drift speed and handbrake entry unchanged.
+- Drifts hold (ADR-078): past 15° of slip under throttle the rear axle loses up to 30% grip,
+  peaking at 24° and tapering to zero by 39°. A handbrake entry used to collapse in 0.81s with
+  the countersteer gain making no difference; it holds 1.56s at 25° and the gain now separates.
+- 簡易模式 (the default) no longer pins the throttle at 1.0: `1 - 0.4·|steer|` (ADR-080). Full
+  throttle leaves only 51% of the rear's lateral grip, 60% throttle leaves 85%; one 90° corner
+  at 28 m/s and full lock took 107 m of travel, now 72 m — on a 15 m road, wall versus corner.
+- Grazing a wall no longer ends the race (ADR-081): a 10° contact took 108 km/h to 0 and left
+  1 km/h three seconds later. Only the along-wall component is scaled (0.97) and the heading
+  turns 25% toward the tangent, so the graze bottoms at 34 km/h and is back to 70 in three.
+- Rivals now use the car (ADR-082): `latG` 6.0/6.2/6.4 → 7.2/7.5/7.8 against a measured 1.25 g.
+  Three-lap times 95–112s → 88–107s with wall, off-road and rescue counts still zero on all six
+  circuits; 9.0 breaks Coast-reverse. An auto-brake for simple mode is rejected in the same
+  pass — it fixed Coast and wrecked three other circuits, and the delayed novice model it was
+  tuned against is an unstable feedback loop: fit for spotting disasters, not tuning constants.
 - Hub carousel on phones: the card fills 90% of a 440px viewport (was 64%); neighbours wholly
   visible or wholly hidden. Also fixed: `max-height: 88vh` → 743px in a rotated frame, a rotated
   frame taking the narrow-portrait pad layout, a stray `rotatedOverride`.
@@ -52,8 +46,8 @@ Close out phone-only complaints (orientation, hub card, steering reach), then ra
 
 ## Verification
 
-- Suites: race 111/111, setup 125/125, rivals 59/59, ghost 29/29, season 55/55,
-  audio 32/32 (411/411); `run-all` green. AI 0–0.3% off-road on all six circuits. Hub 33/33.
+- Suites: race 111/111, setup 125/125, rivals 61/61, ghost 29/29, season 55/55,
+  audio 32/32 (413/413); `run-all` green. AI 0–0.3% off-road on all six circuits. Hub 33/33.
 - Orientation gates: 打直/打橫 give the right frame at 390×844 and persist, the joystick axes
   swap, the canvas fills the frame, `orientationchange` never pauses, a stubbed stale
   `visualViewport` recovers within a second, and resizing `#game-root` with no event still
@@ -102,13 +96,16 @@ Close out phone-only complaints (orientation, hub card, steering reach), then ra
   `steerSpeedDrop` below 2.4 — all measured, all cost more than they buy. Turn-in belongs to
   the 8°-windowed front-grip assist (ADR-079).
 - Do not lengthen a drift with yaw damping; it buys nothing and costs overshoot (ADR-078).
+- Do not give simple mode an automatic brake, and do not tune constants against a novice model
+  with reaction delay in the loop — it is a feedback loop, not an instrument (ADR-082).
 - Do not add identity/credential/device identifiers to reports, raise body roll past 3.5°, or
   roll the contact shadow (ADR-063).
 - Do not merge the gyro-only direction switch into shared touch direction (ADR-064), flip gyro
   signs or tune sensitivity/audio without physical-device evidence, retry
   ADR-062's four rejected Turbo tweaks, or fold spin recovery back into the control law.
   Do not make the gyro map linear or remove its smoothing (ADR-066).
-- Do not add a rival difficulty setting on top of today's driver; read ADR-067 first.
+- Do not add a rival difficulty setting on top of today's driver (ADR-067), and do not raise
+  `latG` past 7.8 — 9.0 breaks Coast-reverse, 10.5 breaks Coast (ADR-082).
 - Do not charge braking to one axle's friction circle, raise `loadTransfer` above 0.2 (that
   put the rear wheels in the air, ADR-068), or change braking without retuning the AI.
 - Do not let aids steal steering while the player holds opposite lock (ADR-069), but do not

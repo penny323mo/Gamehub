@@ -1287,7 +1287,9 @@ function frame(now) {
     if (activeFrame) recordPerformanceFrame(rawFrameMs);
     if (car && (activeFrame || renderDirty)) {
         if (activeFrame) {
-            const cmd = race.state === 'racing' ? input.read(dt) : { throttle: 0, steer: 0, handbrake: false };
+            const cmd = race.state === 'racing'
+                ? input.read(dt, car.speed)
+                : { throttle: 0, steer: 0, handbrake: false };
             car.update(dt, cmd, track);
             audio.update(dt, car, cmd);
             race.update(dt, car);

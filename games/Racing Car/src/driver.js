@@ -19,10 +19,16 @@ import * as THREE from 'three';
 // 直線煞車係 1.19 g（11.7 m/s²），但一打軚 ABS 就讓返抓地畀側向，實際
 // 得七八成。舊值 8.6–9.6 係對住舊嘅 1.84 g 制動調嘅，煞車點太遲——
 // 海岸即刻由 6 幀掂欄變 259 幀。
+// latG 由 6.0–6.4 升到 7.2–7.8。原本嗰組係對住舊嘅車調嘅，而家架車實測
+// 定圓可以食 1.25 g（12.3 m/s²），入彎輔助（ADR-079）AI 一樣用得——即係
+// 對手一直只用咗架車一半嘅過彎能力。升上去唔係作弊，係校準返真實能力。
+// 六條賽道逐個掃：7.5 之下三圈由 95–112 秒收到 88–107 秒，而掂欄、落草、
+// 救車全部維持 0；9.0 開始爆（coast-rev 救車 291 幀、落草 6%），10.5 就
+// 換 coast 爆。所以 7.5 係「攞得到而唔會撞」嘅邊界，三個難度照舊夾埋。
 export const SKILLS = {
-    steady: { latG: 6.0, look: 0.5, brakeA: 7.2, name: '穩陣' },
-    quick: { latG: 6.2, look: 0.55, brakeA: 7.6, name: '進取' },
-    ace: { latG: 6.4, look: 0.62, brakeA: 8.1, name: '好手' },
+    steady: { latG: 7.2, look: 0.5, brakeA: 7.2, name: '穩陣' },
+    quick: { latG: 7.5, look: 0.55, brakeA: 7.6, name: '進取' },
+    ace: { latG: 7.8, look: 0.62, brakeA: 8.1, name: '好手' },
 };
 
 export function createDriver(track, skill = SKILLS.quick) {

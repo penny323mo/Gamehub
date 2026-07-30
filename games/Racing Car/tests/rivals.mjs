@@ -283,6 +283,24 @@ console.log('  ', JSON.stringify(dots));
 check('縮圖畫到對手嘅點', dots.withDots > dots.without + 3, dots);
 check('跑完嘅對手唔再畫喺縮圖', dots.afterFinish <= dots.without + 2, dots);
 
+// 對手嘅過彎能力要校準返架車真正攞得到嘅（實測定圓 1.25 g ＝ 12.3 m/s²）。
+// 留咗一半唔用嘅話，連一個反應遲 0.25 秒、軚只有五級嘅新手都快過對手
+// （實測新手三圈 84–91 秒對 AI 95–112 秒），成場比賽變咗遊行。
+// 但唔可以再高：逐個掃過六條賽道，7.8 之下掂欄／落草／救車全部 0，
+// 9.0 就喺 coast-rev 救車 291 幀、落草 6%，10.5 換 coast 爆。
+const pace = await page.evaluate(async () => {
+    const { SKILLS } = await import('./src/driver.js');
+    return Object.fromEntries(Object.entries(SKILLS).map(([k, v]) => [k, v.latG]));
+});
+console.log('  ', JSON.stringify(pace));
+check('對手用得夠架車嘅過彎能力（latG 7.2–7.8）',
+    Object.values(pace).every(g => g >= 7.2 && g <= 7.8), pace);
+check('三個難度仍然夾得埋（差距 <1 m/s²）',
+    Math.max(...Object.values(pace)) - Math.min(...Object.values(pace)) < 1, pace);
+
 checkNoErrors(r.errors);
 await r.close();
+
+
+
 finish('rivals');

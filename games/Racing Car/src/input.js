@@ -334,7 +334,8 @@ export class Input {
         this.gyro.tilt = raw - this.gyro.zero;
     };
 
-    read(dt) {
+    // speed：車而家嘅速度（m/s）。而家淨係救車輔助用，唔傳就當 0。
+    read(dt, speed = 0) {
         const k = this.keys;
         const up = k.has('arrowup') || k.has('w') || this.touch.gas;
         const down = k.has('arrowdown') || k.has('s') || this.touch.brake;
@@ -381,6 +382,7 @@ export class Input {
         // 唔係「輔助」，係修返簡易模式本身嘅缺陷。
         // 打盡都仲有六成油（> driftPowerThrottle 0.5），所以動力過彎照用得。
         const autoLift = 1 - AUTO_LIFT * Math.min(1, Math.abs(steer));
+        // 試過再加「自動煞車」（打大軚 + 速度高就煞），量完否決咗：見 ADR-082。
         const throttle = this.controlMode === 'simple'
             ? (down ? -1 : drift ? 0.72 : autoLift)
             : (up ? 1 : 0) - (down ? 1 : 0);
