@@ -5,7 +5,7 @@ import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { DRACOLoader } from '../vendor/DRACOLoader.js';
 import { Track } from './track.js';
 import { TRACKS, DEFAULT_SEASON, trackById } from './tracks.js';
-import { Car } from './car.js';
+import { Car, CFG as CAR_CFG } from './car.js';
 import { Race, fmtTime } from './race.js';
 import { Input, GYRO_KEY } from './input.js';
 import { Minimap } from './minimap.js';
@@ -516,6 +516,8 @@ loader.load('./assets/car.glb', (gltf) => {
         get ghostDelta() { return ghostDelta; }, tuneAutoQuality, pauseRace, resumeRace, toMenu,
         performanceReport, performanceReportText, copyPerformanceReport,
         coarsePointer, applyOrientation, setOrient,
+        // 條漂移角度條讀得啱唔啱，要驗就要叫得郁 HUD
+        updateHudForTest: () => { hudCache = {}; updateHud(); },
         get orient() { return orientMode; },
         get rotated() { return root.classList.contains('rot90'); },
         get portrait() { return isPortrait(); },
@@ -1083,10 +1085,16 @@ function updateHud() {
         if (pending !== hudCache.pending) { $('drift-pending').textContent = pending; hudCache.pending = pending; }
         const combo = `${race.combo}×`;
         if (combo !== hudCache.combo) { $('drift-combo').textContent = combo; hudCache.combo = combo; }
-        // 角度條：0–60° 對應 0–100%
-        const pct = Math.min(100, Math.abs(car.slipAngle) / 1.05 * 100);
+        // 角度條要對住架車真正嘅可控範圍，唔可以自己揀個靚數。
+        // 舊寫法係 0–60° 對應 0–100%，但 60° 已經係打緊圈：一個維持得住嘅
+        // 31° 漂移得 52%，而「hot」（42°）喺動力過彎收晒（46°）之後基本上
+        // 摸唔到。而家直接由物理常數推：計分門檻（15°）＝ 0%，動力過彎收晒
+        // 嗰點（46°）＝ 100%，即係條 bar 讀嘅係「離失控幾遠」。
+        // 用 CFG 而唔係抄個數，係為咗物理一改條 bar 就跟住改。
+        const lo = CAR_CFG.driftPowerLo, hi = CAR_CFG.driftPowerOut;
+        const pct = Math.max(0, Math.min(100, (Math.abs(car.slipAngle) - lo) / (hi - lo) * 100));
         $('drift-angle-fill').style.width = `${pct}%`;
-        $('drift-angle-fill').classList.toggle('hot', pct > 70);
+        $('drift-angle-fill').classList.toggle('hot', pct > 85);
     }
     const score = race.driftScore;
     if (score !== hudCache.score) { $('score-num').textContent = score.toLocaleString(); hudCache.score = score; }

@@ -1438,3 +1438,24 @@ follows what the tyres can use
 - Gates: the sustained drift must keep at least 80% of the same-radius grip speed, run a radius
   under 90 m, and last more than 5 s. The old straight-line comparison is deleted rather than
   relaxed — a wrong denominator cannot be fixed by moving its threshold.
+
+## ADR-086: The drift gauge reads the car's real band, and derives it from the physics
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: the HUD drift-angle bar maps `driftPowerLo` (15°, where scoring starts) to 0% and
+  `driftPowerOut` (46°, where power oversteer has fully tapered off) to 100%, reading the two
+  ends straight out of `CFG` rather than from literals. "Hot" moves from 70% to 85%.
+- Reason: the bar mapped 0–60° to 0–100%, a range chosen for an older car. Under the physics
+  the game actually has, a sustained, well-driven drift settles around 31° — which the old bar
+  showed as 52%, i.e. "mediocre" — and the hot state at 42° sat past the point where power
+  oversteer is gone, so it was effectively unreachable while still in control. The bar is the
+  only feedback the player gets for this mechanic, and it was teaching the wrong thing: that a
+  good drift is a poor one and that the interesting region is somewhere you cannot hold.
+- Reading `CFG` instead of copying numbers is the point, not an implementation detail. This is
+  the third constant found stale against a car that has moved (after ADR-082's `latG` and
+  ADR-084's combo step), and all three came from a value being written down twice. A gate
+  shrinks `driftPowerOut` at runtime and requires the bar to respond, so the two can no longer
+  separate.
+- Gates: the bar reads 0% at the scoring threshold, 100% at the taper end and above, at least
+  45% at a held 31°, is hot only near full, and follows a runtime change to `driftPowerOut`.

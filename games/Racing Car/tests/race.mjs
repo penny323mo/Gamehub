@@ -600,6 +600,43 @@ check('中角度撞欄要罰得多過擦欄，但都追得返',
 check('貼牆矯正真係有出力（熄咗就會停死）',
     wallGraze.oldWay.minKmh < wallGraze.shallow.minKmh * 0.5, wallGraze);
 
+// T3b3：角度條要對住架車真正嘅可控範圍。舊寫法係 0–60° 對應 0–100%，但
+// 60° 已經係打緊圈：一個維持得住嘅 31° 漂移只讀到 52%，而「hot」（42°）
+// 喺動力過彎收晒（46°）之後基本上摸唔到。條 bar 係玩家對呢個機制唯一嘅
+// 視覺回饋，讀錯範圍就等於教錯人。
+const driftBar = await page.evaluate(async () => {
+    const { CFG } = await import('./src/car.js');
+    const root = window.__racer;
+    root.startRace();
+    const read = (deg) => {
+        root.car.slipAngle = deg / 57.2958;
+        root.car.drifting = true;
+        root.updateHudForTest();
+        const w = document.getElementById('drift-angle-fill').style.width;
+        return { pct: Math.round(parseFloat(w)), hot: document.getElementById('drift-angle-fill').classList.contains('hot') };
+    };
+    const out = {
+        入門: read(CFG.driftPowerLo * 57.2958),
+        維持: read(31),
+        臨界: read(CFG.driftPowerOut * 57.2958),
+        超出: read(70),
+    };
+    // 物理一改，條 bar 要跟住改（唔可以抄死個數）
+    const keep = CFG.driftPowerOut;
+    CFG.driftPowerOut = keep * 0.6;
+    out.收窄後維持 = read(31);
+    CFG.driftPowerOut = keep;
+    root.pauseRace(); root.toMenu();
+    return out;
+});
+console.log('  ', JSON.stringify(driftBar));
+check('角度條由計分門檻開始（0%）', driftBar.入門.pct <= 2, driftBar);
+check('動力過彎收晒嗰點就係滿格', driftBar.臨界.pct >= 98 && driftBar.超出.pct === 100, driftBar);
+check('維持得住嗰個角度讀到一半以上', driftBar.維持.pct >= 45, driftBar);
+check('滿格先算 hot（唔會成場都著）', driftBar.臨界.hot && !driftBar.維持.hot, driftBar);
+check('物理一改條 bar 跟住改（唔係抄死個數）',
+    driftBar.收窄後維持.pct > driftBar.維持.pct, driftBar);
+
 // T3c0：倍率階梯要摸得到。ADR-078 之後一個做得好嘅單彎漂移實測維持 1.56 秒，
 // 而舊嘅倍率步長係 1.6 秒——即係差 0.04 秒都升唔到 2×，成條去到 5× 嘅階梯
 // 除咗串連續彎之外係摸唔到嘅。呢個 gate 用真實維持時間去檢查第一級攞得到。
