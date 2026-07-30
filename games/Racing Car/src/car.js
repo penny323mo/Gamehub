@@ -139,6 +139,8 @@ export const CFG = {
     offroadGrip: 0.45,   // 落草抓地
     offroadDrag: 2600,
     wallBounce: 0.4,
+    wallScrape: 0.97,    // 刮牆時沿牆方向剩幾多速度（每個接觸幀）
+    wallAlign: 0.25,     // 接觸嗰陣車頭拉向沿牆方向幾多（0 = 唔拉）
 };
 
 const G = 9.81;
@@ -484,8 +486,27 @@ export class Car {
             this.vel.x -= nx * into * (1 + CFG.wallBounce);
             this.vel.z -= nz * into * (1 + CFG.wallBounce);
         }
-        this.vel.multiplyScalar(0.86);
+        // 舊寫法喺每一幀接觸都將「成個」速度乘 0.86。淺角度刮牆會連續接觸
+        // 幾幀，於是連沿牆方向嘅速度都一齊磨完：實測 10° 刮牆由 108 km/h
+        // 跌到 0，三秒後仲係 1 km/h——即係輕輕擦一下就報廢，比 25° 撞埋去
+        // （剩 42 km/h）仲慘。呢個唔係難度，係一個罰錯人嘅 bug。
+        // 而家只罰沿牆方向少少（3%），入牆方向照舊由上面嘅反彈處理。
+        const tangential = CFG.wallScrape;
+        const vn = this.vel.x * nx + this.vel.z * nz;
+        this.vel.x = (this.vel.x - nx * vn) * tangential + nx * vn;
+        this.vel.z = (this.vel.z - nz * vn) * tangential + nz * vn;
         this.yawRate *= 0.5;
+        // 貼牆矯正。擦一下之後車頭同新嘅行進方向會差一大截，輪胎就會用接近
+        // 90° 嘅滑移角狂刮——實測 10° 擦一下由 108 km/h 跌到 0，而玩家（唔
+        // 似 AI）冇救車狀態機，即係「掂一下欄就等於報廢」。所以接觸嗰陣將
+        // 車頭拉少少向沿牆方向，變成「貼住牆滑過去」。
+        const tangX = -nz, tangZ = nx;
+        const along = this.vel.x * tangX + this.vel.z * tangZ;
+        const dir = along < 0 ? -1 : 1;
+        let d = Math.atan2(tangX * dir, tangZ * dir) - this.yaw;
+        while (d > Math.PI) d -= 2 * Math.PI;
+        while (d < -Math.PI) d += 2 * Math.PI;
+        this.yaw += d * CFG.wallAlign;
     }
 
     #sync() {

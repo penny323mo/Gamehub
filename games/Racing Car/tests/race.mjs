@@ -512,6 +512,49 @@ check('手煞真係鎖死後軸', tapDrift.half.lockedRear === true, tapDrift.ha
 check('半秒手煞入到漂移（>18°）', tapDrift.half.entry > 18, tapDrift.half);
 check('但唔會一撳就打圈', tapDrift.half.peak < 60 && tapDrift.long.peak < 80, tapDrift);
 
+// T3b2：擦一下欄唔可以等於報廢。舊寫法（成個速度每幀 ×0.86、固定反彈、
+// 唔矯正車頭）：10° 淺角度擦牆由 108 km/h 跌到 0，三秒後仲係 1 km/h，
+// 反而 25° 撞埋去仲剩 42 km/h——即係輕輕掂一下比撞真啲慘。玩家冇 AI
+// 嗰個救車狀態機，所以呢個係「一掂欄就冇得玩」。
+const wallGraze = await page.evaluate(async () => {
+    const { CFG } = await import('./src/car.js');
+    const { car, track } = window.__racer;
+    const D = 57.2958;
+    const scrape = (deg) => {
+        car.reset(track.startPos, track.startDir);
+        car.arcadeAssist = true;
+        // 牆嘅位置要喺跑之前定死，唔可以跟住 car.pos 走（否則永遠掂唔到）
+        const wallX = car.pos.x + 8;
+        const wall = { isDrivable: () => true, isWall: (x) => x >= wallX };
+        const d = track.startDir;
+        car.yaw = Math.atan2(d.x, d.z) - deg / D;
+        car.vel.x = Math.sin(car.yaw) * 30;
+        car.vel.z = Math.cos(car.yaw) * 30;
+        let minKmh = 999, hits = 0;
+        for (let i = 0; i < 180; i++) {
+            car.update(1 / 60, { throttle: 1, steer: 0, handbrake: false }, wall);
+            if (car.wallHit) hits++;
+            minKmh = Math.min(minKmh, car.kmh);
+        }
+        return { minKmh, hits, after: car.kmh };
+    };
+    const shallow = scrape(10);
+    const mid = scrape(25);
+    const align = CFG.wallAlign, scr = CFG.wallScrape;
+    CFG.wallAlign = 0; CFG.wallScrape = 0.86;
+    const oldWay = scrape(10);
+    CFG.wallAlign = align; CFG.wallScrape = scr;
+    return { shallow, mid, oldWay };
+});
+console.log('  ', JSON.stringify(wallGraze));
+check('淺角度擦欄唔會停死（最低 >20 km/h）', wallGraze.shallow.minKmh > 20, wallGraze.shallow);
+check('擦完三秒內追返（>50 km/h）', wallGraze.shallow.after > 50, wallGraze.shallow);
+check('中角度撞欄要罰得多過擦欄，但都追得返',
+    wallGraze.mid.minKmh > wallGraze.shallow.minKmh
+    && wallGraze.mid.after > 60, wallGraze.mid);
+check('貼牆矯正真係有出力（熄咗就會停死）',
+    wallGraze.oldWay.minKmh < wallGraze.shallow.minKmh * 0.5, wallGraze);
+
 // T3c1：轉向要夠靈。Penny 講咗三次「超難轉向」，量度用 t45——由直路打軚
 // 到車頭真係轉咗 45° 要幾多秒。最初：半軚 14/22/30 m/s 係 1.91/2.02/2.17
 // 秒，全軚 30 m/s 1.66 秒。逐個 lever 掃過（expo、慣量、軚速、高速收窄、

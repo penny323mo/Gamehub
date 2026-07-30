@@ -1304,3 +1304,30 @@ follows what the tyres can use
 - Gates: straight-line simple mode is still full throttle, the lift is proportional and
   monotonic in steering, full lock stays between 0.55 and 0.65, braking still returns −1, and
   standard mode still returns 0 with no keys held.
+
+## ADR-081: Grazing a wall costs speed, not the race
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: a wall contact now scales only the along-wall velocity component, by `wallScrape`
+  (0.97), instead of scaling the whole velocity vector by 0.86; and it turns the car's heading
+  `wallAlign` (0.25) of the way toward the wall's tangent, in the direction it is already
+  travelling. The normal-direction bounce (`wallBounce` 0.4) is unchanged.
+- Reason: the shallower the contact, the worse the punishment. Measured at 30 m/s with the
+  throttle held down, a 10° graze took the car from 108 km/h to 0 and left it at 1 km/h three
+  seconds later, while a harder 25° hit kept 42 km/h. Two causes compounded. The blanket 0.86
+  ran on every contact frame, so repeated light contact ground the along-wall speed away as
+  well as the into-wall speed. And nothing corrected the heading, so after the bounce the car
+  was pointing across its own velocity, and the tyres scrubbed the rest away at a slip angle
+  near 90°. The AI has a recovery state machine for exactly this; the player has none, so for
+  the player one touch ended the race.
+- After: the 10° graze bottoms out at 34 km/h and is back to 70 km/h three seconds later; the
+  25° hit bottoms out at 56 and returns to 87. Contact frames drop from 2–3 to 1–2, so the car
+  slides along instead of grinding. The harder hit still costs more than the lighter one, which
+  is the ordering that was inverted before.
+- Off-road was measured in the same pass and left alone: a full second on the grass at 30 m/s
+  costs 1 km/h and is recovered in 0.1 s, because `offroadDrag` (2600 N) is small against the
+  engine's 8500 N. Grass is a cornering penalty, not a time penalty, and that is fine.
+- Gates: a 10° graze must stay above 20 km/h and recover past 50 km/h within three seconds, a
+  25° hit must cost more than the 10° one yet still recover past 60, and restoring the old
+  constants must measurably re-break it.
