@@ -1222,7 +1222,8 @@ follows what the tyres can use
 ## ADR-078: Power oversteer is what holds a drift; yaw damping never was
 
 - Date: 2026-07-28
-- Status: accepted
+- Status: accepted; its `driftPower` value is superseded by ADR-085, which fixed the speed
+  rule the value was fitted to
 - Decision: while the assists are on, the player is not braking or on the handbrake, the car
   is on tarmac, the throttle is above `driftPowerThrottle` and the body slip is already past
   `driftPowerLo` (15°), the rear axle's grip is reduced by up to `driftPower` (0.30). The
@@ -1407,3 +1408,33 @@ follows what the tyres can use
 - Gate: the same phone-shaped handbrake entry used by ADR-078's hold gate must reach combo 2
   and bank a non-zero score. Tying the gate to the same scenario means the two constants
   cannot drift apart again: if the achievable hold time changes, this gate fails.
+
+## ADR-085: Compare a drift against the same corner, not against a straight line
+
+- Date: 2026-07-28
+- Status: accepted (supersedes ADR-070's speed floor and ADR-078's `driftPower` value)
+- Decision: the rule "a drift must not be so slow that nobody uses it" is now measured against
+  the grip-limited speed for the *same path radius*, not against the car's straight-line
+  terminal speed. With the metric fixed, `driftPower` goes to 0.38 with a 27°–46° taper.
+  Power oversteer is additionally suppressed for `wallDriftCooldown` (1.2 s) after any wall
+  contact.
+- Reason: the old floor divided by the wrong thing. The denominator was 186 km/h — what the
+  car reaches after twelve seconds of full throttle in a straight line — and no one takes a
+  corner at terminal speed, so the rule asked a drift to do something physically impossible
+  and any tuning that produced a real sustained drift "failed" it. Measured against the right
+  denominator the two candidates invert completely:
+  - `driftPower` 0.30: holds 1.7 s, path radius 147 m, 106 km/h against 153 km/h on grip — 69%
+  - `driftPower` 0.38: holds 13.8 s, path radius 52 m, 85 km/h against 91 km/h on grip — 94%
+  The looser setting is not just a longer drift; it is a line three times tighter that gives up
+  6% of speed. That is drifting as a cornering technique rather than as a penalty, which is what
+  a drift-scoring game is supposed to be about.
+- ADR-070's anti-exploit rule is untouched and still passes: a drift must never be faster than
+  driving straight, and the refund stays bounded by the speed actually scrubbed.
+- The wall cooldown came out of the same pass. With the rear left loose, a 25° wall hit
+  recovered to only 44 km/h in three seconds instead of 87, because the assist kept the car
+  sideways after an impact the player did not choose. Power oversteer is a "you chose to drift"
+  aid, so a collision now suspends it for 1.2 s; the graze gates return to 56 km/h minimum and
+  94 km/h after three seconds.
+- Gates: the sustained drift must keep at least 80% of the same-radius grip speed, run a radius
+  under 90 m, and last more than 5 s. The old straight-line comparison is deleted rather than
+  relaxed — a wrong denominator cannot be fixed by moving its threshold.

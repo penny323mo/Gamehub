@@ -765,8 +765,48 @@ console.log('  ', JSON.stringify(driftSpeed));
 check('漂移永遠快唔過直路（退款唔可以變外掛）',
     driftSpeed.drifting < driftSpeed.straight, driftSpeed);
 check('原地打圈都刷唔到速度', driftSpeed.spin < driftSpeed.straight, driftSpeed);
-check('但漂移都唔可以慢到冇人用（保住七成以上）',
-    driftSpeed.drifting > driftSpeed.straight * 0.7, driftSpeed);
+// 舊版比較嘅係「直路開足 12 秒嘅極速」，但冇人會用極速過彎——用嗰個做
+// 分母，等於要求漂移做一件物理上唔可能嘅事。改成同「一樣行車半徑、用抓地
+// 過彎」比（ADR-085）：呢個先係玩家真正嘅選擇——同一個彎，抓住入定甩住入。
+const driftLine = await page.evaluate(async () => {
+    const { car, track } = window.__racer;
+    const PLANE = { isDrivable: () => true, isWall: () => false };
+    const D = 57.2958;
+    car.reset(track.startPos, track.startDir);
+    car.arcadeAssist = true;
+    const d = track.startDir;
+    car.vel.x = d.x * 30; car.vel.z = d.z * 30;
+    let n = 0, sumV = 0, sumR = 0, held = 0;
+    for (let i = 0; i < 1800; i++) {
+        const t = i / 120;
+        let steer = 0, hb = false;
+        if (t < 0.6) steer = 0;
+        else if (t < 1.05) { steer = 1; hb = true; }
+        else {
+            const sl = car.slipAngle;
+            steer = Math.max(-1, Math.min(1, -Math.sign(sl) * (Math.abs(sl) - 35 / D) * D / 45));
+        }
+        car.update(1 / 120, { throttle: 0.9, steer, handbrake: hb }, PLANE);
+        if (t > 1.2 && car.drifting) {
+            held += 1 / 120;
+            const v = Math.hypot(car.vel.x, car.vel.z), w = Math.abs(car.yawRate);
+            if (w > 0.02) { sumV += v; sumR += v / w; n++; }
+        }
+    }
+    if (!n) return { held: 0 };
+    const v = sumV / n, R = sumR / n;
+    // 同一半徑、用抓地過彎攞得到嘅速度（實測橫向極限 12.3 m/s²）
+    const gripV = Math.sqrt(12.3 * R);
+    return {
+        held: +held.toFixed(1), radius: Math.round(R),
+        kmh: Math.round(v * 3.6), gripKmh: Math.round(gripV * 3.6),
+        keep: +(v / gripV).toFixed(2),
+    };
+});
+console.log('  ', JSON.stringify(driftLine));
+check('漂移過彎唔會蝕速度（同半徑抓地嘅八成以上）', driftLine.keep >= 0.8, driftLine);
+check('而且真係一條窄線（半徑 <90 米）', driftLine.radius < 90, driftLine);
+check('維持得夠耐先叫得做過彎線（>5 秒）', driftLine.held > 5, driftLine);
 
 // T3b：車身側傾唔可以令架車望落離地。模型係一整件硬嘢（車身連輪胎），
 // 側傾角一大，一邊輪胎就會離地、另一邊插落路面——Penny 實機報告

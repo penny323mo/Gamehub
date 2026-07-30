@@ -113,16 +113,17 @@ export const CFG = {
     // 26° 嘅漂移 0.8 秒就自己收返，而且玩家點反打都改變唔到（反打 gain 由
     // 0.4 掃到 2.0，維持時間全部 0.80–0.81 秒）。
     //
-    // 掃過 power × 收窗 × 反打力度之後揀 0.30 配 24°–39° 收窗：維持由 0.8
-    // 升到 1.6 秒、角度由 26° 升到 31°，同時 35° 起手嘅過衝維持喺 68°
-    // （上限 70），漂移速度保住直路嘅 76%（下限 70%）。
-    // 放鬆到 0.38 配 27°–46° 可以維持成 6.4 秒、企喺 36°，但漂移速度會跌到
-    // 55%——即係要拆咗 ADR-070 嗰條「唔可以慢到冇人用」先得。留返畀 Penny
-    // 上機試完先決定值唔值。
+    // 0.38 配 27°–46° 收窗。之前用 0.30 係因為舊嗰條速度規矩：漂移速度要
+    // 保住「直路開足 12 秒嘅極速」七成。嗰個比較本身係錯嘅——冇人會用極速
+    // 過彎。改成同「一樣行車半徑、用抓地過彎」比之後，兩組數完全掉轉：
+    //   0.30：維持 1.7 秒、半徑 147 米、106 km/h，同半徑抓地速度 153，得 69%
+    //   0.38：維持 13.8 秒、半徑 52 米、85 km/h，同半徑抓地速度 91，有 94%
+    // 即係放鬆版唔單止甩得耐，仲係一條窄三倍、而且幾乎唔蝕速度嘅過彎線
+    // ——真正嘅「漂移過彎」。詳見 ADR-085。
     driftPowerLo: 0.26,      // 15°：同 drifting 門檻一樣，計分開始嗰刻先計
-    driftPower: 0.30,        // 後軸抓地鬆幾多
-    driftPowerHi: 0.42,      // 24°：過咗呢度開始收
-    driftPowerOut: 0.68,     // 39°：完全收晒，唔畀漂移自己推到打圈
+    driftPower: 0.38,        // 後軸抓地鬆幾多
+    driftPowerHi: 0.48,      // 27°：過咗呢度開始收
+    driftPowerOut: 0.80,     // 46°：完全收晒，唔畀漂移自己推到打圈
     driftPowerThrottle: 0.5, // 要踩過呢個油門先計
 
     // 入彎輔助（見 update 入面 frontGrip）。
@@ -148,6 +149,7 @@ export const CFG = {
     unspinAngle: 1.4,    // 80°：指錯咁多先算打圈，正常揸車撞唔到
     unspinExit: 0.44,    // 25°：扭到呢度先交返玩家（同 ADR-065 一樣要滯後）
     unspinRate: 1.5,     // rad/s：扭返個方向嘅速度上限
+    wallDriftCooldown: 1.2,  // 撞完欄幾耐之內唔出動力過彎（秒）
 };
 
 const G = 9.81;
@@ -173,6 +175,7 @@ export class Car {
         this.lockFront = false;
         this.lockRear = false;
         this.unspinning = false;
+        this.wallCooldown = 0;
         // 預設定位係爽快街機，而唔係硬核模擬。保留成員方便物理因果測試，
         // 遊戲 UI 唔要求玩家先理解一堆電子輔助設定先可以揸得順。
         this.arcadeAssist = true;
@@ -190,6 +193,7 @@ export class Car {
         this.drifting = false;
         this.wallHit = false;
         this.wallImpact = 0;
+        this.wallCooldown = 0;
         this.#sync();
     }
 
@@ -212,6 +216,7 @@ export class Car {
         const vLat = this.vel.x * latX + this.vel.z * latZ;
         const speed = Math.hypot(vLong, vLat);
         const assists = this.arcadeAssist && input.assist !== false;
+        this.wallCooldown = Math.max(0, this.wallCooldown - dt);
 
         // ---- 轉向：目標角度隨速度收窄，再平滑過渡（軚盤唔會瞬間到底）----
         const speedFactor = 1 / (1 + Math.max(0, speed) * CFG.steerSpeedDrop / 30);
@@ -262,7 +267,10 @@ export class Car {
         // 呢度明確加多一層街機效果：已經喺漂移角度、又踩住油，後軸就再鬆
         // 一截。條件同 driftRefund 一樣（要踩油、要真係甩緊、落草冇、拉緊
         // 手煞冇），所以佢係「油門控制角度」嘅來源，唔係一個免費加速。
-        if (assists && !input.handbrake && !this.offroad
+        // 撞完欄嗰陣唔會出。動力過彎係「你揀咗去漂移」嘅輔助，撞欄唔係你揀
+        // 嘅——實測放鬆咗之後，25° 撞欄嘅車尾一直鬆住，三秒後只追返 44 km/h
+        // （原本 87）。呢個窗一收，撞完就即刻攞返抓地走人。
+        if (assists && !input.handbrake && !this.offroad && this.wallCooldown <= 0
             && input.throttle > CFG.driftPowerThrottle && assistSlip > CFG.driftPowerLo) {
             // 角度窗：由 15° 升上嚟，過咗 driftPowerHi 就一路收返到零。
             // 冇呢個上限嘅話佢會自己推到 89°——即係漂移變咗一條單程路，
@@ -482,6 +490,7 @@ export class Car {
         if (track.isWall(next.x, next.z - r)) nz += 1;
         if (nx === 0 && nz === 0) return;
         this.wallHit = true;
+        this.wallCooldown = CFG.wallDriftCooldown;
         const len = Math.hypot(nx, nz);
         nx /= len; nz /= len;                       // 法線：由牆指返出空地
         // 位置：抵消呢一步入牆嘅部分，沿牆方向照行
