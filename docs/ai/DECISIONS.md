@@ -1191,7 +1191,8 @@ follows what the tyres can use
 ## ADR-077: The stick gets an expo curve, because the top of its travel did nothing
 
 - Date: 2026-07-28
-- Status: accepted
+- Status: reverted by ADR-079 — the curve fixed a high-speed metric and cost mid-stick
+  authority at every speed, which is the opposite of what Penny reported
 - Decision: the joystick's steering value passes through `steerExpo()`,
   `x·(0.45 + 0.55·x²)` — the same family as `gyroSteer()`'s curve but shallower, since a
   thumb is more precise than a wrist. It is applied in `Input`, so it shapes the player's
@@ -1248,3 +1249,33 @@ follows what the tyres can use
   band without spinning, and be measurably shorter with `driftPower` at zero. The existing
   overshoot (≤70°), refund-exploit (drift slower than straight) and speed-retention (≥70%)
   gates all still pass, as does the AI at 0–0.3% off-road across all six circuits.
+
+## ADR-079: Turn-in comes from a conditional front-grip assist, not from a stick curve
+
+- Date: 2026-07-28
+- Status: accepted (reverts ADR-077)
+- Decision: the joystick's value goes to the car unshaped — `steerExpo()` and its gates are
+  deleted. In its place, while the assists are on, the throttle is not negative, the handbrake
+  is off and the body slip is under `turnInMaxSlip` (8°), the front axle's grip is multiplied
+  by up to `1 + turnInBoost` (0.7), scaled by how much steering the player is asking for and
+  fading to nothing as the slip approaches 8°.
+- Reason: Penny said three times that the car would not turn. The metric that finally showed
+  it is `t45` — the time from a straight line to 45° of heading change. At half stick it was
+  1.91 / 2.02 / 2.17 s at 14 / 22 / 30 m/s: barely speed-dependent, because at mid stick the
+  limiter is the front wheel angle, not grip. ADR-077's expo curve made exactly that worse,
+  and it is reverted: linear alone takes half-stick t45 at 14 m/s from 1.91 to 1.57 s.
+- Every other lever was measured and rejected. Inertia 1900 → 1550 bought 0.02 s. `steerRate`
+  7.2 → 10 bought 0.04 s. `steerSpeedDrop` 2.4 → 1.5 bought 0.2–0.3 s but pushed the 35°-entry
+  overshoot from 68° to 75°, past its gate. Raising `gripFront` 1.45 → 1.72 was the single
+  biggest gain (t45 full-lock at 40 m/s halved) but broke eleven gates at once — braking into a
+  corner went from 19° to 61° of slip, a handbrake tap reached 87°, and the AI hit walls for
+  493 frames on Coast. Scaling both axles together destabilised braking instead, because more
+  grip means more deceleration and a lighter rear.
+- What made it safe was the window, not the size. Gating the boost to under 8° of slip keeps it
+  out of the two situations where extra front grip is dangerous — braking into a corner and any
+  slide — so it can be large without feeding either. Final: half-stick t45 1.25 / 1.38 / 1.70 s
+  and full-lock 1.49 s at 30 m/s, while the 35° overshoot stays at 68°, drift speed stays at
+  76% of straight-line, and a handbrake tap still enters at 34°. All three were identical
+  before and after, and the AI stays at 0–0.3% off-road across the six circuits.
+- Gates: half-stick `t45` must stay under 1.45 / 1.55 / 1.80 s at 14 / 22 / 30 m/s, full lock
+  under 1.55 s at 30 m/s, and turning the boost off must measurably slow both.

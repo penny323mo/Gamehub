@@ -53,6 +53,9 @@ export const CFG = {
     // 高速收窄轉角嘅程度。呢個數要夠大：實測 33 m/s 打 2.2° 前輪角就已經
     // 食到 1g（定圓半徑 111 米）。舊值 0.55 喺同一速度容許 22°，即係玩家
     // 隨手一撳就過咗輪胎峰值——車頭反而冇力，跟住車尾自己盪出去打圈。
+    // 試過由 2.4 收到 1.5（半軚 t45 快 0.2–0.3 秒），但同一個改動將 35° 起手
+    // 嘅過衝由 68° 推到 71–75°，衝爆 70° 個 gate。呢個數留返 2.4，轉向幅度
+    // 交返畀入彎輔助（見 turnInBoost）——嗰個唔會餵大甩尾。
     steerSpeedDrop: 2.4,
     // 軚盤打得幾快（每秒）。5.5 即係約 0.18 秒先到位——喺手機上「快撳
     // 一下手煞 + 打軚」根本未打到軚就已經放咗手，實測 0.33 秒嘅快撳
@@ -121,6 +124,18 @@ export const CFG = {
     driftPowerHi: 0.42,      // 24°：過咗呢度開始收
     driftPowerOut: 0.68,     // 39°：完全收晒，唔畀漂移自己推到打圈
     driftPowerThrottle: 0.5, // 要踩過呢個油門先計
+
+    // 入彎輔助（見 update 入面 frontGrip）。
+    // 0.7 配一個窄窗（8°）：實測 t45（打軚到車頭轉 45° 要幾秒）半軚
+    // 14/22/30 m/s 由 1.91/2.02/2.17 收到 1.25/1.38/1.70，全軚 30 由 1.66
+    // 到 1.49。同時 35° 起手嘅過衝維持 68°（上限 70）、漂移速度維持直路嘅
+    // 76%（下限 70%）、快撳手煞入彎維持 34° —— 三個都同加之前一模一樣。
+    // 窄窗係關鍵：8° 已經收晒，所以佢淨係幫「貼住路面轉頭」，一開始滑就
+    // 完全冇聲音，餵唔到甩尾。試過闊窗（15°）配 0.3，轉頭冇咁快而漂移
+    // 速度反而跌到 72%。
+    turnInBoost: 0.7,        // 前軸抓地最多加幾多
+    turnInSteer: 0.75,       // 打到幾大軚就出足
+    turnInMaxSlip: 0.14,     // 8°：一開始滑就收晒，唔會加劇失控
     offroadGrip: 0.45,   // 落草抓地
     offroadDrag: 2600,
     wallBounce: 0.4,
@@ -217,7 +232,18 @@ export class Car {
 
         this.offroad = !track.isDrivable(this.pos.x, this.pos.z);
         const surface = this.offroad ? CFG.offroadGrip : 1;
-        const frontGrip = CFG.gripFront * surface;
+        // 入彎輔助：打得夠大軚、車身仲係貼住（未漂移）、又冇踩煞嗰陣，
+        // 前軸抓地加一截。純粹提升「肯唔肯轉頭」，唔會碰到摩擦極限本身
+        // 嗰兩個危險場景——減速入彎同漂移中——所以唔會令架車變易失控。
+        // （試過直接將 gripFront 由 1.45 升到 1.72：轉頭快好多，但煞車入彎
+        // 由 19° 變 61°、手煞起手滑到 87°、AI 撞欄 493 幀。條件式先安全。）
+        let frontGrip = CFG.gripFront * surface;
+        if (assists && input.throttle >= 0 && !input.handbrake
+            && assistSlip < CFG.turnInMaxSlip) {
+            const want = Math.min(1, Math.abs(steerCommand) / CFG.turnInSteer);
+            const fade = 1 - assistSlip / CFG.turnInMaxSlip;
+            frontGrip *= 1 + CFG.turnInBoost * want * fade;
+        }
         let rearGrip = CFG.gripRear * surface * (input.handbrake ? CFG.handbrakeGrip : 1);
         // 動力過彎（power oversteer）。摩擦圓本身已經有呢個效果，但實測唔夠:
         // 放咗手煞之後，就算踩住全油，一個 26° 嘅漂移 0.8 秒就自己收返；

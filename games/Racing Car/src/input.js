@@ -28,15 +28,6 @@ export function gyroSteer(tiltDeg, sens = 1) {
     return Math.sign(tiltDeg) * x * (0.3 + 0.7 * x * x);
 }
 
-// 搖桿嘅低增益曲線。同 gyroSteer 尾嗰條同一個家族，但淺啲——手指嘅
-// 精度本來就好過手腕，唔使壓咁犀利。0 同 ±1 都原封不動，所以全軚仍然
-// 係全軚：呢條曲線只係將行程重新分配，唔會攞走任何轉向幅度。
-export const STEER_EXPO = 0.45;
-export function steerExpo(v) {
-    const x = Math.min(1, Math.abs(Number(v) || 0));
-    return Math.sign(v) * x * (STEER_EXPO + (1 - STEER_EXPO) * x * x);
-}
-
 export class Input {
     constructor(root) {
         this.keys = new Set();
@@ -358,12 +349,11 @@ export class Input {
         this.steerSmooth += (target - this.steerSmooth) * Math.min(1, dt * (stickActive ? 20 : 9));
         if (Math.abs(this.steerSmooth) < 0.01) this.steerSmooth = 0;
 
-        // 搖桿曲線（expo）。實測：40 m/s 打兩成軚已經食到七成半嘅極限
-        // 轉向力，打四成就九成四——即係尾嗰六成行程根本冇嘢做，而頭嗰少少
-        // 又太靈敏，車喺高速一撥就過晒火。乘返呢條曲線之後，行程分返得
-        // 平均，全軚仍然係全軚（曲線喺 1 度過返 1），所以救車嘅反打幅度
-        // 一分錢都冇少。陀螺儀行自己嗰條（gyroSteer），唔會疊兩次。
-        let steer = steerExpo(this.steerSmooth);
+        // 搖桿唔再過曲線（ADR-079 撤回 ADR-077）。壓低中段嘅代價係中段
+        // 唔夠軚打：實測 14 m/s 打半軚要 1.91 秒先扭到 45°，直接線性得 1.57，
+        // 而 Penny 兩次回饋都係「轉向唔夠」。高速嘅過敏由 steerSpeedDrop
+        // 負責，唔應該再用一條曲線喺低速一齊罰。
+        let steer = this.steerSmooth;
         if (this.gyro.on && target === 0 && !stickActive) {
             // 預設反轉：實機（Penny 部機，直度揸）扭右邊落去係向左轉，
             // 同直覺相反。裝置係最終標準，desktop 點推導都冇用。

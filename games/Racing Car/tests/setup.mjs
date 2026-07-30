@@ -775,23 +775,9 @@ check('拇指順住弧線拉都出到足軚（唔會畀圓形夾細）',
     [0, 20, 40, 60].every(d => reach.byAngle[d] >= 0.99), reach.byAngle);
 check('圓芯仍然留喺圓盤入面', reach.knobDist !== null
     && reach.knobDist <= reach.knobMax + 1, reach);
-// 0.15 秒：expo 曲線令最後嗰截輸出要行埋最後嗰截行程，所以會比純線性
-// 慢少少（0.10 → 0.13 秒）。舊版係 0.25 秒到九成、0.48 秒先到底。
-check('拉到底之後 0.15 秒內出到九成軚', reach.t90 !== null && reach.t90 <= 0.15, reach.t90);
+// 舊版係 0.25 秒到九成、0.48 秒先到底（ADR-076 之前）。
+check('拉到底之後 0.12 秒內出到九成軚', reach.t90 !== null && reach.t90 <= 0.12, reach.t90);
 
-// 搖桿曲線：重新分配行程，但唔可以攞走幅度。實測未加曲線之前，40 m/s
-// 打兩成軚就已經食到七成半極限轉向力、四成軚九成四，尾嗰截等於冇用。
-const expo = await page.evaluate(async () => {
-    const { steerExpo } = await import('./src/input.js');
-    const pts = [0, 0.2, 0.4, 0.6, 0.8, 1].map(v => +steerExpo(v).toFixed(3));
-    let mono = true;
-    for (let i = 1; i < pts.length; i++) if (pts[i] <= pts[i - 1]) mono = false;
-    return { pts, full: steerExpo(1), neg: steerExpo(-1), half: steerExpo(0.5), mono };
-});
-console.log('  ', JSON.stringify(expo));
-check('全軚仍然係全軚（曲線唔可以食走幅度）',
-    expo.full === 1 && expo.neg === -1, expo);
-check('半行程明顯輕過一半，而且一路遞增', expo.half <= 0.4 && expo.mono, expo);
 
 // T5b：真 DOM pointer 路徑要收到類比搖桿 + 油門兩隻手指；blur 後全部回中。
 const touch = await page.evaluate(() => {

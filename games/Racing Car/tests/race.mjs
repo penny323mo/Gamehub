@@ -512,12 +512,50 @@ check('手煞真係鎖死後軸', tapDrift.half.lockedRear === true, tapDrift.ha
 check('半秒手煞入到漂移（>18°）', tapDrift.half.entry > 18, tapDrift.half);
 check('但唔會一撳就打圈', tapDrift.half.peak < 60 && tapDrift.long.peak < 80, tapDrift);
 
+// T3c1：轉向要夠靈。Penny 講咗三次「超難轉向」，量度用 t45——由直路打軚
+// 到車頭真係轉咗 45° 要幾多秒。最初：半軚 14/22/30 m/s 係 1.91/2.02/2.17
+// 秒，全軚 30 m/s 1.66 秒。逐個 lever 掃過（expo、慣量、軚速、高速收窄、
+// 抓地）之後靠兩樣：拆走搖桿曲線 + 入彎輔助（貼住路面嗰陣加前軸抓地）。
+const turnIn = await page.evaluate(async () => {
+    const { CFG } = await import('./src/car.js');
+    const { car, track } = window.__racer;
+    const PLANE = { isDrivable: () => true, isWall: () => false };
+    const D = 57.2958;
+    const t45 = (stick, speed) => {
+        car.reset(track.startPos, track.startDir);
+        car.arcadeAssist = true;
+        const d = track.startDir;
+        car.vel.x = d.x * speed; car.vel.z = d.z * speed;
+        const yaw0 = car.yaw;
+        for (let i = 1; i <= 1200; i++) {
+            car.update(1 / 120, { throttle: 0.4, steer: stick, handbrake: false }, PLANE);
+            let dy = Math.abs(car.yaw - yaw0);
+            if (dy > Math.PI) dy = 2 * Math.PI - dy;
+            if (dy * D >= 45) return +(i / 120).toFixed(2);
+        }
+        return null;
+    };
+    const now = { 半14: t45(0.5, 14), 半22: t45(0.5, 22), 半30: t45(0.5, 30), 全30: t45(1, 30) };
+    const boost = CFG.turnInBoost;
+    CFG.turnInBoost = 0;
+    const off = { 半14: t45(0.5, 14), 半30: t45(0.5, 30) };
+    CFG.turnInBoost = boost;
+    return { now, off };
+});
+console.log('  ', JSON.stringify(turnIn));
+check('半軚都要轉得入（t45 唔可以超過 1.45／1.55／1.80 秒）',
+    turnIn.now['半14'] <= 1.45 && turnIn.now['半22'] <= 1.55
+    && turnIn.now['半30'] <= 1.80, turnIn.now);
+check('全軚 30 m/s 1.55 秒內轉到 45°', turnIn.now['全30'] <= 1.55, turnIn.now);
+check('入彎輔助真係有出力（熄咗會明顯慢）',
+    turnIn.off['半14'] > turnIn.now['半14'] * 1.15
+    && turnIn.off['半30'] > turnIn.now['半30'] * 1.08, turnIn);
+
 // T3c2：漂移要維持得住，而且要維持得住喺玩家手上。實測未加動力過彎
 // 之前：放咗手煞之後 26° 嘅漂移 0.8 秒就自己收返，而且玩家點反打都
 // 改變唔到（反打 gain 由 0.4 掃到 2.0，維持時間全部 0.80–0.81 秒）——
 // 一隻漂移計分遊戲入面，玩家對漂移長短完全冇話事權。
 const driftHold = await page.evaluate(async () => {
-    const { steerExpo } = await import('./src/input.js');
     const { CFG } = await import('./src/car.js');
     const { car, track } = window.__racer;
     const PLANE = { isDrivable: () => true, isWall: () => false };
@@ -538,7 +576,7 @@ const driftHold = await page.evaluate(async () => {
                 const sl = car.slipAngle;
                 steer = Math.max(-1, Math.min(1, -Math.sign(sl) * (Math.abs(sl) - 30 / D) * D / 45));
             }
-            car.update(1 / 120, { throttle: 0.85, steer: steerExpo(steer), handbrake: hb }, PLANE);
+            car.update(1 / 120, { throttle: 0.85, steer, handbrake: hb }, PLANE);
             if (t > 0.6) {
                 const a = Math.abs(car.slipAngle) * D;
                 peak = Math.max(peak, a);
