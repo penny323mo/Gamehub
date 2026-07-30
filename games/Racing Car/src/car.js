@@ -141,6 +141,13 @@ export const CFG = {
     wallBounce: 0.4,
     wallScrape: 0.97,    // 刮牆時沿牆方向剩幾多速度（每個接觸幀）
     wallAlign: 0.25,     // 接觸嗰陣車頭拉向沿牆方向幾多（0 = 唔拉）
+    // 打完圈救返車（見 Car.unspin）。AI 有救車狀態機（ADR-065），玩家一直
+    // 冇——實測打橫 150° 之後，一個簡易模式玩家淨係識打軚，25 秒都扭唔返，
+    // 最後變成倒住沿賽道行 -20 km/h。
+    unspinSpeed: 5,      // m/s：慢過呢個先會幫
+    unspinAngle: 1.4,    // 80°：指錯咁多先算打圈，正常揸車撞唔到
+    unspinExit: 0.44,    // 25°：扭到呢度先交返玩家（同 ADR-065 一樣要滯後）
+    unspinRate: 1.5,     // rad/s：扭返個方向嘅速度上限
 };
 
 const G = 9.81;
@@ -165,6 +172,7 @@ export class Car {
         this.bodyRoll = 0;
         this.lockFront = false;
         this.lockRear = false;
+        this.unspinning = false;
         // 預設定位係爽快街機，而唔係硬核模擬。保留成員方便物理因果測試，
         // 遊戲 UI 唔要求玩家先理解一堆電子輔助設定先可以揸得順。
         this.arcadeAssist = true;
@@ -507,6 +515,29 @@ export class Car {
         while (d > Math.PI) d -= 2 * Math.PI;
         while (d < -Math.PI) d += 2 * Math.PI;
         this.yaw += d * CFG.wallAlign;
+    }
+
+    // 打完圈救返車。玩家（唔似 AI）冇救車狀態機，所以喺「差不多停定 + 車頭
+    // 指錯超過 unspinAngle」嗰個明確狀態下，幫佢慢慢扭返向賽道方向。
+    // 條件夠窄，正常揸車（包括漂移，因為漂移一定夠快）永遠踩唔中。
+    // 傳入嘅係賽道喺呢個位嘅前進方向。回傳有冇出手，方便測試同 HUD。
+    // 入場同離場門檻要唔同（同 ADR-065 嘅救車一樣）。只扭到入場門檻就收手
+    // 嘅話，架車會停喺 80° 側住——自動油門一踩就橫住衝出草地。實測要扭到
+    // 25° 以內先交返玩家。
+    unspin(dirX, dirZ, dt) {
+        if (!this.arcadeAssist) { this.unspinning = false; return false; }
+        if (this.speed > CFG.unspinSpeed) { this.unspinning = false; return false; }
+        const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
+        const err = Math.atan2(fx * dirZ - fz * dirX, fx * dirX + fz * dirZ);
+        if (!this.unspinning && Math.abs(err) > CFG.unspinAngle) this.unspinning = true;
+        if (!this.unspinning) return false;
+        if (Math.abs(err) < CFG.unspinExit) { this.unspinning = false; return false; }
+        const step = Math.min(Math.abs(err), CFG.unspinRate * dt) * (err < 0 ? 1 : -1);
+        this.yaw += step;
+        // 車頭一轉，殘餘嘅偏航速度就冇意義，仲會即刻扭返轉頭
+        this.yawRate *= 0.6;
+        this.#sync();
+        return true;
     }
 
     #sync() {

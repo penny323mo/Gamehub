@@ -1362,3 +1362,31 @@ follows what the tyres can use
   is fine for spotting a disaster (Turbo at 79–89% off-road) and unfit for tuning constants.
   Anything that must be tuned needs a deterministic scenario, like the single-corner
   measurement behind ADR-080 or the six-circuit AI sweep above.
+
+## ADR-083: The player gets a spin recovery too
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: `Car.unspin(dirX, dirZ, dt)` turns the car's heading toward the track's forward
+  direction at up to `unspinRate` (1.5 rad/s) while the assists are on, the car is slower than
+  `unspinSpeed` (5 m/s), and the heading is more than `unspinAngle` (80°) out. It keeps helping
+  until the error is under `unspinExit` (25°), then hands back. `main.js` calls it each racing
+  frame with the tangent at the player's nearest point on the centreline.
+- Reason: ADR-065 gave the AI a recovery state machine and nothing was ever given to the player.
+  Measured from a 150° spin at walking pace, a simple-mode player who only steers never
+  recovered in 25 seconds — the automatic throttle drove the car sideways off the road (641
+  off-road frames) and it ended up travelling backwards along the circuit. Pressing the brake to
+  reverse was worse. For the default control mode, one spin ended the race.
+- The two thresholds are not decoration. With a single 80° threshold the assist stops with the
+  car still 80° sideways, which the automatic throttle immediately turns into a run off the
+  road; hysteresis to 25° is what makes the recovery usable. Measured: 150° comes back in 1.47 s
+  and 90° in 0.77 s, and off-road frames in the spun-player scenario fall from 641 to 166.
+- It cannot fire during real driving. At 20 m/s it declines even at 150° out, and at walking pace
+  it declines at 40° out, so ordinary cornering, drifting (always fast) and parking-speed
+  manoeuvring are all untouched. That is the same "narrow entry" discipline ADR-065 relied on.
+- Not fixed, and deliberately: a player who is already up to speed pointing the wrong way. That
+  is not a spin, and the 掉頭 warning already covers it. The novice control law used for probing
+  drives a wide circle the wrong way there, which is a limit of the model (ADR-082), not a
+  measurement of the game.
+- Gates: 150° recovers within 2 s, 90° within 1.5 s, and the assist declines both at speed and
+  at small angles.

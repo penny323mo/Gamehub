@@ -512,6 +512,51 @@ check('手煞真係鎖死後軸', tapDrift.half.lockedRear === true, tapDrift.ha
 check('半秒手煞入到漂移（>18°）', tapDrift.half.entry > 18, tapDrift.half);
 check('但唔會一撳就打圈', tapDrift.half.peak < 60 && tapDrift.long.peak < 80, tapDrift);
 
+// T3b1：打完圈要救得返。AI 有救車狀態機（ADR-065），玩家一直冇——實測車頭
+// 指錯 150° 又差不多停定，一個簡易模式玩家（自動油門、只識打軚）25 秒都
+// 扭唔返，最後倒住沿賽道行，落草 641 幀。即係一次失誤就一場完。
+const unspin = await page.evaluate(async () => {
+    const { CFG } = await import('./src/car.js');
+    const { car, track } = window.__racer;
+    const D = 57.2958;
+    const t = track.startT;
+    const p = track.curve.getPointAt(t);
+    const tan = track.curve.getTangentAt(t);
+    const errNow = () => {
+        const fx = Math.sin(car.yaw), fz = Math.cos(car.yaw);
+        return Math.abs(Math.atan2(fx * tan.z - fz * tan.x, fx * tan.x + fz * tan.z)) * D;
+    };
+    // 打橫 150°、差不多停定，冇任何輸入：睇吓幾時扭返 25° 以內
+    const spun = (deg) => {
+        car.reset(p, tan);
+        car.arcadeAssist = true;
+        car.yaw = Math.atan2(tan.x, tan.z) + deg / D;
+        car.vel.set(0, 0, 0);
+        for (let i = 1; i <= 60 * 6; i++) {
+            car.unspin(tan.x, tan.z, 1 / 60);
+            if (errNow() <= 25) return +(i / 60).toFixed(2);
+        }
+        return null;
+    };
+    // 正常揸車唔可以踩中：夠快就唔幫
+    car.reset(p, tan);
+    car.arcadeAssist = true;
+    car.yaw = Math.atan2(tan.x, tan.z) + 150 / D;
+    car.vel.set(Math.sin(car.yaw) * 20, 0, Math.cos(car.yaw) * 20);
+    const fastNoHelp = car.unspin(tan.x, tan.z, 1 / 60);
+    // 慢速但只係細角度（例如泊車調位）都唔應該幫
+    car.reset(p, tan);
+    car.yaw = Math.atan2(tan.x, tan.z) + 40 / D;
+    car.vel.set(0, 0, 0);
+    const smallNoHelp = car.unspin(tan.x, tan.z, 1 / 60);
+    return { s150: spun(150), s90: spun(90), fastNoHelp, smallNoHelp, exit: CFG.unspinExit * D };
+});
+console.log('  ', JSON.stringify(unspin));
+check('打橫 150° 兩秒內扭返啱方向', unspin.s150 !== null && unspin.s150 <= 2, unspin);
+check('打橫 90° 一秒半內扭返', unspin.s90 !== null && unspin.s90 <= 1.5, unspin);
+check('夠快就唔幫（正常揸車踩唔中）', unspin.fastNoHelp === false, unspin);
+check('細角度都唔幫（泊車調位唔會被搶軚）', unspin.smallNoHelp === false, unspin);
+
 // T3b2：擦一下欄唔可以等於報廢。舊寫法（成個速度每幀 ×0.86、固定反彈、
 // 唔矯正車頭）：10° 淺角度擦牆由 108 km/h 跌到 0，三秒後仲係 1 km/h，
 // 反而 25° 撞埋去仲剩 42 km/h——即係輕輕掂一下比撞真啲慘。玩家冇 AI

@@ -1291,6 +1291,15 @@ function frame(now) {
                 ? input.read(dt, car.speed)
                 : { throttle: 0, steer: 0, handbrake: false };
             car.update(dt, cmd, track);
+            // 打完圈救返車：AI 有救車狀態機（ADR-065），玩家一直冇。實測打橫
+            // 150° 之後，一個簡易模式玩家淨係識打軚，25 秒都扭唔返，最後倒住
+            // 沿賽道行 -20 km/h——即係一次失誤就一場完。條件夠窄（差不多停定
+            // 而且指錯 80° 以上），正常揸車同漂移都踩唔中。
+            if (race.state === 'racing') {
+                const tt = track.nearestT(car.pos.x, car.pos.z);
+                const tan = track.curve.getTangentAt(tt);
+                car.unspin(tan.x, tan.z, dt);
+            }
             audio.update(dt, car, cmd);
             race.update(dt, car);
             // 對手行喺玩家之後：咁樣分開兩架車嗰下推力已經用咗今幀嘅新位置
