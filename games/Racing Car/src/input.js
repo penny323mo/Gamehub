@@ -7,6 +7,9 @@ export const GYRO_SENS_KEY = 'racer-gyro-sens';
 export const GYRO_INVERT_KEY = 'racer-gyro-invert';
 export const CONTROL_MODE_KEY = 'racer-control-mode';
 
+// 簡易模式打軚時自動鬆幾多油（0.4 ＝ 打盡剩六成）。
+export const AUTO_LIFT = 0.4;
+
 // 由傾角（度）算軚。抽出嚟做純函數，先至測得到條曲線本身。
 //
 // 舊版：11° 就打到盡、直線、冇平滑。手腕郁少少就由零跳到全軚，中間位
@@ -369,8 +372,17 @@ export class Input {
 
         // 簡易模式只要求玩家掌軚、煞車同漂移。比賽未開始時主迴圈唔會 read，
         // 所以自動油門只會喺綠燈後生效；煞車永遠優先，漂移時保留少量動力。
+        //
+        // 打軚就自動鬆油（AUTO_LIFT）。簡易模式本來係「永遠踩到底」，而摩擦圓
+        // 就係咁講：後軸抓地被縱向用幾多，側向就少幾多。全油 8500 N 對後軸
+        // 約 9900 N 容量＝用咗 86%，側向只剩 sqrt(1-0.86²) ≈ 51%；鬆到六成油
+        // 就係用 52%，側向剩 85%。即係同一條彎，鬆油之後側向抓地多 1.7 倍。
+        // 一個唔會自己收油嘅模式，等於迫玩家全程用一半抓地入彎——所以呢個
+        // 唔係「輔助」，係修返簡易模式本身嘅缺陷。
+        // 打盡都仲有六成油（> driftPowerThrottle 0.5），所以動力過彎照用得。
+        const autoLift = 1 - AUTO_LIFT * Math.min(1, Math.abs(steer));
         const throttle = this.controlMode === 'simple'
-            ? (down ? -1 : drift ? 0.72 : 1)
+            ? (down ? -1 : drift ? 0.72 : autoLift)
             : (up ? 1 : 0) - (down ? 1 : 0);
         return {
             throttle,

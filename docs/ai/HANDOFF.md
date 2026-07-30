@@ -4,44 +4,45 @@ Updated: 2026-07-28 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Baseline before this task: `2dec492`
-Status: turn-in rebuilt around a conditional front-grip assist; drifts hold
+Status: turn-in, drift hold and simple-mode throttle all rebuilt around measurements
 
 ## Current objective
 
-Close out phone-only complaints (orientation deciding itself, a too-small hub card, steering
-that neither reached nor spread full lock), then keep refining the physics.
+Close out phone-only complaints (orientation, hub card, steering reach), then raise playability.
 
 ## Completed
 
-- 畫面方向 is a setting (`racer-orient`, default `portrait`), not a behaviour: 打直 renders
-  into the viewport with no transform ever, 打橫 rotates `#game-root` 90° only while the
-  viewport is taller than wide, and no "automatic" value exists (ADR-074). Rotation is a class
-  toggled by `applyOrientation()`, and the same boolean feeds `Input.setRotated()`.
+- 畫面方向 is a setting (`racer-orient`, default `portrait`), not a behaviour: 打直 never
+  transforms, 打橫 rotates `#game-root` 90° only while the viewport is taller than wide, and no
+  "automatic" value exists (ADR-074). The class toggle also feeds `Input.setRotated()`.
 - The iPhone still scrambled on rotation: iOS reports stale sizes and fires
   `orientationchange` before the viewport changes. Fixed by never measuring once (ADR-075) —
-  `applyOrientation()` reads `visualViewport` and re-runs on every resize signal and on return
-  from background, `orientationchange` schedules five re-decisions, and a `ResizeObserver`
-  re-runs `renderer.setSize()`.
-- Steering reach: the stick's value comes from `dx` clamped alone (the circle only draws the
-  knob), smoothing at 20/s while held. A thumb arcing 40°/60° used to lose 23%/50% of lock and
-  full lock took 0.48s (ADR-076).
+  `applyOrientation()` reads `visualViewport` and re-runs on every resize signal and on
+  waking, `orientationchange` schedules five re-decisions, a `ResizeObserver` re-sizes.
+- Steering reach: the value comes from `dx` clamped alone (the circle only draws the knob),
+  smoothing at 20/s. A thumb arcing 40°/60° lost 23%/50% of lock; full lock took 0.48s (076).
 - Turn-in: ADR-077's expo curve is reverted — it fixed a high-speed metric and cost mid-stick
-  authority everywhere. The stick is unshaped again, and the front axle gains up to 70% grip
-  while the throttle is not negative, the handbrake is off and slip is under 8° (ADR-079).
-  `t45` (straight line to 45° of heading) at half stick: 1.91/2.02/2.17s → 1.25/1.38/1.70s at
+  authority everywhere. The stick is unshaped, and the front axle gains up to 70% grip while
+  the throttle is not negative, the handbrake is off and slip is under 8° (ADR-079). `t45`
+  (straight line to 45° of heading) at half stick: 1.91/2.02/2.17s → 1.25/1.38/1.70s at
   14/22/30 m/s; full lock at 30 m/s 1.66 → 1.49s. The 8° window makes it safe — absent from
-  both braking-into-a-corner and any slide, so the 35° overshoot (68°), drift speed (76%) and
-  handbrake entry (34°) are unchanged. `gripFront` outright broke eleven gates.
+  braking-into-a-corner and from any slide, so the 35° overshoot (68°), drift speed (76%) and
+  handbrake entry (34°) are unchanged. Raising `gripFront` outright broke eleven gates.
 - Drifts can be held: with the throttle down past 15° of slip the rear axle loses up to 30%
-  grip, peaking at 24° and tapering to zero by 39° so it cannot drive the angle past its own
-  band (ADR-078). A handbrake entry used to peak at 26° and collapse in 0.81s with the
-  player's countersteer gain making no difference; it now holds 1.56s at 25° average and the
-  gain sweep separates. The yaw-damping "drift window" tried first is removed — no held time
-  at any setting, and it pushed the overshoot 68° → 75°.
-- Hub carousel on phones: the card fills the frame (90% of a 440px viewport, up from 64%) and
-  neighbours are wholly visible or wholly hidden, never cut.
-- Fixed on the way: menu panel `max-height: 88vh` resolving to 743px in a rotated frame, a
-  rotated frame taking the narrow-portrait pad layout, a stray `rotatedOverride`.
+  grip, peaking at 24° and tapering to zero by 39° so it cannot drive the angle past its band
+  (ADR-078). A handbrake entry used to peak at 26° and collapse in 0.81s with the player's
+  countersteer gain making no difference; it now holds 1.56s at 25° average and the gain sweep
+  separates. The yaw-damping "drift window" tried first is removed — no held time at any
+  setting, and it pushed the overshoot 68° → 75°.
+- 簡易模式 (the default) no longer pins the throttle at 1.0: it is `1 - 0.4·|steer|`, so full
+  lock leaves 60% (ADR-080). Full throttle spends 86% of the rear friction circle
+  longitudinally, leaving 51% of lateral grip; 60% leaves 85%. One 90° corner at 28 m/s and
+  full lock took 107 m of travel, now 72 m — on a 15 m road, wall versus corner. 0.6 stays
+  above `driftPowerThrottle`, so power oversteer survives.
+- Hub carousel on phones: the card fills 90% of a 440px viewport (was 64%); neighbours are
+  wholly visible or wholly hidden.
+- Fixed on the way: `max-height: 88vh` → 743px in a rotated frame, a rotated frame taking the
+  narrow-portrait pad layout, a stray `rotatedOverride`.
 
 ## Changed files
 
@@ -51,24 +52,23 @@ that neither reached nor spread full lock), then keep refining the physics.
 
 ## Verification
 
-- Suites: race 107/107, setup 120/120, rivals 59/59, ghost 29/29, season 55/55,
-  audio 32/32 (402/402); `run-all` green. AI 0–0.3% off-road on all six circuits. Hub 33/33.
+- Suites: race 107/107, setup 125/125, rivals 59/59, ghost 29/29, season 55/55,
+  audio 32/32 (407/407); `run-all` green. AI 0–0.3% off-road on all six circuits. Hub 33/33.
 - Orientation gates: 打直/打橫 give the right frame at 390×844 and persist, the joystick axes
-  swap with them, the canvas fills the frame, `orientationchange` never pauses, a stubbed stale
-  `visualViewport` recovers within a second with no further event, and resizing `#game-root`
-  with no event at all still resizes the canvas and drawing buffer.
-- Steering gates: full reach at 0/20/40/60° gives full lock in 0.10s, the knob stays in the
-  dial; half-stick `t45` ≤1.45/1.55/1.80s, full lock ≤1.55s, and killing the boost slows both.
-  Drift gates: held ≥1.3s from a phone-shaped entry, settled 25–40°, shorter at `driftPower` 0.
-  Hub gates: no neighbour partially visible, active card unclipped, ≥82% of a viewport wide.
+  swap, the canvas fills the frame, `orientationchange` never pauses, a stubbed stale
+  `visualViewport` recovers within a second, and resizing `#game-root` with no event still
+  resizes the drawing buffer.
+- Steering gates: full reach at 0/20/40/60° gives full lock in 0.10s; half-stick `t45`
+  ≤1.45/1.55/1.80s, full lock ≤1.55s, killing the boost slows both; simple-mode lift is
+  proportional with 0.6 at full lock and −1 under braking. Drift gates: held ≥1.3s, settled
+  25–40°, shorter at `driftPower` 0. Hub: neighbours hidden, card unclipped and ≥82% wide.
 
 ## Remaining release gates
 
-- Penny drives the new turn-in: half-stick should bite and a drift should hold. Still not
-  enough? Next levers are `turnInBoost` up, or the drift-speed floor.
-- Penny re-tries gyro: is the travel and direction right at her stored sensitivity 1.4?
-- Penny drives the new braking: straight braking stays straight, corner braking rotates.
-- Penny checks audio balance, then taps 複製報告 and pastes the one-line report.
+- Penny drives the new turn-in and auto-lift: half-stick biting, corners makeable, drift
+  holding. Levers if short: `turnInBoost`, `AUTO_LIFT`, drift-speed floor. Gyro unconfirmed.
+- Penny checks the new braking (straight stays straight, corner rotates) and audio balance,
+  then taps 複製報告 and pastes the one-line report.
 
 ## Known issues and cautions
 
@@ -77,8 +77,8 @@ that neither reached nor spread full lock), then keep refining the physics.
 - Inside `#game-root` use `--fw`/`--fh`, never `vw`/`vh`: under `.rot90` they are swapped.
 - Hub cards are sized in `%` of the carousel frame, not `vw`: outer padding eats 42px a side,
   so `vw` overflows the clipping frame.
-- ADR-062's rejected attempts stay rejected; ADR-065 supersedes only its Turbo decision.
-- Brake force is demand, not delivered force; any change must retune `SKILLS.brakeA` too.
+- ADR-062's rejected attempts stay rejected; ADR-065 supersedes only its Turbo decision. Brake
+  force is demand, not delivered; any change must retune `SKILLS.brakeA` too.
 - A drift now holds, but only with the throttle down; ADR-070's 70% speed floor is what caps
   how long, and raising the cap means revisiting that rule with Penny.
 
@@ -102,10 +102,10 @@ that neither reached nor spread full lock), then keep refining the physics.
   `steerSpeedDrop` below 2.4 — all measured, all cost more than they buy. Turn-in belongs to
   the 8°-windowed front-grip assist (ADR-079).
 - Do not lengthen a drift with yaw damping; it buys nothing and costs overshoot (ADR-078).
-- Do not add identity, credential, or device identifiers to reports.
-- Do not raise body roll past 3.5°, and do not roll the contact shadow (ADR-063).
-- Do not merge the gyro-only direction switch into shared touch direction (ADR-064).
-- Do not flip gyro signs or tune sensitivity/audio without physical-device evidence, retry
+- Do not add identity/credential/device identifiers to reports, raise body roll past 3.5°, or
+  roll the contact shadow (ADR-063).
+- Do not merge the gyro-only direction switch into shared touch direction (ADR-064), flip gyro
+  signs or tune sensitivity/audio without physical-device evidence, retry
   ADR-062's four rejected Turbo tweaks, or fold spin recovery back into the control law.
   Do not make the gyro map linear or remove its smoothing (ADR-066).
 - Do not add a rival difficulty setting on top of today's driver; read ADR-067 first.

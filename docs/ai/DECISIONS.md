@@ -1279,3 +1279,28 @@ follows what the tyres can use
   before and after, and the AI stays at 0–0.3% off-road across the six circuits.
 - Gates: half-stick `t45` must stay under 1.45 / 1.55 / 1.80 s at 14 / 22 / 30 m/s, full lock
   under 1.55 s at 30 m/s, and turning the boost off must measurably slow both.
+
+## ADR-080: Simple mode lifts off the throttle when the player steers
+
+- Date: 2026-07-28
+- Status: accepted
+- Decision: in 簡易模式 the automatic throttle is `1 - AUTO_LIFT·|steer|` with `AUTO_LIFT`
+  0.4, so full lock leaves 60% throttle. Braking still overrides everything and the drift
+  button keeps its own 0.72. Standard mode is untouched — it has no automatic throttle at all.
+- Reason: simple mode is the default, and it held the throttle at exactly 1.0 for the entire
+  race. The friction circle then decides the rest: at 8500 N of drive against roughly 9900 N
+  of rear capacity, 86% of the circle is spent longitudinally and only
+  `sqrt(1 - 0.86²) ≈ 51%` of the rear's lateral grip remains. At 60% throttle that becomes
+  52% spent and 85% remaining — the same corner has about 1.7× the lateral grip. A mode that
+  never lifts forces the player through every corner on half their grip, which is not a
+  difficulty setting, it is a defect in the mode.
+- Measured on one 90° corner entered at 28 m/s at full lock: full throttle needs 107 m of
+  travel and 3.68 s to complete the turn, auto-lift needs 72 m and 2.92 s, and a full lift
+  (what standard mode allows) needs 44 m. On a road about 15 m wide, 107 m versus 72 m is the
+  difference between hitting the wall and making the corner.
+- 0.4 is chosen so full lock still leaves 0.6, above `driftPowerThrottle` (0.5), which keeps
+  ADR-078's power oversteer available to a simple-mode player. A deeper lift would take
+  drifting away from the mode that most needs the help.
+- Gates: straight-line simple mode is still full throttle, the lift is proportional and
+  monotonic in steering, full lock stays between 0.55 and 0.65, braking still returns −1, and
+  standard mode still returns 0 with no keys held.

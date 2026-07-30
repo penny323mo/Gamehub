@@ -719,6 +719,43 @@ check('陀螺儀方向掣唔會掂到觸控轉向', gyro.touchUnaffected < 0, gy
 check('細微晃動有死區', gyro.small === 0, gyro.small);
 check('撳住掣嘅時候以手指為準', gyro.touchWins < 0, gyro.touchWins);
 
+// T5a1：簡易模式打軚要自動鬆油。舊版係「永遠踩到底」，而摩擦圓決定咗
+// 後軸縱向用得多，側向就剩得少：全油側向只剩約五成一，鬆到六成油就有
+// 八成五。實測同一條 90° 彎（28 m/s 全軚）：全油要行 107 米先轉得完，
+// 自動鬆油 72 米——喺一條 15 米闊嘅路上面，呢個就係撞唔撞欄嘅分別。
+const autoLift = await page.evaluate(async () => {
+    const { AUTO_LIFT } = await import('./src/input.js');
+    const { input } = window.__racer;
+    input.setControlMode('simple');
+    input.reset();
+    const read = (steer) => { input.touch.steer = steer; let out = null; for (let i = 0; i < 200; i++) out = input.read(1 / 60); return out; };
+    const straight = read(0).throttle;
+    const half = read(0.5).throttle;
+    const full = read(1).throttle;
+    input.touch.steer = 0; input.touch.brake = true;
+    let braking = null; for (let i = 0; i < 60; i++) braking = input.read(1 / 60);
+    input.touch.brake = false;
+    input.reset();
+    // 標準模式唔應該有自動油門
+    input.setControlMode('standard');
+    input.touch.steer = 1;
+    let std = null; for (let i = 0; i < 200; i++) std = input.read(1 / 60);
+    input.reset();
+    input.setControlMode('simple');
+    return {
+        lift: AUTO_LIFT,
+        straight: +straight.toFixed(2), half: +half.toFixed(2), full: +full.toFixed(2),
+        braking: braking.throttle, standardNoAuto: std.throttle,
+    };
+});
+console.log('  ', JSON.stringify(autoLift));
+check('簡易模式直路仍然全油', autoLift.straight === 1, autoLift);
+check('打軚就按比例鬆油', autoLift.half > autoLift.full && autoLift.half < 1, autoLift);
+check('打盡都仲有六成油（動力過彎照用得）',
+    autoLift.full >= 0.55 && autoLift.full <= 0.65, autoLift);
+check('煞車永遠優先', autoLift.braking === -1, autoLift.braking);
+check('標準模式冇自動油門', autoLift.standardNoAuto === 0, autoLift);
+
 // T5a2：搖桿要畀到足軚。Penny：「左右好似唔夠幅度，做唔到較大轉向」。
 // 兩個原因，兩樣都要守住：
 //   1. 舊寫法將 (dx, dy) 一齊夾入個圓，拇指順住手腕弧線拉落斜就連 x 一齊
