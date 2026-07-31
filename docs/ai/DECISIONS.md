@@ -1459,3 +1459,52 @@ follows what the tyres can use
   separate.
 - Gates: the bar reads 0% at the scoring threshold, 100% at the taper end and above, at least
   45% at a held 31°, is hot only near full, and follows a runtime change to `driftPowerOut`.
+
+## ADR-087: A shared animation library, not nine copies of the same clips
+
+- Date: 2026-07-31
+- Status: accepted
+- Decision: the MOBA's nine KayKit characters ship as mesh-and-skin only (~90 KB each, Draco);
+  the 23 animation clips they all use live once in `anims.glb` (0.87 MB) and are bound to any
+  model at runtime.
+- Reason: the packs' nine source files total 35 MB, of which the meshes are a rounding error —
+  6 500 triangles and a 15 KB atlas apiece. The weight is 76–95 authored clips stored nine
+  times. Measurement showed all nine share the identical 41-bone rig with identical bone names,
+  and the Skeletons pack's 95 clips are a strict superset of the Adventurers' 76. three.js
+  binds an `AnimationClip` by node name, not by skeleton object, so one library plays on every
+  model. Whole-game art: 35 MB → 1.97 MB.
+- Also recorded because the disposal was not obvious: `Animation.dispose()` leaves its channels,
+  samplers and their accessors orphaned, so stripping animations left a 3.4 MB file at 2.05 MB.
+  Accessors have to be collected and disposed bottom-up, minus the ones surviving clips still use.
+
+## ADR-088: Items exist because without them the game cannot end
+
+- Date: 2026-07-31
+- Status: accepted
+- Decision: six-slot items with a fountain-only shop, per-champion build orders the bots follow,
+  and a minion HP curve (`hpPerMin` 22 → 9) that lets champions out-scale the wave.
+- Reason: a 25-minute six-bot match destroyed zero towers. Instrumenting it showed why: a
+  champion needed exactly seven auto-attacks to kill a melee minion at level 1 *and* at level 12
+  — minion `hpPerMin` had been tuned independently of champion `dmgPerLvl` and the two cancelled.
+  Clear speed never improves, so a wave never breaks, so winning a fight never becomes tower
+  damage. Gold accrued from kills, CS and towers and was never spendable, so the economy was a
+  number that only went up. Items are the missing link in "win → gold → clear faster → push".
+- Rejected on evidence: super minions when the enemy's towers are gone (LoL's inhibitor rule).
+  Across twelve mirror matches it moved nexus finishes from 10/12 to 7/12 and the median from
+  20 to 22 minutes — both teams reach "enemy has no towers" at about the same time, so the
+  bonus cancels, and the dead super minions feed the defenders 130 XP and 60 gold apiece.
+  Narrowing it to "only while I still hold a tower" produced byte-identical results.
+
+## ADR-089: The bot's siege state was unreachable, not underused
+
+- Date: 2026-07-31
+- Status: accepted
+- Decision: `SIEGE` is tested before the "an enemy champion is within 13 m" branch, gated on
+  being healthy with minion cover and no enemy inside 6.5 m.
+- Reason: SIEGE occupied 0.9% of bot time and towers stalled at partial HP. The cause was
+  ordering, not tuning: you siege a tower precisely when defenders are standing under it, so
+  the FIGHT/RETREAT branch always fired first and the state machine could never reach SIEGE.
+  After the reorder, matches run 13–25 minutes (median ~19) and 10 of 12 end at a nexus.
+- Also fixed here: `dawnkeeper`'s passive existed only as card text with no implementation —
+  the one champion of six playing a man down, at a 20% win rate. Implemented, it returned to
+  50%. Same failure class as a stale constant: something written down once and never wired up.

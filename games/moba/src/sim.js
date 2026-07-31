@@ -1,0 +1,972 @@
+// 純模擬層：唔 import three.js，所以 node 可以直接跑晒成場比賽去驗規則。
+//
+// 呢個分層唔係潔癖。MOBA 嘅規則（仇恨、補刀、經驗共享、越塔懲罰、賞金）
+// 全部係「一睇個數就知啱唔啱」嘅嘢，而視覺層係「一睇就知靚唔靚」嘅嘢；
+// 兩樣混埋一齊嘅話，前者就只可以靠肉眼喺瀏覽器度撞彩驗證。
+
+import {
+    TEAM, enemyOf, MAP, SPAWN_SPREAD, TICK, WAVE_FIRST, WAVE_PERIOD, SIEGE_EVERY,
+    MINION, MINION_STOP_MARGIN, TOWER, NEXUS, MAX_LEVEL, XP_TO_LEVEL, XP_SHARE_RANGE,
+    GAME_MAX, KILL_GOLD, ASSIST_GOLD, ASSIST_WINDOW, GOLD_PER_SEC, START_GOLD,
+    RESPAWN_BASE, RESPAWN_PER_LEVEL, SHUTDOWN_PER_STREAK, SHUTDOWN_MAX,
+    armourMul, structureArmour, TOWER_AGGRO_MEMORY, FOUNTAIN_HEAL_PCT, FOUNTAIN_RADIUS,
+    PUSH_STRENGTH, SIEGE_DENSE_AT, SIEGE_EVERY_WAVE_AT, WARDEN,
+} from './constants.js';
+import { CHAMPIONS, abilityRank, scaled } from './champions.js';
+import { ITEMS, MAX_ITEMS, itemBonus } from './items.js';
+
+// 可重現嘅亂數：測試要跑到同一場比賽。
+function makeRng(seed) {
+    let s = seed >>> 0 || 1;
+    return () => {
+        s ^= s << 13; s >>>= 0;
+        s ^= s >> 17;
+        s ^= s << 5; s >>>= 0;
+        return s / 4294967296;
+    };
+}
+
+const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+// 隊伍方向：藍方向 +x 打，紅方向 -x 打。
+const dirOf = (team) => (team === TEAM.BLUE ? 1 : -1);
+const sideSign = (team) => (team === TEAM.BLUE ? -1 : 1);
+
+export class Sim {
+    constructor(opts = {}) {
+        this.rng = makeRng(opts.seed ?? 12345);
+        this.time = 0;
+        this.nextId = 1;
+        this.entities = [];
+        this.projectiles = [];
+        this.zones = [];              // 持續區域（火地、陷阱、治療圈）
+        this.events = [];             // 畀視覺層消費，每 tick 清空
+        this.over = null;             // { winner }
+        this.waveCount = 0;
+        this.nextWaveAt = WAVE_FIRST;
+
+        this.#buildStructures();
+        this.#spawnChampions(opts.lineups ?? {
+            [TEAM.BLUE]: ['ironward', 'longshot', 'dawnkeeper'],
+            [TEAM.RED]: ['duskblade', 'emberwake', 'ironhulk'],
+        }, opts.playerIndex ?? 0);
+    }
+
+    // ---------- 建立 ----------
+    #add(e) {
+        e.id = this.nextId++;
+        e.alive = true;
+        this.entities.push(e);
+        return e;
+    }
+
+    #buildStructures() {
+        for (const team of [TEAM.BLUE, TEAM.RED]) {
+            const s = sideSign(team);
+            MAP.towerX.forEach((x, tier) => {
+                const hp = TOWER.hpByTier[tier];
+                this.#add({
+                    kind: 'tower', team, tier,
+                    x: s * x, z: 0, r: 2.2,
+                    hp, maxHp: hp, armour: TOWER.armour,
+                    range: TOWER.range, attackSpeed: TOWER.attackSpeed, damage: TOWER.damage,
+                    cd: 0, target: null, ramp: 0,
+                });
+            });
+            this.#add({
+                kind: 'nexus', team,
+                x: s * MAP.nexusX, z: 0, r: 3.4,
+                hp: NEXUS.hp, maxHp: NEXUS.hp, armour: NEXUS.armour,
+                range: NEXUS.range, attackSpeed: NEXUS.attackSpeed, damage: NEXUS.damage,
+                cd: 0, target: null, ramp: 0,
+            });
+        }
+    }
+
+    #spawnChampions(lineups, playerIndex) {
+        this.champions = [];
+        for (const team of [TEAM.BLUE, TEAM.RED]) {
+            lineups[team].forEach((id, i) => {
+                const def = CHAMPIONS[id];
+                const c = this.#add({
+                    kind: 'champ', team, def, champId: id,
+                    x: sideSign(team) * MAP.fountainX,
+                    z: (i - 1) * SPAWN_SPREAD,
+                    r: 1.0,
+                    level: 1, xp: 0, gold: START_GOLD,
+                    kills: 0, deaths: 0, assists: 0, cs: 0, streak: 0,
+                    respawnAt: 0, cd: 0, target: null,
+                    shield: 0, shieldUntil: 0,
+                    stunUntil: 0, rootUntil: 0, slow: 0, slowUntil: 0,
+                    buffs: {},                    // name -> { until, ...data }
+                    stacks: 0, stackUntil: 0,     // 畀被動用
+                    abilityCd: [0, 0, 0, 0],
+                    items: [],
+                    lastDamagedBy: new Map(),     // id -> time
+                    lastMoveAt: 0, standingSince: 0,
+                    isPlayer: team === TEAM.BLUE && i === playerIndex,
+                    orderX: null, orderZ: null, orderTarget: null,
+                });
+                this.#applyLevelStats(c, true);
+                this.champions.push(c);
+            });
+        }
+        this.player = this.champions.find(c => c.isPlayer) ?? this.champions[0];
+    }
+
+    #applyLevelStats(c, full) {
+        const d = c.def, l = c.level - 1;
+        const before = c.maxHp ?? 0;
+        c.maxHp = d.hp + d.hpPerLvl * l;
+        c.maxMp = d.mp + d.mpPerLvl * l;
+        c.baseDamage = d.damage + d.dmgPerLvl * l;
+        c.armour = d.armour + d.armourPerLvl * l;
+        c.attackSpeedBase = d.attackSpeed + (d.attackSpeedPerLvl ?? 0) * l;
+        c.ap = (d.ap ?? 0) + (d.apPerLvl ?? 0) * l;
+        c.hpRegen = d.hpRegen + d.hpRegenPerLvl * l;
+        c.mpRegen = d.mpRegen + d.mpRegenPerLvl * l;
+        c.range = d.range;
+        c.baseSpeed = d.speed;
+        if (full) { c.hp = c.maxHp; c.mp = c.maxMp; }
+        else if (c.maxHp > before) c.hp += c.maxHp - before;   // 升級補返新增嗰截
+    }
+
+    // ---------- 對外查詢 ----------
+    get alive() { return this.entities.filter(e => e.alive); }
+    enemiesOf(team) { return this.entities.filter(e => e.alive && e.team !== team); }
+    alliesOf(team) { return this.entities.filter(e => e.alive && e.team === team); }
+    champ(id) { return this.champions.find(c => c.champId === id); }
+
+    emit(type, data) { this.events.push({ type, ...data }); }
+
+    // 派生數值：buff 全部喺呢度加，唔會寫死落基礎值度（所以 buff 一過就自動消失）
+    stats(c) {
+        const b = c.buffs;
+        const it = itemBonus(c.items);
+        let damage = c.baseDamage + it.ad;
+        let armour = c.armour + it.armour;
+        let speed = c.baseSpeed * (1 + it.speed);
+        let attackSpeed = c.attackSpeedBase * (1 + it.attackSpeed);
+        let maxHp = c.maxHp + it.hp;
+        const ap = c.ap + it.ap;
+        const lifesteal = it.lifesteal;
+        if (b.rage?.until > this.time) {
+            damage *= 1 + b.rage.amount;
+            maxHp += b.rage.hp;
+        }
+        if (b.haste?.until > this.time) speed *= 1 + b.haste.amount;
+        if (b.frenzy?.until > this.time) attackSpeed *= 1 + b.frenzy.amount;
+        if (b.bulwark?.until > this.time) armour += b.bulwark.amount;
+        // 被動
+        if (c.def.id === 'ironward' && c.stackUntil > this.time) armour += 3 * c.stacks;
+        if (c.def.id === 'ironhulk' && c.hp < maxHp * 0.4) attackSpeed *= 1.3;
+        if (c.slowUntil > this.time) speed *= 1 - c.slow;
+        return { damage, armour, speed, attackSpeed, maxHp, ap, lifesteal };
+    }
+
+    // ---------- 商店 ----------
+    // 同 LoL 一樣，只可以喺自己泉水買嘢。呢條規則就係「返唔返家」呢個決定嘅代價：
+    // 買裝要行返去，行返去就放棄咗兵線。
+    canShop(c) {
+        return c.alive && Math.abs(c.x - sideSign(c.team) * MAP.fountainX) < FOUNTAIN_RADIUS;
+    }
+
+    buy(c, itemId) {
+        const it = ITEMS[itemId];
+        if (!it || !this.canShop(c)) return false;
+        if (c.items.length >= MAX_ITEMS || c.gold < it.cost) return false;
+        c.gold -= it.cost;
+        c.items.push(itemId);
+        // 裝備加嘅最大生命要即刻補返落現有血量，唔係買件血裝反而變殘
+        if (it.hp) c.hp += it.hp;
+        this.emit('buy', { id: c.id, item: itemId });
+        return true;
+    }
+
+    sell(c, index) {
+        const id = c.items[index];
+        if (!id) return false;
+        const it = ITEMS[id];
+        c.items.splice(index, 1);
+        c.gold += Math.round(it.cost * 0.7);
+        if (it.hp) c.hp = Math.max(1, c.hp - it.hp);
+        this.emit('sell', { id: c.id, item: id });
+        return true;
+    }
+
+    canAct(c) {
+        return c.alive && this.time >= c.stunUntil;
+    }
+    canMove(c) {
+        return this.canAct(c) && this.time >= c.rootUntil;
+    }
+
+    // ---------- 主迴圈 ----------
+    step(dt = TICK) {
+        if (this.over) return;
+        this.events.length = 0;
+        this.time += dt;
+
+        this.#spawnWaves();
+        for (const e of this.entities) {
+            if (!e.alive) { this.#tickDead(e, dt); continue; }
+            if (e.kind === 'champ') this.#tickChampion(e, dt);
+            else if (e.kind === 'minion') this.#tickMinion(e, dt);
+            else this.#tickStructure(e, dt);
+        }
+        this.#tickProjectiles(dt);
+        this.#tickZones(dt);
+        this.#separate(dt);
+        this.#timeLimit();
+        this.#cleanup();
+    }
+
+    #tickDead(e, dt) {
+        if (e.kind !== 'champ') return;
+        if (this.time >= e.respawnAt) this.#respawn(e);
+    }
+
+    #respawn(c) {
+        c.alive = true;
+        c.hp = c.maxHp; c.mp = c.maxMp;
+        c.x = sideSign(c.team) * MAP.fountainX;
+        c.z = 0;
+        c.shield = 0; c.stunUntil = 0; c.rootUntil = 0; c.slowUntil = 0;
+        c.orderX = null; c.orderZ = null; c.orderTarget = null;
+        this.emit('respawn', { id: c.id });
+    }
+
+    // ---------- 兵線 ----------
+    #spawnWaves() {
+        if (this.time < this.nextWaveAt) return;
+        this.nextWaveAt += WAVE_PERIOD;
+        this.waveCount += 1;
+        const every = this.time >= SIEGE_EVERY_WAVE_AT ? 1
+            : this.time >= SIEGE_DENSE_AT ? 2 : SIEGE_EVERY;
+        const siege = this.waveCount % every === 0;
+        for (const team of [TEAM.BLUE, TEAM.RED]) {
+            const s = sideSign(team);
+            // 試過而且否決咗：「對面塔全冧就出超級兵」（即 LoL 兵營被破嗰套）。
+            // 聽落好地道，但實測十二場鏡像對局，推爆水晶收場嘅由 10 場跌到 7 場、
+            // 中位時長由 20 分鐘升到 22——超級兵推唔穿水晶反而變咗送 130 經驗
+            // 60 金幣畀守方，養大咗佢哋守得住。收窄成「自己仲有塔先出」都係
+            // 一模一樣嘅結果，即係條件根本唔係關鍵。所以唔要。
+            const kinds = [
+                ...Array(MINION.melee.count).fill(MINION.melee),
+                ...Array(MINION.ranged.count).fill(MINION.ranged),
+                ...(siege ? [MINION.siege] : []),
+            ];
+            kinds.forEach((def, i) => {
+                const minutes = this.time / 60;
+                this.#add({
+                    kind: 'minion', team, def, minionKind: def.key,
+                    x: s * (MAP.nexusX - 3) - s * i * 1.4,
+                    z: ((i % 3) - 1) * 1.7,
+                    r: 0.62,
+                    maxHp: def.hp + def.hpPerMin * minutes,
+                    hp: def.hp + def.hpPerMin * minutes,
+                    damage: def.damage + def.dmgPerMin * minutes,
+                    armour: def.armour, range: def.range,
+                    attackSpeed: def.attackSpeed, speed: def.speed,
+                    cd: 0, target: null,
+                    slow: 0, slowUntil: 0, stunUntil: 0, rootUntil: 0,
+                });
+            });
+        }
+        this.emit('wave', { n: this.waveCount, siege });
+    }
+
+    // ---------- 小兵 ----------
+    #tickMinion(m, dt) {
+        if (this.time < m.stunUntil) return;
+        const foe = this.#pickMinionTarget(m);
+        m.target = foe?.id ?? null;
+        if (foe && dist(m, foe) <= m.range + foe.r) {
+            this.#tryAttack(m, foe, dt);
+            return;
+        }
+        if (this.time < m.rootUntil) return;
+        // 冇嘢打就沿住橋推進；有目標但太遠就行埋去
+        const goalX = foe ? foe.x : dirOf(m.team) * (MAP.fountainX + 4);
+        const goalZ = foe ? foe.z : 0;
+        this.#moveToward(m, goalX, goalZ, dt);
+    }
+
+    #pickMinionTarget(m) {
+        const foes = this.enemiesOf(m.team).filter(e => e.alive);
+        let best = null, bestScore = Infinity;
+        for (const f of foes) {
+            const d = dist(m, f);
+            if (d > 18) continue;
+            // 優先次序：打緊我嘅英雄 > 小兵 > 英雄 > 建築
+            let pri = f.kind === 'minion' ? 0 : f.kind === 'champ' ? 1 : 2;
+            const score = pri * 100 + d;
+            if (score < bestScore) { bestScore = score; best = f; }
+        }
+        if (best) return best;
+        // 冇人就打前面嘅建築
+        return this.#nearestStructure(m);
+    }
+
+    // 「呢個單位而家可以打邊座敵方建築」——由外向內、水晶最後。
+    // AI 同測試都用呢個入口，所以規則永遠只寫喺一個地方。
+    structureTargetFor(e) { return this.#nearestStructure(e); }
+
+    #nearestStructure(e) {
+        const foes = this.enemiesOf(e.team).filter(f => f.kind === 'tower' || f.kind === 'nexus');
+        let best = null, bd = Infinity;
+        for (const f of foes) {
+            // 內塔未拆就唔可以打水晶
+            if (f.kind === 'nexus' && this.#towersLeft(f.team) > 0) continue;
+            if (f.kind === 'tower' && this.#outerTowerAlive(f)) continue;
+            const d = dist(e, f);
+            if (d < bd) { bd = d; best = f; }
+        }
+        return best;
+    }
+
+    #towersLeft(team) {
+        return this.entities.filter(e => e.alive && e.kind === 'tower' && e.team === team).length;
+    }
+    #outerTowerAlive(tower) {
+        // 只可以由外向內拆
+        return this.entities.some(e => e.alive && e.kind === 'tower'
+            && e.team === tower.team && e.tier < tower.tier);
+    }
+
+    // ---------- 建築 ----------
+    #tickStructure(t, dt) {
+        const target = this.#pickTowerTarget(t);
+        t.target = target?.id ?? null;
+        if (!target) { t.ramp = 0; return; }
+        this.#tryAttack(t, target, dt);
+    }
+
+    // 塔嘅仇恨：正常打最近嘅小兵，但一有敵方英雄喺塔範圍內攻擊我方英雄，
+    // 塔就即刻轉打嗰個英雄——「越塔」嘅代價就係呢條規則。
+    #pickTowerTarget(t) {
+        const foes = this.enemiesOf(t.team).filter(e => e.alive && dist(e, t) <= t.range + e.r);
+        if (!foes.length) return null;
+        const aggro = foes.find(f => f.kind === 'champ'
+            && f.towerAggroUntil > this.time && f.towerAggroFrom === t.team);
+        if (aggro) return aggro;
+        const minions = foes.filter(f => f.kind === 'minion');
+        const pool = minions.length ? minions : foes;
+        let best = null, bd = Infinity;
+        for (const f of pool) { const d = dist(f, t); if (d < bd) { bd = d; best = f; } }
+        return best;
+    }
+
+    // ---------- 英雄 ----------
+    #tickChampion(c, dt) {
+        // 回復
+        const st = this.stats(c);
+        if (c.hp > 0) {
+            c.hp = Math.min(st.maxHp, c.hp + (c.hpRegen + itemBonus(c.items).hpRegen) * dt / 5);
+            c.mp = Math.min(c.maxMp, c.mp + c.mpRegen * dt / 5);
+        }
+        // 泉水
+        const home = sideSign(c.team) * MAP.fountainX;
+        if (Math.abs(c.x - home) < FOUNTAIN_RADIUS) {
+            c.hp = Math.min(st.maxHp, c.hp + st.maxHp * FOUNTAIN_HEAL_PCT * dt);
+            c.mp = Math.min(c.maxMp, c.mp + c.maxMp * FOUNTAIN_HEAL_PCT * dt);
+        }
+        c.gold += GOLD_PER_SEC * dt;
+        if (c.shieldUntil <= this.time) c.shield = 0;
+        if (c.stackUntil <= this.time) c.stacks = 0;
+        for (let i = 0; i < 4; i++) c.abilityCd[i] = Math.max(0, c.abilityCd[i] - dt);
+
+        if (!this.canAct(c)) return;
+
+        // 衝刺進行中
+        if (c.dash) { this.#tickDash(c, dt); return; }
+
+        const target = c.orderTarget != null ? this.entities.find(e => e.id === c.orderTarget) : null;
+        if (target?.alive && target.team !== c.team) {
+            const d = dist(c, target);
+            if (d <= c.range + target.r) { this.#tryAttack(c, target, dt); return; }
+            if (this.canMove(c)) this.#moveToward(c, target.x, target.z, dt);
+            return;
+        }
+        if (c.orderX != null && this.canMove(c)) {
+            const arrived = this.#moveToward(c, c.orderX, c.orderZ, dt);
+            if (arrived) { c.orderX = null; c.orderZ = null; }
+            return;
+        }
+        c.standingSince = c.standingSince || this.time;
+    }
+
+    #tickDash(c, dt) {
+        const d = c.dash;
+        const step = d.speed * dt;
+        const remain = Math.hypot(d.tx - c.x, d.tz - c.z);
+        if (remain <= step) { c.x = d.tx; c.z = d.tz; this.#endDash(c); return; }
+        c.x += (d.tx - c.x) / remain * step;
+        c.z += (d.tz - c.z) / remain * step;
+        this.#clampToBridge(c);
+        // 撞到人就即刻停（衝鋒類技能）
+        if (d.hitOnContact) {
+            const foe = this.enemiesOf(c.team).find(e => e.alive
+                && (e.kind === 'champ' || e.kind === 'minion') && dist(c, e) <= c.r + e.r + 0.4);
+            if (foe) { d.victim = foe; this.#endDash(c); }
+        }
+    }
+
+    #endDash(c) {
+        const d = c.dash;
+        c.dash = null;
+        if (!d) return;
+        if (d.onArrive) d.onArrive(d.victim ?? null);
+    }
+
+    // ---------- 移動 ----------
+    #moveToward(e, gx, gz, dt) {
+        const st = e.kind === 'champ' ? this.stats(e) : { speed: e.speed * (e.slowUntil > this.time ? 1 - e.slow : 1) };
+        const dx = gx - e.x, dz = gz - e.z;
+        const d = Math.hypot(dx, dz);
+        if (d < 0.05) return true;
+        const step = Math.min(d, st.speed * dt);
+        e.x += dx / d * step;
+        e.z += dz / d * step;
+        this.#clampToBridge(e);
+        e.facing = Math.atan2(dx, dz);
+        e.moving = true;
+        e.standingSince = 0;
+        return d - step < 0.05;
+    }
+
+    #clampToBridge(e) {
+        e.x = clamp(e.x, -MAP.fountainX - 4, MAP.fountainX + 4);
+        // 橋面之外係深淵；泉水嗰段闊少少畀人企。
+        const w = Math.abs(e.x) > MAP.nexusX - 2 ? MAP.halfWidth + 3 : MAP.halfWidth;
+        e.z = clamp(e.z, -w + e.r, w - e.r);
+    }
+
+    // 軟推開：唔用硬碰撞，因為硬碰撞會令一堆兵卡死喺窄橋度。
+    #separate(dt) {
+        const movers = this.entities.filter(e => e.alive && (e.kind === 'champ' || e.kind === 'minion'));
+        for (let i = 0; i < movers.length; i++) {
+            for (let j = i + 1; j < movers.length; j++) {
+                const a = movers[i], b = movers[j];
+                const dx = b.x - a.x, dz = b.z - a.z;
+                const d = Math.hypot(dx, dz);
+                const min = a.r + b.r;
+                if (d >= min || d < 1e-4) continue;
+                const push = (min - d) / min * PUSH_STRENGTH * dt;
+                const nx = dx / d, nz = dz / d;
+                a.x -= nx * push; a.z -= nz * push;
+                b.x += nx * push; b.z += nz * push;
+                this.#clampToBridge(a); this.#clampToBridge(b);
+            }
+        }
+    }
+
+    // ---------- 攻擊 ----------
+    #tryAttack(a, target, dt) {
+        a.moving = false;
+        const st = a.kind === 'champ' ? this.stats(a) : null;
+        const rate = st ? st.attackSpeed : a.attackSpeed;
+        a.cd -= dt;
+        a.facing = Math.atan2(target.x - a.x, target.z - a.z);
+        if (a.cd > 0) return;
+        a.cd = 1 / Math.max(0.05, rate);
+
+        let damage = st ? st.damage : a.damage;
+        // 小兵拆建築有加成：一波兵要真係推得郁塔，唔係得個睇字。
+        // 實測未加之前，六個 bot 打足 25 分鐘一座塔都拆唔到。
+        if (a.kind === 'minion' && (target.kind === 'tower' || target.kind === 'nexus')) {
+            damage *= a.def.structureBonus ?? 1.6;
+        }
+        // 塔嘅遞增傷害
+        if (a.kind === 'tower' || a.kind === 'nexus') {
+            if (a.lastTarget === target.id) a.ramp = Math.min(TOWER.rampMax, a.ramp + TOWER.rampPerHit);
+            else a.ramp = 1;
+            a.lastTarget = target.id;
+            damage *= a.ramp;
+        }
+        if (a.kind === 'champ') {
+            // 長弓被動：企定咗先射
+            if (a.def.id === 'longshot' && a.standingSince && this.time - a.standingSince > 1.5) {
+                damage *= 1.25;
+                a.standingSince = this.time;
+            }
+            // 暮刃被動：背刺
+            if (a.def.id === 'duskblade' && target.facing != null) {
+                const toAtk = Math.atan2(a.x - target.x, a.z - target.z);
+                let diff = Math.abs(((toAtk - target.facing + Math.PI) % (Math.PI * 2)) - Math.PI);
+                if (diff > Math.PI * 0.6) damage *= 1.3;
+            }
+        }
+
+        const proj = a.kind === 'champ' ? a.def.projectile : a.def?.projectile;
+        if (proj && dist(a, target) > 2.5) {
+            this.projectiles.push({
+                kind: proj, team: a.team, sourceId: a.id, targetId: target.id,
+                x: a.x, z: a.z, speed: 30, damage, physical: true,
+            });
+            this.emit('shoot', { id: a.id, kind: proj });
+        } else {
+            this.damage(target, damage, a, { physical: true });
+            this.emit('hit', { id: a.id, target: target.id });
+        }
+        this.emit('attack', { id: a.id, target: target.id });
+    }
+
+    #tickProjectiles(dt) {
+        for (const p of this.projectiles) {
+            const t = this.entities.find(e => e.id === p.targetId);
+            if (!t || !t.alive) { p.dead = true; continue; }
+            const dx = t.x - p.x, dz = t.z - p.z;
+            const d = Math.hypot(dx, dz);
+            const step = p.speed * dt;
+            if (d <= step + t.r) {
+                const src = this.entities.find(e => e.id === p.sourceId);
+                this.damage(t, p.damage, src, { physical: p.physical });
+                this.emit('hit', { id: p.sourceId, target: t.id });
+                p.dead = true;
+                continue;
+            }
+            p.x += dx / d * step;
+            p.z += dz / d * step;
+        }
+        this.projectiles = this.projectiles.filter(p => !p.dead);
+    }
+
+    // ---------- 傷害同死亡 ----------
+    damage(target, amount, source, opts = {}) {
+        if (!target.alive || amount <= 0) return 0;
+        const armour = target.kind === 'champ' ? this.stats(target).armour
+            : (target.kind === 'tower' || target.kind === 'nexus')
+                ? structureArmour(target.armour, this.time)
+                : target.armour;
+        let dealt = amount * (opts.trueDamage ? 1 : armourMul(armour));
+
+        // 護盾先食
+        if (target.kind === 'champ' && target.shield > 0 && target.shieldUntil > this.time) {
+            const absorbed = Math.min(target.shield, dealt);
+            target.shield -= absorbed;
+            dealt -= absorbed;
+        }
+        target.hp -= dealt;
+
+        if (source && source.kind === 'champ' && target.kind === 'champ') {
+            target.lastDamagedBy.set(source.id, this.time);
+            // 鐵衛被動：食到英雄傷害就疊護甲
+            if (target.def.id === 'ironward') {
+                target.stacks = Math.min(8, target.stacks + 1);
+                target.stackUntil = this.time + 6;
+            }
+            // 越塔：喺敵方塔範圍內攻擊敵方英雄，就會食塔
+            for (const t of this.entities) {
+                if (!t.alive || (t.kind !== 'tower' && t.kind !== 'nexus')) continue;
+                if (t.team !== target.team) continue;
+                if (dist(source, t) <= t.range + source.r) {
+                    source.towerAggroUntil = this.time + TOWER_AGGRO_MEMORY;
+                    source.towerAggroFrom = t.team;
+                }
+            }
+        }
+        // 吸血：只計普攻同技能命中，唔計持續區域，否則放個火圈落一堆兵就回滿血
+        if (source?.kind === 'champ' && source.alive && !opts.noLifesteal) {
+            const ls = this.stats(source).lifesteal;
+            if (ls > 0 && dealt > 0) this.heal(source, dealt * ls);
+        }
+        this.emit('damage', { target: target.id, amount: dealt, source: source?.id ?? null });
+        if (target.hp <= 0 && this.#wardenSave(target)) return dealt;
+        if (target.hp <= 0) this.#kill(target, source);
+        return dealt;
+    }
+
+    // 曦守被動「守望」：附近隊友受到致命傷害時，佢燒法力硬食一次。
+    // 只救隊友唔救自己——輔助嘅價值喺於保住人哋，唔係保住自己。
+    #wardenSave(target) {
+        if (target.kind !== 'champ') return false;
+        const saver = this.champions.find(c => c.alive && c !== target && c.team === target.team
+            && c.def.id === 'dawnkeeper'
+            && this.time >= (c.wardenReadyAt ?? 0)
+            && c.mp >= c.maxMp * WARDEN.manaCost
+            && dist(c, target) <= WARDEN.range);
+        if (!saver) return false;
+        saver.mp -= saver.maxMp * WARDEN.manaCost;
+        saver.wardenReadyAt = this.time + WARDEN.cd;
+        target.hp = this.stats(target).maxHp * WARDEN.leaveHpPct;
+        this.emit('warden', { saver: saver.id, target: target.id });
+        return true;
+    }
+
+    heal(target, amount) {
+        if (!target.alive) return 0;
+        const max = target.kind === 'champ' ? this.stats(target).maxHp : target.maxHp;
+        const before = target.hp;
+        target.hp = Math.min(max, target.hp + amount);
+        const done = target.hp - before;
+        if (done > 0) this.emit('heal', { target: target.id, amount: done });
+        return done;
+    }
+
+    #kill(victim, killer) {
+        victim.alive = false;
+        victim.hp = 0;
+        this.emit('death', { id: victim.id, kind: victim.kind, killer: killer?.id ?? null });
+
+        if (victim.kind === 'minion') {
+            // 補刀：最後一下嗰個英雄先拎全額金幣；其他人只有經驗
+            if (killer?.kind === 'champ') {
+                killer.gold += victim.def.gold;
+                killer.cs += 1;
+                this.emit('cs', { id: killer.id, gold: victim.def.gold });
+            }
+            this.#shareXp(victim, victim.def.xp);
+            return;
+        }
+
+        if (victim.kind === 'tower') {
+            const team = enemyOf(victim.team);
+            for (const c of this.champions) {
+                if (c.team !== team) continue;
+                c.gold += dist(c, victim) < 22 ? TOWER.goldLocal : 0;
+            }
+            if (killer?.kind === 'champ') killer.gold += TOWER.gold - TOWER.goldLocal;
+            this.emit('tower', { team: victim.team, tier: victim.tier });
+            return;
+        }
+
+        if (victim.kind === 'nexus') {
+            this.over = { winner: enemyOf(victim.team), time: this.time };
+            this.emit('gameover', { winner: this.over.winner });
+            return;
+        }
+
+        // 英雄死亡
+        victim.deaths += 1;
+        const bounty = KILL_GOLD + Math.min(SHUTDOWN_MAX, victim.streak * SHUTDOWN_PER_STREAK);
+        victim.streak = 0;
+        victim.respawnAt = this.time + RESPAWN_BASE + RESPAWN_PER_LEVEL * victim.level;
+        if (killer?.kind === 'champ') {
+            killer.kills += 1;
+            killer.streak += 1;
+            killer.gold += bounty;
+        } else if (killer) {
+            // 畀塔／小兵殺死：金幣分畀附近敵方英雄
+            for (const c of this.champions) {
+                if (c.team === victim.team || !c.alive) continue;
+                if (dist(c, victim) < 18) c.gold += bounty / 2;
+            }
+        }
+        for (const [id, t] of victim.lastDamagedBy) {
+            if (this.time - t > ASSIST_WINDOW) continue;
+            const helper = this.champions.find(c => c.id === id);
+            if (!helper || helper === killer || helper.team === victim.team) continue;
+            helper.assists += 1;
+            helper.gold += ASSIST_GOLD;
+        }
+        victim.lastDamagedBy.clear();
+        this.#shareXp(victim, 180 + victim.level * 60);
+    }
+
+    #shareXp(victim, xp) {
+        const takers = this.champions.filter(c => c.alive && c.team !== victim.team
+            && dist(c, victim) <= XP_SHARE_RANGE);
+        if (!takers.length) return;
+        const each = xp / Math.max(1, takers.length) * (takers.length > 1 ? 1.35 : 1);
+        for (const c of takers) this.giveXp(c, each);
+    }
+
+    giveXp(c, amount) {
+        if (c.level >= MAX_LEVEL) return;
+        c.xp += amount;
+        while (c.level < MAX_LEVEL && c.xp >= XP_TO_LEVEL[c.level]) {
+            c.level += 1;
+            this.#applyLevelStats(c, false);
+            this.emit('levelup', { id: c.id, level: c.level });
+        }
+    }
+
+    // 時限到就即刻分勝負，唔會拖成一場冇結果嘅比賽。
+    // 判法：剩返嘅建築血量多者勝；打和就比人頭；再和先至係真平手。
+    #timeLimit() {
+        if (this.time < GAME_MAX || this.over) return;
+        const score = (team) => this.entities
+            .filter(e => e.alive && e.team === team && (e.kind === 'tower' || e.kind === 'nexus'))
+            .reduce((a, e) => a + e.hp, 0);
+        const blue = score(TEAM.BLUE), red = score(TEAM.RED);
+        let winner = null;
+        if (blue !== red) winner = blue > red ? TEAM.BLUE : TEAM.RED;
+        else {
+            const kills = (t) => this.champions.filter(c => c.team === t).reduce((a, c) => a + c.kills, 0);
+            const kb = kills(TEAM.BLUE), kr = kills(TEAM.RED);
+            if (kb !== kr) winner = kb > kr ? TEAM.BLUE : TEAM.RED;
+        }
+        this.over = { winner, time: this.time, byTime: true };
+        this.emit('gameover', { winner, byTime: true });
+    }
+
+    #cleanup() {
+        // 死咗嘅小兵／建築唔使再留喺主陣列，但英雄要留（等重生）
+        this.entities = this.entities.filter(e => e.alive || e.kind === 'champ');
+    }
+
+    // ---------- 指令（玩家同 AI 共用同一個入口）----------
+    orderMove(c, x, z) {
+        if (!c.alive) return false;
+        c.orderX = x; c.orderZ = z; c.orderTarget = null;
+        return true;
+    }
+    orderAttack(c, targetId) {
+        if (!c.alive) return false;
+        c.orderTarget = targetId; c.orderX = null; c.orderZ = null;
+        return true;
+    }
+    orderStop(c) { c.orderX = null; c.orderZ = null; c.orderTarget = null; }
+
+    // ---------- 技能 ----------
+    castable(c, index) {
+        if (!c.alive || !this.canAct(c)) return false;
+        const ab = c.def.abilities[index];
+        const rank = abilityRank(c.level, index);
+        if (rank <= 0) return false;
+        if (c.abilityCd[index] > 0) return false;
+        if (c.mp < ab.cost) return false;
+        return true;
+    }
+
+    // aim: { x, z } 目標點，或者 { targetId }
+    cast(c, index, aim = {}) {
+        if (!this.castable(c, index)) return false;
+        const ab = c.def.abilities[index];
+        const rank = abilityRank(c.level, index);
+        c.mp -= ab.cost;
+        c.abilityCd[index] = ab.cd;
+        this.emit('cast', { id: c.id, index, key: ab.key });
+
+        const handler = this[`_form_${ab.form}`];
+        if (handler) handler.call(this, c, ab, rank, aim);
+        return true;
+    }
+
+    #abilityDamage(c, ab, rank) {
+        const base = scaled(ab.damage, rank);
+        const st = this.stats(c);
+        return base + (ab.adRatio ?? 0) * st.damage + (ab.apRatio ?? 0) * st.ap;
+    }
+
+    #applyOnHit(c, ab, rank, victim) {
+        const dmg = this.#abilityDamage(c, ab, rank);
+        if (dmg > 0) {
+            this.damage(victim, dmg, c, { physical: !ab.apRatio });
+            // 燼燃被動：技能命中留低灼燒
+            if (c.def.id === 'emberwake') {
+                this.zones.push({
+                    kind: 'burn', team: c.team, sourceId: c.id, follow: victim.id,
+                    until: this.time + 2, tick: 0.5, next: this.time + 0.5,
+                    damage: dmg * 0.25 / 4, radius: 0.1,
+                });
+            }
+        }
+        if (ab.slow) { victim.slow = ab.slow; victim.slowUntil = this.time + ab.slowTime; }
+        if (ab.stun) victim.stunUntil = Math.max(victim.stunUntil, this.time + ab.stun);
+        if (ab.root) victim.rootUntil = Math.max(victim.rootUntil, this.time + ab.root);
+        if (ab.knockback) {
+            const d = Math.hypot(victim.x - c.x, victim.z - c.z) || 1;
+            victim.x += (victim.x - c.x) / d * ab.knockback;
+            victim.z += (victim.z - c.z) / d * ab.knockback;
+            this.#clampToBridge(victim);
+        }
+        if (ab.executeUnder && victim.kind === 'champ'
+            && victim.hp / this.stats(victim).maxHp < ab.executeUnder) {
+            this.damage(victim, victim.hp + 1, c, { trueDamage: true });
+        }
+        if (ab.missingHpRatio && victim.kind === 'champ') {
+            const missing = this.stats(victim).maxHp - victim.hp;
+            this.damage(victim, missing * ab.missingHpRatio, c, { physical: true });
+        }
+    }
+
+    _form_skillshot(c, ab, rank, aim) {
+        const dx = (aim.x ?? c.x + 1) - c.x, dz = (aim.z ?? c.z) - c.z;
+        const d = Math.hypot(dx, dz) || 1;
+        this.projectiles.push({
+            kind: ab.key === 'R' ? 'ultra' : (c.def.projectile ?? 'bolt'),
+            skill: true, team: c.team, sourceId: c.id,
+            x: c.x, z: c.z, vx: dx / d, vz: dz / d,
+            speed: ab.speed, width: ab.width, pierce: !!ab.pierce,
+            left: ab.range, hits: new Set(),
+            onHit: (victim) => this.#applyOnHit(c, ab, rank, victim),
+            onAlly: ab.healAlly ? (ally) => this.heal(ally, scaled(ab.healAlly, rank)) : null,
+        });
+    }
+
+    _form_target(c, ab, rank, aim) {
+        const t = this.entities.find(e => e.id === aim.targetId);
+        if (!t || !t.alive) return;
+        if (dist(c, t) > ab.range + t.r + 0.5) return;
+        if (ab.allyTarget) {
+            if (t.team !== c.team) return;
+            if (ab.shield) {
+                t.shield = Math.max(t.shield, scaled(ab.shield, rank) + (ab.shieldRatio ?? 0) * this.stats(c).maxHp);
+                t.shieldUntil = this.time + ab.duration;
+            }
+            return;
+        }
+        if (t.team === c.team) return;
+        this.#applyOnHit(c, ab, rank, t);
+    }
+
+    _form_dash(c, ab, rank, aim) {
+        const sign = ab.backwards ? -1 : 1;
+        let dx = (aim.x ?? c.x) - c.x, dz = (aim.z ?? c.z) - c.z;
+        const d = Math.hypot(dx, dz) || 1;
+        dx = dx / d * sign; dz = dz / d * sign;
+        const tx = c.x + dx * ab.range, tz = c.z + dz * ab.range;
+        c.dash = {
+            tx, tz, speed: 26, hitOnContact: (ab.damage && scaled(ab.damage, rank) > 0),
+            onArrive: (victim) => {
+                if (victim) this.#applyOnHit(c, ab, rank, victim);
+                if (ab.radius) {
+                    for (const e of this.enemiesOf(c.team)) {
+                        if (!e.alive || (e.kind !== 'champ' && e.kind !== 'minion')) continue;
+                        if (dist(c, e) <= ab.radius + e.r) this.#applyOnHit(c, ab, rank, e);
+                    }
+                }
+            },
+        };
+        this.#clampToBridge({ x: tx, z: tz, r: c.r });
+    }
+
+    _form_aoe(c, ab, rank, aim) {
+        const x = clamp(aim.x ?? c.x, c.x - ab.range, c.x + ab.range);
+        const z = clamp(aim.z ?? c.z, c.z - ab.range, c.z + ab.range);
+        if (ab.duration) {
+            this.zones.push({
+                kind: 'field', team: c.team, sourceId: c.id, x, z,
+                radius: ab.radius, until: this.time + ab.duration,
+                tick: ab.tick ?? 0.5, next: this.time + (ab.tick ?? 0.5),
+                damage: this.#abilityDamage(c, ab, rank),
+                slow: ab.slow, slowTime: ab.slowTime,
+            });
+            this.emit('zone', { x, z, radius: ab.radius, team: c.team });
+            return;
+        }
+        const fire = () => {
+            for (const e of this.enemiesOf(c.team)) {
+                if (!e.alive || (e.kind !== 'champ' && e.kind !== 'minion')) continue;
+                if (Math.hypot(e.x - x, e.z - z) <= ab.radius + e.r) this.#applyOnHit(c, ab, rank, e);
+            }
+            this.emit('boom', { x, z, radius: ab.radius });
+        };
+        if (ab.delay) {
+            this.zones.push({ kind: 'delayed', x, z, radius: ab.radius, at: this.time + ab.delay, fire, team: c.team });
+            this.emit('telegraph', { x, z, radius: ab.radius, delay: ab.delay });
+        } else fire();
+    }
+
+    _form_self(c, ab, rank) {
+        if (ab.shield) {
+            c.shield = Math.max(c.shield, scaled(ab.shield, rank) + (ab.shieldRatio ?? 0) * this.stats(c).maxHp);
+            c.shieldUntil = this.time + ab.duration;
+        }
+        if (ab.speedBonus) c.buffs.haste = { until: this.time + ab.duration, amount: scaled(ab.speedBonus, rank) };
+        if (ab.attackSpeedBonus) c.buffs.frenzy = { until: this.time + ab.duration, amount: scaled(ab.attackSpeedBonus, rank) };
+        if (ab.armourBonus) c.buffs.bulwark = { until: this.time + ab.duration, amount: scaled(ab.armourBonus, rank) };
+        if (ab.damageBonus) {
+            c.buffs.rage = {
+                until: this.time + ab.duration,
+                amount: scaled(ab.damageBonus, rank),
+                hp: scaled(ab.hpBonus, rank),
+            };
+            c.hp += scaled(ab.hpBonus, rank);
+        }
+        if (ab.taunt) {
+            for (const e of this.enemiesOf(c.team)) {
+                if (!e.alive || e.kind !== 'champ') continue;
+                if (dist(c, e) <= ab.radius + e.r) {
+                    e.orderTarget = c.id; e.orderX = null;
+                    e.tauntUntil = this.time + ab.taunt;
+                }
+            }
+        }
+        if (ab.healPerSec) {
+            this.zones.push({
+                kind: 'heal', team: c.team, sourceId: c.id, follow: c.id,
+                radius: ab.radius, until: this.time + ab.duration,
+                tick: 0.5, next: this.time + 0.5,
+                heal: (scaled(ab.healPerSec, rank) + (ab.apRatio ?? 0) * this.stats(c).ap) * 0.5,
+            });
+        }
+    }
+
+    _form_summon(c, ab, rank, aim) {
+        const x = clamp(aim.x ?? c.x, c.x - ab.range, c.x + ab.range);
+        const z = clamp(aim.z ?? c.z, c.z - ab.range, c.z + ab.range);
+        this.zones.push({
+            kind: 'trap', team: c.team, sourceId: c.id, x, z,
+            radius: ab.radius, until: this.time + ab.duration,
+            armedAt: this.time + (ab.armTime ?? 0),
+            onTrigger: (victim) => this.#applyOnHit(c, ab, rank, victim),
+        });
+        this.emit('trap', { x, z, radius: ab.radius, team: c.team });
+    }
+
+    #tickZones(dt) {
+        for (const z of this.zones) {
+            if (z.kind === 'delayed') {
+                if (this.time >= z.at) { z.fire(); z.dead = true; }
+                continue;
+            }
+            if (this.time >= z.until) { z.dead = true; continue; }
+            if (z.follow != null) {
+                const host = this.entities.find(e => e.id === z.follow);
+                if (!host || !host.alive) { z.dead = true; continue; }
+                z.x = host.x; z.z = host.z;
+            }
+            if (z.kind === 'trap') {
+                if (this.time < z.armedAt) continue;
+                const victim = this.enemiesOf(z.team).find(e => e.alive
+                    && (e.kind === 'champ' || e.kind === 'minion')
+                    && Math.hypot(e.x - z.x, e.z - z.z) <= z.radius);
+                if (victim) { z.onTrigger(victim); z.dead = true; this.emit('trapFire', { x: z.x, z: z.z }); }
+                continue;
+            }
+            if (this.time < z.next) continue;
+            z.next += z.tick;
+            if (z.kind === 'heal') {
+                for (const a of this.alliesOf(z.team)) {
+                    if (a.kind !== 'champ') continue;
+                    if (Math.hypot(a.x - z.x, a.z - z.z) <= z.radius) this.heal(a, z.heal);
+                }
+                continue;
+            }
+            const src = this.entities.find(e => e.id === z.sourceId);
+            for (const e of this.enemiesOf(z.team)) {
+                if (!e.alive || (e.kind !== 'champ' && e.kind !== 'minion')) continue;
+                if (Math.hypot(e.x - z.x, e.z - z.z) > z.radius + e.r) continue;
+                this.damage(e, z.damage, src, { physical: false, noLifesteal: true });
+                if (z.slow) { e.slow = z.slow; e.slowUntil = this.time + z.slowTime; }
+            }
+        }
+        this.zones = this.zones.filter(z => !z.dead);
+
+        // 技能彈道
+        for (const p of this.projectiles) {
+            if (!p.skill) continue;
+            const step = p.speed * dt;
+            p.x += p.vx * step; p.z += p.vz * step;
+            p.left -= step;
+            if (p.left <= 0) { p.dead = true; continue; }
+            for (const e of this.entities) {
+                if (!e.alive || p.hits.has(e.id)) continue;
+                if (e.kind !== 'champ' && e.kind !== 'minion') continue;
+                if (Math.hypot(e.x - p.x, e.z - p.z) > p.width + e.r) continue;
+                if (e.team === p.team) {
+                    if (p.onAlly) { p.onAlly(e); p.hits.add(e.id); }
+                    continue;
+                }
+                p.hits.add(e.id);
+                p.onHit(e);
+                if (!p.pierce) { p.dead = true; break; }
+            }
+        }
+        this.projectiles = this.projectiles.filter(p => !p.dead);
+    }
+}

@@ -66,6 +66,14 @@ const games = [
         playable: true
     },
     {
+        id: 'moba',
+        title: '深淵之橋',
+        subtitle: '🗡️ 三對三 MOBA！補刀出裝、越塔強殺、推爆水晶',
+        icon: '🗡️',
+        link: 'games/moba/index.html',
+        playable: true
+    },
+    {
         id: 'racer',
         title: 'Racing Car 3D',
         subtitle: '🏁 順滑 3D 賽道！三圈競速兼漂移挑戰',
