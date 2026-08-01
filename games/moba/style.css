@@ -167,7 +167,7 @@ html, body {
 .moba-skill.locked { opacity: 0.32; }
 
 .moba-shopbtn {
-    position: absolute; right: calc(10px + var(--safe-r)); bottom: calc(78px + var(--safe-b));
+    position: absolute; right: calc(10px + var(--safe-r)); bottom: calc(98px + var(--safe-b));
     padding: 6px 14px; border-radius: 99px; font: inherit; font-size: 12px; cursor: pointer;
     background: var(--panel); border: 1px solid var(--edge); color: #eef2fb;
 }
@@ -276,7 +276,58 @@ html, body {
     }
     .moba-shopbtn {
         right: calc(10px + var(--safe-r));
-        bottom: calc(150px + var(--safe-b));
+        bottom: calc(158px + var(--safe-b));
     }
     .moba-stats { font-size: 10px; }
+}
+
+/* ---------- 技能掣要講到自己係咩 ---------- */
+.moba-skill .nm {
+    position: absolute; left: 0; right: 0; bottom: 12px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
+    text-shadow: 0 1px 3px #000c; pointer-events: none;
+}
+.moba-skill .k { top: 5px; font-size: 9px; }
+.moba-skill .cd { font-size: 17px; top: -14px; }
+.moba-skill .lv { bottom: 2px; }
+
+.moba-attack {
+    position: relative; width: 74px; height: 74px; border-radius: 50%;
+    align-self: flex-end; margin-right: 4px;
+    background: radial-gradient(circle at 35% 30%, #a8402f, #4a1712);
+    border: 2px solid #ff9b7d66; color: #fff; font: inherit; cursor: pointer;
+    touch-action: none;
+}
+.moba-attack.on { border-color: var(--gold); box-shadow: 0 0 14px #f2c85b55; }
+.moba-attack .nm { display: block; font-size: 15px; font-weight: 800; letter-spacing: 0.08em; }
+.moba-attack .k { display: block; font-size: 9px; opacity: 0.6; margin-top: 2px; }
+
+.moba-tip {
+    position: absolute; right: calc(10px + var(--safe-r)); bottom: calc(136px + var(--safe-b));
+    max-width: min(320px, 78vw); padding: 9px 12px; border-radius: 11px;
+    background: rgba(9, 12, 21, 0.94); border: 1px solid var(--edge);
+    display: flex; flex-direction: column; gap: 3px; pointer-events: none;
+}
+.moba-tip b { font-size: 14px; color: var(--gold); }
+.moba-tip span { font-size: 12px; line-height: 1.5; opacity: 0.88; }
+.moba-tip i { font-style: normal; font-size: 11px; opacity: 0.55; }
+
+@media (orientation: portrait) {
+    .moba-tip { right: 50%; transform: translateX(50%); bottom: calc(212px + var(--safe-b)); }
+    .moba-attack { width: 64px; height: 64px; }
+}
+
+/* 施法橫額：撳咗邊個技能，喺畫面中下報一次 */
+.moba-cast {
+    position: absolute; left: 50%; bottom: 30%; transform: translateX(-50%);
+    font-size: clamp(15px, 3.2vw, 22px); font-weight: 800; letter-spacing: 0.14em;
+    color: var(--gold); text-shadow: 0 2px 10px #000b, 0 0 22px #f2c85b55;
+    opacity: 0; pointer-events: none; white-space: nowrap;
+}
+.moba-cast.play { animation: castpop 0.85s ease-out; }
+@keyframes castpop {
+    0% { opacity: 0; transform: translate(-50%, 10px) scale(0.86); }
+    18% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    70% { opacity: 1; }
+    100% { opacity: 0; transform: translate(-50%, -14px) scale(1); }
 }

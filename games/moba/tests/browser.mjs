@@ -111,6 +111,35 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     check(`${tag}：商店有貨`, (await page.$$('.moba-shop .moba-item')).length >= 10);
     await page.click('.moba-shop .moba-x');
 
+    // 走位：撳實方向鍵，英雄要真係郁。第一版係「撳地面行過去」，
+    // 喺手機上面同虛擬搖桿搶同一個輸入，實測揸唔到。
+    const moved = await (async () => {
+        const before = await page.evaluate(() => ({ x: window.__sim.player.x, z: window.__sim.player.z }));
+        await page.keyboard.down('d');
+        await page.waitForTimeout(1400);
+        await page.keyboard.up('d');
+        const after = await page.evaluate(() => ({ x: window.__sim.player.x, z: window.__sim.player.z }));
+        return { d: after.x - before.x, before, after };
+    })();
+    check(`${tag}：撳方向鍵行得郁，而且係啱嘅方向`, moved.d > 1.5, moved);
+
+    // 技能要有回饋：撳落去之後，畫面要報返個技能名。
+    // 呢個亦都係「事件流有冇斷」嘅端對端證明——之前 cast 事件喺 step()
+    // 開頭就被抹走，所以撳完技能畫面上乜都冇。
+    await page.evaluate(() => {
+        const p = window.__sim.player;
+        p.level = 6; p.mp = p.maxMp; p.abilityCd = [0, 0, 0, 0];
+    });
+    await page.waitForTimeout(120);
+    await page.keyboard.press('q');
+    await page.waitForTimeout(220);
+    const castText = await page.$eval('.moba-cast', e => e.textContent);
+    check(`${tag}：出技能會報返個技能名`, !!castText && castText.trim().length > 1, castText);
+
+    // 每粒技能掣都要寫住自己個名，唔可以淨係得一個字母
+    const labels = await page.$$eval('.moba-skill .nm', ns => ns.map(n => n.textContent.trim()));
+    check(`${tag}：四粒技能掣都有名`, labels.length === 4 && labels.every(l => l.length >= 2), labels);
+
     // 快進成場波：一定要有結果，唔可以卡死或者拋錯
     const outcome = await page.evaluate(() => {
         const s = window.__sim;

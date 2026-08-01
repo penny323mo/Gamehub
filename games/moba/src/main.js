@@ -86,8 +86,11 @@ function startMatch(playerChamp) {
     state.bots = sim.champions.filter(c => !c.isPlayer).map(c => createBot(sim, c));
 
     const canvas = $('#gl');
-    state.view = new View(canvas, state.assets, sim, { quality: pickQuality() });
     state.hud = new Hud($('#hud'), sim);
+    state.view = new View(canvas, state.assets, sim, {
+        quality: pickQuality(),
+        onCast: (ab) => state.hud.showCast(ab),
+    });
     state.input = createInput(canvas, state.view, sim, state.hud);
     $('#hud').classList.remove('hidden');
 
@@ -119,17 +122,23 @@ function frame(now) {
 
     state.acc += dt;
     let steps = 0;
+    // sim.events 每一步開頭就清空，而一幀可能行幾步。所以要喺步與步之間
+    // 收埋一齊再交畀畫面層——之前畫面層一幀先讀一次，等於掉咗除咗最後一步
+    // 以外嘅所有事件，施法、打擊、傷害數字全部隨機唔見咗。
+    const events = [];
     while (state.acc >= TICK && steps < 6) {
         state.input.update();
         for (const b of state.bots) b.update(TICK);
         state.sim.step(TICK);
-        state.hud.consume(state.sim.events);
-        state.sfx.consume(state.sim.events, state.sim);
+        const stepEvents = state.sim.drain();
+        events.push(...stepEvents);
+        state.hud.consume(stepEvents);
+        state.sfx.consume(stepEvents, state.sim);
         state.acc -= TICK;
         steps++;
         if (state.sim.over) break;
     }
-    state.view.update(dt);
+    state.view.update(dt, events);
     state.hud.update();
     if (state.sim.over) finish();
 }

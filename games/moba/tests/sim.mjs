@@ -319,8 +319,6 @@ function pickTargetFor(sim, minion) {
     check('喺泉水會快速回血', c.hp > 150, c.hp);
 }
 
-console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);
-if (fail) { console.log('失敗項目:', failed.join('、')); process.exit(1); }
 
 // ---------- T15：裝備 ----------
 // 裝備係「贏團戰 → 有錢 → 打得快 → 推得郁」呢條因果鏈嘅中間一格。
@@ -449,3 +447,47 @@ function armourMulOf(sim, e) { return 100 / (100 + sim.stats(e).armour); }
     check('時限一到就完場', !!sim.over && sim.over.byTime === true, sim.over);
     check('時限判勝負：建築血量多嗰隊贏', sim.over.winner === TEAM.BLUE, sim.over);
 }
+
+// ---------- T19：事件流唔可以喺冇人讀過之前消失 ----------
+// 舊版喺 step() 開頭做 events.length = 0。但玩家施法同 bot 施法都係喺
+// step() 之前發生嘅，所以每一個 cast 事件都喺未有人讀過就被抹走——
+// 結果就係技能永遠冇動作、冇特效、冇播報。呢條測試釘死個生命週期。
+{
+    const sim = new Sim({ seed: 51 });
+    const p = sim.player;
+    p.level = 6;
+    p.mp = p.maxMp;
+
+    const cast = sim.cast(p, 0, { x: p.x + 5, z: p.z });
+    check('技能施放成功（前置條件）', cast === true);
+    sim.step();                       // 施法之後行一步，事件仍然要喺度
+    const evs = sim.drain();
+    check('施法事件捱得過之後嘅 step',
+        evs.some(e => e.type === 'cast' && e.id === p.id), evs.map(e => e.type));
+    check('drain 之後就係空', sim.drain().length === 0);
+
+    // bot 嘅施法喺 bot.update() 度發生，即係都喺 step() 之前
+    const sim2 = new Sim({ seed: 53 });
+    const bots = sim2.champions.map(c => createBot(sim2, c));
+    let sawCast = false;
+    for (let t = 0; t < 60 * 4 / TICK && !sawCast; t++) {
+        for (const b of bots) b.update(TICK);
+        sim2.step();
+        if (sim2.drain().some(e => e.type === 'cast')) sawCast = true;
+    }
+    check('bot 嘅施法事件都收得到', sawCast);
+
+    // 冇人 drain 都唔可以無限漲大（測試會連續 step 幾萬次）
+    const sim3 = new Sim({ seed: 57 });
+    const bots3 = sim3.champions.map(c => createBot(sim3, c));
+    for (let t = 0; t < 60 * 3 / TICK; t++) {
+        for (const b of bots3) b.update(TICK);
+        sim3.step();
+    }
+    check('冇人 drain 嘅時候事件有上限', sim3.events.length <= 512, sim3.events.length);
+}
+
+// 總結一定要留喺檔案最尾。之前佢排喺 T15 之前，即係後面三十幾條斷言
+// 跑咗但冇入數——失敗都唔會令個測試唔過，等於冇 gate 過。
+console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);
+if (fail) { console.log('失敗項目:', failed.join('、')); process.exit(1); }

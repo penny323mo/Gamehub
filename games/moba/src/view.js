@@ -12,6 +12,7 @@ import { OutputPass } from '../vendor/postprocessing/OutputPass.js';
 import { MAP, TEAM } from './constants.js';
 import { CHAMPION_LOOK, MINION_LOOK, ARENA_LOOK, TEAM_COLOUR, CLIP } from './looks.js';
 import { Rig } from './rig.js';
+import { Fx } from './fx.js';
 
 const sideSign = (team) => (team === TEAM.BLUE ? -1 : 1);
 const LANE_HALF = MAP.halfWidth;
@@ -68,8 +69,8 @@ export class View {
         this.sim = sim;
         this.units = new Map();      // entity id -> { obj, rig, bar, ring, look, dead }
         this.projectiles = new Map();
-        this.decals = [];
         this.quality = opts.quality ?? 'high';
+        this.onCast = opts.onCast ?? (() => {});
 
         this.renderer = new THREE.WebGLRenderer({ canvas, antialias: this.quality !== 'low', powerPreference: 'high-performance' });
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -91,6 +92,8 @@ export class View {
 
         this.#lights();
         this.#buildArena();
+        this.fx = new Fx(this.scene, this.camera);
+        this.#playerMarks();
         this.#postprocess();
         this.resize();
     }
@@ -289,6 +292,21 @@ export class View {
         }
     }
 
+    // 玩家嘅普攻範圍。MOBA 最基本嘅一條資訊——你而家打唔打得到——
+    // 之前完全冇顯示，所以走位變咗靠估。
+    #playerMarks() {
+        const p = this.sim.player;
+        if (!p) return;
+        const g = new THREE.Mesh(
+            new THREE.RingGeometry(p.range - 0.14, p.range, 64),
+            new THREE.MeshBasicMaterial({ color: 0xffe27a, transparent: true, opacity: 0.2,
+                side: THREE.DoubleSide, depthWrite: false }));
+        g.rotation.x = -Math.PI / 2;
+        g.position.y = 0.05;
+        this.scene.add(g);
+        this.rangeRing = g;
+    }
+
     // ---------- 單位 ----------
     #lookFor(e) {
         return e.kind === 'champ'
@@ -368,7 +386,10 @@ export class View {
 
             u.obj.position.set(e.x, 0, e.z);
             if (e.facing != null) {
-                const target = e.facing + Math.PI;   // 模型面向 -z，遊戲角度以 +z 為零
+                // KayKit 嘅角色向 +z，同 three.js 一樣，而 sim 個 facing 就係
+                // atan2(dx, dz)——即係 rotation.y 直接就啱。之前加咗 Math.PI
+                // 「修正」一個唔存在嘅偏差，結果全場人背住敵人打。
+                const target = e.facing;
                 let d = target - u.obj.rotation.y;
                 d = Math.atan2(Math.sin(d), Math.cos(d));
                 u.obj.rotation.y += d * Math.min(1, dt * 12);
@@ -395,27 +416,90 @@ export class View {
     }
 
     // ---------- 事件（打擊、施法、死亡…）----------
-    #consumeEvents() {
-        for (const ev of this.sim.events) {
-            if (ev.type === 'attack') {
-                const u = this.units.get(ev.id);
-                if (!u) continue;
-                const e = u.entity;
-                const rate = e.kind === 'champ' ? this.sim.stats(e).attackSpeed : e.attackSpeed;
-                u.rig.once(this.assets, u.look.attack, Math.min(1.1, 1 / Math.max(0.2, rate)));
-            } else if (ev.type === 'cast') {
-                const u = this.units.get(ev.id);
-                if (!u?.look.abilityClip) continue;
-                u.rig.once(this.assets, u.look.abilityClip[ev.index] ?? u.look.attack, 0.55);
-            } else if (ev.type === 'tower') {
-                this.#towerFell(ev);
-            } else if (ev.type === 'boom' || ev.type === 'zone') {
-                this.#burst(ev.x, ev.z, ev.radius, 0xffb055);
-            } else if (ev.type === 'warden') {
-                const u = this.units.get(ev.target);
-                if (u) this.#burst(u.obj.position.x, u.obj.position.z, 2.2, 0xffe9a8);
+    #consumeEvents(events) {
+        const me = this.sim.player;
+        for (const ev of events) {
+            switch (ev.type) {
+                case 'attack': {
+                    const u = this.units.get(ev.id);
+                    if (!u) break;
+                    const e = u.entity;
+                    const rate = e.kind === 'champ' ? this.sim.stats(e).attackSpeed : e.attackSpeed;
+                    u.rig.once(this.assets, u.look.attack, Math.min(1.1, 1 / Math.max(0.2, rate)));
+                    break;
+                }
+                case 'cast': this.#onCast(ev); break;
+                case 'damage': {
+                    // 只出玩家打人同玩家食嘢嘅數字。全場都出嘅話，
+                    // 一波兵開打就會有幾十個數字浮住，反而咩都睇唔到。
+                    const t = this.sim.entities.find(x => x.id === ev.target);
+                    if (!t || ev.amount < 1) break;
+                    if (ev.source === me.id) this.fx.number(t.x, t.z, ev.amount, 'mine');
+                    else if (ev.target === me.id) this.fx.number(t.x, t.z, ev.amount, 'damage');
+                    break;
+                }
+                case 'heal': {
+                    const t = this.sim.entities.find(x => x.id === ev.target);
+                    if (!t) break;
+                    this.fx.heal(t.x, t.z);
+                    if (ev.target === me.id) this.fx.number(t.x, t.z, ev.amount, 'heal');
+                    break;
+                }
+                case 'boom': {
+                    this.fx.flash(ev.x, ev.z, ev.radius, 0xffd08a);
+                    this.fx.ring(ev.x, ev.z, ev.radius, 0xffb055, { life: 0.45, from: 0.4, to: 1.05 });
+                    break;
+                }
+                case 'telegraph': this.fx.telegraph(ev.x, ev.z, ev.radius, ev.delay); break;
+                case 'zone': this.fx.zone(ev.x, ev.z, ev.radius, 0xff8a4a, 4); break;
+                case 'trap': this.fx.zone(ev.x, ev.z, ev.radius, 0x9a6ad6, 6); break;
+                case 'trapFire': this.fx.ring(ev.x, ev.z, 3, 0x9a6ad6, { life: 0.4 }); break;
+                case 'tower': this.#towerFell(ev); break;
+                case 'levelup': {
+                    const u = this.units.get(ev.id);
+                    if (u) this.fx.ring(u.obj.position.x, u.obj.position.z, 2.4, 0xffe27a,
+                        { life: 0.6, from: 0.3, to: 1.4 });
+                    break;
+                }
+                case 'warden': {
+                    const t = this.sim.entities.find(x => x.id === ev.target);
+                    if (t) {
+                        this.fx.ring(t.x, t.z, 2.6, 0xffe9a8, { life: 0.7, from: 0.4, to: 1.6 });
+                        this.fx.flash(t.x, t.z, 2.6, 0xffe9a8, 0.4);
+                    }
+                    break;
+                }
+                default: break;
             }
         }
+    }
+
+    // 施法：動作 + 按形態出視覺 + 報返個技能名畀玩家知撳咗咩
+    #onCast(ev) {
+        const u = this.units.get(ev.id);
+        if (!u) return;
+        const e = u.entity;
+        const ab = e.def.abilities[ev.index];
+        if (u.look.abilityClip) {
+            u.rig.once(this.assets, u.look.abilityClip[ev.index] ?? u.look.attack, 0.55);
+        }
+        const colour = u.look.ringColour ?? 0xffd27a;
+        const x = u.obj.position.x, z = u.obj.position.z;
+        switch (ab.form) {
+            case 'self':
+                this.fx.aura(e, colour, ab.duration ?? 2.5);
+                break;
+            case 'dash':
+                u.dashFrom = { x, z };
+                break;
+            case 'target':
+                this.fx.ring(x, z, 2, colour, { life: 0.3, from: 0.5, to: 1.1 });
+                break;
+            default:
+                this.fx.ring(x, z, 1.8, colour, { life: 0.28, from: 0.5, to: 1.3 });
+                break;
+        }
+        if (e.isPlayer) this.onCast(ab);
     }
 
     #towerFell(ev) {
@@ -428,35 +512,9 @@ export class View {
             rubble.position.set(e.x, 0, e.z);
             rubble.scale.setScalar(ARENA_LOOK.rubbleScale);
             this.scene.add(rubble);
-            this.#burst(e.x, e.z, 6, 0xd8c48a);
+            this.fx.flash(e.x, e.z, 7, 0xd8c48a, 0.5);
+            this.fx.ring(e.x, e.z, 7, 0xd8c48a, { life: 0.9, from: 0.3, to: 1.4 });
         }
-    }
-
-    // 一個會漲大同褪色嘅環，做技能同爆炸嘅回饋
-    #burst(x, z, radius, colour) {
-        const m = new THREE.Mesh(
-            new THREE.RingGeometry(radius * 0.2, radius * 0.28, 28),
-            new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.9,
-                side: THREE.DoubleSide, depthWrite: false }));
-        m.rotation.x = -Math.PI / 2;
-        m.position.set(x, 0.25, z);
-        this.scene.add(m);
-        this.decals.push({ obj: m, t: 0, life: 0.5, radius });
-    }
-
-    #syncDecals(dt) {
-        for (const d of this.decals) {
-            d.t += dt;
-            const k = d.t / d.life;
-            d.obj.scale.setScalar(1 + k * 3.4);
-            d.obj.material.opacity = Math.max(0, 0.9 * (1 - k));
-        }
-        this.decals = this.decals.filter((d) => {
-            if (d.t < d.life) return true;
-            this.scene.remove(d.obj);
-            d.obj.geometry.dispose(); d.obj.material.dispose();
-            return false;
-        });
     }
 
     // ---------- 彈道 ----------
@@ -468,14 +526,29 @@ export class View {
             let o = this.projectiles.get(key);
             if (!o) {
                 const geo = p.skill
-                    ? new THREE.SphereGeometry(0.42, 10, 8)
-                    : new THREE.CapsuleGeometry(0.08, 0.7, 4, 6);
+                    ? new THREE.CapsuleGeometry(0.34, 1.5, 6, 10)
+                    : new THREE.CapsuleGeometry(0.09, 0.8, 4, 6);
                 const colour = p.skill ? 0xffd27a : 0xe8e2d0;
                 o = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: colour }));
+                if (p.skill) {
+                    // 外面套一層半透光暈：技能彈道要一眼分得出唔係普通箭
+                    const glow = new THREE.Mesh(
+                        new THREE.CapsuleGeometry(0.72, 1.7, 6, 10),
+                        new THREE.MeshBasicMaterial({ color: colour, transparent: true,
+                            opacity: 0.28, depthWrite: false }));
+                    o.add(glow);
+                }
                 this.scene.add(o);
                 this.projectiles.set(key, o);
             }
-            o.position.set(p.x, 1.5, p.z);
+            o.position.set(p.x, 1.4, p.z);
+            // 膠囊本身沿 y 軸，所以要先扳平再指住飛行方向
+            const vx = p.vx ?? 0, vz = p.vz ?? 0;
+            if (vx || vz) {
+                o.rotation.set(0, 0, 0);
+                o.rotateY(Math.atan2(vx, vz));
+                o.rotateX(Math.PI / 2);
+            }
         });
         for (const [k, o] of this.projectiles) {
             if (seen.has(k)) continue;
@@ -528,12 +601,18 @@ export class View {
         this.camera.updateProjectionMatrix();
     }
 
-    update(dt) {
-        this.#consumeEvents();
+    // events：呢一幀入面所有 sim step 收埋一齊嘅事件（見 main.js 嘅註解）
+    update(dt, events = []) {
+        this.#consumeEvents(events);
         this.#syncUnits(dt);
         this.#syncStructures();
         this.#syncProjectiles();
-        this.#syncDecals(dt);
+        this.fx.update(dt);
+        if (this.rangeRing) {
+            const p = this.sim.player;
+            this.rangeRing.visible = p.alive;
+            this.rangeRing.position.set(p.x, 0.05, p.z);
+        }
         this.#camera(dt);
         for (const c of this.clouds ?? []) {
             c.obj.position.x += c.speed * dt;

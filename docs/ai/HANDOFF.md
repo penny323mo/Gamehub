@@ -4,7 +4,8 @@ Updated: 2026-07-31 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: new game 深淵之橋 (games/moba) built end to end; sim 152/152, browser 28/28
+Status: 深淵之橋 playable pass — controls rewritten, facing fixed, abilities now read;
+        sim 182/182, browser 34/34
 
 ## Current objective
 
@@ -33,13 +34,22 @@ and original audio, playable on desktop and phone.
   ring for the player, gradient sky, bloom; desktop click-to-move + QWER + B, phone joystick
   plus drag-to-aim ability buttons; champion select, shop, scoreboard, kill feed.
 - Hub entry added to `launcher.js`.
+- **Playability pass after Penny's first playtest** (ADR-090/091): the event buffer was cleared
+  by the writer at the top of `step()`, which destroyed every cast event before any consumer
+  saw it — that alone made all abilities invisible. Controls moved from click-to-move to direct
+  WASD/joystick with an auto-targeting attack button. Model facing had a spurious 180° flip.
+  Ability buttons now carry names and ranks, casting names the ability, damage numbers float,
+  and each ability form draws its own effect.
 
 ## Verification
 
-- `node games/moba/tests/sim.mjs` → 152/152.
-- `node games/moba/tests/browser.mjs` → 28/28 (landscape and portrait: load, select, start,
-  HUD present, no HUD overlap, centre of screen unobstructed, shop, full match, zero console
-  errors).
+- `node games/moba/tests/sim.mjs` → 182/182. (It read 152 before: the summary line sat above
+  T15–T19, so thirty-odd assertions ran but were never counted and could not fail the run.
+  The summary now lives at the end of the file.)
+- `node games/moba/tests/browser.mjs` → 34/34 (landscape and portrait: load, select, start,
+  HUD present, no HUD overlap, centre unobstructed, keyboard movement actually moves the
+  champion, an ability press names itself on screen, every ability button carries a name,
+  shop, full match, zero console errors).
 
 ## Changed files
 
@@ -50,7 +60,7 @@ and original audio, playable on desktop and phone.
 
 ## Known issues and cautions
 
-- Every ability cast draws the same expanding ring; there is no per-champion VFX yet.
+- Effects differ by ability *form*, not by champion, so two casters of the same form look alike.
 - `ironhulk` measured 30% over a 20-match rotation while the rest sit at 40–70%. The sample is
   small — measure more before changing numbers.
 - The browser test drives no bot for the player's champion, so it always reaches the 25-minute
@@ -61,13 +71,15 @@ and original audio, playable on desktop and phone.
 
 ## Exact next action
 
-Playtest on a phone for feel — drag-to-aim on the ability buttons, camera framing while dead,
-and whether a tower dive reads clearly — then add per-champion cast VFX in `view.js`.
+Playtest on a phone: joystick reach, drag-to-aim on the ability buttons, and whether the
+attack button's last-hit preference feels right. Then give each champion its own cast colour
+and projectile shape — the forms differ now, but two mages still look alike.
 
 ## Do not redo
 
 - Super minions when the enemy loses all towers: measured worse (nexus finishes 10/12 → 7/12,
   median 20 → 22 min). ADR-088.
+- Click-to-move as the primary control, and clearing `sim.events` inside `step()`. ADR-090/091.
 - Reusing the other games' GLB assets: Penny asked explicitly for new art, and the KayKit set
   is already loaded, licensed and compressed. ADR-087.
 - Re-tuning tower HP to stop stalls: the stall was the bot's unreachable SIEGE state and the

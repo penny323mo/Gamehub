@@ -1508,3 +1508,45 @@ follows what the tyres can use
 - Also fixed here: `dawnkeeper`'s passive existed only as card text with no implementation —
   the one champion of six playing a man down, at a 20% win rate. Implemented, it returned to
   50%. Same failure class as a stale constant: something written down once and never wired up.
+
+## ADR-090: Events are drained by the reader, not cleared by the writer
+
+- Date: 2026-07-31
+- Status: accepted
+- Decision: `Sim.events` is emptied by `Sim.drain()` when a consumer takes it, not at the top of
+  `step()`. `main.js` drains once per fixed step and hands the accumulated array to the view.
+- Reason: Penny reported that abilities did nothing visible — no animation, no effect, no
+  banner. The cause was the event buffer's lifetime, not the effects. Casting happens *before*
+  `step()` — the player's key handler fires between frames, and bots cast inside
+  `bot.update()`, which runs immediately before `step()`. Clearing at the top of `step()`
+  therefore destroyed every `cast` event before any consumer could read it. A second, smaller
+  version of the same fault: the view read `sim.events` once per rendered frame while the loop
+  ran up to six sim steps per frame, so all but the last step's events were dropped.
+- The general shape: a buffer whose producer and consumer disagree about who owns the reset.
+  Writer-clears is only safe when every producer runs inside the same call, and here two of the
+  three did not. `drain()` makes the reader the owner; an emit-side cap keeps headless runs that
+  never drain from growing without bound.
+- Gates: `sim.mjs` asserts a player cast survives the following `step()`, that bot casts are
+  observed, that `drain()` empties, and that the buffer stays capped when nobody drains.
+  `browser.mjs` presses an ability and requires the on-screen cast banner to name it.
+
+## ADR-091: Direct movement, because click-to-move fought the joystick
+
+- Date: 2026-07-31
+- Status: accepted
+- Decision: WASD/arrows on desktop and a left-half joystick on phone drive the champion
+  continuously; a dedicated attack button (space on desktop) auto-targets, preferring a minion
+  that one auto-attack would kill. Abilities move to Q/F/E/R so W stays a movement key.
+- Reason: the first version was LoL's click-to-move. On a phone a single tap started the
+  joystick *and* issued a move-to-tap order, so the two inputs fought; on desktop there were no
+  movement keys, so aiming and walking shared one hand. Penny's verdict was that it was
+  unplayable, and the two inputs contending for the same gesture is a design fault, not a tuning
+  one.
+- Also in this pass, because "I can't tell what the abilities are" is the same complaint from
+  the UI side: ability buttons show the ability's name and rank, casting names the ability
+  on-screen, damage and healing numbers float over the target, the player's auto-attack range
+  is drawn on the ground, and each ability form now renders its own effect (bolt, telegraph,
+  field, aura, streak) instead of one shared expanding ring.
+- Also fixed: the model was rotated by an extra 180°. Measured against a reference arrow, the
+  KayKit rigs face +Z, which is exactly what `atan2(dx, dz)` produces — the correction was for
+  a discrepancy that did not exist, so every unit fought with its back turned.

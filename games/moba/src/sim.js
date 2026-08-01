@@ -41,7 +41,7 @@ export class Sim {
         this.entities = [];
         this.projectiles = [];
         this.zones = [];              // 持續區域（火地、陷阱、治療圈）
-        this.events = [];             // 畀視覺層消費，每 tick 清空
+        this.events = [];             // 畀畫面／音效／播報消費，用 drain() 攞走
         this.over = null;             // { winner }
         this.waveCount = 0;
         this.nextWaveAt = WAVE_FIRST;
@@ -138,7 +138,20 @@ export class Sim {
     alliesOf(team) { return this.entities.filter(e => e.alive && e.team === team); }
     champ(id) { return this.champions.find(c => c.champId === id); }
 
-    emit(type, data) { this.events.push({ type, ...data }); }
+    // 事件係「呢一格發生咗咩」嘅唯一出口：畫面、音效、播報全部只讀呢條流。
+    // 用 drain() 攞走，唔喺 step() 開頭清——因為玩家施法同 bot 施法都係喺
+    // step() 之前發生嘅，一喺開頭清就等於未有人讀過就抹走咗。
+    // 上限只係一個安全網：測試會連續 step 幾萬次而唔會 drain。
+    emit(type, data) {
+        this.events.push({ type, ...data });
+        if (this.events.length > 512) this.events.splice(0, this.events.length - 512);
+    }
+
+    drain() {
+        const out = this.events;
+        this.events = [];
+        return out;
+    }
 
     // 派生數值：buff 全部喺呢度加，唔會寫死落基礎值度（所以 buff 一過就自動消失）
     stats(c) {
@@ -205,7 +218,6 @@ export class Sim {
     // ---------- 主迴圈 ----------
     step(dt = TICK) {
         if (this.over) return;
-        this.events.length = 0;
         this.time += dt;
 
         this.#spawnWaves();

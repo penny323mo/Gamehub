@@ -55,20 +55,45 @@ export class Hud {
         this.panel.append(this.portrait, bars, this.stats);
         r.append(this.panel);
 
-        // 右下：四個技能
+        // 右下：普攻掣 + 四個技能。
+        // 每粒掣要寫住個技能名——之前淨係得一個 Q/W/E/R 字母，
+        // 玩家撳之前根本唔知會發生咩事，撳完亦都唔知啱唔啱。
         this.skills = el('div', 'moba-skills');
+        this.attackBtn = el('button', 'moba-attack');
+        this.attackBtn.append(el('span', 'nm', '普攻'), el('span', 'k', '空白鍵'));
+        this.skills.append(this.attackBtn);
         this.skillBtns = [];
+        const KEYS = ['Q', 'F', 'E', 'R'];
         for (let i = 0; i < 4; i++) {
             const b = el('button', 'moba-skill');
             b.dataset.index = String(i);
-            const key = el('span', 'k', 'QWER'[i]);
+            const ab = this.sim.player.def.abilities[i];
+            const key = el('span', 'k', KEYS[i]);
+            const nm = el('span', 'nm', ab.name);
             const cd = el('span', 'cd');
             const lvl = el('span', 'lv', '');
-            b.append(key, cd, lvl);
+            b.append(key, nm, cd, lvl);
             this.skills.append(b);
-            this.skillBtns.push({ btn: b, cd, lvl });
+            this.skillBtns.push({ btn: b, cd, lvl, nm });
         }
         r.append(this.skills);
+
+        // 技能說明：撳實／hover 就彈出成句解釋
+        this.tip = el('div', 'moba-tip hidden');
+        r.append(this.tip);
+        this.skillBtns.forEach(({ btn }, i) => {
+            const ab = this.sim.player.def.abilities[i];
+            const show = () => {
+                this.tip.innerHTML = `<b>${ab.name}</b><span>${ab.text}</span>`
+                    + `<i>耗藍 ${ab.cost}　冷卻 ${ab.cd} 秒</i>`;
+                this.tip.classList.remove('hidden');
+            };
+            const hide = () => this.tip.classList.add('hidden');
+            btn.addEventListener('pointerenter', show);
+            btn.addEventListener('pointerleave', hide);
+            btn.addEventListener('pointerdown', show);
+            btn.addEventListener('pointerup', () => setTimeout(hide, 900));
+        });
 
         // 商店
         this.shopBtn = el('button', 'moba-shopbtn', '商店');
@@ -81,6 +106,10 @@ export class Hud {
         // 死亡遮罩
         this.deadBox = el('div', 'moba-dead hidden');
         r.append(this.deadBox);
+
+        // 施法橫額：撳完技能報返個名，玩家先學得識自己隻英雄有咩
+        this.cast = el('div', 'moba-cast');
+        r.append(this.cast);
 
         // 計分板
         this.board = el('div', 'moba-board');
@@ -117,6 +146,13 @@ export class Hud {
     toggleShop(force) {
         this.shopOpen = force ?? !this.shopOpen;
         this.shop.classList.toggle('hidden', !this.shopOpen);
+    }
+
+    showCast(ab) {
+        this.cast.textContent = `${ab.key}　${ab.name}`;
+        this.cast.classList.remove('play');
+        void this.cast.offsetWidth;          // 迫瀏覽器重播動畫
+        this.cast.classList.add('play');
     }
 
     flash(text) {
@@ -179,6 +215,9 @@ export class Hud {
             lvl.textContent = rank > 0 ? String(rank) : '';
             btn.title = `${ab.name}：${ab.text}`;
         }
+
+        const target = p.orderTarget != null && sim.entities.find(e => e.id === p.orderTarget);
+        this.attackBtn.classList.toggle('on', !!(target && target.alive));
 
         // 商店：買唔買得起用顏色講，唔使玩家自己計數
         if (this.shopOpen) {
