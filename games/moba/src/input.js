@@ -22,6 +22,7 @@ export function createInput(canvas, view, sim, hud) {
     const ndc = new THREE.Vector2();
     const hit = new THREE.Vector3();
     const keys = new Set();
+    let previewIndex = null;      // 而家喺度瞄緊邊個技能（-1 = 冇）
     let aimX = 0, aimZ = 0;
     let joy = null;                 // { id, cx, cy, dx, dy }
     let aiming = null;              // { index, id, dx, dy }
@@ -118,19 +119,38 @@ export function createInput(canvas, view, sim, hud) {
         // 但呢度走位行 WASD，所以第二個技能改用 F，W 專心做前行。
         if (k === 'q' || k === 'f' || k === 'e' || k === 'r') {
             const idx = { q: 0, f: 1, e: 2, r: 3 }[k];
-            cast(idx, aimX, aimZ);
+            // 撳住 = 睇範圍，放手先施法。撳一下即放就同以前一樣即時出。
+            if (ev.repeat) { previewIndex = idx; ev.preventDefault(); return; }
+            previewIndex = idx;
+            pendingKey = idx;
             ev.preventDefault();
             return;
         }
         if (k === ' ') { attackNearest(); ev.preventDefault(); return; }
         if (k === 'b') { hud.toggleShop(); ev.preventDefault(); return; }
+        // 返程：讀緊秒再撳就係取消
+        if (k === 'x') {
+            const p = sim.player;
+            if (sim.recallProgress(p) > 0) sim.cancelRecall(p, 'cancelled');
+            else sim.startRecall(p);
+            ev.preventDefault();
+            return;
+        }
         if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
             keys.add(k);
             ev.preventDefault();
         }
     }
-    function onKeyUp(ev) { keys.delete(ev.key.toLowerCase()); }
-    function onBlur() { keys.clear(); joy = null; }
+    let pendingKey = null;
+    function onKeyUp(ev) {
+        const k = ev.key.toLowerCase();
+        keys.delete(k);
+        const idx = { q: 0, f: 1, e: 2, r: 3 }[k];
+        if (idx == null) return;
+        if (pendingKey === idx) { cast(idx, aimX, aimZ); pendingKey = null; }
+        if (previewIndex === idx) previewIndex = null;
+    }
+    function onBlur() { keys.clear(); joy = null; previewIndex = null; pendingKey = null; }
 
     // 鍵盤方向：螢幕右 = 世界 +x，螢幕上 = 世界 -z（鏡頭永遠喺 +z 望入去）
     function keyDir() {
@@ -194,6 +214,7 @@ export function createInput(canvas, view, sim, hud) {
             ev.preventDefault();
             btn.setPointerCapture?.(ev.pointerId);
             aiming = { index, id: ev.pointerId, dx: 0, dy: 0 };
+            previewIndex = index;
         });
         btn.addEventListener('pointermove', (ev) => {
             if (!aiming || aiming.id !== ev.pointerId) return;
@@ -212,6 +233,7 @@ export function createInput(canvas, view, sim, hud) {
             if (!aiming || aiming.id !== ev.pointerId) return;
             const { index: i, dx, dy } = aiming;
             aiming = null;
+            previewIndex = null;
             aimLine.classList.add('hidden');
             const p = sim.player;
             const len = Math.hypot(dx, dy);
@@ -225,8 +247,16 @@ export function createInput(canvas, view, sim, hud) {
             }
         };
         btn.addEventListener('pointerup', finish);
-        btn.addEventListener('pointercancel', () => { aiming = null; aimLine.classList.add('hidden'); });
+        btn.addEventListener('pointercancel', () => {
+            aiming = null; previewIndex = null; aimLine.classList.add('hidden');
+        });
     });
+
+    hud.onRecall = () => {
+        const p = sim.player;
+        if (sim.recallProgress(p) > 0) sim.cancelRecall(p, 'cancelled');
+        else sim.startRecall(p);
+    };
 
     // 攻擊掣：撳住會一路鎖住最近嘅目標
     let attackHeld = false;
@@ -251,6 +281,28 @@ export function createInput(canvas, view, sim, hud) {
     canvas.addEventListener('touchmove', touchMove, { passive: false });
     canvas.addEventListener('touchend', touchEnd);
     canvas.addEventListener('touchcancel', touchEnd);
+    // 縮放：滾輪同雙指
+    function onWheel(ev) {
+        ev.preventDefault();
+        view.zoomBy(ev.deltaY > 0 ? 1.09 : 1 / 1.09);
+    }
+    let pinch = null;
+    function pinchStart(ev) {
+        if (ev.touches.length !== 2) return;
+        const [a, b] = ev.touches;
+        pinch = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    }
+    function pinchMove(ev) {
+        if (ev.touches.length !== 2 || !pinch) return;
+        const [a, b] = ev.touches;
+        const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+        if (Math.abs(d - pinch) > 6) { view.zoomBy(pinch / d); pinch = d; }
+        ev.preventDefault();
+    }
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    canvas.addEventListener('touchstart', pinchStart, { passive: false });
+    canvas.addEventListener('touchmove', pinchMove, { passive: false });
+    canvas.addEventListener('touchend', () => { pinch = null; });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
     return {
@@ -258,6 +310,23 @@ export function createInput(canvas, view, sim, hud) {
         // 目標點放遠少少（6 米），噉樣就唔會行到就停、一頓一頓。
         update() {
             const p = sim.player;
+            // 施法預覽：瞄緊邊個技能就畫邊個
+            if (previewIndex != null && p.alive && sim.castable(p, previewIndex)) {
+                const ab = p.def.abilities[previewIndex];
+                let ax = aimX, az = aimZ;
+                if (aiming && Math.hypot(aiming.dx, aiming.dy) > 14) {
+                    const reach = ab.range ?? 9;
+                    const len = Math.hypot(aiming.dx, aiming.dy);
+                    ax = p.x + aiming.dx * (reach / len);
+                    az = p.z + aiming.dy * (reach / len);
+                } else if (aiming) {
+                    const a = defaultAim(previewIndex);
+                    ax = a.x; az = a.z;
+                }
+                view.showAim({ ability: ab, x: ax, z: az, colour: view.playerColour });
+            } else {
+                view.showAim(null);
+            }
             if (!p.alive) return;
             const dir = joy && Math.hypot(joy.dx, joy.dy) > 0.14
                 ? { dx: joy.dx, dz: joy.dy }
@@ -278,6 +347,7 @@ export function createInput(canvas, view, sim, hud) {
         destroy() {
             canvas.removeEventListener('pointermove', onPointerMove);
             canvas.removeEventListener('pointerdown', onPointerDown);
+            canvas.removeEventListener('wheel', onWheel);
             window.removeEventListener('keydown', onKeyDown);
             window.removeEventListener('keyup', onKeyUp);
             window.removeEventListener('blur', onBlur);

@@ -308,11 +308,11 @@ function pickTargetFor(sim, minion) {
         wins[TEAM.BLUE] > 0 && wins[TEAM.RED] > 0, wins);
     check('每一場都分到勝負（冇無結果嘅比賽）', noResult === 0, { noResult, wins });
     // 推爆水晶要係主流收場方式。單一場嘅斷言會飄，所以度嘅係整體比例。
-    // 實測十二場鏡像對局：七場推爆水晶、五場打到時限。門檻放喺一半，
-    // 係「量到幾多就寫幾多」，唔係揀一個好睇嘅數字再倒返去調參。
-    // 記住呢個係 bot 打 bot 嘅數——真人落場就係打破對稱嗰個變數。
-    check('推爆水晶係主流收場方式（時限唔可以佔多數）',
-        byNexus >= 6, { byNexus, byTime: 12 - byNexus });
+    // 加咗返程之後實測十二場：十場推爆水晶、兩場打到時限（之前係 7/5——
+    // 商店返唔到去用，等於經濟冇出口）。門檻放喺 8/12，係「量到幾多就
+    // 寫幾多，再留返少少浮動位」，唔係揀個好睇數字再倒返去調參。
+    check('推爆水晶係主流收場方式（時限只係例外）',
+        byNexus >= 8, { byNexus, byTime: 12 - byNexus });
 }
 
 // ---------- T14：泉水回血、大後期水晶自流血 ----------
@@ -495,5 +495,58 @@ function armourMulOf(sim, e) { return 100 / (100 + sim.stats(e).armour); }
 
 // 總結一定要留喺檔案最尾。之前佢排喺 T15 之前，即係後面三十幾條斷言
 // 跑咗但冇入數——失敗都唔會令個測試唔過，等於冇 gate 過。
+
+// ---------- T20：返程 ----------
+// 由中線行返泉水單程約九秒。冇返程，商店就係一個「唔值得用」嘅系統，
+// 而裝備係成個經濟嘅唯一出口——所以返程唔係方便，係令商店成立嘅前提。
+{
+    const sim = new Sim({ seed: 61 });
+    const p = sim.player;
+    p.x = 0; p.z = 0;
+
+    check('喺屋企唔使返程', (() => {
+        const c = sim.champions[1];
+        c.x = -MAP.fountainX;
+        return sim.startRecall(c) === false;
+    })());
+
+    check('外面開得到返程', sim.startRecall(p) === true);
+    check('讀秒中會有進度', (() => { for (let i = 0; i < 30; i++) sim.step(); return sim.recallProgress(p) > 0.1; })());
+
+    // 讀秒期間唔可以郁
+    const xBefore = p.x;
+    for (let i = 0; i < 30; i++) sim.step();
+    check('讀秒期間企定唔郁', Math.abs(p.x - xBefore) < 0.01, { xBefore, now: p.x });
+
+    check('讀完會返到泉水', (() => {
+        for (let i = 0; i < 30 * 6; i++) sim.step();
+        return Math.abs(p.x - (-MAP.fountainX)) < 0.01 && sim.recallProgress(p) === 0;
+    })(), p.x);
+
+    // 食到傷害會斷
+    const sim2 = new Sim({ seed: 62 });
+    const a = sim2.player;
+    a.x = 0; a.z = 0;
+    sim2.startRecall(a);
+    for (let i = 0; i < 30; i++) sim2.step();
+    sim2.damage(a, 20, sim2.champions.find(c => c.team !== a.team), { physical: true });
+    check('食到傷害會斷返程', sim2.recallProgress(a) === 0);
+
+    // 落指令都會斷
+    const sim3 = new Sim({ seed: 63 });
+    const b = sim3.player;
+    b.x = 0; b.z = 0;
+    sim3.startRecall(b);
+    sim3.orderMove(b, 5, 0);
+    check('落移動指令會斷返程', sim3.recallProgress(b) === 0);
+
+    const sim4 = new Sim({ seed: 64 });
+    const c4 = sim4.player;
+    c4.x = 0; c4.z = 0; c4.level = 6; c4.mp = c4.maxMp;
+    sim4.startRecall(c4);
+    sim4.cast(c4, 0, { x: 5, z: 0 });
+    check('施法會斷返程', sim4.recallProgress(c4) === 0);
+}
+
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);
 if (fail) { console.log('失敗項目:', failed.join('、')); process.exit(1); }

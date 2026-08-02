@@ -107,6 +107,7 @@ export class View {
         canvas.addEventListener('webglcontextrestored', () => { this.contextLost = false; });
         this.onContextLost = opts.onContextLost ?? null;
 
+        this.playerColour = CHAMPION_LOOK[sim.player?.champId]?.ringColour ?? 0xffe27a;
         this.#lights();
         this.#buildArena();
         this.fx = new Fx(this.scene, this.camera);
@@ -226,6 +227,9 @@ export class View {
                 ? `${ARENA_LOOK.nexus}_${colour}`
                 : `${ARENA_LOOK.towerByTier[e.tier]}_${colour}`;
             const scale = e.kind === 'nexus' ? ARENA_LOOK.nexusScale : ARENA_LOOK.towerScale[e.tier];
+            // 塔腳嘅台座：塔唔會似插咗支嘢落草地，而且遠處都認得出「呢度有塔」
+            const baseName = `${ARENA_LOOK.towerBase}_${colour}`;
+            if (e.kind === 'tower' && A.hasPiece(baseName)) put(baseName, e.x, e.z, scale * 0.95);
             const o = put(name, e.x, e.z, scale, e.team === TEAM.BLUE ? Math.PI / 2 : -Math.PI / 2);
             const bar = makeBar(e.kind === 'nexus' ? 7 : 5, TEAM_COLOUR[e.team]);
             bar.position.set(e.x, e.kind === 'nexus' ? 15 : 10, e.z);
@@ -256,6 +260,18 @@ export class View {
             this.scene.add(pad);
         }
 
+        // 中線：兩隊喺呢度相遇，所以要一眼認得出。
+        // 試過兩樣都唔work：兩塊泥地 hex 佔咗成條橋闊度嘅三分一，睇落似地面壞咗；
+        // 兩支石柱喺打直畫面度似浮喺半空。淨返一條橫過橋面嘅光線最乾淨——
+        // 同 LoL 條河一樣：講得清「呢度係中線」，但唔搶戲。
+        const midLine = new THREE.Mesh(
+            new THREE.PlaneGeometry(1.1, LANE_HALF * 2),
+            new THREE.MeshBasicMaterial({ color: 0xf4e3b4, transparent: true, opacity: 0.34,
+                depthWrite: false }));
+        midLine.rotation.x = -Math.PI / 2;
+        midLine.position.set(0, 0.04, 0);
+        this.scene.add(midLine);
+
         this.#buildScenery();
     }
 
@@ -285,14 +301,32 @@ export class View {
                 else grassCells.push([x, z]);
             }
         }
+        // 分區上色。一條 124 米嘅橋成片同一個黃綠色，玩家睇一眼分唔出
+        // 自己喺自己半場定對面半場——而「我而家喺邊」係 MOBA 每一秒都要答嘅問題。
+        // 藍方地帶偏冷、紅方地帶偏暖、中線保持原色，三段一眼分得出。
+        const zoneTint = new THREE.Color();
+        const blueZone = new THREE.Color(0x9fb6e8);
+        const redZone = new THREE.Color(0xe8b39f);
+        const neutral = new THREE.Color(0xffffff);
+        const tintAt = (x) => {
+            const t = Math.min(1, Math.max(0, (Math.abs(x) - MAP.towerX[0] * 0.45) / (MAP.nexusX * 0.7)));
+            zoneTint.copy(neutral).lerp(x < 0 ? blueZone : redZone, t * 0.85);
+            return zoneTint;
+        };
         for (const [mesh, cells] of [[road, roadCells], [grass, grassCells], [edge, edgeCells]]) {
             if (!mesh || !cells.length) continue;
-            const inst = new THREE.InstancedMesh(mesh.geometry, mesh.material, cells.length);
+            // 材質要 clone：instanceColor 一開就會影響用同一個材質嘅所有嘢
+            const inst = new THREE.InstancedMesh(mesh.geometry, mesh.material.clone(), cells.length);
             inst.receiveShadow = true;
             inst.castShadow = false;
             const m = new THREE.Matrix4();
-            cells.forEach(([x, z], i) => { m.makeTranslation(x, 0, z); inst.setMatrixAt(i, m); });
+            cells.forEach(([x, z], i) => {
+                m.makeTranslation(x, 0, z);
+                inst.setMatrixAt(i, m);
+                inst.setColorAt(i, mesh === edge ? neutral : tintAt(x));
+            });
             inst.instanceMatrix.needsUpdate = true;
+            if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
             inst.frustumCulled = false;
             this.scene.add(inst);
         }
@@ -361,6 +395,66 @@ export class View {
         g.position.y = 0.05;
         this.scene.add(g);
         this.rangeRing = g;
+
+        // 施法預覽：一個射程圈 + 一條指住瞄準方向嘅帶 + 落點圓。
+        // 唔知自己打唔打得到、去邊度炸，係 MOBA 最貴嘅資訊缺口。
+        const mk = (geo, colour, opacity) => {
+            const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+                color: colour, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false }));
+            m.rotation.x = -Math.PI / 2;
+            m.visible = false;
+            this.scene.add(m);
+            return m;
+        };
+        this.aimRange = mk(sharedGeo('unit-ring', () => new THREE.RingGeometry(0.986, 1, 64)), 0xffe27a, 0.34);
+        this.aimBeam = mk(new THREE.PlaneGeometry(1, 1), 0xffe27a, 0.2);
+        this.aimSpot = mk(new THREE.CircleGeometry(1, 36), 0xffe27a, 0.24);
+        this.aimSpotRing = mk(new THREE.RingGeometry(0.94, 1, 40), 0xffe27a, 0.75);
+    }
+
+    // 由 input 每幀叫：aim = null 就收起，否則畫返個技能實際會點打。
+    showAim(aim) {
+        const on = !!aim;
+        for (const m of [this.aimRange, this.aimBeam, this.aimSpot, this.aimSpotRing]) {
+            if (m) m.visible = false;
+        }
+        if (!on) return;
+        const p = this.sim.player;
+        const ab = aim.ability;
+        const colour = aim.colour ?? 0xffe27a;
+        const reach = ab.range ?? 9;
+
+        this.aimRange.visible = true;
+        this.aimRange.position.set(p.x, 0.07, p.z);
+        this.aimRange.scale.setScalar(reach);
+        this.aimRange.material.color.setHex(colour);
+
+        // 落點：夾返喺射程之內，噉玩家見到嘅就係真正會發生嘅位置
+        const dx = aim.x - p.x, dz = aim.z - p.z;
+        const d = Math.hypot(dx, dz) || 1;
+        const k = Math.min(1, reach / d);
+        const tx = p.x + dx * k, tz = p.z + dz * k;
+
+        if (ab.form === 'skillshot' || ab.form === 'dash') {
+            this.aimBeam.visible = true;
+            this.aimBeam.material.color.setHex(colour);
+            const width = ab.width ? ab.width * 2 : 1.6;
+            this.aimBeam.scale.set(reach, width, 1);
+            this.aimBeam.rotation.z = -Math.atan2(dz, dx);
+            this.aimBeam.position.set(p.x + (dx / d) * reach / 2, 0.09, p.z + (dz / d) * reach / 2);
+        } else if (ab.radius) {
+            for (const m of [this.aimSpot, this.aimSpotRing]) {
+                m.visible = true;
+                m.material.color.setHex(colour);
+                m.position.set(tx, 0.09, tz);
+                m.scale.setScalar(ab.radius);
+            }
+        } else {
+            this.aimSpotRing.visible = true;
+            this.aimSpotRing.material.color.setHex(colour);
+            this.aimSpotRing.position.set(tx, 0.09, tz);
+            this.aimSpotRing.scale.setScalar(1.4);
+        }
     }
 
     // ---------- 單位 ----------
@@ -675,6 +769,13 @@ export class View {
     // 跟住玩家沿住 x 軸行，永遠由 +z 望入去，所以兵線橫住成個畫面。
     setCameraFocus(x) { this.camFocus = x; }
 
+    // 縮放：一條 124 米嘅線，固定鏡頭只見到大約一半。
+    // 拉遠係「我睇下前面有咩嚟緊」，拉近係「我而家要打得準」。
+    zoomBy(factor) {
+        this.camZoom = Math.min(1.7, Math.max(0.7, (this.camZoom ?? 1) * factor));
+        this.resize();
+    }
+
     #camera(dt) {
         const p = this.sim.player;
         // 死咗就跟最近嘅隊友，冇隊友就跟兵線——原本會定格喺屍體度，
@@ -699,7 +800,8 @@ export class View {
         const s = this.shake * this.shake;
         const jx = (Math.random() - 0.5) * s * 1.4;
         const jy = (Math.random() - 0.5) * s * 1.4;
-        this.camera.position.set(fx + jx, this.camHeight + jy, this.camDepth);
+        const zoom = this.camZoom ?? 1;
+        this.camera.position.set(fx + jx, this.camHeight * zoom + jy, this.camDepth * zoom);
         this.camera.lookAt(fx, 1.5, -1.5);
         this.sun.position.set(fx - 30, 60, 40);
         this.sun.target.position.set(fx, 0, 0);
@@ -719,9 +821,9 @@ export class View {
         this.camera.aspect = w / h;
         // 打直揸手機睇得少啲橫向範圍，所以要拉高拉遠先睇得晒兵線
         const portrait = this.camera.aspect < 1;
-        this.camHeight = portrait ? 36 : 28;
-        this.camDepth = portrait ? 32 : 26;
-        this.camera.fov = portrait ? 52 : 45;
+        this.camHeight = portrait ? 38 : 30;
+        this.camDepth = portrait ? 34 : 28;
+        this.camera.fov = portrait ? 54 : 47;
         this.camera.updateProjectionMatrix();
     }
 

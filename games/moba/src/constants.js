@@ -137,6 +137,12 @@ export const TOWER_AGGRO_MEMORY = 3.5;
 // 六個英雄入面唯獨佢打少一件嘢，實測勝率跌到 20%。
 export const WARDEN = { range: 11, manaCost: 0.08, cd: 30, leaveHpPct: 0.12 };
 
+// ---------- 返程 ----------
+// 由中線行返泉水單程差唔多五十六米、約九秒，一來一回即係廿秒乜都做唔到。
+// 冇返程嘅話，商店實際上係一個「唔值得用」嘅系統——而裝備係成個經濟嘅出口。
+// 讀秒期間郁一郁、出手、食到傷害都會斷，所以返程本身係一個要判斷時機嘅決定。
+export const RECALL = { channel: 6, cancelOnDamage: true };
+
 // ---------- 泉水 ----------
 export const FOUNTAIN_HEAL_PCT = 0.22;   // 每秒回幾多成最大值
 export const FOUNTAIN_RADIUS = 6;        // 要細過 fountainX - nexusX - 水晶半徑

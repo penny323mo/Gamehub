@@ -198,7 +198,15 @@ export function createBot(sim, champ, opts = {}) {
             const { foe, d } = nearestEnemyChamp();
             const home = sideSign(champ.team) * MAP.fountainX;
 
-            if (state === STATE.BASE) { sim.orderMove(champ, home, 0); return; }
+            if (state === STATE.BASE) {
+                // 返程讀緊秒就唔好落指令——落一個就即刻打斷咗自己
+                if (sim.recallProgress(champ) > 0) return;
+                // 安全（附近冇敵人）就用返程，唔係就照行返去
+                const safe = !foe || d > 16;
+                if (safe && !sim.canShop(champ) && sim.startRecall(champ)) return;
+                sim.orderMove(champ, home, 0);
+                return;
+            }
             if (state === STATE.RETREAT) {
                 sim.orderMove(champ, safeX(), champ.z * 0.6);
                 return;

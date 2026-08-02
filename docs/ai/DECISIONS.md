@@ -1591,3 +1591,41 @@ follows what the tyres can use
   headless harness is bounded by software rasterisation (17 fps on an empty scene), so no real
   device conclusion can be drawn from it — hence quality tiers plus an automatic one-step
   downgrade when the median frame time stays above 1/34 s, rather than tuning to a fake number.
+
+## ADR-094: Recall, because without it the shop was a system nobody could use
+
+- Date: 2026-08-02
+- Status: accepted
+- Decision: a 6-second recall channel (X, or a HUD button), cancelled by taking damage or by
+  any move / attack / cast order. Bots use it whenever they want to shop and no enemy is within
+  16 m.
+- Reason: the fountain is 62 m from the centre — about nine seconds each way, so a shopping trip
+  cost roughly twenty seconds of doing nothing. Items are the only outlet for gold and the only
+  reason gold exists (ADR-088), so a shop that expensive to reach is a system that quietly does
+  not run. Measured over twelve mirror matches, adding recall moved nexus finishes from 7/12 to
+  **10/12** and the median match from 22 to 19 minutes, with the fastest at 13. Nothing else was
+  touched; the economy simply started circulating.
+- Bug found while building it, worth naming: `recallUntil` was doing two jobs — "am I
+  recalling" and "when does it finish" — so `recallUntil <= time` meant both "not recalling"
+  and "just finished", and the completion branch was unreachable. 0 is now the sentinel and the
+  timestamp only ever means a deadline.
+- Gates: `sim.mjs` asserts recall cannot start at the fountain, that the channel holds the
+  champion still, that it teleports on completion, and that damage, a move order and a cast
+  each cancel it.
+
+## ADR-095: A lane game needs a lane readout, and a spell needs to show where it lands
+
+- Date: 2026-08-02
+- Status: accepted
+- Decision: a lane overview strip across the top (structures as ticks that grey out when
+  destroyed, champion dots hollow when dead, per-team wave centroids) and a ground aim preview
+  while an ability is held (range ring, beam for skillshots and dashes, landing circle for
+  areas), plus zone-tinted terrain, tower plinths, a centre line, and wheel/pinch zoom.
+- Reason: the map *is* one line, which was used as the argument for having no minimap — but the
+  question a player asks every few seconds ("where is the wave, who is missing, can I go in")
+  had no answer on screen at all. The same gap on the ability side: you pressed a key and found
+  out where it went afterwards. Neither is polish; both are the information a MOBA runs on.
+- Rejected along the way: two dirt hexes as a centre landmark (they covered a third of the
+  bridge's width and read as damaged ground), then two stone posts (in portrait they read as
+  floating pillars). A single light stripe across the lane says the same thing and stays out of
+  the way.

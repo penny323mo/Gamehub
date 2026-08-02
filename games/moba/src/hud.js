@@ -4,7 +4,7 @@
 import { abilityRank } from './champions.js';
 import { settings } from './settings.js';
 import { ITEMS, MAX_ITEMS, nextPurchase } from './items.js';
-import { TEAM, teamName, GAME_MAX } from './constants.js';
+import { TEAM, teamName, GAME_MAX, MAP } from './constants.js';
 
 const el = (tag, cls, text) => {
     const n = document.createElement(tag);
@@ -34,6 +34,14 @@ export class Hud {
         this.scoreRed = el('span', 'moba-score red', '0');
         this.top.append(this.scoreBlue, this.timer, this.scoreRed);
         r.append(this.top);
+
+        // 兵線總覽。一條線嘅 MOBA 冇小地圖，玩家就完全唔知兵線去到邊、
+        // 邊個隊友唔見咗、對面邊個返咗屋企——呢啲全部係決定「而家上唔上」
+        // 嘅資訊。條線本身就係地圖，所以一條橫條已經夠。
+        this.laneWrap = el('div', 'moba-lane');
+        this.laneCanvas = document.createElement('canvas');
+        this.laneWrap.append(this.laneCanvas);
+        r.append(this.laneWrap);
 
         // 擊殺播報
         this.feedBox = el('div', 'moba-feed');
@@ -95,6 +103,15 @@ export class Hud {
             btn.addEventListener('pointerdown', show);
             btn.addEventListener('pointerup', () => setTimeout(hide, 900));
         });
+
+        // 返程：讀秒條擺喺畫面中下，因為讀秒期間唯一要睇嘅就係「仲有幾耐」
+        this.recallBtn = el('button', 'moba-recall', '返程');
+        this.recallBtn.addEventListener('click', () => this.onRecall?.());
+        r.append(this.recallBtn);
+        this.recallBar = el('div', 'moba-recallbar hidden');
+        this.recallFill = el('i');
+        this.recallBar.append(this.recallFill, el('span', null, '返程中…'));
+        r.append(this.recallBar);
 
         // 商店
         this.shopBtn = el('button', 'moba-shopbtn', '商店');
@@ -198,8 +215,9 @@ export class Hud {
         this.markQuality(settings.get('quality'));
 
         box.append(el('div', 'moba-help',
-            '電腦：WASD 走位　空白鍵普攻　Q F E R 技能　B 商店\n'
-            + '手機：左邊拖動走位　右邊撳普攻　技能掣撳住拖出去瞄準再放手'));
+            '電腦：WASD 走位　空白鍵普攻　Q F E R 技能（撳住睇範圍）\n'
+            + '　　　X 返程　B 商店　滾輪縮放\n'
+            + '手機：左邊拖動走位　右邊撳普攻　技能掣撳住拖出去瞄準再放手　雙指縮放'));
     }
 
     markQuality(q) {
@@ -233,6 +251,13 @@ export class Hud {
         this.cast.classList.add('play');
     }
 
+    // 補刀嘅金幣彈一彈：撳中同撳唔中要睇得出分別
+    goldPop(gold) {
+        const n = el('div', 'moba-goldpop', `+${gold}`);
+        this.root.append(n);
+        setTimeout(() => n.remove(), 900);
+    }
+
     flash(text) {
         const n = el('div', 'moba-flash', text);
         this.root.append(n);
@@ -259,12 +284,99 @@ export class Hud {
                 this.pushFeed(`${teamName(ev.team)}第 ${ev.tier + 1} 座塔被拆`, ev.team === TEAM.BLUE ? 'red' : 'blue');
             } else if (ev.type === 'warden') {
                 this.pushFeed('守望擋低咗致命一擊', 'gold');
+            } else if (ev.type === 'cs' && ev.id === this.sim.player.id) {
+                // 補刀係呢隻遊戲最核心嘅操作，但之前撳中同撳唔中冇任何分別
+                this.goldPop(ev.gold);
+            } else if (ev.type === 'recallCancel' && ev.id === this.sim.player.id) {
+                if (ev.why === 'damaged') this.flash('食到傷害，返程被打斷');
+            }
+        }
+    }
+
+    // 由 -fountainX 到 +fountainX 壓成一條橫條。畫嘅嘢由少到多：
+    // 底線 → 建築 → 兵線重心 → 英雄。愈後畫愈唔會被蓋住。
+    #lane() {
+        const cv = this.laneCanvas;
+        const w = this.laneWrap.clientWidth;
+        if (!w) return;
+        const h = 26;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+            cv.width = Math.round(w * dpr);
+            cv.height = Math.round(h * dpr);
+            cv.style.width = `${w}px`;
+            cv.style.height = `${h}px`;
+        }
+        const g = cv.getContext('2d');
+        g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        g.clearRect(0, 0, w, h);
+
+        const pad = 8;
+        const span = MAP.fountainX * 2;
+        const px = (x) => pad + ((x + MAP.fountainX) / span) * (w - pad * 2);
+        const mid = h / 2;
+
+        g.strokeStyle = 'rgba(255,255,255,0.16)';
+        g.lineWidth = 2;
+        g.beginPath(); g.moveTo(px(-MAP.fountainX), mid); g.lineTo(px(MAP.fountainX), mid); g.stroke();
+
+        const sim = this.sim;
+        const colour = (t) => (t === TEAM.BLUE ? '#4ea4ff' : '#ff5a48');
+
+        // 建築：拆咗嘅照畫但變灰，噉先睇得出邊邊已經破咗
+        for (const e of sim.entities.concat(this.deadStructures ?? [])) {
+            if (e.kind !== 'tower' && e.kind !== 'nexus') continue;
+            const x = px(e.x);
+            const big = e.kind === 'nexus';
+            g.fillStyle = e.alive ? colour(e.team) : 'rgba(255,255,255,0.18)';
+            const sz = big ? 5 : 3.4;
+            g.fillRect(x - sz / 2, mid - sz, sz, sz * 2);
+        }
+
+        // 兵線重心：一隊一條短棒，睇得出兵線推咗去邊
+        for (const team of [TEAM.BLUE, TEAM.RED]) {
+            const ms = sim.entities.filter(e => e.alive && e.kind === 'minion' && e.team === team);
+            if (!ms.length) continue;
+            const cx = px(ms.reduce((a, m) => a + m.x, 0) / ms.length);
+            g.fillStyle = colour(team);
+            g.globalAlpha = 0.45;
+            g.fillRect(cx - 1.5, mid - 8, 3, 16);
+            g.globalAlpha = 1;
+        }
+
+        // 英雄：死咗嘅畫成空心，一眼睇得出而家係幾對幾
+        for (const c of sim.champions) {
+            const x = px(c.x);
+            const y = c.team === TEAM.BLUE ? mid - 8 : mid + 8;
+            g.beginPath();
+            g.arc(x, y, c.isPlayer ? 5 : 3.6, 0, Math.PI * 2);
+            if (!c.alive) {
+                g.strokeStyle = colour(c.team);
+                g.globalAlpha = 0.45;
+                g.lineWidth = 1.5;
+                g.stroke();
+                g.globalAlpha = 1;
+            } else {
+                g.fillStyle = c.isPlayer ? '#ffe27a' : colour(c.team);
+                g.fill();
+                if (c.isPlayer) {
+                    g.strokeStyle = '#0b0e17';
+                    g.lineWidth = 1.5;
+                    g.stroke();
+                }
             }
         }
     }
 
     update() {
         const sim = this.sim, p = sim.player;
+        // 拆咗嘅建築會由 entities 消失，但總覽要繼續畫返個灰位
+        if (!this.deadStructures) this.deadStructures = [];
+        for (const e of sim.entities) {
+            if ((e.kind === 'tower' || e.kind === 'nexus') && !e.alive
+                && !this.deadStructures.includes(e)) this.deadStructures.push(e);
+        }
+        this.#lane();
         const st = sim.stats(p);
 
         this.timer.textContent = clock(Math.min(sim.time, GAME_MAX));
@@ -296,6 +408,14 @@ export class Hud {
 
         const target = p.orderTarget != null && sim.entities.find(e => e.id === p.orderTarget);
         this.attackBtn.classList.toggle('on', !!(target && target.alive));
+
+        // 返程：喺屋企就冇意思，讀秒中就變成一條進度條
+        const prog = sim.recallProgress(p);
+        const home = sim.canShop(p);
+        this.recallBtn.classList.toggle('hidden', home || !p.alive);
+        this.recallBtn.classList.toggle('on', prog > 0);
+        this.recallBar.classList.toggle('hidden', prog <= 0);
+        if (prog > 0) this.recallFill.style.width = `${prog * 100}%`;
 
         // 商店：買唔買得起用顏色講，唔使玩家自己計數
         if (this.shopOpen) {

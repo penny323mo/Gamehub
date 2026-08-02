@@ -96,6 +96,7 @@ export const ARENA_LOOK = {
     nexus: 'building_castle', nexusScale: 3.0,
     barracks: 'building_barracks', barracksScale: 2.2,
     rubble: 'building_destroyed', rubbleScale: 2.8,
+    towerBase: 'building_tower_base',
     wall: 'wall_straight', wallScale: 2.2,
     // 一塊 hex：橫向（x）對邊闊 2.0，縱向（z）尖對尖 2.31。
     hexAcross: 2.0, hexPoint: 2.31,

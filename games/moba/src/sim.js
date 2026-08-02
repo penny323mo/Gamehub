@@ -10,7 +10,7 @@ import {
     GAME_MAX, KILL_GOLD, ASSIST_GOLD, ASSIST_WINDOW, GOLD_PER_SEC, START_GOLD,
     RESPAWN_BASE, RESPAWN_PER_LEVEL, SHUTDOWN_PER_STREAK, SHUTDOWN_MAX,
     armourMul, structureArmour, TOWER_AGGRO_MEMORY, FOUNTAIN_HEAL_PCT, FOUNTAIN_RADIUS,
-    PUSH_STRENGTH, SIEGE_DENSE_AT, SIEGE_EVERY_WAVE_AT, WARDEN,
+    PUSH_STRENGTH, SIEGE_DENSE_AT, SIEGE_EVERY_WAVE_AT, WARDEN, RECALL,
 } from './constants.js';
 import { CHAMPIONS, abilityRank, scaled } from './champions.js';
 import { ITEMS, MAX_ITEMS, itemBonus } from './items.js';
@@ -107,6 +107,7 @@ export class Sim {
                     lastMoveAt: 0, standingSince: 0,
                     isPlayer: team === TEAM.BLUE && i === playerIndex,
                     orderX: null, orderZ: null, orderTarget: null,
+                    recallUntil: 0,
                 });
                 this.#applyLevelStats(c, true);
                 this.champions.push(c);
@@ -176,6 +177,45 @@ export class Sim {
         if (c.def.id === 'ironhulk' && c.hp < maxHp * 0.4) attackSpeed *= 1.3;
         if (c.slowUntil > this.time) speed *= 1 - c.slow;
         return { damage, armour, speed, attackSpeed, maxHp, ap, lifesteal };
+    }
+
+    // ---------- 返程 ----------
+    // recallUntil 用 0 代表「冇喺度返程」，用時間戳代表「幾時讀完」。
+    // 兩件事一定要分得開：一個變數兩用嘅話，「讀完咗」同「未開始」
+    // 就變成同一個條件（recallUntil <= time），到時就永遠行唔到傳送嗰步。
+    startRecall(c) {
+        if (!c.alive || c.recallUntil) return false;
+        if (this.canShop(c)) return false;           // 已經喺屋企就唔使
+        c.recallUntil = this.time + RECALL.channel;
+        c.orderX = null; c.orderZ = null; c.orderTarget = null;
+        this.emit('recallStart', { id: c.id, until: c.recallUntil });
+        return true;
+    }
+
+    cancelRecall(c, why = 'moved') {
+        if (!c.recallUntil) return false;
+        c.recallUntil = 0;
+        this.emit('recallCancel', { id: c.id, why });
+        return true;
+    }
+
+    recallProgress(c) {
+        if (!c.recallUntil) return 0;
+        return Math.min(1, Math.max(0, 1 - (c.recallUntil - this.time) / RECALL.channel));
+    }
+
+    #tickRecall(c) {
+        if (!c.recallUntil) return false;
+        if (!c.alive) { c.recallUntil = 0; return false; }
+        // 出手、施法、落移動指令都會斷（呢三樣喺各自嘅入口度處理）
+        if (this.time >= c.recallUntil) {
+            c.recallUntil = 0;
+            c.x = sideSign(c.team) * MAP.fountainX;
+            c.z = 0;
+            this.emit('recallDone', { id: c.id });
+            return false;
+        }
+        return true;      // 讀秒中：唔郁、唔出手
     }
 
     // ---------- 商店 ----------
@@ -396,6 +436,7 @@ export class Sim {
         for (let i = 0; i < 4; i++) c.abilityCd[i] = Math.max(0, c.abilityCd[i] - dt);
 
         if (!this.canAct(c)) return;
+        if (this.#tickRecall(c)) return;      // 返程讀秒：企定唔郁
 
         // 衝刺進行中
         if (c.dash) { this.#tickDash(c, dt); return; }
@@ -590,6 +631,9 @@ export class Sim {
             const ls = this.stats(source).lifesteal;
             if (ls > 0 && dealt > 0) this.heal(source, dealt * ls);
         }
+        if (RECALL.cancelOnDamage && target.kind === 'champ' && dealt > 0) {
+            this.cancelRecall(target, 'damaged');
+        }
         this.emit('damage', { target: target.id, amount: dealt, source: source?.id ?? null });
         if (target.hp <= 0 && this.#wardenSave(target)) return dealt;
         if (target.hp <= 0) this.#kill(target, source);
@@ -660,6 +704,7 @@ export class Sim {
         victim.deaths += 1;
         victim.buffs = {};
         victim.shield = 0;
+        victim.recallUntil = 0;
         victim.orderX = null; victim.orderZ = null; victim.orderTarget = null;
         const bounty = KILL_GOLD + Math.min(SHUTDOWN_MAX, victim.streak * SHUTDOWN_PER_STREAK);
         victim.streak = 0;
@@ -731,11 +776,13 @@ export class Sim {
     // ---------- 指令（玩家同 AI 共用同一個入口）----------
     orderMove(c, x, z) {
         if (!c.alive) return false;
+        this.cancelRecall(c, 'moved');
         c.orderX = x; c.orderZ = z; c.orderTarget = null;
         return true;
     }
     orderAttack(c, targetId) {
         if (!c.alive) return false;
+        this.cancelRecall(c, 'attacked');
         c.orderTarget = targetId; c.orderX = null; c.orderZ = null;
         return true;
     }
@@ -755,6 +802,7 @@ export class Sim {
     // aim: { x, z } 目標點，或者 { targetId }
     cast(c, index, aim = {}) {
         if (!this.castable(c, index)) return false;
+        this.cancelRecall(c, 'cast');
         const ab = c.def.abilities[index];
         const rank = abilityRank(c.level, index);
         c.mp -= ab.cost;

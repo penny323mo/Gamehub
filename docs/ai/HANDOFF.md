@@ -4,8 +4,8 @@ Updated: 2026-07-31 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: 深淵之橋 production pass — leaks fixed, settings, portraits, scoreboard, feel;
-        sim 183/183, browser 52/52
+Status: 深淵之橋 — recall, lane readout, aim preview, zoned terrain;
+        sim 191/191, browser 52/52
 
 ## Current objective
 
@@ -49,10 +49,16 @@ and original audio, playable on desktop and phone.
   once offscreen at boot and reused in the select cards, the HUD and the post-match scoreboard.
   Feel: units flash on hit, the camera shakes on heavy hits and follows a team-mate while you
   are dead, and skill projectiles take the caster's colour.
+- **Recall and readability** (ADR-094/095): a 6-second recall channel, cancelled by damage or
+  any order. Measured alone it moved nexus finishes from 7/12 to 10/12 and the median match
+  from 22 to 19 minutes — the shop had been unreachable in practice, so the economy never
+  circulated. Alongside it: a lane overview strip, a ground aim preview while an ability is
+  held, zone-tinted terrain with tower plinths and a centre line, wheel/pinch zoom, and a gold
+  pop on every last hit.
 
 ## Verification
 
-- `node games/moba/tests/sim.mjs` → 183/183. (It read 152 before: the summary line sat above
+- `node games/moba/tests/sim.mjs` → 191/191. (It read 152 before: the summary line sat above
   T15–T19, so thirty-odd assertions ran but were never counted and could not fail the run.
   The summary now lives at the end of the file.)
 - `node games/moba/tests/browser.mjs` → 52/52 (landscape and portrait: load, select, start,
@@ -76,7 +82,7 @@ and original audio, playable on desktop and phone.
 - Effects differ by ability *form*; projectiles and cast rings now take the caster's colour,
   but two casters of the same form still share a silhouette.
 - Frame rate is unmeasured on real hardware (see the next action).
-- Bot-vs-bot mirror matches end at a nexus 7 times in 12; the rest are decided on remaining
+- Bot-vs-bot mirror matches end at a nexus 10 times in 12; the rest are decided on remaining
   structure HP at the 25-minute limit.
 - `ironhulk` measured 30% over a 20-match rotation while the rest sit at 40–70%. The sample is
   small — measure more before changing numbers.
@@ -104,3 +110,4 @@ downgrade ever fires when it should not.
   cancelled scaling curves, not tower durability. ADR-088/089.
 - Tightening the XP curve, or weakening the nexus, to speed matches up: both measured worse.
   ADR-092.
+- Dirt hexes or stone posts as a centre landmark: both tried and both read badly. ADR-095.

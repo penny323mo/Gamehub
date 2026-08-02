@@ -103,7 +103,7 @@ html, body {
 .moba-timer { font-size: 14px; opacity: 0.75; }
 
 .moba-feed {
-    position: absolute; top: calc(46px + env(safe-area-inset-top, 0px)); left: 50%;
+    position: absolute; top: calc(78px + env(safe-area-inset-top, 0px)); left: 50%;
     transform: translateX(-50%); display: flex; flex-direction: column; gap: 3px; align-items: center;
 }
 .moba-feed-line {
@@ -259,12 +259,14 @@ html, body {
    喺窄畫面度必然會撞。所以直向改成上下分層。 */
 @media (orientation: portrait) {
     .moba-board {
-        top: calc(46px + env(safe-area-inset-top, 0px));
-        right: 50%;
-        transform: translateX(50%);
-        min-width: 190px;
+        top: calc(74px + env(safe-area-inset-top, 0px));
+        right: calc(8px + var(--safe-r));
+        min-width: 150px;
+        font-size: 9.5px;
+        padding: 4px 7px;
+        opacity: 0.9;
     }
-    .moba-feed { top: calc(152px + env(safe-area-inset-top, 0px)); }
+    .moba-feed { top: calc(76px + env(safe-area-inset-top, 0px)); left: 30%; }
     .moba-panel {
         left: 50%;
         transform: translateX(-50%);
@@ -402,3 +404,49 @@ html, body {
 .srow .k { min-width: 56px; text-align: right; }
 .srow .c { min-width: 62px; text-align: right; opacity: 0.7; }
 .srow .i { min-width: 38px; text-align: right; opacity: 0.55; }
+
+/* ---------- 兵線總覽 ---------- */
+.moba-lane {
+    position: absolute; top: calc(46px + env(safe-area-inset-top, 0px));
+    left: 50%; transform: translateX(-50%);
+    width: min(560px, 78vw); height: 26px;
+    background: var(--panel); border: 1px solid var(--edge); border-radius: 99px;
+    padding: 0 2px; overflow: hidden;
+}
+.moba-lane canvas { display: block; }
+
+@media (orientation: portrait) {
+    .moba-lane { width: min(400px, 92vw); top: calc(42px + env(safe-area-inset-top, 0px)); }
+}
+
+/* ---------- 返程 ---------- */
+.moba-recall {
+    position: absolute; right: calc(10px + var(--safe-r)); bottom: calc(128px + var(--safe-b));
+    padding: 6px 14px; border-radius: 99px; font: inherit; font-size: 12px; cursor: pointer;
+    background: var(--panel); border: 1px solid var(--edge); color: #cfd8ea;
+}
+.moba-recall.on { border-color: var(--blue); color: var(--blue); }
+.moba-recallbar {
+    position: absolute; left: 50%; bottom: 26%; transform: translateX(-50%);
+    width: min(220px, 58vw); height: 20px; border-radius: 99px; overflow: hidden;
+    background: rgba(9, 12, 21, 0.85); border: 1px solid var(--edge);
+    display: grid; place-items: center;
+}
+.moba-recallbar i {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+    background: linear-gradient(90deg, #4ea4ff, #8f7bff); opacity: 0.75;
+}
+.moba-recallbar span { position: relative; font-size: 11px; letter-spacing: 0.12em; }
+.moba-goldpop {
+    position: absolute; left: 50%; bottom: 34%; transform: translateX(-50%);
+    color: var(--gold); font-size: 15px; font-weight: 800; text-shadow: 0 2px 8px #000c;
+    pointer-events: none; animation: goldrise 0.9s ease-out forwards;
+}
+@keyframes goldrise {
+    0% { opacity: 0; transform: translate(-50%, 6px) scale(0.9); }
+    22% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -26px); }
+}
+@media (orientation: portrait) {
+    .moba-recall { bottom: calc(190px + var(--safe-b)); }
+}

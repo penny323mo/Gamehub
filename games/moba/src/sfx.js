@@ -316,6 +316,8 @@ export class Sfx {
                 case 'levelup': if (ev.id === me.id) this.play('levelup'); break;
                 case 'buy': if (ev.id === me.id) this.play('buy'); break;
                 case 'warden': this.play('warden'); break;
+                case 'cs': if (ev.id === me.id) this.play('buy', { volume: 0.5 }); break;
+                case 'recallDone': if (ev.id === me.id) this.play('heal'); break;
                 case 'tower': this.play('tower'); break;
                 case 'death': {
                     const v = sim.champions.find(c => c.id === ev.id);
