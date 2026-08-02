@@ -82,11 +82,10 @@ and original audio, playable on desktop and phone.
 
 ## Known issues and cautions
 
-- Effects differ by ability *form*; two casters of the same form still share a silhouette.
-- Frame rate is unmeasured on real hardware (see the next action).
-- Bot-vs-bot mirror matches end at a nexus 20 times in 24 (was 23/24). ADR-098 keeps the trade
-  explicit: fights resolve and decisive matches got 2.3 min faster, but even matches now go the
-  distance. If that ratio slips further, look there first.
+- Effects differ by ability *form*; two casters of the same form share a silhouette. Frame rate
+  is unmeasured on real hardware (see the next action).
+- Mirror bot matches end at a nexus 20/24 (was 23/24) — ADR-098's deliberate trade: fights
+  resolve and decisive matches got 2.3 min faster. If that ratio slips further, look there.
 - `ironhulk` measured 30% over 20 matches while the rest sit at 40–70%; small sample, measure more.
 - The browser test drives no bot for the player, so it always reaches the 25-minute verdict.
 - `sim.js` must never import three.js. That separation is what makes rule bugs findable in node.
@@ -94,10 +93,11 @@ and original audio, playable on desktop and phone.
 
 ## Exact next action
 
-Playtest on a real phone — that is the one thing this environment cannot measure. Frame rate
-here is bounded by software rasterisation, so the quality tiers and the auto-downgrade are
-untested against real hardware. Check joystick reach, drag-to-aim, and whether the automatic
-downgrade ever fires when it should not.
+Fix the joystick overshoot Penny reported: the champion keeps walking after the stick is
+released. `input.js` issues `orderMove(p, p.x + dir.dx * 6, ...)` every frame while the stick is
+held; on release `dir` is null so no new order is issued, but the last one — six metres ahead —
+is still set and `#tickChamp` walks the rest of it. Release should `orderStop` when the standing
+order came from the stick (not when it is an attack order). Then playtest on a real phone.
 
 ## Do not redo
 
