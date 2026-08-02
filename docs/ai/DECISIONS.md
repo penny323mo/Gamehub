@@ -1812,6 +1812,8 @@ follows what the tyres can use
 - Asset provenance moves with the game. The bundled Quaternius, Kenney, KayKit, Poly Haven, and
   OpenGameArt files retain their source/license records under `public/assets/licenses/`, and the
   in-game credits/fan-made disclaimer remain available.
+- Runtime model loads retry up to three times. A persistent failure must offer an explicit reload
+  action and must never change the title screen to a playable state with an empty 3D world.
 - Reason: copying the old worker build would leave no static HTML entry and absolute `/assets/...`
   paths would escape the nested game folder. A thin client conversion preserves the actual 3D
   game while making its deploy/runtime contract match the existing static Hub.

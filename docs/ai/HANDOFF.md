@@ -4,8 +4,7 @@ Updated: 2026-08-02 (Asia/Macau)
 Prepared by: Codex (local)
 Integration branch: `main`
 Work branch: `main`
-Status: Elden Ring II side quest integrated and locally browser-verified; production
-        deployment is the remaining release gate for this checkpoint
+Status: Elden Ring II side quest integrated, deployed, and production browser-verified
 
 ## Current objective
 
@@ -29,6 +28,9 @@ repository's GitHub Pages pipeline.
   `games/elden-ring-ii/dist/index.html`.
 - Updated Pages CI to cache, install, test, and build Elden Ring II before staging the static site.
 - Upgraded the copied Vite toolchain from vulnerable 8.0.13 to 8.2.0; full `npm audit` is clean.
+- Hardened 3D loading after the first production cold load exposed one transient GitHub Pages 503:
+  every model retries up to three times, and a persistent failure now shows an explicit
+  `RETRY LOADING THE REALM` action instead of letting the player enter an empty world.
 - ADR-101 records the static-hosting, persistence, asset-license, and browser-gate decisions.
 
 ## Verification
@@ -45,7 +47,16 @@ repository's GitHub Pages pipeline.
 - Chromium mobile touch context at 844×390:
   - touch controls are visible; a real CDP touch drag on the joystick changed player position;
     a right-half touch drag changed camera yaw; **0 failed responses / 0 console problems**.
-- Production GitHub Pages smoke: **pending push/deploy of this checkpoint**.
+- Fault-injection browser gate: one forced `warrior.glb` 503 retried and recovered on attempt 2,
+  reached `playing`, and moved the character; three forced 503s produced the explicit retry UI
+  with no `ENTER THE VEIL` action.
+- GitHub Pages workflow `30750812641` → **build and deploy success** for `9e59921`.
+- Cache-disabled production touch smoke at
+  `https://penny323mo.github.io/Gamehub/games/elden-ring-ii/dist/index.html`:
+  - Hub card navigation reached the deployed `index-D0cNwJ2k.js` bundle; one WebGL canvas,
+    Cannon-es, local persistence, and touch controls were active.
+  - **23/23 model requests returned 200**; character moved, camera yaw changed, `loadError` stayed
+    absent, and there were **0 failed responses / 0 console errors or warnings**.
 
 ## Changed files
 
@@ -59,6 +70,8 @@ repository's GitHub Pages pipeline.
 
 - The production bundle is intentionally graphics-heavy (about 23 MB of models/audio plus the
   Three.js game bundle). First load can take longer on a cold mobile connection.
+- GitHub Actions reports a non-blocking Node 20 deprecation annotation for official action
+  internals; GitHub forced those actions onto Node 24 and both build and deploy completed.
 - GitHub Pages cannot run the old Cloudflare worker or server auth. Do not reintroduce worker-only
   imports into the Hub copy; local play must remain fully functional without Supabase.
 - Keep model/audio URLs relative. Root `/assets/...` URLs reproduce the 404 failure caught during
@@ -69,10 +82,8 @@ repository's GitHub Pages pipeline.
 
 ## Exact next action
 
-1. Push this checkpoint to `origin/main`, verify the Pages workflow succeeds, then hard-load the
-   public Hub and the Elden nested path with cache disabled; require the title screen and assets to
-   load without console/network errors.
-2. After Penny ends the side quest, resume the mainline from the agreed remote baseline. Local
+1. Side quest is complete. After Penny ends the pause, resume the mainline from this pushed remote
+   baseline. Local
    Codex may restore the named stash; another environment should ask Penny whether to start a new
    visual-effects pass rather than guessing at unavailable local WIP.
 
