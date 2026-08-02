@@ -12,7 +12,7 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import { GameAudio } from "./audio";
 import { hasSupabaseFoundation, recordCompletedRun } from "./progress";
 
-type GameStatus = "loading" | "ready" | "playing" | "victory" | "dead";
+type GameStatus = "loading" | "ready" | "playing" | "victory" | "dead" | "error";
 type CharacterClass = "warrior" | "wizard" | "ranger";
 
 const CLASS_CONFIG: Record<
@@ -995,6 +995,20 @@ export default function GameClient() {
       setHud((state) => ({ ...state, loading: Math.round((loaded / total) * 100) }));
     };
     const loader = new GLTFLoader(loaderManager);
+    const loadModel = async (url: string) => {
+      let latestError: unknown = new Error(`Unable to load ${url}`);
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          return await loader.loadAsync(url);
+        } catch (error) {
+          latestError = error;
+          if (attempt < 2) {
+            await new Promise((resolve) => window.setTimeout(resolve, 300 * (attempt + 1)));
+          }
+        }
+      }
+      throw latestError;
+    };
 
     const addEnvironment = async (
       url: string,
@@ -1004,7 +1018,7 @@ export default function GameClient() {
       tint = "#77766f",
       tintStrength = 0.48,
     ) => {
-      const gltf = await loader.loadAsync(url);
+      const gltf = await loadModel(url);
       const object = gltf.scene;
       configureModel(object, height, tint, tintStrength);
       object.position.x += position[0];
@@ -1064,10 +1078,10 @@ export default function GameClient() {
       const characterClasses = Object.keys(CLASS_CONFIG) as CharacterClass[];
       const [characterGltfs, bossGltf, skeletonGltf] = await Promise.all([
         Promise.all(characterClasses.map((characterClass) =>
-          loader.loadAsync(CLASS_CONFIG[characterClass].asset),
+          loadModel(CLASS_CONFIG[characterClass].asset),
         )),
-        loader.loadAsync("/assets/monsters/demon.gltf"),
-        loader.loadAsync("/assets/enemies/skeleton-minion.glb"),
+        loadModel("/assets/monsters/demon.gltf"),
+        loadModel("/assets/enemies/skeleton-minion.glb"),
       ]);
       if (!alive) return;
 
@@ -1184,6 +1198,7 @@ export default function GameClient() {
       if (!alive) return;
       activateWave(0);
       worldReady = true;
+      delete mount.dataset.loadError;
       setHud((state) => ({
         ...state,
         loading: 100,
@@ -1194,7 +1209,8 @@ export default function GameClient() {
     loadWorld().catch((error) => {
       console.error("Failed to load the 3D world", error);
       if (alive) {
-        setHud((state) => ({ ...state, status: "ready", loading: 100 }));
+        mount.dataset.loadError = "true";
+        setHud((state) => ({ ...state, status: "error", loading: 0 }));
       }
     });
 
@@ -2168,10 +2184,16 @@ export default function GameClient() {
           </div>
           <button
             className="enter-button"
-            onClick={startGame}
+            onClick={hud.status === "error" ? () => window.location.reload() : startGame}
             disabled={hud.status === "loading"}
           >
-            <span>{hud.status === "loading" ? `FORGING THE REALM · ${hud.loading}%` : "ENTER THE VEIL"}</span>
+            <span>
+              {hud.status === "loading"
+                ? `FORGING THE REALM · ${hud.loading}%`
+                : hud.status === "error"
+                  ? "RETRY LOADING THE REALM"
+                  : "ENTER THE VEIL"}
+            </span>
           </button>
           <div className="control-hints">
             <span><kbd>WASD</kbd> Move</span>

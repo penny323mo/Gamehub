@@ -33,6 +33,8 @@ test("keeps nested hosting asset-safe and local-save capable", async () => {
   ]);
   assert.match(gameClient, /DefaultLoadingManager\.setURLModifier/);
   assert.match(gameClient, /loaderManager\.setURLModifier/);
+  assert.match(gameClient, /attempt < 3/);
+  assert.match(gameClient, /RETRY LOADING THE REALM/);
   assert.match(audio, /import\.meta\.env\.BASE_URL/);
   assert.match(progress, /window\.localStorage/);
   assert.doesNotMatch(progress, /process\.env/);
