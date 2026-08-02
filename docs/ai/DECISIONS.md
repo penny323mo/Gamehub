@@ -1664,3 +1664,59 @@ follows what the tyres can use
 - Gates: `browser.mjs` asserts a basic attack adds visual effects, that projectiles exist in the
   view whenever the sim has them, that every projectile is rotated off vertical, that the bar
   colour changes with health, and that bars stay narrower than a champion.
+
+## ADR-098: A bot that re-decides every 0.2 seconds never finishes a fight
+
+- Date: 2026-08-02
+- Status: accepted
+- Decision: four changes to `ai.js`, all in the same direction — make a decision, then live with
+  it long enough for it to mean something.
+  1. **Commitment.** Entering FIGHT locks the choice in for 3–5.5 s (longer for aggressive
+     personalities), and the threshold to enter is higher than the threshold to break off.
+     Breaking off starts a 2.5 s disengage window so a retreat is not reversed mid-step.
+  2. **Local power, not personal health.** FIGHT/RETREAT compares both sides' effective HP ×
+     damage × attack speed within 15 m of the contact point, ×1.6 for whoever's tower covers it.
+  3. **Shared focus target.** Every bot on a team runs the same scoring formula over the same
+     state, so all three converge on one enemy — squishy, low, and reachable scores lowest —
+     without any shared "captain" object or update ordering.
+  4. **Reachable-only dodging**, and a **power-play siege window**: with the defenders dead or
+     out of position, two healthy champions may hit a tower without minion cover.
+- Reason: the complaint was that team fights read as a mush. The first hypothesis — bots not
+  focusing fire — was measured and **wrong**: concentration was already 1.01 distinct targets per
+  team, where 1.00 is perfect focus. The measurement did find the real fault: 664 "fights" across
+  six matches averaging 3.6 s, 90% of them producing no death. `pickState` is a pure function of
+  the current instant, recomputed every 0.18–0.40 s, and FIGHT and RETREAT sat on the *same*
+  threshold — two champions trading damage cross it in opposite directions every second or so, so
+  every engagement shattered into a dozen three-second standoffs. A decision re-derived faster
+  than its own consequences arrive is not a decision.
+- Comparing 1v1 health percentages was its own bug: a bot in a 3v1 walked away because its bar
+  was lower, and a bot in a 1v3 charged in because its bar was higher.
+- Measured on 24 seeds that no tuning touched, mirror lineups, whole matches:
+
+  | version | nexus finishes | kills | skillshot hits | mean match |
+  | --- | --- | --- | --- | --- |
+  | before | 23/24 | 365 | 77% | 18.4 min |
+  | commitment + focus + power ratio | 19/24 | 736 | 75% | 19.0 min |
+  | **shipped** (that + power-play window) | **20/24** | **627** | **76%** | **17.3 min** |
+
+- **This is a trade, not a free win, and the shipped column is worse on one axis.** Three more
+  matches out of 24 now reach the 25-minute limit. What was bought: fights that resolve (kills
+  365 → 627, and the share of fights producing a death went 10% → 28%) and *faster* decisive
+  matches — the games that do end at a nexus dropped from 18.1 to 15.8 minutes. The game became
+  polarised rather than slower: a team that wins fights now closes them out, and a genuinely even
+  match goes the distance. That is what a MOBA should do, so it ships.
+- **Method error worth keeping.** The first tuning round ran on the twelve seeds T13 itself uses,
+  read 10/12 → 11/12, and called it an improvement. On 24 fresh seeds that gain did not exist.
+  Tuning against the test's own seeds is tuning against the test. Every number above comes from
+  the independent set; T13 is now only a gate, never a search space.
+- Rejected, measured: raising the engage threshold globally so bots fight less — 8/12 at +0.25 and
+  9/12 at +0.50 on the tuning set, with skillshot accuracy collapsing to 45% because bots stopped
+  closing at all. Declining a fight and abandoning the objective are the same mistake in different
+  clothes; the fix was to price the objective, not to suppress fighting.
+- Dodging deliberately does nothing at point-blank range. Clearing a projectile's width needs a
+  lateral speed inversely proportional to the time left, and that exceeds a champion's move speed
+  well before contact — a bot that sidesteps anyway takes the hit *and* loses its position. The
+  test is not "is this dangerous" but "starting now, is there time to get out".
+- Gates: `sim.mjs` T21 asserts a bot sidesteps a projectile 1.6 s out, that the sidestep is
+  perpendicular and stays on the bridge, and that a projectile 0.15 s out produces no movement at
+  all. T13 still requires nexus finishes to be the majority outcome.

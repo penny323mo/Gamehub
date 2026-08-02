@@ -548,5 +548,38 @@ function armourMulOf(sim, e) { return 100 / (100 + sim.stats(e).armour); }
     check('施法會斷返程', sim4.recallProgress(c4) === 0);
 }
 
+// ---------- T21：閃技能 ----------
+// 閃避唔係「見到彈道就郁」，係「計得掂先郁」。埋到身先側身需要嘅橫向速度
+// 會超過角色跑得幾快，嗰陣郁只會兩頭唔到岸——行咗兩步，一樣食足。
+// 所以呢兩條驗嘅係個判斷本身：夠時間要閃得出彈道之外，唔夠時間要企定。
+function dodgeCase(px, speed) {
+    const sim = new Sim({ seed: 71 });
+    const c = sim.champions.find(x => x.team === TEAM.RED);
+    c.x = 0; c.z = 0;
+    // 淨低佢一個喺場中間，等閃避以外嘅指令唔會夾埋一齊影響個結果
+    for (const o of sim.champions) if (o !== c) { o.x = 200; o.z = 0; }
+    const bot = createBot(sim, c);
+    sim.projectiles.push({
+        kind: 'bolt', skill: true, team: TEAM.BLUE, sourceId: -1,
+        x: px, z: 0, vx: 1, vz: 0, speed, width: 1.2, pierce: false,
+        left: 40, hits: new Set(), onHit() {}, onAlly: null,
+    });
+    bot.update(TICK);
+    return { c, sim };
+}
+{
+    // 二十米外、每秒十二米：一點六秒到，行得切
+    const far = dodgeCase(-20, 12);
+    check('閃技能：夠時間就側身避開', Math.abs(far.c.orderZ) > 1.2 + far.c.r,
+        { orderZ: far.c.orderZ, need: 1.2 + far.c.r });
+    check('閃技能：向側面行，唔係向前後行', Math.abs(far.c.orderX) < 1e-9, far.c.orderX);
+    check('閃技能：唔會閃出橋外', Math.abs(far.c.orderZ) <= MAP.halfWidth, far.c.orderZ);
+
+    // 三米外、每秒二十米：零點一五秒到，點行都閃唔切
+    const near = dodgeCase(-3, 20);
+    check('閃技能：閃唔切就唔好亂郁', Math.abs(near.c.orderZ ?? 0) < 0.01,
+        { orderZ: near.c.orderZ });
+}
+
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);
 if (fail) { console.log('失敗項目:', failed.join('、')); process.exit(1); }
