@@ -408,6 +408,12 @@ export class Hud {
 
         const target = p.orderTarget != null && sim.entities.find(e => e.id === p.orderTarget);
         this.attackBtn.classList.toggle('on', !!(target && target.alive));
+        // 普攻間隔成一秒半。冇呢個掃描，玩家撳完乜反應都冇，就會覺得
+        // 「個掣壞咗」而唔係「仲要等」——技能掣一直都有讀秒，普攻反而冇。
+        const gap = 1 / Math.max(0.2, sim.stats(p).attackSpeed);
+        const wait = Math.max(0, Math.min(1, p.cd / gap));
+        this.attackBtn.style.setProperty('--cd', wait.toFixed(3));
+        this.attackBtn.style.setProperty('--cd-on', wait > 0.02 ? '1' : '0');
 
         // 返程：喺屋企就冇意思，讀秒中就變成一條進度條
         const prog = sim.recallProgress(p);

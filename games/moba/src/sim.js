@@ -460,7 +460,12 @@ export class Sim {
         const d = c.dash;
         const step = d.speed * dt;
         const remain = Math.hypot(d.tx - c.x, d.tz - c.z);
-        if (remain <= step) { c.x = d.tx; c.z = d.tz; this.#endDash(c); return; }
+        if (remain <= step || this.time > d.deadline) {
+            c.x = d.tx; c.z = d.tz;
+            this.#clampToBridge(c);
+            this.#endDash(c);
+            return;
+        }
         c.x += (d.tx - c.x) / remain * step;
         c.z += (d.tz - c.z) / remain * step;
         this.#clampToBridge(c);
@@ -486,12 +491,16 @@ export class Sim {
         const d = Math.hypot(dx, dz);
         if (d < 0.05) return true;
         const step = Math.min(d, st.speed * dt);
+        const fromX = e.x, fromZ = e.z;
         e.x += dx / d * step;
         e.z += dz / d * step;
         this.#clampToBridge(e);
         e.facing = Math.atan2(dx, dz);
         e.moving = true;
         e.standingSince = 0;
+        // 完全郁唔到（撞實橋邊、或者畀人群卡住）就當到咗，唔好一直撼落去。
+        // 落指令嗰邊每格都會重下，所以放棄一個去唔到嘅目標冇成本。
+        if (Math.hypot(e.x - fromX, e.z - fromZ) < step * 0.15) return true;
         return d - step < 0.05;
     }
 
@@ -777,7 +786,12 @@ export class Sim {
     orderMove(c, x, z) {
         if (!c.alive) return false;
         this.cancelRecall(c, 'moved');
-        c.orderX = x; c.orderZ = z; c.orderTarget = null;
+        // 目標一定要係去得到嘅位置。實體會夾到 ±(halfWidth − r)，但落指令嗰邊
+        // （input.js、bot）夾嘅係 ±halfWidth——差咗個半徑，角色就永遠「未到」，
+        // orderX 清唔到，於是一直撼住條邊行，睇落就係卡死。
+        const goal = { x, z, r: c.r };
+        this.#clampToBridge(goal);
+        c.orderX = goal.x; c.orderZ = goal.z; c.orderTarget = null;
         return true;
     }
     orderAttack(c, targetId) {
@@ -870,8 +884,15 @@ export class Sim {
         const t = this.entities.find(e => e.id === aim.targetId);
         if (!t || !t.alive) return;
         if (dist(c, t) > ab.range + t.r + 0.5) return;
+        // 目標唔啱陣營就當冇施放過，唔好出視覺
+        if (ab.allyTarget ? t.team !== c.team : t.team === c.team) return;
+        // 單體技能之前完全冇出過視覺事件：施法者腳下一個細圈，受者嗰邊乜都冇。
+        // 隔住八米指一指，對面就跌血——玩家根本唔知發生過咩事。
+        this.emit('strike', {
+            sourceId: c.id, targetId: t.id, x: t.x, z: t.z,
+            ally: !!ab.allyTarget, key: ab.key,
+        });
         if (ab.allyTarget) {
-            if (t.team !== c.team) return;
             if (ab.shield) {
                 t.shield = Math.max(t.shield, scaled(ab.shield, rank) + (ab.shieldRatio ?? 0) * this.stats(c).maxHp);
                 t.shieldUntil = this.time + ab.duration;
@@ -887,9 +908,18 @@ export class Sim {
         let dx = (aim.x ?? c.x) - c.x, dz = (aim.z ?? c.z) - c.z;
         const d = Math.hypot(dx, dz) || 1;
         dx = dx / d * sign; dz = dz / d * sign;
-        const tx = c.x + dx * ab.range, tz = c.z + dz * ab.range;
+        // 落點一定要夾返入橋面，而且要夾完先寫入 c.dash。
+        // 之前係夾一個臨時物件跟手掉咗，c.dash 收住個橋外座標——#tickDash
+        // 每格將位置夾返橋內，但目標永遠去唔到，remain 減唔落，衝刺就
+        // 永遠唔會完；而 #tickChamp 第一句就係 if (c.dash) return，
+        // 角色由嗰刻起完全凍結。同 dashFrom 一樣：計咗，冇人用。
+        const goal = { x: c.x + dx * ab.range, z: c.z + dz * ab.range, r: c.r };
+        this.#clampToBridge(goal);
+        const tx = goal.x, tz = goal.z;
         c.dash = {
             tx, tz, speed: 26, hitOnContact: (ab.damage && scaled(ab.damage, rank) > 0),
+            // 保險絲：任何情況下衝刺都唔可以無限期綁住個角色
+            deadline: this.time + ab.range / 26 + 0.5,
             onArrive: (victim) => {
                 if (victim) this.#applyOnHit(c, ab, rank, victim);
                 if (ab.radius) {
@@ -900,7 +930,6 @@ export class Sim {
                 }
             },
         };
-        this.#clampToBridge({ x: tx, z: tz, r: c.r });
     }
 
     _form_aoe(c, ab, rank, aim) {
@@ -914,7 +943,7 @@ export class Sim {
                 damage: this.#abilityDamage(c, ab, rank),
                 slow: ab.slow, slowTime: ab.slowTime,
             });
-            this.emit('zone', { x, z, radius: ab.radius, team: c.team });
+            this.emit('zone', { x, z, radius: ab.radius, team: c.team, sourceId: c.id });
             return;
         }
         const fire = () => {

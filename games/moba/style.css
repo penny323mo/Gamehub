@@ -303,6 +303,14 @@ html, body {
     touch-action: none;
 }
 .moba-attack.on { border-color: var(--gold); box-shadow: 0 0 14px #f2c85b55; }
+/* 普攻冷卻掃描：撳完之後成一秒半冇反應，唔畫呢個就同壞咗冇分別。
+   --cd 係「仲要等幾多」：1 = 啱啱出手，0 = 可以再出手，塊暗色會收返埋。 */
+.moba-attack::after {
+    content: ''; position: absolute; inset: 3px; border-radius: 50%;
+    background: conic-gradient(rgba(6, 9, 16, 0.62) calc(var(--cd, 0) * 360deg), transparent 0);
+    pointer-events: none; opacity: var(--cd-on, 0);
+}
+.moba-attack .nm, .moba-attack .k { position: relative; z-index: 1; }
 .moba-attack .nm { display: block; font-size: 15px; font-weight: 800; letter-spacing: 0.08em; }
 .moba-attack .k { display: block; font-size: 9px; opacity: 0.6; margin-top: 2px; }
 

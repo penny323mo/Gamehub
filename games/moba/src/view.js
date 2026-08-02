@@ -48,12 +48,16 @@ const HP_LOW = new THREE.Color(0xff4d3d);
 
 function makeBar(width, teamColour, height = 0.34) {
     const g = new THREE.Group();
+    // 四件都一定要 transparent: true。three.js 分開兩次繪製——所有不透明物件
+    // 行先，跟住先到透明物件——而 renderOrder 只喺同一次入面排序。之前 back 係
+    // 透明、fill 係不透明，所以黑色底板永遠喺綠色血量之後先畫，加埋
+    // depthTest: false，就變成一條純黑嘅條。血量色改咗都冇人見過。
     const back = new THREE.Mesh(
         sharedGeo(`bar-back-${width}-${height}`, () => new THREE.PlaneGeometry(width + 0.1, height + 0.09)),
         new THREE.MeshBasicMaterial({ color: 0x05070d, transparent: true, opacity: 0.9, depthTest: false }));
     const fill = new THREE.Mesh(
         sharedGeo(`bar-fill-${width}-${height}`, () => new THREE.PlaneGeometry(width, height)),
-        new THREE.MeshBasicMaterial({ color: 0x3ddc84, depthTest: false }));
+        new THREE.MeshBasicMaterial({ color: 0x3ddc84, transparent: true, depthTest: false }));
     fill.position.z = 0.01;
     // 護盾疊喺血量上面，用白色——盾同血唔同質，唔可以同色
     const shield = new THREE.Mesh(
@@ -64,7 +68,7 @@ function makeBar(width, teamColour, height = 0.34) {
     // 隊色細線：血量色已經被血量用咗，隊伍就用底下呢條線
     const stripe = new THREE.Mesh(
         sharedGeo(`bar-stripe-${width}`, () => new THREE.PlaneGeometry(width + 0.1, 0.07)),
-        new THREE.MeshBasicMaterial({ color: teamColour, depthTest: false }));
+        new THREE.MeshBasicMaterial({ color: teamColour, transparent: true, depthTest: false }));
     stripe.position.set(0, -(height + 0.09) / 2 - 0.015, 0.01);
     g.add(back, fill, shield, stripe);
     for (const [i, m] of [back, fill, shield, stripe].entries()) m.renderOrder = 900 + i;
@@ -639,8 +643,13 @@ export class View {
                     const u = this.units.get(ev.id);
                     if (!u) break;
                     const e = u.entity;
+                    // 揮劍要快，唔可以拉到成個冷卻咁長。攻擊間隔係 1.5 秒，
+                    // 之前就將一下揮擊攤開喺 1.1 秒度播——即係全程慢動作，
+                    // 睇落好似永遠喺度舉劍、由頭到尾都未斬落去。真遊戲係
+                    // 「斬得快，然後等」，唔係「慢慢斬足個冷卻」。
                     const rate = e.kind === 'champ' ? this.sim.stats(e).attackSpeed : e.attackSpeed;
-                    u.rig.once(this.assets, u.look.attack, Math.min(1.1, 1 / Math.max(0.2, rate)));
+                    const gap = 1 / Math.max(0.2, rate);
+                    u.rig.once(this.assets, u.look.attack, Math.min(0.42, gap * 0.75));
                     // 揮擊軌跡。喺呢個俯視距離，一個 1.7 米高嘅角色揮劍嘅骨骼動作
                     // 佔唔到幾多像素，實測就係「乜都見唔到」。真遊戲靠武器拖影
                     // 交代呢一下——所以近戰畫一道弧，遠程／法術喺出手位置閃一下。
@@ -678,8 +687,26 @@ export class View {
                     this.fx.ring(ev.x, ev.z, ev.radius, 0xffb055, { life: 0.45, from: 0.4, to: 1.05 });
                     break;
                 }
+                // 單體技能：由施法者拉一道光去受者，再喺受者度爆一下。
+                // 一個「隔空指一指就跌血」嘅技能，唔畫呢兩下就等於冇施放過。
+                case 'strike': {
+                    const src = this.units.get(ev.sourceId);
+                    const colour = ev.ally ? 0x8fe9c0 : (src?.look.ringColour ?? 0xffd27a);
+                    if (src) {
+                        this.fx.streak(src.obj.position.x, src.obj.position.z, ev.x, ev.z, colour);
+                    }
+                    this.fx.flash(ev.x, ev.z, ev.ally ? 2.2 : 2.6, colour, 0.32);
+                    this.fx.ring(ev.x, ev.z, ev.ally ? 2.0 : 2.4, colour,
+                        { life: 0.42, from: 0.35, to: 1.25 });
+                    break;
+                }
                 case 'telegraph': this.fx.telegraph(ev.x, ev.z, ev.radius, ev.delay); break;
-                case 'zone': this.fx.zone(ev.x, ev.z, ev.radius, 0xff8a4a, 4); break;
+                // 地面區域用施法者嘅代表色，唔好成場都係同一橙色
+                case 'zone': {
+                    const src = this.units.get(ev.sourceId);
+                    this.fx.zone(ev.x, ev.z, ev.radius, src?.look.ringColour ?? 0xff8a4a, 4);
+                    break;
+                }
                 case 'trap': this.fx.zone(ev.x, ev.z, ev.radius, 0x9a6ad6, 6); break;
                 case 'trapFire': this.fx.ring(ev.x, ev.z, 3, 0x9a6ad6, { life: 0.4 }); break;
                 case 'tower': this.#towerFell(ev); break;
@@ -735,6 +762,9 @@ export class View {
         }
         const colour = u.look.ringColour ?? 0xffd27a;
         const x = u.obj.position.x, z = u.obj.position.z;
+        // 每一種形態都要有「呢度施咗法」嘅一下。之前 self 同 dash 靠光環／殘影，
+        // 但單體同區域類就淨係一個細圈，喺呢個鏡頭距離基本上見唔到。
+        this.fx.flash(x, z, 1.7, colour, 0.24);
         switch (ab.form) {
             case 'self':
                 this.fx.aura(e, colour, ab.duration ?? 2.5);

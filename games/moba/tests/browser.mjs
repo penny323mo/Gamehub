@@ -228,6 +228,25 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     check(`${tag}：血條顏色跟血量變（唔係隊伍色）`, bars.differs, bars);
     check(`${tag}：血條窄過角色（唔會疊成一堆）`, bars.width <= 2.4, bars.width);
 
+    // 上面兩條驗嘅係 material 嘅顏色，但畫面上成條血條係純黑嘅——因為
+    // three.js 分兩次繪製（先不透明、後透明），renderOrder 只喺同一次入面
+    // 排序。黑底係透明、血量係不透明，所以黑底永遠喺血量之後先畫，
+    // 加埋 depthTest: false 就完全冚死。呢兩條就係補返嗰個空隙。
+    const layer = await page.evaluate(() => {
+        const v = window.__view;
+        const u = [...v.units.values()].find(x => x.entity.kind === 'champ');
+        const parts = u.bar.children.map(m => ({ t: !!m.material.transparent, o: m.renderOrder }));
+        const { fill } = u.bar.userData;
+        const back = u.bar.children[0];
+        return {
+            parts,
+            sameList: parts.every(p => p.t === parts[0].t),
+            fillOver: fill.renderOrder > back.renderOrder,
+        };
+    });
+    check(`${tag}：血條四件喺同一個繪製批次（renderOrder 先至話事）`, layer.sameList, layer.parts);
+    check(`${tag}：血量畫喺黑底之上`, layer.fillOver, layer.parts);
+
     // 快進成場波：一定要有結果，唔可以卡死或者拋錯
     const outcome = await page.evaluate(() => {
         const s = window.__sim;

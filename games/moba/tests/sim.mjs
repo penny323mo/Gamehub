@@ -581,5 +581,50 @@ function dodgeCase(px, speed) {
         { orderZ: near.c.orderZ });
 }
 
+// ---------- T22：衝刺唔可以令角色永久卡死 ----------
+// 燼燃嘅「閃退」係向後衝。貼實橋邊向外閃，落點就喺橋外——之前落點冇夾返
+// 入橋面，#tickDash 每格夾住個位置但目標永遠去唔到，remain 減唔落，
+// c.dash 永遠唔會清；而 #tickChamp 第一句就係 if (c.dash) return，
+// 由嗰刻起個角色完全唔郁得、唔打得。Penny 見到嘅「卡死喺嗰邊」就係呢個。
+{
+    const mirror = ['emberwake', 'ironward', 'longshot'];
+    const sim = new Sim({ seed: 81, lineups: { [TEAM.BLUE]: mirror, [TEAM.RED]: mirror } });
+    const c = sim.champions.find(x => x.team === TEAM.BLUE && x.champId === 'emberwake');
+    const idx = c.def.abilities.findIndex(a => a.form === 'dash');
+    c.level = 12; c.mp = c.maxMp;
+    // 唔好貼死條邊：留三米，等衝刺真係要行一段先撞到邊界，
+    // 咁先測到「行行下畀夾住」嗰條路徑，唔係一格就完。
+    c.x = 0; c.z = MAP.halfWidth - 3;
+    const z0Dash = c.z;
+    check('前置：搵到一個向後嘅位移技', idx >= 0 && c.def.abilities[idx].backwards === true);
+    check('閃退：施放成功', sim.cast(c, idx, { x: 0, z: -10 }) === true);   // 向 -z 瞄 = 向 +z 衝出橋
+
+    let ticks = 0;
+    while (c.dash && ticks++ < 30 * 5) sim.step();
+    check('衝刺一定會完（唔會永久卡住角色）', c.dash == null, { ticks });
+    check('衝刺真係行過（唔係一格就當完）', c.z - z0Dash > 1, { z0: z0Dash, now: c.z });
+    check('衝刺完仍然喺橋面上', Math.abs(c.z) <= MAP.halfWidth, c.z);
+
+    const z0 = c.z, x0 = c.x;
+    sim.orderMove(c, 0, 0);
+    for (let i = 0; i < 30; i++) sim.step();
+    check('衝刺之後行返得', Math.hypot(c.x - x0, c.z - z0) > 0.5, { z0, now: c.z });
+}
+
+// ---------- T23：去橋外嘅移動指令唔會令角色一直撼住條邊 ----------
+// 實體夾到 ±(halfWidth − r)，但落指令嗰邊夾嘅係 ±halfWidth。差咗個半徑，
+// #moveToward 就永遠唔會「到達」，orderX 清唔到，角色一路撼住條邊行。
+{
+    const sim = new Sim({ seed: 83 });
+    const c = sim.player;
+    c.x = 0; c.z = 0;
+    sim.orderMove(c, 0, MAP.halfWidth + 5);
+    let ticks = 0;
+    while (c.orderX != null && ticks++ < 30 * 8) sim.step();
+    check('去橋外嘅移動指令會結束', c.orderX === null, { ticks, z: c.z });
+    check('停喺橋面之內', Math.abs(c.z) <= MAP.halfWidth, c.z);
+    check('真係行咗過去（唔係即刻放棄）', c.z > MAP.halfWidth - c.r - 0.3, c.z);
+}
+
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);
 if (fail) { console.log('失敗項目:', failed.join('、')); process.exit(1); }

@@ -1720,3 +1720,51 @@ follows what the tyres can use
 - Gates: `sim.mjs` T21 asserts a bot sidesteps a projectile 1.6 s out, that the sidestep is
   perpendicular and stays on the bridge, and that a projectile 0.15 s out produces no movement at
   all. T13 still requires nexus finishes to be the majority outcome.
+
+## ADR-099: The health bar was correct all along; it was never drawn
+
+- Date: 2026-08-02
+- Status: accepted
+- Decision: all four pieces of a unit bar are now `transparent: true`; a dash's landing point is
+  clamped *before* it is stored and every dash carries a deadline; `orderMove` clamps its goal to
+  the reachable region; the basic-attack swing plays in at most 0.42 s instead of stretching to
+  fill the cooldown; the attack button draws a cooldown sweep; and single-target abilities emit a
+  `strike` event so something happens at the victim.
+- Reason: Penny sent a screenshot with three complaints. Cropping and magnifying it settled the
+  first one immediately — every world-space health bar was **solid black**, with the team-colour
+  stripe visible underneath it. So the bar rendered, the stripe rendered, and the green fill did
+  not. The cause is that three.js draws opaque objects in one pass and transparent ones in a
+  second, and `renderOrder` only sorts *within* a pass. The backing plate was
+  `transparent: true`, the fill was opaque — so the near-black plate was always painted after the
+  fill, and with `depthTest: false` it covered it completely. ADR-096 changed the fill to encode
+  health rather than team; that change was correct and has never once been visible on screen.
+- **The gate that should have caught it read the data, not the picture.** `browser.mjs` asserted
+  that `fill.material.color` differs between full and low health. It did, every time, while the
+  screen showed a black rectangle. A test that inspects the model cannot see the compositing. The
+  new assertions check the invariant that actually broke: all four bar pieces must sit in the same
+  render pass, and the fill's `renderOrder` must exceed the backing plate's.
+- The freeze Penny reported ("卡死喺嗰邊") was a hard lock with a provable cause. `_form_dash`
+  built the landing point, called `#clampToBridge` on a **temporary object**, and threw the result
+  away — `c.dash` kept the unclamped coordinates. `#tickDash` then clamps the champion's position
+  to the bridge every tick while the target sits off it, so `remain` never shrinks below one step,
+  the dash never ends, and `#tickChamp` opens with `if (c.dash) return`. The champion stops
+  moving, attacking and casting, permanently. Emberwake's E dashes *backwards*, so standing near
+  the rail and pressing it walked straight into this. This is the third instance of the same
+  shape in this game — `dashFrom` written and never read, `sim.events` cleared by its writer — so
+  it is worth naming: **a computation whose result nobody consumes.**
+- A second, milder stall shared the boundary: `input.js` clamps the movement goal to
+  ±`MAP.halfWidth` while entities clamp to ±(`halfWidth` − `r`). Off by one radius, so
+  `#moveToward` never reported arrival, `orderX` never cleared, and the champion ground against
+  the rail. `orderMove` now clamps its own goal, and `#moveToward` gives up on a goal it cannot
+  make progress towards.
+- On "is the basic attack cooldown too long": measured, it is 1.59 s at level 1 for the slowest
+  champion and 1.24 s at 12; a marksman goes 1.39 → 0.69 with items. Those are League-typical and
+  they do scale — an earlier reading that said otherwise was my measurement error (setting
+  `c.level` directly does not recompute derived stats). The number is fine; what was broken is
+  that the swing animation was stretched to `min(1.1 s, the whole cooldown)`, so every attack
+  played in slow motion and never appeared to land, and the attack button gave no feedback at all
+  while it recharged. Fast swing plus a cooldown sweep, no balance change.
+- Single-target abilities emitted no visual event whatsoever. The caster got a small ring at its
+  feet and the victim got nothing — pointing at someone eight metres away and watching their
+  health drop. They now draw a streak from caster to victim and a burst on arrival; ally-targeted
+  shields, which previously produced no event at all, use the same path in green.
