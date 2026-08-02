@@ -1820,3 +1820,26 @@ follows what the tyres can use
 - Gates: `npm test` covers typecheck, relative build output, required models/audio/licenses, and
   local-save source. Browser QA must additionally prove Hub navigation, all 3D requests at 200,
   gameplay start, movement, camera drag, and mobile touch input with zero console errors.
+
+## ADR-102: The Hub pages games in groups of four instead of featuring one card at a time
+
+- Date: 2026-08-02
+- Status: accepted
+- Decision: `launcher.js` remains the game-list source of truth, but renders four-game pages.
+  Wide screens show four columns and phone widths show the same four games as a 2×2 grid. Swipe,
+  arrows, keyboard navigation, dots, and page status all advance one group; hidden pages are not
+  keyboard-focusable. The final page may contain fewer than four cards rather than duplicating a
+  game merely to fill space.
+- The first group intentionally keeps related tabletop games together in this order: 五子棋,
+  中國象棋, 鋤大D, 鬥地主. The Gomoku mark uses two equal CSS stones instead of platform emoji,
+  whose black and white glyphs render at visibly different sizes.
+- Short landscape phones have a compact four-column treatment so the complete cards, Play actions,
+  arrows, and page status remain within 844×390. Phone portrait uses 2×2; neither mode may make the
+  document wider or taller than the viewport.
+- Xiangqi's source page is one level above its built `dist/` page. Its Vite build rewrites the
+  shared online-helper URL from `../shared/` to `../../shared/`; otherwise Hub navigation succeeds
+  but production silently requests the nonexistent `games/xiangqi-ai/shared/` path.
+- Gates: `node tests/hub.mjs` covers 320×568, 440×956, 844×390, and 1280×800, including ordering,
+  layout, full-viewport fit, swipe/keyboard/dot navigation, focus isolation, unique entries, equal
+  Gomoku stones, and zero Hub browser errors. A real card click must also reach Xiangqi's built
+  page with its canvas and shared helper requests returning successfully.

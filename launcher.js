@@ -5,15 +5,18 @@ const games = [
         title: '五子棋',
         subtitle: '經典策略棋！AI 對戰 & 線上 PvP',
         icon: '⚫⚪',
+        category: '棋類',
         link: 'games/gomoku/index.html',
         playable: true
     },
     {
-        id: 'pennycrush',
-        title: '消消樂',
-        subtitle: '三消糖果！8x8、10x10、12x12 模式',
-        icon: '🍬',
-        link: 'games/penny_crush/index.html',
+        id: 'xiangqi',
+        title: '中國象棋',
+        subtitle: '中國象棋！挑戰進階 AI',
+        icon: 'assets/xiangqi_logo.png',
+        isImage: true,
+        category: '棋類',
+        link: 'games/xiangqi-ai/dist/index.html',
         playable: true
     },
     {
@@ -21,6 +24,7 @@ const games = [
         title: '鋤大D',
         subtitle: '鋤大D！對戰 3 個 AI 對手',
         icon: '🃏',
+        category: '卡牌',
         link: 'games/big2/index.html',
         playable: true
     },
@@ -30,7 +34,17 @@ const games = [
         subtitle: '鬥地主！對戰 2 個 AI',
         icon: 'assets/doudizhu_logo.png',
         isImage: true,
+        category: '卡牌',
         link: 'games/doudizhu/index.html',
+        playable: true
+    },
+    {
+        id: 'pennycrush',
+        title: '消消樂',
+        subtitle: '三消糖果！8x8、10x10、12x12 模式',
+        icon: '🍬',
+        category: '益智',
+        link: 'games/penny_crush/index.html',
         playable: true
     },
     {
@@ -38,6 +52,7 @@ const games = [
         title: '桌球',
         subtitle: '桌球！2D 經典版 / 3D 立體版',
         icon: '🎱',
+        category: '運動',
         link: 'games/snooker/index.html',
         playable: true
     },
@@ -46,6 +61,7 @@ const games = [
         title: '塔防大戰',
         subtitle: '⚔️ 塔防！7 種塔 × 7 種敵人，20 波挑戰',
         icon: '🏰',
+        category: '策略',
         link: 'games/tower/dist/index.html',
         playable: true
     },
@@ -54,6 +70,7 @@ const games = [
         title: '霓虹貪食蛇',
         subtitle: '🐍 經典街機，霓虹光效',
         icon: '🐍',
+        category: '街機',
         link: 'games/snake-game/dist/index.html',
         playable: true
     },
@@ -62,6 +79,7 @@ const games = [
         title: '帝國皇家戰',
         subtitle: '⚔️ 即時對戰 3D 塔防！出兵過河攻陷敵方城堡',
         icon: '🏯',
+        category: '即時戰略',
         link: 'games/royale/index.html',
         playable: true
     },
@@ -70,6 +88,7 @@ const games = [
         title: '深淵之橋',
         subtitle: '🗡️ 三對三 MOBA！補刀出裝、越塔強殺、推爆水晶',
         icon: '🗡️',
+        category: 'MOBA',
         link: 'games/moba/index.html',
         playable: true
     },
@@ -78,6 +97,7 @@ const games = [
         title: 'Racing Car 3D',
         subtitle: '🏁 順滑 3D 賽道！三圈競速兼漂移挑戰',
         icon: '🏎️',
+        category: '競速',
         link: 'games/Racing%20Car/index.html',
         playable: true
     },
@@ -86,6 +106,7 @@ const games = [
         title: '灰燼列車',
         subtitle: '🚂 3D 列車槍戰！守住能源核心殺退無人機',
         icon: '🚂',
+        category: '動作射擊',
         link: 'games/ashen-rail/dist/index.html',
         playable: true
     },
@@ -94,21 +115,20 @@ const games = [
         title: 'Elden Ring II',
         subtitle: '⚔️ 黑暗奇幻 3D 動作 RPG！三職業迎戰空冠之王',
         icon: '👑',
+        category: '動作 RPG',
         link: 'games/elden-ring-ii/dist/index.html',
-        playable: true
-    },
-    {
-        id: 'xiangqi',
-        title: '中國象棋',
-        subtitle: '中國象棋！挑戰進階 AI',
-        icon: 'assets/xiangqi_logo.png',
-        isImage: true,
-        link: 'games/xiangqi-ai/dist/index.html',
         playable: true
     }
 ];
 
-let currentIndex = 0;
+const PAGE_SIZE = 4;
+let currentPage = 0;
+
+function pagesOfGames() {
+    const pages = [];
+    for (let i = 0; i < games.length; i += PAGE_SIZE) pages.push(games.slice(i, i + PAGE_SIZE));
+    return pages;
+}
 
 function renderCarousel() {
     const track = document.getElementById('game-carousel');
@@ -116,89 +136,84 @@ function renderCarousel() {
 
     track.innerHTML = '';
 
-    games.forEach((game, index) => {
+    const pages = pagesOfGames();
+    pages.forEach((pageGames, pageIndex) => {
         const li = document.createElement('li');
-        li.className = `game-hub-card ${game.playable ? '' : 'disabled'}`;
-        li.dataset.index = index;
-
-        li.onclick = function () {
-            if (game.playable) {
-                window.location.href = game.link;
-            }
-        };
-
-        const iconHtml = game.isImage
-            ? `<img src="${game.icon}" alt="${game.title}" class="card-icon-img" onerror="this.style.display='none';this.parentElement.innerHTML='🀄';">`
-            : game.icon;
-
-        li.innerHTML = `
-            <div class="card-icon">${iconHtml}</div>
-            <h2>${game.title}</h2>
-            <p>${game.subtitle}</p>
-            <button class="pill-btn ${game.playable ? 'primary' : 'disabled'}" ${game.playable ? '' : 'disabled'}>
-                ${game.playable ? 'Play' : 'Locked'}
-            </button>
-        `;
+        li.className = 'game-page';
+        li.dataset.page = pageIndex;
+        li.setAttribute('aria-label', `第 ${pageIndex + 1} 組遊戲`);
+        li.innerHTML = pageGames.map((game) => {
+            const iconHtml = game.id === 'gomoku'
+                ? '<span class="gomoku-stones"><i class="gomoku-stone black"></i><i class="gomoku-stone white"></i></span>'
+                : game.isImage
+                    ? `<img src="${game.icon}" alt="" class="card-icon-img" onerror="this.style.display='none';this.parentElement.textContent='🀄';">`
+                    : game.icon;
+            return `
+                <a class="game-hub-card ${game.playable ? '' : 'disabled'}"
+                   data-game-id="${game.id}" href="${game.playable ? game.link : '#'}"
+                   ${game.playable ? '' : 'aria-disabled="true" tabindex="-1"'}>
+                    <span class="card-category">${game.category}</span>
+                    <span class="card-icon" aria-hidden="true">${iconHtml}</span>
+                    <span class="card-copy">
+                        <strong>${game.title}</strong>
+                        <span class="card-description">${game.subtitle}</span>
+                    </span>
+                    <span class="pill-btn ${game.playable ? 'primary' : 'disabled'}">
+                        ${game.playable ? 'Play' : 'Locked'}
+                    </span>
+                </a>`;
+        }).join('');
         track.appendChild(li);
     });
+
+    const dots = document.getElementById('carousel-dots');
+    if (dots) {
+        dots.innerHTML = pages.map((_, index) =>
+            `<button type="button" class="carousel-dot" data-page="${index}"
+                aria-label="前往第 ${index + 1} 組遊戲"></button>`).join('');
+        dots.querySelectorAll('.carousel-dot').forEach((dot) => {
+            dot.addEventListener('click', () => {
+                currentPage = Number(dot.dataset.page);
+                updateCarousel();
+            });
+        });
+    }
 
     updateCarousel();
 }
 
 function updateCarousel() {
-    const cards = document.querySelectorAll('.game-hub-card');
-    if (cards.length === 0) return;
+    const track = document.getElementById('game-carousel');
+    const pages = [...document.querySelectorAll('.game-page')];
+    if (!track || pages.length === 0) return;
 
-    // Get actual width from the first card (they should be identical)
-    const cardWidth = cards[0].offsetWidth;
-    const gap = 30; // Gap between cards
+    currentPage = (currentPage + pages.length) % pages.length;
+    track.style.transform = `translateX(-${currentPage * 100}%)`;
+    track.dataset.currentPage = String(currentPage);
 
-    // 隔籬張卡唔可以「露半條邊」：要就見到成張，要就完全唔見。
-    // 闊螢幕擺得落三張，就照 cardWidth + gap 排（正常 carousel 樣）；
-    // 手機得一張卡嘅位，就將隔籬張推到完全出界，得中間嗰張。
-    // 非活躍卡縮咗 SIDE_SCALE，所以計「見唔見到」要用縮完之後嘅半闊。
-    const SIDE_SCALE = 0.9;
-    const viewHalf = (document.querySelector('.carousel-track-container')?.clientWidth
-        || cardWidth) / 2;
-    const sideHalf = cardWidth * SIDE_SCALE / 2;
-    const tightStep = cardWidth + gap;
-    const cardStep = tightStep + sideHalf <= viewHalf
-        ? tightStep
-        : viewHalf + sideHalf + gap;
-
-    // Update card positions using transform
-    cards.forEach((card, i) => {
-        const offset = (i - currentIndex) * cardStep;
-        // Cards are positioned at left: 50%, so we need translateX(-50%) to center
-        // Then add the offset to move them left/right
-        card.style.transform = `translateX(calc(-50% + ${offset}px)) scale(${i === currentIndex ? 1.02 : SIDE_SCALE})`;
-
-        // Update active state
-        if (i === currentIndex) {
-            card.classList.add('active-card');
-        } else {
-            card.classList.remove('active-card');
-        }
+    pages.forEach((page, index) => {
+        const active = index === currentPage;
+        page.classList.toggle('active-page', active);
+        page.setAttribute('aria-hidden', String(!active));
+        page.querySelectorAll('a').forEach(link => { link.tabIndex = active ? 0 : -1; });
     });
 
-    updateArrowVisibility();
-}
-
-function updateArrowVisibility() {
-    const prevBtn = document.querySelector('.prev-btn');
-    const nextBtn = document.querySelector('.next-btn');
-    // Circular mode: always show both arrows
-    if (prevBtn) prevBtn.style.display = 'flex';
-    if (nextBtn) nextBtn.style.display = 'flex';
+    document.querySelectorAll('.carousel-dot').forEach((dot, index) => {
+        const active = index === currentPage;
+        dot.classList.toggle('active', active);
+        dot.setAttribute('aria-current', active ? 'true' : 'false');
+    });
+    const status = document.getElementById('carousel-status');
+    if (status) status.textContent = `${currentPage + 1} / ${pages.length}`;
 }
 
 function nextGame() {
-    currentIndex = (currentIndex + 1) % games.length;
+    currentPage += 1;
     updateCarousel();
 }
 
 function prevGame() {
-    currentIndex = (currentIndex - 1 + games.length) % games.length;
+    currentPage -= 1;
     updateCarousel();
 }
 
@@ -230,7 +245,7 @@ function handleSwipe() {
     }
 }
 
-window.addEventListener('load', () => {
+function initHub() {
     renderCarousel();
 
     // Add touch event listeners for swipe support
@@ -240,7 +255,15 @@ window.addEventListener('load', () => {
         container.addEventListener('touchend', handleTouchEnd, { passive: true });
     }
 
-    // Card width is min(280px, 85vw): on very narrow screens it changes with the
-    // viewport, so recompute pixel offsets on resize/rotate or cards misalign
-    window.addEventListener('resize', updateCarousel);
-});
+    window.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowLeft') prevGame();
+        if (event.key === 'ArrowRight') nextGame();
+    });
+}
+
+// 唔等外置字型 load 完先出遊戲卡；慢網絡之下主頁都要即刻可用。
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initHub, { once: true });
+} else {
+    initHub();
+}

@@ -9,7 +9,11 @@ function stripCrossorigin() {
     apply: 'build', // Only run during build, NOT dev server
     transformIndexHtml(html) {
       return html
-        .replace(/ crossorigin/g, '');
+        .replace(/ crossorigin/g, '')
+        // Source index sits at games/xiangqi-ai/, but the built page sits one
+        // level deeper at dist/. Keep the shared online helper valid in both.
+        .replace('src="../shared/js/online_utils.js"',
+          'src="../../shared/js/online_utils.js"');
     }
   };
 }

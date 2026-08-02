@@ -1,28 +1,38 @@
-// 主頁 carousel：一次一張、永遠置中、唔可以變成拉成版嘢。
-//
-// Penny 喺 iPhone 影到嘅症狀：手指向左右撥，卡片會歪咗去左邊，隔籬張
-// 露一半，箭咀壓住佢。查出嚟根本唔係 carousel 郁緊——卡片係絕對定位，
-// 左右兩邊嗰啲伸出畫面之外又冇被裁走，令文件闊咗七倍（500px 闊嘅機，
-// 文件 3446px），所以撥緊嘅係成頁。呢個檔案就係守住呢件事唔好翻兜。
+// Game Hub 主頁：每組四隻遊戲，桌面 4 欄、手機 2×2，左右掃一次換一組。
 //
 // 跑法：node tests/hub.mjs
-//
-// Playwright 裝咗喺 games/Racing Car/tests（嗰度有 package.json），主頁
-// 呢邊唔想為咗一個測試就喺 repo 根開多個 npm 專案，所以直接借用嗰份。
+// Playwright 沿用 Racing Car tests 嘅安裝，避免根目錄多開一個 npm project。
 
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath, pathToFileURL } from 'url';
+import fs from 'node:fs';
+import http from 'node:http';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
-const INDEX = `file://${path.join(ROOT, 'index.html')}`;
 const PW = path.join(ROOT, 'games', 'Racing Car', 'tests', 'node_modules', 'playwright', 'index.mjs');
 if (!fs.existsSync(PW)) {
     console.log('搵唔到 playwright：喺 games/Racing Car/tests 行一次 npm install 先');
     process.exit(1);
 }
 const { chromium } = await import(pathToFileURL(PW).href);
+
+const MIME = {
+    '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
+    '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
+};
+const server = http.createServer((req, res) => {
+    const requestPath = decodeURIComponent(req.url.split('?')[0]);
+    const file = path.join(ROOT, requestPath === '/' ? 'index.html' : requestPath);
+    if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+        res.writeHead(404); res.end('404'); return;
+    }
+    res.writeHead(200, { 'content-type': MIME[path.extname(file)] ?? 'application/octet-stream' });
+    if (req.method === 'HEAD') { res.end(); return; }
+    fs.createReadStream(file).pipe(res);
+});
+const port = await new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server.address().port)));
+const INDEX = `http://127.0.0.1:${port}/index.html`;
 
 let pass = 0, fail = 0;
 const failed = [];
@@ -31,105 +41,154 @@ function check(name, ok, detail) {
     else { fail++; failed.push(name); console.log(`FAIL  ${name}`, detail === undefined ? '' : JSON.stringify(detail)); }
 }
 
-const exe = fs.existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined;
-const browser = await chromium.launch({ executablePath: exe });
+const macChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const linuxChrome = '/opt/pw-browsers/chromium';
+const executablePath = [process.env.PW_CHROMIUM, linuxChrome, macChrome].find(p => p && fs.existsSync(p));
+const browser = await chromium.launch({ executablePath });
 
-// 真手指掃：dispatch 真 TouchEvent，唔係直接叫 nextGame()
 const swipe = (page, dx) => page.evaluate((delta) => {
-    const c = document.querySelector('.carousel-track-container');
-    const mk = (type, x) => new TouchEvent(type, {
-        changedTouches: [new Touch({ identifier: 1, target: c, screenX: x, clientX: x, screenY: 400, clientY: 400 })],
-        bubbles: true,
+    const target = document.querySelector('.carousel-track-container');
+    const touch = (x) => new Touch({
+        identifier: 1, target, screenX: x, clientX: x, screenY: 300, clientY: 300,
     });
-    c.dispatchEvent(mk('touchstart', 300));
-    c.dispatchEvent(mk('touchend', 300 + delta));
+    const start = touch(260);
+    target.dispatchEvent(new TouchEvent('touchstart', {
+        bubbles: true, changedTouches: [start], touches: [start], targetTouches: [start],
+    }));
+    const end = touch(260 + delta);
+    target.dispatchEvent(new TouchEvent('touchend', {
+        bubbles: true, changedTouches: [end], touches: [], targetTouches: [],
+    }));
 }, dx);
 
-const read = (page) => page.evaluate(() => {
+const read = page => page.evaluate(() => {
+    const track = document.querySelector('.carousel-track');
+    const pages = [...document.querySelectorAll('.game-page')];
+    const active = document.querySelector('.game-page.active-page');
     const cards = [...document.querySelectorAll('.game-hub-card')];
-    const act = document.querySelector('.game-hub-card.active-card');
-    const r = act.getBoundingClientRect();
-    const overlap = [...document.querySelectorAll('.nav-btn')].some(b => {
-        const q = b.getBoundingClientRect();
-        return q.right > r.left && q.left < r.right && q.bottom > r.top && q.top < r.bottom;
-    });
-    // 隔籬張卡：要就完全見到，要就完全唔見——唔可以露半條邊
+    const activeCards = [...active.querySelectorAll('.game-hub-card')];
     const view = document.querySelector('.carousel-track-container').getBoundingClientRect();
-    const sides = cards.filter(c => c !== act).map(c => {
-        const q = c.getBoundingClientRect();
-        return {
-            inside: q.left >= view.left - 1 && q.right <= view.right + 1,
-            outside: q.right <= view.left + 1 || q.left >= view.right - 1,
-        };
+    const rects = activeCards.map(card => {
+        const r = card.getBoundingClientRect();
+        return { id: card.dataset.gameId, left: r.left, right: r.right, top: r.top,
+            bottom: r.bottom, width: r.width, height: r.height };
     });
+    const overlaps = [];
+    for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i], b = rects[j];
+        if (a.left < b.right - 1 && b.left < a.right - 1
+            && a.top < b.bottom - 1 && b.top < a.bottom - 1) overlaps.push(`${a.id}/${b.id}`);
+    }
+    const roundedUnique = values => [...new Set(values.map(v => Math.round(v / 4) * 4))].length;
+    const navOverlap = [...document.querySelectorAll('.nav-btn')].some(btn => {
+        const b = btn.getBoundingClientRect();
+        return rects.some(r => b.left < r.right && r.left < b.right && b.top < r.bottom && r.top < b.bottom);
+    });
+    const stones = [...document.querySelectorAll('[data-game-id="gomoku"] .gomoku-stone')]
+        .map(stone => stone.getBoundingClientRect());
     return {
-        index: cards.indexOf(act),
-        count: cards.length,
-        title: act.querySelector('h2').textContent,
-        centreOffset: Math.round((r.left + r.right) / 2 - innerWidth / 2),
-        fullyInView: r.left >= -1 && r.right <= innerWidth + 1,
-        cardWidth: Math.round(r.width),
+        currentPage: Number(track.dataset.currentPage),
+        pageCount: pages.length,
+        pageSizes: pages.map(p => p.querySelectorAll('.game-hub-card').length),
+        cardCount: cards.length,
+        uniqueGames: new Set(cards.map(c => c.dataset.gameId)).size,
+        allIds: cards.map(c => c.dataset.gameId),
+        activeIds: activeCards.map(c => c.dataset.gameId),
+        activeCount: activeCards.length,
+        columns: roundedUnique(rects.map(r => (r.left + r.right) / 2)),
+        rows: roundedUnique(rects.map(r => (r.top + r.bottom) / 2)),
+        inside: rects.every(r => r.left >= view.left - 1 && r.right <= view.right + 1
+            && r.top >= view.top - 1 && r.bottom <= view.bottom + 1),
+        overlaps,
+        navOverlap,
         docWidth: document.documentElement.scrollWidth,
+        docHeight: document.documentElement.scrollHeight,
         innerWidth,
-        arrowOverlapsCard: overlap,
-        sidesClean: sides.every(s => s.inside || s.outside),
-        sidesHidden: sides.every(s => s.outside),
-        // 個框係 overflow:hidden，張卡闊過個框就會連圓角同邊框一齊裁走
-        cardClipped: r.left < view.left - 0.5 || r.right > view.right + 0.5,
+        innerHeight,
+        dots: document.querySelectorAll('.carousel-dot').length,
+        activeDots: document.querySelectorAll('.carousel-dot.active').length,
+        status: document.querySelector('#carousel-status').textContent,
+        hiddenLinksTabbable: pages.filter(p => p !== active)
+            .some(p => [...p.querySelectorAll('a')].some(a => a.tabIndex >= 0)),
+        hrefsValid: cards.every(c => c.tagName === 'A' && c.getAttribute('href')?.startsWith('games/')),
+        gomokuStones: stones.length === 2 ? {
+            equal: Math.abs(stones[0].width - stones[1].width) < 0.1
+                && Math.abs(stones[0].height - stones[1].height) < 0.1,
+            gap: stones[1].left - stones[0].right,
+        } : null,
     };
 });
 
-for (const vp of [{ width: 320, height: 568 }, { width: 440, height: 956 }, { width: 1280, height: 800 }]) {
-    const phone = vp.width < 700;
-    const page = await browser.newPage({ viewport: vp, deviceScaleFactor: 1, isMobile: phone, hasTouch: true });
+for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 440, height: 956 },
+    { width: 844, height: 390 },
+    { width: 1280, height: 800 },
+]) {
+    const phone = viewport.width <= 760;
+    const page = await browser.newPage({ viewport, deviceScaleFactor: 1, isMobile: phone, hasTouch: true });
     const errors = [];
-    page.on('pageerror', e => errors.push(String(e)));
-    await page.goto(INDEX);
-    await page.waitForTimeout(600);   // 卡片入場 transform 有 0.3s transition
+    page.on('pageerror', error => errors.push(`pageerror: ${error.message}`));
+    page.on('console', msg => { if (msg.type() === 'error') errors.push(`console: ${msg.text()}`); });
+    page.on('response', response => {
+        if (response.url().startsWith(`http://127.0.0.1:${port}`) && response.status() >= 400) {
+            errors.push(`HTTP ${response.status()} ${response.url()}`);
+        }
+    });
+    await page.goto(INDEX, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(480);
 
+    const label = `${viewport.width}×${viewport.height}`;
     const start = await read(page);
-    const label = `${vp.width}px`;
-    check(`${label}：文件唔會闊過畫面（唔會撥到成版郁）`,
-        start.docWidth <= start.innerWidth, { doc: start.docWidth, inner: start.innerWidth });
-    check(`${label}：卡片置中`, Math.abs(start.centreOffset) <= 2, start.centreOffset);
-    check(`${label}：卡片完整喺畫面入面`, start.fullyInView, start);
-    check(`${label}：隔籬張唔會露半條邊`, start.sidesClean, start);
-    check(`${label}：卡片唔會畀 carousel 個框裁走邊`, start.cardClipped === false, start);
+    check(`${label}：13 隻遊戲只出現一次`, start.cardCount === 13 && start.uniqueGames === 13, start);
+    check(`${label}：分成四組，前三組每組四隻`,
+        start.pageCount === 4 && start.pageSizes.join(',') === '4,4,4,1', start.pageSizes);
+    check(`${label}：第一版係五子棋、中國象棋、鋤大D、鬥地主`,
+        start.activeIds.join(',') === 'gomoku,xiangqi,big2,doudizhu', start.activeIds);
+    check(`${label}：五子棋黑白棋子同尺寸而且有間距`,
+        start.gomokuStones?.equal && start.gomokuStones.gap >= 5, start.gomokuStones);
+    check(`${label}：當前四格完整留喺 carousel 入面`, start.activeCount === 4 && start.inside, start);
+    check(`${label}：四格互不重疊`, start.overlaps.length === 0, start.overlaps);
+    check(`${label}：文件唔會闊過畫面`, start.docWidth <= start.innerWidth, start);
+    check(`${label}：四格首頁一屏睇得晒`, start.docHeight <= start.innerHeight + 1, start);
+    check(`${label}：導覽掣唔會壓住遊戲卡`, start.navOverlap === false, start);
+    check(`${label}：分頁點、頁碼同 keyboard focus 狀態正確`,
+        start.dots === 4 && start.activeDots === 1 && start.status === '1 / 4'
+            && start.hiddenLinksTabbable === false && start.hrefsValid, start);
     if (phone) {
-        // Penny 部機影到嗰張：左右兩邊各露一條卡邊，同時中間張卡細過必要。
-        check(`${label}：手機一次淨係見中間嗰張`, start.sidesHidden, start);
-        check(`${label}：卡片食到最少 82% 闊度`,
-            start.cardWidth >= start.innerWidth * 0.82, start);
+        check(`${label}：手機係 2×2 四格`, start.columns === 2 && start.rows === 2,
+            { columns: start.columns, rows: start.rows });
+    } else {
+        check(`${label}：桌面係一排四格`, start.columns === 4 && start.rows === 1,
+            { columns: start.columns, rows: start.rows });
     }
 
-    // 向左掃三次：每次剛好行一張，而且每張都要置返中
-    let prev = start;
-    let oneStep = true, centred = true;
-    for (let i = 0; i < 3; i++) {
-        await swipe(page, -200);
-        await page.waitForTimeout(420);
-        const now = await read(page);
-        if ((prev.index + 1) % now.count !== now.index) oneStep = false;
-        if (Math.abs(now.centreOffset) > 2 || !now.fullyInView) centred = false;
-        prev = now;
-    }
-    check(`${label}：一次掃剛好行一張`, oneStep, prev);
-    check(`${label}：每一張都置返中`, centred, prev);
+    await swipe(page, -190);
+    await page.waitForTimeout(430);
+    const next = await read(page);
+    check(`${label}：向左掃一次會跳下一組四隻`,
+        next.currentPage === 1 && next.activeIds[0] === 'pennycrush', next);
 
-    // 掃返轉頭要行返轉頭
-    await swipe(page, 200);
-    await page.waitForTimeout(420);
+    await swipe(page, 190);
+    await page.waitForTimeout(430);
     const back = await read(page);
-    check(`${label}：反方向掃會退返一張`,
-        (back.index + 1) % back.count === prev.index, { from: prev.index, to: back.index });
+    check(`${label}：反方向掃會返第一組`, back.currentPage === 0, back);
 
-    if (phone) {
-        check(`${label}：箭咀唔會壓住卡片`, back.arrowOverlapsCard === false, back);
-    }
-    check(`${label}：冇 console／page 錯誤`, errors.length === 0, errors);
+    await page.keyboard.press('ArrowRight');
+    await page.waitForTimeout(430);
+    const keyboard = await read(page);
+    check(`${label}：方向鍵都可以逐組瀏覽`, keyboard.currentPage === 1, keyboard);
+
+    await page.locator('.carousel-dot').nth(3).click();
+    await page.waitForTimeout(430);
+    const last = await read(page);
+    check(`${label}：分頁點可直達最後一組 Elden Ring II`,
+        last.currentPage === 3 && last.activeIds.join(',') === 'elden-ring-ii', last);
+    check(`${label}：零 browser error`, errors.length === 0, errors);
     await page.close();
 }
 
 await browser.close();
+await new Promise(resolve => server.close(resolve));
 console.log(`\nhub: ${pass}/${pass + fail} 通過`);
 if (fail) { console.log('失敗項目:', failed.join('、')); process.exit(1); }

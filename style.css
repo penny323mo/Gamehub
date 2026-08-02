@@ -1,14 +1,15 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap');
 
 :root {
     --bg-darker: #020617;
-    --card-bg: rgba(30, 41, 59, 0.7);
-    --glass-border: rgba(255, 255, 255, 0.1);
+    --card-bg: rgba(15, 23, 42, 0.78);
+    --card-bg-hover: rgba(24, 38, 61, 0.92);
+    --glass-border: rgba(148, 163, 184, 0.18);
     --neon-blue: #0ea5e9;
     --neon-cyan: #22d3ee;
     --text-main: #f8fafc;
     --text-muted: #94a3b8;
-    --font-stack: 'Outfit', sans-serif;
+    --font-stack: 'Outfit', system-ui, -apple-system, sans-serif;
 }
 
 * {
@@ -17,323 +18,470 @@
     padding: 0;
 }
 
-/* 卡片係絕對定位嘅，左右兩邊嗰啲會伸出畫面之外。淨係喺 body 落
-   overflow-x: hidden 唔夠——文件本身仍然係嗰個闊度（實測 500px 闊嘅
-   手機，文件闊 3446px），所以手指一撥就係喺度拉成版嘢，唔係揭卡片。
-   html 同 body 一齊夾實，再喺 carousel 度真正裁走。 */
 html {
-    overflow-x: hidden;
     width: 100%;
+    min-height: 100%;
+    overflow-x: hidden;
 }
 
 body {
-    font-family: var(--font-stack);
     width: 100%;
+    min-height: 100vh;
+    padding: clamp(16px, 3vw, 34px);
+    overflow-x: hidden;
     background-color: var(--bg-darker);
     background-image:
-        radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.15) 0%, transparent 20%),
-        radial-gradient(circle at 90% 80%, rgba(34, 211, 238, 0.15) 0%, transparent 20%);
+        radial-gradient(circle at 12% 14%, rgba(139, 92, 246, 0.18), transparent 28%),
+        radial-gradient(circle at 88% 82%, rgba(34, 211, 238, 0.16), transparent 30%);
     color: var(--text-main);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    padding: 20px;
-    overflow-x: hidden;
+    font-family: var(--font-stack);
 }
 
 .switch-container {
     width: 100%;
-    max-width: 900px;
+    max-width: 1180px;
     margin: 0 auto;
-    perspective: 1000px;
-    padding: 0 10px;
 }
 
-/* Hub Header */
 .hub-header {
+    margin-bottom: clamp(14px, 2.5vh, 28px);
     text-align: center;
 }
 
 .hub-header h1 {
     color: var(--neon-cyan);
-    font-size: 3rem;
-    text-shadow: 0 0 15px rgba(34, 211, 238, 0.4);
-    margin-bottom: 0.5rem;
+    font-size: clamp(2.2rem, 5vw, 3.35rem);
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    line-height: 1;
+    text-shadow: 0 0 24px rgba(34, 211, 238, 0.38);
     text-transform: uppercase;
-    letter-spacing: 2px;
 }
 
 .hub-subnote {
+    margin-top: 0.55rem;
     color: var(--text-muted);
-    font-size: 0.85rem;
-    letter-spacing: 0.12em;
+    font-size: 0.78rem;
+    letter-spacing: 0.15em;
     text-transform: lowercase;
-    margin-bottom: 1.6rem;
 }
 
-/* Carousel Container */
+/* Four games form one page. The track moves page-by-page, rather than leaving
+   twelve absolute cards hidden around one oversized centre card. */
 .carousel-container {
     position: relative;
     width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    min-height: 60vh;
+    padding: 0 64px 48px;
 }
 
 .carousel-track-container {
-    width: 100%;
-    /* 真正裁走伸出畫面嘅卡片。上下留 padding 再用等量負 margin 抵消，
-       咁陰影同 hover 嘅放大唔會被切到，但橫向就實牙實齒裁乾淨。 */
-    overflow: hidden;
-    padding: 48px 0;
-    margin: -48px 0;
-    /* 手指橫掃留返畀 carousel 自己處理，唔好變成頁面平移 */
-    touch-action: pan-y;
     position: relative;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 28px;
+    touch-action: pan-y;
 }
 
 .carousel-track {
     display: flex;
-    padding: 40px 0;
-    list-style: none;
     width: 100%;
-    position: relative;
-    justify-content: center;
-    align-items: center;
-    min-height: 400px;
-    /* Height to contain absolute positioned cards */
+    list-style: none;
+    transition: transform 0.38s cubic-bezier(0.22, 0.75, 0.24, 1);
+    will-change: transform;
 }
 
-/* Game Cards */
+.game-page {
+    display: grid;
+    flex: 0 0 100%;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: clamp(12px, 1.7vw, 20px);
+    width: 100%;
+    padding: 10px;
+    align-items: stretch;
+}
+
+.game-page[aria-hidden='true'] {
+    pointer-events: none;
+}
+
 .game-hub-card {
-    position: absolute;
-    left: 50%;
-    flex-shrink: 0;
-    width: min(280px, 85vw);
-    /* Responsive: never wider than viewport */
-    max-width: 280px;
-    background: var(--card-bg);
-    border: 1px solid var(--glass-border);
-    border-radius: 24px;
-    padding: 40px 30px;
-    text-align: center;
-    transition: transform 0.3s ease-out, box-shadow 0.3s, opacity 0.3s;
-    cursor: pointer;
+    position: relative;
+    display: flex;
+    min-width: 0;
+    min-height: 305px;
+    padding: 22px 18px 18px;
+    flex-direction: column;
+    align-items: center;
     overflow: hidden;
+    border: 1px solid var(--glass-border);
+    border-radius: 22px;
+    background: linear-gradient(150deg, rgba(35, 50, 74, 0.72), var(--card-bg));
+    box-shadow: 0 14px 34px -18px rgba(0, 0, 0, 0.85);
+    color: var(--text-main);
+    text-align: center;
+    text-decoration: none;
     backdrop-filter: blur(16px);
-    opacity: 0.5;
-    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.3);
+    transition: transform 0.22s ease, border-color 0.22s ease,
+        background 0.22s ease, box-shadow 0.22s ease;
 }
 
-.game-hub-card:hover {
-    transform: translateY(-8px) scale(1.02);
-    box-shadow: 0 20px 40px -5px rgba(0, 0, 0, 0.6), 0 0 20px rgba(14, 165, 233, 0.2);
-    border-color: var(--neon-cyan);
+.game-hub-card::before {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 12%, rgba(34, 211, 238, 0.1), transparent 42%);
+    content: '';
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease;
 }
 
-.game-hub-card.active-card {
-    border-color: var(--neon-cyan);
-    box-shadow: 0 20px 40px -5px rgba(0, 0, 0, 0.6), 0 0 30px rgba(14, 165, 233, 0.2);
+.game-hub-card:hover,
+.game-hub-card:focus-visible {
+    z-index: 2;
+    border-color: rgba(34, 211, 238, 0.72);
+    outline: none;
+    background: linear-gradient(150deg, var(--card-bg-hover), rgba(10, 22, 40, 0.94));
+    box-shadow: 0 20px 44px -18px rgba(0, 0, 0, 0.92), 0 0 24px rgba(14, 165, 233, 0.2);
+    transform: translateY(-5px);
+}
+
+.game-hub-card:hover::before,
+.game-hub-card:focus-visible::before {
     opacity: 1;
 }
 
 .game-hub-card.disabled {
     cursor: not-allowed;
-    opacity: 0.6;
-    filter: grayscale(0.8);
+    filter: grayscale(0.75);
+    opacity: 0.55;
+}
+
+.card-category {
+    align-self: flex-start;
+    padding: 4px 9px;
+    border: 1px solid rgba(34, 211, 238, 0.22);
+    border-radius: 999px;
+    color: #a5f3fc;
+    font-size: 0.67rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 1;
 }
 
 .card-icon {
-    font-size: 5rem;
-    margin-bottom: 20px;
-    filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.1));
-    transition: transform 0.3s ease;
+    display: grid;
+    width: 76px;
+    height: 76px;
+    margin: 16px auto 12px;
+    place-items: center;
+    font-size: 3.5rem;
+    filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.1));
+    line-height: 1;
+    transition: transform 0.22s ease;
 }
 
-.game-hub-card:hover .card-icon {
-    transform: scale(1.1);
+.game-hub-card:hover .card-icon,
+.game-hub-card:focus-visible .card-icon {
+    transform: scale(1.08);
 }
 
 .card-icon-img {
-    width: 100px;
-    height: 100px;
-    object-fit: contain;
+    width: 72px;
+    height: 72px;
     border-radius: 12px;
+    object-fit: contain;
 }
 
-.game-hub-card h2 {
-    font-size: 1.8rem;
-    margin-bottom: 12px;
-    color: var(--text-main);
-    font-weight: 700;
-}
-
-.game-hub-card p {
-    color: var(--text-muted);
-    font-size: 0.95rem;
-    margin-bottom: 25px;
-    line-height: 1.5;
-    min-height: 44px;
-}
-
-/* Buttons */
-.pill-btn {
-    padding: 12px 30px;
-    border-radius: 8px;
-    border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--text-main);
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.pill-btn:hover {
-    background: rgba(14, 165, 233, 0.1);
-    border-color: var(--neon-blue);
-    box-shadow: 0 0 15px rgba(14, 165, 233, 0.3);
-}
-
-.pill-btn.disabled {
-    opacity: 0.5;
-    pointer-events: none;
-}
-
-.bonus-entry {
+.gomoku-stones {
     display: flex;
-    width: max-content;
-    margin: -18px auto 0;
-    padding: 9px 16px;
-    gap: 9px;
     align-items: center;
-    color: var(--text-muted);
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    border-radius: 999px;
-    background: rgba(15, 23, 42, 0.45);
-    text-decoration: none;
-    letter-spacing: 0.1em;
-    transition: color 0.2s, border-color 0.2s, background 0.2s;
+    justify-content: center;
+    gap: 8px;
 }
 
-.bonus-entry span { font-size: 0.78rem; font-weight: 700; }
-.bonus-entry small { font-size: 0.62rem; opacity: 0.68; }
-.bonus-entry:hover, .bonus-entry:focus-visible { color: var(--neon-cyan); border-color: rgba(34, 211, 238, 0.55); background: rgba(14, 165, 233, 0.08); outline: none; }
+.gomoku-stone {
+    display: block;
+    width: 31px;
+    height: 31px;
+    flex: 0 0 31px;
+    border-radius: 50%;
+}
 
-/* Nav Buttons */
+.gomoku-stone.black {
+    border: 1px solid #334155;
+    background: radial-gradient(circle at 34% 27%, #475569 0, #101827 30%, #020409 72%);
+    box-shadow: inset -3px -4px 7px rgba(0, 0, 0, 0.68), 0 4px 9px rgba(0, 0, 0, 0.42);
+}
+
+.gomoku-stone.white {
+    border: 1px solid #cbd5e1;
+    background: radial-gradient(circle at 34% 27%, #fff 0, #f1f5f9 42%, #b7c3d0 100%);
+    box-shadow: inset -3px -4px 7px rgba(100, 116, 139, 0.25), 0 4px 9px rgba(0, 0, 0, 0.32);
+}
+
+.card-copy {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+}
+
+.card-copy strong {
+    width: 100%;
+    overflow: hidden;
+    color: var(--text-main);
+    font-size: clamp(1.05rem, 1.7vw, 1.35rem);
+    font-weight: 700;
+    line-height: 1.16;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.card-description {
+    display: -webkit-box;
+    margin-top: 9px;
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    line-height: 1.35;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.pill-btn {
+    min-width: 76px;
+    margin-top: 15px;
+    padding: 8px 15px;
+    border: 1px solid rgba(34, 211, 238, 0.28);
+    border-radius: 9px;
+    background: rgba(14, 165, 233, 0.08);
+    color: #d9faff;
+    font-size: 0.73rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
 .nav-btn {
     position: absolute;
     top: 50%;
-    transform: translateY(-50%);
-    width: 54px;
-    height: 54px;
-    border-radius: 50%;
-    background: rgba(30, 41, 59, 0.9);
+    z-index: 5;
+    display: grid;
+    width: 46px;
+    height: 46px;
     border: 1px solid var(--glass-border);
+    border-radius: 50%;
+    background: rgba(30, 41, 59, 0.88);
     color: var(--neon-cyan);
-    font-size: 1.8rem;
-    display: flex;
-    justify-content: center;
-    align-items: center;
     cursor: pointer;
-    z-index: 20;
-    transition: all 0.2s;
+    font-size: 1.45rem;
+    place-items: center;
+    transform: translateY(calc(-50% - 22px));
+    transition: color 0.2s, background 0.2s, transform 0.2s;
 }
 
-.nav-btn:hover {
+.nav-btn:hover,
+.nav-btn:focus-visible {
+    outline: none;
     background: var(--neon-blue);
-    color: #fff;
-    transform: translateY(-50%) scale(1.1);
+    color: white;
+    transform: translateY(calc(-50% - 22px)) scale(1.08);
 }
 
-.prev-btn {
-    left: 0;
+.prev-btn { left: 5px; }
+.next-btn { right: 5px; }
+
+.carousel-footer {
+    position: absolute;
+    right: 64px;
+    bottom: 4px;
+    left: 64px;
+    display: flex;
+    min-height: 30px;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
 }
 
-.next-btn {
-    right: 0;
+.carousel-dots {
+    display: flex;
+    align-items: center;
+    gap: 7px;
 }
 
-@media (max-width: 700px) {
-    /* 手機：卡片本身已經佔咗成個闊度（85vw），箭咀擺喺左右兩邊一定會
-       壓住張卡（實測 320px 闊嘅機，箭咀 30–70 疊住卡片 24–296）。
-       手指掃已經係主要操作，所以箭咀搬落卡片下面並排擺，唔再擋住內容。 */
-    .carousel-container {
-        padding: 0 12px 72px;
-    }
+.carousel-dot {
+    width: 8px;
+    height: 8px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.38);
+    cursor: pointer;
+    transition: width 0.2s, background 0.2s;
+}
 
-    .nav-btn {
-        width: 44px;
-        height: 44px;
-        font-size: 1.2rem;
-        top: auto;
-        bottom: 8px;
-        transform: none;
-    }
+.carousel-dot.active {
+    width: 24px;
+    background: var(--neon-cyan);
+}
 
-    .nav-btn:hover {
-        transform: scale(1.08);
-    }
+.carousel-dot:focus-visible {
+    outline: 2px solid white;
+    outline-offset: 3px;
+}
 
-    .prev-btn {
-        left: calc(50% - 56px);
-    }
+.carousel-status {
+    min-width: 32px;
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.08em;
+}
 
-    .next-btn {
-        right: calc(50% - 56px);
-    }
-
-    /* 手機：一次淨係見一張（隔籬張嘅排位由 launcher.js 計，見嗰度註解），
-       所以張卡可以放到差唔多成個闊度。外圍嘅 padding 一併收窄，唔係嘅話
-       body 20 + switch 10 + carousel 12 一邊就食咗 42px。 */
+@media (max-width: 760px) {
     body {
-        padding: 20px 10px;
+        padding: 14px 10px;
     }
 
-    .switch-container {
-        padding: 0;
+    .hub-header {
+        margin-bottom: 7px;
+    }
+
+    .hub-header h1 {
+        font-size: clamp(1.9rem, 10vw, 2.55rem);
+    }
+
+    .hub-subnote {
+        margin-top: 0.38rem;
+        font-size: 0.65rem;
     }
 
     .carousel-container {
-        padding: 0 8px 72px;
+        padding: 0 0 52px;
     }
 
-    /* 用 % 而唔係 vw：張卡量度嘅係 carousel 個框，唔係成個 viewport。
-       留返 4%，因為活躍嗰張會 scale(1.02)，而個框係 overflow:hidden——
-       唔留就會裁走張卡嘅左右圓角同邊框。 */
+    .carousel-track-container {
+        border-radius: 20px;
+    }
+
+    .game-page {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 9px;
+        padding: 8px 4px;
+    }
+
     .game-hub-card {
-        width: 96%;
-        max-width: 420px;
-        padding: 36px 26px;
+        min-height: 190px;
+        padding: 12px 10px 11px;
+        border-radius: 17px;
+    }
+
+    .card-category {
+        padding: 3px 7px;
+        font-size: 0.57rem;
     }
 
     .card-icon {
-        font-size: 4.2rem;
+        width: 51px;
+        height: 51px;
+        margin: 8px auto 6px;
+        font-size: 2.55rem;
     }
 
     .card-icon-img {
-        width: 120px;
-        height: 120px;
+        width: 49px;
+        height: 49px;
+        border-radius: 9px;
     }
 
-    .game-hub-card h2 {
-        font-size: 1.6rem;
+    .gomoku-stones { gap: 6px; }
+    .gomoku-stone { width: 23px; height: 23px; flex-basis: 23px; }
+
+    .card-copy strong {
+        font-size: clamp(0.9rem, 4.3vw, 1.08rem);
     }
 
-    .game-hub-card p {
-        font-size: 0.95rem;
-        min-height: auto;
+    .card-description {
+        margin-top: 5px;
+        font-size: 0.68rem;
+        line-height: 1.28;
     }
 
-    .bonus-entry { margin-top: -28px; }
+    .pill-btn {
+        min-width: 62px;
+        margin-top: 8px;
+        padding: 6px 11px;
+        font-size: 0.61rem;
+    }
+
+    .nav-btn {
+        top: auto;
+        bottom: 0;
+        width: 40px;
+        height: 40px;
+        font-size: 1.12rem;
+        transform: none;
+    }
+
+    .nav-btn:hover,
+    .nav-btn:focus-visible {
+        transform: scale(1.06);
+    }
+
+    .prev-btn { left: 4px; }
+    .next-btn { right: 4px; }
+
+    .carousel-footer {
+        right: 50px;
+        bottom: 5px;
+        left: 50px;
+    }
+}
+
+/* iPhone 橫向一類 844×390 嘅短畫面仍然保留一排四格，但收緊垂直空間。
+   否則四張卡雖然「數學上喺 carousel 入面」，Play 掣實際會跌出 viewport。 */
+@media (min-width: 761px) and (max-height: 500px) {
+    body { padding: 8px 14px; }
+    .hub-header { margin-bottom: 3px; }
+    .hub-header h1 { font-size: 2rem; }
+    .hub-subnote { margin-top: 0.25rem; font-size: 0.62rem; }
+    .carousel-container { padding: 0 54px 34px; }
+    .game-page { gap: 10px; padding: 6px; }
+    .game-hub-card { min-height: 246px; padding: 11px 10px 10px; border-radius: 18px; }
+    .card-category { padding: 3px 7px; font-size: 0.56rem; }
+    .card-icon { width: 51px; height: 51px; margin: 7px auto 5px; font-size: 2.5rem; }
+    .card-icon-img { width: 49px; height: 49px; border-radius: 9px; }
+    .gomoku-stones { gap: 6px; }
+    .gomoku-stone { width: 23px; height: 23px; flex-basis: 23px; }
+    .card-copy strong { font-size: 1rem; }
+    .card-description { margin-top: 5px; font-size: 0.66rem; line-height: 1.25; }
+    .pill-btn { min-width: 64px; margin-top: 7px; padding: 5px 11px; font-size: 0.62rem; }
+    .nav-btn { width: 40px; height: 40px; transform: translateY(calc(-50% - 17px)); }
+    .nav-btn:hover, .nav-btn:focus-visible {
+        transform: translateY(calc(-50% - 17px)) scale(1.06);
+    }
+    .carousel-footer { right: 54px; bottom: 0; left: 54px; min-height: 26px; }
+}
+
+@media (max-width: 360px), (max-height: 620px) and (max-width: 760px) {
+    body { padding-top: 9px; }
+    .hub-header h1 { font-size: 1.75rem; }
+    .hub-subnote { margin-top: 0.25rem; }
+    .game-page { gap: 7px; padding-top: 5px; }
+    .game-hub-card { min-height: 174px; padding: 9px 8px; }
+    .card-icon { width: 43px; height: 43px; margin: 6px auto 4px; font-size: 2.2rem; }
+    .card-icon-img { width: 42px; height: 42px; }
+    .card-description { -webkit-line-clamp: 1; }
+    .pill-btn { margin-top: 6px; padding: 5px 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .carousel-track,
+    .game-hub-card,
+    .card-icon,
+    .nav-btn,
+    .carousel-dot {
+        transition: none;
+    }
 }
