@@ -168,6 +168,66 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     check(`${tag}：HUD 頭像有圖`,
         await page.$eval('.moba-portrait', e => /^url\(["']?data:image/.test(e.style.backgroundImage || '')));
 
+    // 打擊要睇得到：普攻要出動作 + 軌跡／揮擊弧，彈道要有方向。
+    // Penny 報過「攻擊完全見唔到個動作、法術見唔到軌跡」——所以呢幾樣
+    // 唔可以只靠肉眼，要有 gate 釘住。
+    const combat = await page.evaluate(async () => {
+        const s = window.__sim, v = window.__view;
+        const p = s.player;
+        p.x = -6; p.z = 0; p.level = 7; p.mp = p.maxMp; p.abilityCd = [0, 0, 0, 0];
+        for (let i = 0; i < 30 * 25; i++) s.step(1 / 30);
+        const foe = s.entities.find(e => e.alive && e.team !== p.team && e.kind === 'minion');
+        if (!foe) return null;
+        foe.x = p.x + 1.6; foe.z = p.z;
+        const u = v.units.get(p.id);
+        const before = v.fx.items.length;
+        p.cd = 0;
+        s.orderAttack(p, foe.id);
+        s.step(1 / 30);
+        v.update(1 / 60, s.drain());
+        const afterAttack = v.fx.items.length;
+        // 彈道：唔可以假設玩家第一個技能就係直線彈——鐵衛個 Q 係範圍技。
+        // 有 skillshot 就用佢，冇就靠兵線上面梗有嘅遠程兵箭矢。
+        p.abilityCd = [0, 0, 0, 0]; p.mp = p.maxMp;
+        const shotIdx = p.def.abilities.findIndex(a => a.form === 'skillshot');
+        if (shotIdx >= 0) s.cast(p, shotIdx, { x: p.x + 12, z: p.z });
+        // 跑到有彈道喺天上飛嗰一格為止（箭同技能彈都算）
+        let proj = [];
+        for (let i = 0; i < 40; i++) {
+            s.step(1 / 30);
+            v.update(1 / 60, s.drain());
+            proj = [...v.projectiles.values()];
+            if (proj.length && s.projectiles.length === proj.length) break;
+        }
+        return {
+            fxOnAttack: afterAttack - before,
+            simProj: s.projectiles.length,
+            viewProj: proj.length,
+            // 彈道唔可以永遠豎直：冇轉向嘅膠囊喺俯視鏡頭下面等於隱形
+            oriented: proj.every(o => Math.abs(o.quaternion.x) + Math.abs(o.quaternion.z) > 1e-3),
+            animating: u.rig.busy,
+        };
+    });
+    check(`${tag}：普攻會出視覺回饋（揮擊弧／出手閃）`, combat && combat.fxOnAttack > 0, combat);
+    check(`${tag}：技能彈道畫得出`, combat && combat.viewProj > 0 && combat.viewProj === combat.simProj, combat);
+    check(`${tag}：彈道有跟住飛行方向轉`, combat && combat.oriented, combat);
+
+    // 血條要用血量色，唔可以用隊伍色——用隊伍色嘅話滿血同殘血一個樣
+    const bars = await page.evaluate(() => {
+        const v = window.__view, s = window.__sim;
+        const champs = [...v.units.values()].filter(u => u.entity.kind === 'champ' && u.entity.alive);
+        const u = champs[0];
+        const read = (pct) => {
+            u.entity.hp = s.stats(u.entity).maxHp * pct;
+            v.update(1 / 60, []);
+            return u.bar.userData.fill.material.color.getHex();
+        };
+        const full = read(1), low = read(0.1);
+        return { full, low, differs: full !== low, width: u.bar.userData.width };
+    });
+    check(`${tag}：血條顏色跟血量變（唔係隊伍色）`, bars.differs, bars);
+    check(`${tag}：血條窄過角色（唔會疊成一堆）`, bars.width <= 2.4, bars.width);
+
     // 快進成場波：一定要有結果，唔可以卡死或者拋錯
     const outcome = await page.evaluate(() => {
         const s = window.__sim;

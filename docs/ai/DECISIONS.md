@@ -1629,3 +1629,38 @@ follows what the tyres can use
   bridge's width and read as damaged ground), then two stone posts (in portrait they read as
   floating pillars). A single light stripe across the lane says the same thing and stays out of
   the way.
+
+## ADR-096: Health bars were coloured by team, so they never showed health
+
+- Date: 2026-08-02
+- Status: accepted
+- Decision: the fill is green → amber → red by remaining health, the team is carried by a thin
+  stripe under the bar, and champion bars are 2.1 world units wide (narrower than the model),
+  minions 1.15. Shields draw as a white segment past the health.
+- Reason: Penny reported the health display "doesn't look right". It wasn't a rendering fault —
+  the bar was filled with the *team* colour, so a full-health red champion and a nearly-dead one
+  looked identical, and a red bar meant "red team", not "in danger". A health bar that does not
+  encode health is decoration. The first correction over-shot: at 3.6 units the bars were wider
+  than the characters, so in any scrum they stacked into overlapping slabs and you could no
+  longer tell which bar belonged to whom.
+
+## ADR-097: At this camera distance, skeletal animation alone does not read
+
+- Date: 2026-08-02
+- Status: accepted
+- Decision: every basic attack also draws a sweeping arc (melee) or a muzzle flash (ranged) in
+  the attacker's colour; projectiles are thicker, brighter and oriented along travel; dashes
+  leave a streak.
+- Reason: Penny reported not seeing attacks or spell trails at all. Measuring the bones proved
+  the animation *was* playing — the hand bone's quaternion changed every frame. The problem is
+  scale: a 1.7 m character swinging a sword occupies a few dozen pixels from a 30 m camera, so
+  the pose change is real and still invisible. Action games solve this with a weapon trail, not
+  with a better animation.
+- The projectiles had a separate, concrete fault: basic attacks are homing and carry no velocity
+  vector, so the orientation branch never ran and the arrow stayed a 0.09-radius vertical stick.
+  Direction now comes from the frame-to-frame displacement when no velocity exists. A third
+  piece was simply never connected: `dashFrom` was recorded on every dash cast and never read,
+  so displacement abilities had no trail at all.
+- Gates: `browser.mjs` asserts a basic attack adds visual effects, that projectiles exist in the
+  view whenever the sim has them, that every projectile is rotated off vertical, that the bar
+  colour changes with health, and that bars stay narrower than a champion.

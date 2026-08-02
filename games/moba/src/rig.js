@@ -62,11 +62,11 @@ export class Rig {
         next.timeScale = timeScale;
         next.enabled = true;
         next.setEffectiveWeight(1);
+        next.play();
         if (this.current) {
             const prev = this.actions.get(this.current);
-            next.crossFadeFrom(prev, FADE, false);
+            if (prev && prev !== next) next.crossFadeFrom(prev, FADE, false);
         }
-        next.play();
         this.current = name;
     }
 
@@ -82,11 +82,11 @@ export class Rig {
         a.timeScale = scale;
         a.enabled = true;
         a.setEffectiveWeight(1);
+        a.play();
         if (this.current && this.current !== name) {
             const prev = this.actions.get(this.current);
             if (prev) a.crossFadeFrom(prev, Math.min(FADE, clipLen / scale * 0.3), false);
         }
-        a.play();
         this.current = name;
         this.lockUntil = this.time + (hold ? 1e9 : clipLen / scale * 0.92);
     }

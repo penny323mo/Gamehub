@@ -192,6 +192,45 @@ export class Fx {
         });
     }
 
+    // ---------- 揮擊軌跡 ----------
+    // 由攻擊者掃向目標嘅一道弧。呢個唔係裝飾：喺俯視鏡頭下面，
+    // 一個角色揮劍嘅骨骼動作淨係佔幾十個像素，玩家實際上係「見唔到」佢出手。
+    // 弧線係大部分動作遊戲用嚟交代「呢一下打出去咗」嘅辦法。
+    slash(x0, z0, x1, z1, colour = 0xffe9c4) {
+        const ang = Math.atan2(z1 - z0, x1 - x0);
+        const g = new THREE.Group();
+        const arc = new THREE.Mesh(
+            new THREE.RingGeometry(1.5, 2.5, 20, 1, -0.85, 1.7),
+            new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.9,
+                side: THREE.DoubleSide, depthWrite: false }));
+        arc.rotation.x = -Math.PI / 2;
+        g.add(arc);
+        g.position.set(x0, 1.15, z0);
+        g.rotation.y = -ang;
+        this.#add(g, 0.22, (it, k) => {
+            // 由後掃到前，同時淡出：一道掃過去嘅光，唔係一個固定嘅扇形
+            g.rotation.y = -ang + (0.5 - k) * 0.9;
+            arc.scale.setScalar(0.85 + k * 0.45);
+            arc.material.opacity = 0.9 * (1 - k * k);
+        });
+    }
+
+    // 遠程／法術出手：喺手嗰邊向住目標閃一下
+    muzzle(x0, z0, x1, z1, colour = 0xffe9c4) {
+        const d = Math.hypot(x1 - x0, z1 - z0) || 1;
+        const nx = (x1 - x0) / d, nz = (z1 - z0) / d;
+        const m = new THREE.Mesh(
+            new THREE.CircleGeometry(0.75, 14),
+            new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.95,
+                depthWrite: false }));
+        m.position.set(x0 + nx * 1.0, 1.4, z0 + nz * 1.0);
+        this.#add(m, 0.16, (it, k) => {
+            m.quaternion.copy(this.camera.quaternion);
+            m.scale.setScalar(0.6 + k * 1.1);
+            m.material.opacity = 0.95 * (1 - k);
+        });
+    }
+
     // ---------- 位移殘影 ----------
     streak(x0, z0, x1, z1, colour = 0xbfd4ff) {
         const len = Math.hypot(x1 - x0, z1 - z0) || 0.1;

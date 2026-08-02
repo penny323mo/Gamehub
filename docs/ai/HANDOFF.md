@@ -4,8 +4,8 @@ Updated: 2026-07-31 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: 深淵之橋 — recall, lane readout, aim preview, zoned terrain;
-        sim 191/191, browser 52/52
+Status: 深淵之橋 — combat now reads: swing arcs, oriented projectiles, health-coloured bars;
+        sim 191/191, browser 62/62
 
 ## Current objective
 
@@ -55,18 +55,26 @@ and original audio, playable on desktop and phone.
   circulated. Alongside it: a lane overview strip, a ground aim preview while an ability is
   held, zone-tinted terrain with tower plinths and a centre line, wheel/pinch zoom, and a gold
   pop on every last hit.
+- **Combat legibility** (ADR-096/097): health bars are coloured by health rather than by team
+  (they had been team-coloured, so they never showed health) and sized narrower than the model.
+  Attacks draw a swing arc or muzzle flash — the skeletal animation was playing all along, it
+  just occupies too few pixels at this camera distance to be seen. Homing projectiles carried no
+  velocity vector so they were never rotated and stayed near-invisible vertical slivers;
+  direction now comes from frame-to-frame displacement. `dashFrom` was recorded and never read,
+  so dashes had no trail.
 
 ## Verification
 
 - `node games/moba/tests/sim.mjs` → 191/191. (It read 152 before: the summary line sat above
   T15–T19, so thirty-odd assertions ran but were never counted and could not fail the run.
   The summary now lives at the end of the file.)
-- `node games/moba/tests/browser.mjs` → 52/52 (landscape and portrait: load, select, start,
+- `node games/moba/tests/browser.mjs` → 62/62 (landscape and portrait: load, select, start,
   HUD present, no HUD overlap, centre unobstructed, keyboard movement actually moves the
   champion, an ability press names itself on screen, every ability button carries a name,
   shop, settings panel toggles and persists, quality switch reaches the renderer, portraits
   are real rendered images, post-match scoreboard lists all six, full match, zero console
-  errors).
+  errors, plus: a basic attack produces visual effects, projectiles exist and are oriented along
+  travel, bar colour tracks health, bars stay narrower than a champion).
 
 ## Changed files
 

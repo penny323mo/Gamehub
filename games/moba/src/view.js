@@ -15,6 +15,8 @@ import { Rig } from './rig.js';
 import { Fx } from './fx.js';
 
 const sideSign = (team) => (team === TEAM.BLUE ? -1 : 1);
+const UP = new THREE.Vector3(0, 1, 0);
+const TMP_DIR = new THREE.Vector3();
 const LANE_HALF = MAP.halfWidth;
 const GRASS_HALF = LANE_HALF + 5.5;
 
@@ -37,26 +39,54 @@ function sharedGeo(key, make) {
     return g;
 }
 
-function makeBar(width, colour) {
+// 血條嘅顏色一定要講血量，唔係講隊伍。舊版填色用隊伍藍／紅，
+// 所以一條「紅色血條」可能係滿血嘅紅方——玩家睇極都睇唔出邊個殘。
+// 隊伍靠腳下光環同下面嗰條隊色細線交代，血量靠綠→黃→紅。
+const HP_FULL = new THREE.Color(0x3ddc84);
+const HP_MID = new THREE.Color(0xf2c85b);
+const HP_LOW = new THREE.Color(0xff4d3d);
+
+function makeBar(width, teamColour, height = 0.34) {
     const g = new THREE.Group();
     const back = new THREE.Mesh(
-        sharedGeo(`bar-back-${width}`, () => new THREE.PlaneGeometry(width, 0.26)),
-        new THREE.MeshBasicMaterial({ color: 0x0b0d12, transparent: true, opacity: 0.75, depthTest: false }));
+        sharedGeo(`bar-back-${width}-${height}`, () => new THREE.PlaneGeometry(width + 0.1, height + 0.09)),
+        new THREE.MeshBasicMaterial({ color: 0x05070d, transparent: true, opacity: 0.9, depthTest: false }));
     const fill = new THREE.Mesh(
-        sharedGeo(`bar-fill-${width}`, () => new THREE.PlaneGeometry(width, 0.2)),
-        new THREE.MeshBasicMaterial({ color: colour, depthTest: false }));
+        sharedGeo(`bar-fill-${width}-${height}`, () => new THREE.PlaneGeometry(width, height)),
+        new THREE.MeshBasicMaterial({ color: 0x3ddc84, depthTest: false }));
     fill.position.z = 0.01;
-    g.add(back, fill);
-    back.renderOrder = 900; fill.renderOrder = 901;
-    g.userData = { fill, width };
+    // 護盾疊喺血量上面，用白色——盾同血唔同質，唔可以同色
+    const shield = new THREE.Mesh(
+        sharedGeo(`bar-fill-${width}-${height}`, () => new THREE.PlaneGeometry(width, height)),
+        new THREE.MeshBasicMaterial({ color: 0xe8f0ff, transparent: true, opacity: 0.85, depthTest: false }));
+    shield.position.z = 0.02;
+    shield.visible = false;
+    // 隊色細線：血量色已經被血量用咗，隊伍就用底下呢條線
+    const stripe = new THREE.Mesh(
+        sharedGeo(`bar-stripe-${width}`, () => new THREE.PlaneGeometry(width + 0.1, 0.07)),
+        new THREE.MeshBasicMaterial({ color: teamColour, depthTest: false }));
+    stripe.position.set(0, -(height + 0.09) / 2 - 0.015, 0.01);
+    g.add(back, fill, shield, stripe);
+    for (const [i, m] of [back, fill, shield, stripe].entries()) m.renderOrder = 900 + i;
+    g.userData = { fill, shield, width, colour: new THREE.Color() };
     return g;
 }
 
-function setBar(bar, pct) {
-    const { fill, width } = bar.userData;
+function setBar(bar, pct, shieldPct = 0) {
+    const { fill, shield, width, colour } = bar.userData;
     const p = Math.max(0, Math.min(1, pct));
     fill.scale.x = p || 0.0001;
     fill.position.x = -width * (1 - p) / 2;
+    // 綠 → 黃 → 紅，喺 50% 同 25% 兩個位轉色
+    if (p > 0.5) colour.copy(HP_MID).lerp(HP_FULL, Math.min(1, (p - 0.5) / 0.3));
+    else colour.copy(HP_LOW).lerp(HP_MID, Math.min(1, (p - 0.15) / 0.35));
+    fill.material.color.copy(colour);
+    const sp = Math.max(0, Math.min(1, shieldPct));
+    shield.visible = sp > 0.001;
+    if (shield.visible) {
+        shield.scale.x = sp;
+        shield.position.x = -width / 2 + width * p + (width * sp) / 2;
+    }
 }
 
 // 腳下光環：MOBA 靠呢個分敵我，唔係靠模型顏色——同一個英雄兩邊都揀得。
@@ -231,7 +261,7 @@ export class View {
             const baseName = `${ARENA_LOOK.towerBase}_${colour}`;
             if (e.kind === 'tower' && A.hasPiece(baseName)) put(baseName, e.x, e.z, scale * 0.95);
             const o = put(name, e.x, e.z, scale, e.team === TEAM.BLUE ? Math.PI / 2 : -Math.PI / 2);
-            const bar = makeBar(e.kind === 'nexus' ? 7 : 5, TEAM_COLOUR[e.team]);
+            const bar = makeBar(e.kind === 'nexus' ? 7 : 5, TEAM_COLOUR[e.team], 0.5);
             bar.position.set(e.x, e.kind === 'nexus' ? 15 : 10, e.z);
             this.scene.add(bar);
             this.structures.set(e.id, { obj: o, bar, entity: e });
@@ -479,11 +509,14 @@ export class View {
             ring.scale.setScalar(1.25);
         }
         holder.add(ring);
-        const bar = makeBar(e.kind === 'champ' ? 2.6 : 1.5, TEAM_COLOUR[e.team]);
+        // 血條要窄過個角色本身。3.6 闊嗰版實測比角色仲闊，幾個人企埋一齊
+        // 就疊成一堆互相蓋住嘅色塊——條數係讀到嘅，但邊條屬於邊個就讀唔到。
+        const bar = makeBar(e.kind === 'champ' ? 2.1 : 1.15, TEAM_COLOUR[e.team],
+            e.kind === 'champ' ? 0.3 : 0.2);
         this.scene.add(bar);
         this.scene.add(holder);
         const u = { obj: holder, model: obj, rig, bar, ring, look, entity: e, wasAlive: true,
-            barY: e.kind === 'champ' ? 3.6 : 2.5, flashUntil: -1, baseEmissive: null };
+            barY: e.kind === 'champ' ? 3.9 : 2.6, flashUntil: -1, baseEmissive: null };
         this.units.set(e.id, u);
         rig.loop(this.assets, CLIP.idle);
         return u;
@@ -534,6 +567,16 @@ export class View {
                 u.bar.visible = true;
             }
 
+            // 位移殘影：由起點拉到而家嘅位置
+            if (u.dashFrom) {
+                const moved = Math.hypot(e.x - u.dashFrom.x, e.z - u.dashFrom.z);
+                if (moved > 1.2) {
+                    this.fx.streak(u.dashFrom.x, u.dashFrom.z, e.x, e.z, u.dashFrom.colour);
+                    u.dashFrom = null;
+                } else if ((u.dashAge = (u.dashAge ?? 0) + dt) > 0.5) {
+                    u.dashFrom = null; u.dashAge = 0;
+                }
+            }
             u.obj.position.set(e.x, 0, e.z);
             if (e.facing != null) {
                 // KayKit 嘅角色向 +z，同 three.js 一樣，而 sim 個 facing 就係
@@ -546,7 +589,9 @@ export class View {
             }
 
             const st = e.kind === 'champ' ? this.sim.stats(e) : { maxHp: e.maxHp };
-            setBar(u.bar, e.hp / st.maxHp);
+            const shieldPct = e.kind === 'champ' && e.shieldUntil > this.sim.time
+                ? e.shield / st.maxHp : 0;
+            setBar(u.bar, e.hp / st.maxHp, shieldPct);
             u.bar.position.set(e.x, u.barY, e.z);
             u.bar.quaternion.copy(this.camera.quaternion);
 
@@ -596,6 +641,14 @@ export class View {
                     const e = u.entity;
                     const rate = e.kind === 'champ' ? this.sim.stats(e).attackSpeed : e.attackSpeed;
                     u.rig.once(this.assets, u.look.attack, Math.min(1.1, 1 / Math.max(0.2, rate)));
+                    // 揮擊軌跡。喺呢個俯視距離，一個 1.7 米高嘅角色揮劍嘅骨骼動作
+                    // 佔唔到幾多像素，實測就係「乜都見唔到」。真遊戲靠武器拖影
+                    // 交代呢一下——所以近戰畫一道弧，遠程／法術喺出手位置閃一下。
+                    const t = this.sim.entities.find(x => x.id === ev.target);
+                    if (!t) break;
+                    const melee = (e.kind === 'champ' ? e.range : e.range) < 5;
+                    if (melee) this.fx.slash(e.x, e.z, t.x, t.z, u.look.ringColour ?? 0xffe9c4);
+                    else this.fx.muzzle(e.x, e.z, t.x, t.z, u.look.ringColour ?? 0xffe9c4);
                     break;
                 }
                 case 'cast': this.#onCast(ev); break;
@@ -687,7 +740,9 @@ export class View {
                 this.fx.aura(e, colour, ab.duration ?? 2.5);
                 break;
             case 'dash':
-                u.dashFrom = { x, z };
+                // 記住起點，等下一幀單位真係彈開咗先畫殘影：
+                // 施法嗰刻佢仲未郁，即刻畫嘅話係一條零長度嘅線。
+                u.dashFrom = { x, z, colour };
                 break;
             case 'target':
                 this.fx.ring(x, z, 2, colour, { life: 0.3, from: 0.5, to: 1.1 });
@@ -722,32 +777,35 @@ export class View {
             seen.add(key);
             let o = this.projectiles.get(key);
             if (!o) {
+                // 普攻箭之前係 0.09 粗、而且冇 vx/vz 所以永遠豎直——
+                // 喺三十米外等於隱形。粗返、亮返，而且用實際位移去定方向。
                 const geo = p.skill
-                    ? new THREE.CapsuleGeometry(0.34, 1.5, 6, 10)
-                    : new THREE.CapsuleGeometry(0.09, 0.8, 4, 6);
+                    ? new THREE.CapsuleGeometry(0.4, 1.8, 6, 10)
+                    : new THREE.CapsuleGeometry(0.16, 1.5, 5, 8);
                 // 技能彈道用施法者嘅代表色：兩個法師嘅技能唔應該一模一樣
                 const src = this.units.get(p.sourceId);
-                const colour = p.skill ? (src?.look.ringColour ?? 0xffd27a) : 0xe8e2d0;
+                const colour = p.skill ? (src?.look.ringColour ?? 0xffd27a) : 0xffe9c4;
                 o = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: colour }));
-                if (p.skill) {
-                    // 外面套一層半透光暈：技能彈道要一眼分得出唔係普通箭
-                    const glow = new THREE.Mesh(
-                        new THREE.CapsuleGeometry(0.72, 1.7, 6, 10),
-                        new THREE.MeshBasicMaterial({ color: colour, transparent: true,
-                            opacity: 0.28, depthWrite: false }));
-                    o.add(glow);
-                }
+                const glow = new THREE.Mesh(
+                    new THREE.CapsuleGeometry(p.skill ? 0.85 : 0.4, p.skill ? 2.1 : 1.7, 6, 10),
+                    new THREE.MeshBasicMaterial({ color: colour, transparent: true,
+                        opacity: p.skill ? 0.3 : 0.22, depthWrite: false }));
+                o.add(glow);
+                o.userData.prev = new THREE.Vector2(p.x, p.z);
                 this.scene.add(o);
                 this.projectiles.set(key, o);
             }
+            // 方向：技能彈有 vx/vz，普攻箭係追蹤型冇方向向量，
+            // 所以用「上一幀到今幀」嘅位移推返出嚟。
+            const prev = o.userData.prev;
+            let dx = p.vx ?? (p.x - prev.x);
+            let dz = p.vz ?? (p.z - prev.y);
+            if (Math.abs(dx) < 1e-5 && Math.abs(dz) < 1e-5) { dx = o.userData.dx ?? 1; dz = o.userData.dz ?? 0; }
+            o.userData.dx = dx; o.userData.dz = dz;
+            prev.set(p.x, p.z);
             o.position.set(p.x, 1.4, p.z);
-            // 膠囊本身沿 y 軸，所以要先扳平再指住飛行方向
-            const vx = p.vx ?? 0, vz = p.vz ?? 0;
-            if (vx || vz) {
-                o.rotation.set(0, 0, 0);
-                o.rotateY(Math.atan2(vx, vz));
-                o.rotateX(Math.PI / 2);
-            }
+            o.quaternion.setFromUnitVectors(
+                UP, TMP_DIR.set(dx, 0, dz).normalize());
         });
         for (const [k, o] of this.projectiles) {
             if (seen.has(k)) continue;
