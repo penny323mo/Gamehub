@@ -14,41 +14,31 @@ and original audio, playable on desktop and phone.
 
 ## Completed
 
-- **Art, all CC0 (KayKit), none reused from other games in this repo.** Five Adventurers +
-  four Skeletons (rigged, authored animations) and the Medieval Hexagon pack (towers, castles,
-  barracks, walls, rubble, hex terrain, scenery). Nine source files were 35 MB; the whole
-  game's art is now 1.97 MB. See ADR-087 and `games/moba/CREDITS.md`.
-- **Audio is synthesised in-browser** (`src/sfx.js`) — no external recordings at all. Web Audio
-  voices for melee/arrow/cast/blast/heal/tower-fall/level-up/kill plus a bar-scheduled
-  i–VI–III–VII loop with bass, pad, arpeggio and drums.
+- **Art, all CC0 (KayKit), none reused from other games here.** Five Adventurers + four
+  Skeletons (rigged, authored animations) plus the Medieval Hexagon pack. 35 MB of sources
+  became 1.97 MB. ADR-087 and `games/moba/CREDITS.md`.
+- **Audio is synthesised in-browser** (`src/sfx.js`) — no external recordings. Web Audio voices
+  for every combat event plus a bar-scheduled i–VI–III–VII loop.
 - **Simulation** (`src/sim.js`, no three.js — node runs whole matches): waves, last-hit gold,
-  XP sharing, tower aggro and dive punishment, outer-to-inner tower order, bounty/shutdown,
-  items with lifesteal, a fountain-only shop, structure-armour decay, and a time-limit verdict
-  by remaining structure HP so no match ends without a result.
+  XP sharing, tower aggro and dive punishment, tower order, bounty, items with lifesteal, a
+  fountain-only shop, recall, armour decay, and a time-limit verdict by remaining structure HP.
 - **The three findings that made the game work** are ADR-088 (minion scaling exactly cancelled
   champion scaling; gold had nothing to buy) and ADR-089 (the bot's SIEGE state was ordered
   behind a branch that always fired first; `dawnkeeper`'s passive was card text only).
-- **Balance, measured.** Mirror lineups over eight seeds: both sides win, every match resolves.
-  Champion win rates across a 20-match rotation now span 30–70% (was 5–95%).
-- **View/HUD/input**: hex causeway over water, team-tinted units with ground rings and a gold
-  ring for the player, gradient sky, bloom; desktop click-to-move + QWER + B, phone joystick
-  plus drag-to-aim ability buttons; champion select, shop, scoreboard, kill feed.
+- **Balance, measured.** Mirror lineups: both sides win, every match resolves. Champion win
+  rates across a 20-match rotation span 30–70% (was 5–95%).
 - Hub entry added to `launcher.js`.
-- **Playability pass after Penny's first playtest** (ADR-090/091): the event buffer was cleared
-  by the writer at the top of `step()`, which destroyed every cast event before any consumer
-  saw it — that alone made all abilities invisible. Controls moved from click-to-move to direct
-  WASD/joystick with an auto-targeting attack button. Model facing had a spurious 180° flip.
-  Ability buttons now carry names and ranks, casting names the ability, damage numbers float,
-  and each ability form draws its own effect.
+- **Playability pass** (ADR-090/091): the event buffer was cleared by the writer at the top of
+  `step()`, destroying every cast event before any consumer saw it — that alone made all
+  abilities invisible. Controls moved to direct WASD/joystick with an auto-targeting attack
+  button. Model facing had a spurious 180° flip. Ability buttons carry names and ranks.
 - **Production pass** (ADR-092/093): fixed a GPU texture leak of one bone texture per spawned
   unit; capped the damage-number texture cache; shared bar/ring geometry. Gated the ultimate at
-  levels 5/9/12 (it was available at level 1, contradicting its own comment) and re-tuned
-  structures around it with a clean A/B. Added a settings panel (sound, music, three quality
-  tiers) persisted in localStorage, automatic quality downgrade on sustained low frame times,
-  WebGL context-loss handling, and iOS-safe resize handling. Champion portraits are rendered
-  once offscreen at boot and reused in the select cards, the HUD and the post-match scoreboard.
-  Feel: units flash on hit, the camera shakes on heavy hits and follows a team-mate while you
-  are dead, and skill projectiles take the caster's colour.
+  5/9/12 (it was available at level 1, contradicting its own comment) and re-tuned structures
+  with a clean A/B. Settings panel (sound, music, quality) persisted in localStorage, automatic
+  quality downgrade, WebGL context-loss and iOS-safe resize handling. Champion portraits are
+  rendered once offscreen and reused in select cards, HUD and scoreboard. Units flash on hit,
+  the camera shakes and follows a team-mate while you are dead.
 - **Recall and readability** (ADR-094/095): a 6-second recall channel, cancelled by damage or
   any order. Measured alone it moved nexus finishes from 7/12 to 10/12 and the median match
   from 22 to 19 minutes — the shop had been unreachable in practice, so the economy never
