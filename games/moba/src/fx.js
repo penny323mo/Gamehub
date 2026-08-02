@@ -318,13 +318,24 @@ export class Fx {
         }
 
         if (profile.dome) {
+            // 之前用 wireframe：喺三十米外，一個半球嘅三角網只會睇成一舊白色
+            // 亂線，似渲染出錯多過似護罩。實測影相放大先睇得出係咩。
+            // 改成「淡外殼 + 底邊一圈亮線」——遠距離靠嗰圈亮線交代個罩嘅範圍，
+            // 外殼負責質感。剪影靠邊緣，唔靠密度，係遠鏡頭嘅通用做法。
             const dome = new THREE.Mesh(
                 new THREE.SphereGeometry(radius * 0.72, sides, Math.max(4, Math.floor(sides / 2)),
                     0, Math.PI * 2, 0, Math.PI / 2),
-                mat(accent, 0.34, { wireframe: true }));
+                mat(accent, 0.16));
             dome.position.y = 0.1;
             dome.userData.fxPart = 'dome';
             g.add(dome);
+            const rim = new THREE.Mesh(
+                new THREE.RingGeometry(radius * 0.66, radius * 0.75, sides * 2),
+                mat(accent, 0.9));
+            rim.rotation.x = -Math.PI / 2;
+            rim.position.y = 0.12;
+            rim.userData.fxPart = 'dome-rim';
+            g.add(rim);
         }
 
         if (profile.pillar) {
@@ -368,7 +379,14 @@ export class Fx {
         this.#add(g, life, (it, k) => {
             if (follow) g.position.set(follow.x, 0, follow.z);
             const pulse = 0.9 + Math.sin(it.t * 10) * 0.1;
-            g.scale.setScalar((startScale + (endScale - startScale) * k) * pulse);
+            // 跟身嘅（self 增益）要即刻脹到應有大細再守住。線性拉勻成條 life
+            // 對一個 0.5 秒嘅閃光啱，但護盾類 life 有兩秒半——照拉嘅話全程
+            // 都得六成大，到脹夠嗰刻已經開始淡出，等於成個持續時間都睇唔真。
+            //
+            // 用絕對秒數，唔用 life 嘅百分比：一個護盾彈出嚟幾快，唔應該
+            // 取決於佢有幾長命。用百分比嘅話，八秒嘅增益就要成秒半先脹夠。
+            const grow = follow ? Math.min(1, it.t / 0.22) : k;
+            g.scale.setScalar((startScale + (endScale - startScale) * grow) * pulse);
             g.rotation.y = it.t * (profile.family === 'shadowdash' || profile.family === 'bladedance' ? 2.4 : 0.7);
             const fade = k < 0.72 ? 1 : Math.max(0, (1 - k) / 0.28);
             g.traverse((o) => {

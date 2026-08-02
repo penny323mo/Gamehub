@@ -1,15 +1,15 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-02 (Asia/Macau)
-Prepared by: Codex (local)
+Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `main`
-Status: 深淵之橋 anywhere-shop/exit fix complete; champion-FX checkpoint ready for the next agent
+Status: 深淵之橋 crowded-fight FX review done and measured; two readability faults fixed
 
 ## Current objective
 
-Penny asked to finish the last MOBA shop problem before stopping: buying must work away from the
-fountain, and the mobile shop must always provide a reliable route back to the battle.
+Close out ADR-103's open item: judge the champion FX in a real crowded fight rather than by
+signature, and measure the cost, before calling the MOBA production objective complete.
 
 The overall MOBA production objective is **not finished**. This handoff is a tested checkpoint,
 not a claim that crowded-fight readability, performance, controls, logic, and physics are final.
@@ -18,19 +18,11 @@ not a claim that crowded-fight readability, performance, controls, logic, and ph
 
 ### Hub launcher
 
-- Commit `752bcc3` replaces the single oversized card with paged groups of four.
-- Desktop/short landscape: four cards in one row. Phone portrait: the same group as a 2×2 grid.
-  Swipe, arrow buttons, keyboard arrows, dots, page status, and focus isolation are wired.
-- Phone portrait cards are compact app-style tiles with icon wells and small corner launch actions;
-  the launcher is vertically balanced instead of leaving the whole interface stuck to the top.
-- Arrows, dots, and page status now share one centred footer dock instead of floating at opposite
-  screen edges. A final page with only one game keeps normal tile dimensions and centres it in the
-  same page area; it must never stretch into a double-height card or remain left-aligned.
-- First group is 五子棋 → 中國象棋 → 鋤大D → 鬥地主. The last partial page does not duplicate games.
-- Gomoku now uses two equal CSS stones with a fixed 6–8 px gap instead of unequal joined emoji.
-- 844×390 has a compact treatment so all cards, Play actions, arrows, and status fit one screen.
-- Xiangqi's build rewrites its shared helper from `../shared/` to `../../shared/`, adds an inline
-  favicon, and regenerates tracked `dist/index.html`; Hub → Xiangqi now loads with zero errors.
+- Commit `752bcc3` replaces the single oversized card with paged groups of four: one row on
+  desktop/short landscape, a 2×2 grid in phone portrait, with swipe, arrows, keyboard, dots and
+  page status in one centred footer dock. A final partial page keeps normal tile size and centres.
+- Gomoku uses two equal CSS stones, not joined emoji. 844×390 has a compact treatment.
+- Xiangqi's build rewrites `../shared/` to `../../shared/` and regenerates tracked `dist/`.
 - ADR-102 records the durable launcher and nested-build decisions.
 
 ### 深淵之橋 attack-FX checkpoint
@@ -57,25 +49,38 @@ not a claim that crowded-fight readability, performance, controls, logic, and ph
   Hub link, MOBA CSS/main entry, and changed HUD/sim modules; `cache-bust.mjs` locks the chain.
 - ADR-104 supersedes the fountain-only clauses in ADR-088/094/100.
 
+### 深淵之橋 crowded-fight FX review (ADR-105)
+
+- Six champions were pushed into a two-metre cluster at level 12 and made to fire all four
+  abilities on a loop at 844×390 and 430×860; frames were captured and magnified rather than
+  judged at full size. Two faults surfaced, both invisible to the signature gates because both
+  are about scale and timing, not identity.
+- Self-buff sigils were undersized for essentially their whole duration: `cue()` ramped scale
+  linearly across `life`, and a self ability passes `life: ab.duration ?? 2.5`, so a shield sat at
+  ~60% size for two seconds and only reached full size as it faded. Following sigils now reach
+  full size in 0.22 s — absolute seconds, not a fraction of `life` — and hold. This is the concrete form of Penny's
+  long-standing "some ability effects are completely invisible".
+- The `dome` part used `wireframe: true`; at this camera it renders as a scribble of triangle
+  edges, not a ward. It is now a dim shell carrying a bright rim ring — the silhouette comes from
+  the edge, not from line density.
+- Measured worst case: geometries 94 idle → 597 peak → 190 at +4 s → 160 at +8 s; FX items 0 → 44
+  → 7; draw calls 94 → 1311. **No leak** — the residual past +12 s is the minion wave that spawns
+  after the idle baseline was taken, not retained effects.
+- Nothing else was tuned; the other profiles read acceptably in the captures.
+
 ## Verification
 
-- `node tests/hub.mjs` → **75/75 pass** at 320×568, 440×956, 844×390, and 1280×800. The regression
-  suite now measures compact portrait-card height, footer grouping, tall-phone vertical balance,
-  and the last card's size plus horizontal/vertical centring.
-- Real browser visual QA: 393×852 first/last pages and 844×390 first/last pages confirm the compact
-  four-card layout and the centred normal-size Elden Ring II tile. Both orientations reported zero
-  console errors. Real Hub card click also reached `中國象棋 AI`, one canvas, 0 errors.
-- `cd games/xiangqi-ai && npm run build` → pass; tracked dist regenerated.
-- Xiangqi `selftest_legal.js`, `selftest_search.js`, `selftest_perf.js` → all pass.
-- MOBA JavaScript syntax checks and `git diff --check` → pass.
+- `node tests/hub.mjs` → **75/75** at 320×568, 440×956, 844×390, 1280×800. Real-browser QA at
+  393×852 and 844×390 confirmed the layout, zero console errors, and a working Hub → Xiangqi click.
+- `cd games/xiangqi-ai && npm run build` → pass; Xiangqi selftests (legal/search/perf) → pass.
 - `node games/moba/tests/cache-bust.mjs` → pass; all six entry/resource tokens agree.
 - `node games/moba/tests/sim.mjs` → **206/206 pass**. Away purchase deducts gold and adds stats.
   Twelve mirrored matches: blue/red 2/10; 11 nexus finishes, 1 time-limit; no NaN/bridge escape.
-- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node
-  games/moba/tests/browser.mjs` → **102/102 pass** across landscape and portrait. It proves
-  away-from-fountain touch purchase, three close routes, full matches, FX gates, and zero errors.
-- Real-browser 1280×589 inspection shows `商店 · 隨時可買`, affordable cards, and the sticky
-  `返回戰場 ×` action fully visible above the grid.
+- `node games/moba/tests/browser.mjs` → **106/106 pass** across landscape and portrait (bundled
+  Chromium; `PW_CHROMIUM` overrides it). It proves away-from-fountain touch purchase, three close
+  routes, full matches, FX gates, zero errors, plus two new ADR-105 gates: a following sigil is
+  past 90% scale a quarter-second in, and no cast sigil uses a wireframe material.
+- Real-browser 1280×589 shows `商店 · 隨時可買` and the sticky `返回戰場 ×` above the grid.
 
 ## Changed files
 
@@ -98,11 +103,13 @@ not a claim that crowded-fight readability, performance, controls, logic, and ph
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync`, verify `main` equals `origin/main`, then read this file.
-2. Open 深淵之橋 at 844×390 and 430×860 and capture real mid-life attack/ability frames during a
-   crowded fight. Tune only profiles whose silhouette or timing is genuinely unclear.
-3. Measure peak `renderer.info.memory.geometries`, active FX item count, frame pacing, and physical
-   phone feel before calling the production objective complete. Keep `206/206` and `102/102` green.
+1. Sync, then playtest on a physical phone. That is now the only unmeasured axis: frame pacing
+   here is bounded by software rasterisation, so it says nothing about real hardware.
+2. If phone frame pacing does turn out bad, the first lever is merging each sigil's parts into one
+   buffer geometry — draw calls go 94 idle → 1311 at the synthetic six-champion peak because every
+   ring, ray, spike and rim is its own mesh. Cutting effects is the wrong lever; see ADR-105.
+3. Portrait (430×860) spends roughly half the screen on abyss and water, with the lane in a thin
+   band. It is thematically correct but wasteful; worth a framing pass if Penny raises it.
 
 ## Do not redo
 

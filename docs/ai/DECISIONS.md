@@ -1889,3 +1889,51 @@ follows what the tyres can use
 - Gates: `cache-bust.mjs` checks the six tokens; `sim.mjs` proves an away purchase deducts gold and
   changes stats; `browser.mjs` touch-buys away from the fountain and closes via the 44-px action,
   backdrop, and recall in landscape and portrait, with zero console errors.
+
+## ADR-105: A buff that spends its whole life at 60% size is a buff nobody sees
+
+- Date: 2026-08-02
+- Status: accepted
+- Decision: `cue()` now grows a *following* (self-buff) sigil to full size within the first 18% of
+  its life and holds it there, instead of ramping linearly across the whole duration; and the
+  `dome` part is a faint translucent shell with a bright rim ring rather than a wireframe mesh.
+  The grow-in is measured in absolute seconds (0.22 s), not as a fraction of `life` — how fast a
+  shield pops in should not depend on how long it lasts.
+- Reason: this is the crowded-fight readability review ADR-103 left open. Six champions were
+  pushed into a two-metre cluster at level 12 and made to fire all four abilities on a loop, at
+  844×390 and 430×860, and the frames were captured and magnified rather than judged by eye at
+  full size. Two faults came out of that, both invisible to the geometry-signature gates because
+  both are about *scale and timing*, not identity.
+- **The self-buff sigil was undersized for essentially its entire duration.** `cue()` interpolates
+  scale from 0.52 to 1.08 linearly over `life`. For a 0.5 s cast flash that reads as an expanding
+  burst, which is right. But a self ability passes `life: ab.duration ?? 2.5`, so a shield spends
+  two seconds at roughly 60% size and only reaches full size at the moment it fades out. Magnified,
+  Ironward's 鐵壁 was a knot of white lines around his ankles — smaller than the character it was
+  supposed to be protecting. This is the concrete form of Penny's long-standing "some ability
+  effects are completely invisible": they are not missing, they are drawn too small to notice.
+- **`wireframe: true` does not survive this camera.** A hemisphere rendered as its own triangle
+  mesh, thirty metres out on a phone, is a scribble — it reads as a rendering fault, not a ward.
+  Five ability profiles used it. A dim shell carrying a bright rim ring reads at distance because
+  the silhouette comes from the edge, not from line density. Before/after captures of the same
+  frame confirm it.
+- Measured, worst case (six champions, four abilities each, fired within ~1.2 s):
+
+  | | idle | peak | +4 s | +8 s |
+  | --- | --- | --- | --- | --- |
+  | geometries | 94 | 597 | 190 | 160 |
+  | FX items | 0 | 44 | 8 | 7 |
+  | draw calls | 94 | 1311 | — | — |
+
+- **No leak.** The residual above idle at +12 s and beyond is live gameplay, not retained effects:
+  the idle baseline was sampled before the first minion wave, which spawns at 12 s, so the extra
+  scene children are minions. Effects fall from 597 geometries to 190 within four seconds.
+- The number worth watching is **draw calls: 94 idle, 1311 at the synthetic peak.** Each sigil is
+  built from many small meshes (rings, rays, spikes, dome, rim, pillar), so density multiplies
+  call count roughly fourteen-fold. Real play fires perhaps a quarter of that storm, but if phone
+  frame pacing ever becomes a problem this is where to look first — merging a sigil's parts into
+  one buffer geometry, not cutting effects.
+- Gates: `browser.mjs` asserts a following sigil is past 90% scale a quarter-second into a
+  2.5-second buff, and that no cast sigil uses a wireframe material. The first gate caught my own
+  first attempt: ramping over 18% of `life` still left a 2.5-second shield undersized at 0.25 s.
+- Not changed: nothing else was tuned. The remaining profiles read acceptably at both sizes in the
+  captures, and tuning them without a specific fault would be redecorating.

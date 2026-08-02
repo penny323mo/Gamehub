@@ -457,6 +457,32 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
             && fxLanguage.cleanup.sceneAfter === fxLanguage.cleanup.sceneBase,
         fxLanguage.cleanup);
 
+    // 護盾類（跟身）嘅徽記要即刻脹到應有大細。之前縮放係喺成個 life 上面線性
+    // 拉勻，而護盾 life 有兩秒半——結果全程都得六成大，脹夠嗰刻已經淡出，
+    // 影相放大先睇得出係一舊乜。呢條就係度「一開始就睇得到」。
+    const buff = await page.evaluate(() => {
+        const v = window.__view, s = window.__sim;
+        const c = s.champions.find(x => x.champId === 'ironward');
+        const idx = c.def.abilities.findIndex(a => a.form === 'self');
+        c.level = 12; c.mp = c.maxMp; c.abilityCd = [0, 0, 0, 0];
+        v.fx.items.length = 0;
+        v.update(1 / 60, [{ type: 'cast', id: c.id, index: idx, key: c.def.abilities[idx].key,
+            championId: c.champId, x: c.x, z: c.z }]);
+        const it = v.fx.items.find(i => i.kind === 'ability-cast');
+        if (!it) return { found: false };
+        v.fx.update(0.25);                       // 兩秒半嘅增益，先行四分之一秒
+        const early = it.obj.scale.x;
+        v.fx.update(1.0);
+        const mid = it.obj.scale.x;
+        const wire = [];
+        it.obj.traverse(o => { if (o.material?.wireframe) wire.push(o.userData.fxPart ?? '?'); });
+        return { found: true, early, mid, wire };
+    });
+    check(`${tag}：跟身增益一開波就脹到位（唔係捱到最後先夠大）`,
+        buff.found && buff.early > 0.9, buff);
+    check(`${tag}：施法徽記唔用 wireframe（遠鏡頭下會變一堆亂線）`,
+        buff.found && buff.wire.length === 0, buff.wire);
+
     // 血條要用血量色，唔可以用隊伍色——用隊伍色嘅話滿血同殘血一個樣
     const bars = await page.evaluate(() => {
         const v = window.__view, s = window.__sim;
