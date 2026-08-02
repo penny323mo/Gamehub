@@ -4,7 +4,7 @@ Updated: 2026-08-02 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `main`
-Status: 深淵之橋 crowded-fight FX review done and measured; two readability faults fixed
+Status: 深淵之橋 shop taps fixed for real phones (ADR-106); crowded-fight FX review done
 
 ## Current objective
 
@@ -27,42 +27,43 @@ not a claim that crowded-fight readability, performance, controls, logic, and ph
 
 ### 深淵之橋 attack-FX checkpoint
 
-- `looks.js` defines six champion-specific basic profiles and 24 ability profiles. Every profile
-  has its own stable style ID and a procedural visual grammar rather than a shared generic ring.
-- `fx.js` renders rings, rays, crosses, domes, pillars, spikes/flames, collapse bursts, weighted or
-  twin slashes, ranged muzzle flashes, profiled dash trails, telegraphs, zones, and impacts.
-- `sim.js` carries source/champion/ability identity through cast, projectile, impact, strike, zone,
-  trap, and trap-trigger events. Player and bot abilities therefore reach the same renderer path.
-- `view.js` resolves those profiles, gives arrow/fire/holy projectiles different actual geometry,
-  orients them to flight, traverses child meshes during disposal, and clears the FX layer on exit.
-- `browser.mjs` now proves six distinct basic signatures, all 24 ability IDs and 24 distinct
-  geometry signatures, three projectile model classes, and zero leftover scene objects after FX.
-- ADR-103 records the simulation-to-render visual identity and cleanup invariants.
+- `looks.js` defines six basic and 24 ability profiles, each with a stable style ID and a
+  procedural grammar; `fx.js` renders them; `sim.js` carries champion/ability identity through
+  every event so player and bot abilities reach the same renderer path.
+- `browser.mjs` proves six distinct basic signatures, 24 ability IDs with 24 distinct geometry
+  signatures, three projectile classes, and zero leftover scene objects. ADR-103.
 
 ### 深淵之橋 anywhere shop and modal exit
 
-- Purchases now work anywhere for both player and bots. `atFountain()` remains separate and is
-  used by healing/recall only; the shop says `隨時可買` and recall is labelled `返程回血`.
-- The header is sticky, `返回戰場` stays at least 44 px, a full-screen backdrop is a second close
-  route, and recall closes the shop before channelling. All close paths force false, never toggle.
-- The user's screenshot showed obsolete fountain-only copy. `shop-anywhere-1` now cache-busts the
-  Hub link, MOBA CSS/main entry, and changed HUD/sim modules; `cache-bust.mjs` locks the chain.
+- Purchases work anywhere for player and bots; `atFountain()` is now healing/recall only. Sticky
+  header, ≥44 px `返回戰場`, backdrop as a second close route, all close paths force false.
 - ADR-104 supersedes the fountain-only clauses in ADR-088/094/100.
+
+### 深淵之橋 shop taps on a real phone (ADR-106)
+
+- Penny had gold, the card lit gold, and pressing it did nothing. `sim.buy` and the highlight do
+  agree — ADR-104 made `canShop()` return `!!c` — the fault was one layer up. The shop panel is
+  `overflow-y: auto` with `touch-action: pan-y`, so on iOS a tap that drifts a few pixels is
+  classified as a scroll and **no `click` is synthesised**; the cards listened for `click` alone
+  and were 7 px-padded targets. Desktop mice and `touchscreen.tap()` never drift, so the suite
+  stayed green while the phone was dead. The close button had already been moved to `pointerup`
+  for this exact reason; the item cards never followed.
+- Cards and bag slots now commit on a guarded `pointerup` (same pointer, <12 px, <800 ms), declare
+  `touch-action: manipulation`, stand ≥44 px, show a press state, and name the failure reason.
+  Cache token `shop-anywhere-1` → `shop-tap-2` across all six entry points.
 
 ### 深淵之橋 crowded-fight FX review (ADR-105)
 
-- Six champions were pushed into a two-metre cluster at level 12 and made to fire all four
-  abilities on a loop at 844×390 and 430×860; frames were captured and magnified rather than
-  judged at full size. Two faults surfaced, both invisible to the signature gates because both
-  are about scale and timing, not identity.
+- Six champions at level 12 in a two-metre cluster firing all four abilities on a loop, at
+  844×390 and 430×860; frames captured and magnified. Two faults, both invisible to the signature
+  gates because both are about scale and timing, not identity.
 - Self-buff sigils were undersized for essentially their whole duration: `cue()` ramped scale
   linearly across `life`, and a self ability passes `life: ab.duration ?? 2.5`, so a shield sat at
   ~60% size for two seconds and only reached full size as it faded. Following sigils now reach
   full size in 0.22 s — absolute seconds, not a fraction of `life` — and hold. This is the concrete form of Penny's
   long-standing "some ability effects are completely invisible".
-- The `dome` part used `wireframe: true`; at this camera it renders as a scribble of triangle
-  edges, not a ward. It is now a dim shell carrying a bright rim ring — the silhouette comes from
-  the edge, not from line density.
+- The `dome` part used `wireframe: true`; at this camera that is a scribble of triangle edges,
+  not a ward. Now a dim shell with a bright rim — the silhouette comes from the edge.
 - Measured worst case: geometries 94 idle → 597 peak → 190 at +4 s → 160 at +8 s; FX items 0 → 44
   → 7; draw calls 94 → 1311. **No leak** — the residual past +12 s is the minion wave that spawns
   after the idle baseline was taken, not retained effects.
@@ -76,10 +77,11 @@ not a claim that crowded-fight readability, performance, controls, logic, and ph
 - `node games/moba/tests/cache-bust.mjs` → pass; all six entry/resource tokens agree.
 - `node games/moba/tests/sim.mjs` → **206/206 pass**. Away purchase deducts gold and adds stats.
   Twelve mirrored matches: blue/red 2/10; 11 nexus finishes, 1 time-limit; no NaN/bridge escape.
-- `node games/moba/tests/browser.mjs` → **106/106 pass** across landscape and portrait (bundled
+- `node games/moba/tests/browser.mjs` → **112/112 pass** across landscape and portrait (bundled
   Chromium; `PW_CHROMIUM` overrides it). It proves away-from-fountain touch purchase, three close
   routes, full matches, FX gates, zero errors, plus two new ADR-105 gates: a following sigil is
-  past 90% scale a quarter-second in, and no cast sigil uses a wireframe material.
+  past 90% scale a quarter-second in, no cast sigil uses a wireframe material, and (ADR-106) a
+  drifting pointer-only tap buys while a 40 px drag does not.
 - Real-browser 1280×589 shows `商店 · 隨時可買` and the sticky `返回戰場 ×` above the grid.
 
 ## Changed files
@@ -91,9 +93,7 @@ not a claim that crowded-fight readability, performance, controls, logic, and ph
 
 ## Known issues and cautions
 
-- Automated geometry signatures prove identity and cleanup, not subjective clarity in a crowded
-  six-champion fight. A short manual Emberwake cast inspection was readable, but a systematic
-  mid-life gallery/crowded-fight review was interrupted by the Hub side quest and remains open.
+- The crowded-fight review is now done (ADR-105); what remains unjudged is a physical phone.
 - The browser gallery previously called `fx.dispose()` while the live match was running; it was QA
   only and did not modify source. Do not infer a runtime FX lifecycle bug from that experiment.
 - Xiangqi `npm ci` reported four dependency audit findings (1 low, 3 high). They were pre-existing,

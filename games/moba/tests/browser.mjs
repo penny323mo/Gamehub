@@ -233,6 +233,31 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     })();
     check(`${tag}：離開泉水仍然可以用觸控買裝`,
         awayPurchase.target && awayPurchase.after === awayPurchase.before + 1, awayPurchase);
+
+    // 上面用 touchscreen.tap()——零位移，所以瀏覽器一定會合成 click，
+    // 舊碼淨係聽 click 都照過。但真手指喺 pan-y 捲動容器入面會飄少少，
+    // iOS 就當你想捲動，click 唔會出現，粒掣睇落似壞咗。呢度只發 pointer
+    // 事件（唔會有 click），再加六像素飄移，就係度緊實機嗰條路。
+    const driftBuy = await page.evaluate(() => {
+        const card = document.querySelector('.moba-shop .moba-item.afford');
+        if (!card) return { target: false };
+        const s = window.__sim, before = s.player.items.length;
+        const r = card.getBoundingClientRect();
+        const x = r.left + r.width / 2, y = r.top + r.height / 2;
+        const opts = (px, py) => ({ bubbles: true, cancelable: true, pointerId: 7,
+            pointerType: 'touch', isPrimary: true, clientX: px, clientY: py });
+        card.dispatchEvent(new PointerEvent('pointerdown', opts(x, y)));
+        card.dispatchEvent(new PointerEvent('pointerup', opts(x + 6, y - 4)));
+        const style = getComputedStyle(card);
+        return { target: true, before, after: s.player.items.length,
+            touchAction: style.touchAction, height: r.height };
+    });
+    check(`${tag}：手指有少少飄移一樣買得到（唔靠合成 click）`,
+        driftBuy.target && driftBuy.after === driftBuy.before + 1, driftBuy);
+    check(`${tag}：商品卡自己認領觸控手勢，唔會被捲動容器食咗`,
+        driftBuy.touchAction === 'manipulation', driftBuy.touchAction);
+    check(`${tag}：商品卡至少 44px 高（手指撳得中）`,
+        driftBuy.height >= 44, driftBuy.height);
     await touch('.moba-shop-close');
     await page.waitForTimeout(80);
     check(`${tag}：戰線上仍可用「返回戰場」關店`,

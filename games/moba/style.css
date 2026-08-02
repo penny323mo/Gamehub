@@ -206,22 +206,34 @@ html, body {
 .moba-shop-state { font-weight: 700; color: #eef2fb; opacity: 0.88; }
 .moba-shop-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
 .moba-shop-grid { display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+/* touch-action: manipulation 唔可以少：外面個面板係 pan-y 捲動容器，
+   唔喺粒掣度講明「呢下手勢屬於我」，iOS 就會當手指飄一飄係想捲動，
+   連 click 都唔會合成。min-height 44px 係手指真正撳得中嘅最細尺寸。 */
 .moba-item {
-    text-align: left; padding: 7px 9px; border-radius: 9px; cursor: pointer; font: inherit;
+    text-align: left; padding: 9px 10px; border-radius: 9px; cursor: pointer; font: inherit;
     background: #141a2b; border: 1px solid #ffffff14; color: #cfd8ea;
     display: flex; flex-direction: column; gap: 1px;
+    min-height: 44px; touch-action: manipulation;
+    transition: transform 0.06s ease-out, background 0.12s;
 }
 .moba-item b { font-size: 13px; color: #fff; }
 .moba-item .cost { font-size: 11px; color: #8794ad; }
 .moba-item .txt { font-size: 10px; opacity: 0.62; line-height: 1.4; }
 .moba-item.afford { border-color: var(--gold); }
 .moba-item.afford .cost { color: var(--gold); }
-.moba-item.owned { opacity: 0.45; }
-.moba-item.away { opacity: 0.56; }
+.moba-item.owned b::after { content: ' ✓'; color: var(--gold); }
+/* 撳落即刻有反應。冇呢個，一次失敗嘅買入同一粒壞掉嘅掣係一模一樣。 */
+.moba-item.press, .moba-slot.press { transform: scale(0.96); background: #1d2740; }
+/* 買唔到嘅兩種原因分開講，唔使玩家撳完先估 */
+.moba-item.poor { opacity: 0.62; }
+.moba-item.poor .cost::after { content: ' · 唔夠'; color: #ff9b7d; }
+.moba-item.full { opacity: 0.5; }
 .moba-bag { display: flex; gap: 6px; margin-top: 9px; }
 .moba-slot {
     flex: 1; padding: 7px 4px; border-radius: 8px; font: inherit; font-size: 11px; cursor: pointer;
     background: #10162599; border: 1px dashed #ffffff20; color: #8794ad;
+    min-height: 44px; touch-action: manipulation;
+    transition: transform 0.06s ease-out, background 0.12s;
 }
 .moba-slot.filled { background: #1b2540; border-style: solid; color: #dce4f5; }
 .moba-shop-recall {

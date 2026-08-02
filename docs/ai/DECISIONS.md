@@ -1937,3 +1937,42 @@ follows what the tyres can use
   first attempt: ramping over 18% of `life` still left a 2.5-second shield undersized at 0.25 s.
 - Not changed: nothing else was tuned. The remaining profiles read acceptably at both sizes in the
   captures, and tuning them without a specific fault would be redecorating.
+
+## ADR-106: The shop button worked everywhere except on a phone
+
+- Date: 2026-08-02
+- Status: accepted
+- Decision: shop cards and bag slots commit on a guarded `pointerup` — same pointer, under 12 px
+  of drift, under 800 ms — with `click` kept for keyboard and assistive tech and suppressed by a
+  flag that the next `pointerdown` clears. The cards declare `touch-action: manipulation`, stand at least 44 px tall, and
+  show a press state. Failures name the actual reason instead of listing possibilities.
+- Reason: Penny reported having gold, seeing the card light up gold, and getting nothing at all
+  when pressing it. The gold highlight and `sim.buy` do agree — ADR-104 reduced `canShop()` to
+  `!!c`, so the purchase is not gated by position any more. The fault is one layer up. The shop
+  panel is `overflow-y: auto` with `touch-action: pan-y`, so vertical gestures belong to the
+  scroller; on iOS a tap that drifts a few pixels inside such a container is classified as a
+  scroll and **no `click` is ever synthesised**. The card was listening for `click` alone, and was
+  a 7 px-padded target inside that scroller. A desktop mouse and Playwright's `touchscreen.tap()`
+  both produce zero-movement input, so the click always fired for them: the suite was green while
+  the phone was dead. The codebase already knew this — the close button had been moved to
+  `pointerup` for exactly this reason — the item cards simply never followed.
+- **The old gate could not have caught it.** `touchscreen.tap(x, y)` does not drift, so it tests
+  the one input the real device rarely produces. The new gate dispatches pointer events only, with
+  a six-pixel offset and no `click` at all, so it fails on the previous code by construction; it
+  also asserts a forty-pixel drag does *not* buy, that the computed `touch-action` is
+  `manipulation`, and that the card is at least 44 px tall.
+- Measured after the change, 430×860: a six-pixel drift buys (items 0 → 1), a forty-pixel drag
+  does not, `touch-action` is `manipulation`, card height 69 px, zero console errors.
+- Also fixed while in here: `flash('金幣唔夠或者裝備格已滿')` asked the player to guess which of
+  two things was wrong. It now says `爭 N 金` or `裝備已滿 6 格，賣一件先`, and the card itself
+  carries the reason before you press it — a dimmed card with `· 唔夠` on the price. Bag slots
+  had the same click-only binding and are now armed the same way, with a sale confirmation.
+- **De-duplicating the compatibility click by time was itself a bug, and the new gate caught it.**
+  The first version treated any `click` within 600 ms of a handled `pointerup` as a duplicate. In
+  an idle probe the two are five milliseconds apart, so it looked correct; in the full suite, with
+  a match running and the main thread busy, the gap exceeded 600 ms and one tap bought two items.
+  A phone is the environment most likely to stall, so a timing window was exactly the wrong
+  mechanism. The flag is deterministic: set on a handled `pointerup`, cleared by the click that
+  follows or by the next `pointerdown` if none ever comes.
+- Cache token moved `shop-anywhere-1` → `shop-tap-2` across all six entry points, because a fix
+  that ships behind a stale `hud.js` is not a fix. `cache-bust.mjs` keeps the six in agreement.

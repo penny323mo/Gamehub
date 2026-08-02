@@ -5,10 +5,10 @@
 // 畫面要跟硬件。一個 120Hz 螢幕唔應該令小兵行快一倍。
 
 import { Assets } from './assets.js';
-import { Sim } from './sim.js?v=shop-anywhere-1';
+import { Sim } from './sim.js?v=shop-tap-2';
 import { createBot } from './ai.js';
 import { View } from './view.js';
-import { Hud } from './hud.js?v=shop-anywhere-1';
+import { Hud } from './hud.js?v=shop-tap-2';
 import { createInput } from './input.js';
 import { CHAMPIONS, CHAMPION_IDS } from './champions.js';
 import { TEAM, TICK, teamName } from './constants.js';

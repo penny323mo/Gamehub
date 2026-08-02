@@ -181,10 +181,11 @@ export class Hud {
         for (const it of Object.values(ITEMS)) {
             const card = el('button', 'moba-item');
             card.append(el('b', null, it.name), el('span', 'cost', `${it.cost} 金`), el('span', 'txt', it.text));
-            card.addEventListener('click', () => {
+            this.#armTap(card, () => {
                 const p = this.sim.player;
+                const why = this.#cannotBuy(p, it);
+                if (why) { this.flash(why); return; }
                 if (this.sim.buy(p, it.id)) this.flash(`已購買 ${it.name}`);
-                else this.flash('金幣唔夠或者裝備格已滿');
             });
             this.shopGrid.append(card);
             this.shopCards.push({ card, item: it });
@@ -193,6 +194,59 @@ export class Hud {
 
         this.bagRow = el('div', 'moba-bag');
         this.shop.append(this.bagRow);
+    }
+
+    // 手機上面「撳咗但乜都冇發生」嘅根源。
+    //
+    // 商店面板係 overflow-y: auto 加 touch-action: pan-y，即係垂直手勢屬於
+    // 捲動容器。iOS 見到手指喺呢種容器入面有少少上下飄移，就會當你想捲動，
+    // 於是根本唔會合成 click——粒掣一世都收唔到嘢。桌面滑鼠同自動測試嘅
+    // 合成點擊係零位移，所以測試全綠、真機全死。關閉掣早就因為同一個原因
+    // 改咗用 pointerup，但啲商品卡冇跟。
+    //
+    // 做法：喺 pointerup 度自己判斷「呢下算唔算一撳」——同一隻手指、位移細過
+    // 12 像素、冇撳實過 800 毫秒。跟住瀏覽器仲會補一個 click，要擋住，
+    // 唔係一下撳會買兩件。
+    //
+    // 擋法用旗標，唔用時間窗。第一版我用「600 毫秒內嘅 click 當重複」，
+    // 喺清靜嘅測試度 pointerup 同 click 相隔五毫秒，睇落冇問題；但喺跑緊
+    // 成場波、主執行緒忙嘅時候，個間隔超過 600 毫秒，兩條路一齊行，一下撳
+    // 買咗兩件。手機正正就係最容易卡嗰個環境。旗標由下一次 pointerdown 清，
+    // 所以就算 click 唔嚟都唔會殘留。
+    #armTap(node, run) {
+        let start = null;
+        let swallowClick = false;
+        const release = () => { node.classList.remove('press'); };
+        node.addEventListener('pointerdown', (ev) => {
+            swallowClick = false;
+            start = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, t: performance.now() };
+            node.classList.add('press');
+        });
+        node.addEventListener('pointercancel', () => { start = null; release(); });
+        node.addEventListener('pointerleave', release);
+        node.addEventListener('pointerup', (ev) => {
+            release();
+            const s = start;
+            start = null;
+            if (!s || ev.pointerId !== s.id) return;
+            if (Math.hypot(ev.clientX - s.x, ev.clientY - s.y) > 12) return;   // 想捲動，唔係想買
+            if (performance.now() - s.t > 800) return;                        // 撳實咗，唔算
+            swallowClick = true;
+            run();
+        });
+        // 鍵盤同輔助技術淨係發 click，所以要留返；但唔可以同上面撞成兩次。
+        node.addEventListener('click', () => {
+            if (swallowClick) { swallowClick = false; return; }
+            run();
+        });
+    }
+
+    // 買唔到就要講得出係差咩。「金幣唔夠或者裝備格已滿」係叫玩家自己估。
+    #cannotBuy(p, it) {
+        if (!p.alive && !this.sim.canShop(p)) return '而家買唔到';
+        if (p.items.length >= MAX_ITEMS) return `裝備已滿 ${MAX_ITEMS} 格，賣一件先`;
+        if (p.gold < it.cost) return `爭 ${Math.ceil(it.cost - p.gold)} 金`;
+        return null;
     }
 
     #buildSettings() {
@@ -455,16 +509,26 @@ export class Hud {
             this.shopState.textContent = `商店 · 隨時可買 · ${Math.floor(p.gold)} 金`;
             this.shopRecall.classList.toggle('hidden', home || !p.alive);
             this.shopRecall.textContent = sim.recallProgress(p) > 0 ? '返程中 · 返回戰場' : '返程回血';
+            const bagFull = p.items.length >= MAX_ITEMS;
             for (const { card, item } of this.shopCards) {
-                card.classList.toggle('afford', p.gold >= item.cost && p.items.length < MAX_ITEMS);
-                card.classList.remove('away');
+                // 「買得起」同 sim.buy 嘅條件要對得返晒。呢兩個判斷分開寫喺兩處，
+                // 一唔同步就會出現「卡着住黃色但撳極都唔郁」——玩家見到嘅係壞咗。
+                card.classList.toggle('afford', !bagFull && p.gold >= item.cost);
+                card.classList.toggle('poor', !bagFull && p.gold < item.cost);
+                card.classList.toggle('full', bagFull);
                 card.classList.toggle('owned', p.items.includes(item.id));
             }
             this.bagRow.innerHTML = '';
             for (let i = 0; i < MAX_ITEMS; i++) {
                 const id = p.items[i];
                 const slot = el('button', 'moba-slot' + (id ? ' filled' : ''), id ? ITEMS[id].name : '－');
-                if (id) slot.addEventListener('click', () => sim.sell(p, i));
+                if (id) {
+                    slot.title = `賣咗 ${ITEMS[id].name}，退返 ${Math.round(ITEMS[id].cost * 0.7)} 金`;
+                    this.#armTap(slot, () => {
+                        const name = ITEMS[id].name;
+                        if (sim.sell(p, i)) this.flash(`賣咗 ${name}`);
+                    });
+                }
                 this.bagRow.append(slot);
             }
             const hint = nextPurchase(p.champId, p.items, p.gold);
