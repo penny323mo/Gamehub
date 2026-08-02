@@ -122,6 +122,10 @@ export class Hud {
         this.shopBtn = el('button', 'moba-shopbtn', '商店');
         this.shopBtn.addEventListener('click', () => this.toggleShop());
         r.append(this.shopBtn);
+        this.shopBackdrop = el('button', 'moba-shop-backdrop hidden');
+        this.shopBackdrop.setAttribute('aria-label', '關閉商店，返回戰場');
+        this.shopBackdrop.addEventListener('click', () => this.toggleShop(false));
+        r.append(this.shopBackdrop);
         this.shop = el('div', 'moba-shop hidden');
         r.append(this.shop);
         this.#buildShop();
@@ -154,7 +158,7 @@ export class Hud {
         this.shopState = el('span', 'moba-shop-state', '商店');
         head.append(this.shopState);
         const actions = el('div', 'moba-shop-actions');
-        this.shopRecall = el('button', 'moba-shop-recall', '返程購物');
+        this.shopRecall = el('button', 'moba-shop-recall', '返程回血');
         this.shopRecall.addEventListener('click', () => {
             this.toggleShop(false);
             // 已經讀緊返程就淨係收埋商店；再 toggle 一次反而會取消返程。
@@ -162,6 +166,11 @@ export class Hud {
         });
         const close = el('button', 'moba-x moba-shop-close', '返回戰場 ×');
         close.setAttribute('aria-label', '關閉商店，返回戰場');
+        // pointerup 令 iOS 唔使等合成 click；click 保留畀鍵盤／輔助技術。force=false
+        // 令兩個事件就算都到達亦只會關閉，唔會第二次反手重開。
+        close.addEventListener('pointerup', (ev) => {
+            ev.preventDefault(); ev.stopPropagation(); this.toggleShop(false);
+        });
         close.addEventListener('click', () => this.toggleShop(false));
         actions.append(this.shopRecall, close);
         head.append(actions);
@@ -175,7 +184,7 @@ export class Hud {
             card.addEventListener('click', () => {
                 const p = this.sim.player;
                 if (this.sim.buy(p, it.id)) this.flash(`已購買 ${it.name}`);
-                else this.flash(this.sim.canShop(p) ? '金幣唔夠或者裝備格已滿' : '未到泉水：請先撳「返程購物」');
+                else this.flash('金幣唔夠或者裝備格已滿');
             });
             this.shopGrid.append(card);
             this.shopCards.push({ card, item: it });
@@ -257,6 +266,7 @@ export class Hud {
     toggleShop(force) {
         this.shopOpen = force ?? !this.shopOpen;
         this.shop.classList.toggle('hidden', !this.shopOpen);
+        this.shopBackdrop.classList.toggle('hidden', !this.shopOpen);
         this.root.classList.toggle('shop-open', this.shopOpen);
         if (this.shopOpen) this.toggleSettings(false);
     }
@@ -434,7 +444,7 @@ export class Hud {
 
         // 返程：喺屋企就冇意思，讀秒中就變成一條進度條
         const prog = sim.recallProgress(p);
-        const home = sim.canShop(p);
+        const home = sim.atFountain(p);
         this.recallBtn.classList.toggle('hidden', home || !p.alive);
         this.recallBtn.classList.toggle('on', prog > 0);
         this.recallBar.classList.toggle('hidden', prog <= 0);
@@ -442,15 +452,12 @@ export class Hud {
 
         // 商店：買唔買得起用顏色講，唔使玩家自己計數
         if (this.shopOpen) {
-            const canShop = sim.canShop(p);
-            this.shopState.textContent = canShop
-                ? `商店 · 泉水內 · ${Math.floor(p.gold)} 金`
-                : `商店 · 未在泉水 · ${Math.floor(p.gold)} 金`;
-            this.shopRecall.classList.toggle('hidden', canShop || !p.alive);
-            this.shopRecall.textContent = sim.recallProgress(p) > 0 ? '返程中 · 返回戰場' : '返程購物';
+            this.shopState.textContent = `商店 · 隨時可買 · ${Math.floor(p.gold)} 金`;
+            this.shopRecall.classList.toggle('hidden', home || !p.alive);
+            this.shopRecall.textContent = sim.recallProgress(p) > 0 ? '返程中 · 返回戰場' : '返程回血';
             for (const { card, item } of this.shopCards) {
-                card.classList.toggle('afford', canShop && p.gold >= item.cost && p.items.length < MAX_ITEMS);
-                card.classList.toggle('away', !canShop);
+                card.classList.toggle('afford', p.gold >= item.cost && p.items.length < MAX_ITEMS);
+                card.classList.remove('away');
                 card.classList.toggle('owned', p.items.includes(item.id));
             }
             this.bagRow.innerHTML = '';
@@ -461,7 +468,7 @@ export class Hud {
                 this.bagRow.append(slot);
             }
             const hint = nextPurchase(p.champId, p.items, p.gold);
-            this.shopBtn.textContent = hint && canShop ? `商店 · 可買 ${ITEMS[hint].name}` : '商店';
+            this.shopBtn.textContent = hint ? `商店 · 可買 ${ITEMS[hint].name}` : '商店';
         } else {
             const hint = nextPurchase(p.champId, p.items, p.gold);
             this.shopBtn.textContent = hint ? `商店 ●` : '商店';

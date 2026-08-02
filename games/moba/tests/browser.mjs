@@ -203,34 +203,56 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     check(`${tag}：放開方向鍵後會回復企定動畫`,
         releasedOrder.moving === false && releasedOrder.clip !== 'Running_A', releasedOrder);
 
-    // Penny 截圖嗰個情境係已經離開泉水：買唔到本身係遊戲規則，但之前提示
-    // 藏喺 modal 後面，亦冇直接出路，望落就似商店卡死。
+    // Penny 要求商店係爽快模式：離開泉水仍然可以買，泉水只負責回血／返程。
+    // 同時直接驗「返回戰場」同暗位，避免 modal 再成為手機 touch dead end。
+    await page.evaluate(() => { window.__sim.player.gold = 10000; });
+    await page.waitForTimeout(50);
     await touch('.moba-shopbtn');
     await page.waitForTimeout(80);
     const awayShop = await page.evaluate(() => ({
         state: document.querySelector('.moba-shop-state')?.textContent,
         recallVisible: !document.querySelector('.moba-shop-recall')?.classList.contains('hidden'),
     }));
-    check(`${tag}：離開泉水開商店會清楚講明未能購買`,
-        awayShop.state?.includes('未在泉水') && awayShop.recallVisible, awayShop);
-    await touch('.moba-shop .moba-item');
-    await page.waitForTimeout(60);
-    const blockedFeedback = await page.evaluate(() => {
-        const flash = [...document.querySelectorAll('.moba-flash')].at(-1);
-        const shop = document.querySelector('.moba-shop');
-        return { text: flash?.textContent, flashZ: Number(getComputedStyle(flash).zIndex),
-            shopZ: Number(getComputedStyle(shop).zIndex) };
+    check(`${tag}：離開泉水開商店會講明隨時可買`,
+        awayShop.state?.includes('隨時可買') && awayShop.recallVisible, awayShop);
+    const closeTarget = await page.$eval('.moba-shop-close', e => {
+        const r = e.getBoundingClientRect();
+        return { width: r.width, height: r.height, top: r.top, right: r.right,
+            visible: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth };
     });
-    check(`${tag}：戰線上買唔到會有商店之上嘅可見提示`,
-        blockedFeedback.text?.includes('未到泉水') && blockedFeedback.flashZ > blockedFeedback.shopZ,
-        blockedFeedback);
+    check(`${tag}：「返回戰場」係至少 44px 而且一直留喺畫面內`,
+        closeTarget.height >= 44 && closeTarget.visible, closeTarget);
+    const awayPurchase = await (async () => {
+        const before = await page.evaluate(() => window.__sim.player.items.length);
+        const affordable = await page.$('.moba-shop .moba-item.afford');
+        if (!affordable) return { before, after: before, target: false };
+        const box = await affordable.boundingBox();
+        await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+        await page.waitForTimeout(80);
+        return { before, after: await page.evaluate(() => window.__sim.player.items.length), target: true };
+    })();
+    check(`${tag}：離開泉水仍然可以用觸控買裝`,
+        awayPurchase.target && awayPurchase.after === awayPurchase.before + 1, awayPurchase);
+    await touch('.moba-shop-close');
+    await page.waitForTimeout(80);
+    check(`${tag}：戰線上仍可用「返回戰場」關店`,
+        await page.$eval('.moba-shop', e => e.classList.contains('hidden')));
+    await touch('.moba-shopbtn');
+    await page.waitForTimeout(80);
+    const backdrop = await page.locator('.moba-shop-backdrop').boundingBox();
+    if (backdrop) await page.touchscreen.tap(backdrop.x + 4, backdrop.y + 4);
+    await page.waitForTimeout(80);
+    check(`${tag}：撳商店暗位亦會返回戰場`, backdrop
+        && await page.$eval('.moba-shop', e => e.classList.contains('hidden')), backdrop);
+    await touch('.moba-shopbtn');
+    await page.waitForTimeout(80);
     await touch('.moba-shop-recall');
     await page.waitForTimeout(80);
     const recallFromShop = await page.evaluate(() => ({
         shopClosed: document.querySelector('.moba-shop')?.classList.contains('hidden'),
         progress: window.__sim.recallProgress(window.__sim.player),
     }));
-    check(`${tag}：商店「返程購物」會關店兼開始返程`,
+    check(`${tag}：商店「返程回血」會關店兼開始返程`,
         recallFromShop.shopClosed && recallFromShop.progress > 0, recallFromShop);
 
     // 攻擊命令可以喺放手同下一幀之間取代走位命令；停止走位時唔可以連新嘅

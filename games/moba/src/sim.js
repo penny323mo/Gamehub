@@ -185,7 +185,7 @@ export class Sim {
     // 就變成同一個條件（recallUntil <= time），到時就永遠行唔到傳送嗰步。
     startRecall(c) {
         if (!c.alive || c.recallUntil) return false;
-        if (this.canShop(c)) return false;           // 已經喺屋企就唔使
+        if (this.atFountain(c)) return false;        // 已經喺屋企就唔使
         c.recallUntil = this.time + RECALL.channel;
         c.orderX = null; c.orderZ = null; c.orderTarget = null;
         this.emit('recallStart', { id: c.id, until: c.recallUntil });
@@ -218,13 +218,15 @@ export class Sim {
         return true;      // 讀秒中：唔郁、唔出手
     }
 
-    // ---------- 商店 ----------
-    // 同 LoL 一樣，只可以喺自己泉水買嘢。呢條規則就係「返唔返家」呢個決定嘅代價：
-    // 買裝要行返去，行返去就放棄咗兵線。
-    // 死咗一樣買得到：屍體本來就喺泉水，而等重生嗰十幾秒係玩家唯一
-    // 完全冇嘢做嘅時間。唔畀買反而係逼佢乾等。
-    canShop(c) {
+    // ---------- 泉水／商店 ----------
+    atFountain(c) {
         return Math.abs(c.x - sideSign(c.team) * MAP.fountainX) < FOUNTAIN_RADIUS;
+    }
+
+    // 爽快模式：商店唔再綁泉水，任何位置都可以買。保留方法係等 HUD、AI
+    // 同規則測試共用同一個購買 gate；之後若有暈眩等真正禁買狀態亦有入口。
+    canShop(c) {
+        return !!c;
     }
 
     buy(c, itemId) {

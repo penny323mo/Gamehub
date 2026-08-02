@@ -198,13 +198,13 @@ export function createBot(sim, champ, opts = {}) {
         return mates >= 2 && champ.hp / sim.stats(champ).maxHp > 0.45 ? t : null;
     }
 
-    // 買到嘢先值得行返去。淨係「夠錢買下一件」就返，唔會為咗 100 蚊走返轉頭。
+    // 買裝可以喺戰線完成；返程決策只再睇血魔狀態，唔會為購物放棄兵線。
     function wantsToShop() {
         if (champ.items.length >= MAX_ITEMS) return false;
         return nextPurchase(champ.champId, champ.items, champ.gold) != null;
     }
 
-    // 一到泉水就買，買到唔再買得到為止（死完重生嗰陣自動觸發）
+    // 同玩家公平：AI 夠錢亦可以即時沿出裝表買，買到唔再負擔為止。
     function shop() {
         if (!sim.canShop(champ)) return;
         for (let i = 0; i < MAX_ITEMS; i++) {
@@ -341,7 +341,7 @@ export function createBot(sim, champ, opts = {}) {
         get state() { return state; },
         update(dt) {
             if (!champ.alive) return;
-            shop();                       // 企喺泉水就自動掃貨
+            shop();                       // 夠錢就自動沿出裝表買
             think -= dt;
             if (think <= 0) { state = pickState(); think = reaction; }
             useAbilities(dt);
@@ -359,7 +359,7 @@ export function createBot(sim, champ, opts = {}) {
                 if (sim.recallProgress(champ) > 0) return;
                 // 安全（附近冇敵人）就用返程，唔係就照行返去
                 const safe = !foe || d > 16;
-                if (safe && !sim.canShop(champ) && sim.startRecall(champ)) return;
+                if (safe && !sim.atFountain(champ) && sim.startRecall(champ)) return;
                 sim.orderMove(champ, home, 0);
                 return;
             }

@@ -1870,3 +1870,22 @@ follows what the tyres can use
   classes, zero residual FX after a stress burst, both mobile layouts, a completed match, and zero
   console errors. These structural gates do not replace subjective crowded-teamfight readability
   or physical-device performance QA; those remain the next production pass.
+
+## ADR-104: 深淵之橋 uses an anywhere-purchase shop and versioned shop entry chain
+
+- Date: 2026-08-02
+- Status: accepted; supersedes the fountain-only clauses of ADR-088, ADR-094, and ADR-100
+- Decision: player and bot purchases are legal anywhere on the bridge. `Sim#atFountain()` owns the
+  location question for healing and recall; `Sim#canShop()` is a separate purchase gate and must
+  not be reused to infer whether a champion is home. The shop says `隨時可買`; its optional recall
+  action is `返程回血`, not a prerequisite for buying.
+- The shop has three independent mobile exits: a sticky, minimum-44-px `返回戰場` action, a full
+  screen backdrop, and `返程回血` (which closes before starting recall). Closing uses an idempotent
+  `force=false` path so pointer and synthesised click events cannot reopen the modal.
+- The reported screenshot contained the removed text `商店（要返到泉水先買得到）`, proving the
+  phone had retained old `hud.js/style.css`. The Hub MOBA link, MOBA stylesheet/entry module, and
+  changed `hud.js/sim.js` imports therefore carry one shared `shop-anywhere-1` version token. The
+  fast cache-bust gate prevents a future edit from silently breaking that delivery chain.
+- Gates: `cache-bust.mjs` checks the six tokens; `sim.mjs` proves an away purchase deducts gold and
+  changes stats; `browser.mjs` touch-buys away from the fountain and closes via the 44-px action,
+  backdrop, and recall in landscape and portrait, with zero console errors.

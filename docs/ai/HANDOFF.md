@@ -4,14 +4,12 @@ Updated: 2026-08-02 (Asia/Macau)
 Prepared by: Codex (local)
 Integration branch: `main`
 Work branch: `main`
-Status: Hub compact-launcher follow-up complete; 深淵之橋 champion-FX checkpoint ready for the next agent
+Status: 深淵之橋 anywhere-shop/exit fix complete; champion-FX checkpoint ready for the next agent
 
 ## Current objective
 
-Penny asked to stop after two durable checkpoints and hand the project to the next agent:
-
-1. Replace the Hub's one-game-per-page launcher with four-game pages and move 中國象棋 forward.
-2. Preserve and publish the in-progress 深淵之橋 production pass, especially its attack effects.
+Penny asked to finish the last MOBA shop problem before stopping: buying must work away from the
+fountain, and the mobile shop must always provide a reliable route back to the battle.
 
 The overall MOBA production objective is **not finished**. This handoff is a tested checkpoint,
 not a claim that crowded-fight readability, performance, controls, logic, and physics are final.
@@ -49,6 +47,16 @@ not a claim that crowded-fight readability, performance, controls, logic, and ph
   geometry signatures, three projectile model classes, and zero leftover scene objects after FX.
 - ADR-103 records the simulation-to-render visual identity and cleanup invariants.
 
+### 深淵之橋 anywhere shop and modal exit
+
+- Purchases now work anywhere for both player and bots. `atFountain()` remains separate and is
+  used by healing/recall only; the shop says `隨時可買` and recall is labelled `返程回血`.
+- The header is sticky, `返回戰場` stays at least 44 px, a full-screen backdrop is a second close
+  route, and recall closes the shop before channelling. All close paths force false, never toggle.
+- The user's screenshot showed obsolete fountain-only copy. `shop-anywhere-1` now cache-busts the
+  Hub link, MOBA CSS/main entry, and changed HUD/sim modules; `cache-bust.mjs` locks the chain.
+- ADR-104 supersedes the fountain-only clauses in ADR-088/094/100.
+
 ## Verification
 
 - `node tests/hub.mjs` → **75/75 pass** at 320×568, 440×956, 844×390, and 1280×800. The regression
@@ -60,18 +68,21 @@ not a claim that crowded-fight readability, performance, controls, logic, and ph
 - `cd games/xiangqi-ai && npm run build` → pass; tracked dist regenerated.
 - Xiangqi `selftest_legal.js`, `selftest_search.js`, `selftest_perf.js` → all pass.
 - MOBA JavaScript syntax checks and `git diff --check` → pass.
-- `node games/moba/tests/sim.mjs` → **206/206 pass**. Twelve mirrored matches: blue/red 5/7;
-  9 nexus finishes, 3 time-limit finishes; no NaN or bridge escape.
+- `node games/moba/tests/cache-bust.mjs` → pass; all six entry/resource tokens agree.
+- `node games/moba/tests/sim.mjs` → **206/206 pass**. Away purchase deducts gold and adds stats.
+  Twelve mirrored matches: blue/red 2/10; 11 nexus finishes, 1 time-limit; no NaN/bridge escape.
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node
-  games/moba/tests/browser.mjs` → **96/96 pass** across landscape and portrait, both full matches,
-  shop/touch/joystick regressions, all new FX gates, and zero console errors.
+  games/moba/tests/browser.mjs` → **102/102 pass** across landscape and portrait. It proves
+  away-from-fountain touch purchase, three close routes, full matches, FX gates, and zero errors.
+- Real-browser 1280×589 inspection shows `商店 · 隨時可買`, affordable cards, and the sticky
+  `返回戰場 ×` action fully visible above the grid.
 
 ## Changed files
 
 - Hub launcher plus follow-up: `index.html`, `launcher.js`, `style.css`, `tests/hub.mjs`, Xiangqi
   source/build files, ADR-102, and this handoff.
-- MOBA checkpoint: `games/moba/src/{fx,looks,sim,view}.js`, `games/moba/tests/browser.mjs`,
-  `docs/ai/{PROJECT_CONTEXT,DECISIONS,HANDOFF}.md`.
+- MOBA checkpoint plus shop fix: `games/moba/{index.html,style.css}`, `src/{ai,hud,main,sim}.js`,
+  `tests/{browser,cache-bust,sim}.mjs`, root `launcher.js`, and `docs/ai/*.md`.
 
 ## Known issues and cautions
 
@@ -91,7 +102,7 @@ not a claim that crowded-fight readability, performance, controls, logic, and ph
 2. Open 深淵之橋 at 844×390 and 430×860 and capture real mid-life attack/ability frames during a
    crowded fight. Tune only profiles whose silhouette or timing is genuinely unclear.
 3. Measure peak `renderer.info.memory.geometries`, active FX item count, frame pacing, and physical
-   phone feel before calling the production objective complete. Keep `206/206` and `96/96` green.
+   phone feel before calling the production objective complete. Keep `206/206` and `102/102` green.
 
 ## Do not redo
 
@@ -99,3 +110,4 @@ not a claim that crowded-fight readability, performance, controls, logic, and ph
 - Do not revert the Hub to absolute one-card carousel positioning, platform Gomoku emoji, floating
   edge arrows, or a stretched/left-aligned final partial page.
 - Do not remove champion/ability metadata from sim events or merge all skills back into one ring.
+- Do not restore fountain-only buying or reuse `canShop()` as the home/recall-location predicate.

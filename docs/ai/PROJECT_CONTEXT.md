@@ -28,6 +28,7 @@ Ashen Rail and Elden Ring II during deployment.
 | Tower Defense | `games/tower/dist/index.html` | Vite + TypeScript + Three.js; tracked `dist/` is the hub target. |
 | Neon Snake | `games/snake-game/dist/index.html` | React + Vite + TypeScript; tracked `dist/` is the hub target. |
 | Empire Royale | `games/royale/index.html` | Static ES modules + vendored Three.js. Two modes: Clash-style lane battle (`game.js`, `ai.js`) and LV2 age-of-empires RTS (`src/rts/`). Shared: `models.js`, `rig.js` (procedural bone animation), `sfx.js`, `net.js`/`pvp.js` (Supabase PvP), `leaderboard.js`, `storage.js`, `gauntlet.js`, `profiles.js`. Regression suite in `games/royale/tests/`. |
+| 深淵之橋 MOBA | `games/moba/index.html` | Static ES modules + vendored Three.js. Deterministic sim, 3v3 bots, mobile HUD, anywhere-purchase shop, and procedural champion FX. Tests in `games/moba/tests/`. |
 | Racing Car 3D | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Continuous spline track (`track.js`), day/dusk/night environment (`environment.js`), bounded driving effects, player-only arcade assists and simple auto-throttle controls, four physical AI rivals plus a dithered ghost in one instanced field (`rivals.js`, `ghost.js`), and a persistent three-race championship with career records (`season.js`). Draco-compressed player car. Tests in `games/Racing Car/tests/`. |
 | Ashen Rail | `games/ashen-rail/dist/index.html` | Self-contained Vite + TypeScript + Babylon.js bonus game; CI builds `dist/`. |
 | Elden Ring II | `games/elden-ring-ii/dist/index.html` | Self-contained Vite + React + TypeScript + Three.js/Cannon-es bonus game; three classes, mobile touch controls, local run history, optional Supabase write, bundled CC0 assets; CI builds ignored `dist/`. |
@@ -63,6 +64,9 @@ Ashen Rail and Elden Ring II during deployment.
   cookies, or connection secrets in code, handoffs, logs, or commits.
 - Visual, camera, input, responsive-layout, audio, and gameplay-feel changes need
   real browser verification at the relevant desktop/mobile viewport.
+- 深淵之橋 uses `Sim#atFountain()` only for healing/recall location. `Sim#canShop()` permits
+  purchases anywhere; do not re-couple those concepts. Its Hub link and changed entry assets use
+  one cache-bust token so Safari cannot keep an obsolete shop UI/rule after a Pages deploy.
 
 ## Verification matrix
 
@@ -89,6 +93,18 @@ npm run build
 
 Then run a browser smoke test. CI runs these four commands on every push to
 `main`.
+
+### 深淵之橋 MOBA
+
+```sh
+node games/moba/tests/cache-bust.mjs
+node games/moba/tests/sim.mjs
+PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
+  node games/moba/tests/browser.mjs
+```
+
+The browser suite covers landscape/portrait touch purchase and all shop exit routes as well as
+gameplay, FX, cleanup, and full-match gates. Visual changes still need a real rendered inspection.
 
 ### Elden Ring II
 

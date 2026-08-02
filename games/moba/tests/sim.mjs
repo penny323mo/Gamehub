@@ -336,10 +336,10 @@ function pickTargetFor(sim, minion) {
 
     c.gold = 10000;
     c.x = 0;                       // 唔喺泉水
-    check('唔喺泉水買唔到嘢', sim.buy(c, 'longsword') === false);
-    c.x = -MAP.fountainX;
-    check('喺泉水買得到', sim.buy(c, 'longsword') === true);
+    check('唔喺泉水都買得到', sim.buy(c, 'longsword') === true);
     check('買嘢會扣錢', c.gold === 10000 - ITEMS.longsword.cost, c.gold);
+    c.x = -MAP.fountainX;
+    check('喺泉水一樣買得到', sim.buy(c, 'dagger') === true);
     check('裝備真係加到攻擊力',
         Math.abs(sim.stats(c).damage - base.damage - ITEMS.longsword.ad) < 1e-6,
         { before: base.damage, after: sim.stats(c).damage });
