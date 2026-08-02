@@ -4,7 +4,7 @@ Updated: 2026-08-02 (Asia/Macau)
 Prepared by: Codex (local)
 Integration branch: `main`
 Work branch: `main`
-Status: Hub four-card side quest complete; 深淵之橋 champion-FX checkpoint ready for the next agent
+Status: Hub compact-launcher follow-up complete; 深淵之橋 champion-FX checkpoint ready for the next agent
 
 ## Current objective
 
@@ -23,6 +23,11 @@ not a claim that crowded-fight readability, performance, controls, logic, and ph
 - Commit `752bcc3` replaces the single oversized card with paged groups of four.
 - Desktop/short landscape: four cards in one row. Phone portrait: the same group as a 2×2 grid.
   Swipe, arrow buttons, keyboard arrows, dots, page status, and focus isolation are wired.
+- Phone portrait cards are compact app-style tiles with icon wells and small corner launch actions;
+  the launcher is vertically balanced instead of leaving the whole interface stuck to the top.
+- Arrows, dots, and page status now share one centred footer dock instead of floating at opposite
+  screen edges. A final page with only one game keeps normal tile dimensions and centres it in the
+  same page area; it must never stretch into a double-height card or remain left-aligned.
 - First group is 五子棋 → 中國象棋 → 鋤大D → 鬥地主. The last partial page does not duplicate games.
 - Gomoku now uses two equal CSS stones with a fixed 6–8 px gap instead of unequal joined emoji.
 - 844×390 has a compact treatment so all cards, Play actions, arrows, and status fit one screen.
@@ -46,9 +51,12 @@ not a claim that crowded-fight readability, performance, controls, logic, and ph
 
 ## Verification
 
-- `node tests/hub.mjs` → **64/64 pass** at 320×568, 440×956, 844×390, and 1280×800.
-- Real browser visual QA: 320×568 2×2 and 844×390 four-column pages fit in one screen; equal Gomoku
-  stones are visibly separated. Real Hub card click reached `中國象棋 AI`, one canvas, 0 errors.
+- `node tests/hub.mjs` → **75/75 pass** at 320×568, 440×956, 844×390, and 1280×800. The regression
+  suite now measures compact portrait-card height, footer grouping, tall-phone vertical balance,
+  and the last card's size plus horizontal/vertical centring.
+- Real browser visual QA: 393×852 first/last pages and 844×390 first/last pages confirm the compact
+  four-card layout and the centred normal-size Elden Ring II tile. Both orientations reported zero
+  console errors. Real Hub card click also reached `中國象棋 AI`, one canvas, 0 errors.
 - `cd games/xiangqi-ai && npm run build` → pass; tracked dist regenerated.
 - Xiangqi `selftest_legal.js`, `selftest_search.js`, `selftest_perf.js` → all pass.
 - MOBA JavaScript syntax checks and `git diff --check` → pass.
@@ -60,8 +68,8 @@ not a claim that crowded-fight readability, performance, controls, logic, and ph
 
 ## Changed files
 
-- Hub commit: `index.html`, `launcher.js`, `style.css`, `tests/hub.mjs`, Xiangqi source/build files,
-  and ADR-102.
+- Hub launcher plus follow-up: `index.html`, `launcher.js`, `style.css`, `tests/hub.mjs`, Xiangqi
+  source/build files, ADR-102, and this handoff.
 - MOBA checkpoint: `games/moba/src/{fx,looks,sim,view}.js`, `games/moba/tests/browser.mjs`,
   `docs/ai/{PROJECT_CONTEXT,DECISIONS,HANDOFF}.md`.
 
@@ -88,5 +96,6 @@ not a claim that crowded-fight readability, performance, controls, logic, and ph
 ## Do not redo
 
 - Do not restore the obsolete local MOBA stashes; the checkpoint is now in Git history.
-- Do not revert the Hub to absolute one-card carousel positioning or platform Gomoku emoji.
+- Do not revert the Hub to absolute one-card carousel positioning, platform Gomoku emoji, floating
+  edge arrows, or a stretched/left-aligned final partial page.
 - Do not remove champion/ability metadata from sim events or merge all skills back into one ring.

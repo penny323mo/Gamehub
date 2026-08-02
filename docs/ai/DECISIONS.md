@@ -1836,13 +1836,18 @@ follows what the tyres can use
 - Short landscape phones have a compact four-column treatment so the complete cards, Play actions,
   arrows, and page status remain within 844×390. Phone portrait uses 2×2; neither mode may make the
   document wider or taller than the viewport.
+- On phone portrait, cards use compact app-tile proportions rather than four tall feature panels.
+  Arrows, dots, and page status share one centred footer dock. A partial page containing one game
+  keeps the same tile size as a full page and is centred on both axes instead of stretching to the
+  full page height or anchoring to the left.
 - Xiangqi's source page is one level above its built `dist/` page. Its Vite build rewrites the
   shared online-helper URL from `../shared/` to `../../shared/`; otherwise Hub navigation succeeds
   but production silently requests the nonexistent `games/xiangqi-ai/shared/` path.
 - Gates: `node tests/hub.mjs` covers 320×568, 440×956, 844×390, and 1280×800, including ordering,
-  layout, full-viewport fit, swipe/keyboard/dot navigation, focus isolation, unique entries, equal
-  Gomoku stones, and zero Hub browser errors. A real card click must also reach Xiangqi's built
-  page with its canvas and shared helper requests returning successfully.
+  layout, full-viewport fit, compact portrait-card height, footer grouping, tall-phone vertical
+  balance, final-card size/centring, swipe/keyboard/dot navigation, focus isolation, unique entries,
+  equal Gomoku stones, and zero Hub browser errors. A real card click must also reach Xiangqi's
+  built page with its canvas and shared helper requests returning successfully.
 
 ## ADR-103: Champion attacks use stable procedural visual grammars carried by simulation events
 

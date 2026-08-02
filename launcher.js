@@ -141,6 +141,7 @@ function renderCarousel() {
         const li = document.createElement('li');
         li.className = 'game-page';
         li.dataset.page = pageIndex;
+        li.dataset.count = pageGames.length;
         li.setAttribute('aria-label', `第 ${pageIndex + 1} 組遊戲`);
         li.innerHTML = pageGames.map((game) => {
             const iconHtml = game.id === 'gomoku'

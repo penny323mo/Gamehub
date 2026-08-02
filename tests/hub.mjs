@@ -68,6 +68,10 @@ const read = page => page.evaluate(() => {
     const cards = [...document.querySelectorAll('.game-hub-card')];
     const activeCards = [...active.querySelectorAll('.game-hub-card')];
     const view = document.querySelector('.carousel-track-container').getBoundingClientRect();
+    const pageRect = active.getBoundingClientRect();
+    const hubRect = document.querySelector('#app-hub').getBoundingClientRect();
+    const footer = document.querySelector('.carousel-footer');
+    const footerRect = footer.getBoundingClientRect();
     const rects = activeCards.map(card => {
         const r = card.getBoundingClientRect();
         return { id: card.dataset.gameId, left: r.left, right: r.right, top: r.top,
@@ -116,6 +120,18 @@ const read = page => page.evaluate(() => {
                 && Math.abs(stones[0].height - stones[1].height) < 0.1,
             gap: stones[1].left - stones[0].right,
         } : null,
+        cardSize: rects[0] ? { width: rects[0].width, height: rects[0].height } : null,
+        activeCardCentreOffset: rects[0] ? {
+            x: (rects[0].left + rects[0].right - pageRect.left - pageRect.right) / 2,
+            y: (rects[0].top + rects[0].bottom - pageRect.top - pageRect.bottom) / 2,
+        } : null,
+        hubCentreRatio: (hubRect.top + hubRect.bottom) / 2 / innerHeight,
+        footerDock: {
+            containsBothArrows: [...document.querySelectorAll('.nav-btn')]
+                .every(button => button.parentElement === footer),
+            width: footerRect.width,
+            maxAllowed: innerWidth * 0.78,
+        },
     };
 });
 
@@ -155,9 +171,19 @@ for (const viewport of [
     check(`${label}：分頁點、頁碼同 keyboard focus 狀態正確`,
         start.dots === 4 && start.activeDots === 1 && start.status === '1 / 4'
             && start.hiddenLinksTabbable === false && start.hrefsValid, start);
+    check(`${label}：左右箭咀、圓點同頁碼收成同一個控制 dock`,
+        start.footerDock.containsBothArrows && start.footerDock.width <= start.footerDock.maxAllowed,
+        start.footerDock);
     if (phone) {
         check(`${label}：手機係 2×2 四格`, start.columns === 2 && start.rows === 2,
             { columns: start.columns, rows: start.rows });
+        check(`${label}：手機卡片係緊湊 tile，唔係四塊高身表格`,
+            start.cardSize.height <= 175, start.cardSize);
+        if (viewport.height >= 700) {
+            check(`${label}：高身手機 launcher 落喺視覺中段`,
+                start.hubCentreRatio >= 0.38 && start.hubCentreRatio <= 0.55,
+                start.hubCentreRatio);
+        }
     } else {
         check(`${label}：桌面係一排四格`, start.columns === 4 && start.rows === 1,
             { columns: start.columns, rows: start.rows });
@@ -184,6 +210,12 @@ for (const viewport of [
     const last = await read(page);
     check(`${label}：分頁點可直達最後一組 Elden Ring II`,
         last.currentPage === 3 && last.activeIds.join(',') === 'elden-ring-ii', last);
+    check(`${label}：單卡尾頁保持正常 tile 尺寸，水平同垂直置中`,
+        last.cardSize.height <= start.cardSize.height * 1.05
+            && last.cardSize.width <= start.cardSize.width * 1.1
+            && Math.abs(last.activeCardCentreOffset.x) <= 2
+            && Math.abs(last.activeCardCentreOffset.y) <= 2,
+        { first: start.cardSize, last: last.cardSize, offset: last.activeCardCentreOffset });
     check(`${label}：零 browser error`, errors.length === 0, errors);
     await page.close();
 }
