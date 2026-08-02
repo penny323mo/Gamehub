@@ -88,6 +88,11 @@ html, body {
 /* ---------- HUD ---------- */
 #hud { position: absolute; inset: 0; pointer-events: none; z-index: 20; }
 #hud button { pointer-events: auto; }
+#hud.shop-open {
+    pointer-events: auto;
+    background: rgba(3, 6, 12, 0.42);
+}
+#hud.shop-open > :not(.moba-shop):not(.moba-flash) { pointer-events: none; }
 
 .moba-top {
     position: absolute; top: calc(8px + env(safe-area-inset-top, 0px)); left: 50%;
@@ -182,9 +187,16 @@ html, body {
     left: 50%; transform: translateX(-50%);
     background: rgba(9, 12, 21, 0.95); border: 1px solid var(--edge); border-radius: 16px;
     padding: 12px; pointer-events: auto; z-index: 30;
+    touch-action: pan-y; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
 }
 .moba-shop-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; opacity: 0.8; margin-bottom: 8px; }
 .moba-x { background: none; border: none; color: #fff; font-size: 22px; cursor: pointer; line-height: 1; }
+.moba-shop-close {
+    min-width: 118px; min-height: 44px; padding: 8px 12px; border-radius: 99px;
+    background: #ffffff12; border: 1px solid #ffffff24; font: inherit; font-weight: 700;
+}
+.moba-shop-state { font-weight: 700; color: #eef2fb; }
+.moba-shop-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
 .moba-shop-grid { display: grid; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 .moba-item {
     text-align: left; padding: 7px 9px; border-radius: 9px; cursor: pointer; font: inherit;
@@ -197,12 +209,24 @@ html, body {
 .moba-item.afford { border-color: var(--gold); }
 .moba-item.afford .cost { color: var(--gold); }
 .moba-item.owned { opacity: 0.45; }
+.moba-item.away { opacity: 0.56; }
 .moba-bag { display: flex; gap: 6px; margin-top: 9px; }
 .moba-slot {
     flex: 1; padding: 7px 4px; border-radius: 8px; font: inherit; font-size: 11px; cursor: pointer;
     background: #10162599; border: 1px dashed #ffffff20; color: #8794ad;
 }
 .moba-slot.filled { background: #1b2540; border-style: solid; color: #dce4f5; }
+.moba-shop-recall {
+    min-height: 44px; padding: 8px 14px;
+    border: 1px solid #4ea4ff88; border-radius: 99px; color: #fff; font: inherit;
+    font-weight: 800; background: linear-gradient(120deg, #285da1, #554ab0); cursor: pointer;
+}
+@media (max-width: 520px) {
+    .moba-shop-head { align-items: flex-start; gap: 6px; }
+    .moba-shop-state { max-width: 120px; line-height: 1.35; }
+    .moba-shop-close { min-width: 92px; padding-inline: 9px; }
+    .moba-shop-recall { padding-inline: 10px; }
+}
 
 .moba-board {
     position: absolute; top: calc(8px + env(safe-area-inset-top, 0px)); right: calc(10px + var(--safe-r));
@@ -228,7 +252,7 @@ html, body {
     position: absolute; left: 50%; bottom: 24%; transform: translateX(-50%);
     padding: 7px 16px; border-radius: 99px; font-size: 13px;
     background: rgba(20, 8, 8, 0.86); border: 1px solid #ff8b7a55; color: #ffd0c8;
-    animation: feedin 0.2s ease-out;
+    animation: feedin 0.2s ease-out; z-index: 60; pointer-events: none;
 }
 
 /* ---------- 手機操作 ---------- */

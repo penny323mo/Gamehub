@@ -55,7 +55,7 @@ function watch(page) {
 
 // 兩個尺寸都要試：手機轉向係呢個 repo 反覆出過事嘅地方
 for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打直', { width: 430, height: 860 }]]) {
-    const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
+    const page = await browser.newPage({ viewport, deviceScaleFactor: 1, hasTouch: true });
     const errs = watch(page);
     await page.goto(URL_BASE, { waitUntil: 'load' });
 
@@ -108,11 +108,74 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     await page.waitForTimeout(200);
 
     // 商店開關
-    await page.click('.moba-shopbtn');
+    // 用真 touch path 開、買、關；mouse click 通過唔代表 iPhone Safari 觸控層冇卡住。
+    const touch = async (selector) => {
+        const box = await page.locator(selector).first().boundingBox();
+        if (!box) throw new Error(`touch target missing: ${selector}`);
+        await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    };
+    await touch('.moba-shopbtn');
     await page.waitForTimeout(150);
     check(`${tag}：商店開得到`, await page.$eval('.moba-shop', e => !e.classList.contains('hidden')));
     check(`${tag}：商店有貨`, (await page.$$('.moba-shop .moba-item')).length >= 10);
-    await page.click('.moba-shop .moba-x');
+    const boughtByTouch = await (async () => {
+        const before = await page.evaluate(() => window.__sim.player.items.length);
+        const affordable = await page.$('.moba-shop .moba-item.afford');
+        if (!affordable) return { before, after: before, target: false };
+        const box = await affordable.boundingBox();
+        await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+        await page.waitForTimeout(100);
+        return { before, after: await page.evaluate(() => window.__sim.player.items.length), target: true };
+    })();
+    check(`${tag}：商店物品用觸控買得到`,
+        boughtByTouch.target && boughtByTouch.after === boughtByTouch.before + 1, boughtByTouch);
+    await touch('.moba-shop .moba-shop-close');
+    await page.waitForTimeout(80);
+    check(`${tag}：商店用觸控關得到`,
+        await page.$eval('.moba-shop', e => e.classList.contains('hidden')));
+
+    // 真係行手機嗰條 touchstart → touchmove → touchend path。touchscreen.tap 只驗到
+    // 按鈕，驗唔到虛擬搖桿拖動同放手；呢段直接派標準 TouchEvent，等 input.js
+    // 收到同手機 Safari 相同形狀嘅 changedTouches。
+    const joyBefore = await page.evaluate(() => ({
+        x: window.__sim.player.x, z: window.__sim.player.z,
+    }));
+    await page.evaluate(() => {
+        const canvas = document.querySelector('#gl');
+        const y = Math.min(innerHeight * 0.58, innerHeight - 150);
+        const touch = (x) => new Touch({ identifier: 41, target: canvas, clientX: x, clientY: y,
+            pageX: x, pageY: y, screenX: x, screenY: y, radiusX: 8, radiusY: 8, force: 1 });
+        const start = touch(70);
+        canvas.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true,
+            touches: [start], targetTouches: [start], changedTouches: [start] }));
+        const moved = touch(140);
+        canvas.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, cancelable: true,
+            touches: [moved], targetTouches: [moved], changedTouches: [moved] }));
+    });
+    await page.waitForTimeout(650);
+    const joyAtRelease = await page.evaluate(() => {
+        const canvas = document.querySelector('#gl');
+        const y = Math.min(innerHeight * 0.58, innerHeight - 150);
+        const end = new Touch({ identifier: 41, target: canvas, clientX: 140, clientY: y,
+            pageX: 140, pageY: y, screenX: 140, screenY: y, radiusX: 8, radiusY: 8, force: 0 });
+        canvas.dispatchEvent(new TouchEvent('touchend', { bubbles: true, cancelable: true,
+            touches: [], targetTouches: [], changedTouches: [end] }));
+        const p = window.__sim.player;
+        return { x: p.x, z: p.z, orderX: p.orderX, orderZ: p.orderZ };
+    });
+    await page.waitForTimeout(160);
+    const joyAfter = await page.evaluate(() => {
+        const p = window.__sim.player, rig = window.__view.units.get(p.id)?.rig;
+        return { x: p.x, z: p.z, moving: p.moving, clip: rig?.current,
+            orderX: p.orderX, orderZ: p.orderZ };
+    });
+    check(`${tag}：手機左搖桿拖動真係會行`, joyAtRelease.x - joyBefore.x > 2,
+        { before: joyBefore, release: joyAtRelease });
+    check(`${tag}：手機左搖桿放手即清移動命令`,
+        joyAtRelease.orderX == null && joyAtRelease.orderZ == null, joyAtRelease);
+    check(`${tag}：手機左搖桿放手後唔會滑行或原地跑`,
+        Math.hypot(joyAfter.x - joyAtRelease.x, joyAfter.z - joyAtRelease.z) < 0.2
+            && joyAfter.moving === false && joyAfter.clip !== 'Running_A', joyAfter);
 
     // 走位：撳實方向鍵，英雄要真係郁。第一版係「撳地面行過去」，
     // 喺手機上面同虛擬搖桿搶同一個輸入，實測揸唔到。
@@ -125,6 +188,67 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
         return { d: after.x - before.x, before, after };
     })();
     check(`${tag}：撳方向鍵行得郁，而且係啱嘅方向`, moved.d > 1.5, moved);
+
+    // 放手要即停。直接操控每幀會落一個 6 米外嘅短期移動命令；如果放手後
+    // 唔清走屬於方向輸入嘅最後一張單，英雄就會自己多行一大截。
+    await page.waitForTimeout(100);
+    const releasedOrder = await page.evaluate(() => {
+        const p = window.__sim.player;
+        const rig = window.__view.units.get(p.id)?.rig;
+        return { orderX: p.orderX, orderZ: p.orderZ, orderTarget: p.orderTarget,
+            moving: p.moving, clip: rig?.current };
+    });
+    check(`${tag}：放開方向鍵會清走方向輸入嘅移動命令`,
+        releasedOrder.orderX == null && releasedOrder.orderZ == null, releasedOrder);
+    check(`${tag}：放開方向鍵後會回復企定動畫`,
+        releasedOrder.moving === false && releasedOrder.clip !== 'Running_A', releasedOrder);
+
+    // Penny 截圖嗰個情境係已經離開泉水：買唔到本身係遊戲規則，但之前提示
+    // 藏喺 modal 後面，亦冇直接出路，望落就似商店卡死。
+    await touch('.moba-shopbtn');
+    await page.waitForTimeout(80);
+    const awayShop = await page.evaluate(() => ({
+        state: document.querySelector('.moba-shop-state')?.textContent,
+        recallVisible: !document.querySelector('.moba-shop-recall')?.classList.contains('hidden'),
+    }));
+    check(`${tag}：離開泉水開商店會清楚講明未能購買`,
+        awayShop.state?.includes('未在泉水') && awayShop.recallVisible, awayShop);
+    await touch('.moba-shop .moba-item');
+    await page.waitForTimeout(60);
+    const blockedFeedback = await page.evaluate(() => {
+        const flash = [...document.querySelectorAll('.moba-flash')].at(-1);
+        const shop = document.querySelector('.moba-shop');
+        return { text: flash?.textContent, flashZ: Number(getComputedStyle(flash).zIndex),
+            shopZ: Number(getComputedStyle(shop).zIndex) };
+    });
+    check(`${tag}：戰線上買唔到會有商店之上嘅可見提示`,
+        blockedFeedback.text?.includes('未到泉水') && blockedFeedback.flashZ > blockedFeedback.shopZ,
+        blockedFeedback);
+    await touch('.moba-shop-recall');
+    await page.waitForTimeout(80);
+    const recallFromShop = await page.evaluate(() => ({
+        shopClosed: document.querySelector('.moba-shop')?.classList.contains('hidden'),
+        progress: window.__sim.recallProgress(window.__sim.player),
+    }));
+    check(`${tag}：商店「返程購物」會關店兼開始返程`,
+        recallFromShop.shopClosed && recallFromShop.progress > 0, recallFromShop);
+
+    // 攻擊命令可以喺放手同下一幀之間取代走位命令；停止走位時唔可以連新嘅
+    // 攻擊單一齊取消。喺同一個 browser task 入面落攻擊單再派 keyup，固定時序。
+    await page.keyboard.down('d');
+    await page.waitForTimeout(100);
+    const attackOrder = await page.evaluate(() => {
+        const s = window.__sim, p = s.player;
+        const foe = s.champions.find(c => c.alive && c.team !== p.team);
+        if (!foe) return { expected: null, actual: p.orderTarget };
+        s.orderAttack(p, foe.id);
+        window.dispatchEvent(new KeyboardEvent('keyup', { key: 'd', bubbles: true }));
+        return { expected: foe.id, actual: p.orderTarget };
+    });
+    await page.waitForTimeout(100);
+    attackOrder.actual = await page.evaluate(() => window.__sim.player.orderTarget);
+    check(`${tag}：放開方向鍵唔會取消已接手嘅攻擊命令`,
+        attackOrder.expected != null && attackOrder.actual === attackOrder.expected, attackOrder);
 
     // 技能要有回饋：撳落去之後，畫面要報返個技能名。
     // 呢個亦都係「事件流有冇斷」嘅端對端證明——之前 cast 事件喺 step()

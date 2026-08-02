@@ -626,5 +626,20 @@ function dodgeCase(px, speed) {
     check('真係行咗過去（唔係即刻放棄）', c.z > MAP.halfWidth - c.r - 0.3, c.z);
 }
 
+// ---------- T24：停低要真係回復 idle ----------
+// moving 係逐 tick 嘅輸出；如果上一格行過之後一直黐住 true，view 就算見到
+// order 已經清空，仍然會不停播 run clip，造成原地踏步。
+{
+    const sim = new Sim({ seed: 89 });
+    const c = sim.player;
+    c.x = 0; c.z = 0;
+    sim.orderMove(c, 4, 0);
+    sim.step();
+    check('有實際位移嗰格會標記 moving', c.moving === true, c.moving);
+    sim.orderStop(c);
+    sim.step();
+    check('停止命令後下一格會回復 idle', c.moving === false, c.moving);
+}
+
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);
 if (fail) { console.log('失敗項目:', failed.join('、')); process.exit(1); }

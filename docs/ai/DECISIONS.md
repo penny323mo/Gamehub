@@ -1768,3 +1768,31 @@ follows what the tyres can use
   feet and the victim got nothing — pointing at someone eight metres away and watching their
   health drop. They now draw a streak from caster to victim and a burst on arrival; ally-targeted
   shields, which previously produced no event at all, use the same path in green.
+
+## ADR-100: Direct movement owns only its own order; the shop must never become a touch dead end
+
+- Date: 2026-08-02
+- Status: accepted
+- Decision: WASD and the virtual joystick keep an input-local ownership flag for their repeated
+  movement order. Releasing the final direction clears that order immediately, but only while no
+  attack order has taken over. `moving` is reset at the start of every simulation tick and set
+  again only by real displacement, so animation state describes the current tick rather than the
+  last time the unit moved.
+- The fountain-only shop rule stays. The shop is now a real modal touch layer with a dim backdrop,
+  a 44 px `返回戰場` action, visible purchase success/failure feedback above the modal, and a
+  top-bar `返程購物` action whenever the player is away from the fountain. Both actions remain in
+  view in portrait; putting recall after the sixteen-item grid failed because it sat below the
+  phone viewport and reproduced the reported dead end.
+- Reason: joystick `update()` placed a goal six metres ahead on every tick. `touchend` removed the
+  stick but left its final goal behind, so the champion walked the remaining distance. Clearing
+  every order on release was not acceptable: an attack or mouse order may have replaced the stick
+  between input events. Separately, `moving` was only ever set true by `#moveToward`; an idle tick
+  never reset it, which left `Running_A` playing after the unit had stopped.
+- The shop screenshot was taken away from the fountain. `sim.buy()` correctly rejected the item,
+  but `.moba-flash` rendered below the z-30 shop and the only close target was a small `×`. The
+  correct rule therefore looked like a frozen UI. Do not remove the fountain economy to mask an
+  interaction failure; expose the state and a direct route back instead.
+- Gates: `sim.mjs` T24 proves move → stop produces `moving === false`. `browser.mjs` now runs with
+  touch enabled in landscape and portrait, drives `touchstart → touchmove → touchend`, requires no
+  post-release drift and `Idle_Combat`, preserves a replacement attack order, touch-buys and closes
+  the shop at the fountain, and verifies visible refusal plus working recall away from it.

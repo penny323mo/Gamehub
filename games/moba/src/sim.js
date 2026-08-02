@@ -265,6 +265,9 @@ export class Sim {
         this.#spawnWaves();
         for (const e of this.entities) {
             if (!e.alive) { this.#tickDead(e, dt); continue; }
+            // moving 係「呢一格有冇真位移」，唔係一個會黐住嘅狀態。之前只喺
+            // #moveToward 設 true，普通停低冇清返，角色就會原地永久跑步。
+            if (e.kind === 'champ' || e.kind === 'minion') e.moving = false;
             if (e.kind === 'champ') this.#tickChampion(e, dt);
             else if (e.kind === 'minion') this.#tickMinion(e, dt);
             else this.#tickStructure(e, dt);

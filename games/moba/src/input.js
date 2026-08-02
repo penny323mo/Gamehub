@@ -26,6 +26,17 @@ export function createInput(canvas, view, sim, hud) {
     let aimX = 0, aimZ = 0;
     let joy = null;                 // { id, cx, cy, dx, dy }
     let aiming = null;              // { index, id, dx, dy }
+    // 只記由 WASD／搖桿持續輸入落嘅移動單。滑鼠點地、普攻鎖敵等後來
+    // 接手嘅命令唔屬於呢度，放開方向時唔可以順手取消埋。
+    let directMoveActive = false;
+
+    function stopDirectMove() {
+        if (!directMoveActive) return;
+        directMoveActive = false;
+        const p = sim.player;
+        // 攻擊單已經接手就保留；orderAttack 會將 orderTarget 設成敵人 id。
+        if (p?.orderTarget == null && (p?.orderX != null || p?.orderZ != null)) sim.orderStop(p);
+    }
 
     function toWorld(clientX, clientY) {
         const r = canvas.getBoundingClientRect();
@@ -66,7 +77,10 @@ export function createInput(canvas, view, sim, hud) {
 
     function attackNearest() {
         const t = autoTarget();
-        if (t) sim.orderAttack(sim.player, t.id);
+        if (t) {
+            directMoveActive = false;
+            sim.orderAttack(sim.player, t.id);
+        }
         return !!t;
     }
 
@@ -108,6 +122,7 @@ export function createInput(canvas, view, sim, hud) {
         if (!w) return;
         aimX = w.x; aimZ = w.z;
         const foe = enemyAt(w.x, w.z);
+        directMoveActive = false;
         if (foe) sim.orderAttack(sim.player, foe.id);
         else sim.orderMove(sim.player, clamp(w.x, -MAP.fountainX, MAP.fountainX),
             clamp(w.z, -MAP.halfWidth, MAP.halfWidth));
@@ -150,7 +165,10 @@ export function createInput(canvas, view, sim, hud) {
         if (pendingKey === idx) { cast(idx, aimX, aimZ); pendingKey = null; }
         if (previewIndex === idx) previewIndex = null;
     }
-    function onBlur() { keys.clear(); joy = null; previewIndex = null; pendingKey = null; }
+    function onBlur() {
+        keys.clear(); joy = null; previewIndex = null; pendingKey = null;
+        stopDirectMove();
+    }
 
     // 鍵盤方向：螢幕右 = 世界 +x，螢幕上 = 世界 -z（鏡頭永遠喺 +z 望入去）
     function keyDir() {
@@ -201,6 +219,8 @@ export function createInput(canvas, view, sim, hud) {
             joy = null;
             knob.style.transform = '';
             stick.classList.remove('active');
+            // 唔等下一個 simulation tick：放手嗰一下就清走最後一張方向單。
+            if (!keyDir()) stopDirectMove();
         }
     }
 
@@ -332,11 +352,12 @@ export function createInput(canvas, view, sim, hud) {
                 ? { dx: joy.dx, dz: joy.dy }
                 : keyDir();
             if (dir) {
-                sim.orderMove(p,
+                if (sim.orderMove(p,
                     clamp(p.x + dir.dx * 6, -MAP.fountainX, MAP.fountainX),
-                    clamp(p.z + dir.dz * 6, -MAP.halfWidth, MAP.halfWidth));
+                    clamp(p.z + dir.dz * 6, -MAP.halfWidth, MAP.halfWidth))) directMoveActive = true;
                 return;
             }
+            stopDirectMove();
             // 冇郁而攻擊掣撳住，或者原本嘅目標死咗，就再鎖一個
             if (attackHeld) {
                 const cur = p.orderTarget != null && sim.entities.find(e => e.id === p.orderTarget);
@@ -345,6 +366,7 @@ export function createInput(canvas, view, sim, hud) {
         },
         get aim() { return { x: aimX, z: aimZ }; },
         destroy() {
+            stopDirectMove();
             canvas.removeEventListener('pointermove', onPointerMove);
             canvas.removeEventListener('pointerdown', onPointerDown);
             canvas.removeEventListener('wheel', onWheel);

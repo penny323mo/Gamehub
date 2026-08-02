@@ -1,120 +1,84 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-02 (Asia/Macau)
-Prepared by: Claude Code (cloud)
+Prepared by: Codex (local)
 Integration branch: `main`
-Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: 深淵之橋 — bars actually draw, dashes cannot freeze a champion, attacks read;
-        sim 204/204, browser 66/66
+Work branch: `main`
+Status: 深淵之橋 joystick release, idle animation, and touch shop dead end fixed;
+        sim 206/206, browser 88/88
 
 ## Current objective
 
-Racing Car is stopped. Build a polished 3v3 single-lane MOBA with genuinely licensed 3D art
-and original audio, playable on desktop and phone.
+Refine 深淵之橋 to production level across visuals, controls, logic, and game feel. Keep the
+mobile-first controls responsive and make attacks and abilities visually distinct and readable.
 
 ## Completed
 
-- **Art, all CC0 (KayKit), none reused from other games here.** Five Adventurers + four Skeletons
-  (rigged, authored animations) plus the Medieval Hexagon pack; 35 MB of sources became 1.97 MB.
-  ADR-087 and `games/moba/CREDITS.md`.
-- **Audio is synthesised in-browser** (`src/sfx.js`) — no external recordings. Web Audio voices
-  for every combat event plus a bar-scheduled i–VI–III–VII loop.
-- **Simulation** (`src/sim.js`, no three.js — node runs whole matches): waves, last-hit gold,
-  XP sharing, tower aggro and dive punishment, tower order, bounty, items with lifesteal, a
-  fountain-only shop, recall, armour decay, and a time-limit verdict by remaining structure HP.
-- **The findings that made the game work**: ADR-088 (minion scaling exactly cancelled champion
-  scaling; gold had nothing to buy) and ADR-089 (SIEGE sat behind a branch that always fired).
-- **Balance, measured.** Mirror lineups: both sides win, every match resolves. Champion win rates
-  across a 20-match rotation span 30–70% (was 5–95%).
-- Hub entry added to `launcher.js`.
-- **Playability** (ADR-090/091): `step()` cleared the event buffer it wrote to, destroying every
-  cast event before any consumer saw it — that alone made all abilities invisible. Direct
-  WASD/joystick control with an auto-targeting attack button; facing had a spurious 180° flip.
-- **Production pass** (ADR-092/093): fixed a GPU bone-texture leak per spawned unit, capped the
-  damage-number cache, gated the ultimate at 5/9/12, settings persisted in localStorage with
-  automatic quality downgrade, offscreen champion portraits, hit flashes and camera shake.
-- **Recall and readability** (ADR-094/095): a 6-second recall channel moved nexus finishes 7/12 →
-  10/12 and the median match 22 → 19 min — the shop had been unreachable, so gold never
-  circulated. Plus lane overview, ground aim preview, zone-tinted terrain, pinch zoom.
-- **Combat legibility** (ADR-096/097): bars coloured by health not team; swing arcs and muzzle
-  flashes, because the skeletal animation was playing all along and simply occupies too few
-  pixels at this camera distance; homing projectiles carried no velocity vector so they were
-  never rotated; `dashFrom` was recorded and never read, so dashes had no trail.
-- **What the screenshot showed** (ADR-099): every world health bar was solid black — three.js
-  draws opaque then transparent and `renderOrder` only sorts within a pass, so the transparent
-  backing plate covered the opaque fill, and ADR-096's health colouring had never once been
-  visible. A dash also stored its landing point *before* clamping, so dashing off the rail left
-  `c.dash` set forever and `#tickChamp` returns early on it: a permanent freeze, which is what
-  Penny hit. Attack swings no longer stretch to fill the cooldown, the attack button has a
-  cooldown sweep, and single-target abilities finally draw something at the victim.
-- **Fights that resolve** (ADR-098). The suspected cause — bots not focusing fire — was measured
-  and wrong (already 1.01 distinct targets per team). The real one: `pickState` re-decided every
-  0.2 s with FIGHT and RETREAT on the same threshold, so every engagement shattered into
-  three-second standoffs — 664 of them across six matches, 90% with no death. Bots now hold a
-  3–5.5 s commitment entered at a higher bar than it is broken at, judge fights by local team
-  power rather than by whose health bar is taller, converge on one focus target by a shared
-  formula, sidestep skillshots only when the lateral distance is reachable, and take a tower
-  without minion cover when the defenders are dead. Kills 365 → 627 over 24 seeds.
+- **Joystick/WASD release now stops immediately.** `input.js` tracks whether the current move order
+  belongs to continuous direction input. Releasing the final direction clears only that order;
+  an attack order or a later mouse order is preserved.
+- **No more running in place.** `sim.js` resets `moving` every tick and real displacement sets it
+  again. The renderer now returns the champion to `Idle_Combat` after release instead of retaining
+  `Running_A` forever.
+- **The shop is operable by touch.** While open it is a true modal layer, blocks controls behind it,
+  supports scrolling, has a dim backdrop and a 44 px `返回戰場` action. Purchase feedback renders
+  above the shop instead of behind it.
+- **The away-from-fountain state has a way out.** The header says `未在泉水`, unactionable items
+  are visually muted, and `返程購物` is fixed in the top action row in both orientations. It closes
+  the shop and starts recall; opening it during recall does not accidentally cancel the channel.
+- **The fountain shop rule is unchanged.** At the fountain, touch-buying an affordable item still
+  deducts gold and fills an equipment slot. Away from it, the player gets a visible explanation.
+- ADR-100 records the order-ownership, animation-state, and modal-shop decisions.
 
 ## Verification
 
-- `node games/moba/tests/sim.mjs` → 204/204. (Keep the summary print at the end of the file: it
-  once sat above T15–T19, so thirty-odd assertions ran uncounted and could not fail the run.)
-- `node games/moba/tests/browser.mjs` → 66/66 (landscape and portrait: load, select, start,
-  HUD present, no HUD overlap, centre unobstructed, keyboard movement actually moves the
-  champion, an ability press names itself on screen, every ability button carries a name,
-  shop, settings panel toggles and persists, quality switch reaches the renderer, portraits
-  are real rendered images, post-match scoreboard lists all six, full match, zero console
-  errors, plus: a basic attack produces visual effects, projectiles exist and are oriented along
-  travel, bar colour tracks health, bars stay narrower than a champion, and all four bar pieces
-  share one render pass with the fill above the backing plate).
-- AI quality is measured on seeds no tuning touched: nexus-vs-time finishes, kills, skillshot
-  accuracy, match length. Never tune against T13's own twelve seeds. ADR-098.
+- `node games/moba/tests/sim.mjs` → **206/206**. New T24 proves move → stop returns `moving` to
+  false; all match, combat, economy, recall, AI, dash, and bridge-boundary checks still pass.
+- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node
+  games/moba/tests/browser.mjs` → **88/88** with the repo's Playwright dependency available.
+  Landscape 1280×640 and portrait 430×860 both pass: touch shop open/buy/close, real virtual-stick
+  touch event sequence, zero post-release drift, idle animation, attack-order preservation,
+  away-shop feedback, recall action, full match, and zero console errors.
+- Headed Chrome smoke at 844×390: assets loaded, match started, shop rendered without overlap,
+  `長劍` purchase changed the gold/equipment UI, and the large return action closed the modal.
+- `git diff --check` → pass.
+- Physical iPhone Safari has not yet been rerun after this checkpoint; Penny's next production
+  hard reload is still the final hardware confirmation.
 
 ## Changed files
 
-- New: `games/moba/` — `index.html`, `style.css`, `CREDITS.md`, `assets/` (models + licences),
-  `vendor/`, `src/{constants,champions,items,sim,ai,looks,rig,assets,view,hud,input,sfx,main}.js`,
-  `tests/{sim,browser}.mjs`.
-- Also new: `src/fx.js`, `src/settings.js`, `src/portraits.js`.
-- Edited: `launcher.js` (hub card), `.gitignore` (a symlinked `node_modules` slipped past the
-  trailing-slash pattern), `docs/ai/DECISIONS.md` (ADR-087 through 098).
+- `games/moba/src/input.js` — continuous-direction order ownership and release cleanup.
+- `games/moba/src/sim.js` — per-tick movement-state reset.
+- `games/moba/src/hud.js` — modal shop, large close, state/feedback, recall action.
+- `games/moba/style.css` — touch/modal layering, 44 px actions, portrait layout, feedback z-index.
+- `games/moba/tests/{sim,browser}.mjs` — release, idle, touch, shop, and recall regressions.
+- `docs/ai/{DECISIONS,HANDOFF}.md` — ADR-100 and this checkpoint.
 
 ## Known issues and cautions
 
-- Effects differ by ability *form*; two casters of the same form share a silhouette. Frame rate
-  is unmeasured on real hardware (see the next action).
-- Mirror bot matches end at a nexus 20/24 (was 23/24) — ADR-098's deliberate trade: fights
-  resolve and decisive matches got 2.3 min faster. If that ratio slips further, look there.
-- `ironhulk` measured 30% over 20 matches while the rest sit at 40–70%; small sample, measure more.
-- The browser test drives no bot for the player, so it always reaches the 25-minute verdict.
-- `sim.js` must never import three.js. That separation is what makes rule bugs findable in node.
-- Champion display data lives in `src/looks.js`; `champions.js` stays pure data for node.
+- Real-hardware FPS remains unmeasured. Browser automation covers iPhone-sized layouts and touch
+  events but is not a replacement for Safari on Penny's phone.
+- Effects are readable by ability *form*, but champions sharing a form can still share a similar
+  silhouette. The next visual pass should make attacks recognisable by champion, not just by form.
+- Mirror bot matches previously measured 20/24 nexus finishes; do not change combat balance in a
+  visual-effects pass without rerunning independent seeds.
+- `sim.js` must stay free of three.js imports. `moving` is simulation output; animation clips remain
+  renderer-owned.
+- The shop is intentionally fountain-only. Do not silently enable remote buying; ADR-094/095 and
+  ADR-100 preserve recall as the route from lane gold to usable equipment.
 
 ## Exact next action
 
-Fix the joystick overshoot Penny reported: the champion keeps walking after the stick is
-released. `input.js` issues `orderMove(p, p.x + dir.dx * 6, ...)` every frame while the stick is
-held; on release `dir` is null so no new order is issued, but the last one — six metres ahead —
-is still set and `#tickChamp` walks the rest of it. Release should `orderStop` when the standing
-order came from the stick (not when it is an attack order). Then playtest on a real phone.
+1. Hard reload the deployed build on a physical iPhone, drag/release the left stick, then test the
+   shop once at the fountain and once in lane. Confirm stop/idle and both top-row shop actions.
+2. Continue the production visual pass in `src/fx.js`/`view.js`: inventory every champion's basic
+   attack and four abilities, then give shared forms champion-specific colour, shape, timing, and
+   impact silhouettes. Preserve the current event contracts and add screenshot-visible browser
+   assertions rather than checking effect data alone.
 
 ## Do not redo
 
-- Super minions when the enemy loses all towers: measured worse (10/12 → 7/12). ADR-088.
-- Click-to-move as the primary control, and clearing `sim.events` inside `step()`. ADR-090/091.
-- Reusing the other games' GLB assets: Penny asked for new art, and the KayKit set is already
-  loaded, licensed and compressed. ADR-087.
-- Re-tuning tower HP to stop stalls: the stall was the bot's unreachable SIEGE state and the
-  cancelled scaling curves, not tower durability. ADR-088/089.
-- Tightening the XP curve or weakening the nexus to speed matches up: both worse. ADR-092.
-- Dirt hexes or stone posts as a centre landmark: both tried and both read badly. ADR-095.
-- Trusting a material-colour assertion as proof a thing is visible: the bar passed that test while
-  rendering solid black. Check the compositing invariant. ADR-099.
-- Raising base attack speed to fix "autos feel slow": 1.59 s at level 1 → 1.24 s at 12 (marksman
-  1.39 → 0.69 with items) is League-typical. It was the stretched swing animation. ADR-099.
-- Raising the bots' engage threshold globally to stop fights crowding out sieges: measured worse
-  at both +0.25 and +0.50, with skillshot accuracy collapsing. Price the objective. ADR-098.
-- Making bots focus fire: they already do (1.01 distinct targets per team). ADR-098.
-- Tuning bot behaviour against T13's own twelve seeds: it reads as a gain a fresh seed set does
-  not reproduce. Measure on seeds no tuning touched. ADR-098.
+- Click-to-move as primary control or clearing every order on direction release. ADR-091/100.
+- Super minions, tighter XP, weaker nexus, or generic tower-HP tuning. Those measured worse.
+- Removing the fountain shop rule to hide missing feedback. The modal/recall path is the fix.
+- Reusing another game's GLB assets. The current KayKit art is CC0, credited, and compressed.
