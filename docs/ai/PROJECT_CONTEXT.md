@@ -6,7 +6,7 @@ change. Day-to-day progress belongs in `HANDOFF.md`.
 
 ## Repository purpose
 
-Game Hub is a static multi-game website. The root carousel in `index.html` and
+Game Hub is a static multi-game website. The four-card paged launcher in `index.html` and
 `launcher.js` links to independent games under `games/`. Preserve the hub as a
 collection: a new or heavily revised game should remain self-contained unless a
 shared subsystem genuinely belongs in `games/shared/`.
@@ -19,7 +19,7 @@ Ashen Rail and Elden Ring II during deployment.
 
 | Area | Entrypoint | Stack / notes |
 | --- | --- | --- |
-| Hub carousel | `index.html`, `launcher.js`, `style.css` | Static HTML/CSS/JS; links must work from GitHub Pages subpaths. |
+| Hub launcher | `index.html`, `launcher.js`, `style.css` | Static four-card pages; links must work from GitHub Pages subpaths. |
 | Gomoku | `games/gomoku/index.html` | Static JS, online features use Supabase. |
 | Penny Crush | `games/penny_crush/index.html` | Static game. |
 | Big Two | `games/big2/index.html` | Static JS; online/shared infrastructure may use Supabase. |

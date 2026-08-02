@@ -10,7 +10,7 @@ import { RenderPass } from '../vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/postprocessing/OutputPass.js';
 import { MAP, TEAM } from './constants.js';
-import { CHAMPION_LOOK, MINION_LOOK, ARENA_LOOK, TEAM_COLOUR, CLIP } from './looks.js';
+import { CHAMPION_LOOK, MINION_LOOK, ARENA_LOOK, TEAM_COLOUR, CLIP, championFx } from './looks.js';
 import { Rig } from './rig.js';
 import { Fx } from './fx.js';
 
@@ -575,7 +575,8 @@ export class View {
             if (u.dashFrom) {
                 const moved = Math.hypot(e.x - u.dashFrom.x, e.z - u.dashFrom.z);
                 if (moved > 1.2) {
-                    this.fx.streak(u.dashFrom.x, u.dashFrom.z, e.x, e.z, u.dashFrom.colour);
+                    this.fx.streak(u.dashFrom.x, u.dashFrom.z, e.x, e.z,
+                        u.dashFrom.profile?.colour ?? u.dashFrom.colour, u.dashFrom.profile);
                     u.dashFrom = null;
                 } else if ((u.dashAge = (u.dashAge ?? 0) + dt) > 0.5) {
                     u.dashFrom = null; u.dashAge = 0;
@@ -635,6 +636,16 @@ export class View {
     }
 
     // ---------- 事件（打擊、施法、死亡…）----------
+    #eventFx(ev) {
+        const src = this.sim.entities.find(e => e.id === (ev.sourceId ?? ev.id));
+        const championId = ev.championId ?? src?.champId ?? src?.def?.id;
+        let index = ev.index ?? ev.abilityIndex;
+        if (index == null && ev.key && src?.def?.abilities) {
+            index = src.def.abilities.findIndex(a => a.key === ev.key);
+        }
+        return championFx(championId, index != null && index >= 0 ? index : null);
+    }
+
     #consumeEvents(events) {
         const me = this.sim.player;
         for (const ev of events) {
@@ -655,9 +666,24 @@ export class View {
                     // 交代呢一下——所以近戰畫一道弧，遠程／法術喺出手位置閃一下。
                     const t = this.sim.entities.find(x => x.id === ev.target);
                     if (!t) break;
-                    const melee = (e.kind === 'champ' ? e.range : e.range) < 5;
-                    if (melee) this.fx.slash(e.x, e.z, t.x, t.z, u.look.ringColour ?? 0xffe9c4);
-                    else this.fx.muzzle(e.x, e.z, t.x, t.z, u.look.ringColour ?? 0xffe9c4);
+                    const melee = e.range < 5;
+                    const profile = e.kind === 'champ' ? championFx(e.def.id) : {
+                        style: melee ? 'minion-slash' : 'minion-shot',
+                        family: melee ? 'guard' : 'arrow',
+                        colour: u.look.ringColour ?? 0xffe9c4, accent: 0xffffff,
+                    };
+                    this.fx.attack(e.x, e.z, t.x, t.z, profile);
+                    break;
+                }
+                case 'hit': {
+                    const src = this.sim.entities.find(e => e.id === ev.id);
+                    const t = this.sim.entities.find(e => e.id === ev.target);
+                    if (!src || !t) break;
+                    const profile = src.kind === 'champ' ? championFx(src.def.id) : {
+                        style: 'minion-impact', family: 'guard', colour: 0xffe9c4,
+                        accent: 0xffffff, sides: 6, rays: 3,
+                    };
+                    this.fx.hit(t.x, t.z, profile, t.kind === 'champ' ? 1 : 0.75);
                     break;
                 }
                 case 'cast': this.#onCast(ev); break;
@@ -683,32 +709,77 @@ export class View {
                     break;
                 }
                 case 'boom': {
-                    this.fx.flash(ev.x, ev.z, ev.radius, 0xffd08a);
-                    this.fx.ring(ev.x, ev.z, ev.radius, 0xffb055, { life: 0.45, from: 0.4, to: 1.05 });
+                    const profile = this.#eventFx(ev);
+                    if (profile) this.fx.cue(ev.x, ev.z, profile, {
+                        life: 0.58, radius: ev.radius * (profile.impact ?? 1),
+                        kind: 'ability-impact', impact: true,
+                    });
+                    else {
+                        this.fx.flash(ev.x, ev.z, ev.radius, 0xffd08a);
+                        this.fx.ring(ev.x, ev.z, ev.radius, 0xffb055,
+                            { life: 0.45, from: 0.4, to: 1.05 });
+                    }
                     break;
                 }
                 // 單體技能：由施法者拉一道光去受者，再喺受者度爆一下。
                 // 一個「隔空指一指就跌血」嘅技能，唔畫呢兩下就等於冇施放過。
                 case 'strike': {
                     const src = this.units.get(ev.sourceId);
-                    const colour = ev.ally ? 0x8fe9c0 : (src?.look.ringColour ?? 0xffd27a);
+                    const profile = this.#eventFx(ev);
+                    const colour = ev.ally ? 0x8fe9c0
+                        : (profile?.colour ?? src?.look.ringColour ?? 0xffd27a);
                     if (src) {
-                        this.fx.streak(src.obj.position.x, src.obj.position.z, ev.x, ev.z, colour);
+                        this.fx.streak(src.obj.position.x, src.obj.position.z, ev.x, ev.z,
+                            colour, profile ?? {});
                     }
-                    this.fx.flash(ev.x, ev.z, ev.ally ? 2.2 : 2.6, colour, 0.32);
-                    this.fx.ring(ev.x, ev.z, ev.ally ? 2.0 : 2.4, colour,
-                        { life: 0.42, from: 0.35, to: 1.25 });
+                    if (profile) this.fx.cue(ev.x, ev.z, profile, {
+                        life: 0.48, radius: ev.ally ? 2.2 : 2.6,
+                        kind: ev.ally ? 'ally-impact' : 'ability-impact', impact: true,
+                    });
+                    else {
+                        this.fx.flash(ev.x, ev.z, ev.ally ? 2.2 : 2.6, colour, 0.32);
+                        this.fx.ring(ev.x, ev.z, ev.ally ? 2.0 : 2.4, colour,
+                            { life: 0.42, from: 0.35, to: 1.25 });
+                    }
                     break;
                 }
-                case 'telegraph': this.fx.telegraph(ev.x, ev.z, ev.radius, ev.delay); break;
+                case 'abilityImpact': {
+                    const profile = this.#eventFx(ev);
+                    if (profile) this.fx.cue(ev.x, ev.z, profile, {
+                        life: 0.4, radius: (ev.radius ?? 1.6) * (profile.impact ?? 1),
+                        kind: 'ability-impact', impact: true,
+                    });
+                    break;
+                }
+                case 'telegraph': {
+                    const profile = this.#eventFx(ev);
+                    this.fx.telegraph(ev.x, ev.z, ev.radius, ev.delay,
+                        profile?.colour ?? 0xff6a4a, profile);
+                    break;
+                }
                 // 地面區域用施法者嘅代表色，唔好成場都係同一橙色
                 case 'zone': {
                     const src = this.units.get(ev.sourceId);
-                    this.fx.zone(ev.x, ev.z, ev.radius, src?.look.ringColour ?? 0xff8a4a, 4);
+                    const profile = this.#eventFx(ev);
+                    this.fx.zone(ev.x, ev.z, ev.radius,
+                        profile?.colour ?? src?.look.ringColour ?? 0xff8a4a,
+                        ev.duration ?? 4, null, profile);
                     break;
                 }
-                case 'trap': this.fx.zone(ev.x, ev.z, ev.radius, 0x9a6ad6, 6); break;
-                case 'trapFire': this.fx.ring(ev.x, ev.z, 3, 0x9a6ad6, { life: 0.4 }); break;
+                case 'trap': {
+                    const profile = this.#eventFx(ev);
+                    this.fx.zone(ev.x, ev.z, ev.radius, profile?.colour ?? 0x63c98a,
+                        ev.duration ?? 6, null, profile);
+                    break;
+                }
+                case 'trapFire': {
+                    const profile = this.#eventFx(ev);
+                    if (profile) this.fx.cue(ev.x, ev.z, profile, {
+                        life: 0.44, radius: ev.radius ?? 3, kind: 'ability-impact', impact: true,
+                    });
+                    else this.fx.ring(ev.x, ev.z, 3, 0x9a6ad6, { life: 0.4 });
+                    break;
+                }
                 case 'tower': this.#towerFell(ev); break;
                 case 'levelup': {
                     const u = this.units.get(ev.id);
@@ -762,24 +833,27 @@ export class View {
         }
         const colour = u.look.ringColour ?? 0xffd27a;
         const x = u.obj.position.x, z = u.obj.position.z;
-        // 每一種形態都要有「呢度施咗法」嘅一下。之前 self 同 dash 靠光環／殘影，
-        // 但單體同區域類就淨係一個細圈，喺呢個鏡頭距離基本上見唔到。
-        this.fx.flash(x, z, 1.7, colour, 0.24);
+        const profile = championFx(e.def.id, ev.index) ?? {
+            style: `${e.def.id}-${ab.key}`, family: ab.form, colour, accent: 0xffffff,
+            sides: 10, rings: 1, rays: 4,
+        };
+        // 一招一個穩定剪影；self 技會跟住角色留低，其他招先喺起手位打一個短 cue，
+        // 命中／落地再由 strike、zone、boom、abilityImpact 畫第二拍。
+        const self = ab.form === 'self';
+        this.fx.cue(x, z, profile, {
+            life: self ? (ab.duration ?? 2.5) : 0.5,
+            radius: self ? Math.min(5.2, ab.radius ?? 2.5) : 1.8,
+            follow: self ? e : null,
+            kind: 'ability-cast',
+        });
         switch (ab.form) {
-            case 'self':
-                this.fx.aura(e, colour, ab.duration ?? 2.5);
-                break;
+            case 'self': break;
             case 'dash':
                 // 記住起點，等下一幀單位真係彈開咗先畫殘影：
                 // 施法嗰刻佢仲未郁，即刻畫嘅話係一條零長度嘅線。
-                u.dashFrom = { x, z, colour };
+                u.dashFrom = { x, z, colour, profile };
                 break;
-            case 'target':
-                this.fx.ring(x, z, 2, colour, { life: 0.3, from: 0.5, to: 1.1 });
-                break;
-            default:
-                this.fx.ring(x, z, 1.8, colour, { life: 0.28, from: 0.5, to: 1.3 });
-                break;
+            default: break;
         }
         if (e.isPlayer) this.onCast(ab);
     }
@@ -800,6 +874,80 @@ export class View {
     }
 
     // ---------- 彈道 ----------
+    #makeProjectile(p) {
+        const src = this.sim.entities.find(e => e.id === p.sourceId);
+        const profile = src?.kind === 'champ'
+            ? championFx(src.def.id, p.skill ? p.abilityIndex : null) : null;
+        const shape = profile?.projectile ?? p.kind ?? 'bolt';
+        const colour = profile?.colour ?? (p.skill ? 0xffd27a : 0xffe9c4);
+        const accent = profile?.accent ?? colour;
+        const g = new THREE.Group();
+        const solid = (c) => new THREE.MeshBasicMaterial({ color: c });
+        const glow = (c, opacity = 0.28) => new THREE.MeshBasicMaterial({ color: c,
+            transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide });
+
+        if (shape.startsWith('arrow')) {
+            const ultimate = shape === 'arrow-ultimate';
+            const heavy = ultimate || shape === 'arrow-heavy';
+            const shaft = new THREE.Mesh(
+                new THREE.CylinderGeometry(heavy ? 0.13 : 0.085, heavy ? 0.13 : 0.085,
+                    ultimate ? 2.8 : heavy ? 2.2 : 1.65, 6), solid(colour));
+            const tip = new THREE.Mesh(
+                new THREE.ConeGeometry(heavy ? 0.32 : 0.22, heavy ? 0.72 : 0.48, 5), solid(accent));
+            tip.position.y = ultimate ? 1.72 : heavy ? 1.35 : 1.03;
+            const fletchA = new THREE.Mesh(
+                new THREE.BoxGeometry(heavy ? 0.72 : 0.48, 0.28, 0.06), glow(accent, 0.78));
+            fletchA.position.y = ultimate ? -1.35 : heavy ? -1.05 : -0.77;
+            const fletchB = fletchA.clone(); fletchB.rotation.y = Math.PI / 2;
+            g.add(shaft, tip, fletchA, fletchB);
+            if (ultimate) {
+                for (const y of [-0.55, 0.25]) {
+                    const halo = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.055, 5, 12), glow(accent, 0.62));
+                    halo.rotation.x = Math.PI / 2; halo.position.y = y; g.add(halo);
+                }
+            }
+        } else if (shape.startsWith('ember')) {
+            const fast = shape === 'ember-fast';
+            const core = new THREE.Mesh(new THREE.SphereGeometry(fast ? 0.42 : 0.34, 10, 7), solid(accent));
+            const shell = new THREE.Mesh(new THREE.SphereGeometry(fast ? 0.78 : 0.62, 9, 6), glow(colour, 0.34));
+            const tail = new THREE.Mesh(new THREE.ConeGeometry(fast ? 0.38 : 0.3, fast ? 1.8 : 1.3, 7), glow(colour, 0.42));
+            tail.rotation.z = Math.PI; tail.position.y = fast ? -1.05 : -0.78;
+            g.add(core, shell, tail);
+        } else if (shape.startsWith('holy')) {
+            const lance = shape === 'holy-lance';
+            const core = new THREE.Mesh(
+                new THREE.CapsuleGeometry(lance ? 0.3 : 0.2, lance ? 2.5 : 1.55, 5, 8), solid(colour));
+            const shell = new THREE.Mesh(
+                new THREE.CapsuleGeometry(lance ? 0.62 : 0.42, lance ? 2.8 : 1.8, 5, 8), glow(accent, 0.28));
+            g.add(core, shell);
+            const count = lance ? 3 : 1;
+            for (let i = 0; i < count; i++) {
+                const halo = new THREE.Mesh(new THREE.TorusGeometry(lance ? 0.55 : 0.38, 0.05, 5, 12),
+                    glow(accent, 0.7));
+                halo.rotation.x = Math.PI / 2;
+                halo.position.y = (i - (count - 1) / 2) * 0.78;
+                g.add(halo);
+            }
+        } else {
+            const core = new THREE.Mesh(
+                new THREE.CapsuleGeometry(p.skill ? 0.4 : 0.16, p.skill ? 1.8 : 1.5, 6, 10), solid(colour));
+            const shell = new THREE.Mesh(
+                new THREE.CapsuleGeometry(p.skill ? 0.85 : 0.4, p.skill ? 2.1 : 1.7, 6, 10),
+                glow(accent, p.skill ? 0.3 : 0.22));
+            g.add(core, shell);
+        }
+        g.userData.prev = new THREE.Vector2(p.x, p.z);
+        g.userData.fxStyle = profile?.style ?? `projectile-${shape}`;
+        g.userData.fxFamily = profile?.family ?? shape;
+        g.userData.projectileShape = shape;
+        return g;
+    }
+
+    #disposeProjectile(o) {
+        this.scene.remove(o);
+        o.traverse((part) => { part.geometry?.dispose(); part.material?.dispose(); });
+    }
+
     #syncProjectiles() {
         const seen = new Set();
         this.sim.projectiles.forEach((p, i) => {
@@ -807,21 +955,8 @@ export class View {
             seen.add(key);
             let o = this.projectiles.get(key);
             if (!o) {
-                // 普攻箭之前係 0.09 粗、而且冇 vx/vz 所以永遠豎直——
-                // 喺三十米外等於隱形。粗返、亮返，而且用實際位移去定方向。
-                const geo = p.skill
-                    ? new THREE.CapsuleGeometry(0.4, 1.8, 6, 10)
-                    : new THREE.CapsuleGeometry(0.16, 1.5, 5, 8);
-                // 技能彈道用施法者嘅代表色：兩個法師嘅技能唔應該一模一樣
-                const src = this.units.get(p.sourceId);
-                const colour = p.skill ? (src?.look.ringColour ?? 0xffd27a) : 0xffe9c4;
-                o = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: colour }));
-                const glow = new THREE.Mesh(
-                    new THREE.CapsuleGeometry(p.skill ? 0.85 : 0.4, p.skill ? 2.1 : 1.7, 6, 10),
-                    new THREE.MeshBasicMaterial({ color: colour, transparent: true,
-                        opacity: p.skill ? 0.3 : 0.22, depthWrite: false }));
-                o.add(glow);
-                o.userData.prev = new THREE.Vector2(p.x, p.z);
+                // 箭、火、聖光各自有實際幾何剪影；唔再係所有技能一條同色膠囊。
+                o = this.#makeProjectile(p);
                 this.scene.add(o);
                 this.projectiles.set(key, o);
             }
@@ -839,8 +974,7 @@ export class View {
         });
         for (const [k, o] of this.projectiles) {
             if (seen.has(k)) continue;
-            this.scene.remove(o);
-            o.geometry.dispose(); o.material.dispose();
+            this.#disposeProjectile(o);
             this.projectiles.delete(k);
         }
     }
@@ -944,8 +1078,9 @@ export class View {
     dispose() {
         for (const [, u] of this.units) this.#disposeUnit(u);
         this.units.clear();
-        for (const [, o] of this.projectiles) { this.scene.remove(o); o.material.dispose(); }
+        for (const [, o] of this.projectiles) this.#disposeProjectile(o);
         this.projectiles.clear();
+        this.fx.dispose();
         this.renderer.dispose();
     }
 }

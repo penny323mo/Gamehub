@@ -68,9 +68,11 @@ export class Fx {
         this.pool = [];         // 用完嘅傷害數字 sprite 留返轉頭用
     }
 
-    #add(obj, life, step) {
+    #add(obj, life, step, meta = {}) {
+        obj.userData.fx = { kind: meta.kind ?? 'generic', style: meta.style ?? null,
+            family: meta.family ?? null };
         this.scene.add(obj);
-        this.items.push({ obj, t: 0, life, step });
+        this.items.push({ obj, t: 0, life, step, ...meta });
         return obj;
     }
 
@@ -128,35 +130,40 @@ export class Fx {
 
     // ---------- 預警圈（有延遲嘅技能）----------
     // 一個由細變大填滿嘅圈，填滿嗰刻就係打中嗰刻——玩家有得閃。
-    telegraph(x, z, radius, delay, colour = 0xff6a4a) {
+    telegraph(x, z, radius, delay, colour = 0xff6a4a, profile = null) {
+        const sides = Math.max(3, profile?.sides ?? 40);
         const outline = new THREE.Mesh(
-            new THREE.RingGeometry(radius * 0.95, radius, 40),
+            new THREE.RingGeometry(radius * 0.95, radius, sides),
             new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.9,
                 side: THREE.DoubleSide, depthWrite: false }));
         outline.rotation.x = -Math.PI / 2;
         outline.position.set(x, 0.16, z);
-        this.#add(outline, delay, () => {});
+        this.#add(outline, delay, () => {}, { kind: 'telegraph-outline',
+            style: profile?.style, family: profile?.family });
         const fill = new THREE.Mesh(
-            new THREE.CircleGeometry(radius, 36),
-            new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.3,
+            new THREE.CircleGeometry(radius, sides),
+            new THREE.MeshBasicMaterial({ color: profile?.accent ?? colour, transparent: true, opacity: 0.3,
                 depthWrite: false }));
         fill.rotation.x = -Math.PI / 2;
         fill.position.set(x, 0.14, z);
         fill.scale.setScalar(0.05);
-        this.#add(fill, delay, (it, k) => { it.obj.scale.setScalar(0.05 + 0.95 * k); });
+        this.#add(fill, delay, (it, k) => { it.obj.scale.setScalar(0.05 + 0.95 * k); },
+            { kind: 'telegraph-fill', style: profile?.style, family: profile?.family });
+        if (profile) this.cue(x, z, profile, { life: delay, radius, kind: 'telegraph' });
     }
 
     // ---------- 持續地帶（火地、治療圈、陷阱）----------
-    zone(x, z, radius, colour, duration, follow = null) {
+    zone(x, z, radius, colour, duration, follow = null, profile = null) {
+        const sides = Math.max(3, profile?.sides ?? 40);
         const g = new THREE.Group();
         const disc = new THREE.Mesh(
-            new THREE.CircleGeometry(radius, 40),
+            new THREE.CircleGeometry(radius, sides),
             new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.22,
                 depthWrite: false }));
         disc.rotation.x = -Math.PI / 2;
         const edge = new THREE.Mesh(
-            new THREE.RingGeometry(radius * 0.93, radius, 40),
-            new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.85,
+            new THREE.RingGeometry(radius * 0.93, radius, sides),
+            new THREE.MeshBasicMaterial({ color: profile?.accent ?? colour, transparent: true, opacity: 0.85,
                 side: THREE.DoubleSide, depthWrite: false }));
         edge.rotation.x = -Math.PI / 2;
         edge.position.y = 0.02;
@@ -167,7 +174,8 @@ export class Fx {
             edge.material.opacity = 0.85 * pulse * (1 - k * 0.6);
             disc.material.opacity = 0.22 * (1 - k * 0.5);
             if (follow) { g.position.x = follow.x; g.position.z = follow.z; }
-        });
+        }, { kind: 'zone-bed', style: profile?.style, family: profile?.family });
+        if (profile) this.cue(x, z, profile, { life: duration, radius, follow, kind: 'zone-sigil' });
         return g;
     }
 
@@ -196,52 +204,222 @@ export class Fx {
     // 由攻擊者掃向目標嘅一道弧。呢個唔係裝飾：喺俯視鏡頭下面，
     // 一個角色揮劍嘅骨骼動作淨係佔幾十個像素，玩家實際上係「見唔到」佢出手。
     // 弧線係大部分動作遊戲用嚟交代「呢一下打出去咗」嘅辦法。
-    slash(x0, z0, x1, z1, colour = 0xffe9c4) {
+    slash(x0, z0, x1, z1, colour = 0xffe9c4, profile = {}) {
         const ang = Math.atan2(z1 - z0, x1 - x0);
         const g = new THREE.Group();
-        const arc = new THREE.Mesh(
-            new THREE.RingGeometry(1.5, 2.5, 20, 1, -0.85, 1.7),
-            new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.9,
-                side: THREE.DoubleSide, depthWrite: false }));
-        arc.rotation.x = -Math.PI / 2;
-        g.add(arc);
+        const weight = profile.weight ?? 1;
+        const blades = profile.blades ?? 1;
+        const arcs = [];
+        for (let i = 0; i < blades; i++) {
+            const arc = new THREE.Mesh(
+                new THREE.RingGeometry(1.35, 1.35 + 0.78 * weight, 20, 1,
+                    -0.9 + i * 0.24, 1.8 - i * 0.18),
+                new THREE.MeshBasicMaterial({ color: i ? (profile.accent ?? colour) : colour,
+                    transparent: true, opacity: i ? 0.7 : 0.94,
+                    side: THREE.DoubleSide, depthWrite: false }));
+            arc.rotation.x = -Math.PI / 2;
+            arc.position.y = i * 0.12;
+            arc.userData.baseOpacity = arc.material.opacity;
+            arcs.push(arc); g.add(arc);
+        }
         g.position.set(x0, 1.15, z0);
         g.rotation.y = -ang;
         this.#add(g, 0.22, (it, k) => {
             // 由後掃到前，同時淡出：一道掃過去嘅光，唔係一個固定嘅扇形
             g.rotation.y = -ang + (0.5 - k) * 0.9;
-            arc.scale.setScalar(0.85 + k * 0.45);
-            arc.material.opacity = 0.9 * (1 - k * k);
-        });
+            arcs.forEach((arc, i) => {
+                arc.scale.setScalar(0.82 + k * (0.42 + weight * 0.12) + i * 0.05);
+                arc.material.opacity = arc.userData.baseOpacity * (1 - k * k);
+            });
+        }, { kind: 'basic-windup', style: profile.style, family: profile.family });
     }
 
     // 遠程／法術出手：喺手嗰邊向住目標閃一下
-    muzzle(x0, z0, x1, z1, colour = 0xffe9c4) {
+    muzzle(x0, z0, x1, z1, colour = 0xffe9c4, profile = {}) {
         const d = Math.hypot(x1 - x0, z1 - z0) || 1;
         const nx = (x1 - x0) / d, nz = (z1 - z0) / d;
-        const m = new THREE.Mesh(
-            new THREE.CircleGeometry(0.75, 14),
-            new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.95,
+        const family = profile.family ?? 'bolt';
+        const sides = family === 'arrow' ? 4 : family === 'holy' ? 8 : 12;
+        const g = new THREE.Group();
+        const core = new THREE.Mesh(
+            new THREE.CircleGeometry(family === 'fire' ? 0.86 : 0.72, sides),
+            new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.98,
                 depthWrite: false }));
-        m.position.set(x0 + nx * 1.0, 1.4, z0 + nz * 1.0);
-        this.#add(m, 0.16, (it, k) => {
-            m.quaternion.copy(this.camera.quaternion);
-            m.scale.setScalar(0.6 + k * 1.1);
-            m.material.opacity = 0.95 * (1 - k);
+        const halo = new THREE.Mesh(
+            new THREE.RingGeometry(family === 'holy' ? 0.65 : 0.5, family === 'holy' ? 0.92 : 0.8, sides),
+            new THREE.MeshBasicMaterial({ color: profile.accent ?? colour, transparent: true,
+                opacity: family === 'fire' ? 0.55 : 0.8, side: THREE.DoubleSide, depthWrite: false }));
+        core.userData.baseOpacity = core.material.opacity;
+        halo.userData.baseOpacity = halo.material.opacity;
+        g.add(core, halo);
+        g.position.set(x0 + nx * 1.0, 1.4, z0 + nz * 1.0);
+        this.#add(g, 0.18, (it, k) => {
+            g.quaternion.copy(this.camera.quaternion);
+            g.rotation.z += family === 'fire' ? 0.18 : family === 'holy' ? -0.08 : 0;
+            core.scale.setScalar(0.55 + k * (family === 'fire' ? 1.4 : 1.0));
+            halo.scale.setScalar(0.8 + k * 1.25);
+            core.material.opacity = core.userData.baseOpacity * (1 - k);
+            halo.material.opacity = halo.userData.baseOpacity * (1 - k);
+        }, { kind: 'basic-windup', style: profile.style, family });
+    }
+
+    // ---------- 英雄專屬施法徽記 ----------
+    // 唔靠 shader 或貼圖：圈數、角數、射線、穹頂、柱、尖刺同收縮方向組合成
+    // 穩定剪影。低畫質一樣會畫得到，亦避免每招另外載一張透明 PNG。
+    cue(x, z, profile = {}, {
+        life = 0.5, radius = 2.1, follow = null, kind = 'cast', impact = false,
+    } = {}) {
+        const g = new THREE.Group();
+        const sides = Math.max(3, profile.sides ?? 12);
+        const rings = Math.max(1, profile.rings ?? 1);
+        const rays = Math.max(0, profile.rays ?? 0);
+        const colour = profile.colour ?? 0xffd27a;
+        const accent = profile.accent ?? colour;
+        const mat = (c, opacity, extra = {}) => {
+            const m = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity,
+                depthWrite: false, side: THREE.DoubleSide, ...extra });
+            m.userData.fxOpacity = opacity;
+            return m;
+        };
+
+        for (let i = 0; i < rings; i++) {
+            const r = radius * (0.42 + i * 0.19);
+            const band = new THREE.Mesh(
+                new THREE.RingGeometry(r * 0.86, r, sides),
+                mat(i % 2 ? accent : colour, 0.82 - i * 0.1));
+            band.rotation.x = -Math.PI / 2;
+            band.position.y = 0.09 + i * 0.035;
+            band.userData.fxPart = 'ring';
+            g.add(band);
+        }
+
+        for (let i = 0; i < rays; i++) {
+            const a = i / rays * Math.PI * 2;
+            const ray = new THREE.Mesh(
+                new THREE.PlaneGeometry(radius * (impact ? 0.9 : 0.68), 0.09 + (i % 2) * 0.045),
+                mat(i % 2 ? accent : colour, 0.68));
+            ray.rotation.x = -Math.PI / 2;
+            ray.rotation.z = -a;
+            ray.position.set(Math.cos(a) * radius * 0.36, 0.13, Math.sin(a) * radius * 0.36);
+            ray.userData.fxPart = 'ray';
+            g.add(ray);
+        }
+
+        if (profile.cross) {
+            for (const a of [Math.PI / 4, -Math.PI / 4]) {
+                const blade = new THREE.Mesh(
+                    new THREE.PlaneGeometry(radius * 1.45, 0.17), mat(accent, 0.86));
+                blade.rotation.x = -Math.PI / 2;
+                blade.rotation.z = a;
+                blade.position.y = 0.18;
+                blade.userData.fxPart = 'cross';
+                g.add(blade);
+            }
+        }
+
+        if (profile.dome) {
+            const dome = new THREE.Mesh(
+                new THREE.SphereGeometry(radius * 0.72, sides, Math.max(4, Math.floor(sides / 2)),
+                    0, Math.PI * 2, 0, Math.PI / 2),
+                mat(accent, 0.34, { wireframe: true }));
+            dome.position.y = 0.1;
+            dome.userData.fxPart = 'dome';
+            g.add(dome);
+        }
+
+        if (profile.pillar) {
+            const pillar = new THREE.Mesh(
+                new THREE.CylinderGeometry(radius * 0.12, radius * 0.38, radius * 2.4, sides, 1, true),
+                mat(accent, 0.28));
+            pillar.position.y = radius * 1.18;
+            pillar.userData.fxPart = 'pillar';
+            g.add(pillar);
+        }
+
+        if (profile.spikes || profile.flames) {
+            const count = profile.spikes ? Math.max(5, Math.min(10, sides)) : Math.max(4, Math.min(8, rays));
+            for (let i = 0; i < count; i++) {
+                const a = i / count * Math.PI * 2;
+                const spike = new THREE.Mesh(
+                    new THREE.ConeGeometry(profile.spikes ? 0.16 : 0.22,
+                        radius * (profile.spikes ? 0.65 : 0.95), profile.spikes ? 4 : 6),
+                    mat(i % 2 ? accent : colour, profile.spikes ? 0.72 : 0.58));
+                spike.position.set(Math.cos(a) * radius * 0.63,
+                    radius * (profile.spikes ? 0.3 : 0.43), Math.sin(a) * radius * 0.63);
+                spike.rotation.z = profile.spikes ? -a * 0.12 : 0;
+                spike.userData.fxPart = profile.spikes ? 'spike' : 'flame';
+                g.add(spike);
+            }
+        }
+
+        if (impact) {
+            const core = new THREE.Mesh(
+                new THREE.CircleGeometry(radius * 0.58, sides), mat(accent, 0.42));
+            core.rotation.x = -Math.PI / 2;
+            core.position.y = 0.075;
+            core.userData.fxPart = 'impact';
+            g.add(core);
+        }
+
+        g.position.set(x, 0, z);
+        const startScale = profile.collapse ? 1.42 : (impact ? 0.28 : 0.52);
+        const endScale = profile.collapse ? 0.46 : (impact ? 1.24 : 1.08);
+        g.scale.setScalar(startScale);
+        this.#add(g, life, (it, k) => {
+            if (follow) g.position.set(follow.x, 0, follow.z);
+            const pulse = 0.9 + Math.sin(it.t * 10) * 0.1;
+            g.scale.setScalar((startScale + (endScale - startScale) * k) * pulse);
+            g.rotation.y = it.t * (profile.family === 'shadowdash' || profile.family === 'bladedance' ? 2.4 : 0.7);
+            const fade = k < 0.72 ? 1 : Math.max(0, (1 - k) / 0.28);
+            g.traverse((o) => {
+                if (o.material?.userData?.fxOpacity != null) {
+                    o.material.opacity = o.material.userData.fxOpacity * fade;
+                }
+            });
+        }, { kind, style: profile.style, family: profile.family });
+        return g;
+    }
+
+    attack(x0, z0, x1, z1, profile = {}) {
+        if (['arrow', 'fire', 'holy'].includes(profile.family)) {
+            this.muzzle(x0, z0, x1, z1, profile.colour, profile);
+        } else {
+            this.slash(x0, z0, x1, z1, profile.colour, profile);
+        }
+    }
+
+    hit(x, z, profile = {}, scale = 1) {
+        return this.cue(x, z, profile, {
+            life: profile.family === 'axe' || profile.family === 'cleave' ? 0.38 : 0.28,
+            radius: (profile.weight ?? 1) * 1.35 * scale,
+            kind: 'impact', impact: true,
         });
     }
 
     // ---------- 位移殘影 ----------
-    streak(x0, z0, x1, z1, colour = 0xbfd4ff) {
+    streak(x0, z0, x1, z1, colour = 0xbfd4ff, profile = {}) {
         const len = Math.hypot(x1 - x0, z1 - z0) || 0.1;
-        const m = new THREE.Mesh(
-            new THREE.PlaneGeometry(len, 1.5),
-            new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.5,
-                side: THREE.DoubleSide, depthWrite: false }));
-        m.rotation.x = -Math.PI / 2;
-        m.rotation.z = -Math.atan2(z1 - z0, x1 - x0);
-        m.position.set((x0 + x1) / 2, 0.3, (z0 + z1) / 2);
-        this.#add(m, 0.32, (it, k) => { it.obj.material.opacity = 0.5 * (1 - k); });
+        const width = profile.trailWidth ?? 1.5;
+        const ang = Math.atan2(z1 - z0, x1 - x0);
+        const g = new THREE.Group();
+        const count = profile.twin ? 2 : 1;
+        for (let i = 0; i < count; i++) {
+            const m = new THREE.Mesh(
+                new THREE.PlaneGeometry(len, width * (i ? 0.48 : 1)),
+                new THREE.MeshBasicMaterial({ color: i ? (profile.accent ?? colour) : colour,
+                    transparent: true, opacity: i ? 0.36 : 0.52,
+                    side: THREE.DoubleSide, depthWrite: false }));
+            m.rotation.x = -Math.PI / 2;
+            m.rotation.z = -ang;
+            const off = count === 2 ? (i ? 0.42 : -0.42) : 0;
+            m.position.set(-Math.sin(ang) * off, i * 0.07, Math.cos(ang) * off);
+            m.userData.baseOpacity = m.material.opacity;
+            g.add(m);
+        }
+        g.position.set((x0 + x1) / 2, 0.3, (z0 + z1) / 2);
+        this.#add(g, 0.36, (it, k) => {
+            for (const m of g.children) m.material.opacity = m.userData.baseOpacity * (1 - k);
+        }, { kind: 'dash-trail', style: profile.style, family: profile.family });
     }
 
     // ---------- 治療上升粒 ----------
@@ -269,9 +447,18 @@ export class Fx {
             this.scene.remove(it.obj);
             if (it.obj.isSprite) { it.obj.visible = false; this.pool.push(it.obj); return false; }
             it.obj.traverse?.((o) => { o.geometry?.dispose(); o.material?.dispose(); });
-            it.obj.geometry?.dispose?.();
-            it.obj.material?.dispose?.();
             return false;
         });
+    }
+
+    dispose() {
+        for (const it of this.items) {
+            this.scene.remove(it.obj);
+            if (it.obj.isSprite) it.obj.material?.dispose();
+            else it.obj.traverse?.((o) => { o.geometry?.dispose(); o.material?.dispose(); });
+        }
+        this.items.length = 0;
+        for (const sp of this.pool) sp.material?.dispose();
+        this.pool.length = 0;
     }
 }

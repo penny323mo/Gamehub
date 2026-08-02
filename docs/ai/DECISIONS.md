@@ -1843,3 +1843,25 @@ follows what the tyres can use
   layout, full-viewport fit, swipe/keyboard/dot navigation, focus isolation, unique entries, equal
   Gomoku stones, and zero Hub browser errors. A real card click must also reach Xiangqi's built
   page with its canvas and shared helper requests returning successfully.
+
+## ADR-103: Champion attacks use stable procedural visual grammars carried by simulation events
+
+- Date: 2026-08-02
+- Status: accepted
+- Decision: each 深淵之橋 champion owns one basic-attack profile and four ability profiles in
+  `looks.js` (`CHAMPION_FX`). Profiles name a stable style/family and combine colour, polygon
+  sides, rings, rays, cross, dome, pillar, spikes/flames, collapse direction, blade count, trail
+  width, and projectile family. `fx.js` turns those profiles into low-cost procedural geometry;
+  this identity must not collapse back to a shared coloured ring for every skill.
+- The simulation is authoritative for visual identity. Casts, skill projectiles, impacts, zones,
+  traps, and trap triggers carry source/champion/ability metadata. `view.js` resolves the profile
+  from that metadata, so bot and player casts share the same language and effects do not guess
+  from colour alone.
+- Longshot arrows, Emberwake fire, and Dawnkeeper holy bolts use materially different projectile
+  geometry and orientation. All transient groups must dispose their geometry/material at the end
+  of life; projectile cleanup traverses child meshes, and `View.dispose()` clears the FX layer.
+- Gates: the browser suite requires six distinct basic-attack style/geometry signatures, all 24
+  ability style IDs with at least 20 distinct silhouettes (currently 24), three projectile model
+  classes, zero residual FX after a stress burst, both mobile layouts, a completed match, and zero
+  console errors. These structural gates do not replace subjective crowded-teamfight readability
+  or physical-device performance QA; those remain the next production pass.

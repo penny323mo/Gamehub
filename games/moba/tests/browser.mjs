@@ -336,6 +336,105 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     check(`${tag}：技能彈道畫得出`, combat && combat.viewProj > 0 && combat.viewProj === combat.simProj, combat);
     check(`${tag}：彈道有跟住飛行方向轉`, combat && combat.oriented, combat);
 
+    // 唔可以再用「有一個圈」當完成。六隻英雄要有六套普攻剪影，24 招要逐招
+    // 產生自己嘅 scene geometry；projectile 亦要分箭、火、聖光，而唔係換色膠囊。
+    const fxLanguage = await page.evaluate(() => {
+        const s = window.__sim, v = window.__view;
+        const geometrySignature = (items) => {
+            const parts = [], geometry = [], colours = [];
+            for (const it of items) it.obj.traverse((o) => {
+                if (o.geometry) geometry.push(o.geometry.type);
+                if (o.userData?.fxPart) parts.push(o.userData.fxPart);
+                const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+                for (const m of mats) if (m.color) colours.push(m.color.getHexString());
+            });
+            return [geometry.sort().join(','), parts.sort().join(','), colours.sort().join(',')].join('|');
+        };
+
+        v.fx.update(120);
+        const sceneBase = v.scene.children.length;
+        const attacks = [];
+        for (const c of s.champions) {
+            const target = s.champions.find(t => t.team !== c.team);
+            v.update(1 / 60, [
+                { type: 'attack', id: c.id, target: target.id },
+                { type: 'hit', id: c.id, target: target.id },
+            ]);
+            const items = v.fx.items.filter(it => it.style?.startsWith(`${c.champId}-`));
+            attacks.push({ champion: c.champId, styles: [...new Set(items.map(it => it.style))],
+                signature: geometrySignature(items), count: items.length });
+            v.fx.update(3);
+        }
+
+        const abilities = [];
+        for (const c of s.champions) {
+            c.level = 12; c.mp = c.maxMp; c.abilityCd = [0, 0, 0, 0];
+            for (let index = 0; index < c.def.abilities.length; index++) {
+                const ab = c.def.abilities[index];
+                v.update(1 / 60, [{ type: 'cast', id: c.id, index, key: ab.key,
+                    championId: c.champId, x: c.x + 2, z: c.z }]);
+                const items = v.fx.items.filter(it => it.style?.startsWith(`${c.champId}-`));
+                abilities.push({ champion: c.champId, key: ab.key,
+                    styles: [...new Set(items.map(it => it.style))],
+                    families: [...new Set(items.map(it => it.family))],
+                    signature: geometrySignature(items), count: items.length });
+                v.fx.update(12);
+            }
+        }
+
+        const savedProjectiles = s.projectiles;
+        const projectileLooks = [];
+        for (const [champion, index] of [['longshot', 0], ['emberwake', 0], ['dawnkeeper', 0]]) {
+            const c = s.champions.find(x => x.champId === champion);
+            const ab = c.def.abilities[index];
+            s.projectiles = [{ __vid: `visual-${champion}`, kind: c.def.projectile,
+                skill: true, sourceId: c.id, abilityIndex: index, abilityKey: ab.key,
+                championId: c.champId, x: c.x, z: c.z, vx: 1, vz: 0 }];
+            v.update(1 / 60, []);
+            const obj = [...v.projectiles.values()].find(o => o.userData.fxStyle?.startsWith(champion));
+            const parts = [];
+            obj?.traverse(o => { if (o.geometry) parts.push(o.geometry.type); });
+            projectileLooks.push({ champion, shape: obj?.userData.projectileShape,
+                style: obj?.userData.fxStyle, signature: parts.sort().join(',') });
+            s.projectiles = [];
+            v.update(1 / 60, []);
+        }
+        s.projectiles = savedProjectiles;
+        v.update(1 / 60, []);
+        v.fx.update(120);
+
+        return {
+            attacks,
+            attackStyles: new Set(attacks.flatMap(a => a.styles)).size,
+            attackSignatures: new Set(attacks.map(a => a.signature)).size,
+            abilities,
+            abilityStyles: new Set(abilities.flatMap(a => a.styles)).size,
+            abilitySignatures: new Set(abilities.map(a => a.signature)).size,
+            projectileLooks,
+            projectileShapes: new Set(projectileLooks.map(p => p.shape)).size,
+            projectileSignatures: new Set(projectileLooks.map(p => p.signature)).size,
+            cleanup: { items: v.fx.items.length, sceneBase, sceneAfter: v.scene.children.length },
+        };
+    });
+    check(`${tag}：六隻英雄普攻有六套實際幾何剪影`,
+        fxLanguage.attacks.length === 6 && fxLanguage.attacks.every(a => a.count >= 2)
+            && fxLanguage.attackStyles === 6 && fxLanguage.attackSignatures === 6,
+        { styles: fxLanguage.attackStyles, signatures: fxLanguage.attackSignatures,
+            attacks: fxLanguage.attacks });
+    check(`${tag}：24 招技能逐招有身份，而且至少 20 套幾何剪影`,
+        fxLanguage.abilities.length === 24 && fxLanguage.abilities.every(a => a.count > 0)
+            && fxLanguage.abilityStyles === 24 && fxLanguage.abilitySignatures >= 20,
+        { styles: fxLanguage.abilityStyles, signatures: fxLanguage.abilitySignatures,
+            missing: fxLanguage.abilities.filter(a => !a.count) });
+    check(`${tag}：箭、火、聖光係三款唔同彈道模型`,
+        fxLanguage.projectileLooks.every(p => p.shape && p.style)
+            && fxLanguage.projectileShapes === 3 && fxLanguage.projectileSignatures === 3,
+        fxLanguage.projectileLooks);
+    check(`${tag}：大量戰鬥特效播完會清走，唔會留喺場景`,
+        fxLanguage.cleanup.items === 0
+            && fxLanguage.cleanup.sceneAfter === fxLanguage.cleanup.sceneBase,
+        fxLanguage.cleanup);
+
     // 血條要用血量色，唔可以用隊伍色——用隊伍色嘅話滿血同殘血一個樣
     const bars = await page.evaluate(() => {
         const v = window.__view, s = window.__sim;

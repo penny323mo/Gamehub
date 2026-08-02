@@ -824,7 +824,10 @@ export class Sim {
         const rank = abilityRank(c.level, index);
         c.mp -= ab.cost;
         c.abilityCd[index] = ab.cd;
-        this.emit('cast', { id: c.id, index, key: ab.key });
+        this.emit('cast', {
+            id: c.id, index, key: ab.key, championId: c.def.id,
+            x: aim.x, z: aim.z, targetId: aim.targetId,
+        });
 
         const handler = this[`_form_${ab.form}`];
         if (handler) handler.call(this, c, ab, rank, aim);
@@ -869,6 +872,13 @@ export class Sim {
         }
     }
 
+    #abilityVisual(c, ab) {
+        return {
+            sourceId: c.id, championId: c.def.id,
+            index: c.def.abilities.indexOf(ab), key: ab.key,
+        };
+    }
+
     _form_skillshot(c, ab, rank, aim) {
         const dx = (aim.x ?? c.x + 1) - c.x, dz = (aim.z ?? c.z) - c.z;
         const d = Math.hypot(dx, dz) || 1;
@@ -878,7 +888,14 @@ export class Sim {
             x: c.x, z: c.z, vx: dx / d, vz: dz / d,
             speed: ab.speed, width: ab.width, pierce: !!ab.pierce,
             left: ab.range, hits: new Set(),
-            onHit: (victim) => this.#applyOnHit(c, ab, rank, victim),
+            abilityIndex: c.def.abilities.indexOf(ab), abilityKey: ab.key, championId: c.def.id,
+            onHit: (victim) => {
+                this.#applyOnHit(c, ab, rank, victim);
+                this.emit('abilityImpact', {
+                    ...this.#abilityVisual(c, ab), targetId: victim.id,
+                    x: victim.x, z: victim.z, radius: Math.max(1.1, ab.width ?? 1),
+                });
+            },
             onAlly: ab.healAlly ? (ally) => this.heal(ally, scaled(ab.healAlly, rank)) : null,
         });
     }
@@ -893,7 +910,7 @@ export class Sim {
         // 隔住八米指一指，對面就跌血——玩家根本唔知發生過咩事。
         this.emit('strike', {
             sourceId: c.id, targetId: t.id, x: t.x, z: t.z,
-            ally: !!ab.allyTarget, key: ab.key,
+            ally: !!ab.allyTarget, ...this.#abilityVisual(c, ab),
         });
         if (ab.allyTarget) {
             if (ab.shield) {
@@ -931,6 +948,10 @@ export class Sim {
                         if (dist(c, e) <= ab.radius + e.r) this.#applyOnHit(c, ab, rank, e);
                     }
                 }
+                this.emit('abilityImpact', {
+                    ...this.#abilityVisual(c, ab), targetId: victim?.id,
+                    x: c.x, z: c.z, radius: ab.radius ?? (victim ? 1.8 : 1.2),
+                });
             },
         };
     }
@@ -946,7 +967,10 @@ export class Sim {
                 damage: this.#abilityDamage(c, ab, rank),
                 slow: ab.slow, slowTime: ab.slowTime,
             });
-            this.emit('zone', { x, z, radius: ab.radius, team: c.team, sourceId: c.id });
+            this.emit('zone', {
+                x, z, radius: ab.radius, duration: ab.duration, team: c.team,
+                ...this.#abilityVisual(c, ab),
+            });
             return;
         }
         const fire = () => {
@@ -954,11 +978,14 @@ export class Sim {
                 if (!e.alive || (e.kind !== 'champ' && e.kind !== 'minion')) continue;
                 if (Math.hypot(e.x - x, e.z - z) <= ab.radius + e.r) this.#applyOnHit(c, ab, rank, e);
             }
-            this.emit('boom', { x, z, radius: ab.radius });
+            this.emit('boom', { x, z, radius: ab.radius, ...this.#abilityVisual(c, ab) });
         };
         if (ab.delay) {
-            this.zones.push({ kind: 'delayed', x, z, radius: ab.radius, at: this.time + ab.delay, fire, team: c.team });
-            this.emit('telegraph', { x, z, radius: ab.radius, delay: ab.delay });
+            this.zones.push({ kind: 'delayed', x, z, radius: ab.radius, at: this.time + ab.delay,
+                fire, team: c.team });
+            this.emit('telegraph', {
+                x, z, radius: ab.radius, delay: ab.delay, ...this.#abilityVisual(c, ab),
+            });
         } else fire();
     }
 
@@ -1003,10 +1030,14 @@ export class Sim {
         this.zones.push({
             kind: 'trap', team: c.team, sourceId: c.id, x, z,
             radius: ab.radius, until: this.time + ab.duration,
+            abilityIndex: c.def.abilities.indexOf(ab), abilityKey: ab.key, championId: c.def.id,
             armedAt: this.time + (ab.armTime ?? 0),
             onTrigger: (victim) => this.#applyOnHit(c, ab, rank, victim),
         });
-        this.emit('trap', { x, z, radius: ab.radius, team: c.team });
+        this.emit('trap', {
+            x, z, radius: ab.radius, duration: ab.duration, team: c.team,
+            ...this.#abilityVisual(c, ab),
+        });
     }
 
     #tickZones(dt) {
@@ -1026,7 +1057,14 @@ export class Sim {
                 const victim = this.enemiesOf(z.team).find(e => e.alive
                     && (e.kind === 'champ' || e.kind === 'minion')
                     && Math.hypot(e.x - z.x, e.z - z.z) <= z.radius);
-                if (victim) { z.onTrigger(victim); z.dead = true; this.emit('trapFire', { x: z.x, z: z.z }); }
+                if (victim) {
+                    z.onTrigger(victim); z.dead = true;
+                    this.emit('trapFire', {
+                        x: z.x, z: z.z, radius: z.radius, targetId: victim.id,
+                        sourceId: z.sourceId, championId: z.championId,
+                        index: z.abilityIndex, key: z.abilityKey,
+                    });
+                }
                 continue;
             }
             if (this.time < z.next) continue;

@@ -4,91 +4,89 @@ Updated: 2026-08-02 (Asia/Macau)
 Prepared by: Codex (local)
 Integration branch: `main`
 Work branch: `main`
-Status: Elden Ring II side quest integrated, deployed, and production browser-verified
+Status: Hub four-card side quest complete; 深淵之橋 champion-FX checkpoint ready for the next agent
 
 ## Current objective
 
-Penny paused the main 深淵之橋 production pass for a side quest: move the existing local
-`/Users/penny323/Elden` game into Game Hub as an independent bonus title and deploy it through the
-repository's GitHub Pages pipeline.
+Penny asked to stop after two durable checkpoints and hand the project to the next agent:
+
+1. Replace the Hub's one-game-per-page launcher with four-game pages and move 中國象棋 forward.
+2. Preserve and publish the in-progress 深淵之橋 production pass, especially its attack effects.
+
+The overall MOBA production objective is **not finished**. This handoff is a tested checkpoint,
+not a claim that crowded-fight readability, performance, controls, logic, and physics are final.
 
 ## Completed
 
-- Added `games/elden-ring-ii/`, a maintainable Vite + React + TypeScript conversion of the original
-  Vinext/Cloudflare project. The Three.js/Cannon-es game itself remains intact: three character
-  classes, two skeleton waves, two-phase boss, lock-on, stamina/dodge, audio, effects, credits,
-  mobile joystick/action controls, and right-side camera drag.
-- Copied all runtime models, materials, music, SFX, images, and their CC0 source/license records.
-  The fan-made/non-affiliation notice remains in the game and README.
-- Converted nested-hosting paths: Vite uses `base: "./"`; Three's default and custom GLTF loading
-  managers resolve `/assets/...` through `import.meta.env.BASE_URL`; audio uses the same base.
-- Preserved run history as local-first. Optional Supabase writes now use browser-safe
-  `VITE_SUPABASE_*` values; no Supabase migration or credential change was made.
-- Added the `Elden Ring II` card to `launcher.js` and linked it to
-  `games/elden-ring-ii/dist/index.html`.
-- Updated Pages CI to cache, install, test, and build Elden Ring II before staging the static site.
-- Upgraded the copied Vite toolchain from vulnerable 8.0.13 to 8.2.0; full `npm audit` is clean.
-- Hardened 3D loading after the first production cold load exposed one transient GitHub Pages 503:
-  every model retries up to three times, and a persistent failure now shows an explicit
-  `RETRY LOADING THE REALM` action instead of letting the player enter an empty world.
-- ADR-101 records the static-hosting, persistence, asset-license, and browser-gate decisions.
+### Hub launcher
+
+- Commit `752bcc3` replaces the single oversized card with paged groups of four.
+- Desktop/short landscape: four cards in one row. Phone portrait: the same group as a 2×2 grid.
+  Swipe, arrow buttons, keyboard arrows, dots, page status, and focus isolation are wired.
+- First group is 五子棋 → 中國象棋 → 鋤大D → 鬥地主. The last partial page does not duplicate games.
+- Gomoku now uses two equal CSS stones with a fixed 6–8 px gap instead of unequal joined emoji.
+- 844×390 has a compact treatment so all cards, Play actions, arrows, and status fit one screen.
+- Xiangqi's build rewrites its shared helper from `../shared/` to `../../shared/`, adds an inline
+  favicon, and regenerates tracked `dist/index.html`; Hub → Xiangqi now loads with zero errors.
+- ADR-102 records the durable launcher and nested-build decisions.
+
+### 深淵之橋 attack-FX checkpoint
+
+- `looks.js` defines six champion-specific basic profiles and 24 ability profiles. Every profile
+  has its own stable style ID and a procedural visual grammar rather than a shared generic ring.
+- `fx.js` renders rings, rays, crosses, domes, pillars, spikes/flames, collapse bursts, weighted or
+  twin slashes, ranged muzzle flashes, profiled dash trails, telegraphs, zones, and impacts.
+- `sim.js` carries source/champion/ability identity through cast, projectile, impact, strike, zone,
+  trap, and trap-trigger events. Player and bot abilities therefore reach the same renderer path.
+- `view.js` resolves those profiles, gives arrow/fire/holy projectiles different actual geometry,
+  orients them to flight, traverses child meshes during disposal, and clears the FX layer on exit.
+- `browser.mjs` now proves six distinct basic signatures, all 24 ability IDs and 24 distinct
+  geometry signatures, three projectile model classes, and zero leftover scene objects after FX.
+- ADR-103 records the simulation-to-render visual identity and cleanup invariants.
 
 ## Verification
 
-- `cd games/elden-ring-ii && npm test` → **3/3 pass** after TypeScript and production Vite build.
-- `npm audit` → **0 vulnerabilities** (production and development dependencies).
-- Local HTTP + headed Chromium at 844×390:
-  - Hub has 13 cards; after carousel navigation the active card is `Elden Ring II` and its Play
-    action reaches the nested production entry.
-  - Title screen reaches `ENTER THE VEIL`; one WebGL canvas, Cannon-es and local persistence are
-    active; all required environment/character/enemy requests return 200.
-  - Starting the game reaches `playing`; keyboard movement changed player position and right drag
-    changed camera yaw; console has **0 errors / 0 warnings**.
-- Chromium mobile touch context at 844×390:
-  - touch controls are visible; a real CDP touch drag on the joystick changed player position;
-    a right-half touch drag changed camera yaw; **0 failed responses / 0 console problems**.
-- Fault-injection browser gate: one forced `warrior.glb` 503 retried and recovered on attempt 2,
-  reached `playing`, and moved the character; three forced 503s produced the explicit retry UI
-  with no `ENTER THE VEIL` action.
-- GitHub Pages workflow `30750812641` → **build and deploy success** for `9e59921`.
-- Cache-disabled production touch smoke at
-  `https://penny323mo.github.io/Gamehub/games/elden-ring-ii/dist/index.html`:
-  - Hub card navigation reached the deployed `index-D0cNwJ2k.js` bundle; one WebGL canvas,
-    Cannon-es, local persistence, and touch controls were active.
-  - **23/23 model requests returned 200**; character moved, camera yaw changed, `loadError` stayed
-    absent, and there were **0 failed responses / 0 console errors or warnings**.
+- `node tests/hub.mjs` → **64/64 pass** at 320×568, 440×956, 844×390, and 1280×800.
+- Real browser visual QA: 320×568 2×2 and 844×390 four-column pages fit in one screen; equal Gomoku
+  stones are visibly separated. Real Hub card click reached `中國象棋 AI`, one canvas, 0 errors.
+- `cd games/xiangqi-ai && npm run build` → pass; tracked dist regenerated.
+- Xiangqi `selftest_legal.js`, `selftest_search.js`, `selftest_perf.js` → all pass.
+- MOBA JavaScript syntax checks and `git diff --check` → pass.
+- `node games/moba/tests/sim.mjs` → **206/206 pass**. Twelve mirrored matches: blue/red 5/7;
+  9 nexus finishes, 3 time-limit finishes; no NaN or bridge escape.
+- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node
+  games/moba/tests/browser.mjs` → **96/96 pass** across landscape and portrait, both full matches,
+  shop/touch/joystick regressions, all new FX gates, and zero console errors.
 
 ## Changed files
 
-- `games/elden-ring-ii/` — source, tests, Vite/static conversion, CC0 runtime assets and licenses.
-- `launcher.js` — Hub card and production link.
-- `.github/workflows/deploy-pages.yml` — Elden install/test/build stage.
-- `.gitignore` — ignored Elden `dist/`; CI is authoritative for production output.
-- `docs/ai/{PROJECT_CONTEXT,DECISIONS,HANDOFF}.md` — architecture, ADR-101, current checkpoint.
+- Hub commit: `index.html`, `launcher.js`, `style.css`, `tests/hub.mjs`, Xiangqi source/build files,
+  and ADR-102.
+- MOBA checkpoint: `games/moba/src/{fx,looks,sim,view}.js`, `games/moba/tests/browser.mjs`,
+  `docs/ai/{PROJECT_CONTEXT,DECISIONS,HANDOFF}.md`.
 
 ## Known issues and cautions
 
-- The production bundle is intentionally graphics-heavy (about 23 MB of models/audio plus the
-  Three.js game bundle). First load can take longer on a cold mobile connection.
-- GitHub Actions reports a non-blocking Node 20 deprecation annotation for official action
-  internals; GitHub forced those actions onto Node 24 and both build and deploy completed.
-- GitHub Pages cannot run the old Cloudflare worker or server auth. Do not reintroduce worker-only
-  imports into the Hub copy; local play must remain fully functional without Supabase.
-- Keep model/audio URLs relative. Root `/assets/...` URLs reproduce the 404 failure caught during
-  the first browser smoke.
-- Penny's paused MOBA effects pass is not part of this checkpoint. Codex preserved that incomplete
-  work in the local-only stash `wip/moba-production-fx-before-elden-sidequest`; a cloud agent must
-  not assume that stash exists.
+- Automated geometry signatures prove identity and cleanup, not subjective clarity in a crowded
+  six-champion fight. A short manual Emberwake cast inspection was readable, but a systematic
+  mid-life gallery/crowded-fight review was interrupted by the Hub side quest and remains open.
+- The browser gallery previously called `fx.dispose()` while the live match was running; it was QA
+  only and did not modify source. Do not infer a runtime FX lifecycle bug from that experiment.
+- Xiangqi `npm ci` reported four dependency audit findings (1 low, 3 high). They were pre-existing,
+  outside this UI checkpoint, and were not auto-fixed because that could upgrade the toolchain.
+- Two local named stashes may remain as redundant pre-commit backups. Their content is now in this
+  checkpoint; do not re-apply them on top of `main`. Cloud agents cannot see local stashes anyway.
 
 ## Exact next action
 
-1. Side quest is complete. After Penny ends the pause, resume the mainline from this pushed remote
-   baseline. Local
-   Codex may restore the named stash; another environment should ask Penny whether to start a new
-   visual-effects pass rather than guessing at unavailable local WIP.
+1. Run `./scripts/agent-context.sh --sync`, verify `main` equals `origin/main`, then read this file.
+2. Open 深淵之橋 at 844×390 and 430×860 and capture real mid-life attack/ability frames during a
+   crowded fight. Tune only profiles whose silhouette or timing is genuinely unclear.
+3. Measure peak `renderer.info.memory.geometries`, active FX item count, frame pacing, and physical
+   phone feel before calling the production objective complete. Keep `206/206` and `96/96` green.
 
 ## Do not redo
 
-- Do not copy Vinext/Next/Cloudflare/D1 wrappers into the static Hub; ADR-101.
-- Do not move Elden assets to root `/assets`; the folder must remain self-contained.
-- Do not delete or pop the named MOBA stash while this side quest is still active.
+- Do not restore the obsolete local MOBA stashes; the checkpoint is now in Git history.
+- Do not revert the Hub to absolute one-card carousel positioning or platform Gomoku emoji.
+- Do not remove champion/ability metadata from sim events or merge all skills back into one ring.
