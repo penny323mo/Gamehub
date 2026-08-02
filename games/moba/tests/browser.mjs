@@ -66,6 +66,9 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
 
     const cards = await page.$$('#pick-grid .pick-card');
     check(`${tag}：六個英雄都出得到卡`, cards.length === 6, cards.length);
+    const faces = await page.$$eval('#pick-grid .pick-card img.face',
+        ns => ns.filter(n => n.src.startsWith('data:image')).length);
+    check(`${tag}：六張卡都有 3D render 出嚟嘅頭像`, faces === 6, faces);
 
     await page.click('#pick-go');
     const started = await page.waitForFunction('window.__mobaReady === true', { timeout: 45000 })
@@ -140,6 +143,31 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     const labels = await page.$$eval('.moba-skill .nm', ns => ns.map(n => n.textContent.trim()));
     check(`${tag}：四粒技能掣都有名`, labels.length === 4 && labels.every(l => l.length >= 2), labels);
 
+    // 設定要開得到而且改得郁：一個網頁遊戲冇靜音掣係硬傷
+    await page.click('.moba-gear');
+    await page.waitForTimeout(150);
+    check(`${tag}：設定面板開得到`, await page.$eval('.moba-settings', e => !e.classList.contains('hidden')));
+    const toggles = await page.$$('.moba-settings .moba-toggle');
+    check(`${tag}：有音效同音樂開關`, toggles.length === 2, toggles.length);
+    const before = await page.$eval('.moba-settings .moba-toggle', e => e.textContent);
+    await toggles[0].click();
+    const after = await page.$eval('.moba-settings .moba-toggle', e => e.textContent);
+    check(`${tag}：撳落去真係切換到`, before !== after, { before, after });
+    await toggles[0].click();
+    // 畫質三檔要揀得到，而且真係改到 view
+    const segs = await page.$$('.moba-settings .moba-seg button');
+    check(`${tag}：畫質有三檔`, segs.length === 3, segs.length);
+    await segs[0].click();
+    await page.waitForTimeout(150);
+    check(`${tag}：揀畫質改到 view`, await page.evaluate(() => window.__view.quality) === 'low');
+    check(`${tag}：設定寫入 localStorage`,
+        await page.evaluate(() => JSON.parse(localStorage.getItem('moba-settings') || '{}').quality) === 'low');
+    await page.click('.moba-settings .moba-x');
+
+    // 頭像：選人卡同 HUD 都要有真圖，唔係空框
+    check(`${tag}：HUD 頭像有圖`,
+        await page.$eval('.moba-portrait', e => /^url\(["']?data:image/.test(e.style.backgroundImage || '')));
+
     // 快進成場波：一定要有結果，唔可以卡死或者拋錯
     const outcome = await page.evaluate(() => {
         const s = window.__sim;
@@ -149,6 +177,15 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     });
     check(`${tag}：一整場跑得完並分到勝負`, outcome && outcome.winner != null, outcome);
     await page.waitForTimeout(600);
+
+    // 戰後計分板：兩隊六個人齊晒
+    const sheet = await page.evaluate(() => {
+        const box = document.querySelector('#result');
+        return { shown: !box.classList.contains('hidden'),
+            rows: box.querySelectorAll('.srow').length,
+            teams: box.querySelectorAll('.steam').length };
+    });
+    check(`${tag}：戰後計分板列晒六個人`, sheet.shown && sheet.rows === 6 && sheet.teams === 2, sheet);
 
     check(`${tag}：主控台零錯誤`, errs.length === 0, errs.slice(0, 4));
     await page.close();

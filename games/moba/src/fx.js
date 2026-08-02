@@ -9,13 +9,29 @@
 
 import * as THREE from '../vendor/three.module.min.js';
 
+// 快取有上限，而且要 dispose 走被淘汰嘅。實測一場波之後 GPU 貼圖數由 59
+// 升到 326——每一個唔同嘅傷害數字都整咗一張新 canvas 貼圖，永遠唔放。
 const TEXT_CACHE = new Map();
+const TEXT_CACHE_MAX = 96;
 const FONT = '700 64px "Noto Sans HK", system-ui, sans-serif';
+
+// 大數字降精度：4 位數嘅傷害逐個整一張貼圖，快取一定爆。
+// 玩家睇「1.2k」同睇「1237」嘅資訊量係一樣。
+function damageLabel(n) {
+    const v = Math.round(n);
+    if (v < 1000) return String(v);
+    return `${(v / 1000).toFixed(1)}k`;
+}
 
 function textTexture(text, colour) {
     const key = `${text}|${colour}`;
     let t = TEXT_CACHE.get(key);
-    if (t) return t;
+    if (t) {
+        // 用過就當最新：Map 保留插入次序，刪咗再插就等於移到最尾
+        TEXT_CACHE.delete(key);
+        TEXT_CACHE.set(key, t);
+        return t;
+    }
     const pad = 14;
     const probe = document.createElement('canvas').getContext('2d');
     probe.font = FONT;
@@ -36,6 +52,11 @@ function textTexture(text, colour) {
     t.colorSpace = THREE.SRGBColorSpace;
     t.userData = { aspect: w / h };
     TEXT_CACHE.set(key, t);
+    while (TEXT_CACHE.size > TEXT_CACHE_MAX) {
+        const oldest = TEXT_CACHE.keys().next().value;
+        TEXT_CACHE.get(oldest).dispose();
+        TEXT_CACHE.delete(oldest);
+    }
     return t;
 }
 
@@ -55,7 +76,7 @@ export class Fx {
 
     // ---------- 傷害／治療數字 ----------
     number(x, z, amount, kind = 'damage') {
-        const text = kind === 'heal' ? `+${Math.round(amount)}` : String(Math.round(amount));
+        const text = kind === 'heal' ? `+${damageLabel(amount)}` : damageLabel(amount);
         const colour = kind === 'heal' ? '#7ef0a8'
             : kind === 'crit' ? '#ffd24a'
             : kind === 'mine' ? '#fff3d0' : '#ff9d8d';

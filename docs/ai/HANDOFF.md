@@ -4,8 +4,8 @@ Updated: 2026-07-31 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: 深淵之橋 playable pass — controls rewritten, facing fixed, abilities now read;
-        sim 182/182, browser 34/34
+Status: 深淵之橋 production pass — leaks fixed, settings, portraits, scoreboard, feel;
+        sim 183/183, browser 52/52
 
 ## Current objective
 
@@ -40,27 +40,44 @@ and original audio, playable on desktop and phone.
   WASD/joystick with an auto-targeting attack button. Model facing had a spurious 180° flip.
   Ability buttons now carry names and ranks, casting names the ability, damage numbers float,
   and each ability form draws its own effect.
+- **Production pass** (ADR-092/093): fixed a GPU texture leak of one bone texture per spawned
+  unit; capped the damage-number texture cache; shared bar/ring geometry. Gated the ultimate at
+  levels 5/9/12 (it was available at level 1, contradicting its own comment) and re-tuned
+  structures around it with a clean A/B. Added a settings panel (sound, music, three quality
+  tiers) persisted in localStorage, automatic quality downgrade on sustained low frame times,
+  WebGL context-loss handling, and iOS-safe resize handling. Champion portraits are rendered
+  once offscreen at boot and reused in the select cards, the HUD and the post-match scoreboard.
+  Feel: units flash on hit, the camera shakes on heavy hits and follows a team-mate while you
+  are dead, and skill projectiles take the caster's colour.
 
 ## Verification
 
-- `node games/moba/tests/sim.mjs` → 182/182. (It read 152 before: the summary line sat above
+- `node games/moba/tests/sim.mjs` → 183/183. (It read 152 before: the summary line sat above
   T15–T19, so thirty-odd assertions ran but were never counted and could not fail the run.
   The summary now lives at the end of the file.)
-- `node games/moba/tests/browser.mjs` → 34/34 (landscape and portrait: load, select, start,
+- `node games/moba/tests/browser.mjs` → 52/52 (landscape and portrait: load, select, start,
   HUD present, no HUD overlap, centre unobstructed, keyboard movement actually moves the
   champion, an ability press names itself on screen, every ability button carries a name,
-  shop, full match, zero console errors).
+  shop, settings panel toggles and persists, quality switch reaches the renderer, portraits
+  are real rendered images, post-match scoreboard lists all six, full match, zero console
+  errors).
 
 ## Changed files
 
 - New: `games/moba/` — `index.html`, `style.css`, `CREDITS.md`, `assets/` (models + licences),
   `vendor/`, `src/{constants,champions,items,sim,ai,looks,rig,assets,view,hud,input,sfx,main}.js`,
   `tests/{sim,browser}.mjs`.
-- Edited: `launcher.js` (hub card), `docs/ai/DECISIONS.md` (ADR-087/088/089).
+- Also new: `src/fx.js`, `src/settings.js`, `src/portraits.js`.
+- Edited: `launcher.js` (hub card), `.gitignore` (a symlinked `node_modules` slipped past the
+  trailing-slash pattern), `docs/ai/DECISIONS.md` (ADR-087 through 093).
 
 ## Known issues and cautions
 
-- Effects differ by ability *form*, not by champion, so two casters of the same form look alike.
+- Effects differ by ability *form*; projectiles and cast rings now take the caster's colour,
+  but two casters of the same form still share a silhouette.
+- Frame rate is unmeasured on real hardware (see the next action).
+- Bot-vs-bot mirror matches end at a nexus 7 times in 12; the rest are decided on remaining
+  structure HP at the 25-minute limit.
 - `ironhulk` measured 30% over a 20-match rotation while the rest sit at 40–70%. The sample is
   small — measure more before changing numbers.
 - The browser test drives no bot for the player's champion, so it always reaches the 25-minute
@@ -71,9 +88,10 @@ and original audio, playable on desktop and phone.
 
 ## Exact next action
 
-Playtest on a phone: joystick reach, drag-to-aim on the ability buttons, and whether the
-attack button's last-hit preference feels right. Then give each champion its own cast colour
-and projectile shape — the forms differ now, but two mages still look alike.
+Playtest on a real phone — that is the one thing this environment cannot measure. Frame rate
+here is bounded by software rasterisation, so the quality tiers and the auto-downgrade are
+untested against real hardware. Check joystick reach, drag-to-aim, and whether the automatic
+downgrade ever fires when it should not.
 
 ## Do not redo
 
@@ -84,3 +102,5 @@ and projectile shape — the forms differ now, but two mages still look alike.
   is already loaded, licensed and compressed. ADR-087.
 - Re-tuning tower HP to stop stalls: the stall was the bot's unreachable SIEGE state and the
   cancelled scaling curves, not tower durability. ADR-088/089.
+- Tightening the XP curve, or weakening the nexus, to speed matches up: both measured worse.
+  ADR-092.

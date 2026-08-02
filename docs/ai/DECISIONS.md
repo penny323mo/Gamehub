@@ -1550,3 +1550,44 @@ follows what the tyres can use
 - Also fixed: the model was rotated by an extra 180°. Measured against a reference arrow, the
   KayKit rigs face +Z, which is exactly what `atan2(dx, dz)` produces — the correction was for
   a discrepancy that did not exist, so every unit fought with its back turned.
+
+## ADR-092: The ultimate was available at level 1, and the A/B went the other way
+
+- Date: 2026-08-02
+- Status: accepted
+- Decision: `abilityRank` gates the ultimate at levels 5 / 9 / 12. Outer towers 1200 HP, inner
+  1550, nexus 2300; structure armour decays from 9 to 18 minutes.
+- Reason: the function's own doc comment said "the ult rises at 6 and 11, not at level 1" while
+  the code returned rank 1 from level 1, and the test asserted the code's behaviour rather than
+  the stated intent — so the disagreement survived. champions.js opens by stating "R should be a
+  moment, not a bigger Q"; an ultimate from level 1 is neither.
+- The measurement is worth recording because my first attribution was wrong. Gating the ult
+  initially looked like it slowed matches (nexus finishes 6/8 → 4/8), so I compensated: cutting
+  structure HP helped a little, tightening the XP curve by 20% made it *worse* (7/12 → 5/12 —
+  levelling faster thickens both teams and towers get harder, not easier), and weakening the
+  nexus into "an objective, not a third tower" was worse still (7/12 → 4/12; its firing arc is
+  what stops the defender's fresh waves walking straight back out). With the settings finally
+  in place, a clean A/B on the ult alone gave **7/12 with the gate and 4/12 without it** — the
+  gate is better on design *and* on the measurement. The earlier reading was an interaction
+  with tower HP, not an effect of the ult.
+- Gates: `sim.mjs` asserts the ult is absent at levels 1–4 and rises at 5/9/12, and runs twelve
+  mirror matches requiring every one to produce a winner and a majority to end at a nexus. The
+  measured rate is 7/12 for bot-vs-bot; a human player is the asymmetry that breaks a mirror.
+
+## ADR-093: One texture per unit was leaking — the skeleton's own bone texture
+
+- Date: 2026-08-02
+- Status: accepted
+- Decision: `View.#disposeUnit` disposes each removed unit's cloned materials *and* its
+  `Skeleton`; damage-number textures use an LRU cache of 96 with disposal, and values ≥ 1000
+  render as "1.2k"; bar and ring geometries are shared rather than built per unit.
+- Reason: over ten minutes the GPU texture count climbed 59 → 326 while the scene only ever
+  referenced nine textures, and geometry climbed 100 → 230. The gap tracked the number of
+  minions spawned, one texture each: since three r151 every `Skeleton` owns a bone `DataTexture`,
+  and `SkeletonUtils.clone()` makes a new skeleton per unit. Disposing materials does not
+  release it. After the fix the count rises and falls with live units instead of only rising.
+- Also measured here: the JS is not the constraint. A sim step costs 0.062 ms and the HUD
+  update 0.045 ms, so the whole fixed-step budget is about 0.17 ms per frame. Frame rate in the
+  headless harness is bounded by software rasterisation (17 fps on an empty scene), so no real
+  device conclusion can be drawn from it — hence quality tiers plus an automatic one-step
+  downgrade when the median frame time stays above 1/34 s, rather than tuning to a fake number.

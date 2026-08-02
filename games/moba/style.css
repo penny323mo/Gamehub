@@ -51,9 +51,11 @@ html, body {
 #select h2 { margin: 0 0 4px; font-size: clamp(20px, 4vw, 30px); letter-spacing: 0.1em; }
 #pick-grid {
     display: grid; gap: 10px;
-    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-    width: min(1000px, 94vw);
-    max-height: 62vh; overflow-y: auto; padding: 2px;
+    grid-template-columns: repeat(auto-fit, minmax(178px, 1fr));
+    width: min(1160px, 95vw);
+    /* 六張卡要一次過見晒。之前 62vh 之下第二行俾容器切走一半，
+       睇落似載入未完，而唔似「仲有得揀」。 */
+    max-height: 74vh; overflow-y: auto; padding: 2px;
 }
 .pick-card {
     --tint: var(--blue);
@@ -68,7 +70,7 @@ html, body {
 .pick-card b { font-size: 19px; letter-spacing: 0.08em; }
 .pick-card .title { font-size: 12px; opacity: 0.62; }
 .pick-card .role { font-size: 11px; color: var(--tint); letter-spacing: 0.1em; }
-.pick-card .passive { font-size: 11px; opacity: 0.68; line-height: 1.45; margin-top: 4px; }
+.pick-card .passive { font-size: 10.5px; opacity: 0.66; line-height: 1.4; margin-top: 3px; }
 .pick-card .kit { font-size: 11px; opacity: 0.8; margin-top: 2px; }
 .pick-card .kit i { font-style: normal; color: var(--gold); font-weight: 700; }
 
@@ -331,3 +333,72 @@ html, body {
     70% { opacity: 1; }
     100% { opacity: 0; transform: translate(-50%, -14px) scale(1); }
 }
+
+/* ---------- 設定 ---------- */
+.moba-gear {
+    position: absolute; top: calc(8px + env(safe-area-inset-top, 0px));
+    left: calc(10px + var(--safe-l));
+    width: 34px; height: 34px; border-radius: 50%; cursor: pointer;
+    background: var(--panel); border: 1px solid var(--edge); color: #cfd8ea;
+    font-size: 16px; line-height: 1;
+}
+.moba-settings {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: min(400px, 90vw); padding: 14px;
+    background: rgba(9, 12, 21, 0.96); border: 1px solid var(--edge); border-radius: 16px;
+    pointer-events: auto; z-index: 32;
+    display: flex; flex-direction: column; gap: 10px;
+}
+.moba-set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; }
+.moba-toggle {
+    min-width: 62px; padding: 6px 12px; border-radius: 99px; font: inherit; font-size: 12px; cursor: pointer;
+    background: #141a2b; border: 1px solid #ffffff22; color: #8794ad;
+}
+.moba-toggle.on { border-color: var(--gold); color: var(--gold); }
+.moba-seg { display: flex; gap: 4px; }
+.moba-seg button {
+    padding: 6px 12px; border-radius: 8px; font: inherit; font-size: 12px; cursor: pointer;
+    background: #141a2b; border: 1px solid #ffffff22; color: #8794ad;
+}
+.moba-seg button.on { border-color: var(--blue); color: #dce9ff; background: #1b2540; }
+.moba-help {
+    font-size: 11px; line-height: 1.7; opacity: 0.6; white-space: pre-line;
+    border-top: 1px solid var(--edge); padding-top: 9px; margin-top: 2px;
+}
+
+/* ---------- 選人卡嘅頭像 ---------- */
+.pick-card .face {
+    width: 100%; height: 78px; object-fit: contain; object-position: center;
+    margin-bottom: 2px; filter: drop-shadow(0 6px 12px #0008);
+}
+
+/* ---------- 戰後計分板 ---------- */
+#result .sheet {
+    width: min(560px, 94vw); max-height: 46vh; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 2px;
+    background: rgba(9, 12, 21, 0.7); border: 1px solid var(--edge);
+    border-radius: 14px; padding: 10px;
+}
+.steam {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 13px; font-weight: 700; letter-spacing: 0.1em;
+    padding: 6px 4px 3px; border-bottom: 1px solid var(--edge); margin-bottom: 3px;
+}
+.steam:not(:first-child) { margin-top: 10px; }
+.steam.blue { color: var(--blue); }
+.steam.red { color: var(--red); }
+.steam span { font-size: 11px; font-weight: 500; opacity: 0.7; letter-spacing: 0; }
+.srow {
+    display: flex; align-items: center; gap: 8px; padding: 3px 4px;
+    font-size: 12px; border-radius: 7px; font-variant-numeric: tabular-nums;
+}
+.srow.me { background: #ffffff12; font-weight: 700; }
+.srow img, .srow .noface {
+    width: 30px; height: 30px; border-radius: 8px; flex: none;
+    background: #1a2135; object-fit: cover; object-position: center 20%;
+}
+.srow .n { flex: 1; text-align: left; }
+.srow .l { opacity: 0.6; min-width: 40px; text-align: right; }
+.srow .k { min-width: 56px; text-align: right; }
+.srow .c { min-width: 62px; text-align: right; opacity: 0.7; }
+.srow .i { min-width: 38px; text-align: right; opacity: 0.55; }

@@ -2,6 +2,7 @@
 // 而且 CSS 處理安全區同轉向比自己計座標可靠。
 
 import { abilityRank } from './champions.js';
+import { settings } from './settings.js';
 import { ITEMS, MAX_ITEMS, nextPurchase } from './items.js';
 import { TEAM, teamName, GAME_MAX } from './constants.js';
 
@@ -107,6 +108,15 @@ export class Hud {
         this.deadBox = el('div', 'moba-dead hidden');
         r.append(this.deadBox);
 
+        // 設定：一個網頁遊戲冇靜音掣係硬傷——人哋隨時喺公司／地鐵開你隻嘢。
+        this.gearBtn = el('button', 'moba-gear', '⚙');
+        this.gearBtn.setAttribute('aria-label', '設定');
+        this.gearBtn.addEventListener('click', () => this.toggleSettings());
+        r.append(this.gearBtn);
+        this.settings = el('div', 'moba-settings hidden');
+        r.append(this.settings);
+        this.#buildSettings();
+
         // 施法橫額：撳完技能報返個名，玩家先學得識自己隻英雄有咩
         this.cast = el('div', 'moba-cast');
         r.append(this.cast);
@@ -143,9 +153,77 @@ export class Hud {
         this.shop.append(this.bagRow);
     }
 
+    #buildSettings() {
+        const box = this.settings;
+        box.innerHTML = '';
+        const head = el('div', 'moba-shop-head');
+        head.append(el('span', null, '設定'));
+        const close = el('button', 'moba-x', '×');
+        close.addEventListener('click', () => this.toggleSettings(false));
+        head.append(close);
+        box.append(head);
+
+        const row = (label, node) => {
+            const r = el('div', 'moba-set-row');
+            r.append(el('span', null, label), node);
+            box.append(r);
+            return r;
+        };
+        const toggle = (key, onChange) => {
+            const b = el('button', 'moba-toggle');
+            const paint = () => {
+                b.textContent = settings.get(key) ? '開' : '關';
+                b.classList.toggle('on', !!settings.get(key));
+            };
+            b.addEventListener('click', () => { settings.set(key, !settings.get(key)); paint(); onChange(settings.get(key)); });
+            paint();
+            return b;
+        };
+        row('音效', toggle('sfx', (v) => this.onSetting?.('sfx', v)));
+        row('音樂', toggle('music', (v) => this.onSetting?.('music', v)));
+
+        const q = el('div', 'moba-seg');
+        for (const [id, label] of [['low', '流暢'], ['medium', '平衡'], ['high', '精緻']]) {
+            const b = el('button', null, label);
+            b.addEventListener('click', () => {
+                settings.set('quality', id);
+                this.onSetting?.('quality', id);
+                this.markQuality(id);
+            });
+            b.dataset.q = id;
+            q.append(b);
+        }
+        row('畫質', q);
+        this.qualitySeg = q;
+        this.markQuality(settings.get('quality'));
+
+        box.append(el('div', 'moba-help',
+            '電腦：WASD 走位　空白鍵普攻　Q F E R 技能　B 商店\n'
+            + '手機：左邊拖動走位　右邊撳普攻　技能掣撳住拖出去瞄準再放手'));
+    }
+
+    markQuality(q) {
+        if (!this.qualitySeg) return;
+        for (const b of this.qualitySeg.children) b.classList.toggle('on', b.dataset.q === q);
+    }
+
+    setPortrait(dataUrl) {
+        if (!dataUrl) return;
+        this.portrait.style.backgroundImage = `url(${dataUrl})`;
+        this.portrait.style.backgroundSize = 'cover';
+        this.portrait.style.backgroundPosition = 'center 22%';
+    }
+
+    toggleSettings(force) {
+        const open = force ?? this.settings.classList.contains('hidden');
+        this.settings.classList.toggle('hidden', !open);
+        if (open) this.toggleShop(false);
+    }
+
     toggleShop(force) {
         this.shopOpen = force ?? !this.shopOpen;
         this.shop.classList.toggle('hidden', !this.shopOpen);
+        if (this.shopOpen) this.toggleSettings(false);
     }
 
     showCast(ab) {

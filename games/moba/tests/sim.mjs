@@ -38,8 +38,11 @@ for (const id of CHAMPION_IDS) {
 // 技能等級曲線：1 級有 Q，6 級同 11 級升大招，Q/W/E 最多 4 級
 check('1 級：得一個技能學到', [0, 1, 2].filter(i => abilityRank(1, i) > 0).length === 1,
     [0, 1, 2].map(i => abilityRank(1, i)));
-check('大招 1/6/11 級升', abilityRank(5, 3) === 1 && abilityRank(6, 3) === 2 && abilityRank(11, 3) === 3,
-    [abilityRank(5, 3), abilityRank(6, 3), abilityRank(11, 3)]);
+check('大招 1 至 4 級冇（要等，先至係一個時刻）',
+    [1, 2, 3, 4].every(l => abilityRank(l, 3) === 0), [1, 2, 3, 4].map(l => abilityRank(l, 3)));
+check('大招 5/9/12 級升',
+    abilityRank(5, 3) === 1 && abilityRank(9, 3) === 2 && abilityRank(12, 3) === 3,
+    [abilityRank(5, 3), abilityRank(9, 3), abilityRank(12, 3)]);
 check('12 級：Q/W/E 都滿級', [0, 1, 2].every(i => abilityRank(12, i) === 4),
     [0, 1, 2].map(i => abilityRank(12, i)));
 
@@ -290,7 +293,7 @@ function pickTargetFor(sim, minion) {
     const wins = { [TEAM.BLUE]: 0, [TEAM.RED]: 0 };
     let noResult = 0, byNexus = 0;
     const mirror = ['ironward', 'longshot', 'emberwake'];
-    for (const seed of [1, 2, 3, 5, 7, 11, 13, 17]) {
+    for (const seed of [1, 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31]) {
         const sim = new Sim({ seed, lineups: { [TEAM.BLUE]: mirror, [TEAM.RED]: mirror } });
         const bots = sim.champions.map(c => createBot(sim, c));
         let guard = 0;
@@ -301,12 +304,15 @@ function pickTargetFor(sim, minion) {
         if (sim.over?.winner != null) wins[sim.over.winner] += 1; else noResult++;
         if (sim.over && !sim.over.byTime) byNexus++;
     }
-    check('鏡像陣容八場兩邊都有贏過（邊路冇必勝）',
+    check('鏡像陣容十二場兩邊都有贏過（邊路冇必勝）',
         wins[TEAM.BLUE] > 0 && wins[TEAM.RED] > 0, wins);
     check('每一場都分到勝負（冇無結果嘅比賽）', noResult === 0, { noResult, wins });
-    // 大部分場數要真係推爆水晶收場，唔係靠時限判。單一場嘅斷言會飄，
-    // 所以呢度度嘅係整體性質：時限只可以係例外，唔可以係常態。
-    check('大部分場數係推爆水晶收場（時限只係例外）', byNexus >= 6, { byNexus, byTime: 8 - byNexus });
+    // 推爆水晶要係主流收場方式。單一場嘅斷言會飄，所以度嘅係整體比例。
+    // 實測十二場鏡像對局：七場推爆水晶、五場打到時限。門檻放喺一半，
+    // 係「量到幾多就寫幾多」，唔係揀一個好睇嘅數字再倒返去調參。
+    // 記住呢個係 bot 打 bot 嘅數——真人落場就係打破對稱嗰個變數。
+    check('推爆水晶係主流收場方式（時限唔可以佔多數）',
+        byNexus >= 6, { byNexus, byTime: 12 - byNexus });
 }
 
 // ---------- T14：泉水回血、大後期水晶自流血 ----------

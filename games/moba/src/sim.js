@@ -181,8 +181,10 @@ export class Sim {
     // ---------- 商店 ----------
     // 同 LoL 一樣，只可以喺自己泉水買嘢。呢條規則就係「返唔返家」呢個決定嘅代價：
     // 買裝要行返去，行返去就放棄咗兵線。
+    // 死咗一樣買得到：屍體本來就喺泉水，而等重生嗰十幾秒係玩家唯一
+    // 完全冇嘢做嘅時間。唔畀買反而係逼佢乾等。
     canShop(c) {
-        return c.alive && Math.abs(c.x - sideSign(c.team) * MAP.fountainX) < FOUNTAIN_RADIUS;
+        return Math.abs(c.x - sideSign(c.team) * MAP.fountainX) < FOUNTAIN_RADIUS;
     }
 
     buy(c, itemId) {
@@ -245,6 +247,10 @@ export class Sim {
         c.x = sideSign(c.team) * MAP.fountainX;
         c.z = 0;
         c.shield = 0; c.stunUntil = 0; c.rootUntil = 0; c.slowUntil = 0;
+        // buff 唔清嘅話，死之前開嘅加速／狂暴會跟住條屍返嚟
+        c.buffs = {};
+        c.stacks = 0; c.stackUntil = 0;
+        c.tauntUntil = 0; c.towerAggroUntil = 0;
         c.orderX = null; c.orderZ = null; c.orderTarget = null;
         this.emit('respawn', { id: c.id });
     }
@@ -652,6 +658,9 @@ export class Sim {
 
         // 英雄死亡
         victim.deaths += 1;
+        victim.buffs = {};
+        victim.shield = 0;
+        victim.orderX = null; victim.orderZ = null; victim.orderTarget = null;
         const bounty = KILL_GOLD + Math.min(SHUTDOWN_MAX, victim.streak * SHUTDOWN_PER_STREAK);
         victim.streak = 0;
         victim.respawnAt = this.time + RESPAWN_BASE + RESPAWN_PER_LEVEL * victim.level;

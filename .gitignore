@@ -7,6 +7,8 @@ yarn-error.log*
 
 # Dependency directories
 node_modules/
+# symlink 版本：帶斜線嘅 pattern 只擋目錄，擋唔到指向別處嘅 symlink
+node_modules
 
 # Optional npm cache directory
 .npm

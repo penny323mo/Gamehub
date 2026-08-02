@@ -30,13 +30,20 @@ function firstMesh(obj) {
 
 // 血條：兩塊面對鏡頭嘅片。用 InstancedMesh 唔化算（每條長度都唔同），
 // 但單位數目最多幾十個，兩個 mesh 一條算平。
+const GEO_CACHE = new Map();
+function sharedGeo(key, make) {
+    let g = GEO_CACHE.get(key);
+    if (!g) { g = make(); GEO_CACHE.set(key, g); }
+    return g;
+}
+
 function makeBar(width, colour) {
     const g = new THREE.Group();
     const back = new THREE.Mesh(
-        new THREE.PlaneGeometry(width, 0.26),
+        sharedGeo(`bar-back-${width}`, () => new THREE.PlaneGeometry(width, 0.26)),
         new THREE.MeshBasicMaterial({ color: 0x0b0d12, transparent: true, opacity: 0.75, depthTest: false }));
     const fill = new THREE.Mesh(
-        new THREE.PlaneGeometry(width, 0.2),
+        sharedGeo(`bar-fill-${width}`, () => new THREE.PlaneGeometry(width, 0.2)),
         new THREE.MeshBasicMaterial({ color: colour, depthTest: false }));
     fill.position.z = 0.01;
     g.add(back, fill);
@@ -55,7 +62,7 @@ function setBar(bar, pct) {
 // 腳下光環：MOBA 靠呢個分敵我，唔係靠模型顏色——同一個英雄兩邊都揀得。
 function makeRing(radius, colour) {
     const m = new THREE.Mesh(
-        new THREE.RingGeometry(radius * 0.82, radius, 32),
+        sharedGeo(`ring-${radius}`, () => new THREE.RingGeometry(radius * 0.82, radius, 32)),
         new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.85,
             side: THREE.DoubleSide, depthWrite: false }));
     m.rotation.x = -Math.PI / 2;
@@ -76,8 +83,10 @@ export class View {
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.05;
-        this.renderer.shadowMap.enabled = this.quality === 'high';
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.frameTimes = [];
+        this.autoDropped = false;
+        this.onQuality = opts.onQuality ?? (() => {});
 
         this.scene = new THREE.Scene();
         // 天空唔可以係一片死黑：黑色背景之下，遠景嘅山同雲淨係得個剪影，
@@ -89,6 +98,14 @@ export class View {
 
         this.camera = new THREE.PerspectiveCamera(42, 1, 0.5, 400);
         this.camFocus = 0;
+
+        canvas.addEventListener('webglcontextlost', (e) => {
+            e.preventDefault();
+            this.contextLost = true;
+            this.onContextLost?.();
+        });
+        canvas.addEventListener('webglcontextrestored', () => { this.contextLost = false; });
+        this.onContextLost = opts.onContextLost ?? null;
 
         this.#lights();
         this.#buildArena();
@@ -126,13 +143,11 @@ export class View {
         this.scene.add(new THREE.HemisphereLight(0xa8c6ff, 0x2a2416, 1.5));
         const sun = new THREE.DirectionalLight(0xfff0cf, 2.6);
         sun.position.set(-30, 60, 40);
-        if (this.quality === 'high') {
-            sun.castShadow = true;
-            sun.shadow.mapSize.set(2048, 2048);
-            const d = 60;
-            Object.assign(sun.shadow.camera, { left: -d, right: d, top: d, bottom: -d, near: 1, far: 200 });
-            sun.shadow.bias = -0.0008;
-        }
+        sun.castShadow = true;
+        sun.shadow.mapSize.set(1536, 1536);
+        const d = 60;
+        Object.assign(sun.shadow.camera, { left: -d, right: d, top: d, bottom: -d, near: 1, far: 200 });
+        sun.shadow.bias = -0.0008;
         this.sun = sun;
         this.scene.add(sun, sun.target);
         // 反方向補一盞冷光，唔會有純黑嘅背面
@@ -141,13 +156,52 @@ export class View {
         this.scene.add(rim);
     }
 
+    // 三個檔嘅分別淨係三樣嘢：後製、陰影、解析度倍率。
+    // 之前 medium 都開住 bloom——手機上面 bloom 係全屏 fill rate，
+    // 正正係最唔應該留畀中低階機嘅嗰樣。
+    static QUALITY = {
+        high: { bloom: true, shadows: true, dpr: 2 },
+        medium: { bloom: false, shadows: true, dpr: 1.5 },
+        low: { bloom: false, shadows: false, dpr: 1 },
+    };
+
     #postprocess() {
-        if (this.quality === 'low') { this.composer = null; return; }
         this.composer = new EffectComposer(this.renderer);
         this.composer.addPass(new RenderPass(this.scene, this.camera));
-        const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.38, 0.6, 0.85);
-        this.composer.addPass(bloom);
+        this.bloomPass = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.38, 0.6, 0.85);
+        this.composer.addPass(this.bloomPass);
         this.composer.addPass(new OutputPass());
+        this.setQuality(this.quality);
+    }
+
+    setQuality(q) {
+        const cfg = View.QUALITY[q] ?? View.QUALITY.medium;
+        this.quality = q;
+        this.renderer.shadowMap.enabled = cfg.shadows;
+        this.sun.castShadow = cfg.shadows;
+        if (this.bloomPass) this.bloomPass.enabled = cfg.bloom;
+        // 材質已經編譯過，關陰影要話畀 three 知要重新編
+        this.scene.traverse((o) => {
+            const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+            for (const m of mats) m.needsUpdate = true;
+        });
+        this.resize();
+        this.onQuality(q);
+    }
+
+    // 自動降級：連續一段時間跑唔到就落一檔。玩家寧願冇 bloom，
+    // 都好過睇住一格一格。只降唔升，避免喺臨界點左右閃嚟閃去。
+    #watchFrames(dt) {
+        if (this.autoDropped || this.quality === 'low' || dt <= 0) return;
+        this.frameTimes.push(dt);
+        if (this.frameTimes.length < 120) return;
+        const sorted = this.frameTimes.slice().sort((a, b) => a - b);
+        const median = sorted[sorted.length >> 1];
+        this.frameTimes.length = 0;
+        if (median > 1 / 34) {
+            this.autoDropped = true;
+            this.setQuality(this.quality === 'high' ? 'medium' : 'low');
+        }
     }
 
     // ---------- 戰場 ----------
@@ -297,8 +351,10 @@ export class View {
     #playerMarks() {
         const p = this.sim.player;
         if (!p) return;
+        // 半徑做 1，行時用 scale 撐開——射程唔係常數（換英雄、日後加裝備都會變），
+        // 幾何體一鑄死就會同真實射程脫節。
         const g = new THREE.Mesh(
-            new THREE.RingGeometry(p.range - 0.14, p.range, 64),
+            sharedGeo('unit-ring', () => new THREE.RingGeometry(0.986, 1, 64)),
             new THREE.MeshBasicMaterial({ color: 0xffe27a, transparent: true, opacity: 0.2,
                 side: THREE.DoubleSide, depthWrite: false }));
         g.rotation.x = -Math.PI / 2;
@@ -333,7 +389,7 @@ export class View {
         this.scene.add(bar);
         this.scene.add(holder);
         const u = { obj: holder, model: obj, rig, bar, ring, look, entity: e, wasAlive: true,
-            barY: e.kind === 'champ' ? 3.6 : 2.5 };
+            barY: e.kind === 'champ' ? 3.6 : 2.5, flashUntil: -1, baseEmissive: null };
         this.units.set(e.id, u);
         rig.loop(this.assets, CLIP.idle);
         return u;
@@ -408,11 +464,31 @@ export class View {
         }
         for (const [id, u] of this.units) {
             if (seen.has(id)) continue;
-            this.scene.remove(u.obj);
-            this.scene.remove(u.bar);
-            u.rig.dispose();
+            this.#disposeUnit(u);
             this.units.delete(id);
         }
+    }
+
+    // 單位收工：材質係逐個單位 clone 出嚟嘅（隊伍染色），唔放就一波兵死一次
+    // 漏一批。幾何體係共用嘅，所以唔可以喺呢度 dispose。
+    #disposeUnit(u) {
+        this.scene.remove(u.obj);
+        this.scene.remove(u.bar);
+        u.rig.dispose();
+        const mats = new Set();
+        const skels = new Set();
+        for (const root of [u.obj, u.bar]) {
+            root.traverse((o) => {
+                // 每個 clone 出嚟嘅骨架都有自己一張 bone texture（three r151+）。
+                // 實測跑十分鐘之後，場景入面得九張貼圖，但 GPU 揸住一百八十幾張——
+                // 差額就係一隻兵一張、死咗都冇放嘅骨架貼圖。
+                if (o.isSkinnedMesh && o.skeleton) skels.add(o.skeleton);
+                const list = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+                for (const m of list) mats.add(m);
+            });
+        }
+        for (const m of mats) m.dispose();
+        for (const sk of skels) sk.dispose?.();
     }
 
     // ---------- 事件（打擊、施法、死亡…）----------
@@ -430,6 +506,11 @@ export class View {
                 }
                 case 'cast': this.#onCast(ev); break;
                 case 'damage': {
+                    const hit = this.units.get(ev.target);
+                    if (hit && ev.amount >= 1) this.#flashUnit(hit);
+                    if (ev.target === me.id && ev.amount > this.sim.stats(me).maxHp * 0.06) {
+                        this.shake = Math.min(0.9, (this.shake ?? 0) + 0.35);
+                    }
                     // 只出玩家打人同玩家食嘢嘅數字。全場都出嘅話，
                     // 一波兵開打就會有幾十個數字浮住，反而咩都睇唔到。
                     const t = this.sim.entities.find(x => x.id === ev.target);
@@ -471,6 +552,28 @@ export class View {
                 }
                 default: break;
             }
+        }
+    }
+
+    // 受擊閃一下：唔知自己有冇打中，係打擊感最大嘅缺口。
+    // 用 emissive 唔用換材質——材質已經係逐個單位 clone 出嚟，改返轉頭好平。
+    #flashUnit(u) {
+        if (u.flashUntil > this.fxTime) return;      // 已經閃緊就唔重複
+        u.flashUntil = this.fxTime + 0.12;
+        u.model.traverse((o) => {
+            const m = o.material;
+            if (!m?.emissive) return;
+            if (!u.baseEmissive) u.baseEmissive = new Map();
+            if (!u.baseEmissive.has(m)) u.baseEmissive.set(m, m.emissive.clone());
+            m.emissive.setRGB(0.55, 0.42, 0.38);
+        });
+    }
+
+    #clearFlashes() {
+        for (const [, u] of this.units) {
+            if (!u.baseEmissive || u.flashUntil > this.fxTime) continue;
+            for (const [m, c] of u.baseEmissive) m.emissive.copy(c);
+            u.baseEmissive = null;
         }
     }
 
@@ -528,7 +631,9 @@ export class View {
                 const geo = p.skill
                     ? new THREE.CapsuleGeometry(0.34, 1.5, 6, 10)
                     : new THREE.CapsuleGeometry(0.09, 0.8, 4, 6);
-                const colour = p.skill ? 0xffd27a : 0xe8e2d0;
+                // 技能彈道用施法者嘅代表色：兩個法師嘅技能唔應該一模一樣
+                const src = this.units.get(p.sourceId);
+                const colour = p.skill ? (src?.look.ringColour ?? 0xffd27a) : 0xe8e2d0;
                 o = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: colour }));
                 if (p.skill) {
                     // 外面套一層半透光暈：技能彈道要一眼分得出唔係普通箭
@@ -572,11 +677,29 @@ export class View {
 
     #camera(dt) {
         const p = this.sim.player;
-        const want = p?.alive ? p.x : this.camFocus;
+        // 死咗就跟最近嘅隊友，冇隊友就跟兵線——原本會定格喺屍體度，
+        // 玩家等重生嗰十幾秒完全睇唔到場上發生緊咩事。
+        let want = this.camFocus;
+        if (p?.alive) want = p.x;
+        else {
+            const mate = this.sim.champions
+                .filter(c => c.alive && c.team === p.team)
+                .sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x))[0];
+            if (mate) want = mate.x;
+            else {
+                const mine = this.sim.entities.filter(e => e.alive && e.kind === 'minion' && e.team === p.team);
+                if (mine.length) want = mine.reduce((a, b) => a + b.x, 0) / mine.length;
+            }
+        }
         this.camFocus += (want - this.camFocus) * Math.min(1, dt * 4);
         const limit = MAP.fountainX - 4;
         const fx = Math.max(-limit, Math.min(limit, this.camFocus));
-        this.camera.position.set(fx, this.camHeight, this.camDepth);
+        // 鏡頭震：食到重手先震，唔係下下都震，否則反而睇唔清
+        this.shake = Math.max(0, (this.shake ?? 0) - dt * 3.2);
+        const s = this.shake * this.shake;
+        const jx = (Math.random() - 0.5) * s * 1.4;
+        const jy = (Math.random() - 0.5) * s * 1.4;
+        this.camera.position.set(fx + jx, this.camHeight + jy, this.camDepth);
         this.camera.lookAt(fx, 1.5, -1.5);
         this.sun.position.set(fx - 30, 60, 40);
         this.sun.target.position.set(fx, 0, 0);
@@ -587,7 +710,8 @@ export class View {
         const c = this.renderer.domElement;
         const w = c.clientWidth || window.innerWidth;
         const h = c.clientHeight || window.innerHeight;
-        const dpr = Math.min(window.devicePixelRatio || 1, this.quality === 'high' ? 2 : 1.5);
+        const cfg = View.QUALITY[this.quality] ?? View.QUALITY.medium;
+        const dpr = Math.min(window.devicePixelRatio || 1, cfg.dpr);
         this.renderer.setPixelRatio(dpr);
         this.renderer.setSize(w, h, false);
         this.composer?.setPixelRatio(dpr);
@@ -603,7 +727,9 @@ export class View {
 
     // events：呢一幀入面所有 sim step 收埋一齊嘅事件（見 main.js 嘅註解）
     update(dt, events = []) {
+        this.fxTime = (this.fxTime ?? 0) + dt;
         this.#consumeEvents(events);
+        this.#clearFlashes();
         this.#syncUnits(dt);
         this.#syncStructures();
         this.#syncProjectiles();
@@ -612,18 +738,24 @@ export class View {
             const p = this.sim.player;
             this.rangeRing.visible = p.alive;
             this.rangeRing.position.set(p.x, 0.05, p.z);
+            this.rangeRing.scale.setScalar(p.range);
         }
         this.#camera(dt);
         for (const c of this.clouds ?? []) {
             c.obj.position.x += c.speed * dt;
             if (c.obj.position.x > 110) c.obj.position.x = -110;
         }
-        if (this.composer) this.composer.render();
+        if (this.contextLost) return;
+        this.#watchFrames(dt);
+        if (this.bloomPass?.enabled) this.composer.render();
         else this.renderer.render(this.scene, this.camera);
     }
 
     dispose() {
-        for (const [, u] of this.units) u.rig.dispose();
+        for (const [, u] of this.units) this.#disposeUnit(u);
+        this.units.clear();
+        for (const [, o] of this.projectiles) { this.scene.remove(o); o.material.dispose(); }
+        this.projectiles.clear();
         this.renderer.dispose();
     }
 }

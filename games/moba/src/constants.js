@@ -46,12 +46,12 @@ export const GAME_MAX = 60 * 25;
 // 實測鏡像陣容十場入面有三場打到 30 分鐘上限。真實 MOBA 靠「後期會失衡」
 // 呢件事收尾——兵線愈嚟愈惡、防禦愈嚟愈唔頂得住。呢度兩個掣做同一件事：
 //   1. 攻城兵愈出愈密（12 分鐘起兩波一隻，20 分鐘起每波都有）
-//   2. 塔嘅護甲由 12 分鐘開始蒸發，22 分鐘歸零
+//   2. 塔嘅護甲由 9 分鐘開始蒸發，18 分鐘歸零
 // 兩樣都係時間驅動、對兩邊一視同仁，而且玩家睇得見。
 export const SIEGE_DENSE_AT = 60 * 12;   // 之後每兩波一隻攻城兵
 export const SIEGE_EVERY_WAVE_AT = 60 * 20;
-export const TOWER_DECAY_FROM = 60 * 12;
-export const TOWER_DECAY_TO = 60 * 22;
+export const TOWER_DECAY_FROM = 60 * 9;
+export const TOWER_DECAY_TO = 60 * 18;
 
 // ---------- 小兵 ----------
 //
@@ -86,19 +86,25 @@ export const MINION_STOP_MARGIN = 1.2;
 export const TOWER = {
     // 外塔薄、內塔厚：拆完外塔應該有一段「打得順」嘅時間，而唔係每座都一樣硬。
     // 全部 2400 嗰版實測跑到 28 分鐘先分到勝負，對一條線嘅網頁 MOBA 嚟講太長。
-    hpByTier: [1350, 1750],
+    hpByTier: [1200, 1550],
     armour: 22, damage: 138, range: 15.5, attackSpeed: 0.83,
     gold: 250, goldLocal: 110,          // 拆到嘅人攞多啲，隊友分 goldLocal
     // 連續打同一個目標會愈打愈痛：越塔前要諗清楚。
     rampPerHit: 0.28, rampMax: 1.9,
 };
 export const NEXUS = {
-    hp: 2600, armour: 30, damage: 120, range: 14, attackSpeed: 0.7,
+    // 試過而且否決咗：將水晶改弱（70 傷害、10 射程），諗住「水晶應該係目標
+    // 唔係第三座塔」。實測反而衰——推爆水晶收場由 12 場中 7 場跌到 4 場。
+    // 水晶嘅火力係守方基地嘅控制範圍，一收窄，守方嘅新兵線就自由咁出得返嚟。
+    hp: 2300, armour: 30, damage: 120, range: 14, attackSpeed: 0.7,
 };
 
 // ---------- 英雄成長 ----------
 export const MAX_LEVEL = 12;
 // 升級所需經驗（累積）。第 12 級大約十五分鐘到，同一場 20 分鐘嘅節奏夾。
+//
+// 試過收緊兩成去補償「大招 5 級先有」，結果更差（推爆水晶 7/12 → 5/12）：
+// 升級快係兩邊一齊快，英雄一齊變厚，塔反而更加拆唔郁。唔要。
 export const XP_TO_LEVEL = [0, 280, 660, 1140, 1720, 2400, 3180, 4060, 5040, 6120, 7300, 8580];
 export const XP_SHARE_RANGE = 16;        // 喺呢個距離之內就有經驗
 export const KILL_GOLD = 300;

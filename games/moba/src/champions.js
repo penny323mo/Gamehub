@@ -247,10 +247,14 @@ export const CHAMPIONS = {
 
 export const CHAMPION_IDS = Object.keys(CHAMPIONS);
 
-// 技能等級。大招喺 6 同 11 級升（1 級未有），Q/W/E 由 1 級開始每級加一點，
+// 技能等級。大招喺 5／9／12 級升，Q/W/E 由 1 級開始每級加一點，
 // 順住 Q→W→E 輪住加，最多 4 級。所以 1 級得 Q、2 級 Q+W、3 級 Q+W+E。
+//
+// 大招唔可以 1 級就有。呢個檔開頭寫住「大招要係一個時刻，唔係一個大啲嘅 Q」，
+// 而舊代碼 level >= 1 就畀 1 級大招——同自己嘅註解直頭相反，亦都令成場波
+// 冇咗「等大招」呢個節奏。（舊測試抄咗代碼嘅行為當規格，所以一直冇捉到。）
 export function abilityRank(level, index) {
-    if (index === 3) return level >= 11 ? 3 : level >= 6 ? 2 : level >= 1 ? 1 : 0;
+    if (index === 3) return level >= 12 ? 3 : level >= 9 ? 2 : level >= 5 ? 1 : 0;
     // 第 1 級畀 1 點，之後每級再畀 1 點；大招唔食呢啲點數（佢跟等級直接升）
     const points = Math.max(0, level);
     const base = Math.floor(points / 3);
