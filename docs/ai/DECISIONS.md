@@ -1796,3 +1796,25 @@ follows what the tyres can use
   touch enabled in landscape and portrait, drives `touchstart → touchmove → touchend`, requires no
   post-release drift and `Idle_Combat`, preserves a replacement attack order, touch-buys and closes
   the shop at the fountain, and verifies visible refusal plus working recall away from it.
+
+## ADR-101: Elden Ring II is a self-contained static bonus game, not a worker app
+
+- Date: 2026-08-02
+- Status: accepted
+- Decision: the Game Hub copy lives under `games/elden-ring-ii/` as a Vite + React client app.
+  Pages builds its ignored `dist/` in CI, the hub links to `dist/index.html`, and every runtime
+  model/audio URL resolves from Vite's relative `BASE_URL`. The original Vinext, Next, Cloudflare,
+  D1, and server-auth wrappers do not move into Game Hub because GitHub Pages cannot execute them.
+- Persistence remains local-first. Run history always uses localStorage; an authenticated Supabase
+  write is optional only when browser-safe `VITE_SUPABASE_URL` and
+  `VITE_SUPABASE_PUBLISHABLE_KEY` values are provided. No migration is applied as part of this
+  integration.
+- Asset provenance moves with the game. The bundled Quaternius, Kenney, KayKit, Poly Haven, and
+  OpenGameArt files retain their source/license records under `public/assets/licenses/`, and the
+  in-game credits/fan-made disclaimer remain available.
+- Reason: copying the old worker build would leave no static HTML entry and absolute `/assets/...`
+  paths would escape the nested game folder. A thin client conversion preserves the actual 3D
+  game while making its deploy/runtime contract match the existing static Hub.
+- Gates: `npm test` covers typecheck, relative build output, required models/audio/licenses, and
+  local-save source. Browser QA must additionally prove Hub navigation, all 3D requests at 200,
+  gameplay start, movement, camera drag, and mobile touch input with zero console errors.

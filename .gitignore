@@ -27,6 +27,7 @@ node_modules
 # Build output (keep tower/dist as it's needed for GitHub Pages)
 # games/tower/dist/
 games/ashen-rail/dist/
+games/elden-ring-ii/dist/
 
 # Claude Code runtime state
 .claude/scheduled_tasks.lock

@@ -90,6 +90,14 @@ const games = [
         playable: true
     },
     {
+        id: 'elden-ring-ii',
+        title: 'Elden Ring II',
+        subtitle: '⚔️ 黑暗奇幻 3D 動作 RPG！三職業迎戰空冠之王',
+        icon: '👑',
+        link: 'games/elden-ring-ii/dist/index.html',
+        playable: true
+    },
+    {
         id: 'xiangqi',
         title: '中國象棋',
         subtitle: '中國象棋！挑戰進階 AI',

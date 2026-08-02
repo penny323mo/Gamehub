@@ -13,7 +13,7 @@ shared subsystem genuinely belongs in `games/shared/`.
 
 Production is deployed from `main` by `.github/workflows/deploy-pages.yml` to
 GitHub Pages. The workflow stages the repository as a static site and builds
-Ashen Rail during deployment.
+Ashen Rail and Elden Ring II during deployment.
 
 ## High-level map
 
@@ -30,6 +30,7 @@ Ashen Rail during deployment.
 | Empire Royale | `games/royale/index.html` | Static ES modules + vendored Three.js. Two modes: Clash-style lane battle (`game.js`, `ai.js`) and LV2 age-of-empires RTS (`src/rts/`). Shared: `models.js`, `rig.js` (procedural bone animation), `sfx.js`, `net.js`/`pvp.js` (Supabase PvP), `leaderboard.js`, `storage.js`, `gauntlet.js`, `profiles.js`. Regression suite in `games/royale/tests/`. |
 | Racing Car 3D | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Continuous spline track (`track.js`), day/dusk/night environment (`environment.js`), bounded driving effects, player-only arcade assists and simple auto-throttle controls, four physical AI rivals plus a dithered ghost in one instanced field (`rivals.js`, `ghost.js`), and a persistent three-race championship with career records (`season.js`). Draco-compressed player car. Tests in `games/Racing Car/tests/`. |
 | Ashen Rail | `games/ashen-rail/dist/index.html` | Self-contained Vite + TypeScript + Babylon.js bonus game; CI builds `dist/`. |
+| Elden Ring II | `games/elden-ring-ii/dist/index.html` | Self-contained Vite + React + TypeScript + Three.js/Cannon-es bonus game; three classes, mobile touch controls, local run history, optional Supabase write, bundled CC0 assets; CI builds ignored `dist/`. |
 | Xiangqi AI | `games/xiangqi-ai/dist/index.html` | Vite + Three.js; hub targets tracked `dist/`. |
 | Database | `supabase/migrations/` | Append-only numbered migrations; never edit an applied migration casually. |
 
@@ -40,6 +41,10 @@ Ashen Rail during deployment.
   relative or otherwise Pages-safe.
 - Ashen Rail remains a self-contained bonus game inside the existing hub. Its Vite
   base is relative and deployment builds its ignored `dist/` from source.
+- Elden Ring II is also self-contained. Its Vite base and runtime model/audio URLs
+  stay relative because the game is hosted below `games/elden-ring-ii/dist/`.
+  GitHub Pages has no server runtime: localStorage is the default persistence and
+  Supabase remains optional through browser-safe `VITE_SUPABASE_*` values only.
 - Tower, Snake, and Xiangqi hub links currently target committed `dist/` output.
   Source-only changes to those games are incomplete until the required dist output
   is regenerated and verified.
@@ -84,6 +89,21 @@ npm run build
 
 Then run a browser smoke test. CI runs these four commands on every push to
 `main`.
+
+### Elden Ring II
+
+From `games/elden-ring-ii/`:
+
+```sh
+npm ci
+npm audit
+npm test
+```
+
+`npm test` runs TypeScript, the relative-path production build, and static asset
+gates. Then use a real browser to follow the Hub card and verify the title screen,
+game start, movement, right-side camera drag, mobile touch controls, and zero
+failed model/audio requests or console errors.
 
 ### Snake Game
 

@@ -1,0 +1,17 @@
+Music sources (CC0 1.0 Public Domain Dedication)
+
+1. “Dream 2 (Ambience)” by Marcus Davies / TokyoGeisha
+   Source: https://opengameart.org/content/dream-2-ambience
+   Original: Dream 2 (Ambience).mp3
+   License: https://creativecommons.org/publicdomain/zero/1.0/
+
+2. “Mists in the Elven Lands” by Kaiser / The Oracle
+   Source: https://opengameart.org/content/mists-in-the-elven-lands
+   Original: 08_mists_in_the_elven_lands.flac
+   License: https://creativecommons.org/publicdomain/zero/1.0/
+
+Both OpenGameArt source pages identify the tracks as CC0. Attribution is not
+required. The bundled copies were loudness-normalized, faded, excerpted where
+applicable, and encoded to AAC/M4A for interactive browser playback.
+
+Download and license verification date: 2026-07-31.

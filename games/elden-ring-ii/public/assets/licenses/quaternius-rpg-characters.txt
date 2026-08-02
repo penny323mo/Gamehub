@@ -1,0 +1,19 @@
+------------------------------------------------------
+LowPoly Models by @Quaternius
+Consider supporting me on Patreon, even $1 helps me a lot!
+
+https://www.patreon.com/quaternius
+-------------------------------------------------------
+
+License:
+CC0 1.0 Universal (CC0 1.0)
+Public Domain Dedication
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Official pack page:
+https://quaternius.com/packs/rpgcharacters.html
+
+Bundled character files:
+- Warrior.glb (losslessly repackaged from the official glTF)
+- Wizard.glb (losslessly repackaged from the official glTF)
+- Ranger.glb (losslessly repackaged from the official glTF)

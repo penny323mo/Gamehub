@@ -28,7 +28,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: games/ashen-rail/package-lock.json
+          cache-dependency-path: |
+            games/ashen-rail/package-lock.json
+            games/elden-ring-ii/package-lock.json
 
       - name: Install Ashen Rail dependencies
         working-directory: games/ashen-rail
@@ -47,6 +49,14 @@ jobs:
       - name: Build Ashen Rail
         working-directory: games/ashen-rail
         run: npm run build
+
+      - name: Install Elden Ring II dependencies
+        working-directory: games/elden-ring-ii
+        run: npm ci
+
+      - name: Test and build Elden Ring II
+        working-directory: games/elden-ring-ii
+        run: npm test
 
       - name: Generate Game Hub build info
         run: |

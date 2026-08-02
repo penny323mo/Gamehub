@@ -4,81 +4,80 @@ Updated: 2026-08-02 (Asia/Macau)
 Prepared by: Codex (local)
 Integration branch: `main`
 Work branch: `main`
-Status: 深淵之橋 joystick release, idle animation, and touch shop dead end fixed;
-        sim 206/206, browser 88/88
+Status: Elden Ring II side quest integrated and locally browser-verified; production
+        deployment is the remaining release gate for this checkpoint
 
 ## Current objective
 
-Refine 深淵之橋 to production level across visuals, controls, logic, and game feel. Keep the
-mobile-first controls responsive and make attacks and abilities visually distinct and readable.
+Penny paused the main 深淵之橋 production pass for a side quest: move the existing local
+`/Users/penny323/Elden` game into Game Hub as an independent bonus title and deploy it through the
+repository's GitHub Pages pipeline.
 
 ## Completed
 
-- **Joystick/WASD release now stops immediately.** `input.js` tracks whether the current move order
-  belongs to continuous direction input. Releasing the final direction clears only that order;
-  an attack order or a later mouse order is preserved.
-- **No more running in place.** `sim.js` resets `moving` every tick and real displacement sets it
-  again. The renderer now returns the champion to `Idle_Combat` after release instead of retaining
-  `Running_A` forever.
-- **The shop is operable by touch.** While open it is a true modal layer, blocks controls behind it,
-  supports scrolling, has a dim backdrop and a 44 px `返回戰場` action. Purchase feedback renders
-  above the shop instead of behind it.
-- **The away-from-fountain state has a way out.** The header says `未在泉水`, unactionable items
-  are visually muted, and `返程購物` is fixed in the top action row in both orientations. It closes
-  the shop and starts recall; opening it during recall does not accidentally cancel the channel.
-- **The fountain shop rule is unchanged.** At the fountain, touch-buying an affordable item still
-  deducts gold and fills an equipment slot. Away from it, the player gets a visible explanation.
-- ADR-100 records the order-ownership, animation-state, and modal-shop decisions.
+- Added `games/elden-ring-ii/`, a maintainable Vite + React + TypeScript conversion of the original
+  Vinext/Cloudflare project. The Three.js/Cannon-es game itself remains intact: three character
+  classes, two skeleton waves, two-phase boss, lock-on, stamina/dodge, audio, effects, credits,
+  mobile joystick/action controls, and right-side camera drag.
+- Copied all runtime models, materials, music, SFX, images, and their CC0 source/license records.
+  The fan-made/non-affiliation notice remains in the game and README.
+- Converted nested-hosting paths: Vite uses `base: "./"`; Three's default and custom GLTF loading
+  managers resolve `/assets/...` through `import.meta.env.BASE_URL`; audio uses the same base.
+- Preserved run history as local-first. Optional Supabase writes now use browser-safe
+  `VITE_SUPABASE_*` values; no Supabase migration or credential change was made.
+- Added the `Elden Ring II` card to `launcher.js` and linked it to
+  `games/elden-ring-ii/dist/index.html`.
+- Updated Pages CI to cache, install, test, and build Elden Ring II before staging the static site.
+- Upgraded the copied Vite toolchain from vulnerable 8.0.13 to 8.2.0; full `npm audit` is clean.
+- ADR-101 records the static-hosting, persistence, asset-license, and browser-gate decisions.
 
 ## Verification
 
-- `node games/moba/tests/sim.mjs` → **206/206**. New T24 proves move → stop returns `moving` to
-  false; all match, combat, economy, recall, AI, dash, and bridge-boundary checks still pass.
-- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node
-  games/moba/tests/browser.mjs` → **88/88** with the repo's Playwright dependency available.
-  Landscape 1280×640 and portrait 430×860 both pass: touch shop open/buy/close, real virtual-stick
-  touch event sequence, zero post-release drift, idle animation, attack-order preservation,
-  away-shop feedback, recall action, full match, and zero console errors.
-- Headed Chrome smoke at 844×390: assets loaded, match started, shop rendered without overlap,
-  `長劍` purchase changed the gold/equipment UI, and the large return action closed the modal.
-- `git diff --check` → pass.
-- Physical iPhone Safari has not yet been rerun after this checkpoint; Penny's next production
-  hard reload is still the final hardware confirmation.
+- `cd games/elden-ring-ii && npm test` → **3/3 pass** after TypeScript and production Vite build.
+- `npm audit` → **0 vulnerabilities** (production and development dependencies).
+- Local HTTP + headed Chromium at 844×390:
+  - Hub has 13 cards; after carousel navigation the active card is `Elden Ring II` and its Play
+    action reaches the nested production entry.
+  - Title screen reaches `ENTER THE VEIL`; one WebGL canvas, Cannon-es and local persistence are
+    active; all required environment/character/enemy requests return 200.
+  - Starting the game reaches `playing`; keyboard movement changed player position and right drag
+    changed camera yaw; console has **0 errors / 0 warnings**.
+- Chromium mobile touch context at 844×390:
+  - touch controls are visible; a real CDP touch drag on the joystick changed player position;
+    a right-half touch drag changed camera yaw; **0 failed responses / 0 console problems**.
+- Production GitHub Pages smoke: **pending push/deploy of this checkpoint**.
 
 ## Changed files
 
-- `games/moba/src/input.js` — continuous-direction order ownership and release cleanup.
-- `games/moba/src/sim.js` — per-tick movement-state reset.
-- `games/moba/src/hud.js` — modal shop, large close, state/feedback, recall action.
-- `games/moba/style.css` — touch/modal layering, 44 px actions, portrait layout, feedback z-index.
-- `games/moba/tests/{sim,browser}.mjs` — release, idle, touch, shop, and recall regressions.
-- `docs/ai/{DECISIONS,HANDOFF}.md` — ADR-100 and this checkpoint.
+- `games/elden-ring-ii/` — source, tests, Vite/static conversion, CC0 runtime assets and licenses.
+- `launcher.js` — Hub card and production link.
+- `.github/workflows/deploy-pages.yml` — Elden install/test/build stage.
+- `.gitignore` — ignored Elden `dist/`; CI is authoritative for production output.
+- `docs/ai/{PROJECT_CONTEXT,DECISIONS,HANDOFF}.md` — architecture, ADR-101, current checkpoint.
 
 ## Known issues and cautions
 
-- Real-hardware FPS remains unmeasured. Browser automation covers iPhone-sized layouts and touch
-  events but is not a replacement for Safari on Penny's phone.
-- Effects are readable by ability *form*, but champions sharing a form can still share a similar
-  silhouette. The next visual pass should make attacks recognisable by champion, not just by form.
-- Mirror bot matches previously measured 20/24 nexus finishes; do not change combat balance in a
-  visual-effects pass without rerunning independent seeds.
-- `sim.js` must stay free of three.js imports. `moving` is simulation output; animation clips remain
-  renderer-owned.
-- The shop is intentionally fountain-only. Do not silently enable remote buying; ADR-094/095 and
-  ADR-100 preserve recall as the route from lane gold to usable equipment.
+- The production bundle is intentionally graphics-heavy (about 23 MB of models/audio plus the
+  Three.js game bundle). First load can take longer on a cold mobile connection.
+- GitHub Pages cannot run the old Cloudflare worker or server auth. Do not reintroduce worker-only
+  imports into the Hub copy; local play must remain fully functional without Supabase.
+- Keep model/audio URLs relative. Root `/assets/...` URLs reproduce the 404 failure caught during
+  the first browser smoke.
+- Penny's paused MOBA effects pass is not part of this checkpoint. Codex preserved that incomplete
+  work in the local-only stash `wip/moba-production-fx-before-elden-sidequest`; a cloud agent must
+  not assume that stash exists.
 
 ## Exact next action
 
-1. Hard reload the deployed build on a physical iPhone, drag/release the left stick, then test the
-   shop once at the fountain and once in lane. Confirm stop/idle and both top-row shop actions.
-2. Continue the production visual pass in `src/fx.js`/`view.js`: inventory every champion's basic
-   attack and four abilities, then give shared forms champion-specific colour, shape, timing, and
-   impact silhouettes. Preserve the current event contracts and add screenshot-visible browser
-   assertions rather than checking effect data alone.
+1. Push this checkpoint to `origin/main`, verify the Pages workflow succeeds, then hard-load the
+   public Hub and the Elden nested path with cache disabled; require the title screen and assets to
+   load without console/network errors.
+2. After Penny ends the side quest, resume the mainline from the agreed remote baseline. Local
+   Codex may restore the named stash; another environment should ask Penny whether to start a new
+   visual-effects pass rather than guessing at unavailable local WIP.
 
 ## Do not redo
 
-- Click-to-move as primary control or clearing every order on direction release. ADR-091/100.
-- Super minions, tighter XP, weaker nexus, or generic tower-HP tuning. Those measured worse.
-- Removing the fountain shop rule to hide missing feedback. The modal/recall path is the fix.
-- Reusing another game's GLB assets. The current KayKit art is CC0, credited, and compressed.
+- Do not copy Vinext/Next/Cloudflare/D1 wrappers into the static Hub; ADR-101.
+- Do not move Elden assets to root `/assets`; the folder must remain self-contained.
+- Do not delete or pop the named MOBA stash while this side quest is still active.
