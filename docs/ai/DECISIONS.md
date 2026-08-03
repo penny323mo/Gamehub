@@ -1976,3 +1976,41 @@ follows what the tyres can use
   follows or by the next `pointerdown` if none ever comes.
 - Cache token moved `shop-anywhere-1` → `shop-tap-2` across all six entry points, because a fix
   that ships behind a stale `hud.js` is not a fix. `cache-bust.mjs` keeps the six in agreement.
+
+## ADR-107: The same touch defect was in five more places, including the first screen
+
+- Date: 2026-08-02
+- Status: accepted
+- Decision: "what counts as a tap" now lives in one module, `src/tap.js`, and every interactive
+  control in the MOBA uses it. Every button is at least 44 px on its short side and declares
+  `touch-action: manipulation`. `browser.mjs` gates the reach rule across the whole HUD.
+- Reason: Penny's last two reports — the joystick not stopping on release, and the shop not
+  buying — were the same defect wearing different clothes, and both reached her because the suite
+  cannot see it. So instead of waiting for the third report, every control was measured: real
+  rendered size, computed `touch-action`, and enclosing scroll container, at 430×860.
+- What that found, all confirmed by measurement rather than reading:
+  - **`pick-card` — the champion select cards — were `click`-only inside `#pick-grid`, which is
+    `overflow-y: auto`.** Identical to the shop bug, on the first interaction in the game. A
+    finger that drifts while choosing a champion selects nothing.
+  - `moba-shopbtn` rendered **31 px** tall and `moba-gear` **34 px**; the settings `×` was
+    **24 px**. All below the 44 px a finger can reliably hit.
+  - `recall`, `shop`, `backdrop`, `gear`, settings toggles and the quality segments were all
+    `click`-only.
+- **A private copy of the tap logic is how the select screen got missed.** ADR-106 put the
+  guarded-`pointerup` handler inside `Hud` as a private method, so it fixed the shop and could not
+  fix anything outside the HUD. Extracting it to `tap.js` is the fix at the right depth: one
+  definition of the gesture, used by the HUD, the select screen and anything added later.
+- Measured after the change at 430×860: a pointer-only tap with a seven-pixel drift selects a
+  champion (the old code selects nothing), the match starts, and no HUD button is under 44 px.
+- Gates: `browser.mjs` now walks every visible `#hud button` and fails if any short side is under
+  44 px. That is a rule about the whole surface rather than about the buttons that happen to be
+  named in a test today, so a new control cannot quietly reintroduce the defect.
+- One gate had to be fixed on the way: the basic-attack FX gate measured the **net change** in
+  `fx.items.length` across one frame. That pool drains at the same time, so when more old effects
+  expired than new ones were added the difference read zero and the gate failed while the attack
+  was in fact drawing. It now records the identity of the items that were already there and counts
+  only the genuinely new ones. This is the fourth appearance of "a net delta on a draining pool";
+  the rule is to count identities, not sizes, whenever the pool has its own lifetime.
+- Note on the audit tool: its listener column reads `?` because extracting a CDP `objectId` from a
+  Playwright handle did not work. Sizes and `touch-action` are real measurements; the listener
+  bindings were confirmed by reading the source. Worth fixing if the audit is ever re-run.

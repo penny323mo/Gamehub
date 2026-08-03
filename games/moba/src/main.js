@@ -5,10 +5,11 @@
 // 畫面要跟硬件。一個 120Hz 螢幕唔應該令小兵行快一倍。
 
 import { Assets } from './assets.js';
-import { Sim } from './sim.js?v=shop-tap-2';
+import { armTap } from './tap.js';
+import { Sim } from './sim.js?v=tap-audit-3';
 import { createBot } from './ai.js';
 import { View } from './view.js';
-import { Hud } from './hud.js?v=shop-tap-2';
+import { Hud } from './hud.js?v=tap-audit-3';
 import { createInput } from './input.js';
 import { CHAMPIONS, CHAMPION_IDS } from './champions.js';
 import { TEAM, TICK, teamName } from './constants.js';
@@ -71,7 +72,9 @@ function showSelect() {
             + `<span class="passive">${c.passive.name}：${c.passive.text}</span>`
             + `<span class="kit">${c.abilities.map(a => `<i>${a.key}</i> ${a.name}`).join('　')}</span>`;
         card.style.setProperty('--tint', `#${CHAMPION_LOOK[id].ringColour.toString(16).padStart(6, '0')}`);
-        card.addEventListener('click', () => {
+        // 選人格網係 overflow-y: auto，同商店一樣——手指喺度飄一飄，
+        // iOS 就唔會合成 click，隻英雄揀唔到。呢個係成隻遊戲第一個互動。
+        armTap(card, () => {
             chosen = id;
             for (const [, k] of cards) k.classList.remove('on');
             card.classList.add('on');
@@ -81,11 +84,11 @@ function showSelect() {
     }
     cards.get(chosen).classList.add('on');
     $('#select').classList.remove('hidden');
-    $('#pick-go').onclick = () => {
+    armTap($('#pick-go'), () => {
         settings.set('champion', chosen);
         $('#select').classList.add('hidden');
         startMatch(chosen);
-    };
+    });
 }
 
 // ---------- 開場 ----------

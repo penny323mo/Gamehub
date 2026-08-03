@@ -63,6 +63,8 @@ html, body {
     background: linear-gradient(160deg, color-mix(in srgb, var(--tint) 22%, #10182a), #0d1220);
     border: 1.5px solid transparent; color: inherit; font: inherit;
     display: flex; flex-direction: column; gap: 3px;
+    /* 格網係 overflow-y: auto，唔喺卡度認領手勢就會畀捲動食咗 */
+    touch-action: manipulation;
     transition: transform 0.12s, border-color 0.12s;
 }
 .pick-card:hover { transform: translateY(-2px); }
@@ -76,6 +78,7 @@ html, body {
 
 #pick-go, #result button {
     margin-top: 6px; padding: 12px 40px; font-size: 17px; letter-spacing: 0.16em;
+    min-height: 48px; touch-action: manipulation;
     border-radius: 99px; border: none; cursor: pointer; font-family: inherit;
     background: linear-gradient(120deg, var(--blue), #7f6bff); color: #fff; font-weight: 700;
 }
@@ -177,6 +180,8 @@ html, body {
     position: absolute; right: calc(10px + var(--safe-r)); bottom: calc(98px + var(--safe-b));
     padding: 6px 14px; border-radius: 99px; font: inherit; font-size: 12px; cursor: pointer;
     background: var(--panel); border: 1px solid var(--edge); color: #eef2fb;
+    /* 實測得 31px 高——手指撳唔穩。44 係最細嘅可靠觸控目標。 */
+    min-height: 44px; touch-action: manipulation;
 }
 .moba-shopbtn.ready { border-color: var(--gold); color: var(--gold); }
 
@@ -198,9 +203,14 @@ html, body {
     position: sticky; top: -12px; z-index: 2; padding: 10px 0 8px;
     background: linear-gradient(rgba(9, 12, 21, 1) 82%, rgba(9, 12, 21, 0));
 }
-.moba-x { background: none; border: none; color: #fff; font-size: 22px; cursor: pointer; line-height: 1; }
+.moba-x {
+    background: none; border: none; color: #fff; font-size: 22px; cursor: pointer; line-height: 1;
+    /* 設定面板嗰粒 × 實測得 24px——手指撳唔中。 */
+    min-width: 44px; min-height: 44px; touch-action: manipulation;
+}
 .moba-shop-close {
     min-width: 118px; min-height: 44px; padding: 8px 12px; border-radius: 99px;
+    touch-action: manipulation;
     background: #ffffff12; border: 1px solid #ffffff24; font: inherit; font-weight: 700;
 }
 .moba-shop-state { font-weight: 700; color: #eef2fb; opacity: 0.88; }
@@ -392,9 +402,9 @@ html, body {
 .moba-gear {
     position: absolute; top: calc(8px + env(safe-area-inset-top, 0px));
     left: calc(10px + var(--safe-l));
-    width: 34px; height: 34px; border-radius: 50%; cursor: pointer;
+    width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
     background: var(--panel); border: 1px solid var(--edge); color: #cfd8ea;
-    font-size: 16px; line-height: 1;
+    font-size: 17px; line-height: 1; touch-action: manipulation;
 }
 .moba-settings {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
@@ -405,13 +415,15 @@ html, body {
 }
 .moba-set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; }
 .moba-toggle {
-    min-width: 62px; padding: 6px 12px; border-radius: 99px; font: inherit; font-size: 12px; cursor: pointer;
+    min-width: 62px; min-height: 44px; padding: 6px 12px; border-radius: 99px;
+    font: inherit; font-size: 12px; cursor: pointer; touch-action: manipulation;
     background: #141a2b; border: 1px solid #ffffff22; color: #8794ad;
 }
 .moba-toggle.on { border-color: var(--gold); color: var(--gold); }
 .moba-seg { display: flex; gap: 4px; }
 .moba-seg button {
-    padding: 6px 12px; border-radius: 8px; font: inherit; font-size: 12px; cursor: pointer;
+    padding: 6px 12px; min-height: 44px; border-radius: 8px; font: inherit; font-size: 12px;
+    cursor: pointer; touch-action: manipulation;
     background: #141a2b; border: 1px solid #ffffff22; color: #8794ad;
 }
 .moba-seg button.on { border-color: var(--blue); color: #dce9ff; background: #1b2540; }
@@ -473,6 +485,7 @@ html, body {
 
 /* ---------- 返程 ---------- */
 .moba-recall {
+    min-height: 44px; touch-action: manipulation;
     position: absolute; right: calc(10px + var(--safe-r)); bottom: calc(128px + var(--safe-b));
     padding: 6px 14px; border-radius: 99px; font: inherit; font-size: 12px; cursor: pointer;
     background: var(--panel); border: 1px solid var(--edge); color: #cfd8ea;
@@ -500,5 +513,6 @@ html, body {
     100% { opacity: 0; transform: translate(-50%, -26px); }
 }
 @media (orientation: portrait) {
-    .moba-recall { bottom: calc(190px + var(--safe-b)); }
+    .moba-recall {
+    min-height: 44px; touch-action: manipulation; bottom: calc(190px + var(--safe-b)); }
 }

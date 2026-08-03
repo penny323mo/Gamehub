@@ -2,6 +2,7 @@
 // 而且 CSS 處理安全區同轉向比自己計座標可靠。
 
 import { abilityRank } from './champions.js';
+import { armTap } from './tap.js';
 import { settings } from './settings.js';
 import { ITEMS, MAX_ITEMS, nextPurchase } from './items.js';
 import { TEAM, teamName, GAME_MAX, MAP } from './constants.js';
@@ -111,7 +112,7 @@ export class Hud {
 
         // 返程：讀秒條擺喺畫面中下，因為讀秒期間唯一要睇嘅就係「仲有幾耐」
         this.recallBtn = el('button', 'moba-recall', '返程');
-        this.recallBtn.addEventListener('click', () => this.onRecall?.());
+        armTap(this.recallBtn, () => this.onRecall?.());
         r.append(this.recallBtn);
         this.recallBar = el('div', 'moba-recallbar hidden');
         this.recallFill = el('i');
@@ -120,11 +121,11 @@ export class Hud {
 
         // 商店
         this.shopBtn = el('button', 'moba-shopbtn', '商店');
-        this.shopBtn.addEventListener('click', () => this.toggleShop());
+        armTap(this.shopBtn, () => this.toggleShop());
         r.append(this.shopBtn);
         this.shopBackdrop = el('button', 'moba-shop-backdrop hidden');
         this.shopBackdrop.setAttribute('aria-label', '關閉商店，返回戰場');
-        this.shopBackdrop.addEventListener('click', () => this.toggleShop(false));
+        armTap(this.shopBackdrop, () => this.toggleShop(false));
         r.append(this.shopBackdrop);
         this.shop = el('div', 'moba-shop hidden');
         r.append(this.shop);
@@ -137,7 +138,7 @@ export class Hud {
         // 設定：一個網頁遊戲冇靜音掣係硬傷——人哋隨時喺公司／地鐵開你隻嘢。
         this.gearBtn = el('button', 'moba-gear', '⚙');
         this.gearBtn.setAttribute('aria-label', '設定');
-        this.gearBtn.addEventListener('click', () => this.toggleSettings());
+        armTap(this.gearBtn, () => this.toggleSettings());
         r.append(this.gearBtn);
         this.settings = el('div', 'moba-settings hidden');
         r.append(this.settings);
@@ -159,19 +160,16 @@ export class Hud {
         head.append(this.shopState);
         const actions = el('div', 'moba-shop-actions');
         this.shopRecall = el('button', 'moba-shop-recall', '返程回血');
-        this.shopRecall.addEventListener('click', () => {
+        armTap(this.shopRecall, () => {
             this.toggleShop(false);
             // 已經讀緊返程就淨係收埋商店；再 toggle 一次反而會取消返程。
             if (this.sim.recallProgress(this.sim.player) <= 0) this.onRecall?.();
         });
         const close = el('button', 'moba-x moba-shop-close', '返回戰場 ×');
         close.setAttribute('aria-label', '關閉商店，返回戰場');
-        // pointerup 令 iOS 唔使等合成 click；click 保留畀鍵盤／輔助技術。force=false
-        // 令兩個事件就算都到達亦只會關閉，唔會第二次反手重開。
-        close.addEventListener('pointerup', (ev) => {
-            ev.preventDefault(); ev.stopPropagation(); this.toggleShop(false);
-        });
-        close.addEventListener('click', () => this.toggleShop(false));
+        // force=false，所以就算 pointerup 同 click 兩個都到，都淨係會關閉，
+        // 唔會第二次反手重開。
+        armTap(close, () => this.toggleShop(false));
         actions.append(this.shopRecall, close);
         head.append(actions);
         this.shop.append(head);
@@ -181,7 +179,7 @@ export class Hud {
         for (const it of Object.values(ITEMS)) {
             const card = el('button', 'moba-item');
             card.append(el('b', null, it.name), el('span', 'cost', `${it.cost} 金`), el('span', 'txt', it.text));
-            this.#armTap(card, () => {
+            armTap(card, () => {
                 const p = this.sim.player;
                 const why = this.#cannotBuy(p, it);
                 if (why) { this.flash(why); return; }
@@ -194,51 +192,6 @@ export class Hud {
 
         this.bagRow = el('div', 'moba-bag');
         this.shop.append(this.bagRow);
-    }
-
-    // 手機上面「撳咗但乜都冇發生」嘅根源。
-    //
-    // 商店面板係 overflow-y: auto 加 touch-action: pan-y，即係垂直手勢屬於
-    // 捲動容器。iOS 見到手指喺呢種容器入面有少少上下飄移，就會當你想捲動，
-    // 於是根本唔會合成 click——粒掣一世都收唔到嘢。桌面滑鼠同自動測試嘅
-    // 合成點擊係零位移，所以測試全綠、真機全死。關閉掣早就因為同一個原因
-    // 改咗用 pointerup，但啲商品卡冇跟。
-    //
-    // 做法：喺 pointerup 度自己判斷「呢下算唔算一撳」——同一隻手指、位移細過
-    // 12 像素、冇撳實過 800 毫秒。跟住瀏覽器仲會補一個 click，要擋住，
-    // 唔係一下撳會買兩件。
-    //
-    // 擋法用旗標，唔用時間窗。第一版我用「600 毫秒內嘅 click 當重複」，
-    // 喺清靜嘅測試度 pointerup 同 click 相隔五毫秒，睇落冇問題；但喺跑緊
-    // 成場波、主執行緒忙嘅時候，個間隔超過 600 毫秒，兩條路一齊行，一下撳
-    // 買咗兩件。手機正正就係最容易卡嗰個環境。旗標由下一次 pointerdown 清，
-    // 所以就算 click 唔嚟都唔會殘留。
-    #armTap(node, run) {
-        let start = null;
-        let swallowClick = false;
-        const release = () => { node.classList.remove('press'); };
-        node.addEventListener('pointerdown', (ev) => {
-            swallowClick = false;
-            start = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, t: performance.now() };
-            node.classList.add('press');
-        });
-        node.addEventListener('pointercancel', () => { start = null; release(); });
-        node.addEventListener('pointerleave', release);
-        node.addEventListener('pointerup', (ev) => {
-            release();
-            const s = start;
-            start = null;
-            if (!s || ev.pointerId !== s.id) return;
-            if (Math.hypot(ev.clientX - s.x, ev.clientY - s.y) > 12) return;   // 想捲動，唔係想買
-            if (performance.now() - s.t > 800) return;                        // 撳實咗，唔算
-            swallowClick = true;
-            run();
-        });
-        // 鍵盤同輔助技術淨係發 click，所以要留返；但唔可以同上面撞成兩次。
-        node.addEventListener('click', () => {
-            if (swallowClick) { swallowClick = false; return; }
-            run();
-        });
     }
 
     // 買唔到就要講得出係差咩。「金幣唔夠或者裝備格已滿」係叫玩家自己估。
@@ -255,7 +208,7 @@ export class Hud {
         const head = el('div', 'moba-shop-head');
         head.append(el('span', null, '設定'));
         const close = el('button', 'moba-x', '×');
-        close.addEventListener('click', () => this.toggleSettings(false));
+        armTap(close, () => this.toggleSettings(false));
         head.append(close);
         box.append(head);
 
@@ -271,7 +224,7 @@ export class Hud {
                 b.textContent = settings.get(key) ? '開' : '關';
                 b.classList.toggle('on', !!settings.get(key));
             };
-            b.addEventListener('click', () => { settings.set(key, !settings.get(key)); paint(); onChange(settings.get(key)); });
+            armTap(b, () => { settings.set(key, !settings.get(key)); paint(); onChange(settings.get(key)); });
             paint();
             return b;
         };
@@ -281,7 +234,7 @@ export class Hud {
         const q = el('div', 'moba-seg');
         for (const [id, label] of [['low', '流暢'], ['medium', '平衡'], ['high', '精緻']]) {
             const b = el('button', null, label);
-            b.addEventListener('click', () => {
+            armTap(b, () => {
                 settings.set('quality', id);
                 this.onSetting?.('quality', id);
                 this.markQuality(id);
@@ -518,18 +471,25 @@ export class Hud {
                 card.classList.toggle('full', bagFull);
                 card.classList.toggle('owned', p.items.includes(item.id));
             }
-            this.bagRow.innerHTML = '';
-            for (let i = 0; i < MAX_ITEMS; i++) {
-                const id = p.items[i];
-                const slot = el('button', 'moba-slot' + (id ? ' filled' : ''), id ? ITEMS[id].name : '－');
-                if (id) {
-                    slot.title = `賣咗 ${ITEMS[id].name}，退返 ${Math.round(ITEMS[id].cost * 0.7)} 金`;
-                    this.#armTap(slot, () => {
-                        const name = ITEMS[id].name;
-                        if (sim.sell(p, i)) this.flash(`賣咗 ${name}`);
-                    });
+            // 個袋淨係喺內容變咗先重建。之前每一幀都掉晒重整：六粒掣連
+            // 四個聽事件，商店開住嘅時候就係每秒過千次註冊，而九成九嘅幀
+            // 入面袋根本一模一樣。
+            const bagSig = p.items.join(',');
+            if (bagSig !== this.bagSig) {
+                this.bagSig = bagSig;
+                this.bagRow.innerHTML = '';
+                for (let i = 0; i < MAX_ITEMS; i++) {
+                    const id = p.items[i];
+                    const slot = el('button', 'moba-slot' + (id ? ' filled' : ''), id ? ITEMS[id].name : '－');
+                    if (id) {
+                        slot.title = `賣咗 ${ITEMS[id].name}，退返 ${Math.round(ITEMS[id].cost * 0.7)} 金`;
+                        armTap(slot, () => {
+                            const name = ITEMS[id].name;
+                            if (sim.sell(p, i)) this.flash(`賣咗 ${name}`);
+                        });
+                    }
+                    this.bagRow.append(slot);
                 }
-                this.bagRow.append(slot);
             }
             const hint = nextPurchase(p.champId, p.items, p.gold);
             this.shopBtn.textContent = hint ? `商店 · 可買 ${ITEMS[hint].name}` : '商店';

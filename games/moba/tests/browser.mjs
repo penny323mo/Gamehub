@@ -258,6 +258,23 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
         driftBuy.touchAction === 'manipulation', driftBuy.touchAction);
     check(`${tag}：商品卡至少 44px 高（手指撳得中）`,
         driftBuy.height >= 44, driftBuy.height);
+
+    // 全 HUD 掃一次同一類毛病。連續兩個實機故障（搖桿、商店）都係「只聽
+    // click / 目標太細 / 手勢畀捲動容器食咗」，而測試嘅合成點擊零位移，
+    // 三種都睇唔見。呢條唔係度個別掣，係度「呢類問題有冇死灰復燃」。
+    const reach = await page.evaluate(() => {
+        const bad = [];
+        for (const el of document.querySelectorAll('#hud button, #hud [role="button"]')) {
+            const r = el.getBoundingClientRect();
+            if (r.width < 1 || r.height < 1) continue;
+            const cs = getComputedStyle(el);
+            if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+            const side = Math.min(r.width, r.height);
+            if (side < 44) bad.push({ cls: el.className || el.tagName, side: Math.round(side) });
+        }
+        return bad;
+    });
+    check(`${tag}：HUD 每粒掣都至少 44px（手指撳得中）`, reach.length === 0, reach);
     await touch('.moba-shop-close');
     await page.waitForTimeout(80);
     check(`${tag}：戰線上仍可用「返回戰場」關店`,
@@ -351,12 +368,15 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
         if (!foe) return null;
         foe.x = p.x + 1.6; foe.z = p.z;
         const u = v.units.get(p.id);
-        const before = v.fx.items.length;
+        // 唔可以用 items.length 嘅淨變化：個池同一時間有舊特效到期消散，
+        // 散得多過新加入，個差就會變成 0，而普攻其實有畫嘢。實測就係咁
+        // 間歇性肥佬。改為記住原本嗰批物件身份，之後數真係新加入嘅。
+        const had = new Set(v.fx.items);
         p.cd = 0;
         s.orderAttack(p, foe.id);
         s.step(1 / 30);
         v.update(1 / 60, s.drain());
-        const afterAttack = v.fx.items.length;
+        const added = v.fx.items.filter(it => !had.has(it)).length;
         // 彈道：唔可以假設玩家第一個技能就係直線彈——鐵衛個 Q 係範圍技。
         // 有 skillshot 就用佢，冇就靠兵線上面梗有嘅遠程兵箭矢。
         p.abilityCd = [0, 0, 0, 0]; p.mp = p.maxMp;
@@ -371,7 +391,7 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
             if (proj.length && s.projectiles.length === proj.length) break;
         }
         return {
-            fxOnAttack: afterAttack - before,
+            fxOnAttack: added,
             simProj: s.projectiles.length,
             viewProj: proj.length,
             // 彈道唔可以永遠豎直：冇轉向嘅膠囊喺俯視鏡頭下面等於隱形
