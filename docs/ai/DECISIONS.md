@@ -2250,3 +2250,33 @@ follows what the tyres can use
   quiet slide.
 - The honest lesson: a stress test tells you what the renderer does under load; it does not tell
   you what the game does. Both are worth measuring, but only one of them is a budget.
+
+## ADR-115: Four things measured, none of them changed
+
+- Date: 2026-08-03
+- Status: accepted
+- Decision: record these numbers and take **no action** on any of them. They were each investigated
+  as a suspected defect and each came back clean or unprovable. Written down so the next agent does
+  not re-derive them.
+- **Income composition** (12 matches, mirrored). At 10 minutes an average champion has earned
+  ~4025 gold: passive **48%**, kills **25%**, assists **17%**, last-hitting **10%**. The first
+  reading of this said "82% passive" — that was wrong, it left kill and assist gold out. Farming
+  being a tenth of income looks alarming against a desktop MOBA, but this is a 3v3 one-lane phone
+  game with six-minion waves; fighting carrying 42% is a defensible shape, not a fault.
+- **Last-hit reachability.** 6080 minion deaths: **43% die to champions**, 49% to other minions,
+  6% to towers. The gold-on-last-hit rule is live and reachable, so the low CS count (20 by ten
+  minutes) is wave size, not a broken mechanic.
+- **Do early leads convert?** Across 72 mirrored matches, first blood predicts the winner **43%**,
+  first tower **58%**, a five-minute gold lead **60%**. On a desktop MOBA those would read as a
+  flat economy. **But this is bot-versus-bot**, and these bots do not press an advantage — the
+  measurement cannot separate "leads don't convert" from "bots don't convert them". Changing the
+  economy on this evidence would repeat the ADR-098 mistake of tuning against the wrong signal.
+  Left alone, deliberately, until a human's leads can be watched.
+- **Health-bar readability in a portrait fight.** A captured six-champion pile looked cluttered.
+  Measured properly in landscape: bars overlap **5%** of their own area — low. The portrait
+  measurement was invalid (the probe offset along world x, which under the rotated camera points
+  into the screen, not across it) and the screenshot shows the bars billboarding correctly. No
+  defect that a measurement supports; the clutter is six champions standing in two metres.
+- The point of writing up four non-findings: each one was a plausible-sounding change that would
+  have shipped on a screenshot or a single statistic. Three of the four had a measurement that
+  contradicted the hunch, and the fourth had a measurement that could not support it either way.
