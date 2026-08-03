@@ -327,22 +327,36 @@ export class Hud {
         }
     }
 
-    // 由 -fountainX 到 +fountainX 壓成一條橫條。畫嘅嘢由少到多：
+    // 由 -fountainX 到 +fountainX 壓成一條條。畫嘅嘢由少到多：
     // 底線 → 建築 → 兵線重心 → 英雄。愈後畫愈唔會被蓋住。
+    //
+    // 打直嗰陣鏡頭轉咗軸，條線行上落，所以呢條總覽都要企直。下面所有畫圖
+    // 碼一行都唔使改：只係將「沿住條線」嗰個軸由畫布嘅 x 轉去畫布嘅 y。
+    // 邊個方向由 CSS 話事——JS 淨係量返自己攞到個盒係高過闊定闊過高，
+    // 唔會自己再寫多次 media query，免得兩處各講各話。
     #lane() {
         const cv = this.laneCanvas;
-        const w = this.laneWrap.clientWidth;
-        if (!w) return;
+        const boxW = this.laneWrap.clientWidth;
+        const boxH = this.laneWrap.clientHeight;
+        if (!boxW || !boxH) return;
+        const vertical = boxH > boxW;
+        // w = 沿住條線嘅長度，h = 橫過條線嘅厚度。畫圖碼一直用呢兩個。
+        const w = vertical ? boxH : boxW;
         const h = 26;
+        const cw = vertical ? h : w;
+        const ch = vertical ? w : h;
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
-            cv.width = Math.round(w * dpr);
-            cv.height = Math.round(h * dpr);
-            cv.style.width = `${w}px`;
-            cv.style.height = `${h}px`;
+        if (cv.width !== Math.round(cw * dpr) || cv.height !== Math.round(ch * dpr)) {
+            cv.width = Math.round(cw * dpr);
+            cv.height = Math.round(ch * dpr);
+            cv.style.width = `${cw}px`;
+            cv.style.height = `${ch}px`;
         }
         const g = cv.getContext('2d');
-        g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        // 直向：(沿線 u, 橫過 v) → 畫布 (v, 高度 - u)，即係藍方基地喺底、
+        // 敵方喺頂，同鏡頭見到嘅一致。
+        if (vertical) g.setTransform(0, -dpr, dpr, 0, 0, ch * dpr);
+        else g.setTransform(dpr, 0, 0, dpr, 0, 0);
         g.clearRect(0, 0, w, h);
 
         const pad = 8;

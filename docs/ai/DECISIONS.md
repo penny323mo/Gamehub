@@ -2123,5 +2123,12 @@ follows what the tyres can use
   walk both hard-coded "+x is right". They were not wrong before — they encoded an assumption that
   had been true. That is the same failure mode as ADR-109's RNG: the fixture quietly carried an
   assumption nobody was measuring.
-- Not done: the lane-overview bar at the top is still horizontal, so in portrait it reads across
-  while the world reads up. Noted rather than half-fixed.
+- Follow-up in the same commit series: the lane-overview bar now stands up in portrait too. The
+  drawing code did not change at all — only the canvas transform, mapping `(along, across)` onto
+  `(v, height − u)`, so blue base sits at the bottom exactly as the camera shows it. Which way it
+  runs is decided by CSS alone; the JS reads the box it was given rather than repeating the media
+  query, so the two cannot drift apart.
+- Its gate reads the rendered canvas rather than the code: it projects both nexuses through the
+  real camera to learn which way the battlefield runs, then finds the blue and red pixel centroids
+  in the bar and requires both the axis and the ends to agree. A gate that recomputed the bar
+  mapping would only prove the formula equals itself.

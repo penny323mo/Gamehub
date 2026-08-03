@@ -674,6 +674,46 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     // 就冇理由再浪費畫面。所以兩個方向嘅門檻唔同，唔係一條數夾兩邊。
     check(`${tag}：畫面冇浪費喺深淵同水上面`,
         framing.橋面 >= (framing.垂直 ? 50 : 15), framing);
+
+    // 兵線總覽要同戰場讀同一個方向。打直轉軸之後，一條打橫嘅總覽等於叫玩家
+    // 喺腦入面轉九十度。呢度唔係比較鏡頭參數，而係：戰場上兩座水晶投影落
+    // 螢幕係邊個方向，條總覽就要係嗰個方向，而且藍方嗰邊要喺同一頭。
+    const laneAgrees = await page.evaluate(async () => {
+        const THREE = await import('/games/moba/vendor/three.module.min.js');
+        const { MAP, TEAM } = await import('/games/moba/src/constants.js');
+        const v = window.__view;
+        const cam = v.camera;
+        const at = (x) => new THREE.Vector3(x, 1, 0).project(cam);
+        const blue = at(-MAP.nexusX), red = at(MAP.nexusX);
+        // 螢幕座標：y 向上為正，所以「紅方喺上面」＝ red.y > blue.y
+        const dx = red.x - blue.x, dy = red.y - blue.y;
+        const 戰場垂直 = Math.abs(dy) > Math.abs(dx);
+        const box = document.querySelector('.moba-lane').getBoundingClientRect();
+        const 總覽垂直 = box.height > box.width;
+        // 畫布上藍紅各自嘅重心：直接讀像素，唔靠測試自己抄一次座標換算
+        const cv = document.querySelector('.moba-lane canvas');
+        const g = cv.getContext('2d');
+        const d = g.getImageData(0, 0, cv.width, cv.height).data;
+        let bSum = 0, bN = 0, rSum = 0, rN = 0;
+        for (let y = 0; y < cv.height; y++) for (let x = 0; x < cv.width; x++) {
+            const i = (y * cv.width + x) * 4;
+            if (d[i + 3] < 40) continue;
+            const along = 總覽垂直 ? y : x;
+            if (d[i + 2] > d[i] + 40) { bSum += along; bN++; }
+            else if (d[i] > d[i + 2] + 40) { rSum += along; rN++; }
+        }
+        if (!bN || !rN) return { 讀唔到顏色: true, bN, rN };
+        // 畫布 y 向下，螢幕 y 向上，所以垂直嗰陣要反號先可以同 dy 比較
+        const 藍在前 = 總覽垂直 ? -(bSum / bN - rSum / rN) : (bSum / bN - rSum / rN);
+        const 戰場藍在前 = 總覽垂直 ? (blue.y - red.y) : (blue.x - red.x);
+        return {
+            戰場垂直, 總覽垂直,
+            方向一致: 戰場垂直 === 總覽垂直,
+            兩頭啱: Math.sign(藍在前) === Math.sign(戰場藍在前),
+        };
+    });
+    check(`${tag}：兵線總覽同戰場讀同一個方向`, laneAgrees.方向一致, laneAgrees);
+    check(`${tag}：總覽入面藍方嗰頭同畫面上藍方嗰頭一致`, laneAgrees.兩頭啱, laneAgrees);
     check(`${tag}：一屏睇得到至少 30 米兵線`, framing.兵線長度 >= 30, framing);
     check(`${tag}：玩家企喺畫面下半但唔會跌出畫外`,
         framing.玩家由頂計 > 45 && framing.玩家由頂計 < 88, framing);

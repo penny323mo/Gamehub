@@ -25,7 +25,8 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
   `screenToWorld` rotation. Ground picking already raycast, so it followed for free.
 - Two old gates hard-coded "+x is right" and were rewritten to measure against the camera's own
   right/forward vectors. Same failure mode as ADR-109: a fixture carrying an unmeasured claim.
-- Still horizontal: the lane-overview bar at the top. Noted rather than half-fixed.
+- The lane-overview bar stands up in portrait too: same drawing code, one canvas transform, and
+  CSS alone decides the axis. Its gate reads the rendered pixels against the projected nexuses.
 
 ### 深淵之橋 the first random number of every match was not random (ADR-109)
 
@@ -77,7 +78,7 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 - `node games/moba/tests/cache-bust.mjs` → pass; all six entry/resource tokens agree.
 - `node games/moba/tests/sim.mjs` → **212/212 pass**, including the level-1 attack-pacing gate and
   the RNG-diffusion gate. Twelve mirrored matches still finish, no NaN or bridge escape.
-- `node games/moba/tests/browser.mjs` → **123/123 pass**, landscape and portrait (bundled
+- `node games/moba/tests/browser.mjs` → **127/127 pass**, landscape and portrait (bundled
   Chromium; `PW_CHROMIUM` overrides). Away-from-fountain purchase, three close routes, full
   matches, FX gates, zero errors, a following sigil past 90% scale a quarter-second in, no
   wireframe sigils, a drifting tap buys while a 40 px drag does not, every HUD button ≥44 px.
@@ -106,8 +107,8 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 2. If phone frame pacing does turn out bad, the first lever is merging each sigil's parts into one
    buffer geometry — draw calls go 94 idle → 1311 at the synthetic six-champion peak because every
    ring, ray, spike and rim is its own mesh. Cutting effects is the wrong lever; see ADR-105.
-3. The lane-overview bar still reads left-to-right while portrait now reads bottom-to-top.
-   Either make it a vertical strip in portrait or accept it; last known inconsistency.
+3. Nothing else is queued. The next move is Penny playing it on a phone; every axis this
+   environment can measure has been measured.
 
 ## Do not redo
 

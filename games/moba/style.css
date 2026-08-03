@@ -479,8 +479,16 @@ html, body {
 }
 .moba-lane canvas { display: block; }
 
+/* 打直嗰陣鏡頭轉咗軸，世界嘅前方係畫面上方（見 view.js）。條總覽都要跟：
+   企喺左邊做一條直條，由下（自己）去上（敵方）。JS 唔會自己再判斷一次
+   方向，佢淨係睇 CSS 畀咗個乜形狀嘅盒俾佢——所以呢度先係唯一嘅出處。 */
 @media (orientation: portrait) {
-    .moba-lane { width: min(400px, 92vw); top: calc(42px + env(safe-area-inset-top, 0px)); }
+    .moba-lane {
+        left: calc(8px + var(--safe-l)); transform: none;
+        top: calc(96px + env(safe-area-inset-top, 0px));
+        width: 26px; height: min(46vh, 420px);
+        padding: 2px 0;
+    }
 }
 
 /* ---------- 返程 ---------- */
