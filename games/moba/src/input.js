@@ -46,6 +46,15 @@ export function createInput(canvas, view, sim, hud) {
         return ray.ray.intersectPlane(GROUND, hit) ? hit : null;
     }
 
+    // 螢幕方向 → 世界方向。dz 係「向畫面上」為負，同 -z 對齊，所以 yaw = 0
+    // 嗰陣呢個係恆等變換。
+    function screenToWorld(d) {
+        const yaw = view.camYaw ?? 0;
+        if (!yaw) return d;
+        const c = Math.cos(yaw), s = Math.sin(yaw);
+        return { dx: d.dx * c + d.dz * s, dz: -d.dx * s + d.dz * c };
+    }
+
     function enemyAt(x, z) {
         let best = null, bd = 3.4;
         for (const e of sim.entities) {
@@ -337,8 +346,10 @@ export function createInput(canvas, view, sim, hud) {
                 if (aiming && Math.hypot(aiming.dx, aiming.dy) > 14) {
                     const reach = ab.range ?? 9;
                     const len = Math.hypot(aiming.dx, aiming.dy);
-                    ax = p.x + aiming.dx * (reach / len);
-                    az = p.z + aiming.dy * (reach / len);
+                    // 瞄準拖拽同搖桿一樣係螢幕方向，鏡頭轉軸就要跟住轉
+                    const w = screenToWorld({ dx: aiming.dx / len, dz: aiming.dy / len });
+                    ax = p.x + w.dx * reach;
+                    az = p.z + w.dz * reach;
                 } else if (aiming) {
                     const a = defaultAim(previewIndex);
                     ax = a.x; az = a.z;
@@ -348,9 +359,12 @@ export function createInput(canvas, view, sim, hud) {
                 view.showAim(null);
             }
             if (!p.alive) return;
-            const dir = joy && Math.hypot(joy.dx, joy.dy) > 0.14
+            const raw = joy && Math.hypot(joy.dx, joy.dy) > 0.14
                 ? { dx: joy.dx, dz: joy.dy }
                 : keyDir();
+            // 搖桿同 WASD 講嘅係「畫面上邊個方向」，唔係世界座標。打直嗰陣
+            // 鏡頭繞 Y 轉咗九十度，唔跟住轉就會推上推落但角色左右行。
+            const dir = raw && screenToWorld(raw);
             if (dir) {
                 if (sim.orderMove(p,
                     clamp(p.x + dir.dx * 6, -MAP.fountainX, MAP.fountainX),

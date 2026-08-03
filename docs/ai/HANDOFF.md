@@ -4,7 +4,7 @@ Updated: 2026-08-03 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `main`
-Status: 深淵之橋 touch audit (ADR-107), attack pacing (ADR-108), RNG seeding fixed (ADR-109)
+Status: 深淵之橋 attack pacing (ADR-108), RNG seeding (ADR-109), portrait lane vertical (ADR-110)
 
 ## Current objective
 
@@ -12,6 +12,20 @@ Make the MOBA hold up on Penny's actual phone. The overall production objective 
 finished**; this handoff is a tested checkpoint, not a claim that everything is final.
 
 ## Completed
+
+### 深淵之橋 portrait puts the lane up the screen (ADR-110)
+
+- Measured, portrait spent **83.6% of the screen on abyss and water**. The cause is geometric:
+  the bridge is 17 m wide, so showing ~25 m of lane on a 430×860 screen forces a ~50 m vertical
+  span. No camera placement fixes that — the best steepen-and-pull-in variant reached 23.5%
+  ground while cutting visible lane from 26.9 m to 23.9 m.
+- The camera now rotates 90° about Y in portrait: own base at the bottom, enemy at the top.
+  **70.1% ground and 36.6 m of lane**, player at 70% down. Landscape is untouched.
+- Joystick, WASD and ability aim-drag speak screen directions, so they share one
+  `screenToWorld` rotation. Ground picking already raycast, so it followed for free.
+- Two old gates hard-coded "+x is right" and were rewritten to measure against the camera's own
+  right/forward vectors. Same failure mode as ADR-109: a fixture carrying an unmeasured claim.
+- Still horizontal: the lane-overview bar at the top. Noted rather than half-fixed.
 
 ### 深淵之橋 the first random number of every match was not random (ADR-109)
 
@@ -47,23 +61,13 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
   only. ADR-104 supersedes the fountain-only clauses in ADR-088/094/100.
 - Shop taps on a real phone: an `overflow-y: auto` panel with `touch-action: pan-y` makes iOS read
   a few pixels of drift as a scroll and synthesise no `click`. ADR-106, generalised by ADR-107.
+- Touch audit: "what counts as a tap" now lives in `src/tap.js` and every control uses it; the
+  champion select cards had the shop bug on the game's first interaction, and shopbtn/gear/× were
+  31/34/24 px. `browser.mjs` now fails if any visible `#hud button` is under 44 px. ADR-107.
 - Crowded-fight FX: self-buff sigils now reach full size in 0.22 s of absolute time rather than a
   fraction of `life` (a shield used to sit at ~60%); `dome` is a dim shell with a bright rim, not
   a wireframe scribble. Worst case measured: geometries 94 → 597 peak → 160 at +8 s, draw calls
   94 → 1311, no leak. ADR-105.
-
-### 深淵之橋 touch audit across every control (ADR-107)
-
-- Two reports in a row (joystick, shop) were the same defect, and both reached Penny because the
-  suite cannot see it. So every control was measured at 430×860 instead of waiting for a third.
-- Found: the **champion select cards** were `click`-only inside an `overflow-y: auto` grid — the
-  shop bug on the game's first interaction; `moba-shopbtn` was 31 px tall, `moba-gear` 34 px, the
-  settings `×` 24 px; recall/shop/backdrop/gear/settings toggles were all `click`-only.
-- "What counts as a tap" now lives in `src/tap.js` and everything uses it. ADR-106 had put that
-  logic inside `Hud` as a private method, which is exactly why the select screen was missed. The
-  bag row now rebuilds only when its contents change, not on every frame the shop is open.
-- `browser.mjs` now fails if any visible `#hud button` has a short side under 44 px — a rule about
-  the whole surface, so a new control cannot quietly reintroduce it.
 
 ## Verification
 
@@ -73,7 +77,7 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 - `node games/moba/tests/cache-bust.mjs` → pass; all six entry/resource tokens agree.
 - `node games/moba/tests/sim.mjs` → **212/212 pass**, including the level-1 attack-pacing gate and
   the RNG-diffusion gate. Twelve mirrored matches still finish, no NaN or bridge escape.
-- `node games/moba/tests/browser.mjs` → **114/114 pass**, landscape and portrait (bundled
+- `node games/moba/tests/browser.mjs` → **123/123 pass**, landscape and portrait (bundled
   Chromium; `PW_CHROMIUM` overrides). Away-from-fountain purchase, three close routes, full
   matches, FX gates, zero errors, a following sigil past 90% scale a quarter-second in, no
   wireframe sigils, a drifting tap buys while a 40 px drag does not, every HUD button ≥44 px.
@@ -102,8 +106,8 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 2. If phone frame pacing does turn out bad, the first lever is merging each sigil's parts into one
    buffer geometry — draw calls go 94 idle → 1311 at the synthetic six-champion peak because every
    ring, ray, spike and rim is its own mesh. Cutting effects is the wrong lever; see ADR-105.
-3. Portrait (430×860) spends roughly half the screen on abyss and water, with the lane in a thin
-   band. It is thematically correct but wasteful; worth a framing pass if Penny raises it.
+3. The lane-overview bar still reads left-to-right while portrait now reads bottom-to-top.
+   Either make it a vertical strip in portrait or accept it; last known inconsistency.
 
 ## Do not redo
 

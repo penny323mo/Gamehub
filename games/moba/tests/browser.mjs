@@ -179,8 +179,17 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
         return { x: p.x, z: p.z, moving: p.moving, clip: rig?.current,
             orderX: p.orderX, orderZ: p.orderZ };
     });
-    check(`${tag}：手機左搖桿拖動真係會行`, joyAtRelease.x - joyBefore.x > 2,
-        { before: joyBefore, release: joyAtRelease });
+    // 「向右拖就向右行」講嘅係畫面嘅右，唔係世界嘅 +x。打直嗰陣鏡頭轉咗軸，
+    // 畫面向右變成世界 +z——舊版寫死 x 增加，一轉軸就會捉到呢個分別，
+    // 但捉到嘅係測試自己過時，唔係遊戲壞咗。所以量位移喺鏡頭右向量嘅投影。
+    const screenRight = await page.evaluate(async ({ before, after }) => {
+        const THREE = await import('/games/moba/vendor/three.module.min.js');
+        const cam = window.__view.camera;
+        const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0).setY(0).normalize();
+        const move = new THREE.Vector3(after.x - before.x, 0, after.z - before.z);
+        return { 沿畫面右: +move.dot(right).toFixed(2), 位移: +move.length().toFixed(2) };
+    }, { before: joyBefore, after: joyAtRelease });
+    check(`${tag}：手機左搖桿向右拖就向畫面右行`, screenRight.沿畫面右 > 2, screenRight);
     check(`${tag}：手機左搖桿放手即清移動命令`,
         joyAtRelease.orderX == null && joyAtRelease.orderZ == null, joyAtRelease);
     check(`${tag}：手機左搖桿放手後唔會滑行或原地跑`,
@@ -189,15 +198,32 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
 
     // 走位：撳實方向鍵，英雄要真係郁。第一版係「撳地面行過去」，
     // 喺手機上面同虛擬搖桿搶同一個輸入，實測揸唔到。
+    // D 係「向畫面右」，唔係「向世界 +x」。打直嗰陣鏡頭轉咗軸，兩者唔再一樣。
     const moved = await (async () => {
         const before = await page.evaluate(() => ({ x: window.__sim.player.x, z: window.__sim.player.z }));
         await page.keyboard.down('d');
         await page.waitForTimeout(1400);
         await page.keyboard.up('d');
-        const after = await page.evaluate(() => ({ x: window.__sim.player.x, z: window.__sim.player.z }));
-        return { d: after.x - before.x, before, after };
+        return await page.evaluate(async ({ before }) => {
+            const THREE = await import('/games/moba/vendor/three.module.min.js');
+            const p = window.__sim.player, cam = window.__view.camera;
+            const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0).setY(0).normalize();
+            const move = new THREE.Vector3(p.x - before.x, 0, p.z - before.z);
+            return { 沿畫面右: +move.dot(right).toFixed(2), before, after: { x: p.x, z: p.z } };
+        }, { before });
     })();
-    check(`${tag}：撳方向鍵行得郁，而且係啱嘅方向`, moved.d > 1.5, moved);
+    check(`${tag}：撳方向鍵行得郁，而且係啱嘅方向`, moved.沿畫面右 > 1.5, moved);
+    // 之後幾個測試要求玩家離開咗泉水。打直嗰陣 D 係沿住 z 行，出唔到泉水，
+    // 所以要明確行返出去，唔可以靠上面嗰下走位順便帶出嚟。
+    await page.evaluate(async () => {
+        const s = window.__sim, p = s.player;
+        // 己方水晶同內塔之間：一定唔算喺泉水，但又唔會行到去兵線度畀人打死
+        // ——之後仲有十幾個測試要用返呢個英雄。
+        p.x = (p.team === 0 ? -1 : 1) * 48; p.z = 0;
+        p.hp = p.maxHp;
+        p.orderX = null; p.orderZ = null; p.orderTarget = null;
+        await new Promise(r => setTimeout(r, 120));
+    });
 
     // 放手要即停。直接操控每幀會落一個 6 米外嘅短期移動命令；如果放手後
     // 唔清走屬於方向輸入嘅最後一張單，英雄就會自己多行一大截。
@@ -572,6 +598,85 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     });
     check(`${tag}：血條四件喺同一個繪製批次（renderOrder 先至話事）`, layer.sameList, layer.parts);
     check(`${tag}：血量畫喺黑底之上`, layer.fillOver, layer.parts);
+
+    // 取景：打直嗰陣鏡頭轉咗軸，條線行返垂直。呢度釘住嘅係「畫面用嚟做咩」，
+    // 唔係今日嗰組鏡頭數值——舊版打直只有 16.4% 畫面係踏得到嘅橋面，其餘
+    // 全部係深淵同水。同時要確認搖桿仲係跟住畫面：鏡頭一轉軸，推上就唔再
+    // 係 +z 而係 +x，唔跟住轉就會推上但角色橫行。
+    const framing = await page.evaluate(async () => {
+        const v = window.__view, s = window.__sim;
+        const THREE = await import('/games/moba/vendor/three.module.min.js');
+        const { MAP: M } = await import('/games/moba/src/constants.js');
+        const cam = v.camera;
+        const ray = new THREE.Raycaster();
+        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        const hit = new THREE.Vector3();
+        const N = 32;
+        let ground = 0;
+        for (let iy = 0; iy < N; iy++) for (let ix = 0; ix < N; ix++) {
+            ray.setFromCamera(new THREE.Vector2(((ix + 0.5) / N) * 2 - 1, -(((iy + 0.5) / N) * 2 - 1)), cam);
+            if (!ray.ray.intersectPlane(plane, hit)) continue;
+            if (Math.abs(hit.z) <= M.halfWidth && Math.abs(hit.x) <= M.fountainX) ground++;
+        }
+        // 兵線睇到幾長：打直掃中央一列，打橫掃中央一行
+        const vertical = Math.abs(v.camYaw ?? 0) > 0.1;
+        let lo = Infinity, hi = -Infinity;
+        for (let i = 0; i < 120; i++) {
+            const t = ((i + 0.5) / 120) * 2 - 1;
+            ray.setFromCamera(vertical ? new THREE.Vector2(0, t) : new THREE.Vector2(t, 0), cam);
+            if (ray.ray.intersectPlane(plane, hit)) { lo = Math.min(lo, hit.x); hi = Math.max(hi, hit.x); }
+        }
+        const p = s.player;
+        const proj = new THREE.Vector3(p.x, 1.2, p.z).project(cam);
+        return {
+            橋面: +(ground / (N * N) * 100).toFixed(1),
+            兵線長度: +(hi - lo).toFixed(1),
+            玩家由頂計: +((1 - (proj.y + 1) / 2) * 100).toFixed(1),
+            垂直: vertical,
+        };
+    });
+    // 推上一定要係「向敵方基地行」。呢個係轉軸最容易整爛嘅嘢，而且係玩家
+    // 第一秒就會發現嘅嘢，所以要行真嗰條 touch path，唔可以喺測試度抄一次
+    // 換算公式——抄一次就等於自己驗自己。
+    const pushUp = await page.evaluate(async () => {
+        const s = window.__sim, p = s.player;
+        p.x = 0; p.z = 0; p.alive = true;
+        p.orderX = null; p.orderZ = null; p.orderTarget = null;
+        const canvas = document.querySelector('#gl');
+        const cx = 70, cy = Math.min(innerHeight * 0.58, innerHeight - 150);
+        const touch = (x, y) => new Touch({ identifier: 77, target: canvas, clientX: x, clientY: y,
+            pageX: x, pageY: y, screenX: x, screenY: y, radiusX: 8, radiusY: 8, force: 1 });
+        const a = touch(cx, cy);
+        canvas.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true,
+            touches: [a], targetTouches: [a], changedTouches: [a] }));
+        const b = touch(cx, cy - 70);
+        canvas.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, cancelable: true,
+            touches: [b], targetTouches: [b], changedTouches: [b] }));
+        await new Promise(r => setTimeout(r, 500));
+        const moved = { x: p.x, z: p.z };
+        canvas.dispatchEvent(new TouchEvent('touchend', { bubbles: true, cancelable: true,
+            touches: [], targetTouches: [], changedTouches: [b] }));
+        const toEnemy = p.team === 0 ? 1 : -1;
+        const THREE = await import('/games/moba/vendor/three.module.min.js');
+        const cam = window.__view.camera;
+        // 畫面「上」喺地面嘅方向：鏡頭前向壓平落地面
+        const up = new THREE.Vector3();
+        cam.getWorldDirection(up); up.setY(0).normalize();
+        const move = new THREE.Vector3(moved.x, 0, moved.z);
+        return { 走咗: [+moved.x.toFixed(2), +moved.z.toFixed(2)],
+            沿畫面上: +move.dot(up).toFixed(2), 向敵方: +(moved.x * toEnemy).toFixed(2) };
+    });
+    check(`${tag}：搖桿推上就係向畫面上行`, pushUp.沿畫面上 > 1.5, pushUp);
+    // 打直先有嘅承諾：條線行返垂直，所以推上等於推向敵方基地。
+    if (framing.垂直) check(`${tag}：推上即係推向敵方基地`, pushUp.向敵方 > 1.5, pushUp);
+
+    // 打橫係「一望睇晒成條線」嘅遠景，橋面自然只佔一條橫帶；打直轉咗軸之後
+    // 就冇理由再浪費畫面。所以兩個方向嘅門檻唔同，唔係一條數夾兩邊。
+    check(`${tag}：畫面冇浪費喺深淵同水上面`,
+        framing.橋面 >= (framing.垂直 ? 50 : 15), framing);
+    check(`${tag}：一屏睇得到至少 30 米兵線`, framing.兵線長度 >= 30, framing);
+    check(`${tag}：玩家企喺畫面下半但唔會跌出畫外`,
+        framing.玩家由頂計 > 45 && framing.玩家由頂計 < 88, framing);
 
     // 快進成場波：一定要有結果，唔可以卡死或者拋錯
     const outcome = await page.evaluate(() => {

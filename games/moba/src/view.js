@@ -988,8 +988,22 @@ export class View {
     }
 
     // ---------- 鏡頭 ----------
-    // 跟住玩家沿住 x 軸行，永遠由 +z 望入去，所以兵線橫住成個畫面。
+    // 跟住玩家沿住 x 軸行。打橫由 +z 望入去，兵線橫住成個畫面。
+    //
+    // 打直就唔可以照搬。橋面淨係 17 米闊，而要睇到大約 25 米兵線就要 25 米
+    // 嘅橫向視野；430×860 嘅螢幕高係闊嘅兩倍，於是縱向視野變成 50 米——
+    // 量出嚟橋面只佔畫面 16.4%，其餘 83.6% 係深淵同水。試過純粹將鏡頭
+    // 扯高扯近（h50 d18 fov48），橋面只升到 23.5%，而兵線可見闊度由
+    // 26.9 米跌到 23.9 米：換嚟嘅唔抵。
+    //
+    // 真正嘅答案係轉軸：打直嗰陣將鏡頭繞 Y 轉九十度，令長嗰條地圖軸對正
+    // 長嗰條螢幕軸。自己嘅基地喺畫面下、敵方喺畫面上，同大部分手機 MOBA
+    // 嘅直向版一樣。
     setCameraFocus(x) { this.camFocus = x; }
+
+    // 鏡頭嘅偏航角（弧度）。0 = 打橫嘅原本角度；-π/2 = 打直，望向 +x。
+    // input.js 要攞呢個角去轉搖桿嘅方向，所以佢係 view 嘅公開狀態。
+    get camYaw() { return this.portrait ? -Math.PI / 2 : 0; }
 
     // 縮放：一條 124 米嘅線，固定鏡頭只見到大約一半。
     // 拉遠係「我睇下前面有咩嚟緊」，拉近係「我而家要打得準」。
@@ -1023,8 +1037,19 @@ export class View {
         const jx = (Math.random() - 0.5) * s * 1.4;
         const jy = (Math.random() - 0.5) * s * 1.4;
         const zoom = this.camZoom ?? 1;
-        this.camera.position.set(fx + jx, this.camHeight * zoom + jy, this.camDepth * zoom);
-        this.camera.lookAt(fx, 1.5, -1.5);
+        // 鏡頭企喺焦點後面 camDepth 米、高 camHeight 米，方向由 camYaw 決定。
+        // yaw = 0 就係原本嘅 (0, H, D)；yaw = -π/2 就變成 (-D, H, 0)，即係企喺
+        // 藍方嗰邊望向 +x —— 敵方基地喺畫面上方。
+        const yaw = this.camYaw;
+        const back = this.camDepth * zoom;
+        const ox = Math.sin(yaw) * back;
+        const oz = Math.cos(yaw) * back;
+        // 望遠少少過焦點。打橫得 1.5 米，因為兵線本來就橫住成個畫面。
+        // 打直就要望多啲前面：條線係垂直嘅，玩家應該企喺畫面下三分一，
+        // 上面留返嚟睇緊有咩推緊過嚟。
+        const lookAhead = this.portrait ? 2 : 1.5;
+        this.camera.position.set(fx + ox + jx, this.camHeight * zoom + jy, oz);
+        this.camera.lookAt(fx - Math.sin(yaw) * lookAhead, 1.5, -Math.cos(yaw) * lookAhead);
         this.sun.position.set(fx - 30, 60, 40);
         this.sun.target.position.set(fx, 0, 0);
         this.sun.target.updateMatrixWorld();
@@ -1041,11 +1066,12 @@ export class View {
         this.composer?.setPixelRatio(dpr);
         this.composer?.setSize(w, h);
         this.camera.aspect = w / h;
-        // 打直揸手機睇得少啲橫向範圍，所以要拉高拉遠先睇得晒兵線
-        const portrait = this.camera.aspect < 1;
-        this.camHeight = portrait ? 38 : 30;
-        this.camDepth = portrait ? 34 : 28;
-        this.camera.fov = portrait ? 54 : 47;
+        // 打直嗰陣鏡頭已經轉咗軸（見 setCameraFocus 上面），長嘅螢幕軸對正
+        // 長嘅地圖軸，所以唔使再為咗塞條兵線入去而拉到咁遠。
+        this.portrait = this.camera.aspect < 1;
+        this.camHeight = this.portrait ? 32 : 30;
+        this.camDepth = this.portrait ? 16 : 28;
+        this.camera.fov = this.portrait ? 44 : 47;
         this.camera.updateProjectionMatrix();
     }
 

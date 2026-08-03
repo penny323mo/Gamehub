@@ -2088,3 +2088,40 @@ follows what the tyres can use
   `games/moba/tests/`. There is no `package.json` at that level, so on a fresh clone the MOBA
   browser suite had never been runnable. It now points at `games/Racing Car/tests/node_modules`
   explicitly, the same route `tests/hub.mjs` already used.
+
+## ADR-110: In portrait the lane now runs up the screen, not across it
+
+- Date: 2026-08-03
+- Status: accepted
+- Decision: when the viewport is taller than it is wide, the camera rotates 90° about Y so the
+  long map axis maps to the long screen axis. Your base is at the bottom, the enemy at the top.
+  Landscape is untouched — `camYaw` is 0 there and every formula reduces to what it was.
+- Reason: measured, portrait spent **83.6% of the screen on abyss and water**; only 16.4% was
+  ground you can stand on. The handoff had this as "roughly half", which understated it. The cause
+  is geometric, not artistic: the bridge is 17 m wide, but showing ~25 m of lane across a 430×860
+  screen forces a ~50 m vertical span, so the bridge can never be more than about a third of the
+  frame however the camera is placed.
+- Rejected — just steepening and pulling in the existing camera. Measured across four variants: the
+  best (h50 d18 fov48) reached 23.5% ground while cutting visible lane from 26.9 m to 23.9 m.
+  Paying lane visibility for seven points of ground is not a trade worth making.
+- After rotating: **70.1% ground, 36.6 m of lane visible**, player at 70% down the screen. Both
+  numbers move the right way at once, which is the tell that the axis was the real constraint.
+- Camera settled at height 32, depth 16, fov 44, looking 2 m ahead of the player. Those four were
+  chosen by measuring ground coverage, visible lane length and the player's on-screen height
+  together — a steeper camera reduces tower occlusion but also shortens the lane you can see.
+- What had to follow the camera: the joystick and WASD speak **screen** directions, so both now go
+  through one `screenToWorld` rotation; ability aim-drag likewise. Ground picking already went
+  through a raycast, so it followed for free.
+- Gates, all orientation-aware because the two orientations promise different things:
+  - ground coverage ≥50% in portrait, ≥15% in landscape (landscape is a deliberate wide vista)
+  - ≥30 m of lane visible, and the player on screen between 45% and 88% down
+  - dragging the stick right moves the champion **along the camera's right vector**, not along +x;
+    the old gate asserted +x and would have passed a camera that ignored the rotation entirely
+  - pushing up moves along the camera's forward vector, and in portrait that must also be toward
+    the enemy base
+- Two existing gates had to be rewritten rather than re-baselined: the joystick drag and the WASD
+  walk both hard-coded "+x is right". They were not wrong before — they encoded an assumption that
+  had been true. That is the same failure mode as ADR-109's RNG: the fixture quietly carried an
+  assumption nobody was measuring.
+- Not done: the lane-overview bar at the top is still horizontal, so in portrait it reads across
+  while the world reads up. Noted rather than half-fixed.
