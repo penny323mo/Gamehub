@@ -2014,3 +2014,35 @@ follows what the tyres can use
 - Note on the audit tool: its listener column reads `?` because extracting a CDP `objectId` from a
   Playwright handle did not work. Sizes and `touch-action` are real measurements; the listener
   bindings were confirmed by reading the source. Worth fixing if the audit is ever re-run.
+
+## ADR-108: The basic attack was slower than a minion's, and the opening felt dead
+
+- Date: 2026-08-03
+- Status: accepted
+- Decision: champion base attack speed goes up ×1.4 across all six, and the melee minion drops from
+  400 to 330 HP. Per-level growth, per-hit damage, ability damage and item values are untouched.
+- Reason: Penny asked, in her own words, whether the basic attack cooldown was too long. It was,
+  and the measurement is worse than the question implies. At level 1 the interval was 1.39–1.59 s
+  and a melee minion took 6–8 swings, so **one minion cost 8.6–12.7 seconds**. A wave is six
+  minions. The mage was the worst case at 12.7 s. Meanwhile a melee minion swings every 0.8 s —
+  the champion was attacking slower than the creeps it was fighting.
+- After: level-1 interval 0.99–1.13 s and one minion in 5.1–7.9 s. Level 12 is 0.79–0.95 s.
+- Rejected — keeping DPS constant by lowering per-hit damage as attack speed rose. It would have
+  made the animation more frequent and changed nothing about the ten seconds a minion survives,
+  which is the actual complaint. It would also have forced every `adRatio` to be re-tuned, since
+  ability damage reads the same `damage` stat.
+- Rejected — leaving minion HP alone. Attack speed alone still left the mage at seven swings; the
+  sponge is half the problem and it lives in the minion, not the champion.
+- Validated on three independent 24-match sets, none of them the twelve seeds T13 uses, because
+  tuning against a gate's own seeds is exactly the mistake made in ADR-098:
+  - nexus finishes **57/72 → 69/72**
+  - average match **19.0 min → 15.8 min**
+  - average kills 29.2 → 30.3, so fights did not turn into a bloodbath
+  - all 208 sim gates pass unchanged; not one threshold had to be re-baselined
+- **Not fixed, and not caused, by this change:** red side wins far more than blue on mirrored
+  lineups — 25/72 blue before, 24/72 after. The first 24-set showed 13/11 and looked like a fix;
+  the two holdout sets showed 6/18 and 7/17. One set is not evidence. This deserves its own
+  investigation.
+- Gate: T25 asserts a level-1 interval at or under 1.15 s and a first-wave melee minion dead within
+  8 s, for every champion. The ceiling is the mage by design — she clears with W, not with autos —
+  so the rule reads "even the one who is worst at auto-attacking does not wait ten seconds".

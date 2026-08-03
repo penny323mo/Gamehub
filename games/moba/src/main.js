@@ -6,10 +6,10 @@
 
 import { Assets } from './assets.js';
 import { armTap } from './tap.js';
-import { Sim } from './sim.js?v=tap-audit-3';
+import { Sim } from './sim.js?v=attack-pace-4';
 import { createBot } from './ai.js';
 import { View } from './view.js';
-import { Hud } from './hud.js?v=tap-audit-3';
+import { Hud } from './hud.js?v=attack-pace-4';
 import { createInput } from './input.js';
 import { CHAMPIONS, CHAMPION_IDS } from './champions.js';
 import { TEAM, TICK, teamName } from './constants.js';

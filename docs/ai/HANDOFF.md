@@ -4,7 +4,7 @@ Updated: 2026-08-03 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `main`
-Status: 深淵之橋 every control audited for touch (ADR-107); shop + FX work landed
+Status: 深淵之橋 touch audit landed (ADR-107); basic-attack pacing rebuilt (ADR-108)
 
 ## Current objective
 
@@ -13,28 +13,26 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 ## Completed
 
-### Hub launcher
+### 深淵之橋 basic-attack pacing (ADR-108)
 
-- Commit `752bcc3` replaces the single oversized card with paged groups of four: one row on
-  desktop/short landscape, a 2×2 grid in phone portrait, with swipe, arrows, keyboard, dots and
-  page status in one centred footer dock. A final partial page keeps normal tile size and centres.
-- Gomoku uses two equal CSS stones, not joined emoji. 844×390 has a compact treatment.
-- Xiangqi's build rewrites `../shared/` to `../../shared/` and regenerates tracked `dist/`.
-- ADR-102 records the durable launcher and nested-build decisions.
+- Penny asked whether the basic-attack cooldown was too long. Measured: at level 1 the interval was
+  1.39–1.59 s and a melee minion took 6–8 swings, so **one minion cost 8.6–12.7 seconds** and a
+  wave is six of them. A melee minion swings every 0.8 s — the champion was slower than the creeps.
+- Base attack speed ×1.4 for all six; melee minion 400 → 330 HP. Per-level growth, per-hit damage,
+  ability damage and item values untouched. Level 1 is now 0.99–1.13 s and 5.1–7.9 s per minion.
+- Validated on **three independent 24-match sets**, none of them T13's twelve seeds: nexus finishes
+  57/72 → 69/72, average match 19.0 → 15.8 min, kills 29.2 → 30.3. No sim gate was re-baselined.
+- Red side still wins far more than blue on mirrored lineups (25/72 → 24/72). Not caused and not
+  fixed here; the first seed set read 13/11 and the two holdouts read 6/18 and 7/17.
 
-### 深淵之橋 attack-FX checkpoint
+### Earlier checkpoints, in one line each
 
-- `looks.js` defines six basic and 24 ability profiles, each with a stable style ID and a
-  procedural grammar; `fx.js` renders them; `sim.js` carries champion/ability identity through
-  every event so player and bot abilities reach the same renderer path.
-- `browser.mjs` proves six distinct basic signatures, 24 ability IDs with 24 distinct geometry
-  signatures, three projectile classes, and zero leftover scene objects. ADR-103.
-
-### 深淵之橋 anywhere shop and modal exit
-
-- Purchases work anywhere for player and bots; `atFountain()` is now healing/recall only. Sticky
-  header, ≥44 px `返回戰場`, backdrop as a second close route. ADR-104 supersedes the
-  fountain-only clauses in ADR-088/094/100.
+- Hub launcher: paged groups of four, swipe/arrows/keyboard/dots in one footer dock; Gomoku CSS
+  stones; Xiangqi nested build rewrite. Commit `752bcc3`, ADR-102.
+- Attack FX: `looks.js` holds six basic and 24 ability profiles with stable style IDs, `fx.js`
+  renders them, `sim.js` carries champion/ability identity through every event. ADR-103.
+- Anywhere shop: purchases work everywhere for player and bots; `atFountain()` is healing/recall
+  only. ADR-104 supersedes the fountain-only clauses in ADR-088/094/100.
 
 ### 深淵之橋 touch audit across every control (ADR-107)
 
@@ -51,13 +49,11 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 ### 深淵之橋 shop taps on a real phone (ADR-106)
 
-- Penny had gold, the card lit gold, pressing it did nothing. The highlight and `sim.buy` agree —
-  ADR-104 made `canShop()` return `!!c` — the fault was one layer up: the panel is `overflow-y:
-  auto` with `touch-action: pan-y`, so on iOS a tap that drifts a few pixels counts as a scroll and
-  **no `click` is synthesised**. Desktop mice and `touchscreen.tap()` never drift, so the suite
-  stayed green while the phone was dead.
-- Cards and bag slots now commit on a guarded `pointerup`, show a press state, and name the
-  failure reason instead of listing possibilities.
+- Penny had gold, the card lit gold, pressing it did nothing. The highlight and `sim.buy` agreed;
+  the fault was one layer up — an `overflow-y: auto` panel with `touch-action: pan-y`, where iOS
+  reads a few pixels of drift as a scroll and **synthesises no `click`**. Desktop mice and
+  `touchscreen.tap()` never drift, so the suite stayed green while the phone was dead.
+- Cards and bag slots commit on a guarded `pointerup` and name the failure reason.
 
 ### 深淵之橋 crowded-fight FX review (ADR-105)
 
@@ -81,8 +77,8 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
   browser cannot reach `fonts.googleapis.com` in this sandbox. Hub code is unchanged and the page
   falls back to system fonts; Xiangqi build + selftests → pass.
 - `node games/moba/tests/cache-bust.mjs` → pass; all six entry/resource tokens agree.
-- `node games/moba/tests/sim.mjs` → **206/206 pass**. Twelve mirrored matches: 11 nexus finishes,
-  1 time-limit, no NaN or bridge escape.
+- `node games/moba/tests/sim.mjs` → **208/208 pass**, including the new level-1 attack-pacing gate.
+  Twelve mirrored matches: 11 nexus finishes, 1 time-limit, no NaN or bridge escape.
 - `node games/moba/tests/browser.mjs` → **114/114 pass**, landscape and portrait (bundled
   Chromium; `PW_CHROMIUM` overrides). Away-from-fountain purchase, three close routes, full
   matches, FX gates, zero errors, a following sigil past 90% scale a quarter-second in, no
@@ -90,25 +86,29 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 ## Changed files
 
-- Hub launcher plus follow-up: `index.html`, `launcher.js`, `style.css`, `tests/hub.mjs`, Xiangqi
-  source/build files, ADR-102, and this handoff.
-- MOBA checkpoint plus shop fix: `games/moba/{index.html,style.css}`, `src/{ai,hud,main,sim}.js`,
-  `tests/{browser,cache-bust,sim}.mjs`, root `launcher.js`, and `docs/ai/*.md`.
+- Hub: `index.html`, `launcher.js`, `style.css`, `tests/hub.mjs`, Xiangqi source/build files.
+- MOBA: `games/moba/{index.html,style.css}`, `src/{ai,champions,constants,hud,main,sim,tap}.js`,
+  `tests/{browser,cache-bust,sim}.mjs`, root `index.html`/`launcher.js`, and `docs/ai/*.md`.
 
 ## Known issues and cautions
 
 - The crowded-fight review is now done (ADR-105); what remains unjudged is a physical phone.
 - Xiangqi `npm ci` reports four pre-existing audit findings; not auto-fixed (toolchain risk).
 - Two local named stashes may be redundant pre-commit backups; do not re-apply them on `main`.
+- The cache token only busts `style.css`, `main.js`, `hud.js`, `sim.js`. Data modules such as
+  `champions.js` and `constants.js` are imported without a query, so a balance change can ship
+  behind a stale cache. Pre-existing; fixing it needs one consistent query per module URL.
 
 ## Exact next action
 
-1. Sync, then playtest on a physical phone. That is now the only unmeasured axis: frame pacing
-   here is bounded by software rasterisation, so it says nothing about real hardware.
-2. If phone frame pacing does turn out bad, the first lever is merging each sigil's parts into one
+1. Investigate the red-side win skew: 24/72 blue across three mirrored 24-match sets, measured
+   both before and after ADR-108, so it is structural — spawn side, wave timing, or bot ordering.
+2. Sync, then playtest on a physical phone. Frame pacing here is bounded by software
+   rasterisation, so it says nothing about real hardware.
+3. If phone frame pacing does turn out bad, the first lever is merging each sigil's parts into one
    buffer geometry — draw calls go 94 idle → 1311 at the synthetic six-champion peak because every
    ring, ray, spike and rim is its own mesh. Cutting effects is the wrong lever; see ADR-105.
-3. Portrait (430×860) spends roughly half the screen on abyss and water, with the lane in a thin
+4. Portrait (430×860) spends roughly half the screen on abyss and water, with the lane in a thin
    band. It is thematically correct but wasteful; worth a framing pass if Penny raises it.
 
 ## Do not redo

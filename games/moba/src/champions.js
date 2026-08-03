@@ -22,7 +22,7 @@ export const CHAMPIONS = {
         hp: 640, hpPerLvl: 105, hpRegen: 8, hpRegenPerLvl: 0.8,
         mp: 280, mpPerLvl: 40, mpRegen: 7, mpRegenPerLvl: 0.6,
         damage: 62, dmgPerLvl: 4.2, armour: 34, armourPerLvl: 4.0,
-        attackSpeed: 0.68, attackSpeedPerLvl: 0.018, range: 2.2, speed: 6.5,
+        attackSpeed: 0.952, attackSpeedPerLvl: 0.018, range: 2.2, speed: 6.5,
         passive: {
             name: '愈戰愈厚',
             text: '每受到一次英雄傷害，護甲 +3（最多疊 8 層，離開戰鬥 6 秒清空）。',
@@ -59,7 +59,7 @@ export const CHAMPIONS = {
         hp: 445, hpPerLvl: 72, hpRegen: 5, hpRegenPerLvl: 0.5,
         mp: 300, mpPerLvl: 42, mpRegen: 8, mpRegenPerLvl: 0.7,
         damage: 60, dmgPerLvl: 4.4, armour: 19, armourPerLvl: 2.8,
-        attackSpeed: 0.72, attackSpeedPerLvl: 0.024, range: 10.4, speed: 6.4,
+        attackSpeed: 1.008, attackSpeedPerLvl: 0.024, range: 10.4, speed: 6.4,
         projectile: 'arrow',
         passive: {
             name: '瞄準',
@@ -99,7 +99,7 @@ export const CHAMPIONS = {
         hp: 460, hpPerLvl: 74, hpRegen: 5, hpRegenPerLvl: 0.5,
         mp: 420, mpPerLvl: 58, mpRegen: 10, mpRegenPerLvl: 0.9,
         damage: 54, dmgPerLvl: 3.2, armour: 19, armourPerLvl: 2.8,
-        attackSpeed: 0.63, attackSpeedPerLvl: 0.016, range: 9.5, speed: 6.3,
+        attackSpeed: 0.882, attackSpeedPerLvl: 0.016, range: 9.5, speed: 6.3,
         ap: 0, apPerLvl: 14,
         projectile: 'ember',
         passive: {
@@ -140,7 +140,7 @@ export const CHAMPIONS = {
         hp: 565, hpPerLvl: 94, hpRegen: 7, hpRegenPerLvl: 0.7,
         mp: 300, mpPerLvl: 40, mpRegen: 8, mpRegenPerLvl: 0.7,
         damage: 70, dmgPerLvl: 5.0, armour: 28, armourPerLvl: 3.8,
-        attackSpeed: 0.7, attackSpeedPerLvl: 0.026, range: 2.4, speed: 6.9,
+        attackSpeed: 0.98, attackSpeedPerLvl: 0.026, range: 2.4, speed: 6.9,
         passive: {
             name: '背刺',
             text: '由目標背後攻擊，多 30% 傷害。',
@@ -176,7 +176,7 @@ export const CHAMPIONS = {
         hp: 585, hpPerLvl: 96, hpRegen: 8, hpRegenPerLvl: 0.8,
         mp: 380, mpPerLvl: 52, mpRegen: 10, mpRegenPerLvl: 0.9,
         damage: 58, dmgPerLvl: 3.8, armour: 30, armourPerLvl: 3.9,
-        attackSpeed: 0.68, attackSpeedPerLvl: 0.022, range: 8.5, speed: 6.6,
+        attackSpeed: 0.952, attackSpeedPerLvl: 0.022, range: 8.5, speed: 6.6,
         ap: 0, apPerLvl: 10,
         projectile: 'ember',
         passive: {
@@ -215,7 +215,7 @@ export const CHAMPIONS = {
         hp: 610, hpPerLvl: 100, hpRegen: 8, hpRegenPerLvl: 0.8,
         mp: 260, mpPerLvl: 36, mpRegen: 7, mpRegenPerLvl: 0.6,
         damage: 70, dmgPerLvl: 5.2, armour: 31, armourPerLvl: 3.9,
-        attackSpeed: 0.70, attackSpeedPerLvl: 0.024, range: 2.6, speed: 6.5,
+        attackSpeed: 0.98, attackSpeedPerLvl: 0.024, range: 2.6, speed: 6.5,
         passive: {
             name: '狂性',
             text: '生命低於 40% 時，攻擊速度 +30%——愈殘愈快。',

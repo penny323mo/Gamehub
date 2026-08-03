@@ -9,7 +9,7 @@
 import { Sim } from '../src/sim.js';
 import { createBot } from '../src/ai.js';
 import { CHAMPIONS, CHAMPION_IDS, abilityRank } from '../src/champions.js';
-import { TEAM, MAP, TICK, XP_TO_LEVEL, MAX_LEVEL, GAME_MAX, TOWER, structureArmour } from '../src/constants.js';
+import { TEAM, MAP, TICK, XP_TO_LEVEL, MAX_LEVEL, GAME_MAX, TOWER, MINION, structureArmour } from '../src/constants.js';
 import { ITEMS, BUILDS, MAX_ITEMS, itemBonus, nextPurchase } from '../src/items.js';
 
 let pass = 0, fail = 0;
@@ -639,6 +639,34 @@ function dodgeCase(px, speed) {
     sim.orderStop(c);
     sim.step();
     check('停止命令後下一格會回復 idle', c.moving === false, c.moving);
+}
+
+// ---------- T25：一級普攻嘅節奏 ----------
+// Penny 報過「普攻嘅 CD 係咪太長」。量咗先知唔係感覺問題：舊數值一級出手
+// 隔 1.34–1.55 秒，而且要六至七下先劈得冧一隻近戰兵，即係開場每隻兵要企喺
+// 度撳足八到十一秒。一波六隻兵就係成分鐘，而嗰陣正正係玩家第一印象。
+//
+// 呢度釘住嘅係設計意圖，唔係今日嗰組數：一隻手機 MOBA 嘅普攻要大約一秒
+// 一下，而開場劈冧一隻近戰兵唔應該講緊十秒。上限行八秒係因為法師（燼燃）
+// 設計上就係最低攻擊力嗰個，佢清兵靠 W 唔靠普攻；用佢做天花板即係話
+// 「連最唔擅長普攻嗰個都唔會等到十秒」。門檻留咗浮動位，微調數值唔會無故
+// 拉爆佢，但如果有人再推返去 1.5 秒／12 秒就一定會響。
+{
+    let slowest = 0, longest = 0, slowId = null, longId = null;
+    for (const id of CHAMPION_IDS) {
+        const sim = new Sim({ seed: 21, lineups: { [TEAM.BLUE]: [id, 'ironward', 'longshot'], [TEAM.RED]: ['duskblade', 'emberwake', 'ironhulk'] } });
+        const hero = sim.champions[0];
+        const st = sim.stats(hero);
+        const gap = 1 / st.attackSpeed;
+        // 開場嗰刻嘅近戰兵：hpPerMin 由零分鐘計起，所以就係 base hp。
+        const ttk = Math.ceil(MINION.melee.hp / st.damage) * gap;
+        if (gap > slowest) { slowest = gap; slowId = id; }
+        if (ttk > longest) { longest = ttk; longId = id; }
+    }
+    check('一級普攻至少一秒一下（最慢嗰個都唔過 1.15 秒）',
+        slowest <= 1.15, { 最慢: slowId, 出手間隔: +slowest.toFixed(2) });
+    check('開場劈冧一隻近戰兵唔使夠八秒',
+        longest <= 8, { 最耐: longId, 秒: +longest.toFixed(1) });
 }
 
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);

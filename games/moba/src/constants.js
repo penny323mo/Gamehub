@@ -62,7 +62,7 @@ export const TOWER_DECAY_TO = 60 * 18;
 export const MINION = {
     melee: {
         key: 'melee', model: 'skeleton_minion', count: 3,
-        hp: 400, hpPerMin: 9, armour: 0, damage: 13, dmgPerMin: 1.6,
+        hp: 330, hpPerMin: 9, armour: 0, damage: 13, dmgPerMin: 1.6,
         range: 1.8, attackSpeed: 1.25, speed: 5.2, gold: 21, xp: 60, scale: 0.62,
     },
     ranged: {
