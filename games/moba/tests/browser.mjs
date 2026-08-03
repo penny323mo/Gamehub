@@ -643,8 +643,12 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     // 換算公式——抄一次就等於自己驗自己。
     const pushUp = await page.evaluate(async () => {
         const s = window.__sim, p = s.player;
-        p.x = 0; p.z = 0; p.alive = true;
+        // 要企喺空曠地方先量得準。之前擺喺中線 (0,0)，兵線就喺隔籬，單位互相
+        // 推撞令角色橫移咗 2.29 米——量到嘅唔再係「搖桿指去邊」，而係「撞緊
+        // 幾多隻兵」。搬返自己半場，隔開兵線。
+        p.x = (p.team === 0 ? -1 : 1) * 40; p.z = 0; p.alive = true;
         p.orderX = null; p.orderZ = null; p.orderTarget = null;
+        const start = { x: p.x, z: p.z };
         const canvas = document.querySelector('#gl');
         const cx = 70, cy = Math.min(innerHeight * 0.58, innerHeight - 150);
         const touch = (x, y) => new Touch({ identifier: 77, target: canvas, clientX: x, clientY: y,
@@ -656,7 +660,9 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
         canvas.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, cancelable: true,
             touches: [b], targetTouches: [b], changedTouches: [b] }));
         await new Promise(r => setTimeout(r, 700));
-        const moved = { x: p.x, z: p.z };
+        // 位移，唔係位置。之前起點啱啱好係 (0,0)，兩者數值一樣，所以一搬動
+        // 起點就即刻讀成「行咗四十米」。
+        const moved = { x: p.x - start.x, z: p.z - start.z };
         canvas.dispatchEvent(new TouchEvent('touchend', { bubbles: true, cancelable: true,
             touches: [], targetTouches: [], changedTouches: [b] }));
         const toEnemy = p.team === 0 ? 1 : -1;

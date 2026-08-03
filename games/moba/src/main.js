@@ -4,25 +4,26 @@
 // 兩樣分開嘅原因同 sim.js 唔 import three.js 一樣：規則要可重現，
 // 畫面要跟硬件。一個 120Hz 螢幕唔應該令小兵行快一倍。
 
-import { Assets } from './assets.js?v=graph-token-8';
-import { armTap } from './tap.js?v=graph-token-8';
-import { Sim } from './sim.js?v=graph-token-8';
-import { createBot } from './ai.js?v=graph-token-8';
-import { View } from './view.js?v=graph-token-8';
-import { Hud } from './hud.js?v=graph-token-8';
-import { createInput } from './input.js?v=graph-token-8';
-import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=graph-token-8';
-import { TEAM, TICK, teamName } from './constants.js?v=graph-token-8';
-import { CHAMPION_LOOK } from './looks.js?v=graph-token-8';
-import { Sfx } from './sfx.js?v=graph-token-8';
-import { settings } from './settings.js?v=graph-token-8';
-import { renderPortraits } from './portraits.js?v=graph-token-8';
+import { Assets } from './assets.js?v=fair-order-9';
+import { armTap } from './tap.js?v=fair-order-9';
+import { Sim } from './sim.js?v=fair-order-9';
+import { createBot, updateBots } from './ai.js?v=fair-order-9';
+import { View } from './view.js?v=fair-order-9';
+import { Hud } from './hud.js?v=fair-order-9';
+import { createInput } from './input.js?v=fair-order-9';
+import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=fair-order-9';
+import { TEAM, TICK, teamName } from './constants.js?v=fair-order-9';
+import { CHAMPION_LOOK } from './looks.js?v=fair-order-9';
+import { Sfx } from './sfx.js?v=fair-order-9';
+import { settings } from './settings.js?v=fair-order-9';
+import { renderPortraits } from './portraits.js?v=fair-order-9';
 
 const $ = (sel) => document.querySelector(sel);
 
 const state = {
     assets: null, sim: null, view: null, hud: null, input: null, bots: [], sfx: null,
     acc: 0, last: 0, running: false, raf: 0,
+    tickCount: 0,        // updateBots 用嚟逐格對調決策次序
 };
 
 // ---------- 載入 ----------
@@ -103,6 +104,7 @@ function startMatch(playerChamp) {
     state.sim = sim;
     // 玩家嗰個唔開 bot：唔可以有一個隱形嘅第二隻手幫你揸
     state.bots = sim.champions.filter(c => !c.isPlayer).map(c => createBot(sim, c));
+    state.tickCount = 0;
 
     const canvas = $('#gl');
     state.hud = new Hud($('#hud'), sim);
@@ -176,7 +178,7 @@ function frame(now) {
     const events = [];
     while (state.acc >= TICK && steps < 6) {
         state.input.update();
-        for (const b of state.bots) b.update(TICK);
+        updateBots(state.bots, TICK, state.tickCount++);
         state.sim.step(TICK);
         const stepEvents = state.sim.drain();
         events.push(...stepEvents);

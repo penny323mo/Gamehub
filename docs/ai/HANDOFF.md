@@ -13,6 +13,18 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 ## Completed
 
+### 深淵之橋 bot decision order was picking a winner (ADR-113)
+
+- A bot decision writes straight into sim state, so a bot updated later reads a world where the
+  others have already moved this tick. Champions are created blue-first, so the edge always
+  landed on the same side. Measured on 72 mirrored matches, changing only the iteration order:
+  blue-first → blue wins **33/72**; red-first → **48/72**; alternating → **35/72** (expected 36).
+- The player is always blue and their two bot teammates are created before the three enemies, so
+  the systematic loser was the player's own team.
+- `updateBots(bots, dt, tick)` in `ai.js` alternates direction each tick; no caller iterates the
+  list any more. Bias cancels exactly every two ticks, and the match stays deterministic.
+- Nexus finishes 65/72 → **69/72**, average match 17.5 → **15.4 min**.
+
 ### 深淵之橋 portrait puts the lane up the screen (ADR-110)
 
 - Measured, portrait spent **83.6% of the screen on abyss and water**. The cause is geometric:
@@ -28,30 +40,16 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 - The lane-overview bar stands up in portrait too: same drawing code, one canvas transform, and
   CSS alone decides the axis. Its gate reads the rendered pixels against the projected nexuses.
 
-### 深淵之橋 the first random number of every match was not random (ADR-109)
+### 深淵之橋 the RNG and the attack pacing (ADR-109, ADR-108)
 
-- Mirrored 3v3 gave blue only 24/72 wins. The cause was not balance: `makeRng` used the seed
-  directly as xorshift32 state, and a small integer needs several iterations to diffuse. The
-  **mean first output was 0.007–0.019** across the seed sets in use, never 0.5. Sequential seeds
-  made neighbouring matches correlated, so more matches did not wash it out.
-- The first consumer is the first bot's reaction offset, so blue's first champion began every
-  match with a fixed extreme value. Seed is now scrambled and eight outputs discarded.
-- Blue wins go **24/72 → 33/72** — 0.7σ from even, so no side bias survives that the sample sees.
-- ADR-108's published figures were measured on the biased sample and have been **corrected in
-  place**; the pacing gain holds at 58/72 → 65/72 and 19.5 → 17.5 min.
-
-### 深淵之橋 basic-attack pacing (ADR-108)
-
-- Penny asked whether the basic-attack cooldown was too long. Measured: at level 1 the interval was
-  1.39–1.59 s and a melee minion took 6–8 swings, so **one minion cost 8.6–12.7 seconds** and a
-  wave is six of them. A melee minion swings every 0.8 s — the champion was slower than the creeps.
-- Base attack speed ×1.4 for all six; melee minion 400 → 330 HP. Per-level growth, per-hit damage,
-  ability damage and item values untouched. Level 1 is now 0.99–1.13 s and 5.1–7.9 s per minion.
-- Validated on **three independent 24-match sets**, none of them T13's twelve seeds, and
-  re-measured after ADR-109: nexus finishes 58/72 → 65/72, average match 19.5 → 17.5 min, kills
-  29.3 → 31.8. No sim gate was re-baselined. Blue takes 33/72 both before and after, so the
-  pacing change is side-neutral.
-
+- `makeRng` used the seed directly as xorshift32 state, so the **first output averaged 0.007**
+  across the seed sets in use — and its first consumer is the first bot's reaction time. Seed is
+  now scrambled with eight outputs discarded. Blue wins 24/72 → 33/72; the rest was ADR-113.
+- Attack pacing: level 1 used to be 1.39–1.59 s per swing and **8.6–12.7 s to kill one minion**,
+  slower than the minions themselves. Base attack speed ×1.4 and melee minion 400 → 330 HP put it
+  at 0.99–1.13 s and 5.1–7.9 s. Ability damage, per-level growth and item values untouched.
+- ADR-108's published figures were re-measured after ADR-109 because the first set was taken on
+  the biased sample. Corrected in place; the gain holds at 58/72 → 65/72 nexus finishes.
 ### Earlier checkpoints, in one line each
 
 - Hub launcher: paged groups of four, swipe/arrows/keyboard/dots in one footer dock; Gomoku CSS
@@ -76,8 +74,8 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
   request; the suite gates both the loaded font and the absence of outside traffic. Xiangqi build
   + selftests → pass.
 - `node games/moba/tests/cache-bust.mjs` → pass; all six entry/resource tokens agree.
-- `node games/moba/tests/sim.mjs` → **212/212 pass**, including the level-1 attack-pacing gate and
-  the RNG-diffusion gate. Twelve mirrored matches still finish, no NaN or bridge escape.
+- `node games/moba/tests/sim.mjs` → **215/215 pass**, including the attack-pacing, RNG-diffusion
+  and bot-order gates. Twelve mirrored matches still finish, no NaN or bridge escape.
 - `node games/moba/tests/browser.mjs` → **127/127 pass**, landscape and portrait (bundled
   Chromium; `PW_CHROMIUM` overrides). Away-from-fountain purchase, three close routes, full
   matches, FX gates, zero errors, a following sigil past 90% scale a quarter-second in, no

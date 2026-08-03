@@ -10,10 +10,10 @@ import { EffectComposer } from '../vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from '../vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/postprocessing/OutputPass.js';
-import { MAP, TEAM } from './constants.js?v=graph-token-8';
-import { CHAMPION_LOOK, MINION_LOOK, ARENA_LOOK, TEAM_COLOUR, CLIP, championFx } from './looks.js?v=graph-token-8';
-import { Rig } from './rig.js?v=graph-token-8';
-import { Fx } from './fx.js?v=graph-token-8';
+import { MAP, TEAM } from './constants.js?v=fair-order-9';
+import { CHAMPION_LOOK, MINION_LOOK, ARENA_LOOK, TEAM_COLOUR, CLIP, championFx } from './looks.js?v=fair-order-9';
+import { Rig } from './rig.js?v=fair-order-9';
+import { Fx } from './fx.js?v=fair-order-9';
 
 const sideSign = (team) => (team === TEAM.BLUE ? -1 : 1);
 const UP = new THREE.Vector3(0, 1, 0);

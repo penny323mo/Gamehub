@@ -7,7 +7,7 @@
 // 跑法：node games/moba/tests/sim.mjs
 
 import { Sim } from '../src/sim.js';
-import { createBot } from '../src/ai.js';
+import { createBot, updateBots } from '../src/ai.js';
 import { CHAMPIONS, CHAMPION_IDS, abilityRank } from '../src/champions.js';
 import { TEAM, MAP, TICK, XP_TO_LEVEL, MAX_LEVEL, GAME_MAX, TOWER, MINION, structureArmour } from '../src/constants.js';
 import { ITEMS, BUILDS, MAX_ITEMS, itemBonus, nextPurchase } from '../src/items.js';
@@ -269,7 +269,7 @@ function pickTargetFor(sim, minion) {
     let guard = 0;
     const maxTicks = (GAME_MAX + 5) / TICK;
     while (!sim.over && guard++ < maxTicks) {
-        for (const b of bots) b.update(TICK);
+        updateBots(bots, TICK, guard);
         sim.step();
     }
     const mins = (sim.time / 60).toFixed(1);
@@ -298,7 +298,7 @@ function pickTargetFor(sim, minion) {
         const bots = sim.champions.map(c => createBot(sim, c));
         let guard = 0;
         while (!sim.over && guard++ < (GAME_MAX + 5) / TICK) {
-            for (const b of bots) b.update(TICK);
+            updateBots(bots, TICK, guard);
             sim.step();
         }
         if (sim.over?.winner != null) wins[sim.over.winner] += 1; else noResult++;
@@ -477,7 +477,7 @@ function armourMulOf(sim, e) { return 100 / (100 + sim.stats(e).armour); }
     const bots = sim2.champions.map(c => createBot(sim2, c));
     let sawCast = false;
     for (let t = 0; t < 60 * 4 / TICK && !sawCast; t++) {
-        for (const b of bots) b.update(TICK);
+        updateBots(bots, TICK, t);
         sim2.step();
         if (sim2.drain().some(e => e.type === 'cast')) sawCast = true;
     }
@@ -487,7 +487,7 @@ function armourMulOf(sim, e) { return 100 / (100 + sim.stats(e).armour); }
     const sim3 = new Sim({ seed: 57 });
     const bots3 = sim3.champions.map(c => createBot(sim3, c));
     for (let t = 0; t < 60 * 3 / TICK; t++) {
-        for (const b of bots3) b.update(TICK);
+        updateBots(bots3, TICK, t);
         sim3.step();
     }
     check('冇人 drain 嘅時候事件有上限', sim3.events.length <= 512, sim3.events.length);
@@ -697,6 +697,29 @@ function dodgeCase(px, speed) {
     const a = new Sim({ seed: 4242 }).rng, b = new Sim({ seed: 4242 }).rng;
     const seq = (r) => Array.from({ length: 5 }, () => r());
     check('同一個 seed 抽到同一串數', JSON.stringify(seq(a)) === JSON.stringify(seq(b)));
+}
+
+// ---------- T27：bot 決策次序唔可以偏袒任何一邊 ----------
+// bot 落單即刻改到 sim 狀態，所以排後面嗰個讀到嘅世界比排前面嗰個新。實測
+// 鏡像陣容 72 場：藍方先諗，藍方贏 33；紅方先諗，藍方贏 48；逐格對調就
+// 35（期望值 36）。同一份碼、同一組 seed，分別淨係邊個排前面。
+//
+// 呢度度嘅係機制本身——勝率要跑七十幾場先睇得出，唔適合做 fast gate。
+{
+    const order = [];
+    const fake = ['a', 'b', 'c', 'd'].map(name => ({ update: () => order.push(name) }));
+    updateBots(fake, TICK, 0);
+    const even = order.join('');
+    order.length = 0;
+    updateBots(fake, TICK, 1);
+    const odd = order.join('');
+    check('雙數格順住行、單數格倒轉行', even === 'abcd' && odd === 'dcba', { even, odd });
+    check('每一格入面每個 bot 都啱啱好行一次',
+        even.length === 4 && new Set(even).size === 4 && new Set(odd).size === 4, { even, odd });
+    // 兩格加埋，每個位置做「第一個」嘅次數兩邊一樣——偏差係準確抵銷，
+    // 唔係靠統計上拉勻。
+    check('連續兩格之後，頭位同尾位各自輪過一次',
+        even[0] === odd[odd.length - 1] && even[even.length - 1] === odd[0], { even, odd });
 }
 
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);

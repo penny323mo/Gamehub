@@ -5,9 +5,9 @@
 // 公平原則（同 royale 嘅 ADR-007 一致）：bot 用同一套 sim API、同一批數值、
 // 同一個施法距離。佢哋唯一嘅「優勢」係唔會手殘，唯一嘅劣勢係決策簡單。
 
-import { TEAM, MAP, enemyOf } from './constants.js?v=graph-token-8';
-import { abilityRank } from './champions.js?v=graph-token-8';
-import { nextPurchase, ITEMS, BUILDS, MAX_ITEMS } from './items.js?v=graph-token-8';
+import { TEAM, MAP, enemyOf } from './constants.js?v=fair-order-9';
+import { abilityRank } from './champions.js?v=fair-order-9';
+import { nextPurchase, ITEMS, BUILDS, MAX_ITEMS } from './items.js?v=fair-order-9';
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const sideSign = (team) => (team === TEAM.BLUE ? -1 : 1);
@@ -29,6 +29,25 @@ function effectiveHp(sim, c) {
 function threat(sim, c) {
     const st = sim.stats(c);
     return effectiveHp(sim, c) * st.damage * st.attackSpeed;
+}
+
+// 一格入面更新全部 bot。
+//
+// 點解唔可以淨係 `for (const b of bots) b.update(dt)`：bot 落單係即刻改到
+// sim 狀態嘅，所以排喺後面嘅 bot 讀到嘅係「隊友已經郁咗之後」嘅世界，而排
+// 頭嗰個讀嘅係舊一格嘅。呢個唔係理論上嘅潔癖——量到嘅：鏡像陣容 72 場，
+// 藍方先諗嘅時候藍方贏 33 場，反轉做紅方先諗，藍方贏 48 場。同一份碼、同一
+// 組 seed，差別淨係邊個排喺前面。後手贏多啲。
+//
+// 而玩家永遠喺藍方，佢班隊友嘅 bot 就永遠排喺紅方前面，即係玩家嗰邊長期
+// 食暗虧。
+//
+// 最徹底嘅做法係「全部人先諗，然後先一齊落單」，但噉樣要將 ai.js 嘅決策同
+// 落單拆開，改動大而且容易漏。呢度用逐格對調次序：偏差每兩格就準確抵銷一
+// 次，唔使靠統計上拉勻，亦都完全決定性（同一個 seed 仍然跑到同一場波）。
+export function updateBots(bots, dt, tick) {
+    if (tick % 2 === 0) for (let i = 0; i < bots.length; i++) bots[i].update(dt);
+    else for (let i = bots.length - 1; i >= 0; i--) bots[i].update(dt);
 }
 
 export function createBot(sim, champ, opts = {}) {

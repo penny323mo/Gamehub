@@ -2187,3 +2187,40 @@ follows what the tyres can use
   `loaded` with zero failed requests.
 - Not done: `games/tower` (Inter, Oxanium). Its `@import` is bundled into
   `dist/assets/index-*.js`, so moving it means running that build — a separate job.
+
+## ADR-113: Whichever team's bots decided last was winning more
+
+- Date: 2026-08-03
+- Status: accepted
+- Decision: bot decisions now alternate direction every tick, through one shared `updateBots(bots,
+  dt, tick)` in `ai.js` that `main.js` and the test harnesses both call. No caller iterates the
+  bot list itself any more.
+- Reason: a bot's decision writes straight into sim state — `orderMove`, `orderAttack` and `cast`
+  all mutate immediately. So a bot updated later in the loop reads a world in which its allies and
+  opponents have *already moved this tick*, while the first bot in the list reads last tick's
+  world. That is a within-tick information advantage, and it lands entirely on one side because
+  champions are created blue-first.
+- Measured across the same three 24-match mirrored sets (72 matches), changing nothing but the
+  iteration order:
+  - blue decides first → blue wins **33/72**
+  - red decides first → blue wins **48/72**
+  - alternating → blue wins **35/72**, against an expected 36
+- This is what was left over after ADR-109. The RNG bug and this one were pulling the same way,
+  which is why the residual after fixing the RNG still looked like a red-side edge.
+- The player is always blue, and the player's two bot teammates are always created before the
+  three enemy bots. So the systematic loser was the player's own team.
+- Rejected — "everyone decides from a snapshot, then all orders apply". That is the fully correct
+  model, but it means splitting decision from mutation throughout `ai.js`, and every path that
+  currently calls `sim.cast` mid-decision would need an intent object. Alternating cancels the
+  bias **exactly** every two ticks rather than statistically, costs one parameter, and stays
+  deterministic — same seed, same match.
+- Side effect worth noting: nexus finishes went 65/72 → **69/72** and average match 17.5 → 15.4
+  min. Removing a persistent structural edge makes matches resolve on play rather than grind.
+- Gate: T27 drives `updateBots` with recording stubs and asserts the two-tick cycle visits every
+  bot exactly once and swaps first and last. The win-rate evidence needs 72 matches, which is not
+  a fast gate; the mechanism is what a test can hold.
+- One gate needed fixing on the way, twice, and both were the gate's fault. It measured the
+  champion's **absolute position** as if it were displacement — true only while the start happened
+  to be the origin — and it took its measurement mid-wave, where unit collision pushed the
+  champion 2.29 m sideways and swamped the direction being tested. It now starts from a clear spot
+  in friendly territory and subtracts the start. Perpendicular drift is 0.00 in both orientations.
