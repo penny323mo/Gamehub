@@ -1,4 +1,14 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
+/* Outfit，自己託管。之前呢度 @import 去 Google Fonts，開每一頁都要等兩個
+   擋住渲染嘅跨網域來回（先 CSS、再 woff2）；網絡差就係一段白畫面，冇網
+   就直接跌返做系統字。Google 對 300–800 五個字重派嘅係同一條 URL，所以
+   一個檔已經覆蓋晒。授權同出處見 assets/fonts/README.md。 */
+@font-face {
+    font-family: 'Outfit';
+    font-style: normal;
+    font-weight: 300 800;
+    font-display: swap;
+    src: url('../../assets/fonts/outfit-latin.woff2') format('woff2');
+}
 
 :root {
     /* Dark Theme Palette */

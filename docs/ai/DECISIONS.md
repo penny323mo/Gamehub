@@ -2157,3 +2157,28 @@ follows what the tyres can use
   right, the machine was just busier. They now require the displacement to lie along the intended
   screen axis and to dominate the perpendicular component, which is what "push up goes up"
   actually claims. A distance threshold in a timed window measures how loaded the box is.
+
+## ADR-112: The hub fetched its font from Google on every page load
+
+- Date: 2026-08-03
+- Status: accepted
+- Decision: Outfit is vendored at `assets/fonts/outfit-latin.woff2` (SIL OFL 1.1, licence and
+  provenance in `assets/fonts/`). The hub and three game stylesheets declare a local `@font-face`
+  instead of `@import`ing from `fonts.googleapis.com`.
+- Reason: the old `@import` cost **two blocking cross-origin round trips per page** — fetch the
+  CSS, then fetch the woff2 the CSS names — before any text could render in the intended face. On
+  a slow phone connection that is the blank stretch after tapping a game. With no network at all
+  it silently falls back to system fonts, which is how this was found: the hub suite had four
+  failures, all one blocked request.
+- One file covers everything: Google's CSS serves the **same URL for all five weights** (300–800),
+  so a single 32 KB latin subset loses nothing. Declared as `font-weight: 300 800` rather than
+  five identical rules.
+- Rejected — a shared `assets/fonts/outfit.css` that each page `@import`s. That reinstates one of
+  the two round trips it was meant to remove. Each stylesheet declares the face itself with its
+  own relative path; four short duplicated blocks beat a request.
+- Gates: the hub suite now asserts `document.fonts.check('700 16px Outfit')` at each of its four
+  sizes, and separately that the page makes **no external request at all**. "Zero console errors"
+  never caught this — a font that fails to load is not an error, it is a silent downgrade. Hub is
+  now **83/83**, up from 71/75 where the four failures were this bug.
+- Not done: `games/tower` (Inter, Oxanium) and `games/snake-game` (Orbitron, Rajdhani) still fetch
+  from Google. Both have build steps, so moving them is a separate job.

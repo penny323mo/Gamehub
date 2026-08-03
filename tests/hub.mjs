@@ -19,7 +19,7 @@ const { chromium } = await import(pathToFileURL(PW).href);
 
 const MIME = {
     '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
-    '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
+    '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2',
 };
 const server = http.createServer((req, res) => {
     const requestPath = decodeURIComponent(req.url.split('?')[0]);
@@ -144,6 +144,14 @@ for (const viewport of [
     const phone = viewport.width <= 760;
     const page = await browser.newPage({ viewport, deviceScaleFactor: 1, isMobile: phone, hasTouch: true });
     const errors = [];
+    // 主頁唔應該向外網攞任何嘢。呢個唔止係速度：喺公司網、飛機上、或者
+    // 我哋自己個沙盒入面，一個攞唔到嘅外部資源就係一個靜靜哋壞咗嘅頁面。
+    const external = [];
+    page.on('request', r => {
+        if (!r.url().startsWith(`http://127.0.0.1:${port}`) && !r.url().startsWith('data:')) {
+            external.push(r.url());
+        }
+    });
     page.on('pageerror', error => errors.push(`pageerror: ${error.message}`));
     page.on('console', msg => { if (msg.type() === 'error') errors.push(`console: ${msg.text()}`); });
     page.on('response', response => {
@@ -216,6 +224,16 @@ for (const viewport of [
             && Math.abs(last.activeCardCentreOffset.x) <= 2
             && Math.abs(last.activeCardCentreOffset.y) <= 2,
         { first: start.cardSize, last: last.cardSize, offset: last.activeCardCentreOffset });
+    // 字體要真係載到，而且唔准去攞外網。之前呢頁 @import 去 Google Fonts，
+    // 開每一頁都要兩個擋住渲染嘅跨網域來回；喺攞唔到外網嘅環境就靜靜哋跌返
+    // 做系統字，而「零 browser error」係捉唔到嘅——所以要直接問瀏覽器。
+    const font = await page.evaluate(async () => {
+        await document.fonts.ready;
+        return { 用到: document.fonts.check('700 16px Outfit'),
+            面: [...document.fonts].map(f => `${f.family}/${f.status}`) };
+    });
+    check(`${label}：Outfit 真係載到（唔係跌返做系統字）`, font.用到, font);
+    check(`${label}：一個外網請求都冇`, external.length === 0, external.slice(0, 4));
     check(`${label}：零 browser error`, errors.length === 0, errors);
     await page.close();
 }

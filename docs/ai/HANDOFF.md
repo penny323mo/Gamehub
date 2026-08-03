@@ -72,9 +72,9 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 ## Verification
 
-- `node tests/hub.mjs` → **71/75**. All four failures are the same blocked request: the test
-  browser cannot reach `fonts.googleapis.com` in this sandbox. Hub code is unchanged and the page
-  falls back to system fonts; Xiangqi build + selftests → pass.
+- `node tests/hub.mjs` → **83/83**. Outfit is now vendored (ADR-112) so the hub makes no external
+  request; the suite gates both the loaded font and the absence of outside traffic. Xiangqi build
+  + selftests → pass.
 - `node games/moba/tests/cache-bust.mjs` → pass; all six entry/resource tokens agree.
 - `node games/moba/tests/sim.mjs` → **212/212 pass**, including the level-1 attack-pacing gate and
   the RNG-diffusion gate. Twelve mirrored matches still finish, no NaN or bridge escape.
@@ -93,8 +93,9 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 - The crowded-fight review is now done (ADR-105); what remains unjudged is a physical phone.
 - Xiangqi `npm ci` reports four pre-existing audit findings; not auto-fixed (toolchain risk).
-- Playwright lives only in `games/Racing Car/tests/node_modules`; both browser suites now point
-  there by path. If it is missing, run `npm ci` in that directory — nothing else installs it.
+- Playwright lives only in `games/Racing Car/tests/node_modules`; both browser suites point there
+  by path. If missing, run `npm ci` there — nothing else installs it.
+- `games/tower` and `games/snake-game` still fetch fonts from Google; both have build steps.
 - Two local named stashes may be redundant pre-commit backups; do not re-apply them on `main`.
 - Cache token now covers the whole module graph (ADR-111). Change it with
   `node scripts/moba-bump-cache.mjs <token>` — never by hand; a partial rename loads a module
