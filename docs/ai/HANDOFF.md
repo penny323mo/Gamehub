@@ -13,6 +13,15 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 ## Completed
 
+### 深淵之橋 the draw-call worry was measured away (ADR-114)
+
+- ADR-105's 1311 draw calls came from a synthetic stress case (six champions in a two-metre
+  cluster looping every ability). A real match samples at median **42** / peak **286** in
+  portrait and median **162** / peak **342** in landscape — about a quarter of the stress figure
+  and well inside a phone budget. The sigil-geometry merge it recommended is retired.
+- `browser.mjs` now runs two minutes of real match per orientation and fails above **600** draw
+  calls. A budget beats an optimisation aimed at a number that never occurs in play.
+
 ### 深淵之橋 bot decision order was picking a winner (ADR-113)
 
 - A bot decision writes straight into sim state, so a bot updated later reads a world where the
@@ -27,29 +36,26 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 ### 深淵之橋 portrait puts the lane up the screen (ADR-110)
 
-- Measured, portrait spent **83.6% of the screen on abyss and water**. The cause is geometric:
-  the bridge is 17 m wide, so showing ~25 m of lane on a 430×860 screen forces a ~50 m vertical
-  span. No camera placement fixes that — the best steepen-and-pull-in variant reached 23.5%
-  ground while cutting visible lane from 26.9 m to 23.9 m.
+- Portrait spent **83.6% of the screen on abyss and water**. Geometric, not artistic: a 17 m
+  bridge shown across a 430×860 screen forces a ~50 m vertical span, so no camera placement fixes
+  it — the best steepen-and-pull-in variant reached 23.5% ground while cutting visible lane from
+  26.9 m to 23.9 m.
 - The camera now rotates 90° about Y in portrait: own base at the bottom, enemy at the top.
-  **70.1% ground and 36.6 m of lane**, player at 70% down. Landscape is untouched.
-- Joystick, WASD and ability aim-drag speak screen directions, so they share one
-  `screenToWorld` rotation. Ground picking already raycast, so it followed for free.
-- Two old gates hard-coded "+x is right" and were rewritten to measure against the camera's own
-  right/forward vectors. Same failure mode as ADR-109: a fixture carrying an unmeasured claim.
-- The lane-overview bar stands up in portrait too: same drawing code, one canvas transform, and
-  CSS alone decides the axis. Its gate reads the rendered pixels against the projected nexuses.
-
+  **70.1% ground and 36.6 m of lane**, player at 70% down. Landscape untouched.
+- Joystick, WASD and aim-drag speak screen directions and share one `screenToWorld` rotation;
+  ground picking already raycast. The lane-overview bar stands up too — same drawing code, one
+  canvas transform, and CSS alone decides the axis.
+- Two old gates hard-coded "+x is right" and now measure against the camera's own vectors. Same
+  failure mode as ADR-109: a fixture carrying an unmeasured claim.
 ### 深淵之橋 the RNG and the attack pacing (ADR-109, ADR-108)
 
-- `makeRng` used the seed directly as xorshift32 state, so the **first output averaged 0.007**
-  across the seed sets in use — and its first consumer is the first bot's reaction time. Seed is
-  now scrambled with eight outputs discarded. Blue wins 24/72 → 33/72; the rest was ADR-113.
+- `makeRng` used the seed directly as xorshift32 state, so the **first output averaged 0.007** —
+  and its first consumer is the first bot's reaction time. Seed is now scrambled with eight
+  outputs discarded. Blue wins 24/72 → 33/72; the rest was ADR-113.
 - Attack pacing: level 1 used to be 1.39–1.59 s per swing and **8.6–12.7 s to kill one minion**,
   slower than the minions themselves. Base attack speed ×1.4 and melee minion 400 → 330 HP put it
-  at 0.99–1.13 s and 5.1–7.9 s. Ability damage, per-level growth and item values untouched.
-- ADR-108's published figures were re-measured after ADR-109 because the first set was taken on
-  the biased sample. Corrected in place; the gain holds at 58/72 → 65/72 nexus finishes.
+  at 0.99–1.13 s and 5.1–7.9 s. ADR-108's figures were re-measured after ADR-109 (the first set
+  came from the biased sample) and corrected in place; the gain holds at 58/72 → 65/72.
 ### Earlier checkpoints, in one line each
 
 - Hub launcher: paged groups of four, swipe/arrows/keyboard/dots in one footer dock; Gomoku CSS
@@ -70,13 +76,13 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 ## Verification
 
-- `node tests/hub.mjs` → **83/83**. Outfit is now vendored (ADR-112) so the hub makes no external
+- `node tests/hub.mjs` → **83/83**; Racing Car 6/6 suites and Royale 8/8 suites also pass. Outfit is now vendored (ADR-112) so the hub makes no external
   request; the suite gates both the loaded font and the absence of outside traffic. Xiangqi build
   + selftests → pass.
 - `node games/moba/tests/cache-bust.mjs` → pass; all six entry/resource tokens agree.
 - `node games/moba/tests/sim.mjs` → **215/215 pass**, including the attack-pacing, RNG-diffusion
   and bot-order gates. Twelve mirrored matches still finish, no NaN or bridge escape.
-- `node games/moba/tests/browser.mjs` → **127/127 pass**, landscape and portrait (bundled
+- `node games/moba/tests/browser.mjs` → **129/129 pass**, landscape and portrait (bundled
   Chromium; `PW_CHROMIUM` overrides). Away-from-fountain purchase, three close routes, full
   matches, FX gates, zero errors, a following sigil past 90% scale a quarter-second in, no
   wireframe sigils, a drifting tap buys while a 40 px drag does not, every HUD button ≥44 px.
@@ -89,12 +95,10 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 ## Known issues and cautions
 
-- The crowded-fight review is now done (ADR-105); what remains unjudged is a physical phone.
 - Xiangqi `npm ci` reports four pre-existing audit findings; not auto-fixed (toolchain risk).
 - Playwright lives only in `games/Racing Car/tests/node_modules`; both browser suites point there
   by path. If missing, run `npm ci` there — nothing else installs it.
 - `games/tower` still fetches Inter/Oxanium from Google; its @import is inside the built bundle.
-- Two local named stashes may be redundant pre-commit backups; do not re-apply them on `main`.
 - Cache token now covers the whole module graph (ADR-111). Change it with
   `node scripts/moba-bump-cache.mjs <token>` — never by hand; a partial rename loads a module
   twice under two URLs. `tests/cache-bust.mjs` fails if any local import is out of step.
@@ -103,15 +107,13 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 1. Sync, then playtest on a physical phone. Frame pacing here is bounded by software
    rasterisation, so it says nothing about real hardware.
-2. If phone frame pacing does turn out bad, the first lever is merging each sigil's parts into one
-   buffer geometry — draw calls go 94 idle → 1311 at the synthetic six-champion peak because every
-   ring, ray, spike and rim is its own mesh. Cutting effects is the wrong lever; see ADR-105.
-3. Nothing else is queued. The next move is Penny playing it on a phone; every axis this
-   environment can measure has been measured.
+2. Do **not** start with the sigil-geometry merge if phone pacing is bad — ADR-114 measured a
+   real match at peak 286 (portrait) / 342 (landscape) draw calls, not the synthetic 1311.
+   Measure the phone first and let it name its own bottleneck.
+3. Nothing else is queued: every axis this environment can measure has been measured.
 
 ## Do not redo
 
-- Do not restore the obsolete local MOBA stashes; the checkpoint is now in Git history.
 - Do not revert the Hub to absolute one-card carousel positioning, platform Gomoku emoji, floating
   edge arrows, or a stretched/left-aligned final partial page.
 - Do not remove champion/ability metadata from sim events or merge all skills back into one ring.

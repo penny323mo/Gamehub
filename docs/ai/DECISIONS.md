@@ -2224,3 +2224,29 @@ follows what the tyres can use
   to be the origin — and it took its measurement mid-wave, where unit collision pushed the
   champion 2.29 m sideways and swamped the direction being tested. It now starts from a clear spot
   in friendly territory and subtracts the start. Perpendicular drift is 0.00 in both orientations.
+
+## ADR-114: The draw-call optimisation ADR-105 recommended is not needed
+
+- Date: 2026-08-03
+- Status: accepted (supersedes ADR-105's "first lever" advice)
+- Decision: do **not** merge sigil parts into single buffer geometries. The recommendation is
+  retired, and a draw-call budget gate is added in its place.
+- Reason: ADR-105 measured 1311 draw calls and named that merge as the first thing to try if phone
+  frame pacing turned out bad. That 1311 came from a **synthetic scenario** — six champions held
+  in a two-metre cluster firing all four abilities on a loop — which was the right way to stress
+  the FX renderer but the wrong number to plan performance around. Measured across a full
+  bot-vs-bot match instead, sampling twice a second:
+  - portrait 430×860 — median **42**, p90 114, p99 210, **peak 286** (11 samples' worth of FX live
+    at the peak: 5 items)
+  - landscape 844×390 — median **162**, p90 249, p99 313, **peak 342**
+- So the realistic peak is about a quarter of the synthetic one, and comfortably inside a phone
+  budget. Spending a day flattening sigil geometry would have been work aimed at a number that
+  never occurs in play.
+- Portrait draws far less than landscape (median 42 vs 162) because the rotated camera sees a
+  narrower slice of the map. An unplanned second benefit of ADR-110.
+- Gate instead of optimisation: `browser.mjs` now runs two minutes of real match per orientation,
+  samples draw calls each second, and fails above **600** — roughly double the measured peak. The
+  point is that a future effect which blows the budget has to be a decision someone notices, not a
+  quiet slide.
+- The honest lesson: a stress test tells you what the renderer does under load; it does not tell
+  you what the game does. Both are worth measuring, but only one of them is a budget.

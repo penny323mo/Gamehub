@@ -733,6 +733,35 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     check(`${tag}：玩家企喺畫面下半但唔會跌出畫外`,
         framing.玩家由頂計 > 45 && framing.玩家由頂計 < 88, framing);
 
+    // Draw call 預算。ADR-105 量過一個人為最壞情況（六個英雄企埋一齊不停放
+    // 技能）係 1311，而嗰個數字之後一直做緊「手機卡就要先做呢樣」嘅理由。
+    // 但真係打緊嗰場波量出嚟：打直中位 42、尖峰 286；打橫中位 162、尖峰 342。
+    // 所以呢度唔係度「有冇做優化」，而係守住一個預算——將來加特效加到穿咗，
+    // 要係一個會響嘅決定，唔係靜靜哋滑落去。
+    const budget = await page.evaluate(async () => {
+        const s = window.__sim, v = window.__view;
+        const { createBot, updateBots } = await import('/games/moba/src/ai.js');
+        const bots = s.champions.filter(c => !c.isPlayer).map(c => createBot(s, c));
+        let peak = 0, peakAt = null, tick = 0;
+        const calls = [];
+        for (let i = 0; i < 30 * 60 * 2; i++) {
+            updateBots(bots, 1 / 30, tick++);
+            s.step(1 / 30);
+            if (i % 30 === 0) {
+                v.update(1, s.drain());
+                v.renderer.info.reset();
+                v.renderer.render(v.scene, v.camera);
+                const c = v.renderer.info.render.calls;
+                calls.push(c);
+                if (c > peak) { peak = c; peakAt = { t: Math.round(s.time), fx: v.fx.items.length }; }
+            }
+            if (s.over) break;
+        }
+        calls.sort((a, b) => a - b);
+        return { 中位: calls[calls.length >> 1], 尖峰: peak, 尖峰嗰刻: peakAt, 取樣: calls.length };
+    });
+    check(`${tag}：一場波入面 draw call 守得住預算（<600）`, budget.尖峰 > 0 && budget.尖峰 < 600, budget);
+
     // 快進成場波：一定要有結果，唔可以卡死或者拋錯
     const outcome = await page.evaluate(() => {
         const s = window.__sim;
