@@ -13,51 +13,51 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 ## Completed
 
+### 深淵之橋 every skillshot had never once hit anything (ADR-117)
+
+- The straight-line projectile loop lived in `#tickZones`, while `#tickProjectiles` iterated
+  **every** projectile and deleted any whose `targetId` did not resolve. Skillshots have no
+  `targetId`, so each one died on the tick it was cast and the code that moves it had **never
+  run**. 穿甲箭 fired point-blank at an enemy: HP 565 → 565. All four skillshots dealt zero.
+- Found while fixing a smaller bug in that same loop: it sampled one point per tick, so a 2.0 m
+  step against a 2.02 m hit radius passed through anything sitting between samples. Now a swept
+  segment test, and both loops live in one function that says which kind is which.
+- T8 stayed green because it asks whether **any** of a champion's four abilities does damage; T29
+  now fires every skillshot and requires damage from each. Effect: nexus 69/72 → **71/72**, match
+  **15.4 → 11.4 min**, blue 39/72. Nothing re-tuned on top — that would blend two changes.
+
 ### 深淵之橋 the smallest real phone had never been opened (ADR-116)
 
-- The suite covered 1280×640 and 430×860. An iPhone SE is neither, and it is exactly where
-  "pin everything to an edge" stops working. One pass at 320×568 / 568×320 found three faults:
-  the HP panel is intrinsically 337 px wide (`moba-stats` is `nowrap`) so it hung off **both**
-  edges at 320; the panel **overlapped the skill buttons 194×60** at 568; the lane bar and
-  scoreboard overlapped 100×26.
-- Same shape as both defects that reached Penny before: not a wrong value, a layout that only
-  works above a width nobody checked. Fixed by narrowing content, not moving it — at 568 px no
-  arrangement of full-size pieces fits. Buttons stay ≥44 px regardless.
-- Gate: a layout-only pass at both SE sizes; the two full viewports keep running everything.
-
+- The suite covered 1280×640 and 430×860; an iPhone SE is neither, and it is where "pin
+  everything to an edge" stops working. One pass at 320×568 / 568×320 found three faults: the HP
+  panel is intrinsically 337 px wide so it hung off **both** edges at 320; it **overlapped the
+  skill buttons 194×60** at 568; the lane bar and scoreboard overlapped 100×26.
+- Fixed by narrowing content, not moving it — at 568 px no arrangement of full-size pieces fits.
+  Buttons stay ≥44 px regardless. Gate: a layout-only pass at both SE sizes.
 ### 深淵之橋 bot order, and the draw-call worry (ADR-113, ADR-114)
 
-- A bot decision writes straight into sim state, so a bot updated later reads a world where the
-  others already moved this tick. Champions are created blue-first, so the edge always landed on
-  the same side — and the player is always blue. Measured on 72 mirrored matches, changing only
-  the order: blue-first → blue wins **33/72**; red-first → **48/72**; alternating → **35/72**.
-  `updateBots(bots, dt, tick)` alternates each tick; bias cancels exactly every two ticks.
-  Nexus finishes 65/72 → **69/72**, average match 17.5 → **15.4 min**.
-- ADR-105's 1311 draw calls came from a synthetic stress case. A real match runs at median 42 /
-  peak 286 portrait and median 162 / peak 342 landscape, so the sigil-geometry merge it
-  recommended is retired. `browser.mjs` holds a 600 budget instead.
+- A bot decision writes straight into sim state, so a later bot reads a world where the others
+  already moved. Champions are created blue-first and the player is always blue. On 72 mirrored
+  matches: blue-first → blue wins **33/72**; red-first → **48/72**; alternating → **35/72**.
+  `updateBots` alternates each tick, cancelling the bias exactly every two ticks.
+- ADR-105's 1311 draw calls were a synthetic stress case; a real match runs at peak 286/342, so
+  the sigil-geometry merge it recommended is retired. `browser.mjs` holds a 600 budget instead.
 ### 深淵之橋 portrait puts the lane up the screen (ADR-110)
 
-- Portrait spent **83.6% of the screen on abyss and water**. Geometric, not artistic: a 17 m
-  bridge shown across a 430×860 screen forces a ~50 m vertical span, so no camera placement fixes
-  it — the best steepen-and-pull-in variant reached 23.5% ground while cutting visible lane from
-  26.9 m to 23.9 m.
-- The camera now rotates 90° about Y in portrait: own base at the bottom, enemy at the top.
-  **70.1% ground and 36.6 m of lane**, player at 70% down. Landscape untouched.
-- Joystick, WASD and aim-drag speak screen directions and share one `screenToWorld` rotation;
-  ground picking already raycast. The lane-overview bar stands up too — same drawing code, one
-  canvas transform, and CSS alone decides the axis.
-- Two old gates hard-coded "+x is right" and now measure against the camera's own vectors. Same
-  failure mode as ADR-109: a fixture carrying an unmeasured claim.
+- Portrait spent **83.6% of the screen on abyss and water** — geometric, not artistic. The camera
+  now rotates 90° about Y in portrait: own base at the bottom, enemy at the top. **70.1% ground
+  and 36.6 m of lane**, player at 70% down. Landscape untouched.
+- Joystick, WASD and aim-drag share one `screenToWorld` rotation; the lane-overview bar stands up
+  too (same drawing code, one canvas transform, CSS decides the axis). Two old gates hard-coded
+  "+x is right" and now measure against the camera's own vectors.
 ### 深淵之橋 the RNG and the attack pacing (ADR-109, ADR-108)
 
 - `makeRng` used the seed directly as xorshift32 state, so the **first output averaged 0.007** —
   and its first consumer is the first bot's reaction time. Seed is now scrambled with eight
-  outputs discarded. Blue wins 24/72 → 33/72; the rest was ADR-113.
-- Attack pacing: level 1 was 1.39–1.59 s per swing and **8.6–12.7 s to kill one minion**, slower
-  than the minions themselves. Base attack speed ×1.4 and melee minion 400 → 330 HP put it at
-  0.99–1.13 s and 5.1–7.9 s. ADR-108's figures were re-measured after ADR-109 and corrected in
-  place; the gain holds at 58/72 → 65/72.
+  outputs discarded; blue wins 24/72 → 33/72, the rest being ADR-113.
+- Attack pacing: level 1 was 1.39–1.59 s per swing and **8.6–12.7 s per minion**, slower than the
+  minions themselves. Base attack speed ×1.4 and melee minion 400 → 330 HP put it at 0.99–1.13 s
+  and 5.1–7.9 s. ADR-108's figures were re-measured after ADR-109 and corrected in place.
 ### Earlier checkpoints, in one line each
 
 - Hub launcher: paged groups of four with swipe/arrows/keyboard/dots in one footer dock; Gomoku
@@ -81,7 +81,7 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
   request; the suite gates both the loaded font and the absence of outside traffic. Xiangqi build
   + selftests → pass.
 - `node games/moba/tests/cache-bust.mjs` → pass; all six entry/resource tokens agree.
-- `node games/moba/tests/sim.mjs` → **215/215 pass**, including the attack-pacing, RNG-diffusion
+- `node games/moba/tests/sim.mjs` → **219/219 pass**, including the attack-pacing, RNG-diffusion
   and bot-order gates. Twelve mirrored matches still finish, no NaN or bridge escape.
 - `node games/moba/tests/browser.mjs` → **137/137 pass**, landscape and portrait (bundled
   Chromium; `PW_CHROMIUM` overrides). Away-from-fountain purchase, three close routes, full

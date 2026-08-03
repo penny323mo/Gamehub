@@ -2309,3 +2309,41 @@ follows what the tyres can use
 - Gate: a **layout-only** pass at both SE sizes. The two existing viewports still run everything —
   full match, FX, shop, draw-call budget — but all three faults here were geometry, so the new
   pass boots, measures, and closes. Full coverage of the size at a fraction of the cost.
+
+## ADR-117: Every skillshot in the game had never once hit anything
+
+- Date: 2026-08-03
+- Status: accepted
+- Decision: all projectile motion now lives in `#tickProjectiles`. The homing loop skips
+  `p.skill`, and the straight-line loop moved in beside it and now tests a **swept segment**
+  rather than the arrival point.
+- Reason, in the order it was found:
+  1. The straight-line loop advanced the projectile a full tick and then measured distance from
+     the **new point**. One sample per tick. Longshot's ultimate moves 2.0 m per tick while a
+     minion's hit radius is `width 1.4 + r 0.62 = 2.02` — a 0.02 m margin, so anything sitting
+     between two samples and slightly off-centre is passed straight through.
+  2. Writing the test for that exposed something far worse. The straight-line loop lived inside
+     `#tickZones`, while `#tickProjectiles` iterated **every** projectile and killed any whose
+     `targetId` did not resolve to a live entity. Skillshots have no `targetId`. So every
+     skillshot was destroyed on the tick it was cast, and the code that would have moved it had
+     **never executed once**.
+- Measured before the fix: 穿甲箭 fired at an enemy eight metres away in a clear line, over a
+  full second — target HP 565 → 565. All four skillshots (穿甲箭, 致命一箭, 火花, 聖光) dealt
+  exactly zero. After: 172 / 422 / 160 / 130.
+- Why no test caught it: T8 asks whether *any* of a champion's four abilities deals damage. Every
+  skillshot champion also has a working dash, aoe or self ability, so T8 stayed green while a
+  quarter of the game's abilities did nothing. A test that asks "does at least one work" cannot
+  find "this whole class never works".
+- The structural cause is worth naming: two halves of one job in two files' worth of distance
+  apart, with no statement of which owned what. The homing loop's "no target means delete" was
+  correct **for the projectiles it was written for** and catastrophic for the ones it inherited.
+  Both now sit in one function that says at the top which kind is which.
+- Effect on play, three 24-match mirrored sets: nexus finishes 69/72 → **71/72**, average match
+  **15.4 → 11.4 min**, kills 30 → 27, blue 35/72 → 39/72 (0.7σ from even). Shorter because the
+  mirror lineup holds three of the game's four skillshots, and they now work. 11.4 minutes is a
+  reasonable length for a 3v3 phone MOBA, so nothing was re-tuned on top — re-balancing in the
+  same change as a bug fix would blend the two beyond telling apart.
+- Gates: T28 rebuilds the tunnelling geometry exactly (target midway between samples, 1.9 m off a
+  2.02 m capsule) and requires a hit. T29 fires **every** skillshot in the game at an enemy in its
+  path and requires damage from each — a rule about the class, not about the ability that happened
+  to be broken today.

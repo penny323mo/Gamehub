@@ -11,9 +11,9 @@ import {
     RESPAWN_BASE, RESPAWN_PER_LEVEL, SHUTDOWN_PER_STREAK, SHUTDOWN_MAX,
     armourMul, structureArmour, TOWER_AGGRO_MEMORY, FOUNTAIN_HEAL_PCT, FOUNTAIN_RADIUS,
     PUSH_STRENGTH, SIEGE_DENSE_AT, SIEGE_EVERY_WAVE_AT, WARDEN, RECALL,
-} from './constants.js?v=small-screen-10';
-import { CHAMPIONS, abilityRank, scaled } from './champions.js?v=small-screen-10';
-import { ITEMS, MAX_ITEMS, itemBonus } from './items.js?v=small-screen-10';
+} from './constants.js?v=skillshot-11';
+import { CHAMPIONS, abilityRank, scaled } from './champions.js?v=skillshot-11';
+import { ITEMS, MAX_ITEMS, itemBonus } from './items.js?v=skillshot-11';
 
 // 可重現嘅亂數：測試要跑到同一場比賽。
 //
@@ -597,8 +597,19 @@ export class Sim {
         this.emit('attack', { id: a.id, target: target.id });
     }
 
+    // 所有彈道嘅移動同命中都喺呢度。分開兩種：追蹤彈鎖住一個目標，技能彈道
+    // 沿住一條直線掃。
+    //
+    // 之前技能彈道嗰段住喺 #tickZones 入面，而呢度嘅追蹤彈迴圈冇分辨兩者：
+    // 佢見到冇 targetId 就當「目標唔喺度」殺咗支彈。技能彈道本身就係冇
+    // targetId 嘅，所以每一支喺放出嚟嗰一格就即刻死——即係遊戲入面全部
+    // skillshot 技能（穿甲箭、火花、致命一箭…）由頭到尾都係射唔到人嘅，
+    // 而 #tickZones 嗰段掃線碼一次都冇行過。兩段碼分住兩個地方，就係
+    // 「邊個負責邊樣」講唔清嘅代價。而家兩種都喺同一個函數入面。
     #tickProjectiles(dt) {
+        // 追蹤彈
         for (const p of this.projectiles) {
+            if (p.skill) continue;
             const t = this.entities.find(e => e.id === p.targetId);
             if (!t || !t.alive) { p.dead = true; continue; }
             const dx = t.x - p.x, dz = t.z - p.z;
@@ -613,6 +624,45 @@ export class Sim {
             }
             p.x += dx / d * step;
             p.z += dz / d * step;
+        }
+
+        // 技能彈道。
+        //
+        // 一定要量「呢一格掃過嗰段線」，唔可以量「而家停喺邊」。舊寫法係先推
+        // 前一格再逐點量距離，即係每格得一個取樣點，兩點之間嘅嘢完全睇唔到。
+        // 長弓大招 speed 60，一格行 2.0 米，而一隻小兵嘅命中半徑係
+        // width 1.4 + r 0.62 = 2.02 米——只差 0.02。所以一隻企喺兩個取樣點
+        // 中間、又偏離中線少少嘅兵，會畀支箭原封不動飛過。玩家見到嘅係
+        // 「我明明射中咗但係冇傷害」，而愈快嘅技能愈易中招。
+        //
+        // 順帶修埋兩樣同一個迴圈入面嘅嘢：
+        //   1. 射程用完嗰一格以前係「照行足一格、再宣告死亡、而且唔驗中」，
+        //      即係射程邊緣嗰下必定落空，而且彈道實際飛咗過龍。
+        //   2. 所以要先夾住今格真正行到幾遠，驗完中先至了結。
+        for (const p of this.projectiles) {
+            if (!p.skill) continue;
+            const step = Math.min(p.speed * dt, p.left);
+            const ax = p.x, az = p.z;
+            p.x += p.vx * step; p.z += p.vz * step;
+            p.left -= step;
+            for (const e of this.entities) {
+                if (!e.alive || p.hits.has(e.id)) continue;
+                if (e.kind !== 'champ' && e.kind !== 'minion') continue;
+                // 點到線段嘅最近距離：將實體投影落今格嘅行程，夾喺兩端之內。
+                const along = Math.max(0, Math.min(step,
+                    (e.x - ax) * p.vx + (e.z - az) * p.vz));
+                const cx = ax + p.vx * along, cz = az + p.vz * along;
+                if (Math.hypot(e.x - cx, e.z - cz) > p.width + e.r) continue;
+                if (e.team === p.team) {
+                    if (p.onAlly) { p.onAlly(e); p.hits.add(e.id); }
+                    continue;
+                }
+                p.hits.add(e.id);
+                p.onHit(e);
+                if (!p.pierce) { p.dead = true; break; }
+            }
+            // 射程用完先至了結——驗完中，唔會食咗最後嗰下
+            if (p.left <= 0) p.dead = true;
         }
         this.projectiles = this.projectiles.filter(p => !p.dead);
     }
@@ -1099,26 +1149,5 @@ export class Sim {
         }
         this.zones = this.zones.filter(z => !z.dead);
 
-        // 技能彈道
-        for (const p of this.projectiles) {
-            if (!p.skill) continue;
-            const step = p.speed * dt;
-            p.x += p.vx * step; p.z += p.vz * step;
-            p.left -= step;
-            if (p.left <= 0) { p.dead = true; continue; }
-            for (const e of this.entities) {
-                if (!e.alive || p.hits.has(e.id)) continue;
-                if (e.kind !== 'champ' && e.kind !== 'minion') continue;
-                if (Math.hypot(e.x - p.x, e.z - p.z) > p.width + e.r) continue;
-                if (e.team === p.team) {
-                    if (p.onAlly) { p.onAlly(e); p.hits.add(e.id); }
-                    continue;
-                }
-                p.hits.add(e.id);
-                p.onHit(e);
-                if (!p.pierce) { p.dead = true; break; }
-            }
-        }
-        this.projectiles = this.projectiles.filter(p => !p.dead);
     }
 }

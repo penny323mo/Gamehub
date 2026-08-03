@@ -722,5 +722,70 @@ function dodgeCase(px, speed) {
         even[0] === odd[odd.length - 1] && even[even.length - 1] === odd[0], { even, odd });
 }
 
+// ---------- T28：快彈道唔可以穿過目標 ----------
+// 舊寫法：先將彈道推前一格，再用「而家嘅點」同實體量距離。即係每格得一個
+// 取樣點，兩點之間嘅嘢完全睇唔到。長弓大招 speed 60，一格 1/30 秒行 2.0 米，
+// 而一隻小兵嘅命中半徑係 width 1.4 + r 0.62 = 2.02 米——只差 0.02。
+// 所以一隻企喺兩個取樣點中間、又偏離中線少少嘅兵，會畀箭原封不動咁飛過。
+// 玩家見到嘅係「我明明射中咗但冇傷害」。
+//
+// 呢個測試用幾何砌返個死角：目標喺兩個取樣點正中間、側向偏 1.9 米。
+// 1.9 < 2.02，所以「掃過嘅範圍」一定包住佢；但佢距離最近嗰個取樣點係
+// √(1² + 1.9²) = 2.15 > 2.02，所以逐點量嘅寫法一定漏。
+{
+    const sim = new Sim({ seed: 71 });
+    const shooter = sim.champions[0];
+    shooter.x = 0; shooter.z = 0;
+    // 用真嘅技能數據，唔喺測試度自己砌一支箭
+    const longshot = CHAMPIONS.longshot.abilities.find(a => a.form === 'skillshot' && a.speed >= 60);
+    const step = longshot.speed * TICK;
+    const reach = longshot.width + 0.62;                 // 小兵 r = 0.62
+    const victim = { kind: 'minion', team: 1 - shooter.team, def: { gold: 0, xp: 0 },
+        x: step * 1.5, z: reach - 0.12, r: 0.62, alive: true,
+        hp: 500, maxHp: 500, armour: 0, id: 8801 };
+    sim.entities.push(victim);
+    sim.projectiles.push({
+        kind: 'ultra', skill: true, team: shooter.team, sourceId: shooter.id,
+        x: 0, z: 0, vx: 1, vz: 0, speed: longshot.speed, width: longshot.width,
+        pierce: false, left: 40, hits: new Set(),
+        onHit: (v) => { v.hp -= 100; }, onAlly: null,
+    });
+    check('掃過嘅範圍真係包住佢（幾何前提成立）', Math.abs(victim.z) < reach,
+        { z: +victim.z.toFixed(2), reach: +reach.toFixed(2) });
+    check('佢的確落喺兩個取樣點之間（唔係啱啱好踩中）',
+        Math.hypot(step * 0.5, victim.z) > reach,
+        { 距最近取樣點: +Math.hypot(step * 0.5, victim.z).toFixed(2), reach: +reach.toFixed(2) });
+    for (let i = 0; i < 4; i++) sim.step();
+    check('快彈道唔會穿過側邊嘅目標', victim.hp < 500, { hp: victim.hp });
+}
+
+// ---------- T29：每一個 skillshot 技能都要打得中 ----------
+// T8 已經有「技能真係打得中人」，但佢問嘅係「四個技能之中有冇一個造成傷害」。
+// 一個英雄得一個技能有效都照樣過骨——所以全部 skillshot 由頭到尾射唔到人，
+// 佢一次都冇響過。呢條改為逐個技能問，而且係問成個類別，唔係問邊個技能。
+{
+    const dead = [];
+    for (const id of CHAMPION_IDS) {
+        const def = CHAMPIONS[id];
+        def.abilities.forEach((ab, i) => {
+            if (ab.form !== 'skillshot') return;
+            const sim = new Sim({ seed: 5, lineups: {
+                [TEAM.BLUE]: [id, 'ironward', 'emberwake'],
+                [TEAM.RED]: ['duskblade', 'emberwake', 'ironhulk'] } });
+            const c = sim.champions[0];
+            const foe = sim.champions.find(x => x.team !== c.team);
+            let guard = 0;
+            while (c.level < 12 && guard++ < 500) sim.giveXp(c, 400);
+            c.x = 0; c.z = 0; c.mp = c.maxMp; c.abilityCd = [0, 0, 0, 0];
+            foe.x = Math.min(8, ab.range - 1); foe.z = 0; foe.hp = foe.maxHp;
+            const before = foe.hp;
+            sim.cast(c, i, { x: ab.range, z: 0 });
+            for (let k = 0; k < 60; k++) sim.step();
+            if (foe.hp >= before) dead.push(`${def.name} ${ab.name}`);
+        });
+    }
+    check('每一個 skillshot 都射得中企喺路線上面嘅敵人', dead.length === 0, dead);
+}
+
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);
 if (fail) { console.log('失敗項目:', failed.join('、')); process.exit(1); }
