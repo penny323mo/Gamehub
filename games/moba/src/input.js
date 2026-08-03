@@ -12,7 +12,7 @@
 // 兩套都係「郁」同「打」分開兩隻手，唔會爭同一個輸入。
 
 import * as THREE from '../vendor/three.module.min.js';
-import { MAP } from './constants.js';
+import { MAP } from './constants.js?v=graph-token-8';
 
 const GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -179,7 +179,8 @@ export function createInput(canvas, view, sim, hud) {
         stopDirectMove();
     }
 
-    // 鍵盤方向：螢幕右 = 世界 +x，螢幕上 = 世界 -z（鏡頭永遠喺 +z 望入去）
+    // 鍵盤方向係螢幕方向：右 = +dx、上 = -dz。要變成世界方向就交畀
+    // screenToWorld —— 打直嗰陣鏡頭轉咗軸，兩者唔再一樣。
     function keyDir() {
         let dx = 0, dz = 0;
         if (keys.has('a') || keys.has('arrowleft')) dx -= 1;

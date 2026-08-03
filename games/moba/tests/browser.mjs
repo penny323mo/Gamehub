@@ -187,9 +187,12 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
         const cam = window.__view.camera;
         const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0).setY(0).normalize();
         const move = new THREE.Vector3(after.x - before.x, 0, after.z - before.z);
-        return { 沿畫面右: +move.dot(right).toFixed(2), 位移: +move.length().toFixed(2) };
+        const along = move.dot(right);
+        const side = Math.hypot(move.x - right.x * along, move.z - right.z * along);
+        return { 沿畫面右: +along.toFixed(2), 橫向偏差: +side.toFixed(2), 位移: +move.length().toFixed(2) };
     }, { before: joyBefore, after: joyAtRelease });
-    check(`${tag}：手機左搖桿向右拖就向畫面右行`, screenRight.沿畫面右 > 2, screenRight);
+    check(`${tag}：手機左搖桿向右拖就向畫面右行`,
+        screenRight.沿畫面右 > 0.3 && screenRight.沿畫面右 > screenRight.橫向偏差 * 2, screenRight);
     check(`${tag}：手機左搖桿放手即清移動命令`,
         joyAtRelease.orderX == null && joyAtRelease.orderZ == null, joyAtRelease);
     check(`${tag}：手機左搖桿放手後唔會滑行或原地跑`,
@@ -652,7 +655,7 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
         const b = touch(cx, cy - 70);
         canvas.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, cancelable: true,
             touches: [b], targetTouches: [b], changedTouches: [b] }));
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 700));
         const moved = { x: p.x, z: p.z };
         canvas.dispatchEvent(new TouchEvent('touchend', { bubbles: true, cancelable: true,
             touches: [], targetTouches: [], changedTouches: [b] }));
@@ -663,12 +666,18 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
         const up = new THREE.Vector3();
         cam.getWorldDirection(up); up.setY(0).normalize();
         const move = new THREE.Vector3(moved.x, 0, moved.z);
+        const along = move.dot(up);
+        // 度嘅係方向，唔係距離。半秒入面行到幾遠要睇主執行緒幾忙——實測同一
+        // 段碼由 3 米跌到 1.1 米都試過。用距離做門檻就係喺度度緊機器忙唔忙。
+        const side = Math.hypot(move.x - up.x * along, move.z - up.z * along);
         return { 走咗: [+moved.x.toFixed(2), +moved.z.toFixed(2)],
-            沿畫面上: +move.dot(up).toFixed(2), 向敵方: +(moved.x * toEnemy).toFixed(2) };
+            沿畫面上: +along.toFixed(2), 橫向偏差: +side.toFixed(2),
+            向敵方: +(moved.x * toEnemy).toFixed(2) };
     });
-    check(`${tag}：搖桿推上就係向畫面上行`, pushUp.沿畫面上 > 1.5, pushUp);
+    check(`${tag}：搖桿推上就係向畫面上行`,
+        pushUp.沿畫面上 > 0.3 && pushUp.沿畫面上 > pushUp.橫向偏差 * 2, pushUp);
     // 打直先有嘅承諾：條線行返垂直，所以推上等於推向敵方基地。
-    if (framing.垂直) check(`${tag}：推上即係推向敵方基地`, pushUp.向敵方 > 1.5, pushUp);
+    if (framing.垂直) check(`${tag}：推上即係推向敵方基地`, pushUp.向敵方 > 0.3, pushUp);
 
     // 打橫係「一望睇晒成條線」嘅遠景，橋面自然只佔一條橫帶；打直轉咗軸之後
     // 就冇理由再浪費畫面。所以兩個方向嘅門檻唔同，唔係一條數夾兩邊。

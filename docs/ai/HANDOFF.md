@@ -96,9 +96,9 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 - Playwright lives only in `games/Racing Car/tests/node_modules`; both browser suites now point
   there by path. If it is missing, run `npm ci` in that directory — nothing else installs it.
 - Two local named stashes may be redundant pre-commit backups; do not re-apply them on `main`.
-- The cache token only busts `style.css`, `main.js`, `hud.js`, `sim.js`. Data modules such as
-  `champions.js` and `constants.js` are imported without a query, so a balance change can ship
-  behind a stale cache. Pre-existing; fixing it needs one consistent query per module URL.
+- Cache token now covers the whole module graph (ADR-111). Change it with
+  `node scripts/moba-bump-cache.mjs <token>` — never by hand; a partial rename loads a module
+  twice under two URLs. `tests/cache-bust.mjs` fails if any local import is out of step.
 
 ## Exact next action
 

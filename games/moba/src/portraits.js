@@ -6,8 +6,8 @@
 // 三個地方都用得著。
 
 import * as THREE from '../vendor/three.module.min.js';
-import { CHAMPION_LOOK, TEAM_COLOUR } from './looks.js';
-import { Rig } from './rig.js';
+import { CHAMPION_LOOK, TEAM_COLOUR } from './looks.js?v=graph-token-8';
+import { Rig } from './rig.js?v=graph-token-8';
 
 const SIZE = 256;
 

@@ -2132,3 +2132,28 @@ follows what the tyres can use
   real camera to learn which way the battlefield runs, then finds the blue and red pixel centroids
   in the bar and requires both the axis and the ends to agree. A gate that recomputed the bar
   mapping would only prove the formula equals itself.
+
+## ADR-111: The cache token covered the entry points but not the module graph
+
+- Date: 2026-08-03
+- Status: accepted
+- Decision: every local module import inside `games/moba/src` carries the same `?v=` token as the
+  entry points. `scripts/moba-bump-cache.mjs` rewrites all 35 sites at once, and
+  `tests/cache-bust.mjs` now fails if any local import is missing the token or carries a different
+  one.
+- Reason: browsers cache per URL. Bumping `main.js?v=…` gets a fresh `main.js` and nothing else —
+  everything it imports without a query can still be served from cache. ADR-108 changed balance
+  numbers in `champions.js` and `constants.js`; neither was under any token, so a returning player
+  could have loaded new `sim.js` against a cached old `constants.js`. Not a hypothetical shape of
+  bug: a hybrid build like that fails in ways that reproduce on nobody's machine.
+- Why a script rather than hand-editing: 35 sites, and a *partial* rename is worse than none. A
+  module imported under two different URLs is loaded twice, giving two copies of its state. The
+  token now has exactly one way to change, and a test that fails if it changed unevenly.
+- Rejected — a build step. The game is deliberately buildless; a query string on an import
+  specifier costs nothing at runtime and keeps `node tests/sim.mjs` working unchanged (node
+  resolves file URLs with queries fine, verified before committing to the approach).
+- Also fixed here: three motion gates asserted **distance** where they meant **direction**. One of
+  them failed on a rerun with the champion moving 1.1 m instead of 3 m — the direction was exactly
+  right, the machine was just busier. They now require the displacement to lie along the intended
+  screen axis and to dominate the perpendicular component, which is what "push up goes up"
+  actually claims. A distance threshold in a timed window measures how loaded the box is.

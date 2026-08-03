@@ -4,19 +4,19 @@
 // 兩樣分開嘅原因同 sim.js 唔 import three.js 一樣：規則要可重現，
 // 畫面要跟硬件。一個 120Hz 螢幕唔應該令小兵行快一倍。
 
-import { Assets } from './assets.js';
-import { armTap } from './tap.js';
-import { Sim } from './sim.js?v=lane-bar-7';
-import { createBot } from './ai.js';
-import { View } from './view.js';
-import { Hud } from './hud.js?v=lane-bar-7';
-import { createInput } from './input.js';
-import { CHAMPIONS, CHAMPION_IDS } from './champions.js';
-import { TEAM, TICK, teamName } from './constants.js';
-import { CHAMPION_LOOK } from './looks.js';
-import { Sfx } from './sfx.js';
-import { settings } from './settings.js';
-import { renderPortraits } from './portraits.js';
+import { Assets } from './assets.js?v=graph-token-8';
+import { armTap } from './tap.js?v=graph-token-8';
+import { Sim } from './sim.js?v=graph-token-8';
+import { createBot } from './ai.js?v=graph-token-8';
+import { View } from './view.js?v=graph-token-8';
+import { Hud } from './hud.js?v=graph-token-8';
+import { createInput } from './input.js?v=graph-token-8';
+import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=graph-token-8';
+import { TEAM, TICK, teamName } from './constants.js?v=graph-token-8';
+import { CHAMPION_LOOK } from './looks.js?v=graph-token-8';
+import { Sfx } from './sfx.js?v=graph-token-8';
+import { settings } from './settings.js?v=graph-token-8';
+import { renderPortraits } from './portraits.js?v=graph-token-8';
 
 const $ = (sel) => document.querySelector(sel);
 

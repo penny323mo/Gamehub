@@ -1,18 +1,19 @@
 // 3D 呈現層。讀 sim 嘅狀態去畫，唔會反過來影響 sim——所以規則測試永遠
 // 唔使開瀏覽器，而畫面點靚都唔會改到平衡。
 //
-// 場景係一條橫住畫面嘅橋。鏡頭放喺 +z 望向 z=0，兵線由左去右，
-// 手機打橫揸就啱啱好一屏睇晒成條線——一條線嘅 MOBA 唔應該要睇小地圖。
+// 場景係一條橋。打橫揸嘅時候鏡頭喺 +z 望向 z=0，兵線由左去右，一屏睇晒
+// 成條線——一條線嘅 MOBA 唔應該要睇小地圖。打直揸就將鏡頭繞 Y 轉九十度，
+// 令長嘅地圖軸對正長嘅螢幕軸（原因同量度見 setCameraFocus 上面嗰段）。
 
 import * as THREE from '../vendor/three.module.min.js';
 import { EffectComposer } from '../vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from '../vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/postprocessing/OutputPass.js';
-import { MAP, TEAM } from './constants.js';
-import { CHAMPION_LOOK, MINION_LOOK, ARENA_LOOK, TEAM_COLOUR, CLIP, championFx } from './looks.js';
-import { Rig } from './rig.js';
-import { Fx } from './fx.js';
+import { MAP, TEAM } from './constants.js?v=graph-token-8';
+import { CHAMPION_LOOK, MINION_LOOK, ARENA_LOOK, TEAM_COLOUR, CLIP, championFx } from './looks.js?v=graph-token-8';
+import { Rig } from './rig.js?v=graph-token-8';
+import { Fx } from './fx.js?v=graph-token-8';
 
 const sideSign = (team) => (team === TEAM.BLUE ? -1 : 1);
 const UP = new THREE.Vector3(0, 1, 0);

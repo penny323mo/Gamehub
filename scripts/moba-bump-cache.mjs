@@ -1,0 +1,53 @@
+// 換 深淵之橋 嘅 cache-bust token。
+//
+// 點解要有呢個腳本：token 而家唔止喺六個入口，而係喺 src 入面每一個本地
+// module import 度。原因喺 tests/cache-bust.mjs 寫咗——瀏覽器逐條 URL 快取，
+// 入口換咗版本唔會令佢 import 落去嗰啲模組跟住更新。三十幾個位手改一定漏，
+// 漏一個就係「新碼配舊碼」嘅混血版本，而且喺自己部機永遠試唔到。
+//
+// 跑法：node scripts/moba-bump-cache.mjs <新 token>
+// 之後行 node games/moba/tests/cache-bust.mjs 確認。
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const MOBA = path.join(REPO, 'games', 'moba');
+
+const token = process.argv[2];
+if (!token || !/^[a-z0-9][a-z0-9-]*$/.test(token)) {
+    console.error('用法：node scripts/moba-bump-cache.mjs <新 token>（細楷、數字、連字號）');
+    process.exit(1);
+}
+
+// 入口：呢四個檔各自用唔同寫法引用資源，所以逐個 pattern 寫清楚，
+// 唔用一個「見到 ?v= 就換」嘅大網——嗰種寫法會順手改埋唔關事嘅嘢。
+const entries = [
+    [path.join(MOBA, 'index.html'), [/(style\.css\?v=)[a-z0-9-]+/g, /(src\/main\.js\?v=)[a-z0-9-]+/g]],
+    [path.join(REPO, 'index.html'), [/(launcher\.js\?v=)[a-z0-9-]+/g]],
+    [path.join(REPO, 'launcher.js'), [/(games\/moba\/index\.html\?v=)[a-z0-9-]+/g]],
+];
+
+let files = 0, spots = 0;
+for (const [file, patterns] of entries) {
+    let text = fs.readFileSync(file, 'utf8');
+    const before = text;
+    for (const re of patterns) text = text.replace(re, (m, head) => { spots++; return head + token; });
+    if (text !== before) { fs.writeFileSync(file, text); files++; }
+}
+
+// src：每一個同層本地 import
+const srcDir = path.join(MOBA, 'src');
+for (const name of fs.readdirSync(srcDir)) {
+    if (!name.endsWith('.js')) continue;
+    const file = path.join(srcDir, name);
+    const before = fs.readFileSync(file, 'utf8');
+    const after = before.replace(
+        /(from\s+'\.\/[A-Za-z0-9_-]+\.js)(\?v=[a-z0-9-]+)?'/g,
+        (m, head) => { spots++; return `${head}?v=${token}'`; });
+    if (after !== before) { fs.writeFileSync(file, after); files++; }
+}
+
+console.log(`token → ${token}：改咗 ${files} 個檔、${spots} 個位`);
+console.log('跟住行：node games/moba/tests/cache-bust.mjs');
