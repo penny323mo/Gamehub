@@ -524,3 +524,37 @@ html, body {
     .moba-recall {
     min-height: 44px; touch-action: manipulation; bottom: calc(190px + var(--safe-b)); }
 }
+
+/* 最細嘅真手機：iPhone SE 320×568 / 568×320。實測三個毛病，全部都係
+   「兩件嘢各自靠住一邊，喺闊少過六百點嘅畫面度必然撞埋」：
+     打直 320 闊 —— 血魔面板本身 337 點闊（moba-stats 係 nowrap），
+       置中之後兩邊各衝出畫面八點，玩家見唔到自己嘅血條頭尾；
+     打橫 568 闊 —— 面板同技能掣重疊 194×60，即係你要撳嘅掣壓住你要睇嘅血；
+       兵線總覽同計分板重疊 100×26。
+   所以呢度唔係再微調位置，而係喺窄畫面收窄內容本身。 */
+@media (max-width: 380px) {
+    /* nowrap 係呢度嘅元兇：一行 K/D/A、補刀、金幣喺 320 點度排唔落。
+       畀佢斷行，面板高少少但至少完整見到。 */
+    /* 中文預設邊個位都斷得，所以「補刀」會斷成「補 / 刀」。keep-all 令詞唔會
+       喺中間斷開。 */
+    .moba-stats { white-space: normal; line-height: 1.35; word-break: keep-all; }
+    .moba-panel { max-width: calc(100vw - 16px); padding: 6px 9px 6px 6px; gap: 7px; }
+    .moba-bar { width: min(122px, 38vw); }
+    .moba-portrait { width: 36px; height: 36px; }
+}
+
+@media (orientation: landscape) and (max-width: 640px) {
+    .moba-bar { width: min(108px, 20vw); height: 13px; }
+    .moba-stats { font-size: 10px; white-space: normal; line-height: 1.3; max-width: 76px;
+        word-break: keep-all; }
+    .moba-portrait { width: 34px; height: 34px; }
+    .moba-panel { gap: 6px; padding: 5px 8px 5px 5px; }
+    /* 掣可以細啲但唔可以細過 44 點——手指撳唔中就等於冇 */
+    .moba-skill { width: 46px; height: 46px; }
+    .moba-attack { width: 52px; height: 52px; }
+    .moba-skills { gap: 5px; }
+    .moba-board { min-width: 118px; font-size: 9.5px; padding: 4px 6px; }
+    .moba-board .k { min-width: 34px; }
+    /* 總覽收窄，留返右上角畀計分板 */
+    .moba-lane { width: min(300px, 46vw); }
+}

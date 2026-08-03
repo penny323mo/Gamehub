@@ -13,27 +13,29 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 ## Completed
 
-### 深淵之橋 the draw-call worry was measured away (ADR-114)
+### 深淵之橋 the smallest real phone had never been opened (ADR-116)
 
-- ADR-105's 1311 draw calls came from a synthetic stress case (six champions in a two-metre
-  cluster looping every ability). A real match samples at median **42** / peak **286** in
-  portrait and median **162** / peak **342** in landscape — about a quarter of the stress figure
-  and well inside a phone budget. The sigil-geometry merge it recommended is retired.
-- `browser.mjs` now runs two minutes of real match per orientation and fails above **600** draw
-  calls. A budget beats an optimisation aimed at a number that never occurs in play.
+- The suite covered 1280×640 and 430×860. An iPhone SE is neither, and it is exactly where
+  "pin everything to an edge" stops working. One pass at 320×568 / 568×320 found three faults:
+  the HP panel is intrinsically 337 px wide (`moba-stats` is `nowrap`) so it hung off **both**
+  edges at 320; the panel **overlapped the skill buttons 194×60** at 568; the lane bar and
+  scoreboard overlapped 100×26.
+- Same shape as both defects that reached Penny before: not a wrong value, a layout that only
+  works above a width nobody checked. Fixed by narrowing content, not moving it — at 568 px no
+  arrangement of full-size pieces fits. Buttons stay ≥44 px regardless.
+- Gate: a layout-only pass at both SE sizes; the two full viewports keep running everything.
 
-### 深淵之橋 bot decision order was picking a winner (ADR-113)
+### 深淵之橋 bot order, and the draw-call worry (ADR-113, ADR-114)
 
 - A bot decision writes straight into sim state, so a bot updated later reads a world where the
-  others have already moved this tick. Champions are created blue-first, so the edge always
-  landed on the same side. Measured on 72 mirrored matches, changing only the iteration order:
-  blue-first → blue wins **33/72**; red-first → **48/72**; alternating → **35/72** (expected 36).
-- The player is always blue and their two bot teammates are created before the three enemies, so
-  the systematic loser was the player's own team.
-- `updateBots(bots, dt, tick)` in `ai.js` alternates direction each tick; no caller iterates the
-  list any more. Bias cancels exactly every two ticks, and the match stays deterministic.
-- Nexus finishes 65/72 → **69/72**, average match 17.5 → **15.4 min**.
-
+  others already moved this tick. Champions are created blue-first, so the edge always landed on
+  the same side — and the player is always blue. Measured on 72 mirrored matches, changing only
+  the order: blue-first → blue wins **33/72**; red-first → **48/72**; alternating → **35/72**.
+  `updateBots(bots, dt, tick)` alternates each tick; bias cancels exactly every two ticks.
+  Nexus finishes 65/72 → **69/72**, average match 17.5 → **15.4 min**.
+- ADR-105's 1311 draw calls came from a synthetic stress case. A real match runs at median 42 /
+  peak 286 portrait and median 162 / peak 342 landscape, so the sigil-geometry merge it
+  recommended is retired. `browser.mjs` holds a 600 budget instead.
 ### 深淵之橋 portrait puts the lane up the screen (ADR-110)
 
 - Portrait spent **83.6% of the screen on abyss and water**. Geometric, not artistic: a 17 m
@@ -52,23 +54,22 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 - `makeRng` used the seed directly as xorshift32 state, so the **first output averaged 0.007** —
   and its first consumer is the first bot's reaction time. Seed is now scrambled with eight
   outputs discarded. Blue wins 24/72 → 33/72; the rest was ADR-113.
-- Attack pacing: level 1 used to be 1.39–1.59 s per swing and **8.6–12.7 s to kill one minion**,
-  slower than the minions themselves. Base attack speed ×1.4 and melee minion 400 → 330 HP put it
-  at 0.99–1.13 s and 5.1–7.9 s. ADR-108's figures were re-measured after ADR-109 (the first set
-  came from the biased sample) and corrected in place; the gain holds at 58/72 → 65/72.
+- Attack pacing: level 1 was 1.39–1.59 s per swing and **8.6–12.7 s to kill one minion**, slower
+  than the minions themselves. Base attack speed ×1.4 and melee minion 400 → 330 HP put it at
+  0.99–1.13 s and 5.1–7.9 s. ADR-108's figures were re-measured after ADR-109 and corrected in
+  place; the gain holds at 58/72 → 65/72.
 ### Earlier checkpoints, in one line each
 
-- Hub launcher: paged groups of four, swipe/arrows/keyboard/dots in one footer dock; Gomoku CSS
-  stones; Xiangqi nested build rewrite. Commit `752bcc3`, ADR-102.
+- Hub launcher: paged groups of four with swipe/arrows/keyboard/dots in one footer dock; Gomoku
+  CSS stones; Xiangqi nested build rewrite. `752bcc3`, ADR-102. Fonts self-hosted, ADR-112.
 - Attack FX: `looks.js` holds six basic and 24 ability profiles with stable style IDs, `fx.js`
   renders them, `sim.js` carries champion/ability identity through every event. ADR-103.
 - Anywhere shop: purchases work everywhere for player and bots; `atFountain()` is healing/recall
   only. ADR-104 supersedes the fountain-only clauses in ADR-088/094/100.
-- Shop taps on a real phone: an `overflow-y: auto` panel with `touch-action: pan-y` makes iOS read
-  a few pixels of drift as a scroll and synthesise no `click`. ADR-106, generalised by ADR-107.
-- Touch audit: "what counts as a tap" now lives in `src/tap.js` and every control uses it; the
-  champion select cards had the shop bug on the game's first interaction, and shopbtn/gear/× were
-  31/34/24 px. `browser.mjs` now fails if any visible `#hud button` is under 44 px. ADR-107.
+- Touch: an `overflow-y: auto` panel with `touch-action: pan-y` makes iOS read a few pixels of
+  drift as a scroll and synthesise no `click` (ADR-106). "What counts as a tap" now lives in
+  `src/tap.js` and every control uses it; the select cards had the same bug on the game's first
+  interaction. `browser.mjs` fails if any visible `#hud button` is under 44 px. ADR-107.
 - Crowded-fight FX: self-buff sigils now reach full size in 0.22 s of absolute time rather than a
   fraction of `life` (a shield used to sit at ~60%); `dome` is a dim shell with a bright rim, not
   a wireframe scribble. Worst case measured: geometries 94 → 597 peak → 160 at +8 s, draw calls
@@ -82,7 +83,7 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 - `node games/moba/tests/cache-bust.mjs` → pass; all six entry/resource tokens agree.
 - `node games/moba/tests/sim.mjs` → **215/215 pass**, including the attack-pacing, RNG-diffusion
   and bot-order gates. Twelve mirrored matches still finish, no NaN or bridge escape.
-- `node games/moba/tests/browser.mjs` → **129/129 pass**, landscape and portrait (bundled
+- `node games/moba/tests/browser.mjs` → **137/137 pass**, landscape and portrait (bundled
   Chromium; `PW_CHROMIUM` overrides). Away-from-fountain purchase, three close routes, full
   matches, FX gates, zero errors, a following sigil past 90% scale a quarter-second in, no
   wireframe sigils, a drifting tap buys while a 40 px drag does not, every HUD button ≥44 px.
@@ -107,10 +108,9 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 1. Sync, then playtest on a physical phone. Frame pacing here is bounded by software
    rasterisation, so it says nothing about real hardware.
-2. Do **not** start with the sigil-geometry merge if phone pacing is bad — ADR-114 measured a
-   real match at peak 286 (portrait) / 342 (landscape) draw calls, not the synthetic 1311.
-   Measure the phone first and let it name its own bottleneck.
-3. Nothing else is queued: every axis this environment can measure has been measured.
+2. If pacing is bad, do **not** start with the sigil-geometry merge — ADR-114 measured a real
+   match at peak 286/342 draw calls, not 1311. Let the phone name its own bottleneck. Nothing
+   else is queued: every axis this environment can measure has been measured.
 
 ## Do not redo
 

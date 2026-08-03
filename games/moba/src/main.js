@@ -4,19 +4,19 @@
 // 兩樣分開嘅原因同 sim.js 唔 import three.js 一樣：規則要可重現，
 // 畫面要跟硬件。一個 120Hz 螢幕唔應該令小兵行快一倍。
 
-import { Assets } from './assets.js?v=fair-order-9';
-import { armTap } from './tap.js?v=fair-order-9';
-import { Sim } from './sim.js?v=fair-order-9';
-import { createBot, updateBots } from './ai.js?v=fair-order-9';
-import { View } from './view.js?v=fair-order-9';
-import { Hud } from './hud.js?v=fair-order-9';
-import { createInput } from './input.js?v=fair-order-9';
-import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=fair-order-9';
-import { TEAM, TICK, teamName } from './constants.js?v=fair-order-9';
-import { CHAMPION_LOOK } from './looks.js?v=fair-order-9';
-import { Sfx } from './sfx.js?v=fair-order-9';
-import { settings } from './settings.js?v=fair-order-9';
-import { renderPortraits } from './portraits.js?v=fair-order-9';
+import { Assets } from './assets.js?v=small-screen-10';
+import { armTap } from './tap.js?v=small-screen-10';
+import { Sim } from './sim.js?v=small-screen-10';
+import { createBot, updateBots } from './ai.js?v=small-screen-10';
+import { View } from './view.js?v=small-screen-10';
+import { Hud } from './hud.js?v=small-screen-10';
+import { createInput } from './input.js?v=small-screen-10';
+import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=small-screen-10';
+import { TEAM, TICK, teamName } from './constants.js?v=small-screen-10';
+import { CHAMPION_LOOK } from './looks.js?v=small-screen-10';
+import { Sfx } from './sfx.js?v=small-screen-10';
+import { settings } from './settings.js?v=small-screen-10';
+import { renderPortraits } from './portraits.js?v=small-screen-10';
 
 const $ = (sel) => document.querySelector(sel);
 

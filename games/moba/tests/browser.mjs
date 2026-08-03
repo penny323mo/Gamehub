@@ -785,6 +785,55 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     await page.close();
 }
 
+// ---------- 最細嘅真手機：淨係度排版 ----------
+// 上面兩個 viewport 跑足全套（打完成場波、特效、商店）。呢度唔使再跑一次
+// —— 320×568 同 568×320 揾到嘅兩個毛病都係純排版：面板衝出畫面左邊、面板
+// 壓住技能掣、總覽被計分板蓋住。所以呢一段只開場、只量幾何，成本係全套嘅
+// 零頭，但補返「最細嘅機」呢條從來冇人行過嘅路。
+for (const [tag, viewport] of [['SE 打直', { width: 320, height: 568 }], ['SE 打橫', { width: 568, height: 320 }]]) {
+    const page = await browser.newPage({ viewport, hasTouch: true, isMobile: true });
+    const errs = watch(page);
+    await page.goto(URL_BASE, { waitUntil: 'load' });
+    await page.waitForFunction(() => !!window.__mobaReady || !!document.querySelector('.pick-card'),
+        null, { timeout: 120000 });
+    await page.click('#pick-go');
+    await page.waitForFunction(() => !!window.__view, null, { timeout: 120000 });
+    await page.waitForTimeout(900);
+
+    const layout = await page.evaluate(() => {
+        const visible = (el) => {
+            const cs = getComputedStyle(el);
+            const r = el.getBoundingClientRect();
+            return r.width > 2 && r.height > 2 && cs.display !== 'none' && cs.visibility !== 'hidden';
+        };
+        // 商店同遮罩唔計：佢哋本身就係要蓋住成個畫面
+        const panels = [...document.querySelectorAll('#hud > *')].filter(el => visible(el)
+            && !el.classList.contains('moba-shop') && !el.classList.contains('moba-shop-backdrop'));
+        const box = (el) => { const r = el.getBoundingClientRect(); return { cls: el.className, x: r.x, y: r.y, w: r.width, h: r.height }; };
+        const boxes = panels.map(box);
+        const overlap = [];
+        for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+            const a = boxes[i], b = boxes[j];
+            const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+            const oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+            if (ox > 4 && oy > 4) overlap.push(`${a.cls} × ${b.cls} (${Math.round(ox)}×${Math.round(oy)})`);
+        }
+        const outside = boxes.filter(b => b.x < -1 || b.y < -1
+            || b.x + b.w > innerWidth + 1 || b.y + b.h > innerHeight + 1)
+            .map(b => `${b.cls} → ${Math.round(b.x)},${Math.round(b.y)} ${Math.round(b.w)}×${Math.round(b.h)}`);
+        const small = [...document.querySelectorAll('#hud button')].filter(visible)
+            .map(el => { const r = el.getBoundingClientRect(); return { cls: el.className, side: Math.min(r.width, r.height) }; })
+            .filter(x => x.side < 44)
+            .map(x => `${x.cls}: ${Math.round(x.side)}px`);
+        return { overlap, outside, small };
+    });
+    check(`${tag}：HUD 冇互相遮住`, layout.overlap.length === 0, layout.overlap);
+    check(`${tag}：HUD 冇衝出畫面`, layout.outside.length === 0, layout.outside);
+    check(`${tag}：每粒掣都至少 44px`, layout.small.length === 0, layout.small);
+    check(`${tag}：主控台零錯誤`, errs.length === 0, errs.slice(0, 3));
+    await page.close();
+}
+
 await browser.close();
 server.close();
 

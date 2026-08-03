@@ -11,9 +11,9 @@ import {
     RESPAWN_BASE, RESPAWN_PER_LEVEL, SHUTDOWN_PER_STREAK, SHUTDOWN_MAX,
     armourMul, structureArmour, TOWER_AGGRO_MEMORY, FOUNTAIN_HEAL_PCT, FOUNTAIN_RADIUS,
     PUSH_STRENGTH, SIEGE_DENSE_AT, SIEGE_EVERY_WAVE_AT, WARDEN, RECALL,
-} from './constants.js?v=fair-order-9';
-import { CHAMPIONS, abilityRank, scaled } from './champions.js?v=fair-order-9';
-import { ITEMS, MAX_ITEMS, itemBonus } from './items.js?v=fair-order-9';
+} from './constants.js?v=small-screen-10';
+import { CHAMPIONS, abilityRank, scaled } from './champions.js?v=small-screen-10';
+import { ITEMS, MAX_ITEMS, itemBonus } from './items.js?v=small-screen-10';
 
 // 可重現嘅亂數：測試要跑到同一場比賽。
 //

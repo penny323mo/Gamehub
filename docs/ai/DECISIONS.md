@@ -2280,3 +2280,32 @@ follows what the tyres can use
 - The point of writing up four non-findings: each one was a plausible-sounding change that would
   have shipped on a screenshot or a single statistic. Three of the four had a measurement that
   contradicted the hunch, and the fourth had a measurement that could not support it either way.
+
+## ADR-116: The smallest real phone had never been opened
+
+- Date: 2026-08-03
+- Status: accepted
+- Decision: the MOBA is checked at **320×568 and 568×320** (iPhone SE) as well as the two sizes
+  already covered, and the HUD narrows its own contents rather than only moving them.
+- Reason: the suite tested 1280×640 and 430×860. An SE is neither, and it is the size where
+  "everything is pinned to an edge" stops working. Opening it found three faults in one pass:
+  - portrait 320 — `.moba-panel` is intrinsically **337 px** wide because `.moba-stats` is
+    `white-space: nowrap`. Centred, it hangs 8 px off **both** edges, so the player cannot see the
+    ends of their own health bar.
+  - landscape 568 — the panel and the skill buttons **overlap 194×60**: the buttons you press sit
+    on top of the health you need to read.
+  - landscape 568 — the lane overview and the scoreboard overlap 100×26.
+- All three are the same shape as the two defects that reached Penny before: not a wrong value, a
+  layout that only works above some width nobody had checked.
+- The fix narrows content (bar widths, portrait tile, board columns, wrapped stats) instead of
+  shuffling positions, because at 568 px there is no arrangement of the full-size pieces that
+  fits. Buttons stay at or above 44 px — that rule is not negotiable against layout pressure.
+- One thing the first fix got wrong: the new media block was written **above** the base rules, so
+  `.moba-lane` and `.moba-attack` overrode it and two of the three overlaps survived at reduced
+  size. Moved to the end of the file. Measured again after: zero overlaps, nothing off-screen,
+  nothing under 44 px, at both sizes.
+- Also: Chinese has no word boundaries for line breaking, so the wrapped stats broke 「補刀」into
+  「補 / 刀」. `word-break: keep-all` holds words together.
+- Gate: a **layout-only** pass at both SE sizes. The two existing viewports still run everything —
+  full match, FX, shop, draw-call budget — but all three faults here were geometry, so the new
+  pass boots, measures, and closes. Full coverage of the size at a fraction of the cost.
