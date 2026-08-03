@@ -5,9 +5,20 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐍</text></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Neon Snake - 霓虹貪食蛇</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+      /* Orbitron 同 Rajdhani 自己託管。之前呢度三個 link 去 Google：兩個
+         preconnect 加一個 stylesheet，跟住個 stylesheet 再拉四個 woff2。
+         網絡差就係一段睇唔到字嘅時間，冇外網就直接跌返做系統字。
+         授權同出處見 assets/fonts/README.md。 */
+      @font-face { font-family: 'Orbitron'; font-style: normal; font-weight: 400 900;
+        font-display: swap; src: url('../../assets/fonts/orbitron-latin.woff2') format('woff2'); }
+      @font-face { font-family: 'Rajdhani'; font-style: normal; font-weight: 400;
+        font-display: swap; src: url('../../assets/fonts/rajdhani-400-latin.woff2') format('woff2'); }
+      @font-face { font-family: 'Rajdhani'; font-style: normal; font-weight: 600;
+        font-display: swap; src: url('../../assets/fonts/rajdhani-600-latin.woff2') format('woff2'); }
+      @font-face { font-family: 'Rajdhani'; font-style: normal; font-weight: 700;
+        font-display: swap; src: url('../../assets/fonts/rajdhani-700-latin.woff2') format('woff2'); }
+    </style>
   </head>
   <body>
     <div id="root"></div>

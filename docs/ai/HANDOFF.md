@@ -95,7 +95,7 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 - Xiangqi `npm ci` reports four pre-existing audit findings; not auto-fixed (toolchain risk).
 - Playwright lives only in `games/Racing Car/tests/node_modules`; both browser suites point there
   by path. If missing, run `npm ci` there — nothing else installs it.
-- `games/tower` and `games/snake-game` still fetch fonts from Google; both have build steps.
+- `games/tower` still fetches Inter/Oxanium from Google; its @import is inside the built bundle.
 - Two local named stashes may be redundant pre-commit backups; do not re-apply them on `main`.
 - Cache token now covers the whole module graph (ADR-111). Change it with
   `node scripts/moba-bump-cache.mjs <token>` — never by hand; a partial rename loads a module

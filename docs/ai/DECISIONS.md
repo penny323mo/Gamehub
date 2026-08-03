@@ -2180,5 +2180,10 @@ follows what the tyres can use
   sizes, and separately that the page makes **no external request at all**. "Zero console errors"
   never caught this — a font that fails to load is not an error, it is a silent downgrade. Hub is
   now **83/83**, up from 71/75 where the four failures were this bug.
-- Not done: `games/tower` (Inter, Oxanium) and `games/snake-game` (Orbitron, Rajdhani) still fetch
-  from Google. Both have build steps, so moving them is a separate job.
+- Snake game followed in the same pass: Orbitron and Rajdhani are vendored the same way, and its
+  three `<link>` tags (two preconnects plus the stylesheet, which then pulled four woff2 files)
+  became one inline `<style>`. Both `index.html` and the tracked `dist/index.html` were edited so
+  a rebuild carries the change rather than reverting it. Verified: all four faces report
+  `loaded` with zero failed requests.
+- Not done: `games/tower` (Inter, Oxanium). Its `@import` is bundled into
+  `dist/assets/index-*.js`, so moving it means running that build — a separate job.

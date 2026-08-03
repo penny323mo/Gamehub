@@ -1,8 +1,15 @@
 # 自己託管嘅字體
 
-`outfit-latin.woff2` —— Outfit，Google Fonts 嘅 latin 子集（v15），
-由 `https://fonts.gstatic.com/s/outfit/v15/QGYvz_MVcBeNP4NJtEtq.woff2` 取得。
-授權係 SIL Open Font License 1.1，全文喺同一個資料夾嘅 `OFL.txt`。
+全部都係 Google Fonts 嘅 latin 子集，全部 SIL Open Font License 1.1，
+授權全文喺同一個資料夾入面逐個字體一份。
+
+| 檔 | 字體 | 出處 |
+| --- | --- | --- |
+| `outfit-latin.woff2` | Outfit 300–800 | `fonts.gstatic.com/s/outfit/v15/QGYvz_MVcBeNP4NJtEtq.woff2` |
+| `orbitron-latin.woff2` | Orbitron 400–900 | `fonts.gstatic.com/s/orbitron/v35/yMJRMIlzdpvBhQQL_Qq7dy0.woff2` |
+| `rajdhani-400-latin.woff2` | Rajdhani 400 | `fonts.gstatic.com/s/rajdhani/v17/LDIxapCSOBg7S-QT7p4HM-Y.woff2` |
+| `rajdhani-600-latin.woff2` | Rajdhani 600 | `fonts.gstatic.com/s/rajdhani/v17/LDI2apCSOBg7S-QT7pbYF_Oreec.woff2` |
+| `rajdhani-700-latin.woff2` | Rajdhani 700 | `fonts.gstatic.com/s/rajdhani/v17/LDI2apCSOBg7S-QT7pa8FvOreec.woff2` |
 
 ## 點解要自己託管
 
@@ -12,8 +19,8 @@
 喺完全冇網嘅環境（例如我哋自己嘅測試沙盒）更加係直接攞唔到，整頁字體
 跌返做系統字。
 
-Google 個 CSS 對 300 到 800 五個字重派嘅係同一條 URL，所以呢度一個 woff2
-已經覆蓋晒，唔會少咗嘢。
+Outfit 同 Orbitron 兩個，Google 個 CSS 對所有字重派嘅都係同一條 URL，
+所以一個檔已經覆蓋晒；Rajdhani 就真係逐個字重一個檔。
 
 ## 用法
 
@@ -23,5 +30,5 @@ Google 個 CSS 對 300 到 800 五個字重派嘅係同一條 URL，所以呢度
 
 ## 仲未搬嘅
 
-`games/tower`（Inter、Oxanium）同 `games/snake-game`（Orbitron、Rajdhani）
-仍然向 Google 攞字體。兩隻都有 build step，要搬就要連 build 一齊處理。
+`games/tower`（Inter、Oxanium）。佢個 @import 俾 build 打包咗入
+`dist/assets/index-*.js` 入面，要搬就要連個 build 一齊跑，所以另計。
