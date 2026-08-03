@@ -5,14 +5,24 @@
 // 以及主控台有冇報錯。
 //
 // 跑法：node games/moba/tests/browser.mjs
+//
+// Playwright 沿用 games/Racing Car/tests 嗰個安裝——同 tests/hub.mjs 一樣。
+// 之前呢度寫 `import { chromium } from 'playwright'`，靠嘅係倉庫某處有個冇入
+// 版本控制嘅 node_modules；嗰個目錄一冇咗，成套測試就即刻開唔到，而喺全新
+// clone 度根本從來未行得到。指名一條路就冇咗呢個隱形相依。
 
-import { chromium } from 'playwright';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const PW = path.join(ROOT, 'games', 'Racing Car', 'tests', 'node_modules', 'playwright', 'index.mjs');
+if (!fs.existsSync(PW)) {
+    console.log('搵唔到 playwright：喺 games/Racing Car/tests 行一次 npm install 先');
+    process.exit(1);
+}
+const { chromium } = await import(pathToFileURL(PW).href);
 const MIME = {
     '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
     '.glb': 'model/gltf-binary', '.json': 'application/json', '.png': 'image/png',

@@ -16,14 +16,25 @@ import { CHAMPIONS, abilityRank, scaled } from './champions.js';
 import { ITEMS, MAX_ITEMS, itemBonus } from './items.js';
 
 // 可重現嘅亂數：測試要跑到同一場比賽。
+//
+// xorshift32 直接攞一個細整數做初始狀態嘅話，頭幾個輸出仲未擴散開。實測
+// seed 101–124，第一個輸出嘅平均係 0.007（唔係 0.5），第二個由 0.21 跳到
+// 0.77。即係邊個消費第一個亂數，邊個就每一場都攞到差唔多同一個極端值——
+// 而喺呢度第一個消費者係第一個 bot 嘅反應時間。順序 seed（101、102、103…）
+// 更加令幾場之間嘅頭幾個數互相關聯，所以連「跑多幾場拉勻」都救唔到。
+//
+// 所以 seed 要先用一個乘法常數撈勻，再空轉八轉先開始出數。同一個 seed 仍然
+// 一定跑到同一場波，只係換咗條序列。
 function makeRng(seed) {
-    let s = seed >>> 0 || 1;
-    return () => {
+    let s = (Math.imul(seed >>> 0 || 1, 0x9e3779b1) ^ 0x85ebca6b) >>> 0 || 1;
+    const next = () => {
         s ^= s << 13; s >>>= 0;
         s ^= s >> 17;
         s ^= s << 5; s >>>= 0;
         return s / 4294967296;
     };
+    for (let i = 0; i < 8; i++) next();
+    return next;
 }
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);

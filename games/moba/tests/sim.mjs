@@ -669,5 +669,35 @@ function dodgeCase(px, speed) {
         longest <= 8, { 最耐: longId, 秒: +longest.toFixed(1) });
 }
 
+// ---------- T26：一場波抽嘅第一個亂數要真係亂數 ----------
+// 舊版將 seed 直接當 xorshift32 嘅初始狀態。細整數 seed 未擴散開，實測
+// seed 101–124 第一個輸出嘅平均係 0.007——即係第一個消費者（第一個 bot
+// 嘅反應時間）每一場都攞到同一個極端值，而順序 seed 仲會令幾場之間互相
+// 關聯，跑多幾場都拉唔勻。實測影響到勝率：鏡像陣容藍方由 24/72 升到 33/72。
+//
+// 呢個 gate 唔係去度「今日條序列係咩」，而係度「頭幾個數同後面嘅一樣咁散」。
+{
+    const first = [], fifth = [];
+    for (let seed = 1; seed <= 200; seed++) {
+        const r = new Sim({ seed }).rng;
+        first.push(r());
+        for (let i = 0; i < 3; i++) r();
+        fifth.push(r());
+    }
+    const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+    const above = (a) => a.filter(v => v > 0.5).length / a.length;
+    check('第一個亂數嘅平均落喺 0.5 附近（舊版係 0.007）',
+        Math.abs(mean(first) - 0.5) < 0.06, { 平均: +mean(first).toFixed(3) });
+    check('第一個亂數唔會成堆黐埋一邊',
+        above(first) > 0.35 && above(first) < 0.65, { 大過一半嘅比例: +above(first).toFixed(2) });
+    check('頭嗰個同第五個一樣咁散（頭嗰個冇特別）',
+        Math.abs(mean(first) - mean(fifth)) < 0.08,
+        { 第一: +mean(first).toFixed(3), 第五: +mean(fifth).toFixed(3) });
+    // 修正唔可以整爛可重現性：同一個 seed 一定要跑到同一場波。
+    const a = new Sim({ seed: 4242 }).rng, b = new Sim({ seed: 4242 }).rng;
+    const seq = (r) => Array.from({ length: 5 }, () => r());
+    check('同一個 seed 抽到同一串數', JSON.stringify(seq(a)) === JSON.stringify(seq(b)));
+}
+
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);
 if (fail) { console.log('失敗項目:', failed.join('、')); process.exit(1); }

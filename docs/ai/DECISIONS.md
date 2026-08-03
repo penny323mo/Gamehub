@@ -2035,14 +2035,56 @@ follows what the tyres can use
   sponge is half the problem and it lives in the minion, not the champion.
 - Validated on three independent 24-match sets, none of them the twelve seeds T13 uses, because
   tuning against a gate's own seeds is exactly the mistake made in ADR-098:
-  - nexus finishes **57/72 → 69/72**
-  - average match **19.0 min → 15.8 min**
-  - average kills 29.2 → 30.3, so fights did not turn into a bloodbath
+  - nexus finishes **58/72 → 65/72**
+  - average match **19.5 min → 17.5 min**
+  - average kills 29.3 → 31.8, so fights did not turn into a bloodbath
+  - **these figures were re-measured after ADR-109.** The numbers first recorded here (57→69,
+    19.0→15.8 min) came from a biased sample: the RNG's first output was near zero every match,
+    so the first bot's reaction time was not random. The direction and the conclusion hold; the
+    size was overstated.
   - all 208 sim gates pass unchanged; not one threshold had to be re-baselined
-- **Not fixed, and not caused, by this change:** red side wins far more than blue on mirrored
-  lineups — 25/72 blue before, 24/72 after. The first 24-set showed 13/11 and looked like a fix;
-  the two holdout sets showed 6/18 and 7/17. One set is not evidence. This deserves its own
-  investigation.
+- **Not caused by this change:** red side won far more than blue on mirrored lineups — 25/72 blue
+  before, 24/72 after. That investigation became ADR-109 and found the cause was the RNG, not the
+  balance. Re-measured with the fixed RNG, blue takes 33/72 both before and after this change, so
+  the pacing change is side-neutral, which is what was claimed here.
 - Gate: T25 asserts a level-1 interval at or under 1.15 s and a first-wave melee minion dead within
   8 s, for every champion. The ceiling is the mage by design — she clears with W, not with autos —
   so the rule reads "even the one who is worst at auto-attacking does not wait ten seconds".
+
+## ADR-109: The first random number of every match was not random
+
+- Date: 2026-08-03
+- Status: accepted
+- Decision: `makeRng` now scrambles the seed through a multiply-xor before it becomes xorshift32
+  state, and discards eight outputs before returning the generator. Same seed, same match; a
+  different sequence.
+- Reason: the old code used the seed directly as xorshift32 state. A 32-bit xorshift needs several
+  iterations to diffuse a small integer, so the early outputs are not usable. Measured over the
+  seed sets in use, the **mean of the first output was 0.007, 0.013, 0.019 and 0.001** — not 0.5.
+  The second was anywhere from 0.21 to 0.77 depending on the block of seeds. Sequential seeds
+  (101, 102, 103…) made it worse: neighbouring matches drew correlated early values, so averaging
+  over more matches did not wash it out.
+- The first consumer is the first bot's reaction offset, `think = sim.rng() * reaction`. So blue's
+  first champion started every single match with an effectively fixed, extreme reaction time.
+- How it was found: mirrored 3v3 lineups produced 24/72 wins for blue. The per-minute diagnostic
+  showed blue ahead at 2 minutes, level at 5, behind at 10 — a compounding effect, not a spawn
+  asymmetry. Map, spawns and wave positions are all mirror-symmetric under x → −x, so the bias had
+  to be in something that is not part of the geometry.
+- Effect: blue wins go **24/72 → 33/72** on the same three 24-match sets. 33 against an expected
+  36 is 0.7σ, so no side bias survives that the sample can see.
+- Consequence for ADR-108: its published figures were measured on the biased sample and have been
+  corrected in place. Re-measured with both variants under the fixed RNG, the pacing change still
+  improves nexus finishes 58/72 → 65/72 and shortens matches 19.5 → 17.5 min.
+- Gate: T26 draws the first output for seeds 1–200 and requires the mean within 0.06 of 0.5, a
+  balanced split either side of 0.5, and the first draw to be no more special than the fifth. It
+  also asserts that the same seed still reproduces the same sequence, which is the property the
+  fix must not break.
+- The wider lesson, and the reason this is an ADR rather than a one-line fix: **a seeded generator
+  is part of the test fixture, not just the game.** Every gate that runs matches was reading a
+  distribution with a fixed point in it. Nothing failed, because nothing was measuring the
+  generator — the same shape as "a test that encodes the code's behaviour rather than the intent".
+- Related, found while re-running the suite after this fix: `browser.mjs` imported `playwright` as
+  a bare specifier, which resolved only through an untracked `node_modules` somewhere above
+  `games/moba/tests/`. There is no `package.json` at that level, so on a fresh clone the MOBA
+  browser suite had never been runnable. It now points at `games/Racing Car/tests/node_modules`
+  explicitly, the same route `tests/hub.mjs` already used.
