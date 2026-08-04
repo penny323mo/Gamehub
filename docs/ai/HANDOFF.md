@@ -14,18 +14,20 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
 
 ### 版本標記只覆蓋到六十七個請求入面嘅十九個 (ADR-134)
 
-- ADR-133 逐個補咗 Hub 一個檔。同一條問題問到底——**遊戲實際攞邊啲檔，邊啲有標記**——
-  唔係一條讀碼題，所以改為錄低請求。開一局：**67 個請求，19 個有標記**；冇標記嘅係成個
-  `vendor/`、Draco 解碼器，同**全部十二個 `.glb` 模型**。`cache-bust.mjs` 一直綠燈，因為
-  佢查嘅係 `src/` 嘅 import，而嗰邊由頭到尾都唔係有風險嗰半。
-- 模型特別要緊：Penny 講明唔重用現有 3D 資產，即係模型一定會換，而換完之後返轉頭嘅玩家
-  會攞到新碼配舊網格。模型嘅標記由 `assets.js` 自己個 module URL 讀返，bump 腳本唔使多一
-  個改寫位，亦冇第二個地方好忘記。Hub 嘅字型同兩個 logo 就要明寫入 bump 腳本。
-- `vendor/` 特登唔郁，而且寫低理由而唔係寫低遺漏：佢哋之間用相對路徑互相 import，加標記
-  等於改第三方源碼；升級 vendor 嘅正確做法係改資料夾名，一次過換晒所有 import URL。
+- ADR-133 逐個補咗 Hub 一個檔。同一條問題問到底——**遊戲實際攞邊啲檔、邊啲有標記**——唔係讀碼題，
+  所以改為錄低請求。開一局：**67 個請求，19 個有標記**；冇標記嘅係成個 `vendor/`、Draco 解碼器，
+  同**全部十二個 `.glb` 模型**。`cache-bust.mjs` 一直綠燈，因為佢查 `src/` 嘅 import，而嗰半從來
+  唔係有風險嗰半。
+- 模型特別要緊：Penny 講明唔重用現有 3D 資產，即係模型一定會換，而換完之後返轉頭嘅玩家會攞到
+  新碼配舊網格。模型嘅標記由 `assets.js` 自己個 module URL 讀返，bump 腳本唔使多一個改寫位；
+  Hub 嘅字型同兩個 logo 就要明寫入 bump 腳本。
+- `vendor/` 特登唔郁，而且寫低理由唔係寫低遺漏：佢哋之間用相對路徑互相 import，加標記等於改第三方
+  源碼；升級 vendor 嘅正確做法係改資料夾名，一次過換晒所有 import URL。
 - 呢個改動即刻整爛兩條 gate，而咁樣先叫有用：資產重試測試攔 `**/*.glb`，一加 query 就對唔
   到，於是佢一次都冇攔過，「載入甩咗」根本冇發生過。而家對 `pathname`。
-- 新 gate 唔查碼，直接錄低瀏覽器攞過乜：49 個請求、31 個要標記、0 個冇。
+- 新 gate 唔查碼，直接錄低瀏覽器攞過乜：49 個請求、31 個要標記、0 個冇。同一份錄音順手釘住
+  兩樣，量出嚟都乾淨：**一個外網請求都冇**（ADR-112 收字型入倉就係為咗呢樣，但守衛一直只喺
+  Hub），同**冇任何回應 400 或以上**（路徑打錯會畀重試食咗，畫面上只係「有隻兵冇模型」）。
 
 ### Earlier checkpoints, in one line each
 
@@ -63,17 +65,15 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
   respawn ran `revive()` over the swing. ADR-126.
 - The buy rule was written three times, agreeing **only because `canShop` returns `!!c`**;
   `sim.buyBlocker` owns it and T31 pins the contract (ADR-125). A lost GPU context used to end the
-  match though the browser returns it in a second (ADR-120); audio was already correct and is
-  pinned (ADR-121); twelve models loaded through one `Promise.all` with no retry — now three tries
-  plus a 再試一次 button (ADR-122).
+  match though the browser returns it in a second (ADR-120); audio was already correct and is pinned
+  (ADR-121); twelve models loaded via one `Promise.all` with no retry — now three tries (ADR-122).
 - `.moba-recall` and `.moba-shopbtn` sat 30 px apart while both are 44 px tall, so recall covered
   the shop button all match; the gates had been sampling the opening frame. ADR-119.
-- Bot update order alternates each tick (ADR-113); draw calls peak at 286/342, not 1311 (ADR-114);
-  portrait spent **83.6% on abyss and water** before the camera rotated 90° about Y for **70.1%
-  ground** (ADR-110); `makeRng` used the seed directly as xorshift32 state so the **first output
-  averaged 0.007** (ADR-109); level-1 attack pacing was **8.6–12.7 s per minion**, now 5.1–7.9
-  (ADR-108); the SE HP panel hung off both edges (ADR-116); the **settings panel did not fit
-  568×320** (ADR-124).
+- Bot order alternates each tick (ADR-113); draw calls peak at 286/342, not 1311 (ADR-114); portrait
+  spent **83.6% on abyss and water** before the camera rotated 90° about Y (ADR-110); `makeRng` used
+  the seed directly as xorshift32 state so the **first output averaged 0.007** (ADR-109); level-1
+  attack pacing was **8.6–12.7 s per minion**, now 5.1–7.9 (ADR-108); the SE HP panel hung off both
+  edges (ADR-116) and the **settings panel did not fit 568×320** (ADR-124).
 - `1 - exp(-rate·dt)` for turn/camera follow (ADR-118); Hub launcher paged dock, Gomoku CSS
   stones, Xiangqi build rewrite (`752bcc3`, ADR-102), fonts self-hosted (ADR-112), `looks.js` FX
   profiles (ADR-103), anywhere-shop (ADR-104, supersedes ADR-088/094/100).
@@ -85,7 +85,7 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
 - `node tests/hub.mjs` → **95/95**; Racing Car 6/6, Royale 8/8, Xiangqi build + selftests pass.
   `cache-bust.mjs` → pass; `sim.mjs` → **238/238**; `balance.mjs 24` → all six inside 20–85%
   (318 s, not a fast gate).
-- `node games/moba/tests/browser.mjs` → **193/193 pass** at five sizes (~10 min): select and
+- `node games/moba/tests/browser.mjs` → **195/195 pass** at five sizes (~10 min): select and
   post-match layout, full matches, FX and framing, the attack swing playing, smoothness at
   120/60/30 fps, a skill press surviving a failed pointer capture, shop, draw calls, taps.
 

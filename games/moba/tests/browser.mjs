@@ -1312,7 +1312,11 @@ for (const [tag, viewport] of LAYOUT_SIZES) {
 {
     const page = await browser.newPage({ viewport: { width: 900, height: 600 } });
     const seen = [];
+    const 壞回應 = [];
     page.on('request', (r) => seen.push(r.url()));
+    page.on('response', (r) => {
+        if (r.status() >= 400) 壞回應.push(`${r.status()} ${r.url()}`);
+    });
     await page.goto(URL_BASE, { waitUntil: 'load' });
     await page.waitForFunction(() => !!window.__mobaReady || !!document.querySelector('.pick-card'),
         null, { timeout: 120000 });
@@ -1326,6 +1330,17 @@ for (const [tag, viewport] of LAYOUT_SIZES) {
     const 冇標記 = 要有標記.filter(u => !/[?&]v=/.test(u));
     check('每一個攞落嚟嘅專案檔都帶住版本標記', 冇標記.length === 0,
         { 總請求: 本地.length, 要有標記: 要有標記.length, 冇標記: 冇標記.slice(0, 8) });
+
+    // 一個外網請求都唔應該有。ADR-112 特登將字型收返入倉，就係為咗呢件事，
+    // 但當時只喺 Hub 度守住；MOBA 呢邊由頭到尾冇人查過。實測係乾淨嘅，
+    // 而家釘住——將來有人隨手引一個 CDN，即刻響。
+    const 本機 = `http://localhost:${port}`;
+    const 外網 = [...new Set(seen.filter(u => /^https?:\/\//.test(u) && !u.startsWith(本機)))];
+    check('一個外網請求都冇（字型同 vendor 全部喺倉入面）', 外網.length === 0, 外網.slice(0, 5));
+
+    // 任何 404 都要響。資產路徑打錯咗，會畀重試邏輯食咗變成靜靜哋少咗件嘢，
+    // 而畫面上就係「有隻兵冇模型」——冇人會即刻聯想到係路徑問題。
+    check('冇任何請求收到 400 以上', 壞回應.length === 0, 壞回應.slice(0, 5));
     await page.close();
 }
 

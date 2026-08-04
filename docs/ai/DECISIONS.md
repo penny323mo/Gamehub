@@ -2928,3 +2928,8 @@ follows what the tyres can use
   test intercepted `**/*.glb`, and a query string stops that pattern matching, so it silently
   aborted nothing and the failure it simulates never happened. It now matches on `pathname`,
   which further parameters cannot break.
+- Two more assertions ride on the same recording, both clean when measured and both cheap to
+  keep. **No external request**: ADR-112 vendored the fonts precisely for this, but the guard
+  only ever existed on the Hub — the MOBA had none, and now anyone who reaches for a CDN trips
+  it. **No response at 400 or above**: a mistyped asset path is swallowed by the retry logic and
+  surfaces only as a unit with no model, which nobody would trace back to a path. 195/195.
