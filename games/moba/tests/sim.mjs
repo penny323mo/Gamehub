@@ -1101,5 +1101,67 @@ function dodgeCase(px, speed) {
         停 >= 3.5 && 停 <= 5.2, { 停喺: 停, 玩家射程: p.range, 塔半徑: tower.r });
 }
 
+// ---------- T37–T39：突變測試照出嘅三個未守分支 ----------
+//
+// 反轉 if 條件嗰批算子，十二個殺死八個——條套件守邏輯守得唔錯。但四個
+// 生還者都係實實在在嘅分支，呢度逐個補。
+
+// T37：拆咗塔，錢派畀邊隊
+// `if (c.team !== team) continue;` 反轉之後，錢派晒畀掉咗塔嗰隊，而冇人響。
+// 玩家一秒就感受得到：你拆咗人哋座塔，對面收錢。
+{
+    const sim = new Sim({ seed: 12 });
+    // 要揀最外嗰座：規則係由外向內拆，內塔喺外塔未冧之前係打唔到嘅
+    // （我第一次隨手 find，攞到內塔，於是一蚊都冇派，測試肥咗——
+    //   而肥嘅理由唔係規則錯，係我揀錯咗目標）。
+    const tower = sim.entities.filter(e => e.kind === 'tower' && e.team === TEAM.RED)
+        .sort((a, b) => a.tier - b.tier)[0];
+    const 藍 = sim.champions.filter(c => c.team === TEAM.BLUE);
+    const 紅 = sim.champions.filter(c => c.team === TEAM.RED);
+    for (const c of [...藍, ...紅]) { c.x = tower.x - 4; c.z = 0; c.gold = 0; c.alive = true; }
+    // 建築有護甲減傷，所以「打 hp+1」係打唔死佢嘅（實測 1201 只入到 984）。
+    // 先扣返剩一滴血，再補一下——量嘅係派錢規則，唔係傷害公式。
+    tower.hp = 1;
+    sim.damage(tower, 50, 藍[0], { physical: true });
+    const 藍收 = 藍.reduce((a, c) => a + c.gold, 0);
+    const 紅收 = 紅.reduce((a, c) => a + c.gold, 0);
+    check('拆咗紅方塔，錢入藍方袋', 藍收 > 0, { 藍收, 紅收 });
+    check('掉咗塔嗰隊一蚊都收唔到', 紅收 === 0, { 藍收, 紅收 });
+}
+
+// T38：時限打和之後嘅第二層決勝
+// 現有測試只行過第一層（建築血多嗰隊贏）。建築血一樣嗰陣要睇人頭，
+// 而嗰條分支反轉咗都冇人響——即係從來冇行過。
+{
+    const sim = new Sim({ seed: 42 });
+    // 兩邊建築血刻意夾到一模一樣
+    const 建築 = (t) => sim.entities.filter(e => e.alive && e.team === t
+        && (e.kind === 'tower' || e.kind === 'nexus'));
+    for (const t of [TEAM.BLUE, TEAM.RED]) for (const e of 建築(t)) e.hp = 1000;
+    sim.champions.filter(c => c.team === TEAM.RED)[0].kills = 5;
+    sim.time = GAME_MAX - TICK;
+    sim.step();
+    check('時限打和：建築血一樣就睇人頭', sim.over?.winner === TEAM.RED,
+        { winner: sim.over?.winner, byTime: sim.over?.byTime });
+}
+
+// T39：嘲諷有半徑，唔係全場
+// `if (dist(c, e) <= ab.radius + e.r)` 反轉咗都冇人響——即係「範圍」呢件事
+// 冇人驗過。範圍技唔守範圍，就等於一個全場技。
+{
+    const sim = new Sim({ seed: 13 });
+    const 鐵衛 = sim.champions.find(c => c.champId === 'ironward');
+    const ult = 鐵衛?.def.abilities[3];
+    const 敵 = sim.champions.filter(c => c.team !== 鐵衛.team);
+    鐵衛.x = 0; 鐵衛.z = 0; 鐵衛.level = 16; 鐵衛.mp = 鐵衛.maxMp; 鐵衛.abilityCd = [0, 0, 0, 0];
+    敵[0].x = ult.radius - 1; 敵[0].z = 0; 敵[0].alive = true; 敵[0].tauntUntil = 0;
+    敵[1].x = ult.radius + 8; 敵[1].z = 0; 敵[1].alive = true; 敵[1].tauntUntil = 0;
+    sim.cast(鐵衛, 3, { x: 鐵衛.x, z: 鐵衛.z });
+    check('嘲諷會嘲到範圍入面嗰個', 敵[0].tauntUntil > sim.time,
+        { 半徑: ult.radius, 近: 敵[0].tauntUntil });
+    check('嘲諷唔會嘲到範圍外面嗰個', 敵[1].tauntUntil === 0,
+        { 半徑: ult.radius, 遠距離: +Math.abs(敵[1].x - 鐵衛.x).toFixed(1), 遠: 敵[1].tauntUntil });
+}
+
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);
 if (fail) { console.log('失敗項目:', failed.join('、')); process.exit(1); }

@@ -2987,3 +2987,32 @@ follows what the tyres can use
   measured at 3.24 / 4.19 / 6.56 m for r of 1.1 / 2.2 / 4.4. That is dive geometry — how far into
   a tower's threat you stand while hitting it. T36 pins 3.5–5.2 m, and both the doubling and the
   halving now fail; the first band I wrote (3–5) caught only the doubling, which is half a gate.
+
+## ADR-136: Inverting conditions found four branches nothing was watching
+
+- Date: 2026-08-04
+- Status: accepted
+- Decision: T37–T39 cover the three consequential branches that survived condition inversion —
+  who is paid when a tower falls, the second tiebreak at the time limit, and whether an
+  area ability respects its radius.
+- Method: the numeric-doubling operator was exhausted, so the campaign switched to inverting
+  `if` conditions — an operator that cannot produce equivalent mutants. **8 of 12 died**, which
+  is a much healthier picture than the constants gave and says the suite guards logic well.
+  The four survivors were specific rather than diffuse.
+- `if (c.team !== team) continue;` in the tower-kill payout. Inverted, the gold for destroying
+  a tower goes to **the team that lost it** — something a player would notice within a second —
+  and nothing failed. T37 now checks both halves: the destroying side is paid, the losing side
+  gets nothing.
+- `if (kb !== kr)` is the *second* tiebreak at the time limit: equal building HP falls through
+  to kill count. The existing test only ever exercised the first tiebreak, so this branch had
+  never run at all. T38 forces equal building HP and an uneven kill count.
+- `if (dist(c, e) <= ab.radius + e.r)` appears twice — dash splash and taunt. Inverted, an area
+  ability hits everyone *outside* its radius and the suite is silent: T30 checks that each
+  ability delivers its declared effects, but never that the radius bounds them. An area ability
+  that ignores its radius is a global ability. T39 puts one enemy inside and one outside.
+- Two fixture errors on the way to T37, both mine and both worth recording. Picking a red tower
+  with `find` returned an inner one, which cannot be damaged until the outer falls — the test
+  failed for a reason that had nothing to do with the rule. Then `damage(tower, hp + 1)` left
+  it alive at 215 HP, because structure armour absorbed a fifth of the hit. Both were found by
+  printing the intermediate state rather than re-reading the rule.
+- All three mutants now fail and the clean tree passes 252/252.
