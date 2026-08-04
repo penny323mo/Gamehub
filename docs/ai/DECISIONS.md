@@ -2379,3 +2379,30 @@ follows what the tyres can use
     dash steps 0.87 m against a 2.02 m contact radius. The miss band is 0.04 m wide out of 2.02.
   - unit separation already clamps to the bridge; zone ticks use a fixed interval and cannot be
     outrun by any unit or dash speed in the game.
+
+## ADR-119: The recall button sat on top of the shop button for the whole match
+
+- Date: 2026-08-03
+- Status: accepted
+- Decision: the bottom-right stack (skills, shop, recall) is spaced 52 px per layer, since every
+  layer is 44 px tall. The lane overview is `min(560px, 100vw - 340px)` so it cannot reach the
+  scoreboard at mid widths.
+- Reason: `.moba-recall` and `.moba-shopbtn` were 30 px apart while both are 44 px tall, so recall's
+  lower **12 px (portrait) / 14 px (landscape) overlapped the shop button** — and the shop button
+  is later in the DOM, so taps in that band went to the shop. This was true in **both orientations
+  for the entire match**, not an edge case.
+- Why nothing caught it: every layout gate measured the frame right after the match starts, and in
+  that frame the champion is standing in the fountain — where `recallBtn` is hidden — with no gold,
+  so the shop button is still the short "商店" rather than "商店 · 可買 …". **The gate was
+  measuring a screen the player only sees for the first few seconds.** The fix that matters here
+  is not the CSS: the layout gates now place the champion out of the fountain with gold in hand
+  before measuring anything.
+- Found by a genuinely new axis: rotating the device mid-match. The rotation itself came through
+  clean — `camYaw` flips, the joystick still drives toward the enemy base, the lane bar re-orients,
+  zero console errors — but standing in a real mid-match state to test it is what exposed the
+  overlap that had always been there.
+- Also fixed: at 860 px wide the lane overview is 560 px centred, reaching x 710, while the
+  scoreboard starts at 700. 1280 and 430 both miss it, so `860×430` is now a third layout size.
+- Verified the gate fails for the right reason before trusting it: against the old CSS it reports
+  `moba-recall × moba-shopbtn (54×12)`, `(54×14)` and `moba-lane × moba-board (12×26)` — the exact
+  three defects, at the exact sizes.

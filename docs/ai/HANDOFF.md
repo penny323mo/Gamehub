@@ -13,6 +13,18 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 ## Completed
 
+### 深淵之橋 the recall button covered the shop button all match (ADR-119)
+
+- `.moba-recall` and `.moba-shopbtn` sat 30 px apart while both are 44 px tall, so recall's lower
+  **12–14 px overlapped the shop button** in both orientations — and taps in that band went to
+  the shop, since it is later in the DOM. True for the whole match, not an edge case.
+- Nothing caught it because every layout gate measured the frame right after the start, where the
+  champion is in the fountain (recall hidden) with no gold (shop button short). **The gate was
+  measuring a screen the player sees for a few seconds.** Layout gates now stand the champion
+  outside the fountain with gold before measuring — that matters more than the CSS.
+- Found by rotating the device mid-match, a state never tested. The rotation itself was clean:
+  `camYaw` flips, the joystick still drives at the enemy base, the lane bar re-orients.
+
 ### 深淵之橋 every skillshot had never once hit anything (ADR-117)
 
 - The straight-line projectile loop lived in `#tickZones`, while `#tickProjectiles` iterated
@@ -25,25 +37,7 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
   fires every skillshot; **T30 sweeps all 24 abilities against what their data declares** and was
   mutation-tested (disabling shields/stuns/slows each made it fail with the right names).
 - Effect: nexus 69/72 → **71/72**, match **15.4 → 11.4 min**, blue 39/72. Nothing re-tuned on top.
-- Turning and camera follow now use `1 - exp(-rate·dt)`: `dt·rate` is only accurate while `dt` is
-  small, so the same match turned and panned differently at 30 fps than at 60 (ADR-118).
 
-### 深淵之橋 the smallest real phone had never been opened (ADR-116)
-
-- The suite covered 1280×640 and 430×860; an iPhone SE is neither, and it is where "pin
-  everything to an edge" stops working. One pass at 320×568 / 568×320 found three faults: the HP
-  panel is intrinsically 337 px wide so it hung off **both** edges at 320; it **overlapped the
-  skill buttons 194×60** at 568; the lane bar and scoreboard overlapped 100×26.
-- Fixed by narrowing content, not moving it; buttons stay ≥44 px. Gate: layout-only pass at both.
-
-### 深淵之橋 bot order, and the draw-call worry (ADR-113, ADR-114)
-
-- A bot decision writes straight into sim state, so a later bot reads a world where the others
-  already moved. Champions are created blue-first and the player is always blue. On 72 mirrored
-  matches: blue-first → blue wins **33/72**; red-first → **48/72**; alternating → **35/72**.
-  `updateBots` alternates each tick, cancelling the bias exactly every two ticks.
-- ADR-105's 1311 draw calls were a synthetic stress case; a real match runs at peak 286/342, so
-  the sigil-geometry merge it recommended is retired. `browser.mjs` holds a 600 budget instead.
 
 ### 深淵之橋 portrait puts the lane up the screen (ADR-110)
 
@@ -53,17 +47,17 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
   too (same drawing code, one canvas transform, CSS decides the axis). Two old gates hard-coded
   "+x is right" and now measure against the camera's own vectors.
 
-### 深淵之橋 the RNG and the attack pacing (ADR-109, ADR-108)
-
-- `makeRng` used the seed directly as xorshift32 state, so the **first output averaged 0.007**, and
-  its first consumer is the first bot's reaction time. Seed scrambled, eight outputs discarded;
-  blue wins 24/72 → 33/72, the rest being ADR-113.
-- Attack pacing: level 1 was 1.39–1.59 s per swing and **8.6–12.7 s per minion**, slower than the
-  minions. Attack speed ×1.4 and melee minion 400 → 330 HP put it at 0.99–1.13 s / 5.1–7.9 s.
-  ADR-108's figures were re-measured after ADR-109 and corrected in place.
-
 ### Earlier checkpoints, in one line each
 
+- Bot update order alternates each tick: updating blue first gave blue 33/72, red first 48/72.
+  ADR-113. Draw calls peak at 286/342 in a real match, not the synthetic 1311. ADR-114.
+- `makeRng` used the seed directly as xorshift32 state, so the **first output averaged 0.007** and
+  its first consumer is a bot's reaction time. ADR-109. Attack pacing: level 1 took **8.6–12.7 s
+  per minion**, slower than the minions; now 5.1–7.9 s. ADR-108.
+- Small screens: an iPhone SE (320×568 / 568×320) found the HP panel hanging off both edges and
+  overlapping the skill buttons. Fixed by narrowing content, not moving it. ADR-116.
+- Turning and camera follow use `1 - exp(-rate·dt)`; `dt·rate` is only accurate while `dt` is
+  small, so the same match turned and panned differently at 30 fps than at 60. ADR-118.
 - Hub launcher: paged groups of four with swipe/arrows/keyboard/dots in one footer dock; Gomoku
   CSS stones; Xiangqi nested build rewrite. `752bcc3`, ADR-102. Fonts self-hosted, ADR-112.
 - Attack FX: `looks.js` holds six basic and 24 ability profiles with stable style IDs, `fx.js`
@@ -84,7 +78,7 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 - `node games/moba/tests/cache-bust.mjs` → pass; all six entry/resource tokens agree.
 - `node games/moba/tests/sim.mjs` → **220/220 pass**, including the attack-pacing, RNG-diffusion
   and bot-order gates. Twelve mirrored matches still finish, no NaN or bridge escape.
-- `node games/moba/tests/browser.mjs` → **137/137 pass** at four sizes (bundled Chromium;
+- `node games/moba/tests/browser.mjs` → **141/141 pass** at five sizes (bundled Chromium;
   `PW_CHROMIUM` overrides): full matches, FX and framing gates, shop, draw-call budget, a drifting
   tap buys while a 40 px drag does not, every HUD button ≥44 px, zero console errors.
 

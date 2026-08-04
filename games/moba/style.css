@@ -473,7 +473,9 @@ html, body {
 .moba-lane {
     position: absolute; top: calc(46px + env(safe-area-inset-top, 0px));
     left: 50%; transform: translateX(-50%);
-    width: min(560px, 78vw); height: 26px;
+    /* 78vw 喺 860 點闊度之下係 671，夾到 560，置中就去到 710；而右上角
+       計分板由 700 開始——啱啱撞。留返 340 點畀計分板同兩邊邊距。 */
+    width: min(560px, calc(100vw - 340px)); height: 26px;
     background: var(--panel); border: 1px solid var(--edge); border-radius: 99px;
     padding: 0 2px; overflow: hidden;
 }
@@ -494,7 +496,11 @@ html, body {
 /* ---------- 返程 ---------- */
 .moba-recall {
     min-height: 44px; touch-action: manipulation;
-    position: absolute; right: calc(10px + var(--safe-r)); bottom: calc(128px + var(--safe-b));
+    /* 右下角由下而上疊三層：技能掣、商店、返程。每層都係 44px 高，所以
+       每層之間至少要差 52px——之前差 30px，即係返程嘅下半截永遠壓喺商店
+       上面，而嗰條 14px 嘅帶撳落去係去咗商店。因為靜態測試一直喺泉水度
+       跑（喺屋企返程掣係收埋嘅），呢個重疊由頭到尾冇響過。 */
+    position: absolute; right: calc(10px + var(--safe-r)); bottom: calc(150px + var(--safe-b));
     padding: 6px 14px; border-radius: 99px; font: inherit; font-size: 12px; cursor: pointer;
     background: var(--panel); border: 1px solid var(--edge); color: #cfd8ea;
 }
@@ -521,8 +527,11 @@ html, body {
     100% { opacity: 0; transform: translate(-50%, -26px); }
 }
 @media (orientation: portrait) {
+    /* 打直嗰陣商店掣喺 158px，一樣要留夠 52px */
     .moba-recall {
-    min-height: 44px; touch-action: manipulation; bottom: calc(190px + var(--safe-b)); }
+        min-height: 44px; touch-action: manipulation;
+        bottom: calc(210px + var(--safe-b));
+    }
 }
 
 /* 最細嘅真手機：iPhone SE 320×568 / 568×320。實測三個毛病，全部都係

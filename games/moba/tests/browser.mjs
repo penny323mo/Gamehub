@@ -790,7 +790,14 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
 // —— 320×568 同 568×320 揾到嘅兩個毛病都係純排版：面板衝出畫面左邊、面板
 // 壓住技能掣、總覽被計分板蓋住。所以呢一段只開場、只量幾何，成本係全套嘅
 // 零頭，但補返「最細嘅機」呢條從來冇人行過嘅路。
-for (const [tag, viewport] of [['SE 打直', { width: 320, height: 568 }], ['SE 打橫', { width: 568, height: 320 }]]) {
+const LAYOUT_SIZES = [
+    ['SE 打直', { width: 320, height: 568 }],
+    ['SE 打橫', { width: 568, height: 320 }],
+    // 860 闊：78vw 嘅兵線總覽啱啱撞到右上角計分板。1280 同 430 都撞唔到，
+    // 所以中間呢段闊度要自己有代表。
+    ['中闊打橫', { width: 860, height: 430 }],
+];
+for (const [tag, viewport] of LAYOUT_SIZES) {
     const page = await browser.newPage({ viewport, hasTouch: true, isMobile: true });
     const errs = watch(page);
     await page.goto(URL_BASE, { waitUntil: 'load' });
@@ -798,6 +805,14 @@ for (const [tag, viewport] of [['SE 打直', { width: 320, height: 568 }], ['SE 
         null, { timeout: 120000 });
     await page.click('#pick-go');
     await page.waitForFunction(() => !!window.__view, null, { timeout: 120000 });
+    // 開場嗰刻唔係一個有代表性嘅畫面：英雄喺泉水，所以返程掣係收埋嘅；
+    // 又冇錢，所以商店掣仲係短版「商店」。實測就係咁走漏咗一個成場都存在
+    // 嘅重疊——返程掣同商店掣疊咗 12px，而嗰條帶撳落去係去咗商店。
+    // 所以要擺返一個真實狀態：離開泉水、袋住錢。
+    await page.evaluate(() => {
+        const p = window.__sim.player;
+        p.x = 0; p.z = 0; p.hp = p.maxHp; p.gold = 3000;
+    });
     await page.waitForTimeout(900);
 
     const layout = await page.evaluate(() => {
