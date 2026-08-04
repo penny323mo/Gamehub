@@ -4,19 +4,19 @@
 // 兩樣分開嘅原因同 sim.js 唔 import three.js 一樣：規則要可重現，
 // 畫面要跟硬件。一個 120Hz 螢幕唔應該令小兵行快一倍。
 
-import { Assets } from './assets.js?v=context-resume-14';
-import { armTap } from './tap.js?v=context-resume-14';
-import { Sim } from './sim.js?v=context-resume-14';
-import { createBot, updateBots } from './ai.js?v=context-resume-14';
-import { View } from './view.js?v=context-resume-14';
-import { Hud } from './hud.js?v=context-resume-14';
-import { createInput } from './input.js?v=context-resume-14';
-import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=context-resume-14';
-import { TEAM, TICK, teamName } from './constants.js?v=context-resume-14';
-import { CHAMPION_LOOK } from './looks.js?v=context-resume-14';
-import { Sfx } from './sfx.js?v=context-resume-14';
-import { settings } from './settings.js?v=context-resume-14';
-import { renderPortraits } from './portraits.js?v=context-resume-14';
+import { Assets } from './assets.js?v=asset-retry-15';
+import { armTap } from './tap.js?v=asset-retry-15';
+import { Sim } from './sim.js?v=asset-retry-15';
+import { createBot, updateBots } from './ai.js?v=asset-retry-15';
+import { View } from './view.js?v=asset-retry-15';
+import { Hud } from './hud.js?v=asset-retry-15';
+import { createInput } from './input.js?v=asset-retry-15';
+import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=asset-retry-15';
+import { TEAM, TICK, teamName } from './constants.js?v=asset-retry-15';
+import { CHAMPION_LOOK } from './looks.js?v=asset-retry-15';
+import { Sfx } from './sfx.js?v=asset-retry-15';
+import { settings } from './settings.js?v=asset-retry-15';
+import { renderPortraits } from './portraits.js?v=asset-retry-15';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -37,7 +37,14 @@ async function boot() {
             label.textContent = `載入資產 ${done}/${total}`;
         });
     } catch (err) {
+        // 重試都仲係唔得先至到呢度。唔可以就咁死喺度——畀返一條路玩家自己
+        // 行，好過要佢自己諗到「重新整理」。
         label.textContent = `載入失敗：${err.message}`;
+        const again = document.createElement('button');
+        again.id = 'load-retry';
+        again.textContent = '再試一次';
+        again.addEventListener('click', () => location.reload());
+        label.after(again);
         throw err;
     }
     label.textContent = '整緊英雄頭像…';

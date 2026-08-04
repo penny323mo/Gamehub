@@ -39,7 +39,23 @@ function getLoader() {
     return loader;
 }
 
-const loadGltf = (url) => new Promise((res, rej) => getLoader().load(url, res, undefined, rej));
+const loadOnce = (url) => new Promise((res, rej) => getLoader().load(url, res, undefined, rej));
+
+// 手機網絡會斷斷續續，而呢度有十二個資產行 Promise.all——任何一個甩咗，
+// 成個載入就 reject，玩家見到「載入失敗」跟住乜都做唔到。實測甩一次就
+// 已經係咁。一次過性嘅失敗值得自己再試，唔應該要玩家自己撳重新整理。
+const loadGltf = async (url, attempts = 3) => {
+    let last;
+    for (let i = 0; i < attempts; i++) {
+        try {
+            return await loadOnce(url);
+        } catch (err) {
+            last = err;
+            if (i < attempts - 1) await new Promise(r => setTimeout(r, 300 * (i + 1)));
+        }
+    }
+    throw last;
+};
 
 // KayKit 嘅圖集係 sRGB、無 mipmap 會閃，所以逐張材質校正一次。
 function fixMaterials(root) {

@@ -1,11 +1,11 @@
 // HUD。全部用 DOM，唔用 canvas 畫字——手機上面 DOM 文字先至清晰，
 // 而且 CSS 處理安全區同轉向比自己計座標可靠。
 
-import { abilityRank } from './champions.js?v=context-resume-14';
-import { armTap } from './tap.js?v=context-resume-14';
-import { settings } from './settings.js?v=context-resume-14';
-import { ITEMS, MAX_ITEMS, nextPurchase } from './items.js?v=context-resume-14';
-import { TEAM, teamName, GAME_MAX, MAP } from './constants.js?v=context-resume-14';
+import { abilityRank } from './champions.js?v=asset-retry-15';
+import { armTap } from './tap.js?v=asset-retry-15';
+import { settings } from './settings.js?v=asset-retry-15';
+import { ITEMS, MAX_ITEMS, nextPurchase } from './items.js?v=asset-retry-15';
+import { TEAM, teamName, GAME_MAX, MAP } from './constants.js?v=asset-retry-15';
 
 const el = (tag, cls, text) => {
     const n = document.createElement(tag);

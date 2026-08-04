@@ -2454,3 +2454,28 @@ follows what the tyres can use
   Reported either way, this would have been a fabricated iOS audio bug with a plausible story
   attached. The rule that keeps holding: a failing measurement is a claim about the probe until
   the probe has been checked.
+
+## ADR-122: One dropped asset ended the session
+
+- Date: 2026-08-03
+- Status: accepted
+- Decision: each GLB load retries three times with a 300/600 ms backoff, and if it still fails the
+  loading screen offers a **再試一次** button instead of a dead end.
+- Reason: twelve models load through one `Promise.all` with no retry. Measured by aborting a single
+  request: the screen reads **"載入失敗：Failed to fetch"** and stays there. Nothing else happens —
+  no retry, no button, and the only way out is for the player to think of reloading the page
+  themselves. On a phone with a patchy connection, one dropped fetch out of twelve ends the
+  session before the game has started.
+- After: a single transient failure is absorbed and the game reaches champion select normally.
+  Five consecutive failures still fail — correctly, because pretending otherwise would show a
+  world with a missing model — but now with a 126×48 button that reloads.
+- Gate: abort one asset once and require champion select; abort it repeatedly and require the
+  retry button to exist and to be at least 44 px.
+- A third probe-reading error this session, recorded because the pattern is consistent. The first
+  run of this probe reported `甩咗 0 次` — the interception never matched, because I had guessed
+  the model filename (`swordsman.glb`) instead of reading `CHAMPION_MODELS` (`knight.glb`). The
+  second run printed four lines per case and I misread which case a line belonged to, briefly
+  believing the retry button appeared on a **successful** load — which would have contradicted the
+  code. Printing one object per case settled it. Each of the three errors this session was in
+  reading the measurement, not in the game; each was caught by re-measuring rather than by
+  reasoning about the result.

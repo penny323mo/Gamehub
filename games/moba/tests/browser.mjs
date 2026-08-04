@@ -849,6 +849,43 @@ for (const [tag, viewport] of LAYOUT_SIZES) {
     await page.close();
 }
 
+// ---------- 手機網絡斷斷續續：甩一個資產唔應該報銷成局 ----------
+// 十二個 glb 行 Promise.all，之前冇重試——任何一個甩咗，成個載入就 reject，
+// 玩家見到「載入失敗」跟住乜都做唔到，連再試都要自己諗到重新整理。
+{
+    for (const [tag, failTimes, expect] of [['甩一次', 1, 'select'], ['一路甩', 5, 'retry']]) {
+        const page = await browser.newPage({ viewport: { width: 430, height: 860 }, hasTouch: true, isMobile: true });
+        let aborted = 0;
+        await page.route('**/*.glb', (route) => {
+            if (route.request().url().includes('knight.glb') && aborted < failTimes) {
+                aborted++; return route.abort('failed');
+            }
+            return route.continue();
+        });
+        await page.goto(URL_BASE, { waitUntil: 'load' });
+        const got = await page.waitForFunction(() => {
+            if (document.querySelector('.pick-card')) return 'select';
+            if (document.querySelector('#load-retry')) return 'retry';
+            return false;
+        }, null, { timeout: 90000 }).then(h => h.jsonValue()).catch(() => 'stuck');
+        if (expect === 'select') {
+            check(`載入${tag}：重試食得住，照樣入到選人畫面`, got === 'select', { got, aborted });
+        } else {
+            // 真係一路都攞唔到就唔應該扮成功，但要畀返一條路行
+            const btn = await page.evaluate(() => {
+                const b = document.querySelector('#load-retry');
+                if (!b) return null;
+                const r = b.getBoundingClientRect();
+                return { w: Math.round(r.width), h: Math.round(r.height),
+                    夠大: Math.min(r.width, r.height) >= 44 };
+            });
+            check(`載入${tag}：唔會死喺載入畫面，有「再試一次」`, got === 'retry' && !!btn, { got, btn });
+            check(`載入${tag}：「再試一次」撳得中`, !!btn?.夠大, btn);
+        }
+        await page.close();
+    }
+}
+
 // ---------- 音效：唔准未有手勢就開，但有咗之後要撐得住暫停 ----------
 // iOS 要一個真手勢先開得到 AudioContext，而背景返嚟之後個 context 會變
 // suspended。而家「播聲之前先 #ensure()」順手救返，但嗰個係副作用，唔係

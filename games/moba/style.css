@@ -47,6 +47,12 @@ html, body {
 .load-track { width: min(360px, 74vw); height: 6px; border-radius: 99px; background: #ffffff1c; overflow: hidden; }
 .load-track i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--blue), var(--gold)); transition: width 0.2s; }
 #load-label { margin: 0; opacity: 0.6; font-size: 13px; }
+#load-retry {
+    margin-top: 10px; padding: 12px 30px; font-size: 15px; letter-spacing: 0.1em;
+    min-height: 48px; touch-action: manipulation;
+    border-radius: 99px; border: none; cursor: pointer; font-family: inherit;
+    background: linear-gradient(120deg, var(--blue), #7f6bff); color: #fff; font-weight: 700;
+}
 
 #select h2 { margin: 0 0 4px; font-size: clamp(20px, 4vw, 30px); letter-spacing: 0.1em; }
 #pick-grid {

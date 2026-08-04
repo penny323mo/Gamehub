@@ -13,6 +13,15 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 ## Completed
 
+### 深淵之橋 one dropped asset ended the session (ADR-122)
+
+- Twelve models load through one `Promise.all` with no retry. Abort a single request and the
+  screen reads **載入失敗：Failed to fetch** and stays there — no retry, no button, the only way
+  out is for the player to think of reloading. One dropped fetch out of twelve on a patchy phone
+  connection ended the session before the game started.
+- Now: three attempts with 300/600 ms backoff, so a transient failure is absorbed; if it really
+  cannot be fetched, the loading screen offers a 126×48 **再試一次** button rather than a dead end.
+
 ### 深淵之橋 a lost GPU context wrote off the match (ADR-120)
 
 - Browsers reclaim the WebGL context on lock-screen, backgrounding and memory pressure, then hand
@@ -25,33 +34,15 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
   from `suspended` in ~3 s. All gated — the audio one holds only as a side effect of `#ensure()`
   in the play path (ADR-121), and losing it would go silent with no error.
 
-### 深淵之橋 the recall button covered the shop button all match (ADR-119)
-
-- `.moba-recall` and `.moba-shopbtn` sat 30 px apart while both are 44 px tall, so recall's lower
-  **12–14 px overlapped the shop button**, and taps there went to the shop. Whole match, both
-  orientations.
-- Nothing caught it because every layout gate measured the frame right after the start, where the
-  champion is in the fountain (recall hidden) with no gold (shop button short) — **a screen the
-  player sees for a few seconds**. Layout gates now stand the champion outside the fountain with
-  gold first; that matters more than the CSS. Found by rotating the device mid-match, which was
-  itself clean: `camYaw` flips, the joystick still drives at the enemy base, the bar re-orients.
-
-### 深淵之橋 every skillshot had never once hit anything (ADR-117)
-
-- The straight-line projectile loop lived in `#tickZones`, while `#tickProjectiles` iterated
-  **every** projectile and deleted any whose `targetId` did not resolve. Skillshots have no
-  `targetId`, so each one died on the tick it was cast and the code that moves it had **never
-  run**. 穿甲箭 fired point-blank at an enemy: HP 565 → 565. All four skillshots dealt zero.
-- Found while fixing a smaller bug in the same loop: one sample per tick, so a 2.0 m step against
-  a 2.02 m hit radius passed through anything between samples. Now a swept segment test.
-- T8 stayed green because it asks whether **any** of a champion's four abilities does damage. T29
-  fires every skillshot; **T30 sweeps all 24 abilities against what their data declares** and was
-  mutation-tested (disabling shields/stuns/slows each made it fail with the right names).
-- Effect: nexus 69/72 → **71/72**, match **15.4 → 11.4 min**, blue 39/72. Nothing re-tuned on top.
-
-
 ### Earlier checkpoints, in one line each
 
+- `.moba-recall` and `.moba-shopbtn` sat 30 px apart while both are 44 px tall, so recall covered
+  the shop button by 12–14 px all match and taps there went to the shop. The layout gates had
+  been measuring the frame right after the start — champion in the fountain, no gold — so they
+  now stand it outside the fountain with gold first. ADR-119.
+- A lost GPU context used to end the match (**請重新開一局**) even though the browser hands the
+  context back within a second. It now resumes; the gate needs the sim to advance **and** draw
+  calls to be issued. ADR-120. Audio was already correct and is now pinned. ADR-121.
 - Portrait spent **83.6% of the screen on abyss and water**; the camera now rotates 90° about Y,
   giving **70.1% ground and 36.6 m of lane**. Joystick, WASD, aim-drag and the lane bar all
   follow the rotation. ADR-110.
