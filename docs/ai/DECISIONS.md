@@ -2431,3 +2431,26 @@ follows what the tyres can use
 - Gate: lose the context, require the game to pause; restore it, require the flag to clear, the
   sim to advance, **and draw calls to be issued**. Verified to fail on the old code for the right
   reason: `場波行返: false, 畫返嘢: false, 由 1.6 到 1.6`.
+
+## ADR-121: The audio chain was already correct, and is now pinned
+
+- Date: 2026-08-03
+- Status: accepted
+- Decision: no code change. Three properties of the audio path are now gated, because all three
+  currently hold **by side effect** rather than by anything that states them.
+- Measured: no `AudioContext` exists before the first gesture (so no autoplay violation); it is
+  `running` immediately after the first tap; and after being forced to `suspended` it returns to
+  `running` within about three seconds of ordinary play.
+- The third one deserves the gate most. It works because every sound-playing function calls
+  `#ensure()`, which happens to `resume()` a suspended context. Nothing says that is the contract.
+  A refactor that hoisted `#ensure()` out of the play path would break it, and the symptom would
+  be **the game going silent with no error at all** — invisible to every existing check.
+- Two probe errors were caught before reporting, which is the point worth recording:
+  - the first run measured the context two seconds into a fresh match and saw it stay suspended.
+    There had simply been **no sound events** — no minions had spawned and nobody was fighting.
+  - the second drained `sim` events inside the probe to force some, which **stole them from the
+    real frame loop** that feeds `sfx.consume`. The fix was to stop draining, place a reachable
+    target, and let the real loop run.
+  Reported either way, this would have been a fabricated iOS audio bug with a plausible story
+  attached. The rule that keeps holding: a failing measurement is a claim about the probe until
+  the probe has been checked.

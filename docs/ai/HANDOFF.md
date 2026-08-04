@@ -15,21 +15,21 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 ### 深淵之橋 a lost GPU context wrote off the match (ADR-120)
 
-- Browsers reclaim the WebGL context on lock-screen, backgrounding and memory pressure, then
-  hand it back within about a second. The old handler stopped the loop and said **請重新開一局**.
-  Measured: after `restoreContext()` the flag cleared correctly and the match stayed frozen at
-  5.8 s forever — a match written off because a phone locked for a moment.
-- Now it resumes. three.js re-uploads its own resources; confirmed rather than assumed, since the
-  gate requires the sim to advance **and** draw calls to be issued (42) — a frozen picture with a
-  ticking clock would still be broken.
-- Needing no change, same pass: a 20× CPU stall advanced the sim 3.2 s over 5.5 s wall with no
-  teleport or error, and switching quality mid-match threw nothing.
+- Browsers reclaim the WebGL context on lock-screen, backgrounding and memory pressure, then hand
+  it back within a second. The old handler stopped the loop and said **請重新開一局**: after
+  `restoreContext()` the flag cleared but the match stayed frozen at 5.8 s forever.
+- Now it resumes. three.js re-uploads its own resources; the gate requires the sim to advance
+  **and** draw calls to be issued (42) — a frozen picture with a ticking clock is still broken.
+- Needing no change: a 20× CPU stall advanced the sim 3.2 s over 5.5 s wall with no teleport; a
+  mid-match quality switch threw nothing; audio opens no context before a gesture and self-heals
+  from `suspended` in ~3 s. All gated — the audio one holds only as a side effect of `#ensure()`
+  in the play path (ADR-121), and losing it would go silent with no error.
 
 ### 深淵之橋 the recall button covered the shop button all match (ADR-119)
 
 - `.moba-recall` and `.moba-shopbtn` sat 30 px apart while both are 44 px tall, so recall's lower
-  **12–14 px overlapped the shop button** in both orientations — and taps in that band went to
-  the shop, since it is later in the DOM. True for the whole match, not an edge case.
+  **12–14 px overlapped the shop button**, and taps there went to the shop. Whole match, both
+  orientations.
 - Nothing caught it because every layout gate measured the frame right after the start, where the
   champion is in the fountain (recall hidden) with no gold (shop button short) — **a screen the
   player sees for a few seconds**. Layout gates now stand the champion outside the fountain with

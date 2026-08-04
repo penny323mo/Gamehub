@@ -849,6 +849,57 @@ for (const [tag, viewport] of LAYOUT_SIZES) {
     await page.close();
 }
 
+// ---------- 音效：唔准未有手勢就開，但有咗之後要撐得住暫停 ----------
+// iOS 要一個真手勢先開得到 AudioContext，而背景返嚟之後個 context 會變
+// suspended。而家「播聲之前先 #ensure()」順手救返，但嗰個係副作用，唔係
+// 明寫嘅承諾——重構嗰陣好易冇咗，而冇咗嘅表現係「隻遊戲靜咗」，冇任何
+// 錯誤訊息。所以要釘住。
+{
+    const page = await browser.newPage({ viewport: { width: 430, height: 860 }, hasTouch: true, isMobile: true });
+    const errs = watch(page);
+    await page.goto(URL_BASE, { waitUntil: 'load' });
+    await page.waitForFunction(() => !!window.__mobaReady || !!document.querySelector('.pick-card'),
+        null, { timeout: 120000 });
+    // 喺任何手勢之前接住 AudioContext 嘅建立
+    await page.evaluate(() => {
+        window.__acs = [];
+        const Orig = window.AudioContext || window.webkitAudioContext;
+        const Patched = function (...a) { const c = new Orig(...a); window.__acs.push(c); return c; };
+        Patched.prototype = Orig.prototype;
+        window.AudioContext = Patched;
+    });
+    const before = await page.evaluate(() => window.__acs.length);
+    check('未有手勢之前唔會開 AudioContext（唔違反 autoplay）', before === 0, { 開咗: before });
+
+    await page.locator('.pick-card').first().click();
+    await page.click('#pick-go');
+    await page.waitForFunction(() => !!window.__view, null, { timeout: 120000 });
+    await page.waitForTimeout(1200);
+    const running = await page.evaluate(() => window.__acs.map(c => c.state));
+    check('手勢之後 AudioContext 行得起', running.includes('running'), running);
+
+    // 擺定一個打得到嘅目標，之後放手畀真 rAF 迴圈行——唔可以自己 drain
+    // 事件，噉樣即係搶走咗真迴圈要用嗰批。
+    const placed = await page.evaluate(() => {
+        const s = window.__sim, p = s.player;
+        for (let i = 0; i < 30 * 40; i++) s.step(1 / 30);
+        const foe = s.entities.find(e => e.alive && e.team !== p.team && e.kind === 'minion');
+        if (foe) { p.x = foe.x - 1.4; p.z = foe.z; p.cd = 0; s.orderAttack(p, foe.id); }
+        return !!foe;
+    });
+    const suspended = await page.evaluate(async () => {
+        await window.__acs[0].suspend();
+        return window.__acs[0].state;
+    });
+    await page.waitForTimeout(3000);
+    const after = await page.evaluate(() => window.__acs[0].state);
+    check('被暫停之後，打返幾下就自己回復（唔會靜一世）',
+        placed && suspended === 'suspended' && after === 'running',
+        { 有目標: placed, 暫停後: suspended, 打完之後: after });
+    check('音效呢一段主控台零錯誤', errs.length === 0, errs.slice(0, 3));
+    await page.close();
+}
+
 // ---------- 掉咗 GPU context 唔應該報銷成場波 ----------
 // 手機鎖屏、切走一陣、記憶體壓力，瀏覽器都會收返個 WebGL context，跟住又
 // 還返畀你。之前收到 lost 就停晒同叫玩家重新開一局——但 restored 幾百毫秒
