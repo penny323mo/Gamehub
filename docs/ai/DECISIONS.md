@@ -3023,3 +3023,16 @@ follows what the tyres can use
   the camera's `approach(4, dt)` smoothing fails the portrait framing check. Both claims are
   genuinely guarded. The second is caught by the framing gate repaired one round earlier in
   ADR-133 — a gate written for a different reason, earning its keep twice.
+- The same question put to `input.js` and `hud.js`, again choosing the mutations from what an ADR
+  claims out loud. Removing the joystick's camera-yaw rotation (ADR-110: "every control follows
+  the rotation") fails **five** gates at once — that claim is well covered. Removing the line in
+  `flash()` that clears the previous toast (ADR-124: "`flash()` stacked messages at one spot")
+  **survives, 195/195**.
+- So ADR-124 has been stating a fixed defect that nothing verifies. The hidden-HUD gate only ever
+  raised one toast, so stacking had no opportunity to happen. It now raises two in succession and
+  requires exactly one `.moba-flash` to remain. Checked both ways: clean is 195/195, and putting
+  the stacking back fails at all three layout sizes.
+- Worth naming as its own shape: **a claim in an ADR is not a guard**. Three ADR claims were
+  mutated this round and the previous one; two were covered, one was not, and there was no way to
+  tell which without spraying. Prose that describes a fix reads exactly the same whether or not a
+  test stands behind it.

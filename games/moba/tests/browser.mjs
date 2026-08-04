@@ -1073,11 +1073,18 @@ for (const [tag, viewport] of LAYOUT_SIZES) {
         // 讀秒條唔取消：技能說明係撳實個掣就出，而撳實唔等於施法——
         // 返程期間撳實一個技能睇解釋，兩樣係真係會同時出現嘅。
         hud.showCast(p.def.abilities[0]);
+        // 特登連續叫兩次。ADR-124 講明 flash() 之前會喺同一個位堆疊，而家會
+        // 清走舊嗰個——但突變測試照出嚟：拆走清走嗰行，195 條檢查全綠。
+        // 即係嗰句 ADR 一直喺度講一件冇人驗過嘅事，因為條 gate 由頭到尾
+        // 只出過一個提示，堆疊根本冇機會發生。
         hud.flash('測試提示一句字');
+        hud.flash('第二句提示');
         document.querySelector('.moba-skills .moba-skill')
             ?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
         await new Promise(r => setTimeout(r, 250));
         bad.push(...geom().map(x => '施法＋提示＋技能說明: ' + x));
+        const 提示數 = document.querySelectorAll('.moba-flash').length;
+        if (提示數 !== 1) bad.push(`連叫兩次 flash 之後有 ${提示數} 個提示（應該得一個）`);
         s.cancelRecall(p, 'test');
         hud.toggleSettings(true);
         await new Promise(r => setTimeout(r, 250));
