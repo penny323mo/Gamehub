@@ -2975,3 +2975,15 @@ follows what the tyres can use
   T34 asserts the acquisition distance lands in 12–24 m — "not aggro on sight" at one end, "not
   invisible" at the other — and finds it by bisection rather than by reading the constant.
   Checked both ways: doubling the constant gives 35.8 and fails, halving gives 8.9 and fails.
+- Second: the homing-projectile `speed: 30`. The consequence is **the beat between a ranged basic
+  attack leaving and landing** — short enough and it reads as an instant hit with no travelling
+  object. Flight time is exactly proportional to distance: 0.067 s at 4 m, 0.2 s at 8 m, and
+  **0.267 s at maximum range**, about a quarter second. T35 pins 0.18–0.45 s at max range plus
+  the proportionality; speed 60 gives 0.133 and fails, speed 15 gives 0.533 and fails.
+- Third: the tower's `r: 2.2`. Two probe errors before a usable number, both worth recording. The
+  first asked "can a melee champion damage the tower" — always yes, because the champion walks in
+  regardless of where it is placed. The second asked the same thing from further away, which
+  changed nothing for the same reason. The quantity is **where it stops**: `champ.range + tower.r`,
+  measured at 3.24 / 4.19 / 6.56 m for r of 1.1 / 2.2 / 4.4. That is dive geometry — how far into
+  a tower's threat you stand while hitting it. T36 pins 3.5–5.2 m, and both the doubling and the
+  halving now fail; the first band I wrote (3–5) caught only the doubling, which is half a gate.

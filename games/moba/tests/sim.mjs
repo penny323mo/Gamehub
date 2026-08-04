@@ -1030,5 +1030,76 @@ function dodgeCase(px, speed) {
         lo >= 12 && lo <= 24, { 察覺距離: +lo.toFixed(1) });
 }
 
+// ---------- T35：遠程普攻要睇得出「有嘢飛緊過嚟」----------
+//
+// ADR-135 嗰批生還突變之一：追蹤彈 `speed: 30` 改成 60，飛行時間減半，
+// 冇一條檢查會響。同樣唔釘個 30，釘後果：**由出手到中招嗰段時間**。
+// 太短就等於即時命中（睇唔到有嘢飛過），太長就變成打落去要等。
+//
+// 實測係同距離成正比：4 米 0.067 秒、8 米 0.2 秒、最遠射程 0.267 秒。
+// 即係最遠嗰下大約四分一秒——啱啱好夠眼睛讀到一件飛緊嘅嘢。
+{
+    const sim = new Sim({ seed: 4 });
+    const shooter = sim.champions.find(c => c.def.projectile && c.range > 5);
+    const target = shooter && sim.champions.find(c => c.team !== shooter.team);
+    for (const e of sim.entities) {
+        if (e === shooter || e === target) continue;
+        if (e.kind === 'minion' || e.kind === 'champ') { e.x = 500; e.z = 500; }
+    }
+    const 飛行 = (d) => {
+        shooter.x = 0; shooter.z = 0; shooter.cd = 0; shooter.alive = true;
+        target.x = d; target.z = 0; target.alive = true;
+        target.hp = sim.stats(target).maxHp * 5;      // 唔好畀佢死咗打斷量度
+        shooter.orderTarget = target.id;
+        sim.drain();
+        let 出手 = -1, 中招 = -1;
+        for (let i = 0; i < 200 && 中招 < 0; i++) {
+            sim.step(TICK);
+            shooter.x = 0; shooter.z = 0; target.x = d; target.z = 0;
+            for (const ev of sim.drain()) {
+                if (ev.type === 'shoot' && ev.id === shooter.id && 出手 < 0) 出手 = i;
+                if (ev.type === 'hit' && ev.id === shooter.id && 出手 >= 0 && 中招 < 0) 中招 = i;
+            }
+        }
+        return 出手 >= 0 && 中招 >= 0 ? +((中招 - 出手) * TICK).toFixed(3) : null;
+    };
+    const 遠 = shooter ? 飛行(shooter.range - 0.1) : null;
+    check('最遠射程嗰下普攻，飛行時間喺 0.18 至 0.45 秒之間（睇得出有嘢飛緊）',
+        遠 != null && 遠 >= 0.18 && 遠 <= 0.45, { 射程: shooter?.range, 飛行秒: 遠 });
+    const 近 = shooter ? 飛行(4) : null;
+    check('近距離飛得快過遠距離（速度固定，時間跟距離走）',
+        近 != null && 遠 != null && 近 < 遠, { 四米: 近, 最遠: 遠 });
+}
+
+// ---------- T36：近戰拆塔企離塔心幾遠 ----------
+//
+// ADR-135 最後一個生還突變：塔嘅 `r: 2.2` 放大一倍，冇一條檢查會響。
+// 佢個後果係拆塔嘅幾何——近戰要行到幾埋先掂到塔。實測 r 1.1／2.2／4.4
+// 分別對應停喺 3.24／4.19／6.56 米。
+//
+// 量嗰陣要留意：唔可以問「打唔打到塔」，因為角色會自己行埋去，答案永遠
+// 係 yes（呢個坑我踩咗兩次）。要問嘅係佢**最後停喺邊**。
+{
+    const sim = new Sim({ seed: 7 });
+    const p = sim.player;
+    const tower = sim.entities.find(e => e.kind === 'tower' && e.team !== p.team);
+    for (const e of sim.entities) {
+        if (e === p || e === tower) continue;
+        if (e.kind === 'minion' || e.kind === 'champ') { e.x = 500; e.z = 500; }
+    }
+    p.alive = true; p.level = 9; p.x = tower.x - 12; p.z = 0;
+    p.orderX = null; p.orderZ = null; p.orderTarget = tower.id;
+    const before = tower.hp;
+    for (let i = 0; i < 90; i++) {
+        sim.step(TICK);
+        p.hp = sim.stats(p).maxHp;             // 唔好畀塔打死佢，量緊嘅係距離
+        p.orderTarget = tower.id;
+    }
+    const 停 = +Math.abs(p.x - tower.x).toFixed(2);
+    check('近戰打得甩塔血', tower.hp < before, { 打甩: +(before - tower.hp).toFixed(0) });
+    check('近戰拆塔企喺離塔心三米半至五米二（唔使貼身，亦唔會隔空拆）',
+        停 >= 3.5 && 停 <= 5.2, { 停喺: 停, 玩家射程: p.range, 塔半徑: tower.r });
+}
+
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);
 if (fail) { console.log('失敗項目:', failed.join('、')); process.exit(1); }
