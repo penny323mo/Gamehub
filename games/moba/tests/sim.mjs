@@ -990,5 +990,45 @@ function dodgeCase(px, speed) {
     }
 }
 
+// ---------- T34：小兵幾遠開始盯住你（後果，唔係常數）----------
+//
+// ADR-135 嗰批生還突變其中一個：`if (d > 18) continue;` 改成 36，索敵半徑
+// 一倍，241 條檢查一條都唔會響。同 T33 一樣，唔釘個 18，釘玩家感受到嗰樣：
+// **你行到幾埋，先會畀一隻孤立嘅敵方小兵盯上**。
+//
+// 呢個距離決定咗你可唔可以喺兵線隔籬行過而唔開打。實測係啱啱 18 米——
+// 大約半個打直畫面（打直一屏見到 36.6 米），即係你見到佢嗰陣仲有得選擇
+// 上唔上。太遠就變成「見到即開打」，太近就變成兵線冇存在感。
+{
+    const sim = new Sim({ seed: 3 });
+    let guard = 0;
+    while (!sim.entities.some(e => e.alive && e.kind === 'minion') && guard++ < 60 / TICK) sim.step(TICK);
+    const m = sim.entities.find(e => e.alive && e.kind === 'minion' && e.team !== sim.player.team);
+    // 淨返一隻兵同玩家喺場中間，其他人搬走——量嘅係「一對一嘅察覺距離」，
+    // 唔係「附近有幾多隻嘢」。
+    for (const e of sim.entities) {
+        if (e === m || e === sim.player) continue;
+        if (e.kind === 'minion' || e.kind === 'champ') { e.x = 500; e.z = 500; }
+    }
+    const p = sim.player;
+    const 盯到 = (d) => {
+        m.x = 0; m.z = 0; m.target = null; m.cd = 0;
+        p.x = d; p.z = 0; p.alive = true; p.hp = p.maxHp;
+        p.orderX = null; p.orderZ = null; p.orderTarget = null;
+        for (let i = 0; i < 15; i++) {
+            sim.step(TICK);
+            m.x = 0; m.z = 0; p.x = d; p.z = 0; p.orderTarget = null;
+            if (m.target === p.id) return true;
+        }
+        return false;
+    };
+    check('小兵一定會盯住企喺六米外嘅英雄', m != null && 盯到(6) === true);
+    // 二分搵察覺邊界
+    let lo = 6, hi = 40;
+    while (hi - lo > 0.5) { const mid = (lo + hi) / 2; if (盯到(mid)) lo = mid; else hi = mid; }
+    check('察覺距離喺十二至二十四米之間（唔係「見到即開打」，亦唔係冇存在感）',
+        lo >= 12 && lo <= 24, { 察覺距離: +lo.toFixed(1) });
+}
+
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);
 if (fail) { console.log('失敗項目:', failed.join('、')); process.exit(1); }

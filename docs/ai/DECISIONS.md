@@ -2967,3 +2967,11 @@ follows what the tyres can use
 - The other survivors are recorded, not gated. Arrow speed, aggro radius and fountain radius
   each need the same treatment — name the player-visible consequence first, then guard that —
   and that is worth doing one at a time rather than in a sweep.
+- First of those, done the same way. `if (d > 18) continue;` governs minion target acquisition;
+  the consequence is **how close you can walk to an enemy minion before it turns on you**, which
+  decides whether you can move past a lane without committing to a fight. Swept a lone minion
+  against a lone champion: the boundary is exactly **18 m**, about half a portrait screen (a
+  portrait view shows 36.6 m of lane), so you see the minion while still having the choice.
+  T34 asserts the acquisition distance lands in 12–24 m — "not aggro on sight" at one end, "not
+  invisible" at the other — and finds it by bisection rather than by reading the constant.
+  Checked both ways: doubling the constant gives 35.8 and fails, halving gives 8.9 and fails.
