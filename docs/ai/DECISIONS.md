@@ -2479,3 +2479,25 @@ follows what the tyres can use
   code. Printing one object per case settled it. Each of the three errors this session was in
   reading the measurement, not in the game; each was caught by re-measuring rather than by
   reasoning about the result.
+
+## ADR-123: Three stacked states, all clean, and deliberately not gated
+
+- Date: 2026-08-03
+- Status: accepted
+- Decision: no code change and **no new gates**. Recorded so the next agent does not spend the
+  round re-deriving it.
+- Two of the six finds this session came from stacking two states (rotate *while* away from the
+  fountain; lose the context *while* mid-match), so the remaining three combinations were checked:
+  - **recall interrupted by damage.** Channel starts, bar shows, button lights; taking a hit
+    cancels it in the sim, and the bar hides and the button un-lights in the same breath.
+  - **rotating the device while dead.** The death overlay stays up and fits the new viewport
+    (860×430 exactly), `camYaw` flips correctly, and respawning clears the overlay.
+  - **losing the GPU context with the shop open.** The shop stays open across the loss, and after
+    the restore an item can still be bought (0 → 1 items).
+- Zero console errors in all three.
+- Why no gates, when the audio check in ADR-121 did get one: audio held only as a **side effect**
+  of `#ensure()` sitting inside the play path — nothing declared it, and losing it would be silent.
+  These three hold **by construction**: the HUD reads sim state every frame, the overlay is CSS in
+  normal flow, and the shop is DOM the renderer never touches. Gating them would add suite time to
+  protect invariants no plausible refactor threatens. A gate earns its runtime by guarding
+  something fragile, not merely something true.

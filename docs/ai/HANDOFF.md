@@ -87,6 +87,9 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 ## Known issues and cautions
 
+- Checked and clean, do not re-derive (ADR-123): recall interrupted by damage, rotating while
+  dead, and losing the GPU context with the shop open. All three hold by construction, so they
+  were deliberately left ungated — a gate earns its runtime by guarding something fragile.
 - Xiangqi `npm ci` reports four pre-existing audit findings; not auto-fixed (toolchain risk).
 - Playwright lives only in `games/Racing Car/tests/node_modules`; both browser suites point there
   by path. If missing, run `npm ci` there — nothing else installs it.
