@@ -22,9 +22,10 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 - Found while fixing a smaller bug in that same loop: it sampled one point per tick, so a 2.0 m
   step against a 2.02 m hit radius passed through anything sitting between samples. Now a swept
   segment test, and both loops live in one function that says which kind is which.
-- T8 stayed green because it asks whether **any** of a champion's four abilities does damage; T29
-  now fires every skillshot and requires damage from each. Effect: nexus 69/72 → **71/72**, match
-  **15.4 → 11.4 min**, blue 39/72. Nothing re-tuned on top — that would blend two changes.
+- T8 stayed green because it asks whether **any** of a champion's four abilities does damage. T29
+  fires every skillshot; **T30 sweeps all 24 abilities against what their data declares** and was
+  mutation-tested (disabling shields/stuns/slows each made it fail with the right names).
+- Effect: nexus 69/72 → **71/72**, match **15.4 → 11.4 min**, blue 39/72. Nothing re-tuned on top.
 
 ### 深淵之橋 the smallest real phone had never been opened (ADR-116)
 
@@ -32,8 +33,8 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
   everything to an edge" stops working. One pass at 320×568 / 568×320 found three faults: the HP
   panel is intrinsically 337 px wide so it hung off **both** edges at 320; it **overlapped the
   skill buttons 194×60** at 568; the lane bar and scoreboard overlapped 100×26.
-- Fixed by narrowing content, not moving it — at 568 px no arrangement of full-size pieces fits.
-  Buttons stay ≥44 px regardless. Gate: a layout-only pass at both SE sizes.
+- Fixed by narrowing content, not moving it; buttons stay ≥44 px. Gate: layout-only pass at both.
+
 ### 深淵之橋 bot order, and the draw-call worry (ADR-113, ADR-114)
 
 - A bot decision writes straight into sim state, so a later bot reads a world where the others
@@ -42,6 +43,7 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
   `updateBots` alternates each tick, cancelling the bias exactly every two ticks.
 - ADR-105's 1311 draw calls were a synthetic stress case; a real match runs at peak 286/342, so
   the sigil-geometry merge it recommended is retired. `browser.mjs` holds a 600 budget instead.
+
 ### 深淵之橋 portrait puts the lane up the screen (ADR-110)
 
 - Portrait spent **83.6% of the screen on abyss and water** — geometric, not artistic. The camera
@@ -50,14 +52,16 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 - Joystick, WASD and aim-drag share one `screenToWorld` rotation; the lane-overview bar stands up
   too (same drawing code, one canvas transform, CSS decides the axis). Two old gates hard-coded
   "+x is right" and now measure against the camera's own vectors.
+
 ### 深淵之橋 the RNG and the attack pacing (ADR-109, ADR-108)
 
 - `makeRng` used the seed directly as xorshift32 state, so the **first output averaged 0.007** —
   and its first consumer is the first bot's reaction time. Seed is now scrambled with eight
   outputs discarded; blue wins 24/72 → 33/72, the rest being ADR-113.
 - Attack pacing: level 1 was 1.39–1.59 s per swing and **8.6–12.7 s per minion**, slower than the
-  minions themselves. Base attack speed ×1.4 and melee minion 400 → 330 HP put it at 0.99–1.13 s
-  and 5.1–7.9 s. ADR-108's figures were re-measured after ADR-109 and corrected in place.
+  minions. Attack speed ×1.4 and melee minion 400 → 330 HP put it at 0.99–1.13 s / 5.1–7.9 s.
+  ADR-108's figures were re-measured after ADR-109 and corrected in place.
+
 ### Earlier checkpoints, in one line each
 
 - Hub launcher: paged groups of four with swipe/arrows/keyboard/dots in one footer dock; Gomoku
@@ -67,26 +71,22 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 - Anywhere shop: purchases work everywhere for player and bots; `atFountain()` is healing/recall
   only. ADR-104 supersedes the fountain-only clauses in ADR-088/094/100.
 - Touch: an `overflow-y: auto` panel with `touch-action: pan-y` makes iOS read a few pixels of
-  drift as a scroll and synthesise no `click` (ADR-106). "What counts as a tap" now lives in
-  `src/tap.js` and every control uses it; the select cards had the same bug on the game's first
-  interaction. `browser.mjs` fails if any visible `#hud button` is under 44 px. ADR-107.
-- Crowded-fight FX: self-buff sigils now reach full size in 0.22 s of absolute time rather than a
-  fraction of `life` (a shield used to sit at ~60%); `dome` is a dim shell with a bright rim, not
-  a wireframe scribble. Worst case measured: geometries 94 → 597 peak → 160 at +8 s, draw calls
-  94 → 1311, no leak. ADR-105.
+  drift as a scroll and synthesise no `click` (ADR-106). "What counts as a tap" lives in
+  `src/tap.js`; every control uses it, and `browser.mjs` fails under 44 px. ADR-107.
+- Crowded-fight FX: self-buff sigils reach full size in 0.22 s of absolute time, not a fraction of
+  `life` (a shield used to sit at ~60%); `dome` is a dim shell with a bright rim. ADR-105.
 
 ## Verification
 
-- `node tests/hub.mjs` → **83/83**; Racing Car 6/6 suites and Royale 8/8 suites also pass. Outfit is now vendored (ADR-112) so the hub makes no external
-  request; the suite gates both the loaded font and the absence of outside traffic. Xiangqi build
-  + selftests → pass.
+- `node tests/hub.mjs` → **83/83**; Racing Car 6/6 and Royale 8/8 also pass; Xiangqi build +
+  selftests pass. Outfit is vendored (ADR-112), so the suite gates both the loaded font and the
+  complete absence of outside traffic.
 - `node games/moba/tests/cache-bust.mjs` → pass; all six entry/resource tokens agree.
-- `node games/moba/tests/sim.mjs` → **219/219 pass**, including the attack-pacing, RNG-diffusion
+- `node games/moba/tests/sim.mjs` → **220/220 pass**, including the attack-pacing, RNG-diffusion
   and bot-order gates. Twelve mirrored matches still finish, no NaN or bridge escape.
-- `node games/moba/tests/browser.mjs` → **137/137 pass**, landscape and portrait (bundled
-  Chromium; `PW_CHROMIUM` overrides). Away-from-fountain purchase, three close routes, full
-  matches, FX gates, zero errors, a following sigil past 90% scale a quarter-second in, no
-  wireframe sigils, a drifting tap buys while a 40 px drag does not, every HUD button ≥44 px.
+- `node games/moba/tests/browser.mjs` → **137/137 pass** at four sizes (bundled Chromium;
+  `PW_CHROMIUM` overrides): full matches, FX and framing gates, shop, draw-call budget, a drifting
+  tap buys while a 40 px drag does not, every HUD button ≥44 px, zero console errors.
 
 ## Changed files
 

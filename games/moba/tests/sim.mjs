@@ -787,5 +787,70 @@ function dodgeCase(px, speed) {
     check('每一個 skillshot 都射得中企喺路線上面嘅敵人', dead.length === 0, dead);
 }
 
+// ---------- T30：每個技能都要做到自己 data 講嘅嘢 ----------
+// 一整個 skillshot 類別死咗都冇任何 gate 響過（ADR-117），因為 T8 問嘅係
+// 「四個之中有冇一個得」。呢條反過嚟：由 champions.js 嘅宣告出發，逐個技能
+// 逐個效果去對——data 寫住有傷害／治療／護盾／控場／增益／位移，實際就要
+// 見到。新技能唔使改呢個測試，佢自動被覆蓋。
+{
+    const broken = [];
+    for (const id of CHAMPION_IDS) {
+        const def = CHAMPIONS[id];
+        def.abilities.forEach((ab, i) => {
+            const sim = new Sim({ seed: 5, lineups: {
+                [TEAM.BLUE]: [id, 'ironward', 'dawnkeeper'],
+                [TEAM.RED]: ['duskblade', 'emberwake', 'ironhulk'] } });
+            const c = sim.champions[0], mate = sim.champions[1];
+            const foe = sim.champions.find(x => x.team !== c.team);
+            let g = 0;
+            while (c.level < 12 && g++ < 500) sim.giveXp(c, 400);
+            c.x = 0; c.z = 0; c.mp = c.maxMp; c.abilityCd = [0, 0, 0, 0]; c.hp = c.maxHp * 0.5;
+            mate.x = 2; mate.z = 0; mate.hp = mate.maxHp * 0.5;
+            // self 靠 radius 判定，唔係 range——擺遠咗就量緊自己擺錯位
+            const reach = ab.form === 'self' ? Math.max(1.5, (ab.radius ?? 5) - 1)
+                : Math.max(1.5, Math.min(6, (ab.range ?? 6) - 1));
+            foe.x = reach; foe.z = 0; foe.hp = foe.maxHp;
+            const b = { foeHp: foe.hp, mateHp: mate.hp, selfHp: c.hp,
+                shield: Math.max(c.shield, mate.shield), buffs: Object.keys(c.buffs).length,
+                stun: foe.stunUntil, root: foe.rootUntil, slow: foe.slowUntil, x: c.x };
+            // 幫隊友嘅技能要對住隊友放，唔係對住敵人
+            const aim = ab.allyTarget ? { targetId: mate.id }
+                : { x: foe.x, z: foe.z, targetId: foe.id };
+            sim.cast(c, i, aim);
+            let peakShield = b.shield, healed = false;
+            for (let k = 0; k < 150; k++) {
+                sim.step();
+                peakShield = Math.max(peakShield, c.shield, mate.shield);
+                // 治療要同自然回血分開
+                if (c.hp - b.selfHp > c.hpRegen * 2 + 1) healed = true;
+                if (mate.hp - b.mateHp > mate.hpRegen * 2 + 1) healed = true;
+            }
+            // apRatio 可以係加成治療（例如曦守嘅大招），所以唔可以當佢宣告傷害
+            const dmg = Math.max(0, ...(Array.isArray(ab.damage) ? ab.damage : [ab.damage ?? 0]));
+            const want = [];
+            if (dmg > 0 || ab.missingHpRatio) want.push('傷害');
+            if (ab.healAlly || ab.healPerSec) want.push('治療');
+            if (ab.shield || ab.shieldRatio) want.push('護盾');
+            if (ab.stun) want.push('暈');
+            if (ab.root) want.push('定身');
+            if (ab.slow) want.push('減速');
+            if (ab.armourBonus || ab.damageBonus || ab.attackSpeedBonus || ab.speedBonus) want.push('增益');
+            if (ab.form === 'dash') want.push('位移');
+            const got = [];
+            if (foe.hp < b.foeHp) got.push('傷害');
+            if (healed) got.push('治療');
+            if (peakShield > b.shield) got.push('護盾');
+            if (foe.stunUntil > b.stun) got.push('暈');
+            if (foe.rootUntil > b.root) got.push('定身');
+            if (foe.slowUntil > b.slow) got.push('減速');
+            if (Object.keys(c.buffs).length > b.buffs) got.push('增益');
+            if (Math.abs(c.x - b.x) > 1) got.push('位移');
+            const missing = want.filter(w => !got.includes(w));
+            if (missing.length) broken.push(`${def.name} ${ab.key} ${ab.name} 欠 ${missing.join('/')}`);
+        });
+    }
+    check('每個技能都做到自己 data 宣告嘅效果', broken.length === 0, broken);
+}
+
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);
 if (fail) { console.log('失敗項目:', failed.join('、')); process.exit(1); }

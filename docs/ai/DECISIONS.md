@@ -2343,6 +2343,15 @@ follows what the tyres can use
   mirror lineup holds three of the game's four skillshots, and they now work. 11.4 minutes is a
   reasonable length for a 3v3 phone MOBA, so nothing was re-tuned on top — re-balancing in the
   same change as a bug fix would blend the two beyond telling apart.
+- Follow-up sweep, same session: with skillshots fixed, **every one of the 24 abilities now
+  delivers what its data declares** — damage, heal, shield, stun, root, slow, buff, displacement.
+  Two more looked broken at first and both were the probe, not the game: 庇護 is `allyTarget` and
+  was being cast at an enemy, and 黎明's `apRatio` scales its heal, not damage. Neither was
+  reported until the probe was corrected and re-run.
+- That sweep is now T30, driven from `champions.js` rather than from a list of ability names, so
+  a new ability is covered the day it is added. It was mutation-tested before being trusted:
+  disabling shields, stuns and slows in turn each made it fail and name the exact abilities
+  affected (3, 1 and 3 of them). A gate nobody has watched fail is not yet a gate.
 - Gates: T28 rebuilds the tunnelling geometry exactly (target midway between samples, 1.9 m off a
   2.02 m capsule) and requires a hit. T29 fires **every** skillshot in the game at an enemy in its
   path and requires damage from each — a rule about the class, not about the ability that happened
