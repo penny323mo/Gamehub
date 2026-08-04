@@ -2933,3 +2933,37 @@ follows what the tyres can use
   only ever existed on the Hub — the MOBA had none, and now anyone who reaches for a CDN trips
   it. **No response at 400 or above**: a mistyped asset path is swallowed by the retry logic and
   surfaces only as a unit with no model, which nobody would trace back to a path. 195/195.
+
+## ADR-135: Doubling the numbers that shape how the game feels changed nothing
+
+- Date: 2026-08-04
+- Status: accepted
+- Decision: `tests/sim.mjs` gains T33, which pins the **consequence** of out-of-combat
+  regeneration — how long a champion at half health takes to reach full while standing safe —
+  in a band wide enough for rebalancing and narrow enough to catch a doubling.
+- Method: the "computed but never asserted" audit was run on `sim.mjs` for the first time and
+  came back empty; every candidate turned out to feed an assertion indirectly. So the question
+  was asked the harder way: mutation testing. `sim.mjs` runs in 25 s, which makes a campaign
+  affordable.
+- **The first campaign was worthless and I have to say so.** Fourteen boundary mutations
+  (`>=` → `>` and the like) all survived, which looks damning until you notice that in float
+  time those are *equivalent mutants*: `time >= until` and `time > until` differ only at exact
+  equality, which accumulated floats essentially never hit. That result described my choice of
+  operator, not the suite.
+- The second campaign used operators that cannot be equivalent — double a numeric literal.
+  **11 of 12 survived**, and several are unambiguously behavioural: out-of-combat regeneration
+  halved, minion arrow speed doubled, target-search radius doubled, fountain radius doubled.
+  238 checks, none of them noticed.
+- The answer is **not** to pin each constant. That produces tests that record the
+  implementation instead of the intent — the anti-pattern this project has named repeatedly.
+  What deserves a guard is the thing a player experiences.
+- Measured before choosing one: half health to full, standing safe, takes **199.7 / 242.5 /
+  267 seconds** at levels 1 / 6 / 12. Three to five minutes, against an average match of about
+  eight. Waiting is therefore not a way back into a fight — recalling is the only option. That
+  is a design position rather than a defect, so the gate holds the consequence at 120–360 s
+  and leaves room to move it deliberately.
+- Checked both ways: the suite passes at 241/241, and restoring the `/5` → `/10` mutation now
+  fails all three levels instead of passing silently.
+- The other survivors are recorded, not gated. Arrow speed, aggro radius and fountain radius
+  each need the same treatment — name the player-visible consequence first, then guard that —
+  and that is worth doing one at a time rather than in a sweep.

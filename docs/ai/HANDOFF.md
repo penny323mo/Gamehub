@@ -4,7 +4,7 @@ Updated: 2026-08-04 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `main`
-Status: 版本標記覆蓋實際請求 (ADR-134), Hub 可撳範圍 (ADR-133)
+Status: 突變測試揭出無守衛嘅手感數字 (ADR-135), 版本標記 (ADR-134)
 
 ## Current objective
 
@@ -12,25 +12,25 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
 
 ## Completed
 
-### 版本標記只覆蓋到六十七個請求入面嘅十九個 (ADR-134)
+### 將決定手感嘅數字放大一倍，238 條檢查一條都冇響 (ADR-135)
 
-- ADR-133 逐個補咗 Hub 一個檔。同一條問題問到底——**遊戲實際攞邊啲檔、邊啲有標記**——唔係讀碼題，
-  所以改為錄低請求。開一局：**67 個請求，19 個有標記**；冇標記嘅係成個 `vendor/`、Draco 解碼器，
-  同**全部十二個 `.glb` 模型**。`cache-bust.mjs` 一直綠燈，因為佢查 `src/` 嘅 import，而嗰半從來
-  唔係有風險嗰半。
-- 模型特別要緊：Penny 講明唔重用現有 3D 資產，即係模型一定會換，而換完之後返轉頭嘅玩家會攞到
-  新碼配舊網格。模型嘅標記由 `assets.js` 自己個 module URL 讀返，bump 腳本唔使多一個改寫位；
-  Hub 嘅字型同兩個 logo 就要明寫入 bump 腳本。
-- `vendor/` 特登唔郁，而且寫低理由唔係寫低遺漏：佢哋之間用相對路徑互相 import，加標記等於改第三方
-  源碼；升級 vendor 嘅正確做法係改資料夾名，一次過換晒所有 import URL。
-- 呢個改動即刻整爛兩條 gate，而咁樣先叫有用：資產重試測試攔 `**/*.glb`，一加 query 就對唔
-  到，於是佢一次都冇攔過，「載入甩咗」根本冇發生過。而家對 `pathname`。
-- 新 gate 唔查碼，直接錄低瀏覽器攞過乜：49 個請求、31 個要標記、0 個冇。同一份錄音順手釘住
-  兩樣，量出嚟都乾淨：**一個外網請求都冇**（ADR-112 收字型入倉就係為咗呢樣，但守衛一直只喺
-  Hub），同**冇任何回應 400 或以上**（路徑打錯會畀重試食咗，畫面上只係「有隻兵冇模型」）。
+- 「量咗但冇 assert」第一次用喺 `sim.mjs`，空手而回，所以改用突變測試（套件跑 25 秒，噴得起）。
+  **第一批完全冇價值，要講明**：十四個邊界突變（`>=` → `>`）全部生還，但喺浮點時間度嗰啲係
+  **等價突變**——嗰個結果講緊我揀嘅算子，唔係講緊條套件。
+- 第二批用一定改變行為嘅算子（數值放大一倍）：**12 個之中 11 個生還**，包括脫戰回血減半、
+  小兵箭速一倍、索敵半徑一倍、泉水半徑一倍。238 條檢查一條都冇察覺。
+- 但答案唔係逐個常數釘死——嗰種就係專案自己反對嘅「記錄實作而唔係記錄意圖」。要守嘅係後果：
+  企喺安全位由半血養返滿要 **199.7／242.5／267 秒**（1／6／12 級），而一場波平均八分鐘——即係
+  「等返血」根本唔係選項，一定要返程。呢個係設計立場唔係 bug，所以 T33 用一條闊帶（120–360 秒）
+  釘住個後果。兩個方向驗過：乾淨 241/241，`/5` 改 `/10` 三個等級全部肥。
+- 其餘生還者（箭速、索敵、泉水半徑）記低但唔急住加 gate：每個都要先講清楚玩家感受到乜再守。
 
 ### Earlier checkpoints, in one line each
 
+- 版本標記只覆蓋到 67 個請求入面嘅 19 個：成個 `vendor/`、Draco、**全部十二個 `.glb` 模型**都冇，
+  而 `cache-bust.mjs` 一直綠燈，因為佢查 `src/` 嘅 import——從來唔係有風險嗰半。模型標記改為由
+  `assets.js` 自己個 module URL 讀返；`vendor/` 特登唔郁。個改動即刻整爛咗資產重試 gate（佢攔
+  `**/*.glb`，一加 query 就一次都冇攔過）。新 gate 直接錄低瀏覽器攞過乜。ADR-134。
 - Hub 係玩家真正打開嘅第一塊畫面，但**一粒掣都冇量過**：分頁圓點 8×8、箭咀 34–42，全部低過
   專案自己嗰條 44px。箭咀升到 44；四粒點喺 320 闊之下每粒 44 幾何上塞唔落，改用 WCAG 2.5.8
   嘅 24×24 加圓心間距。而呢啲改動本來一個玩家都到唔到——Hub 個 `style.css` 冇版本標記。ADR-133。
@@ -83,7 +83,7 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
 ## Verification
 
 - `node tests/hub.mjs` → **95/95**; Racing Car 6/6, Royale 8/8, Xiangqi build + selftests pass.
-  `cache-bust.mjs` → pass; `sim.mjs` → **238/238**; `balance.mjs 24` → all six inside 20–85%
+  `cache-bust.mjs` → pass; `sim.mjs` → **241/241**; `balance.mjs 24` → all six inside 20–85%
   (318 s, not a fast gate).
 - `node games/moba/tests/browser.mjs` → **195/195 pass** at five sizes (~10 min): select and
   post-match layout, full matches, FX and framing, the attack swing playing, smoothness at

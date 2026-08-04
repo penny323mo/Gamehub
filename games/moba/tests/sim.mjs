@@ -950,5 +950,45 @@ function dodgeCase(px, speed) {
             && planFrame(0, 0).alpha === 0);
 }
 
+// ---------- T33：脫戰回血係一個後果，唔係一個常數 ----------
+//
+// 突變測試揭出嚟嘅：將 `hpRegen * dt / 5` 改成 `/ 10`，回血速度減半，
+// 238 條檢查一條都唔會響。同一批入面，小兵箭速、索敵半徑、泉水半徑
+// 放大一倍，一樣冇人察覺。
+//
+// 但答案唔係逐個常數釘死——嗰種測試正正就係呢個專案講過唔要嘅
+// 「記錄實作而唔係記錄意圖」。要釘嘅係玩家感受得到嗰樣嘢：
+// **企喺安全位等，要等幾耐先返到滿血**。
+//
+// 實測而家係一百八十二至二百九十四秒（三至五分鐘），而一場波平均八分鐘。
+// 即係「企埋一邊等返血」根本唔係一個選項，你一定要返程——呢個係一個設計
+// 立場，唔係一個 bug，所以呢度用一條闊嘅帶釘住個後果，唔係釘死個數字。
+// 帶闊到容得下調整，但容唔落「快一倍」或者「慢一倍」。
+{
+    const 半血養滿 = (lvl) => {
+        const sim = new Sim({ seed: 5 });
+        const c = sim.player;
+        while (c.level < lvl) sim.giveXp(c, 400);
+        // 企喺自己半場、離開泉水，先至係量緊「脫戰回血」而唔係泉水回復
+        c.x = -MAP.fountainX + 14; c.z = 0;
+        c.orderX = null; c.orderZ = null; c.orderTarget = null;
+        const max = sim.stats(c).maxHp;
+        c.hp = max * 0.5;
+        let t = 0;
+        while (c.hp < max - 0.5 && t < 600 / TICK) {
+            sim.step(TICK);
+            c.orderTarget = null;                 // 唔好畀佢自己去打嘢
+            if (!c.alive || sim.atFountain(c)) return null;
+            t++;
+        }
+        return +(t * TICK).toFixed(1);
+    };
+    for (const lvl of [1, 6, 12]) {
+        const 秒 = 半血養滿(lvl);
+        check(`等級 ${lvl}：脫戰由半血養返滿喺一百二十至三百六十秒之間`,
+            秒 != null && 秒 > 120 && 秒 < 360, { 等級: lvl, 秒 });
+    }
+}
+
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);
 if (fail) { console.log('失敗項目:', failed.join('、')); process.exit(1); }
