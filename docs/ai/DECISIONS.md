@@ -3016,3 +3016,10 @@ follows what the tyres can use
   it alive at 215 HP, because structure armour absorbed a fifth of the hit. Both were found by
   printing the intermediate state rather than re-reading the rule.
 - All three mutants now fail and the clean tree passes 252/252.
+- `view.js` had never been mutated, and at ten minutes a run a broad campaign is not affordable.
+  So two mutations were chosen rather than sampled — the two behaviours **ADR-127 claims in its
+  own text**, on the principle that an ADR asserting something untested is the worst kind of
+  documentation. Removing the 3 m teleport threshold fails the high-refresh jump check; removing
+  the camera's `approach(4, dt)` smoothing fails the portrait framing check. Both claims are
+  genuinely guarded. The second is caught by the framing gate repaired one round earlier in
+  ADR-133 — a gate written for a different reason, earning its keep twice.
