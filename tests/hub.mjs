@@ -234,6 +234,42 @@ for (const viewport of [
     });
     check(`${label}：Outfit 真係載到（唔係跌返做系統字）`, font.用到, font);
     check(`${label}：一個外網請求都冇`, external.length === 0, external.slice(0, 4));
+    // 撳得中：MOBA 嗰邊每粒掣都釘住 44px（ADR-107），但 Hub——玩家真正
+    // 見到嘅第一塊畫面——一條都冇量過。實測改之前：分頁圓點 **8×8**，
+    // 箭咀 34 至 42，四個尺寸全部低過線。
+    // 兩條唔同嘅線，各有理由：箭咀係單獨目標又有位，照守 44；四粒圓點喺
+    // 320 闊之下每粒 44 就係 176，加埋箭咀塞唔落，所以用 WCAG 2.5.8 嘅
+    // 24×24，再加「圓心之間唔可以近過 24」保證兩粒唔會互搶。
+    const taps = await page.evaluate(() => {
+        const vis = (el) => { const cs = getComputedStyle(el); const r = el.getBoundingClientRect();
+            return r.width > 1 && r.height > 1 && cs.display !== 'none'
+                && cs.visibility !== 'hidden' && cs.pointerEvents !== 'none'; };
+        const all = [...document.querySelectorAll('a,button,[role="button"],input,select')].filter(vis);
+        const 細 = [], 撳唔中 = [];
+        for (const el of all) {
+            const r = el.getBoundingClientRect();
+            const dot = el.classList.contains('carousel-dot');
+            const 最少 = dot ? 24 : 44;
+            const 邊 = Math.min(r.width, r.height);
+            if (邊 < 最少) 細.push(`${el.className || el.tagName}: ${Math.round(r.width)}×${Math.round(r.height)}（要 ${最少}）`);
+            const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+            if (!hit || !(hit === el || el.contains(hit) || hit.contains(el))) {
+                撳唔中.push(`${el.className || el.tagName} → ${hit?.className || hit?.tagName || '冇嘢'}`);
+            }
+        }
+        const dots = [...document.querySelectorAll('.carousel-dot')].filter(vis)
+            .map(el => { const r = el.getBoundingClientRect(); return r.left + r.width / 2; })
+            .sort((a, b) => a - b);
+        const 太逼 = [];
+        for (let i = 1; i < dots.length; i++) {
+            if (dots[i] - dots[i - 1] < 24) 太逼.push(Math.round(dots[i] - dots[i - 1]));
+        }
+        return { 數: all.length, 細, 撳唔中, 太逼 };
+    });
+    check(`${label}：每個撳得嘅嘢都夠大（箭咀 44、圓點 24）`, taps.細.length === 0, taps.細);
+    check(`${label}：每個撳得嘅嘢中心都真係打得中自己`, taps.撳唔中.length === 0, taps.撳唔中);
+    check(`${label}：圓點圓心之間唔會近過 24px`, taps.太逼.length === 0, taps.太逼);
+
     check(`${label}：零 browser error`, errors.length === 0, errors);
     await page.close();
 }

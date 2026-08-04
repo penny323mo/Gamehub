@@ -20,6 +20,8 @@ const versions = {
     hud: capture(main, /\.\/hud\.js\?v=([a-z0-9-]+)/i),
     sim: capture(main, /\.\/sim\.js\?v=([a-z0-9-]+)/i),
     hubEntry: capture(hub, /launcher\.js\?v=([a-z0-9-]+)/i),
+    // Hub 嘅樣式表之前完全冇標記，所以純 CSS 改動係傳唔到去返轉頭嘅訪客
+    hubStyle: capture(hub, /style\.css\?v=([a-z0-9-]+)/i),
     mobaLink: capture(launcher, /games\/moba\/index\.html\?v=([a-z0-9-]+)/i),
 };
 

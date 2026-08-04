@@ -288,9 +288,9 @@ body {
 
 .nav-btn {
     display: grid;
-    width: 40px;
-    height: 40px;
-    flex: 0 0 40px;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
     border: 1px solid var(--glass-border);
     border-radius: 50%;
     background: rgba(30, 41, 59, 0.88);
@@ -329,21 +329,43 @@ body {
 .carousel-dots {
     display: flex;
     align-items: center;
-    gap: 7px;
+    /* 圓點嘅手指範圍係 24×24；作用中嗰粒畫出嚟有 24 闊，所以佢個掣 28。
+       間距保證每個 24px 方框各自獨立（圓心相距最少 24）。 */
+    gap: 3px;
 }
 
+.carousel-dot.active { width: 28px; }
+
+/* 圓點：畫出嚟得 8px，但撳嘅範圍唔可以係 8px。
+   點解唔跟 MOBA 嗰條 44px（ADR-107）：喺 320 闊度之下，四粒點各佔 44
+   已經係 176，加埋兩個箭咀 88 就塞唔落——條線唔係唔想守，係幾何上守唔到。
+   所以呢度用 WCAG 2.5.8 嘅 24×24，並且靠間距保證每粒點嘅 24px 方框唔會
+   互相搶。箭咀同一行照守 44：佢哋係單獨目標，有位。
+   視覺上維持原本嘅細點，用 ::before 畫，掣本身淨係做手指範圍。 */
 .carousel-dot {
-    width: 8px;
-    height: 8px;
+    position: relative;
+    width: 24px;
+    height: 24px;
     padding: 0;
     border: 0;
+    background: none;
+    cursor: pointer;
+}
+
+.carousel-dot::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    transform: translate(-50%, -50%);
     border-radius: 999px;
     background: rgba(148, 163, 184, 0.38);
-    cursor: pointer;
     transition: width 0.2s, background 0.2s;
 }
 
-.carousel-dot.active {
+.carousel-dot.active::before {
     width: 24px;
     background: var(--neon-cyan);
 }
@@ -359,6 +381,14 @@ body {
     font-size: 0.68rem;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.08em;
+}
+
+/* 最窄嘅機：控制 dock 要塞得落。箭咀升到 44 之後，dock 喺 320 闊度去到
+   281px，超出「唔可以闊過畫面 78%」嗰條線。慳返嗰截喺頁碼度出——
+   四粒圓點已經講咗同一件事（第幾組、共幾組），而箭咀嘅可撳面積係
+   一個手指問題，唔可以拎去換。 */
+@media (max-width: 380px) {
+    .carousel-status { display: none; }
 }
 
 @media (max-width: 760px) {
@@ -468,9 +498,9 @@ body {
     }
 
     .nav-btn {
-        width: 42px;
-        height: 42px;
-        flex-basis: 42px;
+        width: 44px;
+        height: 44px;
+        flex-basis: 44px;
     }
 
     .nav-btn:hover,
@@ -516,11 +546,11 @@ body {
     .card-copy strong { font-size: 1rem; }
     .card-description { margin-top: 5px; font-size: 0.66rem; line-height: 1.25; }
     .pill-btn { min-width: 64px; margin-top: 7px; padding: 5px 11px; font-size: 0.62rem; }
-    .nav-btn { width: 34px; height: 34px; flex-basis: 34px; }
+    .nav-btn { width: 44px; height: 44px; flex-basis: 44px; }
     .nav-btn:hover, .nav-btn:focus-visible {
         transform: scale(1.06);
     }
-    .carousel-footer { min-height: 40px; margin-top: 3px; padding: 2px 6px; }
+    .carousel-footer { min-height: 48px; margin-top: 3px; padding: 2px 6px; }
 }
 
 @media (max-width: 360px), (max-height: 620px) and (max-width: 760px) {

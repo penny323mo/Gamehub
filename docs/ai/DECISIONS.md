@@ -2857,3 +2857,43 @@ follows what the tyres can use
   whole point of ADR-119 was that the recall/shop overlap is only visible while the recall
   button exists. Two sites of one shape: one was wrong by 56 m, one was right; neither had been
   checked.
+
+## ADR-133: The Hub is the real first screen, and none of its controls were measured
+
+- Date: 2026-08-04
+- Status: accepted
+- Decision: `tests/hub.mjs` gates touch targets at all four viewports — arrows at 44 px, the
+  page dots at 24 px with centres no closer than 24 px, and every control hit-testing to
+  itself. `index.html` now version-stamps `style.css`, and the bump script and cache gate
+  cover it.
+- Method: ADR-129 found that the champion-select screen had no coverage because every gate
+  started after it. One level up, the Hub is what a player actually opens first. Its suite
+  already checks four viewports for overlap, overflow and column counts — genuinely good
+  coverage — but **not one touch target**, while the MOBA has gated 44 px since ADR-107.
+- Measured before changing anything, all four sizes: page dots **8×8 px**, arrows 34–42 px.
+  Every interactive control in the Hub was under the project's own line.
+- Two different limits, each with a reason rather than a convenience. Arrows are isolated
+  targets with room, so they take the project's 44 px. Four dots at 44 px each is 176 px,
+  plus 88 px of arrows, which does not fit a 320 px screen — the rule is not being dodged,
+  it is geometrically unavailable. The dots take WCAG 2.5.8's 24×24 instead, with a spacing
+  assertion so neighbours cannot steal each other's area. The visible dot stays 8 px, drawn
+  by `::before`; only the finger area grew.
+- Enlarging the arrows pushed the control dock to 281 px against a 249.6 px limit at 320 px
+  wide, and the existing dock gate caught it. The page counter is hidden below 380 px: four
+  dots already say which group of four you are on, and a finger-reachable arrow is not
+  something to trade away for a label that repeats them.
+- **The change would not have reached anyone.** The Hub stamps `launcher.js?v=…` but its
+  `style.css` had no token at all, so a CSS-only round — which this entire one was — would
+  have shipped invisibly to any returning visitor. This is ADR-111's defect with the
+  stylesheet left out. `style.css` is now stamped, `moba-bump-cache.mjs` rewrites it, and
+  `cache-bust.mjs` fails when it drifts — checked in both directions.
+- The verification run for this round failed on something unrelated, and the cause was **my own
+  previous fix**. The framing gate projects the champion through the camera and asks whether it
+  sits in the lower half of the screen. But `camFocus` chases with `approach(4, dt)`, so before
+  the camera has caught up the answer is meaningless: measured over 90 frames after a
+  teleport the value travels from **-33.8 to 56.7** — 90 points, against a 45–88 band — while
+  *walking* it is stable (ranges of 4.4 and 9.3). ADR-132 moved the champion from x = -62 back to
+  x = -6 after the warm-up, and the next gate sampled during that 56 m catch-up. The gate had
+  never required the camera to settle; it had been passing on luck, and my change is what
+  collected. It now advances view frames until the projected position stops moving and asserts
+  that it did — five frames at both sizes, settling at 53 and 56.7.

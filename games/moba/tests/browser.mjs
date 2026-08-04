@@ -720,11 +720,29 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
             if (ray.ray.intersectPlane(plane, hit)) { lo = Math.min(lo, hit.x); hi = Math.max(hi, hit.x); }
         }
         const p = s.player;
-        const proj = new THREE.Vector3(p.x, 1.2, p.z).project(cam);
+        // 鏡頭係追住玩家嘅（camFocus 用 approach(4, dt)），所以「玩家喺畫面
+        // 邊個位置」呢個答案，喺鏡頭未追到之前係冇意義嘅。實測：企定唔郁但
+        // 啱啱畀人搬過位，九十幀之內個數由 -33.8 走到 56.7——足足 90 個百分點，
+        // 而條線係 45 至 88。行緊路反而穩（範圍 4.4 同 9.3）。即係之前量到嘅
+        // 唔係構圖，係鏡頭收斂延遲，一直靠彩數過。
+        // （踩爆佢嘅係 ADR-132：之前英雄成段時間留喺 -62，鏡頭早收斂咗；
+        //   我將佢擺返 -6，下一條 gate 就喺飛緊嗰五十六米途中量。）
+        const yOf = () => {
+            const q = new THREE.Vector3(p.x, 1.2, p.z).project(cam);
+            return (1 - (q.y + 1) / 2) * 100;
+        };
+        let 幀 = 0, 穩 = 0, 上次 = yOf();
+        while (幀 < 150 && 穩 < 5) {
+            v.update(1 / 30, []);
+            const now = yOf();
+            穩 = Math.abs(now - 上次) < 0.2 ? 穩 + 1 : 0;
+            上次 = now; 幀++;
+        }
         return {
             橋面: +(ground / (N * N) * 100).toFixed(1),
             兵線長度: +(hi - lo).toFixed(1),
-            玩家由頂計: +((1 - (proj.y + 1) / 2) * 100).toFixed(1),
+            玩家由頂計: +上次.toFixed(1),
+            鏡頭收斂用咗幾幀: 幀, 收斂咗: 穩 >= 5,
             垂直: vertical,
         };
     });
@@ -820,6 +838,8 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     check(`${tag}：兵線總覽同戰場讀同一個方向`, laneAgrees.方向一致, laneAgrees);
     check(`${tag}：總覽入面藍方嗰頭同畫面上藍方嗰頭一致`, laneAgrees.兩頭啱, laneAgrees);
     check(`${tag}：一屏睇得到至少 30 米兵線`, framing.兵線長度 >= 30, framing);
+    // 量之前要先等鏡頭停低：冇收斂就代表量到嘅係一個郁緊嘅數，唔係構圖。
+    check(`${tag}：量取景之前鏡頭已經收斂`, framing.收斂咗 === true, framing);
     check(`${tag}：玩家企喺畫面下半但唔會跌出畫外`,
         framing.玩家由頂計 > 45 && framing.玩家由頂計 < 88, framing);
 
