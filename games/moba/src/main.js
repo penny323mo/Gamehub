@@ -4,20 +4,20 @@
 // 兩樣分開嘅原因同 sim.js 唔 import three.js 一樣：規則要可重現，
 // 畫面要跟硬件。一個 120Hz 螢幕唔應該令小兵行快一倍。
 
-import { Assets } from './assets.js?v=dawn-23';
-import { armTap } from './tap.js?v=dawn-23';
-import { Sim } from './sim.js?v=dawn-23';
-import { createBot, updateBots } from './ai.js?v=dawn-23';
-import { View } from './view.js?v=dawn-23';
-import { Hud } from './hud.js?v=dawn-23';
-import { createInput } from './input.js?v=dawn-23';
-import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=dawn-23';
-import { TEAM, TICK, teamName } from './constants.js?v=dawn-23';
-import { CHAMPION_LOOK } from './looks.js?v=dawn-23';
-import { Sfx } from './sfx.js?v=dawn-23';
-import { planFrame } from './pace.js?v=dawn-23';
-import { settings } from './settings.js?v=dawn-23';
-import { renderPortraits } from './portraits.js?v=dawn-23';
+import { Assets } from './assets.js?v=fixture-24';
+import { armTap } from './tap.js?v=fixture-24';
+import { Sim } from './sim.js?v=fixture-24';
+import { createBot, updateBots } from './ai.js?v=fixture-24';
+import { View } from './view.js?v=fixture-24';
+import { Hud } from './hud.js?v=fixture-24';
+import { createInput } from './input.js?v=fixture-24';
+import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=fixture-24';
+import { TEAM, TICK, teamName } from './constants.js?v=fixture-24';
+import { CHAMPION_LOOK } from './looks.js?v=fixture-24';
+import { Sfx } from './sfx.js?v=fixture-24';
+import { planFrame } from './pace.js?v=fixture-24';
+import { settings } from './settings.js?v=fixture-24';
+import { renderPortraits } from './portraits.js?v=fixture-24';
 
 const $ = (sel) => document.querySelector(sel);
 

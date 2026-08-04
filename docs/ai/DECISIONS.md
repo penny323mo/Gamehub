@@ -2822,3 +2822,31 @@ follows what the tyres can use
   exactly the state that produced the 34-point measurement, and the sim is deterministic.
 - Tuning stops here. The remaining spread is 34 points against a ±17-point interval, which is
   about one interval — the next honest step is a bigger sample, not another change.
+
+## ADR-132: The combat gate measured a champion standing in its own fountain
+
+- Date: 2026-08-04
+- Status: accepted
+- Decision: the combat fixture places the champion **after** the warm-up, not before, and the
+  gate asserts that at the moment of measurement it is not standing in a fountain.
+- Method: ADR-131's shape — a measurement that depends on something the measurement itself
+  changes — pointed at the test suite. Sixty-odd gates run in sequence on one page; some reset
+  the player and some do not, with nothing saying which owns what (ADR-117 again). So the
+  question became: does any gate's verdict rest on state an earlier gate left behind?
+- Instrumented rather than reasoned about. The combat gate says it stands the champion at
+  **x = -6**; measured at the moment of the attack it is at **x = -62**, 56 m away, at both
+  layout sizes. Clearing the standing attack order left by the earlier keyboard gate did not
+  move the number: the champion **dies during the 25-second warm-up and respawns at its own
+  fountain**, which ADR-126 had already recorded as a fact about that warm-up without anyone
+  noticing it also relocated the fixture.
+- So every swing, every hit spark and every projectile in that gate was being measured inside
+  the fountain — the exact state ADR-119 singled out as unrepresentative (regeneration on, no
+  enemies nearby, recall button hidden). The gate was green and had been green for the wrong
+  reason a third time, in the same block that ADR-126 had already corrected twice.
+- The fix is ordering, not another patch: the warm-up runs first to produce a live match, then
+  the fixture is stated — orders cleared, position, health, level — and only then is anything
+  measured. `atFountain` is asserted false at measurement time, so the claim the gate makes
+  about its own state is now checked rather than assumed.
+- Kept as a payload: the pre-placement position (-62) still travels with the failure output,
+  because "where the champion drifted to" is the first thing worth knowing if this ever
+  regresses.

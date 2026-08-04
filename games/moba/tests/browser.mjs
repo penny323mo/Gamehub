@@ -421,7 +421,7 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     const combat = await page.evaluate(async () => {
         const s = window.__sim, v = window.__view;
         const p = s.player;
-        p.x = -6; p.z = 0; p.level = 7; p.mp = p.maxMp; p.abilityCd = [0, 0, 0, 0];
+        p.level = 7; p.mp = p.maxMp; p.abilityCd = [0, 0, 0, 0];
         // 暖機要兩層一齊行。之前呢度淨係行 sim，view 隔咗廿五秒先見返場——
         // 一次過踩中三個坑，而三個都令條 gate 量錯嘢：
         //   一、二十五秒嘅事件積壓一次過湧入，「呢一下普攻出咗幾多特效」
@@ -439,6 +439,15 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
             s.step(1 / 30);
             if (i % 3 === 2) v.update(3 / 30, s.drain());
         }
+        // 擺位要喺暖機**之後**先做。之前擺喺前面，寫住「企喺 -6」，但暖機
+        // 嗰廿五秒入面佢會死一次，重生返自己泉水——實測量到嘅位置係 -62，
+        // 差五十六米。即係成條 gate 一直喺泉水裏面量普攻，而泉水正正就係
+        // ADR-119 點名嗰個「唔具代表性」嘅狀態（有回復、冇敵人、返程掣收埋）。
+        const 暖機後x = p.x;
+        p.orderX = null; p.orderZ = null; p.orderTarget = null;
+        p.stunUntil = 0; p.rootUntil = 0; p.recallUntil = 0; p.cd = 0;
+        p.x = -6; p.z = 0; p.alive = true; p.hp = p.maxHp;
+        const 起點 = p.x;
         const foe = s.entities.find(e => e.alive && e.team !== p.team && e.kind === 'minion')
             ?? s.champions.find(c => c.alive && c.team !== p.team);
         if (!foe) return null;
@@ -470,7 +479,8 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
         const swinging = u.rig.busy;
         // 肥佬嗰陣要一眼睇得出係邊個環節斷：出唔出到手、目標死冇死、
         // 個鎖有冇被人抹走。四次錯判入面有三次係因為冇呢啲數。
-        const rigWhy = { ...blockers, 步後目標生存: foe.alive, 步後玩家生存: p.alive,
+        const rigWhy = { 起點, 暖機後x: +暖機後x.toFixed(1), 喺泉水: s.atFountain(p),
+            ...blockers, 步後目標生存: foe.alive, 步後玩家生存: p.alive,
             鎖差: +(u.rig.lockUntil - u.rig.time).toFixed(3), clip: u.rig.current,
             事件序: attackEvents.map(e => e.type + (e.id === p.id ? '*' : '')) };
         // 彈道：唔可以假設玩家第一個技能就係直線彈——鐵衛個 Q 係範圍技。
@@ -505,6 +515,12 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
         };
     });
     check(`${tag}：普攻真係發生咗（唔係量緊積壓）`, combat && combat.emitted === true, combat);
+    // 量嗰一刻要真係喺 gate 聲稱嗰個狀態。暖機期間死過一次、重生返泉水，
+    // 之前就係喺泉水裏面量普攻——ADR-119 點名嘅唔具代表性狀態。
+    check(`${tag}：量普攻嗰陣唔係企喺泉水裏面`,
+        combat && combat.rigWhy.喺泉水 === false,
+        combat && { 暖機後x: combat.rigWhy.暖機後x, 擺返去: combat.rigWhy.起點,
+            喺泉水: combat.rigWhy.喺泉水 });
     check(`${tag}：普攻會出視覺回饋（揮擊弧／出手閃）`, combat && combat.fxOnAttack > 0, combat);
     // Penny 最初嗰句就係「攻擊完全見唔到個動作」。特效同動畫係兩件事：
     // 就算劃到一道弧，隻角色唔郁都仲係唔似打緊嘢。
