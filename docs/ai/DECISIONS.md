@@ -2850,3 +2850,10 @@ follows what the tyres can use
 - Kept as a payload: the pre-placement position (-62) still travels with the failure output,
   because "where the champion drifted to" is the first thing worth knowing if this ever
   regresses.
+- The same question was then put to the other gate that sets a state and *then lets time run*:
+  the layout gate places the champion at mid-lane with gold and waits 900 ms before measuring.
+  Measured at all three sizes, it holds — not in a fountain, alive, 3003 gold, still at x = 0,
+  recall button visible. A clean negative, and now asserted rather than assumed, because the
+  whole point of ADR-119 was that the recall/shop overlap is only visible while the recall
+  button exists. Two sites of one shape: one was wrong by 56 m, one was right; neither had been
+  checked.

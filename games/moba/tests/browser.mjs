@@ -963,9 +963,23 @@ for (const [tag, viewport] of LAYOUT_SIZES) {
     // 所以要擺返一個真實狀態：離開泉水、袋住錢。
     await page.evaluate(() => {
         const p = window.__sim.player;
+        p.orderX = null; p.orderZ = null; p.orderTarget = null;
         p.x = 0; p.z = 0; p.hp = p.maxHp; p.gold = 3000;
     });
     await page.waitForTimeout(900);
+    // 擺完位之後仲要行九百毫秒場波先量，而嗰九百毫秒入面隻角色會郁、會畀
+    // 人打、會死。ADR-132 就係喺戰鬥 gate 度撞到呢件事：寫住擺喺 -6，量嗰陣
+    // 已經喺 -62（死咗重生返泉水）。呢度嘅代價一模一樣——一返到泉水，
+    // 返程掣即刻收埋，而 ADR-119 修嗰個重疊就係得返程掣出現先睇得到。
+    // 所以 gate 對自己狀態嘅聲稱要查，唔可以假設。
+    const fixture = await page.evaluate(() => {
+        const s = window.__sim, p = s.player;
+        return { 喺泉水: s.atFountain(p), 生存: p.alive, 金: Math.round(p.gold),
+            x: +p.x.toFixed(1),
+            返程掣睇得見: !document.querySelector('.moba-recall')?.classList.contains('hidden') };
+    });
+    check(`${tag}：排版量度之前，英雄真係企喺 gate 講明嗰個狀態`,
+        fixture.喺泉水 === false && fixture.生存 && fixture.金 >= 3000, fixture);
 
     const layout = await page.evaluate(() => {
         const visible = (el) => {
