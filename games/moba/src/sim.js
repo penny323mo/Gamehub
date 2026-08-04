@@ -11,9 +11,9 @@ import {
     RESPAWN_BASE, RESPAWN_PER_LEVEL, SHUTDOWN_PER_STREAK, SHUTDOWN_MAX,
     armourMul, structureArmour, TOWER_AGGRO_MEMORY, FOUNTAIN_HEAL_PCT, FOUNTAIN_RADIUS,
     PUSH_STRENGTH, SIEGE_DENSE_AT, SIEGE_EVERY_WAVE_AT, WARDEN, RECALL,
-} from './constants.js?v=swing-gate-18';
-import { CHAMPIONS, abilityRank, scaled } from './champions.js?v=swing-gate-18';
-import { ITEMS, MAX_ITEMS, itemBonus } from './items.js?v=swing-gate-18';
+} from './constants.js?v=interp-19';
+import { CHAMPIONS, abilityRank, scaled } from './champions.js?v=interp-19';
+import { ITEMS, MAX_ITEMS, itemBonus } from './items.js?v=interp-19';
 
 // 可重現嘅亂數：測試要跑到同一場比賽。
 //

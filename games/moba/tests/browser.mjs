@@ -1087,6 +1087,74 @@ for (const [tag, viewport] of LAYOUT_SIZES) {
     await page.close();
 }
 
+// ---------- 高刷新率之下，畫面郁得順唔順 ----------
+// sim 固定三十格一秒，而畫面層以前直接抄 sim 嘅座標。喺 120 Hz 螢幕上面，
+// 實測四幀之中得一幀個位置會變（25.2%），每次跳 0.217 米——即係部機畫緊
+// 120 幀，但你眼見嘅順滑度只有 30。
+//
+// 呢個毛病喺呢部機**永遠試唔到**：軟件光柵化根本去唔到嗰個幀率，rAF 自己
+// 就慢過 sim。所以呢條 gate 唔靠真幀率，而係照 pace.js 嘅算式親手推幀。
+{
+    const page = await browser.newPage({ viewport: { width: 900, height: 600 } });
+    const errs = watch(page);
+    await page.goto(URL_BASE, { waitUntil: 'load' });
+    await page.waitForFunction(() => !!window.__mobaReady || !!document.querySelector('.pick-card'),
+        null, { timeout: 120000 });
+    await page.click('#pick-go');
+    await page.waitForFunction(() => !!window.__view, null, { timeout: 120000 });
+    await page.waitForTimeout(600);
+
+    const smooth = await page.evaluate(async () => {
+        // 唔帶 token：帶咗就要每次 bump 記住改埋呢度，而 cache-bust 只查 src，
+        // 唔會提你。planFrame 係純函數，載多一份實例冇任何副作用。
+        const { planFrame } = await import('/games/moba/src/pace.js');
+        const s = window.__sim, v = window.__view, p = s.player;
+        const TICK = 1 / 30;
+        for (let i = 0; i < 30 * 3; i++) { v.beforeStep(); s.step(TICK); }
+        v.update(1 / 60, s.drain(), 1);
+        // 落一個橫跨成條路嘅走位命令，佢會一路行落去
+        p.x = -20; p.z = 0; p.orderTarget = null; p.orderX = 20; p.orderZ = 0;
+        const rec = (fps, frames) => {
+            let acc = 0;
+            const xs = [];
+            for (let f = 0; f < frames; f++) {
+                const plan = planFrame(acc, 1 / fps);
+                acc = plan.acc;
+                const evs = [];
+                for (let i = 0; i < plan.steps; i++) {
+                    p.orderX = 20; p.orderZ = 0;
+                    v.beforeStep(); s.step(TICK); evs.push(...s.drain());
+                }
+                v.update(1 / fps, evs, plan.alpha);
+                const u = v.units.get(p.id);
+                xs.push(u ? u.obj.position.x : null);
+            }
+            let moved = 0, still = 0, biggest = 0;
+            for (let i = 1; i < xs.length; i++) {
+                if (xs[i] == null || xs[i - 1] == null) continue;
+                const d = Math.abs(xs[i] - xs[i - 1]);
+                if (d > 1e-6) moved++; else still++;
+                biggest = Math.max(biggest, d);
+            }
+            return { fps, 郁嘅比例: +(moved / Math.max(1, moved + still)).toFixed(3),
+                單幀最大跳動: +biggest.toFixed(4), 走咗幾遠: +(xs.at(-1) - xs[0]).toFixed(2) };
+        };
+        return { 高刷: rec(120, 120), 六十: rec(60, 120), 三十: rec(30, 120) };
+    });
+    // 條 gate 講嘅係「快過 sim 嘅幀率唔可以凍」。喺啱啱三十幀嗰陣，一幀就係
+    // 一格，根本冇嘢喺兩格之間好插——嗰度嘅跳動就係一格嘅距離，係對嘅。
+    // 所以三十幀嗰行只做基線觀察，唔用高刷嘅標準去問佢。
+    for (const [tag, r] of Object.entries(smooth)) {
+        const 高刷 = tag !== '三十';
+        check(`${tag}：畫面逐幀都郁（唔會三幀凍一幀跳）`,
+            r.郁嘅比例 > (高刷 ? 0.9 : 0.7), r);
+        if (高刷) check(`${tag}：單幀跳動細過一格嘅距離`, r.單幀最大跳動 < 0.12, r);
+        check(`${tag}：內插冇令角色行少咗路`, r.走咗幾遠 > 1, r);
+    }
+    check('高刷平順測試期間主控台零錯誤', errs.length === 0, errs.slice(0, 3));
+    await page.close();
+}
+
 await browser.close();
 server.close();
 

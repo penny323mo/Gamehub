@@ -10,10 +10,10 @@ import { EffectComposer } from '../vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from '../vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/postprocessing/OutputPass.js';
-import { MAP, TEAM } from './constants.js?v=swing-gate-18';
-import { CHAMPION_LOOK, MINION_LOOK, ARENA_LOOK, TEAM_COLOUR, CLIP, championFx } from './looks.js?v=swing-gate-18';
-import { Rig } from './rig.js?v=swing-gate-18';
-import { Fx } from './fx.js?v=swing-gate-18';
+import { MAP, TEAM } from './constants.js?v=interp-19';
+import { CHAMPION_LOOK, MINION_LOOK, ARENA_LOOK, TEAM_COLOUR, CLIP, championFx } from './looks.js?v=interp-19';
+import { Rig } from './rig.js?v=interp-19';
+import { Fx } from './fx.js?v=interp-19';
 
 // 平滑追趕：每秒收窄 rate 咁多，而且同幀率無關。
 //
@@ -24,6 +24,15 @@ import { Fx } from './fx.js?v=swing-gate-18';
 //
 // 1 - exp(-rate * dt) 係同一條曲線嘅準確解，兩個幀率都剛好剩 1.83%。
 const approach = (rate, dt) => 1 - Math.exp(-rate * dt);
+
+// 兩格之間嘅內插。超過呢個距離就當係瞬移（閃現、重生返泉水），直接跳——
+// 內插一次瞬移就會變成「以三十倍速滑過成條線」，比跳格仲難睇。
+// 全場最快嘅位移都遠遠細過一格 3 米，所以呢條線分得清「行」同「傳送」。
+const TELEPORT = 3;
+function lerpPos(from, to, alpha) {
+    if (from == null || Math.abs(to - from) > TELEPORT) return to;
+    return from + (to - from) * alpha;
+}
 
 const sideSign = (team) => (team === TEAM.BLUE ? -1 : 1);
 const UP = new THREE.Vector3(0, 1, 0);
@@ -601,7 +610,9 @@ export class View {
                     u.dashFrom = null; u.dashAge = 0;
                 }
             }
-            u.obj.position.set(e.x, 0, e.z);
+            const rx = lerpPos(u.fromX, e.x, this.alpha);
+            const rz = lerpPos(u.fromZ, e.z, this.alpha);
+            u.obj.position.set(rx, 0, rz);
             if (e.facing != null) {
                 // KayKit 嘅角色向 +z，同 three.js 一樣，而 sim 個 facing 就係
                 // atan2(dx, dz)——即係 rotation.y 直接就啱。之前加咗 Math.PI
@@ -616,7 +627,7 @@ export class View {
             const shieldPct = e.kind === 'champ' && e.shieldUntil > this.sim.time
                 ? e.shield / st.maxHp : 0;
             setBar(u.bar, e.hp / st.maxHp, shieldPct);
-            u.bar.position.set(e.x, u.barY, e.z);
+            u.bar.position.set(rx, u.barY, rz);
             u.bar.quaternion.copy(this.camera.quaternion);
 
             if (!u.rig.busy) {
@@ -987,7 +998,8 @@ export class View {
             if (Math.abs(dx) < 1e-5 && Math.abs(dz) < 1e-5) { dx = o.userData.dx ?? 1; dz = o.userData.dz ?? 0; }
             o.userData.dx = dx; o.userData.dz = dz;
             prev.set(p.x, p.z);
-            o.position.set(p.x, 1.4, p.z);
+            o.position.set(lerpPos(p.__fx, p.x, this.alpha), 1.4,
+                lerpPos(p.__fz, p.z, this.alpha));
             o.quaternion.setFromUnitVectors(
                 UP, TMP_DIR.set(dx, 0, dz).normalize());
         });
@@ -1094,8 +1106,19 @@ export class View {
         this.camera.updateProjectionMatrix();
     }
 
+    // 每行一格 sim 之前叫一次：記低「上一格」嘅位置，畫面就有得內插。
+    // 由 view 自己揸呢份快照，唔係由 main.js 抄一份出嚟——邊個用內插，
+    // 邊個就負責保存內插要用嘅嘢，否則兩邊隨時各自記住唔同時刻嘅位置。
+    beforeStep() {
+        for (const [, u] of this.units) { u.fromX = u.entity.x; u.fromZ = u.entity.z; }
+        for (const p of this.sim.projectiles) { p.__fx = p.x; p.__fz = p.z; }
+    }
+
     // events：呢一幀入面所有 sim step 收埋一齊嘅事件（見 main.js 嘅註解）
-    update(dt, events = []) {
+    // alpha：畫喺上一格同今格之間邊個位置（見 pace.js）。1 = 照畫今格，
+    // 亦即係唔知情嘅呼叫者（測試）行為同以前一樣。
+    update(dt, events = [], alpha = 1) {
+        this.alpha = alpha;
         this.fxTime = (this.fxTime ?? 0) + dt;
         this.#consumeEvents(events);
         this.#clearFlashes();
@@ -1105,8 +1128,12 @@ export class View {
         this.fx.update(dt);
         if (this.rangeRing) {
             const p = this.sim.player;
+            // 射程圈要黐住畫面上嗰個角色，唔係黐住 sim 嗰個座標——
+            // 內插之後兩者差得到一格，個圈就會浮喺腳邊。
+            const pu = this.units.get(p.id);
             this.rangeRing.visible = p.alive;
-            this.rangeRing.position.set(p.x, 0.05, p.z);
+            this.rangeRing.position.set(pu?.obj.position.x ?? p.x, 0.05,
+                pu?.obj.position.z ?? p.z);
             this.rangeRing.scale.setScalar(p.range);
         }
         this.#camera(dt);

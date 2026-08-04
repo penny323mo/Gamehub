@@ -2613,3 +2613,42 @@ follows what the tyres can use
   collision ADR-124 named had simply moved to the next element. Rather than retune a third
   percentage, `--hud-floor` now states the top of the bottom-right button stack once, and both
   floating centre elements sit above it via `max()`.
+
+## ADR-127: On a 120 Hz screen the game moved at 30 Hz
+
+- Date: 2026-08-04
+- Status: accepted
+- Decision: `src/pace.js` owns the fixed-timestep rule and answers three questions at once —
+  how many ticks this frame runs, how much time is left over, and the alpha the view renders
+  at. The view interpolates unit and projectile positions between the previous tick and the
+  current one; `view.beforeStep()` takes the snapshot, so whoever renders the interpolation
+  also owns the data it needs.
+- Method: ADR-126 was a fixture that advanced one layer while holding the other still. That
+  shape was then aimed at production code: where does the game advance one layer without the
+  other? The main loop is where the two meet.
+- Measured on the real page, driving the loop by hand because this environment renders in
+  software and cannot reach the frame rates in question:
+  - at 120 fps only **25.2%** of frames changed a walking champion's on-screen position, in
+    jumps of **0.217 m** — a 120 Hz phone was being shown 30 Hz motion;
+  - at 60 fps, 50.4%. At 30 fps, 70.6% — there one frame is one tick, so nothing is wrong.
+  After interpolation: **97.5%** at 120 fps with a largest step of **0.054 m**, and 100% at 60.
+- Two limits in the old loop disagreed without either knowing: `dt` was clamped to 0.25 s while
+  six ticks only consume 0.2 s, so every maximally-stalled frame silently re-queued 0.05 s into
+  `acc` — a pool nothing ever capped. The clamp's whole purpose was "this time is not repaid".
+  Measured consequence: after a 3-second stall the old loop ran **three consecutive frames of
+  six ticks** — 0.6 s of match in 50 ms, a visible fast-forward. `MAX_FRAME` is now derived as
+  `MAX_STEPS * TICK`, so the two cannot drift apart, and the leftover is capped explicitly.
+- Interpolation is backward, not predictive: the view renders between the last two ticks, which
+  costs one tick (33 ms) of latency and is smooth at every frame rate. Extrapolation avoids the
+  latency but snaps when it guesses a turn wrong, and a MOBA champion turns constantly.
+- A move over 3 m in one tick is a teleport (blink, respawn), not walking, and snaps. Sliding a
+  blink across the map at 30× would be worse than the stutter it replaces.
+- Gates: T32 in `sim.mjs` pins the pacing rule headlessly — game time tracks wall time when
+  frames are smooth, `alpha` stays in [0, 1), the leftover pool never exceeds one tick, a
+  3-second stall is followed by **no frame above one tick**, and a 30-second background gap
+  drops its time instead of repaying it. `browser.mjs` measures the on-screen smoothness at
+  120/60/30 fps on the real view.
+- The failing direction is the pre-change measurement itself: the same probe, on the same page,
+  against the same view, read 0.252 before the change and the gate demands 0.9. The 30 fps row
+  is deliberately held to a weaker bar — at the sim rate there is nothing between two ticks to
+  interpolate, and asking for smoothness there is asking the wrong question.

@@ -11,6 +11,7 @@ import { createBot, updateBots } from '../src/ai.js';
 import { CHAMPIONS, CHAMPION_IDS, abilityRank } from '../src/champions.js';
 import { TEAM, MAP, TICK, XP_TO_LEVEL, MAX_LEVEL, GAME_MAX, TOWER, MINION, structureArmour } from '../src/constants.js';
 import { ITEMS, BUILDS, MAX_ITEMS, itemBonus, nextPurchase } from '../src/items.js';
+import { planFrame, MAX_STEPS, MAX_FRAME } from '../src/pace.js';
 
 let pass = 0, fail = 0;
 const failed = [];
@@ -891,6 +892,62 @@ function dodgeCase(px, speed) {
     check('唔存在嘅裝備會講明原因',
         sim.buyBlocker(sim.player, 'nonesuch') === 'noSuchItem'
             && sim.buy(sim.player, 'nonesuch') === false);
+}
+
+// ---------- T32：固定步長嘅步進規則 ----------
+//
+// 呢條規則以前係喺 main.js frame() 入面順手做嘅，所以一路冇人驗過。
+// 三樣要釘死：遊戲時間唔可以慢過真實時間（順機嗰陣）、卡完唔可以爆快進、
+// 以及 alpha 一定要係一個合法嘅內插系數，否則畫面會跳出兩格之外。
+{
+    const runTrace = (frames) => {
+        let acc = 0, sim = 0, wall = 0, peak = 0, worstAlpha = -1, badAcc = 0, dropped = 0;
+        const steps = [];
+        for (const raw of frames) {
+            const plan = planFrame(acc, raw);
+            acc = plan.acc; sim += plan.steps * TICK; wall += raw; dropped += plan.dropped;
+            peak = Math.max(peak, plan.steps);
+            if (!(plan.alpha >= 0 && plan.alpha < 1)) worstAlpha = plan.alpha;
+            if (!(acc >= 0 && acc < TICK)) badAcc++;
+            steps.push(plan.steps);
+        }
+        return { acc, sim: +sim.toFixed(3), wall: +wall.toFixed(3), peak, worstAlpha, badAcc,
+            dropped: +dropped.toFixed(3), steps };
+    };
+    const f = (n, v) => Array.from({ length: n }, () => v);
+
+    const smooth = runTrace(f(600, 1 / 60));
+    check('順暢 60fps：遊戲時間跟得上真實時間',
+        Math.abs(smooth.sim - smooth.wall) < TICK && smooth.dropped === 0, smooth);
+    check('順暢 60fps：一幀唔會行多過一格', smooth.peak === 1, smooth.peak);
+
+    const high = runTrace(f(1200, 1 / 120));
+    check('高刷 120fps：遊戲時間一樣跟得上',
+        Math.abs(high.sim - high.wall) < TICK && high.peak === 1, high);
+
+    // 卡三秒之後，最怕嘅唔係丟低時間，而係還債式快進：機一順返就連續幾幀
+    // 行足六格，即係五十毫秒之內推進大半秒，成場飛咗過去。
+    const hitch = runTrace([...f(60, 1 / 60), ...f(12, 0.25), ...f(180, 1 / 60)]);
+    const after = hitch.steps.slice(72);
+    check('卡三秒之後唔會爆快進', Math.max(...after) <= 1,
+        { 卡完之後最多步數: Math.max(...after), 頭六幀: after.slice(0, 6) });
+    check('卡機期間丟低嘅時間有記低', hitch.dropped > 0.5, hitch.dropped);
+
+    // 切後台三十秒：唔可以試圖追返三十秒
+    const away = runTrace([...f(60, 1 / 60), 30, ...f(60, 1 / 60)]);
+    check('切後台三十秒唔會追返', away.peak <= MAX_STEPS && away.dropped > 29, away);
+
+    // acc 係一個只會被扣嘅池；冇人夾嘅話，卡機之後佢會一路脹落去
+    for (const t of [smooth, high, hitch, away]) {
+        check('剩低嘅時間永遠夾喺一格之內', t.badAcc === 0, t.badAcc);
+        check('alpha 永遠係合法嘅內插系數', t.worstAlpha === -1, t.worstAlpha);
+    }
+    check('一幀夾嘅秒數同步數上限講同一套', Math.abs(MAX_FRAME - MAX_STEPS * TICK) < 1e-9,
+        { MAX_FRAME, 上限對應秒數: MAX_STEPS * TICK });
+    // 負數同 NaN 唔可以令個池爆掉
+    check('離奇嘅 dt 唔會整爛個池',
+        planFrame(0, -5).steps === 0 && planFrame(0, 0).steps === 0
+            && planFrame(0, 0).alpha === 0);
 }
 
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);

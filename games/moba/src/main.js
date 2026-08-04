@@ -4,19 +4,20 @@
 // 兩樣分開嘅原因同 sim.js 唔 import three.js 一樣：規則要可重現，
 // 畫面要跟硬件。一個 120Hz 螢幕唔應該令小兵行快一倍。
 
-import { Assets } from './assets.js?v=swing-gate-18';
-import { armTap } from './tap.js?v=swing-gate-18';
-import { Sim } from './sim.js?v=swing-gate-18';
-import { createBot, updateBots } from './ai.js?v=swing-gate-18';
-import { View } from './view.js?v=swing-gate-18';
-import { Hud } from './hud.js?v=swing-gate-18';
-import { createInput } from './input.js?v=swing-gate-18';
-import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=swing-gate-18';
-import { TEAM, TICK, teamName } from './constants.js?v=swing-gate-18';
-import { CHAMPION_LOOK } from './looks.js?v=swing-gate-18';
-import { Sfx } from './sfx.js?v=swing-gate-18';
-import { settings } from './settings.js?v=swing-gate-18';
-import { renderPortraits } from './portraits.js?v=swing-gate-18';
+import { Assets } from './assets.js?v=interp-19';
+import { armTap } from './tap.js?v=interp-19';
+import { Sim } from './sim.js?v=interp-19';
+import { createBot, updateBots } from './ai.js?v=interp-19';
+import { View } from './view.js?v=interp-19';
+import { Hud } from './hud.js?v=interp-19';
+import { createInput } from './input.js?v=interp-19';
+import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=interp-19';
+import { TEAM, TICK, teamName } from './constants.js?v=interp-19';
+import { CHAMPION_LOOK } from './looks.js?v=interp-19';
+import { Sfx } from './sfx.js?v=interp-19';
+import { planFrame } from './pace.js?v=interp-19';
+import { settings } from './settings.js?v=interp-19';
+import { renderPortraits } from './portraits.js?v=interp-19';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -184,28 +185,30 @@ function watchViewport() {
 function frame(now) {
     state.raf = requestAnimationFrame(frame);
     if (!state.running) return;
-    const dt = Math.min(0.25, (now - state.last) / 1000);
+    const dt = (now - state.last) / 1000;
     state.last = now;
 
-    state.acc += dt;
-    let steps = 0;
+    // 行幾多格、剩幾多、畫面內插用邊個 alpha，全部由 pace.js 一次答晒。
+    // 之前呢三樣係喺呢度順手做嘅：dt 夾 0.25 但六格只食 0.2，兩個上限各自
+    // 講一套；而 alpha 根本冇人計，所以 120 Hz 螢幕上面畫面一秒只郁三十次。
+    const plan = planFrame(state.acc, dt);
+    state.acc = plan.acc;
     // sim.events 每一步開頭就清空，而一幀可能行幾步。所以要喺步與步之間
     // 收埋一齊再交畀畫面層——之前畫面層一幀先讀一次，等於掉咗除咗最後一步
     // 以外嘅所有事件，施法、打擊、傷害數字全部隨機唔見咗。
     const events = [];
-    while (state.acc >= TICK && steps < 6) {
+    for (let i = 0; i < plan.steps; i++) {
         state.input.update();
         updateBots(state.bots, TICK, state.tickCount++);
+        state.view.beforeStep();
         state.sim.step(TICK);
         const stepEvents = state.sim.drain();
         events.push(...stepEvents);
         state.hud.consume(stepEvents);
         state.sfx.consume(stepEvents, state.sim);
-        state.acc -= TICK;
-        steps++;
         if (state.sim.over) break;
     }
-    state.view.update(dt, events);
+    state.view.update(dt, events, plan.alpha);
     state.hud.update();
     if (state.sim.over) finish();
 }
