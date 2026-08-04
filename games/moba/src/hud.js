@@ -1,11 +1,11 @@
 // HUD。全部用 DOM，唔用 canvas 畫字——手機上面 DOM 文字先至清晰，
 // 而且 CSS 處理安全區同轉向比自己計座標可靠。
 
-import { abilityRank } from './champions.js?v=asset-retry-15';
-import { armTap } from './tap.js?v=asset-retry-15';
-import { settings } from './settings.js?v=asset-retry-15';
-import { ITEMS, MAX_ITEMS, nextPurchase } from './items.js?v=asset-retry-15';
-import { TEAM, teamName, GAME_MAX, MAP } from './constants.js?v=asset-retry-15';
+import { abilityRank } from './champions.js?v=hidden-hud-16';
+import { armTap } from './tap.js?v=hidden-hud-16';
+import { settings } from './settings.js?v=hidden-hud-16';
+import { ITEMS, MAX_ITEMS, nextPurchase } from './items.js?v=hidden-hud-16';
+import { TEAM, teamName, GAME_MAX, MAP } from './constants.js?v=hidden-hud-16';
 
 const el = (tag, cls, text) => {
     const n = document.createElement(tag);
@@ -292,7 +292,11 @@ export class Hud {
         setTimeout(() => n.remove(), 900);
     }
 
+    // 提示只留最新嗰句。每句都擺喺同一個位、活 1.6 秒，所以兩句喺一秒六之內
+    // 出現就會疊到一齊，變成一嚿睇唔明嘅字。ADR-120 之後呢個更加撞得到：
+    // 掉 context 出一句、續返又出一句，中間差唔夠一秒。
     flash(text) {
+        for (const old of this.root.querySelectorAll('.moba-flash')) old.remove();
         const n = el('div', 'moba-flash', text);
         this.root.append(n);
         setTimeout(() => n.remove(), 1600);

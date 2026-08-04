@@ -2501,3 +2501,43 @@ follows what the tyres can use
   normal flow, and the shop is DOM the renderer never touches. Gating them would add suite time to
   protect invariants no plausible refactor threatens. A gate earns its runtime by guarding
   something fragile, not merely something true.
+
+## ADR-124: The other five HUD elements no gate had ever seen
+
+- Date: 2026-08-03
+- Status: accepted
+- Decision: three layout fixes, and the layout gate now forces normally-hidden HUD visible before
+  measuring.
+- Method, and the reason this round is different from the seven before it: instead of picking
+  another untested state, the **shape** of ADR-119 was turned into a search. That bug existed
+  because the recall button is hidden at the fountain, so no gate had ever seen it on screen. So:
+  which other elements are hidden by default? `hud.js` toggles `hidden` on six things. Five had
+  never been measured visible. Four of the six sizes × states combinations came back dirty.
+- What it found:
+  - **the settings panel is 341 px tall and does not fit a 568×320 phone.** Centred, its top lands
+    at y = −10 — and the × that closes it is at the top. Opening settings on a small landscape
+    phone was a trap with no way out. Now `max-height: calc(100vh - 20px)` with scrolling; the
+    controls inside already use `armTap`, so the scroll container cannot eat their taps (ADR-107).
+  - **`flash()` stacked.** Every message is appended at the same fixed spot and lives 1.6 s, so two
+    within that window render on top of each other. ADR-120 made this reachable in normal play:
+    losing the context prints one message and restoring prints another about a second later. It
+    now replaces rather than stacks.
+  - the toast sat at `bottom: 24%` while the bottom HUD is positioned in fixed pixels, so on short
+    screens the two converged — it hit the cast banner, the HP panel and the shop button depending
+    on size. Moved above the cast banner at 38% with a width cap: one change, no size-specific
+    rules, all 24 size × state combinations clean.
+- Not a defect, though the first pass flagged it: `moba-tip` overlapping buttons. It is
+  `pointer-events: none` and only visible while a skill button is held. The probe was classifying
+  a popup as a panel; the tooltip and the full-screen overlays are now excluded.
+- Gate: each layout size additionally channels a recall, shows a cast banner plus a toast, and
+  opens the settings panel, re-running the same geometry check on each. Confirmed to fail on the
+  old CSS with the exact three defects.
+- One more correction, after the gate first shipped: it flagged the cast banner grazing the toast
+  by 8 px at two sizes, which a standalone probe had called clean. The difference was **when**
+  each sampled — `castpop` travels 24 px upward over 0.85 s, so whether the boxes touch depends
+  on the frame you measure. A check whose answer moves with sampling time is not a check. Both
+  are `pointer-events: none` decorations that fade inside a second, so they are now excluded
+  from mutual overlap alongside the tooltip. The line is deliberate rather than convenient:
+  this gate exists for "a finger must be able to hit it" and "information must stay readable".
+  The toast against solid things — the HP panel, the shop button — is still checked, and those
+  were the real defects.

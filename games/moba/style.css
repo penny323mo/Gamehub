@@ -285,7 +285,12 @@ html, body {
     text-shadow: 0 2px 12px #000a;
 }
 .moba-flash {
-    position: absolute; left: 50%; bottom: 24%; transform: translateX(-50%);
+    /* 提示企喺施法橫額（30%）之上，而唔係之下。24% 嗰陣佢會撞：矮畫面撞
+       施法橫額，窄畫面撞左下血條同右下商店掣——因為底部啲 HUD 用固定像素
+       定位，而佢用百分比，畫面一矮兩者就撞埋。擺喺 38% 就兩樣都避得開，
+       唔使加尺寸專用規則。闊度亦都夾住，唔會伸到兩邊角落。 */
+    position: absolute; left: 50%; bottom: 38%; transform: translateX(-50%);
+    max-width: min(300px, 60vw); text-align: center;
     padding: 7px 16px; border-radius: 99px; font-size: 13px;
     background: rgba(20, 8, 8, 0.86); border: 1px solid #ff8b7a55; color: #ffd0c8;
     animation: feedin 0.2s ease-out; z-index: 60; pointer-events: none;
@@ -415,6 +420,11 @@ html, body {
 .moba-settings {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     width: min(400px, 90vw); padding: 14px;
+    /* 實測 568×320 之下呢個面板高 341px，即係比個畫面仲高：置中之後頂部
+       去咗 y = -10，而關閉嘅 × 就喺頂部——面板一開就關唔返。矮畫面要
+       夾住高度同埋畀佢捲。入面啲掣全部行 armTap，所以捲動容器唔會食咗
+       佢哋嘅觸控（見 ADR-107）。 */
+    max-height: calc(100vh - 20px); overflow-y: auto;
     background: rgba(9, 12, 21, 0.96); border: 1px solid var(--edge); border-radius: 16px;
     pointer-events: auto; z-index: 32;
     display: flex; flex-direction: column; gap: 10px;
@@ -513,7 +523,9 @@ html, body {
 .moba-recall.on { border-color: var(--blue); color: var(--blue); }
 .moba-recallbar {
     position: absolute; left: 50%; bottom: 26%; transform: translateX(-50%);
-    width: min(220px, 58vw); height: 20px; border-radius: 99px; overflow: hidden;
+    /* 58vw 喺 320 點闊之下係 186 點，置中之後右邊去到 253，而商店掣由 242
+       開始——爭 11 點就撞。收窄少少，兩邊角落嘅掣就唔會畀佢壓住。 */
+    width: min(220px, 48vw); height: 20px; border-radius: 99px; overflow: hidden;
     background: rgba(9, 12, 21, 0.85); border: 1px solid var(--edge);
     display: grid; place-items: center;
 }

@@ -845,6 +845,56 @@ for (const [tag, viewport] of LAYOUT_SIZES) {
     check(`${tag}：HUD 冇互相遮住`, layout.overlap.length === 0, layout.overlap);
     check(`${tag}：HUD 冇衝出畫面`, layout.outside.length === 0, layout.outside);
     check(`${tag}：每粒掣都至少 44px`, layout.small.length === 0, layout.small);
+
+    // 平時收埋嘅嘢一樣要量。返程掣就係因為「開場嗰刻收埋」而走漏咗一個成場
+    // 都存在嘅重疊；同一形狀嘅仲有讀秒條、提示、設定面板——三個都真係撞過。
+    //
+    // 邊啲唔計入「互相遮擋」：全螢幕遮罩，同埋 pointer-events: none 嘅短暫
+    // 裝飾（技能說明、施法橫額）。呢條線唔係為咗方便畫嘅——呢個 gate 守嘅係
+    // 「手指要撳得中」同「要睇得到嘅資訊唔畀人蓋住」。兩個都唔收觸控、又
+    // 各自唔夠一秒就散嘅飄字互相擦到，唔屬於呢兩樣。施法橫額仲要係郁緊嘅
+    // （castpop 向上行 24px），所以「撞唔撞到」淨係睇你喺邊一格量——一個
+    // 答案隨取樣時機變嘅檢查，本身就唔可靠。
+    //
+    // 但飄字撞到血條、商店掣呢啲實心嘢就照計，嗰啲先係真問題（已經修咗）。
+    const hiddenOnes = await page.evaluate(async () => {
+        const s = window.__sim, hud = window.__hud, p = s.player;
+        const SKIP = ['moba-shop', 'moba-shop-backdrop', 'moba-dead', 'moba-settings',
+            'moba-tip', 'moba-cast'];
+        const geom = () => {
+            const vis = (el) => { const cs = getComputedStyle(el); const r = el.getBoundingClientRect();
+                return r.width > 2 && r.height > 2 && cs.display !== 'none' && cs.visibility !== 'hidden'; };
+            const all = [...document.querySelectorAll('#hud > *')].filter(vis);
+            const boxes = all.map(el => ({ cls: el.className, ...el.getBoundingClientRect().toJSON() }));
+            const solid = boxes.filter(b => !SKIP.some(o => b.cls.split(' ').includes(o)));
+            const overlap = [];
+            for (let i = 0; i < solid.length; i++) for (let j = i + 1; j < solid.length; j++) {
+                const a = solid[i], c = solid[j];
+                const ox = Math.min(a.right, c.right) - Math.max(a.left, c.left);
+                const oy = Math.min(a.bottom, c.bottom) - Math.max(a.top, c.top);
+                if (ox > 4 && oy > 4) overlap.push(`${a.cls} × ${c.cls} (${Math.round(ox)}×${Math.round(oy)})`);
+            }
+            const outside = boxes.filter(b => b.left < -1 || b.top < -1
+                || b.right > innerWidth + 1 || b.bottom > innerHeight + 1)
+                .map(b => `${b.cls} ${Math.round(b.left)},${Math.round(b.top)} ${Math.round(b.width)}×${Math.round(b.height)}`);
+            return [...overlap, ...outside.map(o => '出界 ' + o)];
+        };
+        const bad = [];
+        s.startRecall(p);
+        await new Promise(r => setTimeout(r, 350));
+        bad.push(...geom().map(x => '讀秒條: ' + x));
+        s.cancelRecall(p, 'test');
+        hud.showCast(p.def.abilities[0]);
+        hud.flash('測試提示一句字');
+        await new Promise(r => setTimeout(r, 250));
+        bad.push(...geom().map(x => '施法＋提示: ' + x));
+        hud.toggleSettings(true);
+        await new Promise(r => setTimeout(r, 250));
+        bad.push(...geom().map(x => '設定面板: ' + x));
+        hud.toggleSettings(false);
+        return bad;
+    });
+    check(`${tag}：平時收埋嘅 HUD 出現嗰陣一樣冇撞`, hiddenOnes.length === 0, hiddenOnes.slice(0, 5));
     check(`${tag}：主控台零錯誤`, errs.length === 0, errs.slice(0, 3));
     await page.close();
 }

@@ -13,29 +13,28 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 ## Completed
 
-### 深淵之橋 one dropped asset ended the session (ADR-122)
+### 深淵之橋 the five HUD elements no gate had ever seen (ADR-124)
 
-- Twelve models load through one `Promise.all` with no retry. Abort a single request and the
-  screen reads **載入失敗：Failed to fetch** and stays there — no retry, no button, the only way
-  out is for the player to think of reloading. One dropped fetch out of twelve on a patchy phone
-  connection ended the session before the game started.
-- Now: three attempts with 300/600 ms backoff, so a transient failure is absorbed; if it really
-  cannot be fetched, the loading screen offers a 126×48 **再試一次** button rather than a dead end.
-
-### 深淵之橋 a lost GPU context wrote off the match (ADR-120)
-
-- Browsers reclaim the WebGL context on lock-screen, backgrounding and memory pressure, then hand
-  it back within a second. The old handler stopped the loop and said **請重新開一局**: after
-  `restoreContext()` the flag cleared but the match stayed frozen at 5.8 s forever.
-- Now it resumes. three.js re-uploads its own resources; the gate requires the sim to advance
-  **and** draw calls to be issued (42) — a frozen picture with a ticking clock is still broken.
-- Needing no change: a 20× CPU stall advanced the sim 3.2 s over 5.5 s wall with no teleport; a
-  mid-match quality switch threw nothing; audio opens no context before a gesture and self-heals
-  from `suspended` in ~3 s. All gated — the audio one holds only as a side effect of `#ensure()`
-  in the play path (ADR-121), and losing it would go silent with no error.
+- Instead of another untested state, the **shape** of ADR-119 became a search: that bug survived
+  because the recall button is hidden at the fountain, so no gate had seen it. Which other
+  elements are hidden by default? Six — five had never been measured visible.
+- **The settings panel is 341 px tall and does not fit a 568×320 phone**: centred, its top lands
+  at y = −10, and the × that closes it is up there. Opening settings was a trap with no way out.
+- **`flash()` stacked** — same spot, 1.6 s life, so two messages inside that window pile up,
+  which ADR-120 made reachable (lost prints one, restored prints another). Now replaces.
+- The toast sat at a percentage while the bottom HUD is fixed pixels, so they converged on short
+  screens. Moved above the cast banner; all 24 size × state combinations clean.
+- The layout gate now channels a recall, shows a cast banner and toast, and opens settings at
+  every size before measuring.
 
 ### Earlier checkpoints, in one line each
 
+- A lost GPU context used to end the match (**請重新開一局**) though the browser hands it back
+  within a second. It now resumes; the gate needs the sim to advance **and** draw calls issued.
+  ADR-120. A 20× CPU stall and mid-match quality switches were checked and needed nothing.
+- Twelve models loaded through one `Promise.all` with no retry, so one dropped fetch ended the
+  session on **載入失敗** with no way out. Now three attempts with backoff, plus a 再試一次 button
+  if it truly cannot load. ADR-122.
 - `.moba-recall` and `.moba-shopbtn` sat 30 px apart while both are 44 px tall, so recall covered
   the shop button by 12–14 px all match and taps there went to the shop. The layout gates had
   been measuring the frame right after the start — champion in the fountain, no gold — so they

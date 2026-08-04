@@ -4,19 +4,19 @@
 // 兩樣分開嘅原因同 sim.js 唔 import three.js 一樣：規則要可重現，
 // 畫面要跟硬件。一個 120Hz 螢幕唔應該令小兵行快一倍。
 
-import { Assets } from './assets.js?v=asset-retry-15';
-import { armTap } from './tap.js?v=asset-retry-15';
-import { Sim } from './sim.js?v=asset-retry-15';
-import { createBot, updateBots } from './ai.js?v=asset-retry-15';
-import { View } from './view.js?v=asset-retry-15';
-import { Hud } from './hud.js?v=asset-retry-15';
-import { createInput } from './input.js?v=asset-retry-15';
-import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=asset-retry-15';
-import { TEAM, TICK, teamName } from './constants.js?v=asset-retry-15';
-import { CHAMPION_LOOK } from './looks.js?v=asset-retry-15';
-import { Sfx } from './sfx.js?v=asset-retry-15';
-import { settings } from './settings.js?v=asset-retry-15';
-import { renderPortraits } from './portraits.js?v=asset-retry-15';
+import { Assets } from './assets.js?v=hidden-hud-16';
+import { armTap } from './tap.js?v=hidden-hud-16';
+import { Sim } from './sim.js?v=hidden-hud-16';
+import { createBot, updateBots } from './ai.js?v=hidden-hud-16';
+import { View } from './view.js?v=hidden-hud-16';
+import { Hud } from './hud.js?v=hidden-hud-16';
+import { createInput } from './input.js?v=hidden-hud-16';
+import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=hidden-hud-16';
+import { TEAM, TICK, teamName } from './constants.js?v=hidden-hud-16';
+import { CHAMPION_LOOK } from './looks.js?v=hidden-hud-16';
+import { Sfx } from './sfx.js?v=hidden-hud-16';
+import { settings } from './settings.js?v=hidden-hud-16';
+import { renderPortraits } from './portraits.js?v=hidden-hud-16';
 
 const $ = (sel) => document.querySelector(sel);
 
