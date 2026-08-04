@@ -94,8 +94,18 @@ export const BUILDS = {
     ironhulk: ['rubystone', 'titanbelt', 'chainmail', 'bloodfury', 'aegis', 'greatsword'],
 };
 
-// bot 買嘢：跟住出裝表，買到最前面嗰件買得起嘅。
-// 買唔起就唔買——儲錢買大件，好過堆一堆細嘢。
+// bot 買嘢：喺自己出裝表入面，買最前面嗰件而家買得起嘅。
+//
+// 之前係「望到第一件未有嘅，買唔起就唔買」，理由係「儲錢買大件，好過堆
+// 一堆細嘢」。個理由本身啱，但實測落去，儲錢嗰段時間食咗成場波：
+// 十二場、每秒抽一次樣，**74.4% 嘅時間**英雄袋住夠錢買嘢（平均 1122 金）
+// 而出裝表唔畀佢買任何嘢；全場平均袋住 880 金。即係差唔多三件平貨嘅戰力，
+// 四分三時間躺喺銀行。而且一整套裝平均 8502 金，一場波每人只賺到 4191，
+// 最叻嗰個 7654——七十二個人次入面冇一個買得起成套，所以「儲落去總會買到」
+// 呢個前提由頭到尾唔成立。
+//
+// 而家買唔起就望下一件，但只喺**自己出裝表入面**望。最終買到嘅係同一套嘢，
+// 只係次序讓路畀買得起——唔會變成堆一堆表外嘅雜貨。
 export function nextPurchase(champId, owned, gold) {
     const build = BUILDS[champId] ?? BUILDS.ironward;
     if (owned.length >= MAX_ITEMS) return null;
@@ -105,7 +115,7 @@ export function nextPurchase(champId, owned, gold) {
         const have = counts.get(id) ?? 0;
         const want = build.filter(x => x === id).length;
         if (have >= want) continue;
-        return gold >= ITEMS[id].cost ? id : null;   // 未夠錢就等，唔跳去買細件
+        if (gold >= ITEMS[id].cost) return id;
     }
     return null;
 }

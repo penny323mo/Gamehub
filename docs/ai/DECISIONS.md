@@ -2732,3 +2732,61 @@ follows what the tyres can use
   after scrolling to the bottom, the start button ≥44 px and hit-testing to itself, no
   horizontal overflow, and — after the match — that **再嚟一場** is on screen and hit-testable.
   The post-match screen previously had its rows counted but its only exit never checked.
+
+## ADR-130: Gold that sits in the bank, and champions that were never in the same match
+
+- Date: 2026-08-04
+- Status: accepted
+- Method: ADR-129's shape was "a limit that never binds". Applied to the sim: every clamp has
+  two sides, and whichever never wins is dead. Twelve matches, sampled every tick.
+  - `TOWER.rampMax` binds 2307 times, the 8-stack cap 23356 times — both load-bearing.
+  - the shutdown cap of 420 gold **never binds**; the highest raw value reached is 360. Left
+    alone: a safety rail that never fires in normal play is doing its job.
+- Then the same question about the economy, which is where it paid. Sampling every second
+  across twelve matches: **74.4% of match time a champion holds enough gold to buy something
+  (average 1122) while the build list refuses to let them buy anything**, and 880 gold is
+  carried on average across the whole match. A full build costs 8502 on average; a champion
+  earns 4191 in a match and the best of 72 earned 7654, so **0/72 could ever complete one**.
+  The rule "save for the big item rather than pile up junk" was sound, but it assumed the
+  saving ends in a purchase. Measured, the match ends first.
+- `nextPurchase` now scans past an unaffordable entry to the next affordable one **within the
+  champion's own build**. The final set of items is unchanged; only the order adapts to what
+  is affordable, so nothing turns into junk. Idle-gold time 74.4% → 64.0%, average gold
+  carried 880 → 577.
+- A first reading of "matches got 28% shorter" was **small-sample noise**: over 12 seeds 8.6 →
+  6.2 minutes, but over 40 seeds the medians are 7.7 (before) and 7.9 (after).
+- The second finding came from checking whether that change had broken fairness. It had not —
+  but the check itself failed: **blue won 40 out of 40**. Isolating it:
+  - mirrored lineups: 22/18 and 17/23 — side, map and update order are fair (ADR-113 holds);
+  - the default lineup: blue 40/40, and swapping the two trios left-to-right gives red 40/40.
+  So it is a **composition** imbalance, not a side one. Measured per champion against a common
+  baseline, 24 matches each with sides alternated: longshot 83%, dawnkeeper 83%, ironward 50%
+  (the baseline, confirming the harness is fair), emberwake 42%, ironhulk 25%, duskblade 17%.
+  Win rate tracked attack **range** almost perfectly, and melee move speed (6.5–6.9) was barely
+  above ranged (6.3–6.6) — the melee champions could not reach anyone.
+- Note before acting on it: `Sim`'s default lineup is a **test fixture**. Real matches shuffle
+  the five AI champions (`main.js`), so no player ever sees that 40/40 matchup. The spread
+  itself is what reaches players: with a 66-point range, the shuffle decides many matches
+  before they start.
+- One measured pass, each change tied to the mechanism rather than to the number it moves:
+  melee speed 6.5/6.9/6.5 → 7.1/7.4/7.1 so melee can close; longshot range 10.4 → 9.6, which
+  was far above the next-longest 9.5; dawnkeeper armour 30/3.9 → 22/3.1, since an 8.5-range
+  support had tank-grade effective HP; duskblade's only mobility 8 s → 5 s cooldown — it had
+  the highest ability damage in the game and the lowest win rate, so it was not failing to
+  hurt, it was failing to get back out. Spread **66 → 46 points**; duskblade 17% → 29%,
+  longshot 83% → 54%.
+- Tuning stopped there deliberately. At 24 matches the 95% interval is roughly ±17 points, so
+  29 and 75 are distinguishable but 46 and 54 are not. Re-running at 8 matches moved the
+  baseline champion itself from 46% to 63% — proof that further tuning would be tuning noise.
+- `games/moba/tests/balance.mjs` records the measurement and is **deliberately not in the fast
+  suite**: 48 matches take 126 s, and win rate has no shortcut — a table of stats cannot
+  predict it. It refuses to pass judgement below 24 matches, and flags any champion outside
+  20–85%. T13 stays as the fast check, but "both sides have won" and "both sides had a game"
+  are different claims, and only the slow one can tell them apart.
+- One of my own gates had to be dismantled in the same round. The 30 fps row of the smoothness
+  check asserted `moved > 0.7`, a number taken from a single observation (0.798). Raising a
+  champion's move speed dropped it to 0.664 — a change with nothing to do with smoothness. At the
+  sim rate one frame *is* one tick, so whether the position changes is decided by beat alignment,
+  not by rendering; the row is a baseline observation and now asserts only that interpolation did
+  not lose distance. I had written that reasoning into the comment and then invented a threshold
+  underneath it anyway.

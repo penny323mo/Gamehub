@@ -5,9 +5,9 @@
 // 公平原則（同 royale 嘅 ADR-007 一致）：bot 用同一套 sim API、同一批數值、
 // 同一個施法距離。佢哋唯一嘅「優勢」係唔會手殘，唯一嘅劣勢係決策簡單。
 
-import { TEAM, MAP, enemyOf } from './constants.js?v=pick-21';
-import { abilityRank } from './champions.js?v=pick-21';
-import { nextPurchase, ITEMS, BUILDS, MAX_ITEMS } from './items.js?v=pick-21';
+import { TEAM, MAP, enemyOf } from './constants.js?v=econ-22';
+import { abilityRank } from './champions.js?v=econ-22';
+import { nextPurchase, ITEMS, BUILDS, MAX_ITEMS } from './items.js?v=econ-22';
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const sideSign = (team) => (team === TEAM.BLUE ? -1 : 1);

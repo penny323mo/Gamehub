@@ -22,7 +22,7 @@ export const CHAMPIONS = {
         hp: 640, hpPerLvl: 105, hpRegen: 8, hpRegenPerLvl: 0.8,
         mp: 280, mpPerLvl: 40, mpRegen: 7, mpRegenPerLvl: 0.6,
         damage: 62, dmgPerLvl: 4.2, armour: 34, armourPerLvl: 4.0,
-        attackSpeed: 0.952, attackSpeedPerLvl: 0.018, range: 2.2, speed: 6.5,
+        attackSpeed: 0.952, attackSpeedPerLvl: 0.018, range: 2.2, speed: 7.1,
         passive: {
             name: '愈戰愈厚',
             text: '每受到一次英雄傷害，護甲 +3（最多疊 8 層，離開戰鬥 6 秒清空）。',
@@ -59,7 +59,7 @@ export const CHAMPIONS = {
         hp: 445, hpPerLvl: 72, hpRegen: 5, hpRegenPerLvl: 0.5,
         mp: 300, mpPerLvl: 42, mpRegen: 8, mpRegenPerLvl: 0.7,
         damage: 60, dmgPerLvl: 4.4, armour: 19, armourPerLvl: 2.8,
-        attackSpeed: 1.008, attackSpeedPerLvl: 0.024, range: 10.4, speed: 6.4,
+        attackSpeed: 1.008, attackSpeedPerLvl: 0.024, range: 9.6, speed: 6.4,
         projectile: 'arrow',
         passive: {
             name: '瞄準',
@@ -140,14 +140,18 @@ export const CHAMPIONS = {
         hp: 565, hpPerLvl: 94, hpRegen: 7, hpRegenPerLvl: 0.7,
         mp: 300, mpPerLvl: 40, mpRegen: 8, mpRegenPerLvl: 0.7,
         damage: 70, dmgPerLvl: 5.0, armour: 28, armourPerLvl: 3.8,
-        attackSpeed: 0.98, attackSpeedPerLvl: 0.026, range: 2.4, speed: 6.9,
+        attackSpeed: 0.98, attackSpeedPerLvl: 0.026, range: 2.4, speed: 7.4,
         passive: {
             name: '背刺',
             text: '由目標背後攻擊，多 30% 傷害。',
         },
         abilities: [
             {
-                key: 'Q', name: '影襲', form: 'dash', cost: 40, cd: 8, range: 8.5,
+                // 刺客唯一嘅機動性放喺八秒冷卻上面，即係佢入到去就出唔返嚟。
+                // 實測對基準英雄得 13% 勝率，全場最低——而佢技能總傷害係全場
+                // 最高（1087）。唔係打唔痛，係打完返唔到頭。五秒可以係「入去
+                // 再出返嚟」，八秒只可以係「入去」。
+                key: 'Q', name: '影襲', form: 'dash', cost: 40, cd: 5, range: 8.5,
                 damage: [80, 125, 170, 215], adRatio: 0.7,
                 text: '向前突進並斬擊沿途第一個敵人。',
             },
@@ -175,7 +179,7 @@ export const CHAMPIONS = {
         role: '輔助', colour: 0xe8cf6a, difficulty: 2,
         hp: 585, hpPerLvl: 96, hpRegen: 8, hpRegenPerLvl: 0.8,
         mp: 380, mpPerLvl: 52, mpRegen: 10, mpRegenPerLvl: 0.9,
-        damage: 58, dmgPerLvl: 3.8, armour: 30, armourPerLvl: 3.9,
+        damage: 58, dmgPerLvl: 3.8, armour: 22, armourPerLvl: 3.1,
         attackSpeed: 0.952, attackSpeedPerLvl: 0.022, range: 8.5, speed: 6.6,
         ap: 0, apPerLvl: 10,
         projectile: 'ember',
@@ -215,7 +219,7 @@ export const CHAMPIONS = {
         hp: 610, hpPerLvl: 100, hpRegen: 8, hpRegenPerLvl: 0.8,
         mp: 260, mpPerLvl: 36, mpRegen: 7, mpRegenPerLvl: 0.6,
         damage: 70, dmgPerLvl: 5.2, armour: 31, armourPerLvl: 3.9,
-        attackSpeed: 0.98, attackSpeedPerLvl: 0.024, range: 2.6, speed: 6.5,
+        attackSpeed: 0.98, attackSpeedPerLvl: 0.024, range: 2.6, speed: 7.1,
         passive: {
             name: '狂性',
             text: '生命低於 40% 時，攻擊速度 +30%——愈殘愈快。',
