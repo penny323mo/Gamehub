@@ -11,9 +11,9 @@ import {
     RESPAWN_BASE, RESPAWN_PER_LEVEL, SHUTDOWN_PER_STREAK, SHUTDOWN_MAX,
     armourMul, structureArmour, TOWER_AGGRO_MEMORY, FOUNTAIN_HEAL_PCT, FOUNTAIN_RADIUS,
     PUSH_STRENGTH, SIEGE_DENSE_AT, SIEGE_EVERY_WAVE_AT, WARDEN, RECALL,
-} from './constants.js?v=hidden-hud-16';
-import { CHAMPIONS, abilityRank, scaled } from './champions.js?v=hidden-hud-16';
-import { ITEMS, MAX_ITEMS, itemBonus } from './items.js?v=hidden-hud-16';
+} from './constants.js?v=buy-rule-17';
+import { CHAMPIONS, abilityRank, scaled } from './champions.js?v=buy-rule-17';
+import { ITEMS, MAX_ITEMS, itemBonus } from './items.js?v=buy-rule-17';
 
 // 可重現嘅亂數：測試要跑到同一場比賽。
 //
@@ -240,10 +240,26 @@ export class Sim {
         return !!c;
     }
 
-    buy(c, itemId) {
+    // 買唔到嘅原因，冇原因就即係買得。呢個係規則嘅唯一出處：buy() 同 HUD
+    // 都問佢。之前兩邊各寫一份——sim 寫 (!canShop)，HUD 寫 (!alive && !canShop)
+    // ——兩條式根本唔同，只係因為 canShop 一路 return !!c，先至啱啱好永遠
+    // 得出同一個答案。邊日 canShop 有返實際內容，兩邊即刻各講各話：HUD 會
+    // 放隻手指過去，而 buy() 靜靜哋 return false，玩家見到嘅就係「撳咗冇
+    // 反應」——ADR-106、ADR-107 已經因為同一個症狀畀人捉過兩次。
+    //
+    // 出原因碼唔出文字：規則屬於呢一層，措辭屬於 HUD 嗰層。
+    buyBlocker(c, itemId) {
         const it = ITEMS[itemId];
-        if (!it || !this.canShop(c)) return false;
-        if (c.items.length >= MAX_ITEMS || c.gold < it.cost) return false;
+        if (!it) return 'noSuchItem';
+        if (!this.canShop(c)) return 'cannotShop';
+        if (c.items.length >= MAX_ITEMS) return 'bagFull';
+        if (c.gold < it.cost) return 'tooPoor';
+        return null;
+    }
+
+    buy(c, itemId) {
+        if (this.buyBlocker(c, itemId)) return false;
+        const it = ITEMS[itemId];
         c.gold -= it.cost;
         c.items.push(itemId);
         // 裝備加嘅最大生命要即刻補返落現有血量，唔係買件血裝反而變殘

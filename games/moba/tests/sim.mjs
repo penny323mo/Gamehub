@@ -852,5 +852,46 @@ function dodgeCase(px, speed) {
     check('每個技能都做到自己 data 宣告嘅效果', broken.length === 0, broken);
 }
 
+// ---------- T31：畫面講嘅同規則做嘅唔可以講兩套 ----------
+// ADR-125：買唔買得到呢條規則之前寫咗三份——sim.buy 一份、HUD 嘅提示一份、
+// 商品卡顏色一份，而三份嘅式都唔同。佢哋一路答案一致，純粹係因為
+// canShop() 一直 return !!c。呢條 gate 釘住嗰個契約本身：buyBlocker 話冇
+// 阻礙，buy() 就一定要成功；話有阻礙，buy() 就一定要失敗。
+{
+    const bad = [];
+    const ids = Object.keys(ITEMS);
+    const states = [
+        ['錢多、袋空', (p) => { p.gold = 99999; p.items = []; }],
+        ['一蚊都冇', (p) => { p.gold = 0; p.items = []; }],
+        ['啱啱夠', (p, it) => { p.items = []; p.gold = it.cost; }],
+        ['爭一蚊', (p, it) => { p.items = []; p.gold = it.cost - 1; }],
+        ['袋滿', (p) => { p.gold = 99999; p.items = ids.slice(0, MAX_ITEMS); }],
+        ['死咗', (p) => { p.gold = 99999; p.items = []; p.alive = false; }],
+    ];
+    for (const id of ids) {
+        for (const [name, setup] of states) {
+            const sim = new Sim({ seed: 9 });
+            const p = sim.player;
+            p.alive = true;
+            setup(p, ITEMS[id]);
+            const blocked = sim.buyBlocker(p, id);
+            const before = p.items.length;
+            const ok = sim.buy(p, id);
+            if ((blocked === null) !== ok) {
+                bad.push(`${ITEMS[id].name}/${name}: blocker=${blocked} 但 buy=${ok}`);
+            }
+            // 買唔到就一件都唔可以入袋，買得到就一定要入到
+            if (!ok && p.items.length !== before) bad.push(`${ITEMS[id].name}/${name}: 買唔到但件嘢入咗袋`);
+            if (ok && p.items.length !== before + 1) bad.push(`${ITEMS[id].name}/${name}: 買到但件嘢冇入袋`);
+        }
+    }
+    check('buyBlocker 講冇阻礙，buy 就一定買得到（反之亦然）', bad.length === 0, bad.slice(0, 5));
+    // 唔存在嘅裝備要有原因，唔可以靜靜哋失敗
+    const sim = new Sim({ seed: 9 });
+    check('唔存在嘅裝備會講明原因',
+        sim.buyBlocker(sim.player, 'nonesuch') === 'noSuchItem'
+            && sim.buy(sim.player, 'nonesuch') === false);
+}
+
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);
 if (fail) { console.log('失敗項目:', failed.join('、')); process.exit(1); }

@@ -89,7 +89,7 @@ const games = [
         subtitle: '🗡️ 三對三 MOBA！補刀出裝、越塔強殺、推爆水晶',
         icon: '🗡️',
         category: 'MOBA',
-        link: 'games/moba/index.html?v=hidden-hud-16',
+        link: 'games/moba/index.html?v=buy-rule-17',
         playable: true
     },
     {

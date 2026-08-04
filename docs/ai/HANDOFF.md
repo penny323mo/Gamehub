@@ -13,22 +13,23 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 ## Completed
 
-### 深淵之橋 the five HUD elements no gate had ever seen (ADR-124)
+### 深淵之橋 the buy rule existed three times (ADR-125)
 
-- Instead of another untested state, the **shape** of ADR-119 became a search: that bug survived
-  because the recall button is hidden at the fountain, so no gate had seen it. Which other
-  elements are hidden by default? Six — five had never been measured visible.
-- **The settings panel is 341 px tall and does not fit a 568×320 phone**: centred, its top lands
-  at y = −10, and the × that closes it is up there. Opening settings was a trap with no way out.
-- **`flash()` stacked** — same spot, 1.6 s life, so two messages inside that window pile up,
-  which ADR-120 made reachable (lost prints one, restored prints another). Now replaces.
-- The toast sat at a percentage while the bottom HUD is fixed pixels, so they converged on short
-  screens. Moved above the cast banner; all 24 size × state combinations clean.
-- The layout gate now channels a recall, shows a cast banner and toast, and opens settings at
-  every size before measuring.
+- Searching for ADR-117's shape — one job split across places with no stated owner — turned up
+  the buy rule written three times, in three different expressions: `sim.buy` refused on
+  `!canShop`, `hud.#cannotBuy` on `!alive && !canShop`, and the card colouring derived
+  afford/poor/full separately. They agreed **only because `canShop` returns `!!c`**.
+- The day that function gains content, the HUD lights a card with no reason while `buy` returns
+  false — exactly the "looks buyable, tapping does nothing" that reached Penny twice.
+- `sim.buyBlocker` now owns it and returns a reason code; the HUD supplies wording. T31 pins the
+  contract across every item × six states, and was checked in both directions.
 
 ### Earlier checkpoints, in one line each
 
+- Turning ADR-119's shape into a search found five HUD elements no gate had seen visible: the
+  **settings panel is 341 px tall and does not fit 568×320** (its × lands off-screen, a trap with
+  no exit), `flash()` stacked messages at one spot, and the toast used a percentage while the
+  bottom HUD uses fixed pixels, so they converged on short screens. ADR-124.
 - A lost GPU context used to end the match (**請重新開一局**) though the browser hands it back
   within a second. It now resumes; the gate needs the sim to advance **and** draw calls issued.
   ADR-120. A 20× CPU stall and mid-match quality switches were checked and needed nothing.
@@ -72,7 +73,7 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
   selftests pass. Outfit is vendored (ADR-112), so the suite gates both the loaded font and the
   complete absence of outside traffic.
 - `node games/moba/tests/cache-bust.mjs` → pass; all six entry/resource tokens agree.
-- `node games/moba/tests/sim.mjs` → **220/220 pass**, including the attack-pacing, RNG-diffusion
+- `node games/moba/tests/sim.mjs` → **222/222 pass**, including the attack-pacing, RNG-diffusion
   and bot-order gates. Twelve mirrored matches still finish, no NaN or bridge escape.
 - `node games/moba/tests/browser.mjs` → **141/141 pass** at five sizes (bundled Chromium;
   `PW_CHROMIUM` overrides): full matches, FX and framing gates, shop, draw-call budget, a drifting

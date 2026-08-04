@@ -2541,3 +2541,35 @@ follows what the tyres can use
   this gate exists for "a finger must be able to hit it" and "information must stay readable".
   The toast against solid things — the HP panel, the shop button — is still checked, and those
   were the real defects.
+
+## ADR-125: The buy rule was written three times, agreeing only by luck
+
+- Date: 2026-08-03
+- Status: accepted
+- Decision: `sim.buyBlocker(champ, itemId)` is the single owner of "may this be bought", and
+  returns a reason code or `null`. `sim.buy` refuses when it returns a reason; the HUD asks it
+  for the refusal message and for the card colour. Reason codes, not sentences — the rule
+  belongs to the sim, the wording belongs to the HUD.
+- Method: this round searched for the **second** defect shape rather than another untested
+  state. ADR-117 was "two halves of one job in two places, with nothing saying which owns
+  what". Every collection in `sim` now drains in exactly one place, so the search moved to the
+  other flavour: the same *decision* derived more than once.
+- Found three copies of the buy rule, and they were not even the same expression:
+  - `sim.buy`: refuse when `!canShop(c)`
+  - `hud.#cannotBuy`: refuse when `!alive && !canShop(p)`
+  - the shop card colouring: a third derivation of afford / poor / full
+  They agreed **only because `canShop` returns `!!c`** — a constant. Nothing stated that, and
+  ADR-104 had already changed that function once.
+- Why it matters concretely: the day `canShop` gains real content, the HUD lights a card and
+  offers no reason while `sim.buy` silently returns false. That is exactly the symptom that
+  reached Penny twice — ADR-106 and ADR-107 were both "the card looks buyable and tapping does
+  nothing". This was the same failure waiting behind a constant.
+- Gate T31 pins the contract itself rather than any one rule: across every item × six player
+  states, `buyBlocker(...) === null` must hold exactly when `buy(...)` succeeds, and the bag
+  must change only when it succeeds.
+- Both directions were checked before trusting it:
+  - making `canShop` meaningful (`c.alive`) keeps the suite green — the new design absorbs the
+    change that would have split the old one.
+  - reintroducing a private copy inside `buy`, with `<=` instead of `<`, fails the gate and
+    names the case: **`長劍/啱啱夠: blocker=null 但 buy=false`**. That is the "I have exactly
+    400 gold and the button does nothing" bug, caught at the boundary.

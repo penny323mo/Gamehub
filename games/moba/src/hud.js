@@ -1,11 +1,11 @@
 // HUD。全部用 DOM，唔用 canvas 畫字——手機上面 DOM 文字先至清晰，
 // 而且 CSS 處理安全區同轉向比自己計座標可靠。
 
-import { abilityRank } from './champions.js?v=hidden-hud-16';
-import { armTap } from './tap.js?v=hidden-hud-16';
-import { settings } from './settings.js?v=hidden-hud-16';
-import { ITEMS, MAX_ITEMS, nextPurchase } from './items.js?v=hidden-hud-16';
-import { TEAM, teamName, GAME_MAX, MAP } from './constants.js?v=hidden-hud-16';
+import { abilityRank } from './champions.js?v=buy-rule-17';
+import { armTap } from './tap.js?v=buy-rule-17';
+import { settings } from './settings.js?v=buy-rule-17';
+import { ITEMS, MAX_ITEMS, nextPurchase } from './items.js?v=buy-rule-17';
+import { TEAM, teamName, GAME_MAX, MAP } from './constants.js?v=buy-rule-17';
 
 const el = (tag, cls, text) => {
     const n = document.createElement(tag);
@@ -195,11 +195,15 @@ export class Hud {
     }
 
     // 買唔到就要講得出係差咩。「金幣唔夠或者裝備格已滿」係叫玩家自己估。
+    // 規則問 sim，措辭喺呢度。之前呢度自己寫多一份判斷，同 sim.buy 嗰份
+    // 唔同式——見 sim.buyBlocker 上面嘅註解。
     #cannotBuy(p, it) {
-        if (!p.alive && !this.sim.canShop(p)) return '而家買唔到';
-        if (p.items.length >= MAX_ITEMS) return `裝備已滿 ${MAX_ITEMS} 格，賣一件先`;
-        if (p.gold < it.cost) return `爭 ${Math.ceil(it.cost - p.gold)} 金`;
-        return null;
+        switch (this.sim.buyBlocker(p, it.id)) {
+            case null: return null;
+            case 'bagFull': return `裝備已滿 ${MAX_ITEMS} 格，賣一件先`;
+            case 'tooPoor': return `爭 ${Math.ceil(it.cost - p.gold)} 金`;
+            default: return '而家買唔到';
+        }
     }
 
     #buildSettings() {
@@ -484,9 +488,12 @@ export class Hud {
             for (const { card, item } of this.shopCards) {
                 // 「買得起」同 sim.buy 嘅條件要對得返晒。呢兩個判斷分開寫喺兩處，
                 // 一唔同步就會出現「卡着住黃色但撳極都唔郁」——玩家見到嘅係壞咗。
-                card.classList.toggle('afford', !bagFull && p.gold >= item.cost);
-                card.classList.toggle('poor', !bagFull && p.gold < item.cost);
-                card.classList.toggle('full', bagFull);
+                // 顏色都要問同一份規則，唔可以第三次自己計——之前呢三行
+                // 就係第三份副本。
+                const why = sim.buyBlocker(p, item.id);
+                card.classList.toggle('afford', why === null);
+                card.classList.toggle('poor', why === 'tooPoor');
+                card.classList.toggle('full', why === 'bagFull');
                 card.classList.toggle('owned', p.items.includes(item.id));
             }
             // 個袋淨係喺內容變咗先重建。之前每一幀都掉晒重整：六粒掣連
