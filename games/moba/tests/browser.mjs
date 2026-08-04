@@ -854,6 +854,21 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
             teams: box.querySelectorAll('.steam').length };
     });
     check(`${tag}：戰後計分板列晒六個人`, sheet.shown && sheet.rows === 6 && sheet.teams === 2, sheet);
+    // 「再嚟一場」係打完之後唯一嘅出路。之前只驗過張計分板有幾多行，
+    // 冇人驗過粒掣入唔入得到畫面、撳唔撳得中。
+    const again = await page.evaluate(() => {
+        const btn = document.querySelector('#result button');
+        if (!btn) return { 冇粒掣: true };
+        const b = btn.getBoundingClientRect();
+        const cx = b.left + b.width / 2, cy = b.top + b.height / 2;
+        const hit = (cx >= 0 && cy >= 0 && cx <= innerWidth && cy <= innerHeight)
+            ? document.elementFromPoint(cx, cy) : null;
+        return { 邊: Math.round(Math.min(b.width, b.height)),
+            喺畫面內: b.top >= -1 && b.bottom <= innerHeight + 1,
+            撳得到: !!hit && (hit === btn || btn.contains(hit)) };
+    });
+    check(`${tag}：「再嚟一場」夠大、喺畫面內、撳得到`,
+        again.邊 >= 44 && again.喺畫面內 && again.撳得到, again);
 
     check(`${tag}：主控台零錯誤`, errs.length === 0, errs.slice(0, 4));
     await page.close();
@@ -877,6 +892,53 @@ for (const [tag, viewport] of LAYOUT_SIZES) {
     await page.goto(URL_BASE, { waitUntil: 'load' });
     await page.waitForFunction(() => !!window.__mobaReady || !!document.querySelector('.pick-card'),
         null, { timeout: 120000 });
+
+    // 選人畫面：玩家見到嘅第一塊畫面，而所有排版 gate 一直都係撳咗
+    // #pick-go 之後先開始量——即係入口本身從來冇人量過。
+    // 實測 568×320 之下格網淨係得 78 點可見，而一張卡 228 點：捲極都冇
+    // 一張完整嘅卡見過。啲卡冇「唔見咗」（格網本身係 overflow-y: auto，
+    // 捲到底最後一張撳得中，呢點我頭先讀錯咗一次），但成個選人動作
+    // 變成隔住一條罅去揀。
+    const pick = await page.evaluate(async () => {
+        const grid = document.querySelector('#pick-grid');
+        const cards = [...document.querySelectorAll('.pick-card')];
+        const g = grid.getBoundingClientRect();
+        const whole = cards.filter(c => {
+            const r = c.getBoundingClientRect();
+            return r.top >= g.top - 1 && r.bottom <= g.bottom + 1;
+        }).length;
+        const go = document.querySelector('#pick-go');
+        const gb = go.getBoundingClientRect();
+        const reach = (el) => {
+            const b = el.getBoundingClientRect();
+            const cx = b.left + b.width / 2, cy = b.top + b.height / 2;
+            if (cx < 0 || cy < 0 || cx > innerWidth || cy > innerHeight) return false;
+            const hit = document.elementFromPoint(cx, cy);
+            return !!hit && (hit === el || el.contains(hit));
+        };
+        // 捲到底：最後一張要真係到得返畫面入面，唔係得個知字
+        grid.scrollTop = grid.scrollHeight;
+        await new Promise(r => setTimeout(r, 120));
+        const last = cards.at(-1);
+        return {
+            張數: cards.length, 一眼睇到完整嘅卡: whole,
+            格網可見高: Math.round(grid.clientHeight),
+            卡高: Math.round(cards[0].getBoundingClientRect().height),
+            開始掣邊: Math.round(Math.min(gb.width, gb.height)), 開始掣撳得到: reach(go),
+            捲到底最後一張撳得到: reach(last),
+            細掣: [...document.querySelectorAll('#select button')]
+                .filter(el => { const b = el.getBoundingClientRect();
+                    return b.width > 2 && Math.min(b.width, b.height) < 44; })
+                .map(el => el.className || el.id),
+            橫向爆: document.documentElement.scrollWidth > innerWidth + 1,
+        };
+    });
+    check(`${tag}：選人畫面至少見到一張完整嘅英雄卡`, pick.一眼睇到完整嘅卡 >= 1, pick);
+    check(`${tag}：選人畫面捲到底揀得到最後一個英雄`, pick.捲到底最後一張撳得到, pick);
+    check(`${tag}：開始掣夠大又撳得到`,
+        pick.開始掣邊 >= 44 && pick.開始掣撳得到 && pick.細掣.length === 0, pick);
+    check(`${tag}：選人畫面唔會橫向爆`, !pick.橫向爆, pick);
+
     await page.click('#pick-go');
     await page.waitForFunction(() => !!window.__view, null, { timeout: 120000 });
     // 開場嗰刻唔係一個有代表性嘅畫面：英雄喺泉水，所以返程掣係收埋嘅；

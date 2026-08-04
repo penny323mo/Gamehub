@@ -475,6 +475,40 @@ html, body {
     border-top: 1px solid var(--edge); padding-top: 9px; margin-top: 2px;
 }
 
+/* 矮畫面嘅選人畫面：實測 568×320 之下，格網淨係得 78 點高，而一張卡本身
+   228 點——即係捲極都**冇一張卡完整見過**（860×430 一樣，178 對 258）。
+   #select 係 flex 直排，格網嗰個 max-height: 74vh 根本輪唔到佢話事：flex
+   收縮先，所以個上限係一個從來冇生效過嘅數。
+   唔係搬位，係喺矮畫面收窄卡本身，同埋將標題、提示、開始掣讓返啲高度出嚟，
+   令「至少見到一張完整嘅卡」呢件事喺每個尺寸都成立。 */
+@media (max-height: 480px) {
+    #select { gap: 8px; padding: 12px; }
+    #select h2 { font-size: 18px; margin: 0; }
+    #select .hint { font-size: 10px; line-height: 1.35; margin: 0; }
+    #pick-go { padding: 10px 28px; font-size: 15px; min-height: 44px; margin-top: 2px; }
+    #pick-grid { gap: 8px; }
+    .pick-card { padding: 7px 10px; gap: 1px; }
+    .pick-card .face { height: 38px; margin-bottom: 0; }
+    .pick-card b { font-size: 15px; }
+    .pick-card .title { font-size: 10px; }
+    .pick-card .role { font-size: 9.5px; }
+    /* 被動描述係成張卡最高嗰嚿。矮畫面之下，「見到成張卡」重要過
+       「見到被動全文」——揀完入到場，技能說明板一樣講得返。 */
+    .pick-card .passive { display: none; }
+    .pick-card .kit { font-size: 10px; margin-top: 1px; }
+}
+
+/* 再矮啲（568×320 呢類真打橫手機）：收窄咗張卡之後仲爭大約十點。
+   繼續削張卡就要削走技能名，噉樣就唔係「揀英雄」而係「揀個名」。
+   出讓嘅應該係嗰行鍵盤操作提示——一部 320 點高嘅觸控機根本用唔着，
+   而佢一行就佔廿八點。
+   另外要留意：呢個「見唔見到成張卡」嘅答案會跟捲動位置郁——捲到底嗰陣
+   最後一行貼住底邊，睇落靚啲。以未捲嘅頂部為準，因為嗰個先係玩家
+   第一眼見到嘅嘢。 */
+@media (max-height: 400px) {
+    #select .hint { display: none; }
+}
+
 /* ---------- 選人卡嘅頭像 ---------- */
 .pick-card .face {
     width: 100%; height: 78px; object-fit: contain; object-position: center;

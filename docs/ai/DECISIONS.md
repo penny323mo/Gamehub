@@ -2691,3 +2691,44 @@ follows what the tyres can use
   console clean. Without it, cooldown 0, mana unchanged, ability **never cast**, console error.
   That is the same silent failure as ADR-106/107 — "I keep pressing and nothing happens" —
   reached this time through a third route, and now gated end to end at every layout size.
+
+## ADR-129: The first screen of the game had never been measured
+
+- Date: 2026-08-04
+- Status: accepted
+- Decision: the champion-select and post-match screens are gated at every layout size, and on
+  screens under 480 px tall the champion cards are compacted so at least one whole card is
+  always visible.
+- Method: two clean negatives first, both recorded so nobody re-derives them —
+  `.hidden` is `display: none !important` and every `opacity: 0` element also sets
+  `pointer-events: none`, so no invisible element can eat a tap; and `toggleShop` /
+  `toggleSettings` close each other by construction, so the "panel with no exit" of ADR-124
+  cannot recur through that pair.
+- Then the surface nothing had ever looked at: **every layout gate begins after `#pick-go` is
+  clicked**. The screen the player sees first had no coverage at all.
+- **I misread the first measurement and have to say so.** Champion cards laid out below the
+  fold (the last one at y1234 in a 568-tall viewport) looked like "four of six champions
+  cannot be chosen". `#pick-grid` is `overflow-y: auto`; the cards were scrolled out, not
+  lost. Scrolling to the bottom puts the last card on screen and its centre hit-tests to
+  itself. That was the fifth probe misreading this session, and the same lesson each time: a
+  failed measurement is an accusation against the probe until the probe has been checked.
+- The real defect, once measured properly: on short screens the grid's **visible height is
+  smaller than one card** — 78 px against 228 px at 568×320, 178 px against 258 px at 860×430.
+  Zero complete cards at either size; choosing a champion meant reading through a slot.
+- Cause: `#pick-grid` carries `max-height: 74vh`, but `#select` is a flex column, so flex
+  shrink settles the height first and that maximum never binds. A limit that never applies is
+  indistinguishable from one that is wrong.
+- Fix compacts the card on `max-height: 480px` rather than moving anything: the passive text
+  (the tallest block) is dropped, the portrait goes 78 → 38 px, and the heading and start button
+  give back height. Under 400 px tall the keyboard-controls hint is hidden outright — it costs
+  28 px and is useless on a 320 px-tall touch device, whereas trimming the card further would
+  have started removing ability names, turning "pick a champion" into "pick a name".
+- The count moves with scroll position: at the bottom the last row sits flush with the grid edge
+  and looks better than the top does. My probe counted after scrolling and reported 2 where the
+  gate, counting at rest, reported 0 — the ADR-124 shape again, this time flattering me. The
+  invariant is fixed at the unscrolled top, because that is what the player sees first.
+  Measured there afterwards: 2 whole cards at 568×320, 4 at 860×430, 1 at 320×568, 4 at 430×860.
+- Gates now assert, at every size: at least one whole card visible, the last card reachable
+  after scrolling to the bottom, the start button ≥44 px and hit-testing to itself, no
+  horizontal overflow, and — after the match — that **再嚟一場** is on screen and hit-testable.
+  The post-match screen previously had its rows counted but its only exit never checked.
