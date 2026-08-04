@@ -7,7 +7,7 @@
     font-style: normal;
     font-weight: 300 800;
     font-display: swap;
-    src: url('assets/fonts/outfit-latin.woff2') format('woff2');
+    src: url('assets/fonts/outfit-latin.woff2?v=assets-26') format('woff2');
 }
 
 :root {

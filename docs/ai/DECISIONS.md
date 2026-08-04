@@ -2897,3 +2897,34 @@ follows what the tyres can use
   never required the camera to settle; it had been passing on luck, and my change is what
   collected. It now advances view frames until the projected position stops moving and asserts
   that it did — five frames at both sizes, settling at 53 and 56.7.
+
+## ADR-134: Nineteen of sixty-seven requests carried a version token
+
+- Date: 2026-08-04
+- Status: accepted
+- Decision: model files and the Hub's font and logos carry the cache token; the token for
+  models is read from `assets.js`'s own module URL rather than written down again; and the
+  browser suite records every request the game actually makes and fails on any project-owned
+  URL without a token.
+- Method: ADR-133 fixed one untagged file by hand. The same shape asked systematically —
+  *which files does the game actually fetch, and which of them carry a token* — is not a code
+  question, so it was measured by recording requests instead of reading imports.
+- Opening one match: **67 requests, 19 tagged**. Untagged were the whole of `vendor/`, the
+  Draco decoder, and **all twelve `.glb` models**. The Hub added its font and two logos.
+  `cache-bust.mjs` had been green throughout — it checks `src/` imports, which were never the
+  part at risk.
+- The models matter concretely because Penny's standing instruction is not to reuse existing 3D
+  assets: models *will* be replaced, and a replacement would have reached returning players as
+  new code driving an old mesh.
+- `vendor/` is deliberately left alone, with the reason recorded rather than the omission: those
+  files import each other by relative path, so tagging them means editing third-party source.
+  The correct move for a vendor upgrade is to rename the directory (`vendor/three-r160/`),
+  which changes every importing URL at once and is stronger than a query string. `blob:` URLs
+  from the Draco worker never touch the HTTP cache.
+- The model token comes from `new URL(import.meta.url).searchParams.get('v')`, so the bump
+  script needs no new rewrite site and there is no second place to forget. The Hub's font and
+  logos are in CSS and data, so those did get explicit bump-script entries.
+- The change immediately broke two gates, which is the point of having them: the asset-retry
+  test intercepted `**/*.glb`, and a query string stops that pattern matching, so it silently
+  aborted nothing and the failure it simulates never happened. It now matches on `pathname`,
+  which further parameters cannot break.

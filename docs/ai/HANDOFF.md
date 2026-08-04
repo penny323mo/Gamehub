@@ -4,7 +4,7 @@ Updated: 2026-08-04 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `main`
-Status: Hub touch targets + stylesheet cache token (ADR-133), combat fixture (ADR-132)
+Status: 版本標記覆蓋實際請求 (ADR-134), Hub 可撳範圍 (ADR-133)
 
 ## Current objective
 
@@ -12,26 +12,26 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
 
 ## Completed
 
-### Hub the real first screen, and none of its controls were measured (ADR-133)
+### 版本標記只覆蓋到六十七個請求入面嘅十九個 (ADR-134)
 
-- ADR-129 one level up: the Hub is what a player opens first. Its suite checks four viewports for
-  overlap, overflow and columns — but **not one touch target**, while the MOBA has gated 44 px
-  since ADR-107. Measured at all four sizes: page dots **8×8 px**, arrows 34–42.
-- Two limits, each with a reason. Arrows are isolated targets with room → 44 px; four dots at 44 px
-  is 176 plus 88 of arrows, which cannot fit 320 px, so the dots take WCAG 2.5.8's 24×24 plus a
-  spacing assertion (the visible dot stays 8 px via `::before`). Enlarging the arrows pushed the
-  dock past its width limit, caught by the existing dock gate, so the counter hides below 380 px.
-- **The change would not have reached anyone**: the Hub stamps `launcher.js?v=…` but `style.css`
-  had no token, so a CSS-only round — this whole one — shipped invisibly to returning visitors.
-  ADR-111's defect with the stylesheet left out. Now stamped, bumped, and gated both directions.
-- The verification run then failed on something unrelated, caused by **my own previous fix**: the
-  framing gate never required the camera to settle, and `camFocus` chases with `approach(4, dt)`.
-  After a teleport the projected position travels **-33.8 → 56.7** over 90 frames against a 45–88
-  band, while *walking* it is stable. ADR-132 moved the champion 56 m and the next gate sampled
-  mid-catch-up; it now settles the camera and asserts it did.
+- ADR-133 逐個補咗 Hub 一個檔。同一條問題問到底——**遊戲實際攞邊啲檔，邊啲有標記**——
+  唔係一條讀碼題，所以改為錄低請求。開一局：**67 個請求，19 個有標記**；冇標記嘅係成個
+  `vendor/`、Draco 解碼器，同**全部十二個 `.glb` 模型**。`cache-bust.mjs` 一直綠燈，因為
+  佢查嘅係 `src/` 嘅 import，而嗰邊由頭到尾都唔係有風險嗰半。
+- 模型特別要緊：Penny 講明唔重用現有 3D 資產，即係模型一定會換，而換完之後返轉頭嘅玩家
+  會攞到新碼配舊網格。模型嘅標記由 `assets.js` 自己個 module URL 讀返，bump 腳本唔使多一
+  個改寫位，亦冇第二個地方好忘記。Hub 嘅字型同兩個 logo 就要明寫入 bump 腳本。
+- `vendor/` 特登唔郁，而且寫低理由而唔係寫低遺漏：佢哋之間用相對路徑互相 import，加標記
+  等於改第三方源碼；升級 vendor 嘅正確做法係改資料夾名，一次過換晒所有 import URL。
+- 呢個改動即刻整爛兩條 gate，而咁樣先叫有用：資產重試測試攔 `**/*.glb`，一加 query 就對唔
+  到，於是佢一次都冇攔過，「載入甩咗」根本冇發生過。而家對 `pathname`。
+- 新 gate 唔查碼，直接錄低瀏覽器攞過乜：49 個請求、31 個要標記、0 個冇。
 
 ### Earlier checkpoints, in one line each
 
+- Hub 係玩家真正打開嘅第一塊畫面，但**一粒掣都冇量過**：分頁圓點 8×8、箭咀 34–42，全部低過
+  專案自己嗰條 44px。箭咀升到 44；四粒點喺 320 闊之下每粒 44 幾何上塞唔落，改用 WCAG 2.5.8
+  嘅 24×24 加圓心間距。而呢啲改動本來一個玩家都到唔到——Hub 個 `style.css` 冇版本標記。ADR-133。
 - The combat gate said it stood the champion at **x = -6**; at the attack it was at **x = -62**,
   dying in the warm-up and respawning at its own fountain — every swing measured inside the
   fountain, the state ADR-119 named unrepresentative. Fixed by ordering, `atFountain` asserted
@@ -85,7 +85,7 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
 - `node tests/hub.mjs` → **95/95**; Racing Car 6/6, Royale 8/8, Xiangqi build + selftests pass.
   `cache-bust.mjs` → pass; `sim.mjs` → **238/238**; `balance.mjs 24` → all six inside 20–85%
   (318 s, not a fast gate).
-- `node games/moba/tests/browser.mjs` → **192/192 pass** at five sizes (~10 min): select and
+- `node games/moba/tests/browser.mjs` → **193/193 pass** at five sizes (~10 min): select and
   post-match layout, full matches, FX and framing, the attack swing playing, smoothness at
   120/60/30 fps, a skill press surviving a failed pointer capture, shop, draw calls, taps.
 

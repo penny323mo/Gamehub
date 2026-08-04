@@ -1097,7 +1097,10 @@ for (const [tag, viewport] of LAYOUT_SIZES) {
     for (const [tag, failTimes, expect] of [['甩一次', 1, 'select'], ['一路甩', 5, 'retry']]) {
         const page = await browser.newPage({ viewport: { width: 430, height: 860 }, hasTouch: true, isMobile: true });
         let aborted = 0;
-        await page.route('**/*.glb', (route) => {
+        // 模型 URL 而家帶版本標記（ADR-134），所以 `**/*.glb` 對唔到——
+        // 條 gate 靜靜哋變成一次都攔唔到，於是「載入甩咗」呢件事根本冇發生。
+        // 對 pathname 唔對 query，噉將來再加參數都唔會再撞。
+        await page.route((url) => url.pathname.endsWith('.glb'), (route) => {
             if (route.request().url().includes('knight.glb') && aborted < failTimes) {
                 aborted++; return route.abort('failed');
             }
@@ -1293,6 +1296,36 @@ for (const [tag, viewport] of LAYOUT_SIZES) {
         check(`${tag}：內插冇令角色行少咗路`, r.走咗幾遠 > 1, r);
     }
     check('高刷平順測試期間主控台零錯誤', errs.length === 0, errs.slice(0, 3));
+    await page.close();
+}
+// ---------- 落到網絡嗰刻，邊啲檔案冇版本標記 ----------
+// cache-bust.mjs 係靜態查 src/ 入面每個 import。但真正落到網絡嘅嘢多好多：
+// 實測開一局係六十七個請求，只有十九個帶標記——十二個 .glb 模型一個都冇。
+// 即係換咗一個角色模型推上去，返轉頭嘅玩家攞到嘅仲係舊嗰隻，而靜態檢查
+// 完全睇唔到。所以呢度唔查碼，直接錄低瀏覽器真係攞過乜。
+//
+// 兩類特登豁免，各有理由：
+//   vendor/ —— 第三方碼，佢哋之間用相對路徑互相 import。改人哋個源碼加
+//     query 係壞做法；升級 vendor 嘅正確做法係改資料夾名（vendor/three-r160/），
+//     噉樣連 import 一齊變，比 query 更硬淨。
+//   blob: —— Draco 個 worker 自己整嘅，根本唔經 HTTP 快取。
+{
+    const page = await browser.newPage({ viewport: { width: 900, height: 600 } });
+    const seen = [];
+    page.on('request', (r) => seen.push(r.url()));
+    await page.goto(URL_BASE, { waitUntil: 'load' });
+    await page.waitForFunction(() => !!window.__mobaReady || !!document.querySelector('.pick-card'),
+        null, { timeout: 120000 });
+    await page.click('#pick-go');
+    await page.waitForFunction(() => !!window.__view, null, { timeout: 120000 });
+    await page.waitForTimeout(1200);
+    const 本地 = seen.map(u => u.replace(/^https?:\/\/[^/]+/, ''))
+        .filter(u => !u.startsWith('blob:') && !u.startsWith('data:'));
+    const 要有標記 = [...new Set(本地.filter(u => !u.includes('/vendor/')
+        && !u.split('?')[0].endsWith('.html')))];
+    const 冇標記 = 要有標記.filter(u => !/[?&]v=/.test(u));
+    check('每一個攞落嚟嘅專案檔都帶住版本標記', 冇標記.length === 0,
+        { 總請求: 本地.length, 要有標記: 要有標記.length, 冇標記: 冇標記.slice(0, 8) });
     await page.close();
 }
 

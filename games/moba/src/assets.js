@@ -15,6 +15,15 @@ import { clone as cloneSkinned } from '../vendor/SkeletonUtils.js';
 
 const BASE = new URL('../assets/models/', import.meta.url).href;
 
+// 模型檔嘅版本標記。之前 src/ 入面每一個 import 都帶標記，但真正落到網絡
+// 嘅六十七個請求入面，只有十九個有——十二個 .glb 一個都冇。即係換咗一個
+// 角色模型推上去，返轉頭嘅玩家攞到嘅仲係舊嗰隻。ADR-111 講嘅係同一件事，
+// 只係當時只覆蓋到 module 圖，冇覆蓋到資產。
+// 標記唔另外寫一次，直接由呢個 module 自己個 URL 攞——bump 腳本改咗
+// import，呢度就自動跟，唔會有一個「記住要一齊改」嘅位。
+const V = new URL(import.meta.url).searchParams.get('v');
+const bust = (u) => (V ? `${u}${u.includes('?') ? '&' : '?'}v=${V}` : u);
+
 export const CHAMPION_MODELS = {
     knight: 'champions/knight.glb',
     barbarian: 'champions/barbarian.glb',
@@ -96,7 +105,7 @@ export class Assets {
         ];
         let done = 0;
         const results = await Promise.all(jobs.map(async ([key, file]) => {
-            const gltf = await loadGltf(BASE + file);
+            const gltf = await loadGltf(bust(BASE + file));
             onProgress(++done, jobs.length);
             return [key, gltf];
         }));

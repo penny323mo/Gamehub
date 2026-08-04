@@ -29,6 +29,9 @@ const entries = [
     // 所以純 CSS 嘅改動（例如加大可撳範圍）推上去，返轉頭嘅訪客攞到嘅仲係
     // 舊嗰份樣式——同 ADR-111 講嗰個毛病一樣，只係走漏咗樣式表。
     [path.join(REPO, 'index.html'), [/(launcher\.js\?v=)[a-z0-9-]+/g, /(style\.css\?v=)[a-z0-9-]+/g]],
+    // Hub 嘅字型同 logo 都係專案自己嘅資產，換咗要傳得到去返轉頭嘅訪客
+    [path.join(REPO, 'style.css'), [/(outfit-latin\.woff2\?v=)[a-z0-9-]+/g]],
+    [path.join(REPO, 'launcher.js'), [/(_logo\.png\?v=)[a-z0-9-]+/g]],
     [path.join(REPO, 'launcher.js'), [/(games\/moba\/index\.html\?v=)[a-z0-9-]+/g]],
 ];
 

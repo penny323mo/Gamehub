@@ -12,7 +12,7 @@
 // 兩套都係「郁」同「打」分開兩隻手，唔會爭同一個輸入。
 
 import * as THREE from '../vendor/three.module.min.js';
-import { MAP } from './constants.js?v=hubtap-25';
+import { MAP } from './constants.js?v=assets-26';
 
 const GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
