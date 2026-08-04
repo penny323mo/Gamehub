@@ -19,16 +19,20 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
   半徑、塔半徑全部冇人守。
 - 但答案唔係逐個常數釘死——嗰種就係「記錄實作而唔係記錄意圖」。要守嘅係後果：企喺安全位由半血養返
   滿要 **199.7／242.5／267 秒**，而一場波平均八分鐘——「等返血」根本唔係選項。T33 釘 120–360 秒。
-- 其餘生還者逐個嚟，守後果唔守常數。索敵半徑 →「行到幾埋先畀小兵盯上」＝ **18 米**（T34 釘 12–24）；
-  追蹤彈速 →「出手到中招嗰個間隔」＝最遠射程 **0.267 秒**（T35 釘 0.18–0.45）；塔半徑 →「近戰拆塔
-  企離塔心幾遠」＝ **4.19 米**（T36 釘 3.5–5.2，第一次寫 3–5 只捉到一個方向）。
-- 換算子再噴一次：反轉 `if` 條件 **12 個殺死 8 個**。四個生還者已補 T37–T39：拆塔嘅錢派畀邊隊（反轉
-  之後派畀掉咗塔嗰隊）、時限打和嘅第二層決勝（呢條分支從來冇行過）、範圍技有冇界住半徑。
-- `view.js` 唔廣噴（一跑十分鐘），揀咗 **ADR-127 自己聲稱嘅兩件事**：拆走 3 米瞬移門檻 → 高刷單幀
-  跳動肥；拆走鏡頭平滑 → 打直取景肥。兩個都有守，後者係畀上一輪先修好嗰條 framing gate 捉到。
+- 其餘生還者逐個嚟，守後果唔守常數：索敵半徑 **18 米**（T34 釘 12–24）、追蹤彈最遠射程 **0.267 秒**
+  （T35 釘 0.18–0.45）、近戰拆塔企 **4.19 米**（T36 釘 3.5–5.2）。
+- 換算子再噴一次：反轉 `if` 條件 **12 個殺死 8 個**。四個生還者已補 T37–T39：拆塔嘅錢派畀邊隊、
+  時限打和嘅第二層決勝（呢條分支從來冇行過）、範圍技有冇界住半徑。
+- `view.js` 唔廣噴（一跑十分鐘），揀咗 **ADR-127 自己聲稱嘅兩件事**：拆走瞬移門檻同拆走鏡頭平滑，
+  兩個都有守，後者係畀上一輪先修好嗰條 framing gate 捉到。
 - 同一問法問 `input.js` 同 `hud.js`：拆走搖桿嘅鏡頭轉軸（ADR-110）**一次肥五條**；拆走 `flash()`
-  清走舊提示嗰行（ADR-124 聲稱已修）**生還，195/195**——條 gate 由頭到尾只出過一個提示，堆疊冇機會
-  發生。而家連叫兩次、要求剩一個。**一句 ADR 唔等於一條守衛**：三個聲稱噴落去，兩個有守一個冇。
+  清走舊提示嗰行（ADR-124 聲稱已修）**生還，195/195**——條 gate 只出過一個提示，堆疊冇機會發生。
+  而家連叫兩次。**一句 ADR 唔等於一條守衛**：四個聲稱噴落去，三個有守一個冇。
+- 同一形狀掃返舊 ADR，搵到第四個：ADR-118 聲稱指數式令「轉身同鏡頭喺任何幀率下一樣」，而冇任何 gate
+  比較過兩個幀率。新 gate 跑啱啱一秒鏡頭追隨：乾淨樹三十同六十幀都係 −0.7326（即 ADR-118 講嗰
+  1.83%），改返 `dt·rate` 就變 −0.5465 對 −0.6372。
+- **未解嘅**：打直取景 gate 呢輪飄咗兩次（其他次過）。診斷欄位（玩家 x、鏡頭焦點、夾界）已經落咗，
+  過嗰次讀到 −6.8／−6.8／58——我原本「飄返泉水令鏡頭夾界」嘅假設**未證實**。下次再飄佢會自己講。
 
 ### Earlier checkpoints, in one line each
 
@@ -52,28 +56,24 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
   was untouched dawnkeeper. So **"66 → 46" was never a clean before/after**.
 - **Every layout gate began after `#pick-go`**: on short screens the pick grid's visible height was
   smaller than one card (78 vs 228 at 568×320) — **zero complete cards**, `max-height: 74vh` never
-  binding under flex shrink. Two probe misreadings: cards below the fold were scrolled out, not lost,
-  and counting after scrolling flatters. ADR-129.
+  binding under flex shrink. Two probe misreadings on the way. ADR-129.
 - The overlap gate exempted `.moba-tip` for being `pointer-events: none`, though it is the only place
-  the game explains an ability: **tip × recall 54×44**, **× recallbar 206×20**, invisible to the gate.
-  A production bug fell out: the skill button called `setPointerCapture` **before** recording aim
-  state, and a throw leaves `pointerup` idle. ADR-128.
+  the game explains an ability: **tip × recall 54×44**, invisible to the gate. A production bug fell
+  out: `setPointerCapture` was called **before** recording aim state, so a throw kills the cast.
 - On a 120 Hz screen only **25.2%** of frames changed a walking champion's position, in 0.217 m
   jumps — 120 fps of 30 Hz motion; render interpolation took it to **97.5%**, and `src/pace.js` owns
   the fixed-step rule, deriving `MAX_FRAME` from `MAX_STEPS * TICK`. ADR-127.
 - The combat gate warmed the sim 750 ticks with **no view frame between**: the FX count read a 25 s
   backlog (**green for the wrong reason**), the target could die inside the tick, and an unseen
   respawn ran `revive()` over the swing. ADR-126.
-- The buy rule was written three times, agreeing **only because `canShop` returns `!!c`**;
-  `sim.buyBlocker` owns it and T31 pins the contract (ADR-125). A lost GPU context used to end the
-  match (ADR-120); audio is pinned (ADR-121); twelve models loaded via one `Promise.all` with no
-  retry — now three tries (ADR-122).
+- The buy rule was written three times, agreeing **only because `canShop` returns `!!c`**; T31 pins
+  the contract (ADR-125). A lost GPU context used to end the match (ADR-120); audio is pinned
+  (ADR-121); twelve models loaded via one `Promise.all` with no retry (ADR-122).
 - `.moba-recall` and `.moba-shopbtn` sat 30 px apart while both are 44 px tall, so recall covered
   the shop button all match; the gates had been sampling the opening frame. ADR-119.
 - Bot order alternates each tick (ADR-113); draw calls peak at 286/342 (ADR-114); portrait spent
   **83.6% on abyss and water** before the camera rotated 90° (ADR-110); `makeRng` used the seed as
-  xorshift32 state so the **first output averaged 0.007** (ADR-109); level-1 attack pacing was
-  **8.6–12.7 s per minion**, now 5.1–7.9 (ADR-108); SE layout fixes (ADR-116/124).
+  xorshift32 state so the **first output averaged 0.007** (ADR-109); SE layout fixes (ADR-116/124).
 - `1 - exp(-rate·dt)` for turn/camera follow (ADR-118); Hub launcher paged dock, Gomoku CSS
   stones, Xiangqi build rewrite (`752bcc3`, ADR-102), fonts self-hosted (ADR-112), `looks.js` FX
   profiles (ADR-103), anywhere-shop (ADR-104, supersedes ADR-088/094/100).
@@ -85,7 +85,7 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
 - `node tests/hub.mjs` → **95/95**; Racing Car 6/6, Royale 8/8, Xiangqi build + selftests pass.
   `cache-bust.mjs` → pass; `sim.mjs` → **252/252**; `balance.mjs 24` → all six inside 20–85%
   (318 s, not a fast gate).
-- `node games/moba/tests/browser.mjs` → **195/195 pass** at five sizes (~10 min): select and
+- `node games/moba/tests/browser.mjs` → **196/196 pass** at five sizes (~10 min): select and
   post-match layout, full matches, FX and framing, the attack swing playing, smoothness at
   120/60/30 fps, a skill press surviving a failed pointer capture, shop, draw calls, taps.
 

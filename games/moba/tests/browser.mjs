@@ -732,6 +732,7 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
             return (1 - (q.y + 1) / 2) * 100;
         };
         let 幀 = 0, 穩 = 0, 上次 = yOf();
+        const this_camFocus_ref = () => v.camFocus;
         while (幀 < 150 && 穩 < 5) {
             v.update(1 / 30, []);
             const now = yOf();
@@ -743,6 +744,11 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
             兵線長度: +(hi - lo).toFixed(1),
             玩家由頂計: +上次.toFixed(1),
             鏡頭收斂用咗幾幀: 幀, 收斂咗: 穩 >= 5,
+            // 鏡頭焦點會夾喺 MAP.fountainX - 4 之內。玩家一行到夾界外面
+            // （例如死咗重生返泉水），鏡頭就唔再對正佢，而「玩家喺畫面邊個
+            // 位置」就會跟住走——同 ADR-132 撞到嗰個係同一件事。
+            玩家x: +p.x.toFixed(1), 鏡頭焦點: +this_camFocus_ref().toFixed(1),
+            夾界: +(M.fountainX - 4).toFixed(1),
             垂直: vertical,
         };
     });
@@ -1288,6 +1294,24 @@ for (const [tag, viewport] of LAYOUT_SIZES) {
         };
         return { 高刷: rec(120, 120), 六十: rec(60, 120), 三十: rec(30, 120) };
     });
+    // ADR-118 聲稱：轉身同鏡頭追隨改用 `1 - exp(-rate·dt)` 之後，同一場波喺
+    // 唔同幀率之下行為一樣（舊嗰條 `dt·rate` 喺 60 幀剩 1.59%、30 幀剩 1.36%）。
+    // 但之前冇任何 gate **比較過兩個幀率嘅結果**——上面嗰幾條淨係逐個幀率
+    // 問「順唔順」。一句 ADR 唔等於一條守衛，所以呢度直接比。
+    const 幀率無關 = await page.evaluate(() => {
+        const v = window.__view, p = window.__sim.player;
+        const 追一秒 = (fps) => {
+            p.x = 0; p.z = 0;
+            v.camFocus = -40;                 // 由老遠開始追
+            const dt = 1 / fps;
+            for (let i = 0; i < fps; i++) v.update(dt, []);   // 啱啱一秒
+            return v.camFocus;
+        };
+        const a = 追一秒(30), b = 追一秒(60);
+        return { 三十幀: +a.toFixed(4), 六十幀: +b.toFixed(4), 差: +Math.abs(a - b).toFixed(4) };
+    });
+    check('鏡頭追隨同幀率無關（ADR-118 嗰條指數式）', 幀率無關.差 < 0.02, 幀率無關);
+
     // 條 gate 講嘅係「快過 sim 嘅幀率唔可以凍」。喺啱啱三十幀嗰陣，一幀就係
     // 一格，根本冇嘢喺兩格之間好插——嗰度嘅跳動就係一格嘅距離，係對嘅。
     // 所以三十幀嗰行只做基線觀察，唔用高刷嘅標準去問佢。

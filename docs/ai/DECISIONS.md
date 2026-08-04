@@ -3036,3 +3036,16 @@ follows what the tyres can use
   mutated this round and the previous one; two were covered, one was not, and there was no way to
   tell which without spraying. Prose that describes a fix reads exactly the same whether or not a
   test stands behind it.
+- Applying that shape to the back catalogue found a fourth: ADR-118 claims that `1 - exp(-rate·dt)`
+  makes turning and camera follow **behave the same at any frame rate**, and nothing compared two
+  frame rates — the smoothness gates each ask one rate whether it looks smooth. The new check runs
+  exactly one second of camera catch-up at 30 and at 60 fps and requires agreement. Clean: both
+  leave −0.7326, which is the 1.83% ADR-118 states, to four decimals. Reverted to `dt·rate`:
+  −0.5465 against −0.6372, a 0.0906 gap, and it fails.
+- One loose end recorded rather than papered over. The portrait framing check failed on two runs
+  during this round and passed on the others, including the clean run afterwards. The diagnostic
+  fields it needed — the champion's x, the camera focus, and the clamp at `fountainX - 4` — are
+  now part of its payload, and on a passing run they read −6.8 / −6.8 / 58, nowhere near the
+  clamp. My hypothesis was that the champion had drifted to its fountain where the camera clamps
+  and stops centring it, and **that is not confirmed**; the next failure will now name its own
+  cause instead of needing another campaign to guess at it.
