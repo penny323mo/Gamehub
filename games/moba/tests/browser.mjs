@@ -849,6 +849,52 @@ for (const [tag, viewport] of LAYOUT_SIZES) {
     await page.close();
 }
 
+// ---------- 掉咗 GPU context 唔應該報銷成場波 ----------
+// 手機鎖屏、切走一陣、記憶體壓力，瀏覽器都會收返個 WebGL context，跟住又
+// 還返畀你。之前收到 lost 就停晒同叫玩家重新開一局——但 restored 幾百毫秒
+// 之後就到，即係一場打到一半嘅波因為鎖咗一下屏就白白冇咗。
+{
+    const page = await browser.newPage({ viewport: { width: 430, height: 860 }, hasTouch: true, isMobile: true });
+    const errs = watch(page);
+    await page.goto(URL_BASE, { waitUntil: 'load' });
+    await page.waitForFunction(() => !!window.__mobaReady || !!document.querySelector('.pick-card'),
+        null, { timeout: 120000 });
+    await page.click('#pick-go');
+    await page.waitForFunction(() => !!window.__view, null, { timeout: 120000 });
+    await page.waitForTimeout(1000);
+
+    const out = await page.evaluate(async () => {
+        const gl = document.querySelector('#gl').getContext('webgl2')
+            ?? document.querySelector('#gl').getContext('webgl');
+        const ext = gl && gl.getExtension('WEBGL_lose_context');
+        if (!ext) return { skipped: true };
+        ext.loseContext();
+        await new Promise(r => setTimeout(r, 400));
+        const paused = !!window.__view.contextLost;
+        ext.restoreContext();
+        await new Promise(r => setTimeout(r, 1200));
+        const before = window.__sim.time;
+        window.__view.renderer.info.reset();
+        await new Promise(r => setTimeout(r, 1200));
+        return {
+            skipped: false, paused,
+            旗標清返: !window.__view.contextLost,
+            場波行返: window.__sim.time > before + 0.2,
+            畫返嘢: window.__view.renderer.info.render.calls > 0,
+            由: +before.toFixed(1), 到: +window.__sim.time.toFixed(1),
+        };
+    });
+    if (out.skipped) {
+        check('掉 context：呢個瀏覽器唔支援 WEBGL_lose_context，跳過', true);
+    } else {
+        check('掉 context 嗰陣會停低', out.paused, out);
+        check('context 返嚟就繼續打，唔使重新開局', out.旗標清返 && out.場波行返, out);
+        check('context 返嚟之後真係畫緊嘢（唔係凍住一格）', out.畫返嘢, out);
+        check('掉完 context 主控台仍然零錯誤', errs.length === 0, errs.slice(0, 3));
+    }
+    await page.close();
+}
+
 await browser.close();
 server.close();
 

@@ -10,10 +10,10 @@ import { EffectComposer } from '../vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from '../vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/postprocessing/OutputPass.js';
-import { MAP, TEAM } from './constants.js?v=hud-stack-13';
-import { CHAMPION_LOOK, MINION_LOOK, ARENA_LOOK, TEAM_COLOUR, CLIP, championFx } from './looks.js?v=hud-stack-13';
-import { Rig } from './rig.js?v=hud-stack-13';
-import { Fx } from './fx.js?v=hud-stack-13';
+import { MAP, TEAM } from './constants.js?v=context-resume-14';
+import { CHAMPION_LOOK, MINION_LOOK, ARENA_LOOK, TEAM_COLOUR, CLIP, championFx } from './looks.js?v=context-resume-14';
+import { Rig } from './rig.js?v=context-resume-14';
+import { Fx } from './fx.js?v=context-resume-14';
 
 // 平滑追趕：每秒收窄 rate 咁多，而且同幀率無關。
 //
@@ -149,8 +149,16 @@ export class View {
             this.contextLost = true;
             this.onContextLost?.();
         });
-        canvas.addEventListener('webglcontextrestored', () => { this.contextLost = false; });
+        // 掉咗嘅 context 係會返嚟嘅。手機鎖屏、切走一陣、記憶體壓力都會令
+        // 瀏覽器收返個 GPU context，跟住又會還返畀你——而 three.js 喺
+        // webglcontextrestored 之後會自己重新上載幾何同貼圖。之前呢度淨係
+        // 將旗標熄返，冇通知過任何人，所以場波就永遠停咗喺嗰一格。
+        canvas.addEventListener('webglcontextrestored', () => {
+            this.contextLost = false;
+            this.onContextRestored?.();
+        });
         this.onContextLost = opts.onContextLost ?? null;
+        this.onContextRestored = opts.onContextRestored ?? null;
 
         this.playerColour = CHAMPION_LOOK[sim.player?.champId]?.ringColour ?? 0xffe27a;
         this.#lights();

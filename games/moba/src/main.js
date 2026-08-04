@@ -4,19 +4,19 @@
 // 兩樣分開嘅原因同 sim.js 唔 import three.js 一樣：規則要可重現，
 // 畫面要跟硬件。一個 120Hz 螢幕唔應該令小兵行快一倍。
 
-import { Assets } from './assets.js?v=hud-stack-13';
-import { armTap } from './tap.js?v=hud-stack-13';
-import { Sim } from './sim.js?v=hud-stack-13';
-import { createBot, updateBots } from './ai.js?v=hud-stack-13';
-import { View } from './view.js?v=hud-stack-13';
-import { Hud } from './hud.js?v=hud-stack-13';
-import { createInput } from './input.js?v=hud-stack-13';
-import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=hud-stack-13';
-import { TEAM, TICK, teamName } from './constants.js?v=hud-stack-13';
-import { CHAMPION_LOOK } from './looks.js?v=hud-stack-13';
-import { Sfx } from './sfx.js?v=hud-stack-13';
-import { settings } from './settings.js?v=hud-stack-13';
-import { renderPortraits } from './portraits.js?v=hud-stack-13';
+import { Assets } from './assets.js?v=context-resume-14';
+import { armTap } from './tap.js?v=context-resume-14';
+import { Sim } from './sim.js?v=context-resume-14';
+import { createBot, updateBots } from './ai.js?v=context-resume-14';
+import { View } from './view.js?v=context-resume-14';
+import { Hud } from './hud.js?v=context-resume-14';
+import { createInput } from './input.js?v=context-resume-14';
+import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=context-resume-14';
+import { TEAM, TICK, teamName } from './constants.js?v=context-resume-14';
+import { CHAMPION_LOOK } from './looks.js?v=context-resume-14';
+import { Sfx } from './sfx.js?v=context-resume-14';
+import { settings } from './settings.js?v=context-resume-14';
+import { renderPortraits } from './portraits.js?v=context-resume-14';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -112,9 +112,19 @@ function startMatch(playerChamp) {
         quality: pickQuality(),
         onCast: (ab) => state.hud.showCast(ab),
         onQuality: (q) => state.hud.markQuality(q),
+        // 掉 context 唔係死症，係一段暫停。之前呢度叫玩家重新開一局，
+        // 但個 context 大多數情況下幾百毫秒之後就返嚟——即係一場打到一半
+        // 嘅波，因為鎖咗一下屏就白白報銷。
         onContextLost: () => {
             state.running = false;
-            state.hud.flash('顯示裝置重置咗，請重新開一局');
+            state.hud.flash('顯示裝置重置緊，等一等…');
+        },
+        onContextRestored: () => {
+            // last 要重設，否則第一格嘅 dt 係「停咗幾耐」，會即刻追一大步。
+            state.last = performance.now();
+            state.acc = 0;
+            state.running = true;
+            state.hud.flash('返嚟喇，繼續');
         },
     });
     state.hud.onSetting = (key, value) => {

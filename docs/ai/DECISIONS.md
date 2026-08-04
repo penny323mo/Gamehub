@@ -2406,3 +2406,28 @@ follows what the tyres can use
 - Verified the gate fails for the right reason before trusting it: against the old CSS it reports
   `moba-recall × moba-shopbtn (54×12)`, `(54×14)` and `moba-lane × moba-board (12×26)` — the exact
   three defects, at the exact sizes.
+
+## ADR-120: A lost GPU context wrote off the whole match
+
+- Date: 2026-08-03
+- Status: accepted
+- Decision: `webglcontextrestored` resumes the match. `View` gained an `onContextRestored`
+  callback; `main.js` clears the accumulator, resets `last` and sets `running` back to true.
+- Reason: the browser takes the WebGL context back on lock-screen, on a spell in the background,
+  and under memory pressure — then hands it back, typically within a second. The old handler
+  stopped the loop and told the player **"顯示裝置重置咗，請重新開一局"**. Measured: after
+  `restoreContext()` the flag correctly cleared, and the match stayed frozen at 5.8 s forever. A
+  match in progress was written off because a phone locked for a moment.
+- three.js re-uploads geometries and textures itself after a restore, so resuming is enough —
+  confirmed, not assumed: after the fix the sim advances (6.4 → 8.0 s) **and the renderer issues
+  42 draw calls**, with zero console errors. Checking that time advances would not have been
+  enough; a frozen picture with a ticking clock is still broken.
+- `state.last` is reset on resume so the first frame does not charge the whole pause as `dt`.
+- Two neighbouring states were checked in the same pass and needed **no change**:
+  - a long stall (CPU throttled 20×) advanced the sim 3.2 s over 5.5 s of wall clock with no
+    teleport, freeze or error — the `min(0.25, dt)` clamp and the six-step cap degrade gracefully,
+    which is what they are for.
+  - switching quality low → high → medium mid-match threw nothing and left state intact.
+- Gate: lose the context, require the game to pause; restore it, require the flag to clear, the
+  sim to advance, **and draw calls to be issued**. Verified to fail on the old code for the right
+  reason: `場波行返: false, 畫返嘢: false, 由 1.6 到 1.6`.

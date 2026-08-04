@@ -13,17 +13,28 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 
 ## Completed
 
+### 深淵之橋 a lost GPU context wrote off the match (ADR-120)
+
+- Browsers reclaim the WebGL context on lock-screen, backgrounding and memory pressure, then
+  hand it back within about a second. The old handler stopped the loop and said **請重新開一局**.
+  Measured: after `restoreContext()` the flag cleared correctly and the match stayed frozen at
+  5.8 s forever — a match written off because a phone locked for a moment.
+- Now it resumes. three.js re-uploads its own resources; confirmed rather than assumed, since the
+  gate requires the sim to advance **and** draw calls to be issued (42) — a frozen picture with a
+  ticking clock would still be broken.
+- Needing no change, same pass: a 20× CPU stall advanced the sim 3.2 s over 5.5 s wall with no
+  teleport or error, and switching quality mid-match threw nothing.
+
 ### 深淵之橋 the recall button covered the shop button all match (ADR-119)
 
 - `.moba-recall` and `.moba-shopbtn` sat 30 px apart while both are 44 px tall, so recall's lower
   **12–14 px overlapped the shop button** in both orientations — and taps in that band went to
   the shop, since it is later in the DOM. True for the whole match, not an edge case.
 - Nothing caught it because every layout gate measured the frame right after the start, where the
-  champion is in the fountain (recall hidden) with no gold (shop button short). **The gate was
-  measuring a screen the player sees for a few seconds.** Layout gates now stand the champion
-  outside the fountain with gold before measuring — that matters more than the CSS.
-- Found by rotating the device mid-match, a state never tested. The rotation itself was clean:
-  `camYaw` flips, the joystick still drives at the enemy base, the lane bar re-orients.
+  champion is in the fountain (recall hidden) with no gold (shop button short) — **a screen the
+  player sees for a few seconds**. Layout gates now stand the champion outside the fountain with
+  gold first; that matters more than the CSS. Found by rotating the device mid-match, which was
+  itself clean: `camYaw` flips, the joystick still drives at the enemy base, the bar re-orients.
 
 ### 深淵之橋 every skillshot had never once hit anything (ADR-117)
 
@@ -39,16 +50,11 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 - Effect: nexus 69/72 → **71/72**, match **15.4 → 11.4 min**, blue 39/72. Nothing re-tuned on top.
 
 
-### 深淵之橋 portrait puts the lane up the screen (ADR-110)
-
-- Portrait spent **83.6% of the screen on abyss and water** — geometric, not artistic. The camera
-  rotates 90° about Y in portrait: own base bottom, enemy top. **70.1% ground, 36.6 m of lane**.
-- Joystick, WASD and aim-drag share one `screenToWorld` rotation; the lane-overview bar stands up
-  too (same drawing code, one canvas transform, CSS decides the axis). Two old gates hard-coded
-  "+x is right" and now measure against the camera's own vectors.
-
 ### Earlier checkpoints, in one line each
 
+- Portrait spent **83.6% of the screen on abyss and water**; the camera now rotates 90° about Y,
+  giving **70.1% ground and 36.6 m of lane**. Joystick, WASD, aim-drag and the lane bar all
+  follow the rotation. ADR-110.
 - Bot update order alternates each tick: updating blue first gave blue 33/72, red first 48/72.
   ADR-113. Draw calls peak at 286/342 in a real match, not the synthetic 1311. ADR-114.
 - `makeRng` used the seed directly as xorshift32 state, so the **first output averaged 0.007** and
