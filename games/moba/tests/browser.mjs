@@ -402,25 +402,71 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
         const s = window.__sim, v = window.__view;
         const p = s.player;
         p.x = -6; p.z = 0; p.level = 7; p.mp = p.maxMp; p.abilityCd = [0, 0, 0, 0];
-        for (let i = 0; i < 30 * 25; i++) s.step(1 / 30);
-        const foe = s.entities.find(e => e.alive && e.team !== p.team && e.kind === 'minion');
+        // 暖機要兩層一齊行。之前呢度淨係行 sim，view 隔咗廿五秒先見返場——
+        // 一次過踩中三個坑，而三個都令條 gate 量錯嘢：
+        //   一、二十五秒嘅事件積壓一次過湧入，「呢一下普攻出咗幾多特效」
+        //       其實數緊嗰堆積壓；
+        //   二、揀中嘅小兵可能只剩幾點血，落單嗰格就畀友軍打死，玩家根本
+        //       冇出過手（遊戲冇錯，係 fixture 擺咗具屍體出嚟）；
+        //   三、玩家喺暖機期間死過又重生，但 view 上一次見到佢係死嘅，於是
+        //       重生同揮劍撞喺同一幀——`#consumeEvents` 先播攻擊，`#syncUnits`
+        //       跟住 `revive()` 抹走個鎖。真遊戲每幀都行 view，唔會咁。
+        // 兩層一齊行，呢三樣就同時冇咗，唔使逐個補鑊。
+        // view 三格先行一次（即係十幀），同真機低幀數嗰陣 main.js 嘅做法一樣：
+        // sim 固定 1/30，view 一幀食晒期間積落嘅事件。逐格行 view 慢三倍，
+        // 而條 gate 要嘅只係「view 唔可以落後成廿五秒」。
+        for (let i = 0; i < 30 * 25; i++) {
+            s.step(1 / 30);
+            if (i % 3 === 2) v.update(3 / 30, s.drain());
+        }
+        const foe = s.entities.find(e => e.alive && e.team !== p.team && e.kind === 'minion')
+            ?? s.champions.find(c => c.alive && c.team !== p.team);
         if (!foe) return null;
-        foe.x = p.x + 1.6; foe.z = p.z;
+        // 目標仲要撐得住量度嗰一格：滿血就唔會喺一格之內畀友軍收咗。
+        foe.x = p.x + 1.5; foe.z = p.z; foe.alive = true; foe.hp = foe.maxHp;
+        p.alive = true; p.hp = p.maxHp;
         const u = v.units.get(p.id);
         // 唔可以用 items.length 嘅淨變化：個池同一時間有舊特效到期消散，
         // 散得多過新加入，個差就會變成 0，而普攻其實有畫嘢。實測就係咁
         // 間歇性肥佬。改為記住原本嗰批物件身份，之後數真係新加入嘅。
         const had = new Set(v.fx.items);
         p.cd = 0;
+        const blockers = {
+            可行動: s.canAct(p), 生存: p.alive,
+            暈: +(p.stunUntil - s.time).toFixed(2), 定身: +(p.rootUntil - s.time).toFixed(2),
+            返程: p.recallUntil ? +(p.recallUntil - s.time).toFixed(2) : 0,
+            重生: +(p.respawnAt - s.time).toFixed(2),
+            距離: +Math.hypot(foe.x - p.x, foe.z - p.z).toFixed(2), 射程: p.range,
+            目標: foe.kind, 目標血: +foe.hp.toFixed(0),
+        };
         s.orderAttack(p, foe.id);
         s.step(1 / 30);
-        v.update(1 / 60, s.drain());
+        const attackEvents = s.drain();
+        v.update(1 / 60, attackEvents);
         const added = v.fx.items.filter(it => !had.has(it)).length;
+        const emitted = attackEvents.some(e => e.type === 'attack' && e.id === p.id);
+        // 揮擊動畫要即刻鎖住，所以要喺呢一刻讀。之前呢個值喺四十格之後
+        // 先讀，嗰陣鎖早就過咗——即係佢淨係可能係 false，讀嚟做乜都冇。
+        const swinging = u.rig.busy;
+        // 肥佬嗰陣要一眼睇得出係邊個環節斷：出唔出到手、目標死冇死、
+        // 個鎖有冇被人抹走。四次錯判入面有三次係因為冇呢啲數。
+        const rigWhy = { ...blockers, 步後目標生存: foe.alive, 步後玩家生存: p.alive,
+            鎖差: +(u.rig.lockUntil - u.rig.time).toFixed(3), clip: u.rig.current,
+            事件序: attackEvents.map(e => e.type + (e.id === p.id ? '*' : '')) };
         // 彈道：唔可以假設玩家第一個技能就係直線彈——鐵衛個 Q 係範圍技。
-        // 有 skillshot 就用佢，冇就靠兵線上面梗有嘅遠程兵箭矢。
+        // 有 skillshot 就用佢；冇就唔可以「等吓總會有隻弓兵射箭」——實測嗰
+        // 一秒三之內可以完全冇人射，條 gate 就間歇性肥佬，而且係跟採樣時刻
+        // 郁嘅那種假失敗。改為親手擺一個射得到嘅目標畀弓兵，箭一定出。
         p.abilityCd = [0, 0, 0, 0]; p.mp = p.maxMp;
         const shotIdx = p.def.abilities.findIndex(a => a.form === 'skillshot');
         if (shotIdx >= 0) s.cast(p, shotIdx, { x: p.x + 12, z: p.z });
+        const archer = s.entities.find(e => e.alive && e.kind === 'minion' && e.range > 5);
+        const mark = archer && s.entities.find(e => e.alive && e.kind === 'minion'
+            && e.team !== archer.team && e !== foe);
+        if (mark) {
+            mark.x = archer.x + archer.range - 0.6; mark.z = archer.z;
+            mark.hp = mark.maxHp; archer.cd = 0;
+        }
         // 跑到有彈道喺天上飛嗰一格為止（箭同技能彈都算）
         let proj = [];
         for (let i = 0; i < 40; i++) {
@@ -435,10 +481,14 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
             viewProj: proj.length,
             // 彈道唔可以永遠豎直：冇轉向嘅膠囊喺俯視鏡頭下面等於隱形
             oriented: proj.every(o => Math.abs(o.quaternion.x) + Math.abs(o.quaternion.z) > 1e-3),
-            animating: u.rig.busy,
+            swinging, emitted, rigWhy,
         };
     });
+    check(`${tag}：普攻真係發生咗（唔係量緊積壓）`, combat && combat.emitted === true, combat);
     check(`${tag}：普攻會出視覺回饋（揮擊弧／出手閃）`, combat && combat.fxOnAttack > 0, combat);
+    // Penny 最初嗰句就係「攻擊完全見唔到個動作」。特效同動畫係兩件事：
+    // 就算劃到一道弧，隻角色唔郁都仲係唔似打緊嘢。
+    check(`${tag}：普攻會真係揮動作（唔淨係出特效）`, combat && combat.swinging === true, combat);
     check(`${tag}：技能彈道畫得出`, combat && combat.viewProj > 0 && combat.viewProj === combat.simProj, combat);
     check(`${tag}：彈道有跟住飛行方向轉`, combat && combat.oriented, combat);
 
@@ -564,6 +614,10 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     });
     check(`${tag}：跟身增益一開波就脹到位（唔係捱到最後先夠大）`,
         buff.found && buff.early > 0.9, buff);
+    // mid 一直量咗但冇人用。ADR-105 講嘅係「成個 life 都要夠大」，唔係
+    // 「開頭夠大」——一秒之後仲要夠大，先至真係守到嗰句。
+    check(`${tag}：跟身增益之後仲維持住大細`,
+        buff.found && buff.mid > 0.9, buff);
     check(`${tag}：施法徽記唔用 wireframe（遠鏡頭下會變一堆亂線）`,
         buff.found && buff.wire.length === 0, buff.wire);
 

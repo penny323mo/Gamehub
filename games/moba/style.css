@@ -12,6 +12,11 @@
     --safe-b: env(safe-area-inset-bottom, 0px);
     --safe-l: env(safe-area-inset-left, 0px);
     --safe-r: env(safe-area-inset-right, 0px);
+    /* 右下角個掣疊到幾高。返程掣係最頂嗰層（bottom 150px，min-height 44px），
+       加 8 點空隙就係 202。所有喺畫面中間浮起嘅提示都要企喺呢條線之上——
+       佢哋用百分比定位，右下角用固定像素，畫面一矮兩種單位就會撞埋。
+       單獨調某個百分比只係搬走今次嗰個撞，所以呢度改為講明一條共用底線。 */
+    --hud-floor: calc(202px + var(--safe-b));
 }
 
 * { box-sizing: border-box; }
@@ -288,8 +293,10 @@ html, body {
     /* 提示企喺施法橫額（30%）之上，而唔係之下。24% 嗰陣佢會撞：矮畫面撞
        施法橫額，窄畫面撞左下血條同右下商店掣——因為底部啲 HUD 用固定像素
        定位，而佢用百分比，畫面一矮兩者就撞埋。擺喺 38% 就兩樣都避得開，
-       唔使加尺寸專用規則。闊度亦都夾住，唔會伸到兩邊角落。 */
-    position: absolute; left: 50%; bottom: 38%; transform: translateX(-50%);
+       唔使加尺寸專用規則。闊度亦都夾住，唔會伸到兩邊角落。
+       但 38% 喺 iPhone SE 打直（568 高）只係 216 點，啱啱落喺返程掣嗰條帶
+       （210 至 254）入面——實測撞 29×32。所以百分比之外再加一條像素底線。 */
+    position: absolute; left: 50%; bottom: max(38%, var(--hud-floor)); transform: translateX(-50%);
     max-width: min(300px, 60vw); text-align: center;
     padding: 7px 16px; border-radius: 99px; font-size: 13px;
     background: rgba(20, 8, 8, 0.86); border: 1px solid #ff8b7a55; color: #ffd0c8;
@@ -535,7 +542,8 @@ html, body {
 }
 .moba-recallbar span { position: relative; font-size: 11px; letter-spacing: 0.12em; }
 .moba-goldpop {
-    position: absolute; left: 50%; bottom: 34%; transform: translateX(-50%);
+    /* 金幣跳字同樣係「百分比對固定像素」：34% 喺矮畫面會落喺返程掣度。 */
+    position: absolute; left: 50%; bottom: max(34%, var(--hud-floor)); transform: translateX(-50%);
     color: var(--gold); font-size: 15px; font-weight: 800; text-shadow: 0 2px 8px #000c;
     pointer-events: none; animation: goldrise 0.9s ease-out forwards;
 }
@@ -546,6 +554,7 @@ html, body {
 }
 @media (orientation: portrait) {
     /* 打直嗰陣商店掣喺 158px，一樣要留夠 52px */
+    :root { --hud-floor: calc(262px + var(--safe-b)); }
     .moba-recall {
         min-height: 44px; touch-action: manipulation;
         bottom: calc(210px + var(--safe-b));

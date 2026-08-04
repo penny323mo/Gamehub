@@ -4,19 +4,19 @@
 // 兩樣分開嘅原因同 sim.js 唔 import three.js 一樣：規則要可重現，
 // 畫面要跟硬件。一個 120Hz 螢幕唔應該令小兵行快一倍。
 
-import { Assets } from './assets.js?v=buy-rule-17';
-import { armTap } from './tap.js?v=buy-rule-17';
-import { Sim } from './sim.js?v=buy-rule-17';
-import { createBot, updateBots } from './ai.js?v=buy-rule-17';
-import { View } from './view.js?v=buy-rule-17';
-import { Hud } from './hud.js?v=buy-rule-17';
-import { createInput } from './input.js?v=buy-rule-17';
-import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=buy-rule-17';
-import { TEAM, TICK, teamName } from './constants.js?v=buy-rule-17';
-import { CHAMPION_LOOK } from './looks.js?v=buy-rule-17';
-import { Sfx } from './sfx.js?v=buy-rule-17';
-import { settings } from './settings.js?v=buy-rule-17';
-import { renderPortraits } from './portraits.js?v=buy-rule-17';
+import { Assets } from './assets.js?v=swing-gate-18';
+import { armTap } from './tap.js?v=swing-gate-18';
+import { Sim } from './sim.js?v=swing-gate-18';
+import { createBot, updateBots } from './ai.js?v=swing-gate-18';
+import { View } from './view.js?v=swing-gate-18';
+import { Hud } from './hud.js?v=swing-gate-18';
+import { createInput } from './input.js?v=swing-gate-18';
+import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=swing-gate-18';
+import { TEAM, TICK, teamName } from './constants.js?v=swing-gate-18';
+import { CHAMPION_LOOK } from './looks.js?v=swing-gate-18';
+import { Sfx } from './sfx.js?v=swing-gate-18';
+import { settings } from './settings.js?v=swing-gate-18';
+import { renderPortraits } from './portraits.js?v=swing-gate-18';
 
 const $ = (sel) => document.querySelector(sel);
 

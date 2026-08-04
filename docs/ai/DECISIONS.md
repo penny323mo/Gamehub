@@ -2573,3 +2573,43 @@ follows what the tyres can use
   - reintroducing a private copy inside `buy`, with `<=` instead of `<`, fails the gate and
     names the case: **`長劍/啱啱夠: blocker=null 但 buy=false`**. That is the "I have exactly
     400 gold and the button does nothing" bug, caught at the boundary.
+
+## ADR-126: The combat gate warmed the sim for 25 seconds without the view
+
+- Date: 2026-08-04
+- Status: accepted
+- Decision: the browser suite's combat fixture advances **both** layers during its warm-up
+  (`s.step` every tick, `v.update` every third tick, exactly as `main.js` batches events on a
+  slow machine). Nothing that measures the view may hold the view still.
+- Method: this round searched for ADR-124's shape — "a check whose answer moves with sampling
+  time" — and audited `tests/browser.mjs` for values that were computed but never asserted.
+  Two existed. `buff.mid` passed at 0.98. `animating: u.rig.busy` failed.
+- Chasing that one failure produced **three** defects in the fixture, all from one root: the
+  warm-up ran 750 sim ticks with no view frame in between.
+  - the 25 seconds of events arrived in one batch, so "how many effects did this attack draw"
+    was counting the backlog — the gate had been **green for the wrong reason**;
+  - the chosen minion could be down to a few hit points, and an ally's arrow landed earlier in
+    the same tick, so the target died and the attack was correctly cancelled. The gate was
+    measuring a corpse;
+  - the player had died and respawned during the warm-up. The view's last memory of it was
+    "dead", so its next frame ran `revive()` — which zeroes `lockUntil` — in `#syncUnits`,
+    immediately after `#consumeEvents` had started the swing. Measured, not inferred: a spy on
+    the rig reported `{once: 1, revive: 1, 前wasAlive: false}`.
+- The game itself was never wrong here. In real play the view runs every frame, so a respawn
+  and a swing cannot share one frame. Three separate patches would each have hidden one
+  symptom; advancing both layers removes the cause and all three at once.
+- Four wrong readings preceded the answer, and each was overturned by measuring again rather
+  than by reasoning about the contradiction. The low-hit-point theory was **refuted** by a probe
+  (the player still swung, and took the kill) before the real cause — an ally landing the kill
+  first — showed up in the suite's own diagnostics. A failed measurement, before the probe
+  itself has been checked, is only an accusation against the probe.
+- The gate was checked in the failing direction: deleting the `rig.once(...)` call in the
+  `attack` handler fails exactly the two `swinging` checks and nothing else.
+- That mutation run also exposed a **pre-existing flake** of the same shape: with no skillshot
+  on the champion, the projectile check hoped an archer would fire inside a 1.3-second window.
+  It now hands a ranged minion a target in range, so an arrow is certain.
+- Layout, same round: `.moba-flash` at `bottom: 38%` is 216 px on a 568-tall iPhone SE, which
+  lands inside the recall button's band (210–254) — a 29×32 overlap. The percentage-versus-pixel
+  collision ADR-124 named had simply moved to the next element. Rather than retune a third
+  percentage, `--hud-floor` now states the top of the bottom-right button stack once, and both
+  floating centre elements sit above it via `max()`.
