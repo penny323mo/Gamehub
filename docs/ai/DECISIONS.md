@@ -2652,3 +2652,42 @@ follows what the tyres can use
   against the same view, read 0.252 before the change and the gate demands 0.9. The 30 fps row
   is deliberately held to a weaker bar — at the sim rate there is nothing between two ticks to
   interpolate, and asking for smoothness there is asking the wrong question.
+
+## ADR-128: The overlap gate excused the one panel players actually read
+
+- Date: 2026-08-04
+- Status: accepted
+- Decision: the layout gate's exemption list is drawn on **decoration versus information**,
+  not on `pointer-events: none`. `.moba-tip` — the ability description — is checked like any
+  solid element; `.moba-cast` and `.moba-goldpop` remain exempt because they are transient,
+  non-interactive flourishes.
+- Method: ADR-127's shape was "two numbers that must agree, written independently". The first
+  place to look was the change I had just made: `--hud-floor: 202px` was hand-computed from
+  `.moba-recall`'s `150px + 44 + 8` with nothing tying them together. It is now derived from
+  `--recall-bottom` and `--touch`, so moving the button moves the floor. I introduced that
+  defect in the same round that named the shape.
+- Auditing the rest of the stack led to the exemption list, and the exemption turned out to be
+  hiding real collisions. Measured with everything on screen at once — recall channelling,
+  cast banner, toast, and the description open:
+  - landscape 1280×640: `.moba-tip` × `.moba-recall` **54×44**, × `.moba-shopbtn` 68×6
+  - portrait 430×860: × `.moba-recallbar` **206×20** — the description reduced to its title
+  - landscape 568×320: × recall 54×44, × shop 68×6, × scoreboard 118×7
+  Three of four tested sizes. The gate could not see any of it.
+- The fix is positional, not a new magic number: the description moved out of the right-hand
+  button column into the centre-bottom row, which is now an explicit order — toast at
+  `--hud-floor`, description at `--centre-2` above it. On 568-tall screens the description
+  itself is trimmed (smaller type, tighter padding: 95 px → 77 px), because the band between
+  the scoreboard and the floor is 126 px and the two do not both fit at full size. Short
+  landscape (320 tall) has no room above the floor at all, so there the description centres
+  vertically in the free band between scoreboard and recall bar. All four sizes measure clean.
+- **A production bug fell out of the gate change.** Driving the description from a synthetic
+  `pointerdown` raised `NotFoundError` from `setPointerCapture`, and the skill-button handler
+  called it *before* recording the aim state. A throw there skips the state, and `pointerup`
+  begins with "no state, do nothing" — so the ability never fires. `?.` guards a missing
+  method, not a throwing one. On a phone this is reachable: a system gesture can cancel a
+  pointer between dispatch and handler. State is now recorded first and the capture is
+  attempted in a `try`.
+- Both directions measured on the real page: with the guard, cooldown 6.6 s and mana 280 → 260,
+  console clean. Without it, cooldown 0, mana unchanged, ability **never cast**, console error.
+  That is the same silent failure as ADR-106/107 — "I keep pressing and nothing happens" —
+  reached this time through a third route, and now gated end to end at every layout size.

@@ -12,11 +12,20 @@
     --safe-b: env(safe-area-inset-bottom, 0px);
     --safe-l: env(safe-area-inset-left, 0px);
     --safe-r: env(safe-area-inset-right, 0px);
-    /* 右下角個掣疊到幾高。返程掣係最頂嗰層（bottom 150px，min-height 44px），
-       加 8 點空隙就係 202。所有喺畫面中間浮起嘅提示都要企喺呢條線之上——
-       佢哋用百分比定位，右下角用固定像素，畫面一矮兩種單位就會撞埋。
-       單獨調某個百分比只係搬走今次嗰個撞，所以呢度改為講明一條共用底線。 */
-    --hud-floor: calc(202px + var(--safe-b));
+    /* 右下角嗰疊掣，最頂一層（返程）企喺幾高。 */
+    --recall-bottom: 150px;
+    /* 手指撳得中嘅最細尺寸，亦即係每一層嘅高度。 */
+    --touch: 44px;
+    /* 所有喺畫面中間浮起嘅提示都要企喺呢條線之上——佢哋用百分比定位，
+       右下角用固定像素，畫面一矮兩種單位就會撞埋。單獨調某個百分比只係
+       搬走今次嗰個撞，所以呢度講明一條共用底線。
+       呢個數一定要由 --recall-bottom 推出嚟，唔可以自己寫一個。上一版寫死
+       202（即係手算 150 + 44 + 8），噉樣返程掣一搬，呢條線就靜靜雞唔再對
+       ——同 pace.js 嗰兩個上限各自講一套（ADR-127）係同一個毛病，而我喺
+       修嗰個嘅同一輪度親手又整咗一個。 */
+    --hud-floor: calc(var(--recall-bottom) + var(--touch) + 8px + var(--safe-b));
+    /* 中下行由下而上：第一格係提示（30 點高），第二格係技能說明。 */
+    --centre-2: calc(var(--hud-floor) + 38px);
 }
 
 * { box-sizing: border-box; }
@@ -295,8 +304,10 @@ html, body {
        定位，而佢用百分比，畫面一矮兩者就撞埋。擺喺 38% 就兩樣都避得開，
        唔使加尺寸專用規則。闊度亦都夾住，唔會伸到兩邊角落。
        但 38% 喺 iPhone SE 打直（568 高）只係 216 點，啱啱落喺返程掣嗰條帶
-       （210 至 254）入面——實測撞 29×32。所以百分比之外再加一條像素底線。 */
-    position: absolute; left: 50%; bottom: max(38%, var(--hud-floor)); transform: translateX(-50%);
+       （210 至 254）入面——實測撞 29×32。所以百分比之外再加一條像素底線。
+       後來索性連百分比都唔要：呢行由下而上排死——提示、技能說明——
+       兩件都係要睇嘅資訊，各自寫一個百分比就一定會喺某個尺寸撞埋。 */
+    position: absolute; left: 50%; bottom: var(--hud-floor); transform: translateX(-50%);
     max-width: min(300px, 60vw); text-align: center;
     padding: 7px 16px; border-radius: 99px; font-size: 13px;
     background: rgba(20, 8, 8, 0.86); border: 1px solid #ff8b7a55; color: #ffd0c8;
@@ -386,8 +397,14 @@ html, body {
 .moba-attack .nm { display: block; font-size: 15px; font-weight: 800; letter-spacing: 0.08em; }
 .moba-attack .k { display: block; font-size: 9px; opacity: 0.6; margin-top: 2px; }
 
+/* 技能說明擺喺畫面中下，唔再靠右。靠右嗰陣佢同返程掣、商店掣同一條直行，
+   實測打橫畀返程掣蓋咗 54×44、畀商店掣蓋咗 68×6——即係你撳實個技能想睇
+   佢做乜，最緊要嗰兩行字底下有粒掣壓住。條 gate 一直見唔到，因為
+   .moba-tip 落咗豁免名單，而豁免嘅理由係「pointer-events: none」——
+   但呢個係全隻遊戲唯一講技能做乜嘅地方，係要睇嘅資訊，唔係裝飾。 */
 .moba-tip {
-    position: absolute; right: calc(10px + var(--safe-r)); bottom: calc(136px + var(--safe-b));
+    position: absolute; left: 50%; transform: translateX(-50%);
+    bottom: calc(var(--centre-2) + 32px);
     max-width: min(320px, 78vw); padding: 9px 12px; border-radius: 11px;
     background: rgba(9, 12, 21, 0.94); border: 1px solid var(--edge);
     display: flex; flex-direction: column; gap: 3px; pointer-events: none;
@@ -397,7 +414,10 @@ html, body {
 .moba-tip i { font-style: normal; font-size: 11px; opacity: 0.55; }
 
 @media (orientation: portrait) {
-    .moba-tip { right: 50%; transform: translateX(50%); bottom: calc(212px + var(--safe-b)); }
+    /* 打直本來就已經置中，要改嘅係高度：212 點喺 430×860 度啱啱落喺讀秒條
+       嗰條帶，實測畀佢蓋咗 206×20，成句解釋淨返個名。企返喺共用底線之上
+       就同右下角嗰疊、同讀秒條都唔會撞。 */
+    .moba-tip { bottom: var(--centre-2); }
     .moba-attack { width: 64px; height: 64px; }
 }
 
@@ -518,12 +538,13 @@ html, body {
 
 /* ---------- 返程 ---------- */
 .moba-recall {
-    min-height: 44px; touch-action: manipulation;
+    min-height: var(--touch); touch-action: manipulation;
     /* 右下角由下而上疊三層：技能掣、商店、返程。每層都係 44px 高，所以
        每層之間至少要差 52px——之前差 30px，即係返程嘅下半截永遠壓喺商店
        上面，而嗰條 14px 嘅帶撳落去係去咗商店。因為靜態測試一直喺泉水度
        跑（喺屋企返程掣係收埋嘅），呢個重疊由頭到尾冇響過。 */
-    position: absolute; right: calc(10px + var(--safe-r)); bottom: calc(150px + var(--safe-b));
+    position: absolute; right: calc(10px + var(--safe-r));
+    bottom: calc(var(--recall-bottom) + var(--safe-b));
     padding: 6px 14px; border-radius: 99px; font: inherit; font-size: 12px; cursor: pointer;
     background: var(--panel); border: 1px solid var(--edge); color: #cfd8ea;
 }
@@ -554,11 +575,9 @@ html, body {
 }
 @media (orientation: portrait) {
     /* 打直嗰陣商店掣喺 158px，一樣要留夠 52px */
-    :root { --hud-floor: calc(262px + var(--safe-b)); }
-    .moba-recall {
-        min-height: 44px; touch-action: manipulation;
-        bottom: calc(210px + var(--safe-b));
-    }
+    /* 一個數搬，--hud-floor 自己跟。 */
+    :root { --recall-bottom: 210px; }
+    .moba-recall { min-height: var(--touch); touch-action: manipulation; }
 }
 
 /* 最細嘅真手機：iPhone SE 320×568 / 568×320。實測三個毛病，全部都係
@@ -568,6 +587,16 @@ html, body {
      打橫 568 闊 —— 面板同技能掣重疊 194×60，即係你要撳嘅掣壓住你要睇嘅血；
        兵線總覽同計分板重疊 100×26。
    所以呢度唔係再微調位置，而係喺窄畫面收窄內容本身。 */
+/* 矮畫面（SE 打直 568 高）：計分板底同共用底線之間得 126 點，而技能說明
+   本身就 95 點——加埋提示嗰格就爆。呢度唔係搬位，係將說明本身收窄：
+   細一級字、緊一啲嘅行距同內距，量返落嚟大約 80 點。 */
+@media (max-height: 620px) {
+    .moba-tip { padding: 6px 10px; gap: 1px; max-width: min(300px, 76vw); }
+    .moba-tip b { font-size: 12px; }
+    .moba-tip span { font-size: 11px; line-height: 1.35; }
+    .moba-tip i { font-size: 10px; }
+}
+
 @media (max-width: 380px) {
     /* nowrap 係呢度嘅元兇：一行 K/D/A、補刀、金幣喺 320 點度排唔落。
        畀佢斷行，面板高少少但至少完整見到。 */
@@ -593,4 +622,8 @@ html, body {
     .moba-board .k { min-width: 34px; }
     /* 總覽收窄，留返右上角畀計分板 */
     .moba-lane { width: min(300px, 46vw); }
+    /* 打橫又矮（320 點高）嗰陣，共用底線本身已經食咗 202 點，說明擺喺佢
+       之上會衝出畫面頂。呢個尺寸唯一夠位嘅就係計分板同讀秒條之間嗰條帶，
+       所以喺度改為上下置中——量出嚟係 y 121 至 198，上下各留幾點。 */
+    .moba-tip { top: 50%; bottom: auto; transform: translate(-50%, -50%); }
 }

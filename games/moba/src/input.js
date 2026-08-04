@@ -12,7 +12,7 @@
 // 兩套都係「郁」同「打」分開兩隻手，唔會爭同一個輸入。
 
 import * as THREE from '../vendor/three.module.min.js';
-import { MAP } from './constants.js?v=interp-19';
+import { MAP } from './constants.js?v=tipcol-20';
 
 const GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -242,9 +242,15 @@ export function createInput(canvas, view, sim, hud) {
     hud.skillBtns.forEach(({ btn }, index) => {
         btn.addEventListener('pointerdown', (ev) => {
             ev.preventDefault();
-            btn.setPointerCapture?.(ev.pointerId);
+            // 先落狀態，再試捕捉。setPointerCapture 喺個 pointer 已經唔喺度
+            // 嗰陣會掟 NotFoundError（手機上面系統手勢隨時會喺 dispatch 同
+            // handler 之間取消一個 pointer），而 `?.` 只擋到「冇呢個方法」，
+            // 擋唔到掟錯。掟咗，下面兩行就永遠唔行——即係撳咗個技能乜都冇
+            // 發生，同 ADR-106／107 嗰兩次「撳極都冇反應」同一個死法。
+            // 捕捉係錦上添花（甩出個掣範圍都仲收到 move），狀態先係正經事。
             aiming = { index, id: ev.pointerId, dx: 0, dy: 0 };
             previewIndex = index;
+            try { btn.setPointerCapture?.(ev.pointerId); } catch { /* 冇捕捉照用 */ }
         });
         btn.addEventListener('pointermove', (ev) => {
             if (!aiming || aiming.id !== ev.pointerId) return;
@@ -293,9 +299,9 @@ export function createInput(canvas, view, sim, hud) {
     if (hud.attackBtn) {
         hud.attackBtn.addEventListener('pointerdown', (ev) => {
             ev.preventDefault();
-            hud.attackBtn.setPointerCapture?.(ev.pointerId);
             attackHeld = true;
             attackNearest();
+            try { hud.attackBtn.setPointerCapture?.(ev.pointerId); } catch { /* 同上 */ }
         });
         const stop = () => { attackHeld = false; };
         hud.attackBtn.addEventListener('pointerup', stop);

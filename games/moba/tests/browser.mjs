@@ -366,6 +366,26 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     const castText = await page.$eval('.moba-cast', e => e.textContent);
     check(`${tag}：出技能會報返個技能名`, !!castText && castText.trim().length > 1, castText);
 
+    // 撳掣出技能同撳鍵盤係兩條唔同嘅路：pointerdown 落瞄準狀態，pointerup
+    // 先真正施法，而 pointerup 嗰段第一句就係「冇狀態就乜都唔做」。
+    // pointerdown 以前第一件事係 setPointerCapture——佢一掟 NotFoundError
+    // （手機系統手勢隨時喺 dispatch 同 handler 之間取消一個 pointer），
+    // 狀態就落唔到，跟住成個 pointerup 靜靜哋唔做嘢：撳極個技能都冇反應。
+    // 呢度特登派一個冇對應真 pointer 嘅 id，令捕捉必然失敗。
+    const touchCast = await page.evaluate(async () => {
+        const s = window.__sim, p = s.player;
+        p.level = 6; p.mp = p.maxMp; p.abilityCd = [0, 0, 0, 0];
+        const btn = document.querySelector('.moba-skills .moba-skill');
+        const before = { cd: p.abilityCd[0], mp: Math.round(p.mp) };
+        for (const type of ['pointerdown', 'pointerup']) {
+            btn.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 991 }));
+        }
+        await new Promise(r => setTimeout(r, 150));
+        return { before, after: { cd: +p.abilityCd[0].toFixed(1), mp: Math.round(p.mp) } };
+    });
+    check(`${tag}：撳掣出技能——pointer 捕捉失敗都照出`,
+        touchCast.after.cd > 0 && touchCast.after.mp < touchCast.before.mp, touchCast);
+
     // 每粒技能掣都要寫住自己個名，唔可以淨係得一個字母
     const labels = await page.$$eval('.moba-skill .nm', ns => ns.map(n => n.textContent.trim()));
     check(`${tag}：四粒技能掣都有名`, labels.length === 4 && labels.every(l => l.length >= 2), labels);
@@ -903,18 +923,19 @@ for (const [tag, viewport] of LAYOUT_SIZES) {
     // 平時收埋嘅嘢一樣要量。返程掣就係因為「開場嗰刻收埋」而走漏咗一個成場
     // 都存在嘅重疊；同一形狀嘅仲有讀秒條、提示、設定面板——三個都真係撞過。
     //
-    // 邊啲唔計入「互相遮擋」：全螢幕遮罩，同埋 pointer-events: none 嘅短暫
-    // 裝飾（技能說明、施法橫額）。呢條線唔係為咗方便畫嘅——呢個 gate 守嘅係
-    // 「手指要撳得中」同「要睇得到嘅資訊唔畀人蓋住」。兩個都唔收觸控、又
-    // 各自唔夠一秒就散嘅飄字互相擦到，唔屬於呢兩樣。施法橫額仲要係郁緊嘅
-    // （castpop 向上行 24px），所以「撞唔撞到」淨係睇你喺邊一格量——一個
-    // 答案隨取樣時機變嘅檢查，本身就唔可靠。
+    // 邊啲唔計入「互相遮擋」：全螢幕遮罩，同埋純裝飾（施法橫額、金幣跳字）。
+    // 呢個 gate 守嘅係「手指要撳得中」同「要睇得到嘅資訊唔畀人蓋住」，
+    // 兩樣都唔關裝飾事：施法橫額仲要係郁緊嘅（castpop 向上行 24px），
+    // 所以「撞唔撞到」淨係睇你喺邊一格量——答案隨取樣時機變嘅檢查唔可靠。
     //
-    // 但飄字撞到血條、商店掣呢啲實心嘢就照計，嗰啲先係真問題（已經修咗）。
+    // 分界係「裝飾定資訊」，唔係「收唔收觸控」。之前用後者，於是 .moba-tip
+    // 因為 pointer-events: none 就一齊豁免咗——但佢係全隻遊戲唯一講技能做乜
+    // 嘅地方，係玩家撳實個掣特登叫出嚟睇嘅。豁免咗之後量返先知，佢喺打橫
+    // 畀返程掣蓋 54×44、喺打直畀讀秒條蓋 206×20。而家佢當實心嘢計。
     const hiddenOnes = await page.evaluate(async () => {
         const s = window.__sim, hud = window.__hud, p = s.player;
         const SKIP = ['moba-shop', 'moba-shop-backdrop', 'moba-dead', 'moba-settings',
-            'moba-tip', 'moba-cast'];
+            'moba-cast', 'moba-goldpop'];
         const geom = () => {
             const vis = (el) => { const cs = getComputedStyle(el); const r = el.getBoundingClientRect();
                 return r.width > 2 && r.height > 2 && cs.display !== 'none' && cs.visibility !== 'hidden'; };
@@ -937,11 +958,15 @@ for (const [tag, viewport] of LAYOUT_SIZES) {
         s.startRecall(p);
         await new Promise(r => setTimeout(r, 350));
         bad.push(...geom().map(x => '讀秒條: ' + x));
-        s.cancelRecall(p, 'test');
+        // 讀秒條唔取消：技能說明係撳實個掣就出，而撳實唔等於施法——
+        // 返程期間撳實一個技能睇解釋，兩樣係真係會同時出現嘅。
         hud.showCast(p.def.abilities[0]);
         hud.flash('測試提示一句字');
+        document.querySelector('.moba-skills .moba-skill')
+            ?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
         await new Promise(r => setTimeout(r, 250));
-        bad.push(...geom().map(x => '施法＋提示: ' + x));
+        bad.push(...geom().map(x => '施法＋提示＋技能說明: ' + x));
+        s.cancelRecall(p, 'test');
         hud.toggleSettings(true);
         await new Promise(r => setTimeout(r, 250));
         bad.push(...geom().map(x => '設定面板: ' + x));
