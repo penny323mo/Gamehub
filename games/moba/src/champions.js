@@ -189,7 +189,11 @@ export const CHAMPIONS = {
         },
         abilities: [
             {
-                key: 'Q', name: '聖光', form: 'skillshot', cost: 45, cd: 7, range: 12,
+                // 射程 12 比全場任何人嘅攻擊射程都遠（最遠嘅長弓都只係 9.6），
+                // 而佢同時係傷害同治療，七秒一次。即係曦守可以企喺所有人夠唔到
+                // 嘅位，一粒掣做兩件事——實測對基準勝率 75%，全場最高。
+                // 收返去同第二遠嗰個技能睇齊：仲係全隊嘅消耗手段，但要企埋去先。
+                key: 'Q', name: '聖光', form: 'skillshot', cost: 45, cd: 7, range: 9.5,
                 speed: 24, width: 1.3, pierce: true,
                 damage: [65, 100, 135, 170], apRatio: 0.55, healAlly: [40, 65, 90, 115],
                 text: '射出一道光，傷害敵人並治療沿途隊友。',

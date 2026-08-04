@@ -2790,3 +2790,35 @@ follows what the tyres can use
   not by rendering; the row is a baseline observation and now asserts only that interpolation did
   not lose distance. I had written that reasoning into the comment and then invented a threshold
   underneath it anyway.
+
+## ADR-131: The yardstick was one of the things being tuned
+
+- Date: 2026-08-04
+- Status: accepted
+- Decision: `tests/balance.mjs` states in its header that the baseline champion and the two
+  companions **are the measuring stick**. Changing any of their numbers invalidates comparison
+  between runs, even though each run's spread remains internally valid.
+- Continuing ADR-130: dawnkeeper was the last outlier at 75%. Its Q reaches **12 m** — further
+  than every champion's attack range, longshot included at 9.6 — pierces, damages enemies and
+  heals allies on the same 7-second button. Two jobs from outside everyone else's reach.
+  Range 12 → 9.5, matching the next-longest ability. Measured: dawnkeeper 75% → 63%, spread
+  **46 → 34 points**, and the other five rows came back digit-for-digit identical, which is
+  what a correctly isolated change looks like.
+- Then a diagnostic before touching the low end: melee champions are not failing to use their
+  kits, they are dying on the way in. Deaths per match — duskblade **9.6**, ironhulk 5.9,
+  against 1.3–4.3 for the ranged three; duskblade takes 2.3 kills, ironhulk 0.8.
+- So armour went up on both melee (duskblade 28→34, ironhulk 31→36), armour being the stat
+  that governs surviving the approach. It made the game **less** even: spread 34 → 66,
+  duskblade 29% → 17%. Reverted.
+- The reason is the finding worth keeping. **ironhulk is one of the two companions**, so
+  buffing it changed both teams in every match — the yardstick moved. The champion that
+  shifted most was dawnkeeper (63% → 83%), which I had not touched at all: a melee-heavier
+  game makes healing worth more. The same flaw quietly affected ADR-130's pass, which changed
+  the baseline and both companions, so **"66 → 46" is not a clean before/after** — each number
+  is a valid snapshot of its own configuration, but the two were not measured against the
+  same stick.
+- The revert was verified at the byte level rather than by re-running: after undoing the two
+  armour lines, `git diff` against HEAD contains only the dawnkeeper hunk, so the tree is
+  exactly the state that produced the 34-point measurement, and the sim is deterministic.
+- Tuning stops here. The remaining spread is 34 points against a ±17-point interval, which is
+  about one interval — the next honest step is a bigger sample, not another change.
