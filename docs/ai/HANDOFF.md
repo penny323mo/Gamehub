@@ -19,13 +19,14 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
   **every** projectile and deleted any whose `targetId` did not resolve. Skillshots have no
   `targetId`, so each one died on the tick it was cast and the code that moves it had **never
   run**. 穿甲箭 fired point-blank at an enemy: HP 565 → 565. All four skillshots dealt zero.
-- Found while fixing a smaller bug in that same loop: it sampled one point per tick, so a 2.0 m
-  step against a 2.02 m hit radius passed through anything sitting between samples. Now a swept
-  segment test, and both loops live in one function that says which kind is which.
+- Found while fixing a smaller bug in the same loop: one sample per tick, so a 2.0 m step against
+  a 2.02 m hit radius passed through anything between samples. Now a swept segment test.
 - T8 stayed green because it asks whether **any** of a champion's four abilities does damage. T29
   fires every skillshot; **T30 sweeps all 24 abilities against what their data declares** and was
   mutation-tested (disabling shields/stuns/slows each made it fail with the right names).
 - Effect: nexus 69/72 → **71/72**, match **15.4 → 11.4 min**, blue 39/72. Nothing re-tuned on top.
+- Turning and camera follow now use `1 - exp(-rate·dt)`: `dt·rate` is only accurate while `dt` is
+  small, so the same match turned and panned differently at 30 fps than at 60 (ADR-118).
 
 ### 深淵之橋 the smallest real phone had never been opened (ADR-116)
 
@@ -47,17 +48,16 @@ finished**; this handoff is a tested checkpoint, not a claim that everything is 
 ### 深淵之橋 portrait puts the lane up the screen (ADR-110)
 
 - Portrait spent **83.6% of the screen on abyss and water** — geometric, not artistic. The camera
-  now rotates 90° about Y in portrait: own base at the bottom, enemy at the top. **70.1% ground
-  and 36.6 m of lane**, player at 70% down. Landscape untouched.
+  rotates 90° about Y in portrait: own base bottom, enemy top. **70.1% ground, 36.6 m of lane**.
 - Joystick, WASD and aim-drag share one `screenToWorld` rotation; the lane-overview bar stands up
   too (same drawing code, one canvas transform, CSS decides the axis). Two old gates hard-coded
   "+x is right" and now measure against the camera's own vectors.
 
 ### 深淵之橋 the RNG and the attack pacing (ADR-109, ADR-108)
 
-- `makeRng` used the seed directly as xorshift32 state, so the **first output averaged 0.007** —
-  and its first consumer is the first bot's reaction time. Seed is now scrambled with eight
-  outputs discarded; blue wins 24/72 → 33/72, the rest being ADR-113.
+- `makeRng` used the seed directly as xorshift32 state, so the **first output averaged 0.007**, and
+  its first consumer is the first bot's reaction time. Seed scrambled, eight outputs discarded;
+  blue wins 24/72 → 33/72, the rest being ADR-113.
 - Attack pacing: level 1 was 1.39–1.59 s per swing and **8.6–12.7 s per minion**, slower than the
   minions. Attack speed ×1.4 and melee minion 400 → 330 HP put it at 0.99–1.13 s / 5.1–7.9 s.
   ADR-108's figures were re-measured after ADR-109 and corrected in place.

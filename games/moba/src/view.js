@@ -10,10 +10,20 @@ import { EffectComposer } from '../vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from '../vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/postprocessing/OutputPass.js';
-import { MAP, TEAM } from './constants.js?v=skillshot-11';
-import { CHAMPION_LOOK, MINION_LOOK, ARENA_LOOK, TEAM_COLOUR, CLIP, championFx } from './looks.js?v=skillshot-11';
-import { Rig } from './rig.js?v=skillshot-11';
-import { Fx } from './fx.js?v=skillshot-11';
+import { MAP, TEAM } from './constants.js?v=smooth-12';
+import { CHAMPION_LOOK, MINION_LOOK, ARENA_LOOK, TEAM_COLOUR, CLIP, championFx } from './looks.js?v=smooth-12';
+import { Rig } from './rig.js?v=smooth-12';
+import { Fx } from './fx.js?v=smooth-12';
+
+// 平滑追趕：每秒收窄 rate 咁多，而且同幀率無關。
+//
+// 之前寫 Math.min(1, dt * rate)。嗰條係「每秒收窄率」嘅一階近似，幀率一變
+// 結果就唔同：rate 4 之下，60fps 一秒之後仲剩 1.59% 距離，30fps 剩 1.36%
+// ——即係同一場波，喺手機同喺電腦嘅鏡頭跟隨同轉身速度唔一樣。個近似喺
+// dt 細嗰陣先準，而手機正正就係 dt 大嗰邊。
+//
+// 1 - exp(-rate * dt) 係同一條曲線嘅準確解，兩個幀率都剛好剩 1.83%。
+const approach = (rate, dt) => 1 - Math.exp(-rate * dt);
 
 const sideSign = (team) => (team === TEAM.BLUE ? -1 : 1);
 const UP = new THREE.Vector3(0, 1, 0);
@@ -591,7 +601,7 @@ export class View {
                 const target = e.facing;
                 let d = target - u.obj.rotation.y;
                 d = Math.atan2(Math.sin(d), Math.cos(d));
-                u.obj.rotation.y += d * Math.min(1, dt * 12);
+                u.obj.rotation.y += d * approach(12, dt);
             }
 
             const st = e.kind === 'champ' ? this.sim.stats(e) : { maxHp: e.maxHp };
@@ -1029,7 +1039,7 @@ export class View {
                 if (mine.length) want = mine.reduce((a, b) => a + b.x, 0) / mine.length;
             }
         }
-        this.camFocus += (want - this.camFocus) * Math.min(1, dt * 4);
+        this.camFocus += (want - this.camFocus) * approach(4, dt);
         const limit = MAP.fountainX - 4;
         const fx = Math.max(-limit, Math.min(limit, this.camFocus));
         // 鏡頭震：食到重手先震，唔係下下都震，否則反而睇唔清

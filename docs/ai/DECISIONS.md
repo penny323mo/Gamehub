@@ -2356,3 +2356,26 @@ follows what the tyres can use
   2.02 m capsule) and requires a hit. T29 fires **every** skillshot in the game at an enemy in its
   path and requires damage from each — a rule about the class, not about the ability that happened
   to be broken today.
+
+## ADR-118: Two smoothings ran faster on a phone than on a desktop
+
+- Date: 2026-08-03
+- Status: accepted
+- Decision: champion turning and camera follow use `1 - exp(-rate * dt)` instead of
+  `Math.min(1, dt * rate)`.
+- Reason: `dt * rate` is the first-order approximation of an exponential approach, and it is only
+  accurate while `dt` is small — which is the desktop case, not the phone case. At rate 4, one
+  second of catch-up leaves **1.59% of the distance at 60 fps but 1.36% at 30 fps**: the same
+  match has a different camera lag and a different turn speed depending on the device. The exact
+  form leaves 1.83% at both, by construction.
+- Small in isolation; recorded because the shape recurs. Any `x += (target - x) * dt * k` carries
+  it, and the correction is local and free.
+- Scope checked, not assumed: these were the only two in `view.js`, `fx.js` and `rig.js`. The
+  camera shake is a linear decay, which is already frame-rate independent and was left alone.
+- Also examined and **not** changed, because measurement did not support a change:
+  - damage numbers are world-space sprites, so they are larger in portrait — but so is everything
+    else, since the portrait camera is closer. The composition is unchanged; there is no defect.
+  - dash contact resolution uses the same one-sample-per-tick test that broke skillshots, but a
+    dash steps 0.87 m against a 2.02 m contact radius. The miss band is 0.04 m wide out of 2.02.
+  - unit separation already clamps to the bridge; zone ticks use a fixed interval and cannot be
+    outrun by any unit or dash speed in the game.
