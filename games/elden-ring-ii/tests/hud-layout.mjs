@@ -409,6 +409,46 @@ for (const [w, h, 名] of 尺寸) {
     }
 }
 
+// ---------- 三個職業都要玩得到 ----------
+//
+// 上面每一條檢查都揀 OATHBOUND。即係三個職業入面兩個由頭到尾冇載入過——
+// 佢哋用投射物、用唔同嘅攻擊動畫、射程 16／18 米（近戰係 4.4）。任何一個
+// 靜靜哋壞咗，三分一玩家一開波就撞到，而套件會全綠。
+//
+// 唔重跑成套（三倍時間），只問每個職業最基本嗰幾樣：載得入、冇 error、
+// 弧線幾何跟返自己嗰個射程、真係殺得死嘢。
+{
+    // 主 page 仲喺度跑一個 WebGL loop，軟件光柵化之下佢會食晒 CPU，令新開
+    // 嗰版連撳個掣都 timeout。呢度之後嘅檢查唔再用主 page，所以泊咗佢先。
+    await page.goto('about:blank');
+    for (const [職, 射程] of [['ASTROLOGER', 16], ['WAYFARER', 18]]) {
+        const p2 = await browser.newPage({ viewport: { width: 640, height: 380 } });
+        const e2 = [];
+        p2.on('pageerror', (e) => e2.push(e.message.split('\n')[0].slice(0, 90)));
+        p2.on('console', (m) => { if (m.type() === 'error') e2.push('console: ' + m.text().slice(0, 90)); });
+        await p2.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
+        await p2.waitForTimeout(1500);
+        await p2.getByText(職, { exact: false }).first().click();
+        await p2.getByText('ENTER THE VEIL').first().click();
+        await p2.waitForTimeout(4500);
+        const sw = await p2.evaluate(() => window.__ER2 && window.__ER2.swing());
+        const 前 = await p2.evaluate(() =>
+            +document.querySelector('[data-enemies-remaining]').dataset.enemiesRemaining);
+        for (let i = 0; i < 26; i++) { await p2.keyboard.press('KeyF'); await p2.waitForTimeout(700); }
+        const 後 = await p2.evaluate(() => ({
+            關: document.querySelector('[data-encounter]').dataset.encounter,
+            狀態: document.querySelector('[data-game-status]').dataset.gameStatus,
+        }));
+        check(`${職}：載得入、零 error`, e2.length === 0, e2.slice(0, 2));
+        check(`${職}：弧線幾何跟返自己嗰個射程（唔係抄近戰嗰個）`,
+            sw != null && sw.判.射程 === 射程 && sw.畫.半徑 > 射程 * 0.6 && sw.畫.半徑 <= 射程,
+            sw && { 判射程: sw.判.射程, 畫半徑: +sw.畫.半徑.toFixed(2) });
+        check(`${職}：打得死嘢，推得郁關卡`, 後.關 !== 'wave-1' || 後.狀態 !== 'playing',
+            { 開場敵人: 前, 之後: 後 });
+        await p2.close();
+    }
+}
+
 check('由頭到尾零 browser error', errors.length === 0, errors.slice(0, 3));
 
 await browser.close();

@@ -3746,3 +3746,35 @@ Nothing was tuned on any of this. The ward-two step might warrant a change, but 
 the evidence that would justify one, and the one lever that suggests itself — letting a swing cleave
 — is now argued *against* by ADR-151: the arc was made honest about being a narrow 24° poke, so
 cleaving would put the picture and the rules back out of step in the opposite direction.
+
+## ADR-158 — Elden Ring II: two thirds of the classes had never been loaded
+
+Status: accepted. Date: 2026-08-05.
+
+Two checks, one of which found nothing and one of which found a hole in the suite itself.
+
+**Animation names resolve.** A clip name that does not exist in the model fails silently —
+`playAction` simply finds nothing and the character keeps its previous pose, which is the same
+"a whole behaviour quietly missing" shape as ADR-117 in the MOBA. Reading the GLB JSON chunks
+directly and comparing against every name the code asks for: the player's `Death`, `Idle_Weapon`,
+`RecieveHit`, `Roll`, `Walk`, `Run_Weapon`/`Run_Holding` and each class's attack pair; the minion's
+`Spawn_Ground_Skeletons`, `Running_A`, `Unarmed_Melee_Attack_Punch_A`, `Idle_Combat`, `Death_A`,
+`Hit_A`; the boss's seven. **Every one exists**, including the ranger correctly asking for
+`Run_Holding` where it has no `Run_Weapon`. Clean negative, recorded so it is not re-derived.
+
+**But every check in the suite picked OATHBOUND.** Two of three classes had never been loaded in a
+test. They are not cosmetic variants: they fire projectiles, use different attack clips, and reach
+16 m and 18 m against melee's 4.4. Anything broken there hits a third of players on the first screen
+while the suite stays green.
+
+The suite now runs a compact per-class pass — loads, zero errors, arc geometry derived from that
+class's own range, and actually kills something — rather than repeating all 25 checks three times.
+Measured: ASTROLOGER draws 13.12 m at 2° against a 16 m reach, WAYFARER 14.76 m against 18 m, and
+both clear ward one in 26 swings. Verified failing by making `selectCharacterClass` rebuild the arc
+from the warrior's numbers: both read 3.61 m against their real 16 and 18.
+
+One mechanical note. The per-class pass opens new pages while the main page is still running a WebGL
+loop, and under software rasterisation that starved the CPU enough that clicking a class button
+timed out at 30 s. The main page is parked at `about:blank` first; nothing after that point uses it.
+
+`tests/hud-layout.mjs` is 31/31.
