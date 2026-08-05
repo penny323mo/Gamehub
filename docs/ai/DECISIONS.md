@@ -3996,3 +3996,67 @@ until everything else still passes.
 
 `tests/hud-layout.mjs` is 40/40; setting `--utility-size` back to 32 px reproduces the failure at
 all five sizes.
+
+## ADR-165 — Elden Ring II: the walls you hit were not the walls you saw, and my ruler was mirrored
+
+Date: 2026-08-05. Status: accepted.
+
+The connectivity gate from ADR-154 answers "can you walk from A to B". It has never been able to
+answer "does the thing stopping you look like anything". So I measured that: sample every collider
+every 0.5 m and ask whether any visible geometry stands within 1.5 m. **93 colliders, 612.2 m of
+wall, 187.6 m of it (30.6 %) invisible, and 20 colliders invisible along their entire length.**
+
+The cause is the shape this project keeps producing: *the map's outline is written twice*. Colliders
+come from `BRIDGE`/`HALL`/`LINK` — the bridge railings are one continuous box from x = −47 to
+−22.35 at z = ±5.6. The walls you see are a separate hand-written coordinate list of `wall.glb`
+copies at z = ±5.8, placed at four x positions 7 m apart while the model is 3.97 m wide: **three
+metres of visible gap between each pair, all of it solid.** The three ring walls — 85 colliders, the
+entire perimeter of all three regions — had no visible counterpart at all. The arena was an
+invisible fence.
+
+Adding more models would only have written the list a third time. The colliders are now the mesh:
+one `InstancedMesh` built from the same `staticBoxes` loop that creates the bodies, so every
+`wall`-tagged collider has a box at the same place, size and angle by construction, and the gltf
+walls become decoration in front of it. Wall height went 3.6 m → 5.2 m to match `wall.glb` rather
+than being a number of its own. 30.6 % → 0 %.
+
+The reverse held too, and it was the same cause: prop colliders were a second hand-written table of
+ten `addStaticBox` calls. One of them, at (9, 15), had no model — an invisible rock two steps from
+the spawn point. And **the same model was solid in one region and walk-through in another**: two of
+eight `pillar_decorated`, two of three `tree-large`, three of four `rocks-large`. Prop colliders are
+now measured off the model itself — specifically the geometry below 2 m, because a tree's full AABB
+is its canopy and would fence off the ground around it, while what actually blocks you is what
+stands at body height. Ten hand-written boxes deleted.
+
+Then the new flood-fill connectivity gate — a proper 0.5 m grid fill from the spawn, replacing a
+centre-line scan that answered "is this one line clear" instead of "can you get there" — found
+something worse. **The fog gate had stopped gating anything.** When ADR-161 made the map a loop, it
+also created a second route into the boss sanctum through the courtyard and the L shortcut, and the
+fog gate only ever stood in the north hall. You could reach the boss without clearing a single wave.
+The old gate could not see it because it walked only x = 0 — that is, only through the fog gate. Two
+fog gates now, both from one `FOG_GATE` shape and one shader, raised and dropped together.
+
+Three of my own instruments were wrong, and only mutation runs found them:
+
+- **The rotation convention was mirrored, in all five copies of it.** World → local about Y is
+  `lx = dx·cosθ − dz·sinθ`; every copy wrote `cos(−ry)`. Sweeping the arena ring: the correct
+  convention finds exactly two gaps (west 2.86–3.42, north 4.43–4.99), the mirrored one finds
+  **twenty**. It stayed hidden for rounds because a mirrored ring is still a ring — every gate that
+  only asked "is it sealed" got the right answer from the wrong world. The flood fill escaped
+  through a phantom gap on its first run. There is one ruler now, installed on the page.
+- The solidity gate's "is it on a region boundary" clause tested `|z| ≈ bridge.halfWidth` without
+  restricting x, so it excluded anything at |z| ≈ 5.6 anywhere on the map — including the two
+  courtyard pillars the gate existed to catch. Removing their colliders left it green.
+- The minion cadence gate divided attacks by motion-seconds over a 22 s window: 3.9 motion-seconds
+  and 4 attacks, so **one attack is worth 0.26/s against a 0.9 threshold**. Three attacks reads
+  0.81 and passes, four reads 1.04 and fails — the same build, twice. It was green by luck. It now
+  measures the motion-time gap between one minion's consecutive attacks against the game's own
+  `1.4`, which a real-clock regression would show as ≈0.25.
+
+Verified in both directions. `hud-layout.mjs` is 43/43; the mutations reproduce 27 % invisible wall,
+0 of 83 wall meshes, a bypassable fog gate, two walk-through courtyard pillars, and a 0.9 s attack
+gap.
+
+Not done, and stated rather than quietly dropped: the decorative `wall.glb` copies still sit 1.8 m
+inside the collider plane they decorate, so their visible inner face is not where you stop. The new
+boxes make that overlap visible instead of invisible, which is better but not right.

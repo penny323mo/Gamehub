@@ -121,6 +121,7 @@ type MinionEnemy = {
   impactAt: number;
   impactDone: boolean;
   nextAttack: number;
+  lastAttackMotion: number;
   currentAction: string;
   spawn: [number, number];
   knockbackUntil: number;
@@ -815,8 +816,10 @@ export default function GameClient() {
     // 第一版只加唔減：霧門一拆走，佢喺呢張表度仲係一堵牆，而重開再建一次
     // 就變成兩堵。條連通性 gate 靠呢張表答「路通唔通」，所以一張只加唔減
     // 嘅表，答案會愈嚟愈錯。
-    type StaticBox = { x: number; z: number; hx: number; hz: number; ry: number; tag?: string; body: CANNON.Body };
+    type StaticBox = { x: number; y: number; z: number; hx: number; hy: number; hz: number; ry: number; tag?: string; body: CANNON.Body };
     const staticBoxes: StaticBox[] = [];
+    type SceneryBox = { url: string; x: number; z: number; hx: number; hz: number; top: number; bottom: number; solid: boolean };
+    const sceneryBoxes: SceneryBox[] = [];
     const removeStaticBox = (body: CANNON.Body) => {
       physicsWorld.removeBody(body);
       const i = staticBoxes.findIndex((b) => b.body === body);
@@ -837,8 +840,8 @@ export default function GameClient() {
       body.quaternion.setFromEuler(0, rotationY, 0);
       physicsWorld.addBody(body);
       staticBoxes.push({
-        x: position[0], z: position[2],
-        hx: halfExtents[0], hz: halfExtents[2], ry: rotationY, tag, body,
+        x: position[0], y: position[1], z: position[2],
+        hx: halfExtents[0], hy: halfExtents[1], hz: halfExtents[2], ry: rotationY, tag, body,
       });
       return body;
     };
@@ -869,7 +872,8 @@ export default function GameClient() {
     // 而 boss 一撲就六米幾。霧門開咗之後通去嘅唔係一個新地方，係同一塊地。
     const NORTH = { cz: BOSS_SPAWN_Z, r: 20 };
     const HALL = { z0: BOSS_SPAWN_Z, z1: -ARENA.r, halfWidth: 5.6 };
-    const WALL_Y = 1.8, WALL_H = 1.8, WALL_T = 0.42;
+    // 牆高同 `wall.glb` 一樣 5.2 米：collider 同裝飾模型唔應該一高一矮。
+    const WALL_Y = 2.6, WALL_H = 2.6, WALL_T = 0.42;
 
     // 圓形牆，但要留返個門口。留門嗰段唔可以靠「跳過一格」——一格嘅闊度
     // 係跟分段數走嘅，改分段數個門口就會自己變大變細。所以用角度界定。
@@ -889,6 +893,7 @@ export default function GameClient() {
           [cx + Math.cos(angle) * radius, WALL_Y, cz + Math.sin(angle) * radius],
           [half, WALL_H, WALL_T],
           Math.PI / 2 - angle,
+          "wall",
         );
       }
     };
@@ -917,6 +922,8 @@ export default function GameClient() {
         addStaticBox(
           [(x0 + x1) / 2, WALL_Y, (z0 + z1) / 2],
           [Math.abs(x1 - x0) / 2 + WALL_T, WALL_H, Math.abs(z1 - z0) / 2 + WALL_T],
+          0,
+          "wall",
         );
       const 西 = LINK.x - LINK.halfWidth, 東 = LINK.x + LINK.halfWidth;
       const 北 = LINK.z + LINK.halfWidth, 南 = LINK.z - LINK.halfWidth;
@@ -936,6 +943,8 @@ export default function GameClient() {
       addStaticBox(
         [bridgeMidX, WALL_Y, side * BRIDGE.halfWidth],
         [bridgeLength / 2, WALL_H, WALL_T],
+        0,
+        "wall",
       );
     }
     // 北面通道嘅兩邊。同走廊一樣，闊度由同一個數出。
@@ -945,18 +954,54 @@ export default function GameClient() {
       addStaticBox(
         [side * HALL.halfWidth, WALL_Y, hallMidZ],
         [WALL_T, WALL_H, hallLength / 2],
+        0,
+        "wall",
       );
     }
-    addStaticBox([-14, 1.5, 12], [2.1, 1.5, 1.8], -0.4);
-    addStaticBox([14, 1.7, -6], [2.3, 1.7, 2], -1.7);
-    addStaticBox([13, 1.5, 8], [2.2, 1.5, 1.4], 0.7);
-    addStaticBox([-18, 2.2, 10], [1.25, 2.2, 1.25]);
-    addStaticBox([18, 2.2, 14], [1.25, 2.2, 1.25]);
-    addStaticBox([9, 0.75, 15], [0.85, 0.75, 0.85]);
-    addStaticBox([-4.7, 2.4, -17.8], [0.7, 2.4, 0.7]);
-    addStaticBox([4.7, 2.4, -17.8], [0.7, 2.4, 0.7]);
-    addStaticBox([-11.2, 2.3, -11.6], [0.75, 2.3, 0.75]);
-    addStaticBox([11.2, 2.3, -11.6], [0.75, 2.3, 0.75]);
+
+    // ---------- 睇得見嗰堵牆，同撞得到嗰堵係同一堵 ----------
+    //
+    // 實測：93 個 collider、612.2 米牆，其中 **187.6 米（30.6%）一米半範圍
+    // 內冇任何睇得見嘅嘢**，20 個 collider 成條長度都係隱形。原因唔係漏擺
+    // 模型，係**「牆喺邊」寫咗兩次**：collider 由 BRIDGE／HALL／LINK 嗰幾個
+    // 數生出嚟（走廊 z = ±5.6、由 x = -47 一路到 -22.35 連住），而畫面上面
+    // 嗰啲 `wall.glb` 係手寫嘅座標表（z = ±5.8，只擺喺 x = -27.5／-34.5／
+    // -41.5／-46.5 四個位）。個模型闊 3.97 米、間距 7 米——即係**每兩幅牆之
+    // 間有三米望落係空嘅，但行過去照撞**；而三個圓場嘅環牆（85 個 collider）
+    // 由頭到尾完全冇對應嘅網格，成個圓場其實圍住一道隱形欄。
+    //
+    // 所以唔係「補返啲模型落去」——補幾多都係第二張表，第三次改就again 甩。
+    // 直接由 collider 表本身畫：一個 InstancedMesh，一個 draw call，
+    // **每一個標住 `wall` 嘅 collider 一定有一格網格喺同一個位、同一個尺寸、
+    // 同一個角度**，因為兩樣嘢由同一個 for loop 出。手擺嘅 `wall.glb` 同塔
+    // 就變返做裝飾，疊喺實體牆前面。
+    const wallBoxes = staticBoxes.filter((b) => b.tag === "wall");
+    const wallMesh = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshStandardMaterial({ color: "#6c706d", roughness: 0.94, metalness: 0.04 }),
+      wallBoxes.length,
+    );
+    wallMesh.castShadow = true;
+    wallMesh.receiveShadow = true;
+    {
+      const m = new THREE.Matrix4();
+      const q = new THREE.Quaternion();
+      const tint = new THREE.Color();
+      wallBoxes.forEach((b, i) => {
+        q.setFromEuler(new THREE.Euler(0, b.ry, 0));
+        m.compose(
+          new THREE.Vector3(b.x, b.y, b.z),
+          q,
+          new THREE.Vector3(b.hx * 2, b.hy * 2, b.hz * 2),
+        );
+        wallMesh.setMatrixAt(i, m);
+        // 每格輕微色差，唔係全部一嚿灰。
+        const v = 0.86 + ((i * 37) % 17) / 60;
+        wallMesh.setColorAt(i, tint.setRGB(0.42 * v, 0.44 * v, 0.43 * v));
+      });
+      wallMesh.instanceMatrix.needsUpdate = true;
+    }
+    scene.add(wallMesh);
 
     const bossGate = new THREE.Mesh(
       new THREE.PlaneGeometry(8, 5, 16, 10),
@@ -992,8 +1037,25 @@ export default function GameClient() {
         `,
       }),
     );
-    bossGate.position.set(FOG_GATE.pos[0], FOG_GATE.pos[1], FOG_GATE.pos[2]);
-    scene.add(bossGate);
+    // 霧門有**兩道**，唔係一道。
+    //
+    // ADR-161 將地圖砌成一個環（庭院 → L 形捷徑 → 聖所西口）之後，霧門就
+    // 冇再攔到任何嘢：北面通道嗰道照擺，但玩家一步都唔使打，由西面兜個圈
+    // 就直接行到入 boss 場。舊嗰條連通性 gate 睇唔到——佢淨係沿住 x = 0
+    // 行落去，即係**淨係行霧門嗰條路**。改成 flood fill 第一次跑就紅。
+    //
+    // 兩道門用同一組尺寸、同一個 shader、同一個淡出，出處只有一個。
+    const FOG_GATE_PLACES: Array<{ pos: [number, number, number]; ry: number }> = [
+      { pos: [FOG_GATE.pos[0], FOG_GATE.pos[1], FOG_GATE.pos[2]], ry: 0 },
+      { pos: [-NORTH.r + 0.6, FOG_GATE.pos[1], NORTH.cz], ry: Math.PI / 2 },
+    ];
+    const bossGates = FOG_GATE_PLACES.map((place, i) => {
+      const mesh = i === 0 ? bossGate : (bossGate.clone() as THREE.Mesh);
+      mesh.position.set(place.pos[0], place.pos[1], place.pos[2]);
+      mesh.rotation.y = place.ry;
+      scene.add(mesh);
+      return mesh;
+    });
     // 霧門個 collider 只有一個出處。
     //
     // 本來位置同尺寸寫咗兩次——一次喺呢度，一次喺 `restart()` 入面。
@@ -1005,8 +1067,9 @@ export default function GameClient() {
     // 標住 `fog-gate`：佢係打完三關會拆走嘅暫時牆，唔應該同永久牆一齊計
     // 「條路通唔通」。冇呢個標記，「封死北面」同「霧門喺度」喺同一個 z 位
     // 置，連通性 gate 就分唔開（ADR-154 自己中過）。
-    const makeFogGateBody = () => addStaticBox(FOG_GATE.pos, FOG_GATE.half, 0, "fog-gate");
-    let bossGateBody: CANNON.Body | null = makeFogGateBody();
+    const makeFogGateBodies = () =>
+      FOG_GATE_PLACES.map((place) => addStaticBox(place.pos, FOG_GATE.half, place.ry, "fog-gate"));
+    let bossGateBodies: CANNON.Body[] = makeFogGateBodies();
     let gateFade = 1;
 
     let playerMixer: THREE.AnimationMixer | null = null;
@@ -1106,6 +1169,19 @@ export default function GameClient() {
     // 量度用：郁動用嘅時間累加咗幾多、雜兵出咗幾多手。
     let motionClock = 0;
     let minionAttacks = 0;
+    // 每次出手之間隔咗幾多「郁動秒」。
+    //
+    // 本來條 gate 係「22 秒窗口入面數下數，除以郁動秒」。實測窗口得 3.9 秒
+    // 郁動時間、出手 **4** 下——即係**一下出手 = 0.26/秒**，而條門檻係 0.9，
+    // 啱好夾喺 3 下（0.81）同 4 下（1.04）之間。上一次跑係 3 下所以綠，今次
+    // 4 下就紅：**條 gate 分辨率細過佢自己要守嗰個效果**，之前綠係彩數。
+    // 拉長窗口都唔得——玩家企喺度俾人打，捱唔到九十秒。
+    //
+    // 改為直接量間隔，而且**特登用 `motionClock` 而唔用 `now`**：`nextAttack`
+    // 寫住 `now + 1.4 + rand`，所以 `now` 一日係郁動鐘，間隔就一定 ≥ 1.4。
+    // 如果有人將 `now` 改返做真實時間（ADR-150 嗰個缺陷），出手就會每 1.4 秒
+    // **真實時間**一下，換算返郁動時間得 0.25 秒左右——一條 gate 分得開。
+    const attackGaps: number[] = [];
 
     const livingMinions = () => minions.filter((minion) => minion.active && minion.hp > 0);
 
@@ -1158,10 +1234,8 @@ export default function GameClient() {
     const unlockBossEncounter = () => {
       encounterStage = 3;
       bossActive = true;
-      if (bossGateBody) {
-        removeStaticBox(bossGateBody);
-        bossGateBody = null;
-      }
+      bossGateBodies.forEach(removeStaticBox);
+      bossGateBodies = [];
       gateFade = 1;
       bossBody.position.set(0, bossGroundOffset, BOSS_SPAWN_Z);
       bossBody.velocity.setZero();
@@ -1293,6 +1367,7 @@ export default function GameClient() {
       rotation = 0,
       tint = "#77766f",
       tintStrength = 0.48,
+      solid = false,
     ) => {
       const gltf = await loadModel(url);
       const object = gltf.scene;
@@ -1302,6 +1377,53 @@ export default function GameClient() {
       object.position.z += position[2];
       object.rotation.y = rotation;
       scene.add(object);
+      // 記低佢真正佔咗嘅世界空間（唔係擺落去嗰個座標）。collider 表答
+      // 「撞到乜」，呢張表答「見到乜」——兩張表夾埋先答得到「撞到嘅嘢
+      // 望唔望得見」。
+      const bb = new THREE.Box3().setFromObject(object);
+      sceneryBoxes.push({
+        url: url.slice(url.lastIndexOf("/") + 1),
+        x: (bb.min.x + bb.max.x) / 2, z: (bb.min.z + bb.max.z) / 2,
+        hx: (bb.max.x - bb.min.x) / 2, hz: (bb.max.z - bb.min.z) / 2,
+        top: bb.max.y, bottom: bb.min.y, solid,
+      });
+      // 障礙物嘅 collider 由模型自己度出嚟，唔再手寫。
+      //
+      // 本來場入面十件嘢各自手寫一個盒（`addStaticBox([-14, 1.5, 12], …)`），
+      // 同擺模型嗰行完全分開。結果：(9, 15) 有個 1.7 米嘅盒但由頭到尾冇模型
+      // ——出生點喺 z = 17，即係開波行兩步就撞到一嚿睇唔見嘅嘢；而反方向
+      // 一樣衰，庭院同聖所嗰六條柱、一棵樹、一嚿石係穿得過嘅，圓場入面
+      // 一模一樣嘅模型就撞得到。**同一個模型，一個場實心一個場穿得過。**
+      //
+      // 用全個 AABB 做 collider 唔啱：樹嘅 AABB 係成個樹冠，會變成貼地一圈
+      // 望唔到嘅牆。真正擋住你嘅係**身位高度嗰截**，所以只量 2 米以下嗰截
+      // 幾何——樹就係樹幹，塔就係塔基，牆模型就係成幅牆。
+      if (solid) {
+        const 身位 = new THREE.Box3();
+        const v = new THREE.Vector3();
+        object.updateWorldMatrix(true, true);
+        object.traverse((node) => {
+          const mesh = node as THREE.Mesh;
+          if (!mesh.isMesh || !mesh.geometry) return;
+          const pos = mesh.geometry.getAttribute("position") as THREE.BufferAttribute | undefined;
+          if (!pos) return;
+          for (let i = 0; i < pos.count; i += 1) {
+            v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+            if (v.y <= 2) 身位.expandByPoint(v);
+          }
+        });
+        const 用 = 身位.isEmpty() ? bb : 身位;
+        addStaticBox(
+          [(用.min.x + 用.max.x) / 2, bb.max.y / 2, (用.min.z + 用.max.z) / 2],
+          [
+            Math.max(0.3, (用.max.x - 用.min.x) / 2),
+            Math.max(0.5, bb.max.y / 2),
+            Math.max(0.3, (用.max.z - 用.min.z) / 2),
+          ],
+          0,
+          "prop",
+        );
+      }
       return object;
     };
 
@@ -1335,28 +1457,32 @@ export default function GameClient() {
         addEnvironment("/assets/environment/wall.glb", 5.2, [17.5, 0, -19], Math.PI / 2, "#818986"),
         addEnvironment("/assets/environment/wall-corner-half-tower.glb", 7.8, [-21, 0, 0], Math.PI / 2, "#7d8582"),
         addEnvironment("/assets/environment/wall-corner-half-tower.glb", 7.8, [21, 0, 0], -Math.PI / 2, "#7d8582"),
-        addEnvironment("/assets/environment/siege-trebuchet.glb", 5.6, [13, 0, 8], -0.7, "#948570"),
-        addEnvironment("/assets/environment/rocks-large.glb", 3.8, [-14, 0, 12], 0.4, "#8b8d88"),
-        addEnvironment("/assets/environment/rocks-large.glb", 4.4, [14, 0, -6], 1.7, "#838985"),
-        addEnvironment("/assets/environment/tree-large.glb", 8.5, [-18, 0, 10], -0.6, "#56635b"),
-        addEnvironment("/assets/environment/tree-large.glb", 7.4, [18, 0, 14], 0.8, "#526057"),
+        addEnvironment("/assets/environment/siege-trebuchet.glb", 5.6, [13, 0, 8], -0.7, "#948570", 0.48, true),
+        addEnvironment("/assets/environment/rocks-large.glb", 3.8, [-14, 0, 12], 0.4, "#8b8d88", 0.48, true),
+        // 出生點喺 z = 17，而 (9, 15) 度一直有一個 1.7 米嘅 collider 但冇任何
+        // 模型——即係開波行兩步就撞到一嚿睇唔見嘅嘢。量出嚟嗰陣佢係最後一個
+        // 「成條長度都隱形」嘅障礙。
+        addEnvironment("/assets/environment/rocks-large.glb", 1.6, [9, 0, 15], 1.1, "#8b8d88", 0.48, true),
+        addEnvironment("/assets/environment/rocks-large.glb", 4.4, [14, 0, -6], 1.7, "#838985", 0.48, true),
+        addEnvironment("/assets/environment/tree-large.glb", 8.5, [-18, 0, 10], -0.6, "#56635b", 0.48, true),
+        addEnvironment("/assets/environment/tree-large.glb", 7.4, [18, 0, 14], 0.8, "#526057", 0.48, true),
         addEnvironment("/assets/environment/kaykit-dungeon/wall_arched.gltf.glb", 7.6, [0, 0, -21.4], 0, "#909aa0", 0.08),
         addEnvironment("/assets/environment/kaykit-dungeon/wall_broken.gltf.glb", 7.2, [-7.2, 0, -21.2], 0, "#909aa0", 0.08),
         addEnvironment("/assets/environment/kaykit-dungeon/wall_cracked.gltf.glb", 7.2, [7.2, 0, -21.2], 0, "#909aa0", 0.08),
         addEnvironment("/assets/environment/kaykit-dungeon/wall_window_open.gltf.glb", 6.2, [-14.2, 0, -18.5], 0.08, "#909aa0", 0.08),
         addEnvironment("/assets/environment/kaykit-dungeon/wall_window_open.gltf.glb", 6.2, [14.2, 0, -18.5], -0.08, "#909aa0", 0.08),
-        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 5.6, [-4.7, 0, -17.8], 0, "#909aa0", 0.08),
-        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 5.6, [4.7, 0, -17.8], 0, "#909aa0", 0.08),
-        addEnvironment("/assets/environment/kaykit-dungeon/column.gltf.glb", 5.2, [-11.2, 0, -11.6], 0, "#909aa0", 0.08),
-        addEnvironment("/assets/environment/kaykit-dungeon/column.gltf.glb", 5.2, [11.2, 0, -11.6], 0, "#909aa0", 0.08),
-        addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 1.7, [-8.8, 0, -13.8], 0.3, "#8a8f91", 0.08),
-        addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 1.5, [8.9, 0, -12.4], -0.5, "#8a8f91", 0.08),
+        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 5.6, [-4.7, 0, -17.8], 0, "#909aa0", 0.08, true),
+        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 5.6, [4.7, 0, -17.8], 0, "#909aa0", 0.08, true),
+        addEnvironment("/assets/environment/kaykit-dungeon/column.gltf.glb", 5.2, [-11.2, 0, -11.6], 0, "#909aa0", 0.08, true),
+        addEnvironment("/assets/environment/kaykit-dungeon/column.gltf.glb", 5.2, [11.2, 0, -11.6], 0, "#909aa0", 0.08, true),
+        addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 1.7, [-8.8, 0, -13.8], 0.3, "#8a8f91", 0.08, true),
+        addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 1.5, [8.9, 0, -12.4], -0.5, "#8a8f91", 0.08, true),
         addEnvironment("/assets/environment/kaykit-dungeon/banner_patternA_red.gltf.glb", 3.4, [-3.2, 3.2, -21], 0, "#ffffff", 0),
         addEnvironment("/assets/environment/kaykit-dungeon/banner_patternA_red.gltf.glb", 3.4, [3.2, 3.2, -21], 0, "#ffffff", 0),
         addEnvironment("/assets/environment/kaykit-dungeon/torch_mounted.gltf.glb", 1.3, [-2.2, 2.5, -20.7], 0, "#ffffff", 0),
         addEnvironment("/assets/environment/kaykit-dungeon/torch_mounted.gltf.glb", 1.3, [2.2, 2.5, -20.7], 0, "#ffffff", 0),
-        addEnvironment("/assets/environment/kaykit-dungeon/barrel_small_stack.gltf.glb", 1.3, [-11.5, 0, 1.5], 0.4, "#ffffff", 0),
-        addEnvironment("/assets/environment/kaykit-dungeon/crates_stacked.gltf.glb", 1.8, [11.5, 0, 0], -0.35, "#ffffff", 0),
+        addEnvironment("/assets/environment/kaykit-dungeon/barrel_small_stack.gltf.glb", 1.3, [-11.5, 0, 1.5], 0.4, "#ffffff", 0, true),
+        addEnvironment("/assets/environment/kaykit-dungeon/crates_stacked.gltf.glb", 1.8, [11.5, 0, 0], -0.35, "#ffffff", 0, true),
 
         // ---------- 西面：門、橋、庭院 ----------
         // 呢三個模型（gate、bridge-straight-pillar、tower-square-top-roof-
@@ -1376,13 +1502,13 @@ export default function GameClient() {
         addEnvironment("/assets/environment/tower-square-top-roof-high-windows.glb", 16, [-62, 0, -24], 0, "#818b90"),
         addEnvironment("/assets/environment/tower-square.glb", 11, [-78, 0, 9], 0.5, "#7c8582"),
         addEnvironment("/assets/environment/wall-corner-half-tower.glb", 7.8, [-60, 0, 17.6], Math.PI, "#7d8582"),
-        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 5.6, [-53, 0, -7.4], 0, "#909aa0", 0.08),
-        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 5.6, [-53, 0, 7.4], 0, "#909aa0", 0.08),
-        addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 1.8, [-58.5, 0, 5.1], 0.9, "#8a8f91", 0.08),
+        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 5.6, [-53, 0, -7.4], 0, "#909aa0", 0.08, true),
+        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 5.6, [-53, 0, 7.4], 0, "#909aa0", 0.08, true),
+        addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 1.8, [-64.5, 0, 8.4], 0.9, "#8a8f91", 0.08, true),
         addEnvironment("/assets/environment/kaykit-dungeon/torch_mounted.gltf.glb", 1.3, [-51.6, 2.5, -2.4], 0, "#ffffff", 0),
         addEnvironment("/assets/environment/kaykit-dungeon/torch_mounted.gltf.glb", 1.3, [-51.6, 2.5, 2.4], 0, "#ffffff", 0),
-        addEnvironment("/assets/environment/rocks-large.glb", 4.0, [-68, 0, -8], 2.2, "#8b8d88"),
-        addEnvironment("/assets/environment/tree-large.glb", 8.0, [-66, 0, 12], 1.1, "#56635b"),
+        addEnvironment("/assets/environment/rocks-large.glb", 4.0, [-68, 0, -8], 2.2, "#8b8d88", 0.48, true),
+        addEnvironment("/assets/environment/tree-large.glb", 8.0, [-66, 0, 12], 1.1, "#56635b", 0.48, true),
 
         // ---------- 北面：通道同聖所 ----------
         ...[-28, -35, -42].flatMap((z) => [
@@ -1392,14 +1518,14 @@ export default function GameClient() {
         addEnvironment("/assets/environment/tower-square.glb", 12, [-17, 0, -62], 0.3, "#79817f"),
         addEnvironment("/assets/environment/tower-square.glb", 12, [17, 0, -62], -0.3, "#79817f"),
         addEnvironment("/assets/environment/wall-doorway.glb", 7.4, [0, 0, -67], Math.PI, "#8b9290"),
-        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 6.2, [-9, 0, -41], 0, "#9aa2a6", 0.08),
-        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 6.2, [9, 0, -41], 0, "#9aa2a6", 0.08),
-        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 6.2, [-9, 0, -55], 0, "#9aa2a6", 0.08),
-        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 6.2, [9, 0, -55], 0, "#9aa2a6", 0.08),
+        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 6.2, [-9, 0, -41], 0, "#9aa2a6", 0.08, true),
+        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 6.2, [9, 0, -41], 0, "#9aa2a6", 0.08, true),
+        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 6.2, [-9, 0, -55], 0, "#9aa2a6", 0.08, true),
+        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 6.2, [9, 0, -55], 0, "#9aa2a6", 0.08, true),
         addEnvironment("/assets/environment/kaykit-dungeon/banner_patternA_red.gltf.glb", 3.8, [-4, 3.4, -66.4], 0, "#ffffff", 0),
         addEnvironment("/assets/environment/kaykit-dungeon/banner_patternA_red.gltf.glb", 3.8, [4, 3.4, -66.4], 0, "#ffffff", 0),
-        addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 2.0, [-12, 0, -47], 0.6, "#8a8f91", 0.08),
-        addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 1.8, [12, 0, -50], -0.9, "#8a8f91", 0.08),
+        addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 2.0, [-12, 0, -47], 0.6, "#8a8f91", 0.08, true),
+        addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 1.8, [12, 0, -50], -0.9, "#8a8f91", 0.08, true),
 
         // ---------- 庭院 → 聖所 嘅 L 形捷徑 ----------
         // 走廊兩邊行牆，拐角擺座塔做地標——一條淨係得兩幅牆嘅通道，行到中間
@@ -1415,7 +1541,7 @@ export default function GameClient() {
         ]),
         addEnvironment("/assets/environment/kaykit-dungeon/torch_mounted.gltf.glb", 1.3, [-54.6, 2.5, -30], -Math.PI / 2, "#ffffff", 0),
         addEnvironment("/assets/environment/kaykit-dungeon/torch_mounted.gltf.glb", 1.3, [-44, 2.5, -42.6], Math.PI, "#ffffff", 0),
-        addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 1.6, [-58, 0, -46], 1.4, "#8a8f91", 0.08),
+        addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 1.6, [-58, 0, -46], 1.4, "#8a8f91", 0.08, true),
       ]);
       const characterClasses = Object.keys(CLASS_CONFIG) as CharacterClass[];
       const [characterGltfs, bossGltf, skeletonGltf] = await Promise.all([
@@ -1528,6 +1654,7 @@ export default function GameClient() {
           impactAt: 0,
           impactDone: false,
           nextAttack: 0,
+          lastAttackMotion: 0,
           currentAction: "",
           spawn,
           knockbackUntil: 0,
@@ -1591,15 +1718,15 @@ export default function GameClient() {
       attackTarget = null;
       runStartedAt = performance.now();
       runRecorded = false;
-      bossGate.visible = true;
+      bossGates.forEach((mesh) => { mesh.visible = true; });
       gateFade = 1;
       (bossGate.material as THREE.ShaderMaterial).uniforms.opacity.value = 0.82;
       // 唔用 `if (!bossGateBody)`：嗰個寫法令「開咗 boss 門先死」同「未開就
       // 死」行兩條唔同嘅路，而只有前者會重建個 collider。結果就係一條要
       // 「打到 boss、死、再重開」先觸發到嘅 bug——而條測試點都行唔到嗰度。
       // 一律拆走再重建，兩種死法行同一條路。
-      if (bossGateBody) removeStaticBox(bossGateBody);
-      bossGateBody = makeFogGateBody();
+      bossGateBodies.forEach(removeStaticBox);
+      bossGateBodies = makeFogGateBodies();
       minions.forEach((minion) => {
         minion.mixer.stopAllAction();
         minion.currentAction = "";
@@ -1745,9 +1872,26 @@ export default function GameClient() {
     (window as unknown as { __ER2?: unknown }).__ER2 = {
       // 只放 mount.dataset 冇嘅嘢。位置、敵人數、鏡頭角度嗰啲一早已經喺
       // dataset 度，喺呢度再開一份就係同一件事有兩個出處。
-      map: () => ({ arenaR: ARENA.r, court: { ...COURT }, bridge: { ...BRIDGE }, north: { ...NORTH }, hall: { ...HALL } }),
+      map: () => ({ arenaR: ARENA.r, court: { ...COURT }, bridge: { ...BRIDGE }, north: { ...NORTH }, hall: { ...HALL }, link: { ...LINK } }),
       walls: () => staticBoxes.map(({ body: _b, ...rest }) => rest),
-      clock: () => ({ real: performance.now() / 1000, motion: motionClock, attacks: minionAttacks }),
+      scenery: () => sceneryBoxes.map((b) => ({ ...b })),
+      // 由真正畫緊嗰個 InstancedMesh 度拆返出嚟，唔係抄一份來源數據——
+      // 「畫嘅」同「撞嘅」要夾得埋，就一定要兩邊都問返實物。
+      wallMesh: () => {
+        const m = new THREE.Matrix4(), p = new THREE.Vector3();
+        const q = new THREE.Quaternion(), s = new THREE.Vector3();
+        const e = new THREE.Euler();
+        const out = [];
+        for (let i = 0; i < wallMesh.count; i += 1) {
+          wallMesh.getMatrixAt(i, m);
+          m.decompose(p, q, s);
+          e.setFromQuaternion(q, "YXZ");
+          out.push({ x: p.x, y: p.y, z: p.z, hx: s.x / 2, hy: s.y / 2, hz: s.z / 2, ry: e.y });
+        }
+        return out;
+      },
+      clock: () => ({ real: performance.now() / 1000, motion: motionClock, attacks: minionAttacks,
+        間隔: attackGaps.slice() }),
       // 揮擊弧線畫成點 vs 判定實際係點——兩組數分開出，等測試可以夾佢哋
       bossMove: (phase: 1 | 2, distance: number, roll: number) => chooseBossMove(phase, distance, roll),
       leapMinRange: () => LEAP_MIN_RANGE,
@@ -1792,7 +1936,7 @@ export default function GameClient() {
       if (bossActive && gateFade > 0) {
         gateFade = Math.max(0, gateFade - delta * 0.75);
         gateMaterial.uniforms.opacity.value = gateFade;
-        bossGate.visible = gateFade > 0;
+        bossGates.forEach((mesh) => { mesh.visible = gateFade > 0; });
       }
 
       ash.rotation.y += delta * 0.008;
@@ -2196,6 +2340,8 @@ export default function GameClient() {
             minion.stateUntil = now + 0.82;
             minion.nextAttack = now + 1.4 + Math.random() * 0.45;
             minionAttacks += 1;
+            if (minion.lastAttackMotion > 0) attackGaps.push(motionClock - minion.lastAttackMotion);
+            minion.lastAttackMotion = motionClock;
             gameAudio.play("enemyAttack", minion.root.position.x, minion.root.position.z);
             minion.currentAction = playAction(
               minion.actions,

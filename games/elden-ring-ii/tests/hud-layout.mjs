@@ -72,6 +72,41 @@ page.on('console', m => { if (m.type() === 'error') errors.push(`console: ${m.te
 await page.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
 await page.waitForTimeout(1500);
 
+// ---------- 支尺自己：一個轉咗角度嘅盒 ----------
+//
+// 呢五行本來喺呢個檔入面抄咗五次，而**五次都寫錯咗同一個符號**。繞 Y 軸轉
+// θ 嘅時候，世界 → 本地係 `lx = dx·cosθ − dz·sinθ`，但五個地方全部寫成
+// `cos(−ry)`，即係將個盒鏡像咗。
+//
+// 點解一直冇人響：圓場環牆鏡像返轉頭**仲係一個環**，所以「行唔行得到庭院」
+// 照樣答啱。實測攞圓場環牆掃一圈——正確約定得**兩個空隙**（西門 2.86–3.42、
+// 北門 4.43–4.99），錯嗰個報**二十個**。條 flood fill gate 一寫出嚟就即刻
+// 由嗰啲假空隙鑽咗出圓場、繞過霧門入到 boss 場。
+//
+// 所以裝喺 page 上面，得一份。抄第二次就係第二個答案。
+const 裝尺 = (pg) => pg.evaluate(() => {
+    const 本地 = (dx, dz, ry) => {
+        const c = Math.cos(ry), s = Math.sin(ry);
+        return [dx * c - dz * s, dx * s + dz * c];
+    };
+    const 世界 = (lx, lz, ry) => {
+        const c = Math.cos(ry), s = Math.sin(ry);
+        return [lx * c + lz * s, -lx * s + lz * c];
+    };
+    window.__尺 = {
+        本地, 世界,
+        入面: (px, pz, b, padX, padZ = padX) => {
+            const [lx, lz] = 本地(px - b.x, pz - b.z, b.ry);
+            return Math.abs(lx) <= b.hx + padX && Math.abs(lz) <= b.hz + padZ;
+        },
+        點: (b, lx, lz) => {
+            const [dx, dz] = 世界(lx, lz, b.ry);
+            return [b.x + dx, b.z + dz];
+        },
+    };
+});
+await 裝尺(page);
+
 // 量矩形。跳過有仔嘅容器（只計最入面嗰層，否則父子必然「重疊」），
 // 亦跳過鋪滿成個畫面嘅背景（畫布、暗角、雜訊）——佢哋本來就喺所有嘢下面。
 const 量重疊 = () => page.evaluate(() => {
@@ -246,36 +281,168 @@ for (const [w, h, 名] of 尺寸) {
         // 一個點撞唔撞到某個（可以轉咗角度嘅）方盒
         // 霧門唔算：佢係打完三關會拆走嘅暫時牆。
         const 永久 = walls.filter((b) => b.tag !== 'fog-gate');
-        const 撞 = (px, pz, list = 永久) => list.some((b) => {
-            const dx = px - b.x, dz = pz - b.z;
-            const c = Math.cos(-b.ry), s = Math.sin(-b.ry);
-            const lx = dx * c - dz * s, lz = dx * s + dz * c;
-            return Math.abs(lx) <= b.hx + 半徑 && Math.abs(lz) <= b.hz + 半徑;
-        });
-        const 西 = [];
-        for (let x = 0; x >= court.cx; x -= 0.25) if (撞(x, 0)) 西.push(+x.toFixed(2));
-        const 北 = [];
-        for (let z = 0; z >= api.map().north.cz; z -= 0.25) if (撞(0, z)) 北.push(+z.toFixed(2));
-        // L 形捷徑：庭院北口 → z = -48 → 聖所西口。行呢條就唔使原路行返
-        // 出圓場，成個地圖係一個環而唔係一棵樹。
+        const 撞 = (px, pz, list = 永久) => list.some((b) => window.__尺.入面(px, pz, b, 半徑));
+        // 第一版係沿住中線逐點問「呢一點有冇嘢」。嗰個答嘅係**中線通唔通**，
+        // 唔係**行唔行得到**——一嚿擺喺走廊正中嘅碎石會令佢紅，但條走廊闊
+        // 十一米，行側少少就過到。反方向亦一樣衰：中線清但兩邊封死佢照樣綠。
+        // 而家真係行一次：0.5 米一格 flood fill，由出生點開始漫。
         const n = api.map().north;
-        const 環 = [];
-        for (let z = court.cz - court.r + 1; z >= n.cz; z -= 0.25) if (撞(court.cx, z)) 環.push(`z${z.toFixed(1)}`);
-        for (let x = court.cx; x <= -n.r; x += 0.25) if (撞(x, n.cz)) 環.push(`x${x.toFixed(1)}`);
-        return { 牆數: walls.length, 西, 北, 環, 橋: bridge, 庭院: court };
+        const 漫 = (list) => {
+            const 格 = 0.5, x0 = -84, x1 = 28, z0 = -74, z1 = 28;
+            const W = Math.round((x1 - x0) / 格), H = Math.round((z1 - z0) / 格);
+            const 過 = new Uint8Array(W * H);
+            const 通 = (i, j) => !撞(x0 + i * 格, z0 + j * 格, list);
+            const 起i = Math.round((0 - x0) / 格), 起j = Math.round((17 - z0) / 格);
+            if (!通(起i, 起j)) return null;             // 出生點都卡住就冇得講
+            const 堆 = [起i * H + 起j];
+            過[起i * H + 起j] = 1;
+            while (堆.length) {
+                const k = 堆.pop(), i = Math.floor(k / H), j = k % H;
+                for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+                    const a = i + di, b = j + dj;
+                    if (a < 0 || b < 0 || a >= W || b >= H || 過[a * H + b]) continue;
+                    if (!通(a, b)) continue;
+                    過[a * H + b] = 1;
+                    堆.push(a * H + b);
+                }
+            }
+            return (x, z) => !!過[Math.round((x - x0) / 格) * H + Math.round((z - z0) / 格)];
+        };
+        const 去到 = 漫(永久);
+        const 連霧門 = 漫(walls);
+        return {
+            牆數: walls.length, 橋: bridge, 庭院: court,
+            出生點卡住: 去到 === null,
+            到庭院: 去到 ? 去到(court.cx, court.cz) : false,
+            到聖所: 去到 ? 去到(0, n.cz) : false,
+            霧門攔到: 連霧門 ? !連霧門(0, n.cz) : false,
+            霧門唔阻西路: 連霧門 ? 連霧門(court.cx, court.cz) : false,
+        };
     });
-    check('由圓場中心一路行到西面庭院，中線上冇任何牆擋住',
-        !r.冇接口 && r.西.length === 0,
-        { 牆數: r.牆數, 擋住嘅位: (r.西 ?? []).slice(0, 12) });
-    // 北面通道係 boss 場嘅入口。霧門本身係一個清晒三關先拆走嘅 collider，
-    // 佢喺 staticBoxes 入面，所以呢條檢查連霧門都會當成牆——啱嘅，因為
-    // 「未打完三關就入唔到」正正就係要守嗰件事嘅另一半。
-    check('由西面庭院直接行得到北面聖所（唔使原路折返成一百二十米）',
-        !r.冇接口 && r.環.length === 0,
-        { 擋住嘅位: (r.環 ?? []).slice(0, 12) });
-    check('由圓場中心一路行到北面聖所，除咗霧門之外冇任何永久牆擋住',
-        !r.冇接口 && r.北.length === 0,
-        { 擋住嘅位: (r.北 ?? []).slice(0, 12) });
+    check('由出生點真係行得到西面庭院（0.5 米格 flood fill，唔係淨睇中線）',
+        !r.冇接口 && !r.出生點卡住 && r.到庭院 === true,
+        { 牆數: r.牆數, 出生點卡住: r.出生點卡住, 到庭院: r.到庭院 });
+    check('清晒三關之後，由出生點行得到北面聖所',
+        !r.冇接口 && r.到聖所 === true, { 到聖所: r.到聖所 });
+    // 另一半：霧門未拆之前**一定要攔得住**，但唔可以順手封死西路。
+    // 一條淨係守「通」嘅 gate，改到成個地圖穿晒都仲係綠。
+    check('霧門未拆之前攔得住聖所，但攔唔到西面庭院',
+        !r.冇接口 && r.霧門攔到 === true && r.霧門唔阻西路 === true,
+        { 霧門攔到: r.霧門攔到, 霧門唔阻西路: r.霧門唔阻西路 });
+}
+
+// ---------- 撞得到嘅嘢，望唔望得見 ----------
+//
+// 連通性個 gate 答「行唔行得過」，但佢完全答唔到「行唔過嗰度望落係咪一堵
+// 牆」。實測（未修之前）：93 個 collider、612.2 米，其中 **187.6 米（30.6%）
+// 一米半內冇任何睇得見嘅嘢**，20 個 collider 成條長度都係隱形。
+//
+// 成因係「牆喺邊」寫咗兩次——collider 由 BRIDGE／HALL／LINK 嗰幾個數生出嚟，
+// 而畫面嗰啲 `wall.glb` 係另一張手寫座標表。模型闊 3.97 米、間距 7 米，即係
+// 每兩幅之間三米望落空但照撞；而三個圓場嘅環牆（85 個 collider）根本冇對應
+// 網格。所以條 gate 唔守「有冇擺夠模型」，守嘅係**每一米撞得到嘅牆都望得見**。
+{
+    // 場景係 async 載嘅，要等佢唔再加先量。
+    let 上次 = -1;
+    for (let i = 0; i < 30; i++) {
+        const n = await page.evaluate(() => (window.__ER2 ? window.__ER2.scenery().length : -1));
+        if (n > 0 && n === 上次) break;
+        上次 = n;
+        await page.waitForTimeout(500);
+    }
+    const r = await page.evaluate(() => {
+        const api = window.__ER2;
+        if (!api) return null;
+        // 霧門唔算：佢自己有一塊發住光嘅網格，而且係暫時嘅。
+        const walls = api.walls().filter((b) => b.tag !== 'fog-gate');
+        const 實牆 = api.wallMesh();
+        const 景 = api.scenery().filter((s) => s.top > 1.0);
+        const 入面 = (px, pz, b, pad) => window.__尺.入面(px, pz, b, pad);
+        // 「望得見」＝ 呢個位有一格真牆網格，或者一米半內有一件過米高嘅景。
+        const 見到 = (px, pz) =>
+            實牆.some((b) => 入面(px, pz, b, 0.05)) ||
+            景.some((s) => Math.abs(px - s.x) <= s.hx + 1.5 && Math.abs(pz - s.z) <= s.hz + 1.5);
+        let 總長 = 0, 隱形長 = 0;
+        const 隱形 = [];
+        for (const b of walls) {
+            const 長半 = Math.max(b.hx, b.hz), 沿x = b.hx >= b.hz;
+            const n = Math.max(2, Math.ceil((長半 * 2) / 0.5));
+            let miss = 0;
+            for (let i = 0; i <= n; i++) {
+                const t = -長半 + (2 * 長半 * i) / n;
+                const [px, pz] = window.__尺.點(b, 沿x ? t : 0, 沿x ? 0 : t);
+                if (!見到(px, pz)) miss++;
+            }
+            總長 += 長半 * 2;
+            隱形長 += (長半 * 2 * miss) / (n + 1);
+            if (miss) 隱形.push(`(${b.x.toFixed(1)}, ${b.z.toFixed(1)}) ${miss}/${n + 1}`);
+        }
+        // 反方向：畫咗一格牆但嗰度冇 collider，就係一堵望到但穿得過嘅牆。
+        // 亦都捉到「喺畫牆之後先加多個 collider」——嗰個 collider 唔會有網格。
+        const 有標記 = api.walls().filter((b) => b.tag === 'wall');
+        const 對唔上 = 有標記.filter((b) => !實牆.some((m) =>
+            Math.abs(m.x - b.x) < 0.01 && Math.abs(m.z - b.z) < 0.01 &&
+            Math.abs(m.hx - b.hx) < 0.01 && Math.abs(m.hz - b.hz) < 0.01)).length;
+        return {
+            牆數: walls.length, 景數: 景.length, 網格數: 實牆.length, 標記數: 有標記.length,
+            總長: +總長.toFixed(1), 隱形長: +隱形長.toFixed(1),
+            比例: +(隱形長 / 總長 * 100).toFixed(1), 隱形: 隱形.slice(0, 8), 對唔上,
+        };
+    });
+    check('每一米撞得到嘅牆都望得見（唔會有隱形牆）',
+        r != null && r.隱形長 === 0,
+        r && { 總長: r.總長, 隱形長: r.隱形長, 比例: `${r.比例}%`, 位: r.隱形 });
+    check('畫出嚟嘅牆同 collider 一格對一格（冇畫多、冇漏畫）',
+        r != null && r.網格數 === r.標記數 && r.網格數 > 0 && r.對唔上 === 0,
+        r && { 網格數: r.網格數, 標記數: r.標記數, 對唔上: r.對唔上 });
+
+    // 反方向：望得見但穿得過。實測（未修之前）**同一個模型喺一個場實心，
+    // 喺另一個場穿得過**——圓場入面兩條 `pillar_decorated` 有 collider，庭院
+    // 同聖所嗰六條一模一樣嘅冇；`tree-large` 三棵入面圓場嗰兩棵實心、庭院嗰
+    // 棵穿得過；`rocks-large` 四嚿入面三嚿實心。成因同上一條一樣：障礙物嘅
+    // collider 係第二張手寫表（`addStaticBox([-14, 1.5, 12], …)` 十行），同
+    // 擺模型嗰行完全分開。而家 collider 由模型自己 2 米以下嗰截幾何度出嚟。
+    //
+    // 貼住牆嗰啲鑲邊裝飾唔算——佢哋後面本來就係環牆。守嘅係**企喺空地中間、
+    // 貼地、過米高嗰啲**：呢啲嘢望落係障礙，就唔應該行得過。
+    const p = await page.evaluate(() => {
+        const api = window.__ER2;
+        if (!api) return null;
+        const m = api.map();
+        const walls = api.walls();
+        const 牆 = walls.filter((b) => b.tag === 'wall');
+        const 可達 = (x, z) =>
+            Math.hypot(x, z) < m.arenaR ||
+            Math.hypot(x - m.court.cx, z - m.court.cz) < m.court.r ||
+            Math.hypot(x, z - m.north.cz) < m.north.r ||
+            (x >= m.bridge.x0 && x <= m.bridge.x1 && Math.abs(z) < m.bridge.halfWidth) ||
+            (z >= m.hall.z0 && z <= m.hall.z1 && Math.abs(x) < m.hall.halfWidth) ||
+            (Math.abs(x - m.link.x) < m.link.halfWidth && z <= m.court.cz - m.court.r && z >= m.link.z) ||
+            (Math.abs(z - m.link.z) < m.link.halfWidth && x >= m.link.x && x <= -m.north.r);
+        const 疊 = (s, b, pad) => window.__尺.入面(s.x, s.z, b, s.hx + pad, s.hz + pad);
+        // 企喺分界線上面嘅係建築唔係障礙：`gate.glb` 就係圓場西門嗰個拱門，
+        // 佢企喺 r = arenaR 上面，而環牆喺嗰度**特登冇**——所以「附近有冇牆
+        // collider」認唔出佢。一個拱門本身就係一個窿，用一個盒描述唔到；
+        // 逼佢實心即係封死道門。分界線兩米之內嘅一律唔計。
+        const 喺分界 = (x, z) =>
+            Math.abs(Math.hypot(x, z) - m.arenaR) < 2 ||
+            Math.abs(Math.hypot(x - m.court.cx, z - m.court.cz) - m.court.r) < 2 ||
+            Math.abs(Math.hypot(x, z - m.north.cz) - m.north.r) < 2 ||
+            (x >= m.bridge.x0 - 2 && x <= m.bridge.x1 + 2 &&
+                Math.abs(Math.abs(z) - m.bridge.halfWidth) < 2) ||
+            (z >= m.hall.z0 - 2 && z <= m.hall.z1 + 2 &&
+                Math.abs(Math.abs(x) - m.hall.halfWidth) < 2);
+        const 候選 = api.scenery().filter((s) =>
+            s.bottom < 0.5 && s.top - s.bottom > 1 && 可達(s.x, s.z) &&
+            !喺分界(s.x, s.z) && !牆.some((b) => 疊(s, b, 1.5)));
+        const 穿得過 = 候選
+            .filter((s) => !walls.some((b) => 疊(s, b, 0)))
+            .map((s) => `${s.url} (${s.x.toFixed(1)}, ${s.z.toFixed(1)})`);
+        return { 候選: 候選.length, 穿得過 };
+    });
+    check('企喺空地中間、望落係障礙嘅嘢，一件都唔行得過',
+        p != null && p.候選 > 0 && p.穿得過.length === 0,
+        p && { 量咗幾件: p.候選, 穿得過: p.穿得過.slice(0, 8) });
 }
 
 // ---------- 鏡頭唔可以喺牆入面 ----------
@@ -312,12 +479,7 @@ for (const [w, h, 名] of 尺寸) {
         const walls = api.walls();
         const spawns = api.spawns();
         const 半徑 = 0.4 + 0.34;                  // 雜兵膠囊
-        const 撞 = (px, pz) => walls.some((b) => {
-            const dx = px - b.x, dz = pz - b.z;
-            const c = Math.cos(-b.ry), sn = Math.sin(-b.ry);
-            const lx = dx * c - dz * sn, lz = dx * sn + dz * c;
-            return Math.abs(lx) <= b.hx + 半徑 && Math.abs(lz) <= b.hz + 半徑;
-        });
+        const 撞 = (px, pz) => walls.some((b) => window.__尺.入面(px, pz, b, 半徑));
         return {
             共: spawns.length,
             每波: [0, 1, 2].map((w) => spawns.filter((s) => s.wave === w).length),
@@ -463,14 +625,27 @@ for (const [w, h, 名] of 尺寸) {
     await page.waitForTimeout(500);
     await page.keyboard.down('KeyW');           // 行埋去逼雜兵開打
     const a = await page.evaluate(() => window.__ER2.clock());
-    await page.waitForTimeout(22000);
+    await page.waitForTimeout(32000);
     const b = await page.evaluate(() => window.__ER2.clock());
     await page.keyboard.up('KeyW');
     const 動 = b.motion - a.motion;
-    const 率 = (b.attacks - a.attacks) / Math.max(0.01, 動);
-    check('雜兵出手節奏跟返遊戲自己個常數（1.4 秒一下，即係唔多過 0.9/秒）',
-        動 > 1.5 && 率 <= 0.9,
-        { 郁動秒: +動.toFixed(1), 出手: b.attacks - a.attacks, 每秒: +率.toFixed(2),
+    // 唔再用「窗口入面數下數 ÷ 郁動秒」。實測嗰個率一下出手值 0.26/秒，而門檻
+    // 0.9 啱好夾喺 3 下（0.81）同 4 下（1.04）中間——同一份程式碼跑兩次，一次
+    // 綠一次紅，差別淨係一下出手。**一條分辨率細過自己要守嗰個效果嘅 gate，
+    // 綠嘅時候咩都證明唔到。** 拉長窗口亦都唔得：玩家企喺度俾三隻雜兵打，
+    // 捱唔到九十秒。
+    //
+    // 而家量每隻雜兵兩下出手之間隔咗幾多**郁動秒**。遊戲自己寫住
+    // `nextAttack = now + 1.4 + rand`，所以只要 `now` 係郁動鐘，每個間隔都
+    // 一定 ≥ 1.4；`now` 一改返做真實時間（ADR-150 嗰個缺陷），間隔換算成郁動
+    // 秒就會跌到 0.25 左右。兩者差六倍，一個間隔已經分得開。
+    const 間隔 = b.間隔.slice(a.間隔.length);
+    const 最短 = 間隔.length ? Math.min(...間隔) : null;
+    check('雜兵兩下出手之間，至少隔住遊戲自己寫嗰個 1.4 郁動秒',
+        間隔.length >= 2 && 最短 >= 1.4,
+        { 動: +動.toFixed(1), 量到幾多個間隔: 間隔.length,
+          最短: 最短 === null ? null : +最短.toFixed(2),
+          全部: 間隔.map((g) => +g.toFixed(2)).slice(0, 8),
           真實秒: +(b.real - a.real).toFixed(1) });
 }
 
@@ -491,10 +666,12 @@ for (const [w, h, 名] of 尺寸) {
     const 幾何 = () => page.evaluate(() => window.__ER2.walls()
         .map((b) => `${b.x.toFixed(2)},${b.z.toFixed(2)},${b.hx},${b.hz},${b.tag ?? ''}`)
         .sort().join('|'));
-    const 門 = () => page.evaluate(() => {
-        const g = window.__ER2.walls().filter((b) => b.tag === 'fog-gate');
-        return g.map((b) => ({ z: +b.z.toFixed(2), hx: b.hx }));
-    });
+    // 霧門有兩道（北面通道口 + 聖所西口）。地圖砌成環之後，淨係守北面
+    // 嗰道等於乜都冇守——西面兜個圈就直接入到 boss 場。
+    const 門 = () => page.evaluate(() => window.__ER2.walls()
+        .filter((b) => b.tag === 'fog-gate')
+        .map((b) => `${b.x.toFixed(2)},${b.z.toFixed(2)},${b.hx},${b.hz},${b.ry.toFixed(3)}`)
+        .sort());
     const 開場 = await 門();
     const 開場幾何 = await 幾何();
     // 企定唔郁，等雜兵打死玩家
@@ -525,9 +702,8 @@ for (const [w, h, 名] of 尺寸) {
         await page.waitForTimeout(1500);
         const 重開 = await 門();
         const 重開幾何 = await 幾何();
-        check('重開之後霧門仲係得一道，而且位置尺寸同開場一樣',
-            重開.length === 開場.length && 重開.length === 1
-            && Math.abs(重開[0].z - 開場[0].z) < 0.01 && 重開[0].hx === 開場[0].hx,
+        check('重開之後兩道霧門一道唔多一道唔少，位置尺寸角度同開場一樣',
+            重開.length === 2 && 開場.length === 2 && 重開.join('|') === 開場.join('|'),
             { 開場, 重開 });
         check('重開唔可以改變成個場嘅靜態幾何（包括冇 tag 嘅流浪牆）',
             重開幾何 === 開場幾何,
