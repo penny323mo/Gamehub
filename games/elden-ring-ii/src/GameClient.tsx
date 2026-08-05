@@ -378,6 +378,18 @@ export default function GameClient() {
     sanctumFill.position.set(0, 11, BOSS_SPAWN_Z);
     scene.add(sanctumFill);
 
+    // 分區補光行遠咗就熄。
+    //
+    // PointLight 設咗 `distance` 之後，超過嗰個距離貢獻係零——但 three.js
+    // 照樣將佢放入 shader 嘅燈迴圈，即係每一個著色片元都照計一次。地圖由
+    // 一個場變三個場之後，庭院同聖所嗰兩盞喺圓場度**畫面上完全睇唔到，
+    // 但每一幀都照畀錢**。實測熄咗兩盞：2.0 → 2.3 fps（軟件光柵化，絕對值
+    // 冇意思，但相對係真）。
+    //
+    // 個門檻由燈自己個 `distance` 出，唔另外寫一個數——兩個數各寫各嘅，
+    // 就係今個 session 捉過好多次嗰個形狀。
+    const regionalFills = [courtFill, sanctumFill];
+
     const bloodLight = new THREE.PointLight("#b72c1e", 22, 20, 2);
     bloodLight.position.set(0, 3.5, -8);
     scene.add(bloodLight);
@@ -1667,6 +1679,10 @@ export default function GameClient() {
       waypoint: () => ({ 亮: waypoint.visible, x: waypoint.position.x, z: waypoint.position.z,
         門檻: WAYPOINT_MIN_DISTANCE }),
       waypointRule: (distance: number | null, alive: boolean) => shouldShowWaypoint(distance, alive),
+      fills: () => regionalFills.map((f) => ({
+        亮: f.visible, 射程: f.distance,
+        離玩家: +playerRoot.position.distanceTo(f.position).toFixed(1),
+      })),
       swing: () => {
         const p = attackArc.geometry.parameters as { radius: number; arc: number };
         const cfg = CLASS_CONFIG[currentClass];
@@ -2382,6 +2398,10 @@ export default function GameClient() {
           (waypoint.material as THREE.MeshBasicMaterial).opacity =
             0.1 + Math.sin(now * 1.6) * 0.045;
         }
+      }
+
+      for (const fill of regionalFills) {
+        fill.visible = playerRoot.position.distanceTo(fill.position) < fill.distance + 6;
       }
 
       camera.lookAt(cameraLook);

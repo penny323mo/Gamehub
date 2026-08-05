@@ -3650,3 +3650,30 @@ is the fifth time this session a gate has been green for the wrong reason; the t
 running the mutation rather than trusting the green.
 
 `tests/hud-layout.mjs` is 21/21.
+
+## ADR-155 — Elden Ring II: three regions were paying for each other's lights
+
+Status: accepted. Date: 2026-08-05.
+
+After the map went from one arena to three regions I re-measured what it costs, which is the part
+that is easy to skip once the screenshots look right. Draw calls went **137 → 158** for roughly
+thirty added models — fine, frustum culling is doing its job. Frame rate dropped **3.0 → 2.0**,
+which under software rasterisation means nothing in absolute terms but is a real relative signal.
+
+The cause is not geometry. `courtFill` and `sanctumFill` are `PointLight`s with `distance` set to 34
+and 42, so past that range they contribute exactly zero — but three.js still puts every visible
+light into the shader's light loop, so every shaded fragment in the arena pays for two lights that
+cannot be seen from there. Measured by hiding both: **2.0 → 2.3 fps**, with draw calls unchanged at
+158, which is the shape you would expect from per-fragment cost rather than per-object.
+
+Regional fills are now switched off when the player is further away than the light's own
+`distance` (plus 6 m of hysteresis). The threshold is **read off the light** rather than written
+beside it — a second constant that has to track the first is the defect shape this session has hit
+repeatedly, most recently in ADR-154's own gate. It also scales: a fourth region costs nothing in
+the other three.
+
+Gated by asking the light, not by restating the rule: no fill may be lit while further from the
+player than its own range. Forcing `visible = true` fires it — at spawn the courtyard fill is 63 m
+away with a 34 m range and the sanctum fill 65.9 m with 42 m, both lit and both invisible.
+
+`tests/hud-layout.mjs` is 22/22.
