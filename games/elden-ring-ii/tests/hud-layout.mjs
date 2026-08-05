@@ -362,6 +362,53 @@ for (const [w, h, 名] of 尺寸) {
           真實秒: +(b.real - a.real).toFixed(1) });
 }
 
+// ---------- 死完再玩，唔可以多咗一道睇唔見嘅牆 ----------
+//
+// 霧門個 collider 本來喺兩個地方各寫一次：開場一次，`restart()` 一次。
+// ADR-154 將霧門由 `z = -9`／半闊 4 搬去通道口（-21.75／半闊 5.6）嗰陣，
+// 只改到開場嗰個。即係**死一次撳 R 之後，圓場正中就多咗一道睇唔見嘅牆**，
+// 闊度仲要同畫出嚟嗰道唔夾。
+//
+// 呢條要真係死一次先驗到，所以真係企定畀雜兵打死，再撳 R。
+{
+    await page.setViewportSize({ width: 640, height: 380 });
+    await page.waitForTimeout(400);
+    // 量成套靜態幾何，唔淨係量標住 fog-gate 嗰啲。第一版只數標住嘅，而個
+    // bug 建出嚟嗰道流浪牆**係冇 tag 嘅**——條 gate 望唔到佢，突變照樣綠。
+    // 真正嘅不變量係：重開唔可以改變成個場嘅靜態幾何。
+    const 幾何 = () => page.evaluate(() => window.__ER2.walls()
+        .map((b) => `${b.x.toFixed(2)},${b.z.toFixed(2)},${b.hx},${b.hz},${b.tag ?? ''}`)
+        .sort().join('|'));
+    const 門 = () => page.evaluate(() => {
+        const g = window.__ER2.walls().filter((b) => b.tag === 'fog-gate');
+        return g.map((b) => ({ z: +b.z.toFixed(2), hx: b.hx }));
+    });
+    const 開場 = await 門();
+    const 開場幾何 = await 幾何();
+    // 企定唔郁，等雜兵打死玩家
+    let 死咗 = false;
+    for (let i = 0; i < 90 && !死咗; i++) {
+        await page.waitForTimeout(1000);
+        死咗 = await page.evaluate(() =>
+            document.querySelector('[data-game-status]').dataset.gameStatus === 'dead');
+    }
+    check('企定唔郁會畀雜兵打死（呢條係下面嗰條嘅前提）', 死咗);
+    if (死咗) {
+        await page.keyboard.press('KeyR');
+        await page.waitForTimeout(1500);
+        const 重開 = await 門();
+        const 重開幾何 = await 幾何();
+        check('重開之後霧門仲係得一道，而且位置尺寸同開場一樣',
+            重開.length === 開場.length && 重開.length === 1
+            && Math.abs(重開[0].z - 開場[0].z) < 0.01 && 重開[0].hx === 開場[0].hx,
+            { 開場, 重開 });
+        check('重開唔可以改變成個場嘅靜態幾何（包括冇 tag 嘅流浪牆）',
+            重開幾何 === 開場幾何,
+            { 開場塊數: 開場幾何.split('|').length, 重開塊數: 重開幾何.split('|').length,
+              多咗: 重開幾何.split('|').filter((x) => !開場幾何.includes(x)).slice(0, 4) });
+    }
+}
+
 check('由頭到尾零 browser error', errors.length === 0, errors.slice(0, 3));
 
 await browser.close();

@@ -3677,3 +3677,39 @@ player than its own range. Forcing `visible = true` fires it — at spawn the co
 away with a 34 m range and the sanctum fill 65.9 m with 42 m, both lit and both invisible.
 
 `tests/hud-layout.mjs` is 22/22.
+
+## ADR-156 — Elden Ring II: restarting built an invisible wall across the arena
+
+Status: accepted. Date: 2026-08-05.
+
+I had changed a great deal of state this session without ever exercising `restart()`. Reading it
+found the fog gate's collider written **twice** — once where it is created, once inside `restart()`.
+ADR-154 moved the gate from `z = -9`, half-width 4, to the hall mouth at `-21.75`, half-width 5.6,
+and only touched the first. Die, press R, and an **8 m invisible wall reappears across the middle of
+the arena**, where nothing is drawn and where the visible gate is 11.2 m wide somewhere else. One
+fact written twice gives two answers — the third time this session (ADR-144, ADR-151).
+
+Position and size are now one `FOG_GATE` constant at module scope, with a single `makeFogGateBody()`
+used by both paths. Module scope because the mesh is positioned in the first half of the file and
+the body created in the second; TypeScript caught the ordering this time, unlike ADR-151's runtime
+dead zone.
+
+**The gate for it had to be strengthened twice, and the mutation caught both weaknesses.**
+
+- First version: die to the wave-two revenants, press R, compare the fog-gate boxes. Green with the
+  bug restored — because `restart()` only rebuilt the collider `if (!bossGateBody)`, and the body is
+  nulled only when the boss unlocks. Dying before the boss never runs the broken line. So the fix is
+  also a structural one: `restart()` now always removes and rebuilds, and both ways of dying take the
+  same path. A branch that only one route reaches is a branch no test will reach either.
+- Second version: still green, because the check counted boxes **tagged** `fog-gate`, and the stray
+  the bug creates is untagged. It now compares the whole static-geometry set before and after, which
+  fires and names the intruder: `0.00,-9.00,4,0.36`.
+
+Making restart unconditional exposed a third defect, in my own instrumentation. `staticBoxes` only
+ever grew — `physicsWorld.removeBody` drops the body but left the record, so a removed fog gate
+stayed a wall in the list the connectivity gate reads, and rebuilding it produced two. There is now
+`removeStaticBox(body)` keeping both in step, and `walls()` no longer leaks the body handle.
+
+That is the seventh gate this session found green for the wrong reason, and the seventh time the
+tell was the same: run the mutation, do not trust the green. `tests/hud-layout.mjs` is 25/25, and it
+now genuinely plays the game — it stands still until the revenants kill it, then restarts.

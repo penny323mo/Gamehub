@@ -160,6 +160,13 @@ export const shouldShowWaypoint = (distance: number | null, alive: boolean) =>
 // `minionRadius` TDZ 一模一樣嘅坑，唔想踩第二次。
 export const ARENA_RADIUS = 22.35;
 export const BOSS_SPAWN_Z = -48;
+// 霧門嘅位置同尺寸：畫出嚟嗰道門同個 collider 都由呢一組數出。擺喺 module
+// 層係因為畫嗰道門喺檔案上半段、個 collider 喺下半段——擺喺中間邊一邊都會
+// 有一邊用喺宣告之前。
+export const FOG_GATE = {
+  pos: [0, 2.5, -ARENA_RADIUS + 0.6] as [number, number, number],
+  half: [5.6, 2.5, 0.36] as [number, number, number],
+};
 
 export const LEAP_MIN_RANGE = 6.5;
 export type BossMove = "punch" | "leap";
@@ -799,17 +806,23 @@ export default function GameClient() {
     // 記住所有靜態障礙，畀測試查「兩個場之間有冇路行」。
     // 用瀏覽器行過去驗證喺呢度唔可行：軟件光柵化只得三幀，角色一秒行
     // 半米，而且一撞到雜兵就企喺度——量到嘅係機械人蠢，唔係地圖通唔通。
-    const staticBoxes: Array<{ x: number; z: number; hx: number; hz: number; ry: number; tag?: string }> = [];
+    // 記住嘅係「而家真係喺物理世界入面嘅障礙」，唔係「開場擺過啲乜」。
+    // 第一版只加唔減：霧門一拆走，佢喺呢張表度仲係一堵牆，而重開再建一次
+    // 就變成兩堵。條連通性 gate 靠呢張表答「路通唔通」，所以一張只加唔減
+    // 嘅表，答案會愈嚟愈錯。
+    type StaticBox = { x: number; z: number; hx: number; hz: number; ry: number; tag?: string; body: CANNON.Body };
+    const staticBoxes: StaticBox[] = [];
+    const removeStaticBox = (body: CANNON.Body) => {
+      physicsWorld.removeBody(body);
+      const i = staticBoxes.findIndex((b) => b.body === body);
+      if (i >= 0) staticBoxes.splice(i, 1);
+    };
     const addStaticBox = (
       position: [number, number, number],
       halfExtents: [number, number, number],
       rotationY = 0,
       tag?: string,
     ) => {
-      staticBoxes.push({
-        x: position[0], z: position[2],
-        hx: halfExtents[0], hz: halfExtents[2], ry: rotationY, tag,
-      });
       const body = new CANNON.Body({
         type: CANNON.Body.STATIC,
         material: groundPhysicsMaterial,
@@ -818,6 +831,10 @@ export default function GameClient() {
       });
       body.quaternion.setFromEuler(0, rotationY, 0);
       physicsWorld.addBody(body);
+      staticBoxes.push({
+        x: position[0], z: position[2],
+        hx: halfExtents[0], hz: halfExtents[2], ry: rotationY, tag, body,
+      });
       return body;
     };
 
@@ -940,17 +957,21 @@ export default function GameClient() {
         `,
       }),
     );
-    bossGate.position.set(0, 2.5, -ARENA_RADIUS + 0.6);
+    bossGate.position.set(FOG_GATE.pos[0], FOG_GATE.pos[1], FOG_GATE.pos[2]);
     scene.add(bossGate);
-    // 標住個霧門：佢係一道打完三關會拆走嘅暫時牆，唔應該同永久牆一齊
-    // 計「條路通唔通」。冇呢個標記，「封死北面」同「霧門喺度」喺同一個
-    // z 位置，條 gate 就分唔開——我第一版就係咁，封死咗都照綠。
-    let bossGateBody: CANNON.Body | null = addStaticBox(
-      [0, 2.5, -ARENA_RADIUS + 0.6],
-      [5.6, 2.5, 0.36],
-      0,
-      "fog-gate",
-    );
+    // 霧門個 collider 只有一個出處。
+    //
+    // 本來位置同尺寸寫咗兩次——一次喺呢度，一次喺 `restart()` 入面。
+    // ADR-154 將霧門由 `z = -9`／半闊 4 搬去通道口（`-ARENA_RADIUS + 0.6`／
+    // 半闊 5.6）嗰陣，只改到呢度。即係**死一次撳 R 之後，圓場正中就多咗
+    // 一道睇唔見嘅牆**，而且闊度同畫出嚟嗰道都唔夾。一件事寫兩次就有兩個
+    // 答案——今個 session 第三次撞到同一個形狀（ADR-144／151）。
+    //
+    // 標住 `fog-gate`：佢係打完三關會拆走嘅暫時牆，唔應該同永久牆一齊計
+    // 「條路通唔通」。冇呢個標記，「封死北面」同「霧門喺度」喺同一個 z 位
+    // 置，連通性 gate 就分唔開（ADR-154 自己中過）。
+    const makeFogGateBody = () => addStaticBox(FOG_GATE.pos, FOG_GATE.half, 0, "fog-gate");
+    let bossGateBody: CANNON.Body | null = makeFogGateBody();
     let gateFade = 1;
 
     let playerMixer: THREE.AnimationMixer | null = null;
@@ -1103,7 +1124,7 @@ export default function GameClient() {
       encounterStage = 3;
       bossActive = true;
       if (bossGateBody) {
-        physicsWorld.removeBody(bossGateBody);
+        removeStaticBox(bossGateBody);
         bossGateBody = null;
       }
       gateFade = 1;
@@ -1522,9 +1543,12 @@ export default function GameClient() {
       bossGate.visible = true;
       gateFade = 1;
       (bossGate.material as THREE.ShaderMaterial).uniforms.opacity.value = 0.82;
-      if (!bossGateBody) {
-        bossGateBody = addStaticBox([0, 2.5, -9], [4, 2.5, 0.36]);
-      }
+      // 唔用 `if (!bossGateBody)`：嗰個寫法令「開咗 boss 門先死」同「未開就
+      // 死」行兩條唔同嘅路，而只有前者會重建個 collider。結果就係一條要
+      // 「打到 boss、死、再重開」先觸發到嘅 bug——而條測試點都行唔到嗰度。
+      // 一律拆走再重建，兩種死法行同一條路。
+      if (bossGateBody) removeStaticBox(bossGateBody);
+      bossGateBody = makeFogGateBody();
       minions.forEach((minion) => {
         minion.mixer.stopAllAction();
         minion.currentAction = "";
@@ -1671,7 +1695,7 @@ export default function GameClient() {
       // 只放 mount.dataset 冇嘅嘢。位置、敵人數、鏡頭角度嗰啲一早已經喺
       // dataset 度，喺呢度再開一份就係同一件事有兩個出處。
       map: () => ({ arenaR: ARENA.r, court: { ...COURT }, bridge: { ...BRIDGE }, north: { ...NORTH }, hall: { ...HALL } }),
-      walls: () => staticBoxes.map((b) => ({ ...b })),
+      walls: () => staticBoxes.map(({ body: _b, ...rest }) => rest),
       clock: () => ({ real: performance.now() / 1000, motion: motionClock, attacks: minionAttacks }),
       // 揮擊弧線畫成點 vs 判定實際係點——兩組數分開出，等測試可以夾佢哋
       bossMove: (phase: 1 | 2, distance: number, roll: number) => chooseBossMove(phase, distance, roll),
