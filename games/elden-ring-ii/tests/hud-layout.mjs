@@ -89,6 +89,7 @@ const 量重疊 = () => page.evaluate(() => {
         if (st.visibility === 'hidden' || st.display === 'none' || Number(st.opacity) < 0.05) return;
         if (r.width * r.height > innerWidth * innerHeight * 0.8) return;
         vis.push({
+            el,
             t: (el.innerText || el.className || el.tagName).trim().slice(0, 26).replace(/\s+/g, ' '),
             x: r.x, y: r.y, w: r.width, h: r.height,
         });
@@ -96,6 +97,10 @@ const 量重疊 = () => page.evaluate(() => {
     const out = [];
     for (let i = 0; i < vis.length; i++) for (let j = i + 1; j < vis.length; j++) {
         const a = vis[i], b = vis[j];
+        // 一個元素包住另一個唔算重疊——父永遠罩住個仔。BUTTON 唔喺「有仔就
+        // 跳過」嗰條規則入面（掣係要量嘅撳擊區），所以 `<button><kbd>R</kbd>
+        // …</button>` 就會父仔對撞。呢個係我支尺報過嘅假陽性，唔係遊戲問題。
+        if (a.el.contains(b.el) || b.el.contains(a.el)) continue;
         const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
         const oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
         if (ox > 1 && oy > 1) out.push(`${a.t} × ${b.t} (${Math.round(ox)}×${Math.round(oy)})`);
@@ -394,6 +399,21 @@ for (const [w, h, 名] of 尺寸) {
     }
     check('企定唔郁會畀雜兵打死（呢條係下面嗰條嘅前提）', 死咗);
     if (死咗) {
+        // 「YOU DIED」呢個蓋幅由頭到尾冇喺任何尺寸度量過版位——上面五個尺寸
+        // 嘅重疊檢查全部喺第一關嗰陣做，而嗰陣佢仲未出現。玩家一定會見到
+        // 呢一幅（而且係喺最唔想睇到亂版嘅時候）。
+        const 死時重疊 = [];
+        for (const [w, h, 名] of 尺寸) {
+            await page.setViewportSize({ width: w, height: h });
+            await page.waitForTimeout(500);
+            const r = await 量重疊();
+            if (r.重疊.length) 死時重疊.push(`${名}: ${r.重疊.join('／')}`);
+        }
+        check('「YOU DIED」蓋幅出咗嚟之後，五個尺寸都冇 HUD 重疊',
+            死時重疊.length === 0, 死時重疊);
+        await page.setViewportSize({ width: 640, height: 380 });
+        await page.waitForTimeout(400);
+
         await page.keyboard.press('KeyR');
         await page.waitForTimeout(1500);
         const 重開 = await 門();

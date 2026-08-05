@@ -3816,3 +3816,39 @@ not show up in one measurement would be the same error as tuning on a bot's deat
 
 That is the eighth gate this session found green for a reason other than the one it appeared to
 test. The tell was the same every time.
+
+## ADR-160 — Elden Ring II: the death screen had never been laid out, and my detector cried wolf on it
+
+Status: accepted. Date: 2026-08-05.
+
+Two more silent-failure sweeps, both clean, then a real gap.
+
+**Sound names all resolve.** A `gameAudio.play("typo")` makes no noise and no error. Comparing every
+call site against the registry: ten names appear as literals and seven more arrive through the
+ternaries that pick per class (`cast`/`bowRelease`/`swordSwing` on release,
+`magicHit`/`arrowHit`/`bossHit` on impact) plus `enemyDeath`. All seventeen defined sounds are
+played and all played names are defined — nothing dead, nothing missing. Same result as the
+animation-clip sweep in ADR-158. Recorded so neither is re-derived.
+
+**But the five-viewport overlap check only ever ran during ward one.** Every layout measurement in
+this suite happened while the first two revenants were alive, so the "YOU DIED" panel — which every
+player sees, at the moment they least want a broken screen — had never been measured at any size.
+The suite already dies on purpose for ADR-156's restart check, so the measurement was nearly free:
+re-run the five viewports before pressing R.
+
+It reported an overlap at **all five sizes**, and it was **my detector, not the game**. The pair was
+`R Rise at the Golden Remnant × R` — a `<button>` and the `<kbd>R</kbd>` inside it. The leaf-only
+rule skips any element with children *except* BUTTON, deliberately, because buttons are tap targets
+worth measuring; the consequence is that a button and its own child always "overlap". Containment is
+now excluded on both sides.
+
+Narrowing a detector is where you can quietly blind it, so the fix was checked against the defect it
+was built for: restoring ADR-147's hard-coded `top: 45px` on `.player-hud` still produces
+`VEIL OF THE HOLLOW CROWN × ⚔ (45×8)` and `× OATHBOUND (97×5)` at 844×390 — and now also in the
+death state, which is new coverage. With the fix and clean CSS, the death screen is genuinely clear
+at all five sizes.
+
+That is the ninth "for the wrong reason" this session and the first that was **red** for the wrong
+reason rather than green. The correction is the same either way: run the mutation.
+
+`tests/hud-layout.mjs` is 33/33.
