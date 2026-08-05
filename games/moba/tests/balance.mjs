@@ -59,11 +59,14 @@ if (SEEDS < 24) {
     console.log(`得 ${SEEDS} 場，樣本太細，唔落判斷（要 24 場或以上）`);
     process.exit(0);
 }
-if (過火.length) {
-    console.log('超出 20–85% 嘅：', 過火.map(r => `${r.英雄} ${r.勝率}%`).join('、'));
-    process.exit(1);
-}
-console.log('六個英雄都喺 20–85% 之內');
+// 兩條檢查都要行完先退出。原本勝率條線一肥就即刻 process.exit(1)，
+// 而死亡頻率條線寫喺後面——即係一個同時整爛兩樣嘅改動，只會報第一樣，
+// 而第二樣睇落好似冇事。一條會遮住另一條嘅 gate，等於少咗一條。
+// （實測撞到：`hpPct < 0.32` 唔退嗰個突變，勝率報 duskblade 8% 就收工，
+//   而佢嘅死亡頻率 1.26 一樣過咗界，只係永遠冇機會講。）
+const 肥 = [];
+if (過火.length) 肥.push('超出 20–85% 嘅：' + 過火.map(r => `${r.英雄} ${r.勝率}%`).join('、'));
+else console.log('六個英雄都喺 20–85% 之內');
 
 // 死亡頻率：玩家真正感受到嘅「幾密㩒乜都冇反應」。sim.mjs T40 守單次鎖幾耐
 // 同一局幾長，但守唔到呢個——三局分唔清 0.87 同 0.90，而真變化係 0.79 對
@@ -75,7 +78,6 @@ console.log('六個英雄都喺 20–85% 之內');
 const 密 = 結果.map(r => r.每分鐘死);
 console.log(`每分鐘死：${Math.min(...密).toFixed(2)} – ${Math.max(...密).toFixed(2)}`);
 const 太密 = 結果.filter(r => r.每分鐘死 > 1.05);
-if (太密.length) {
-    console.log('死得太密（一分鐘過 1.05 次）：', 太密.map(r => `${r.英雄} ${r.每分鐘死}`).join('、'));
-    process.exit(1);
-}
+if (太密.length) 肥.push('死得太密（一分鐘過 1.05 次）：' + 太密.map(r => `${r.英雄} ${r.每分鐘死}`).join('、'));
+
+if (肥.length) { for (const m of 肥) console.log(m); process.exit(1); }

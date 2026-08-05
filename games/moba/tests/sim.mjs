@@ -1329,6 +1329,51 @@ function dodgeCase(px, speed) {
         { 窗口秒: +(窗 * TICK).toFixed(0), 出手次數: 出手, 平均隔幾耐: 隔 ?? '一次都冇' });
 }
 
+// ---------- T42：bot 真係會用晒成套技能同埋會買嘢 ----------
+//
+// `ai.js` 嘅突變掃描（14 個殺死 7 個）留低七個生還者，其中三個係同一個
+// 形狀：一條規則永遠唔成立，於是成類行為靜靜哋消失，而 256 條檢查全綠。
+//   - 「永遠唔買嘢」——bot 一件裝都唔買，冇嘢響。T31 釘死咗買嘢嘅合約
+//     （邊件、幾錢、順序），但**冇人問過對局入面究竟有冇買過**。
+//   - 「保命技血再少都唔用」、「奶隊友永遠唔奶」——技能存在、data 啱、
+//     T30 逐個試過施法，但 bot 由頭到尾唔會出。
+//
+// 三條規則各補一條 gate 就係三個特例。呢度問返個總嘅問題：**一場真對局
+// 打完，每個英雄嘅每個技能有冇出過手、每個 bot 有冇買到嘢。** 一條 gate
+// 就冚住整個「規則存在但永遠唔行」嘅類別，包括將來新加嘅技能。
+//
+// 門檻擺喺「有冇」唔擺喺「幾多」：一條入唔到嘅規則唔會慢慢跌，佢直接
+// 變零（T41 同一個道理）。四局實測最少嘅一格都有 5 次，離零好遠。
+{
+    const 用過 = new Map(), 買到 = new Map();
+    const 陣 = [CHAMPION_IDS.slice(0, 3), CHAMPION_IDS.slice(3, 6)];
+    for (const seed of [1, 2]) {
+        const sim = new Sim({ seed, lineups: { [TEAM.BLUE]: 陣[0], [TEAM.RED]: 陣[1] } });
+        const bots = sim.champions.map(x => createBot(sim, x));
+        let t = 0;
+        while (!sim.over && sim.time < GAME_MAX) {
+            updateBots(bots, TICK, t); sim.step(TICK); t++;
+            for (const ev of sim.drain()) {
+                if (ev.type !== 'cast') continue;
+                const c = sim.champions.find(x => x.id === ev.id);
+                if (!c) continue;
+                const k = `${c.champId}.${c.def.abilities[ev.index].key}`;
+                用過.set(k, (用過.get(k) ?? 0) + 1);
+            }
+        }
+        for (const c of sim.champions)
+            買到.set(c.champId, Math.max(買到.get(c.champId) ?? 0, c.items.length));
+    }
+    const 冇出過 = [];
+    for (const id of CHAMPION_IDS)
+        for (const ab of CHAMPIONS[id].abilities)
+            if (!用過.get(`${id}.${ab.key}`)) 冇出過.push(`${id}.${ab.key}`);
+    check('每個英雄嘅每個技能，bot 喺真對局入面都會出手', 冇出過.length === 0, 冇出過);
+    const 買少過三件 = [...買到].filter(([, n]) => n < 3);
+    check('每個 bot 都會買到至少三件裝', 買少過三件.length === 0,
+        Object.fromEntries(買到));
+}
+
 check('成份測試由頭到尾冇實體變成 NaN 座標', NaN汙染.length === 0, NaN汙染.slice(0, 5));
 
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);

@@ -3192,3 +3192,44 @@ were caught: the cast event carries `index`, not `slot`, and the hit event carri
 worse one: measuring reach as `d <= range` instead of the game's own `d <= range + target.r`
 dropped duskblade from 9.9% to 0.6% and nearly became the headline "the assassin never reaches
 anyone". Measure with the expression the system actually evaluates, not one that sounds equivalent.
+
+## ADR-143 — Mutation sweep of `ai.js`, and two ways a sweep lies to you
+
+Status: accepted. Date: 2026-08-05.
+
+ADR-142 found that `ai.js` had never been swept even though it drives four of the five champions
+on screen. Fourteen mutations — condition inversion and rule removal, the operators ADR-135 showed
+actually kill things — run against `sim.mjs`. **Seven killed, seven survived.**
+
+Three survivors were one shape: a rule that never holds, so a whole class of behaviour silently
+disappears while 256 checks stay green — bots never using survival abilities, never healing allies,
+never dashing. Patching three rules would be three special cases. **T42 asks the general question
+instead: after two real matches, has every ability of every champion actually been cast, and has
+every bot actually bought items.** One gate covers the class, including abilities not yet written.
+Verified failing on the survival-ability mutation (`ironward.W`, `ironward.R`, `ironhulk.W` never
+fire) and the ally-heal mutation (`dawnkeeper.W`). The threshold is "at all", not "enough": a rule
+that has become unreachable does not drift downward, it goes to zero.
+
+**A mutation that does not do what its label says makes a gate look weak when it is not.** The
+sweep reported "never buys anything" as a survivor. It was not a buy mutation — it disabled
+`wantsToShop()`, which since ADR-104's anywhere-shop only decides whether to walk home. Mutating
+the actual `shop()` body kills T42 immediately (0 items for all six) **and** T40, because an
+itemless match drags to 17 minutes. The label was wrong, not the suite.
+
+**A survivor is only a survivor against the detector you ran.** The sweep ran against `sim.mjs`
+alone. Two of the remaining survivors — never retreating below 32% HP, and engaging without
+consulting the power ratio at all — move deaths per minute from 0.79 to **1.21** and **1.47** at 24
+seeds, far outside `balance.mjs`'s 1.05 bound. Confirmed by running the slow suite against the
+retreat mutation rather than inferring it: duskblade lands at 8% win rate and 1.26 deaths a minute,
+and both lines fire. These behaviours were guarded all along, by a suite the sweep never invoked.
+
+That confirmation exposed a defect in `balance.mjs` itself, written one round earlier: the win-rate
+check called `process.exit(1)` before the deaths-per-minute check could run, so a change breaking
+both reported only the first and the second looked clean. **A gate that hides another gate is a
+gate missing.** Both now collect into one list and report together — verified on the same mutation,
+which now prints both lines.
+
+Still unguarded and accepted as such: sieging while defenders are present, and not disengaging at
+17% HP under commitment. Both make the bot play worse without changing any measured outcome outside
+noise, and no threshold for "the bot retreats often enough" survives the test ADR-142 sets — it
+would read plausibly in both directions.
