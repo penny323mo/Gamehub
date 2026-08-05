@@ -440,6 +440,31 @@ for (const [w, h, 名] of 尺寸) {
             .map((s) => `${s.url} (${s.x.toFixed(1)}, ${s.z.toFixed(1)})`);
         return { 候選: 候選.length, 穿得過 };
     });
+    // 走廊裝飾牆嘅內面，要就係你停低嗰個面。實測（未修之前）**二十八幅全部
+    // 喺 collider 面入面 1.36 米**——你望住幅牆行埋去，會喺牆入面成米幾先停。
+    // 同 ADR-165 一樣嘅成因：模型擺喺手寫嘅 `z = ±5.8`，collider 由
+    // `BRIDGE.halfWidth = 5.6` 生出。而家兩樣由同一組數出，條 gate 夾實佢哋。
+    const f = await page.evaluate(() => {
+        const api = window.__ER2;
+        if (!api) return null;
+        const T = api.map().wallT;
+        const 鋪咗 = api.scenery().filter((s) => s.run);
+        const 錯 = 鋪咗.map((s) => {
+            const 半 = s.run.面軸 === 'x' ? s.hx : s.hz;
+            const 內面 = (s.run.面軸 === 'x' ? s.x : s.z) + s.run.內 * 半;
+            const 應該 = s.run.面 + s.run.內 * T;
+            return { s, 差: +((內面 - 應該) * s.run.內).toFixed(2) };
+        // 符號：`內` 指住行人嗰邊，所以「伸咗入行人區」係**正數**。第一版寫
+        // 咗 `< -0.05`，突變（擺返舊嗰個 ±5.8）之下照綠——一條分唔清方向嘅
+        // gate 同冇 gate 一樣。
+        }).filter((r) => r.差 > 0.05)
+            .map((r) => `${r.s.url} (${r.s.x.toFixed(1)}, ${r.s.z.toFixed(1)}) 入咗 ${r.差}m`);
+        return { 鋪咗: 鋪咗.length, 錯 };
+    });
+    check('走廊裝飾牆嘅內面就係你停低嗰個面（唔會企到入牆裡面）',
+        f != null && f.鋪咗 > 0 && f.錯.length === 0,
+        f && { 鋪咗幾多塊: f.鋪咗, 伸入行人區: f.錯.slice(0, 6) });
+
     check('企喺空地中間、望落係障礙嘅嘢，一件都唔行得過',
         p != null && p.候選 > 0 && p.穿得過.length === 0,
         p && { 量咗幾件: p.候選, 穿得過: p.穿得過.slice(0, 8) });

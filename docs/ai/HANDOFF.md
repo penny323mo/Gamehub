@@ -4,13 +4,26 @@ Updated: 2026-08-05 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `main`
-Status: Elden Ring II 撞到嘅牆望唔見、霧門攔唔到嘢、支尺鏡像咗 (ADR-165)；**MOBA balance 仍然紅**
+Status: Elden Ring II 望到嘅牆同停低嗰個面差 1.36 米 (ADR-166)；**MOBA balance 仍然紅**
 
 ## Current objective
 
 Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoint.
 
 ## Completed
+
+### Elden Ring II：望到嗰幅牆嘅內面，唔係你停低嗰個面 (ADR-166)
+
+- 實測**二十八幅走廊裝飾牆全部**嘅內面喺 collider 面**入面 1.36 米**（兩塊 kaykit 1.58）——望住幅牆行
+  埋去，會喺牆入面成米幾先停。同上一輪一樣：模型擺喺手寫嘅 `z = ±5.8`，collider 由
+  `BRIDGE.halfWidth = 5.6` 出。覆蓋亦薄：橋長 24.65 米得 15.9 米有模型。
+- 而家一個 `鋪一排()`：讀走廊自己嗰組數，載一次模型量佢自己幾深，中心擺喺
+  `面 + 內 × (WALL_T − 深/2)`（內面啱啱好貼實 collider 面），鋪 `round(走廊長 / 模型闊)` 塊。四張
+  flatMap 座標表剷走，L 形捷徑嘅起訖點 hoist 做 `LINK_RUN`。**28 塊 → 60 塊，內面差 1.36 → 0.00。**
+- 代價量咗：同一個 32 秒窗口郁動秒 6.0 → 5.9，**低過 2%**，喺 run-to-run 噪音之內。
+- **條 gate 喺自己個突變之下照綠——今個 session 第六次**：`內` 指住行人嗰邊，所以「伸入行人區」係**正
+  數**，而我寫咗 `< -0.05`。改返正確方向之後突變報返 `wall.glb (-44.9, -5.8) 入咗 1.36m`，即係修之前
+  量到嗰個數——**呢個先係條 gate 分得開嘢嘅唯一證據**。
 
 ### Elden Ring II：撞到嘅牆望唔見，而霧門攔緊空氣 (ADR-165)
 
@@ -74,7 +87,7 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
 
 ## Verification
 
-- `hub.mjs` **96/96**；ER2 `hud-layout.mjs` **43/43**（五個尺寸版位、flood fill 連通性、牆望唔望得見、
+- `hub.mjs` **96/96**；ER2 `hud-layout.mjs` **44/44**（五個尺寸版位、flood fill 連通性、牆望唔望得見、
   景物實心、鏡頭遮擋、出生點、時鐘、弧線、boss 招式、路標、分區燈、死完重開）＋ `npm test` 3/3。約六
   分鐘。另有 `playthrough.mjs`（唔喺快速套件）。
 - **兩個方向都行過**：突變重現到 27% 隱形牆、0/83 網格、霧門兜得過、兩條庭院柱穿得過、0.9 秒出手間隔。
@@ -95,9 +108,8 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
 
 ## Exact next action
 
-1. **ER2 續攤**：裝飾 `wall.glb` 仲係擺喺 collider 面入面 1.8 米（ADR-165 尾段）——見到嗰幅牆嘅內面
-   唔係你停低嗰個位，應該由同一組數擺位同鋪。仲有：聖所除咗 boss 冇嘢；第二關係一級難度階梯
-   （ADR-157）。**ER2 未喺真機試過**——呢度得軟件光柵化三幀，手感量唔到。
+1. **ER2 續攤**：聖所除咗 boss 乜都冇——三個場入面最大嗰個，而佢係一條走廊加一隻嘢。第二關（三隻）
+   係一級難度階梯（ADR-157）。**ER2 未喺真機試過**——呢度得軟件光柵化三幀，手感量唔到。
 2. **MOBA 平衡專場**：ADR-146 之後 ironhulk 17%、差幅 45，成因已知（塔同小兵冷卻修好，環境傷害上升）。
    重新做基準，一次改一樣，每次 ≥24 局；ADR-131：ironward／longshot／ironhulk 係把尺。
 

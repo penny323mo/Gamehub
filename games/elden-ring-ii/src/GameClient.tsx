@@ -818,7 +818,8 @@ export default function GameClient() {
     // 嘅表，答案會愈嚟愈錯。
     type StaticBox = { x: number; y: number; z: number; hx: number; hy: number; hz: number; ry: number; tag?: string; body: CANNON.Body };
     const staticBoxes: StaticBox[] = [];
-    type SceneryBox = { url: string; x: number; z: number; hx: number; hz: number; top: number; bottom: number; solid: boolean };
+    type SceneryBox = { url: string; x: number; z: number; hx: number; hz: number; top: number; bottom: number;
+      solid: boolean; run?: { 面軸: "x" | "z"; 面: number; 內: 1 | -1 } };
     const sceneryBoxes: SceneryBox[] = [];
     const removeStaticBox = (body: CANNON.Body) => {
       physicsWorld.removeBody(body);
@@ -912,6 +913,14 @@ export default function GameClient() {
     // L 形捷徑：由庭院北口向北去到 z = -48，再向東入聖所西口。
     // 闊度同其他通道共用同一個數，唔另外寫。
     const LINK = { halfWidth: BRIDGE.halfWidth, x: COURT.cx, z: NORTH.cz };
+    // 四段牆嘅起訖點。擺 collider 同鋪裝飾模型用同一組數——`鋪一排()` 喺下面
+    // 讀返呢啲，所以「牆喺邊」同「牆望落喺邊」冇可能各講各嘅。
+    const LINK_RUN = {
+      西: LINK.x - LINK.halfWidth, 東: LINK.x + LINK.halfWidth,
+      北: LINK.z + LINK.halfWidth, 南: LINK.z - LINK.halfWidth,
+      起: COURT.cz - COURT.r + 1,                       // 由庭院北口開始
+      尾: -NORTH.r,                                     // 到聖所西口
+    };
     {
       // 一段軸對齊嘅牆，由 (x0,z0) 去到 (x1,z1)。用明確嘅起訖點，唔用
       // 「中心加半長」——第一版用對稱寫法，結果**兩段牆各自穿過對方條
@@ -925,10 +934,7 @@ export default function GameClient() {
           0,
           "wall",
         );
-      const 西 = LINK.x - LINK.halfWidth, 東 = LINK.x + LINK.halfWidth;
-      const 北 = LINK.z + LINK.halfWidth, 南 = LINK.z - LINK.halfWidth;
-      const 起 = COURT.cz - COURT.r + 1;                 // 由庭院北口開始
-      const 尾 = -NORTH.r;                               // 到聖所西口
+      const { 西, 東, 北, 南, 起, 尾 } = LINK_RUN;
       牆(西, 起, 西, 南);            // 直段西牆，去到拐角外側
       牆(東, 起, 東, 北);            // 直段東牆，喺拐角內側收口
       牆(西, 南, 尾, 南);            // 橫段南牆，由拐角外側向東
@@ -1427,6 +1433,53 @@ export default function GameClient() {
       return object;
     };
 
+    // 沿住一條走廊鋪一排牆，而且**貼返 collider 個面**。
+    //
+    // 實測：二十八幅走廊裝飾牆，每一幅嘅內面都喺 collider 面**入面 1.36 米**
+    // （兩塊 kaykit 係 1.58）——即係你望住幅牆行埋去，會喺牆入面成米幾先停。
+    // 成因同 ADR-165 嗰單一樣：模型擺喺手寫嘅 `z = ±5.8`，而 collider 由
+    // `BRIDGE.halfWidth = 5.6` 生出，兩個數各自寫。順帶：橋長 24.65 米但得
+    // 15.9 米有模型，其餘靠 ADR-165 嗰啲盒頂住。
+    //
+    // 而家一律由走廊自己嗰組數出：`面` 係 collider 中心線，`內` 指住行人嗰
+    // 邊，模型量到幾深就向外退幾多，鋪幾多塊由走廊長度除以模型自己嘅闊度。
+    // 改走廊闊度、改起訖點、換一個大細唔同嘅模型，三樣都唔使再改第二個數。
+    const 鋪一排 = async (
+      url: string, height: number, tint: string,
+      run: { 面軸: "x" | "z"; 面: number; 內: 1 | -1; 由: number; 到: number },
+    ) => {
+      const gltf = await loadModel(url);
+      configureModel(gltf.scene, height, tint, 0.48);
+      const bb = new THREE.Box3().setFromObject(gltf.scene);
+      const 深 = run.面軸 === "x" ? bb.max.x - bb.min.x : bb.max.z - bb.min.z;
+      const 闊 = run.面軸 === "x" ? bb.max.z - bb.min.z : bb.max.x - bb.min.x;
+      // 模型內面貼實 collider 內面：中心 = 面 + 內 × (WALL_T − 深/2)
+      const 面座標 = run.面 + run.內 * (WALL_T - 深 / 2);
+      const 長 = Math.abs(run.到 - run.由);
+      const 幾多 = Math.max(1, Math.round(長 / 闊));
+      const 步 = (run.到 - run.由) / 幾多;
+      const 出: THREE.Object3D[] = [];
+      for (let i = 0; i < 幾多; i += 1) {
+        const 沿 = run.由 + 步 * (i + 0.5);
+        const x = run.面軸 === "x" ? 面座標 : 沿;
+        const z = run.面軸 === "x" ? 沿 : 面座標;
+        const object = i === 0 ? gltf.scene : gltf.scene.clone(true);
+        object.position.set(x, 0, z);
+        object.rotation.y = run.面軸 === "x" ? Math.PI / 2 : 0;
+        scene.add(object);
+        const box = new THREE.Box3().setFromObject(object);
+        sceneryBoxes.push({
+          url: url.slice(url.lastIndexOf("/") + 1),
+          x: (box.min.x + box.max.x) / 2, z: (box.min.z + box.max.z) / 2,
+          hx: (box.max.x - box.min.x) / 2, hz: (box.max.z - box.min.z) / 2,
+          top: box.max.y, bottom: box.min.y, solid: false,
+          run: { 面軸: run.面軸, 面: run.面, 內: run.內 },
+        });
+        出.push(object);
+      }
+      return 出;
+    };
+
     const selectCharacterClass = (characterClass: CharacterClass) => {
       // 每個職業射程唔同，弧線要跟返佢自己嗰個（遠程唔會顯示，但一樣計啱）。
       const cfg = CLASS_CONFIG[characterClass];
@@ -1493,10 +1546,10 @@ export default function GameClient() {
         // 落中線，影出嚟先知嗰個模型係一整段有橋墩嘅高架橋——橋面喺人頭
         // 高度，玩家係由**橋底**穿過去，畫面讀落係一堵牆擋住條路。連通性
         // 個 gate 當時係綠嘅（物理上真係行得過），但綠嘅 gate 唔代表個景啱。
-        ...[-27.5, -34.5, -41.5, -46.5].flatMap((x) => [
-          addEnvironment("/assets/environment/wall.glb", 5.2, [x, 0, -5.8], 0, "#818986"),
-          addEnvironment("/assets/environment/wall.glb", 5.2, [x, 0, 5.8], 0, "#818986"),
-        ]),
+        ...[1, -1].map((內) => 鋪一排("/assets/environment/wall.glb", 5.2, "#818986", {
+          面軸: "z", 面: -內 * BRIDGE.halfWidth, 內: 內 as 1 | -1,
+          由: BRIDGE.x0, 到: BRIDGE.x1,
+        })),
         // 兩座塔擺喺庭院牆外做天際線，唔擺入場中——16 米高嘅塔放喺一個
         // 十幾米半徑嘅院入面，鏡頭一入去就係成幅牆。
         addEnvironment("/assets/environment/tower-square-top-roof-high-windows.glb", 16, [-62, 0, -24], 0, "#818b90"),
@@ -1511,10 +1564,10 @@ export default function GameClient() {
         addEnvironment("/assets/environment/tree-large.glb", 8.0, [-66, 0, 12], 1.1, "#56635b", 0.48, true),
 
         // ---------- 北面：通道同聖所 ----------
-        ...[-28, -35, -42].flatMap((z) => [
-          addEnvironment("/assets/environment/wall.glb", 5.2, [-5.8, 0, z], Math.PI / 2, "#7c8489"),
-          addEnvironment("/assets/environment/wall.glb", 5.2, [5.8, 0, z], Math.PI / 2, "#7c8489"),
-        ]),
+        ...[1, -1].map((內) => 鋪一排("/assets/environment/wall.glb", 5.2, "#7c8489", {
+          面軸: "x", 面: -內 * HALL.halfWidth, 內: 內 as 1 | -1,
+          由: HALL.z0, 到: HALL.z1,
+        })),
         addEnvironment("/assets/environment/tower-square.glb", 12, [-17, 0, -62], 0.3, "#79817f"),
         addEnvironment("/assets/environment/tower-square.glb", 12, [17, 0, -62], -0.3, "#79817f"),
         addEnvironment("/assets/environment/wall-doorway.glb", 7.4, [0, 0, -67], Math.PI, "#8b9290"),
@@ -1530,15 +1583,15 @@ export default function GameClient() {
         // ---------- 庭院 → 聖所 嘅 L 形捷徑 ----------
         // 走廊兩邊行牆，拐角擺座塔做地標——一條淨係得兩幅牆嘅通道，行到中間
         // 唔知自己去緊邊。
-        ...[-24, -31, -38].flatMap((z) => [
-          addEnvironment("/assets/environment/wall.glb", 5.2, [-65.8, 0, z], Math.PI / 2, "#79827f"),
-          addEnvironment("/assets/environment/wall.glb", 5.2, [-54.2, 0, z], Math.PI / 2, "#79827f"),
-        ]),
+        鋪一排("/assets/environment/wall.glb", 5.2, "#79827f",
+          { 面軸: "x", 面: LINK_RUN.西, 內: 1, 由: LINK_RUN.起, 到: LINK_RUN.南 }),
+        鋪一排("/assets/environment/wall.glb", 5.2, "#79827f",
+          { 面軸: "x", 面: LINK_RUN.東, 內: -1, 由: LINK_RUN.起, 到: LINK_RUN.北 }),
         addEnvironment("/assets/environment/wall-corner-half-tower.glb", 8.4, [-66, 0, -54], 0, "#7d8582"),
-        ...[-48, -40, -32].flatMap((x) => [
-          addEnvironment("/assets/environment/wall.glb", 5.2, [x, 0, -53.8], 0, "#79827f"),
-          addEnvironment("/assets/environment/wall.glb", 5.2, [x, 0, -42.2], 0, "#79827f"),
-        ]),
+        鋪一排("/assets/environment/wall.glb", 5.2, "#79827f",
+          { 面軸: "z", 面: LINK_RUN.南, 內: 1, 由: LINK_RUN.西, 到: LINK_RUN.尾 }),
+        鋪一排("/assets/environment/wall.glb", 5.2, "#79827f",
+          { 面軸: "z", 面: LINK_RUN.北, 內: -1, 由: LINK_RUN.東, 到: LINK_RUN.尾 }),
         addEnvironment("/assets/environment/kaykit-dungeon/torch_mounted.gltf.glb", 1.3, [-54.6, 2.5, -30], -Math.PI / 2, "#ffffff", 0),
         addEnvironment("/assets/environment/kaykit-dungeon/torch_mounted.gltf.glb", 1.3, [-44, 2.5, -42.6], Math.PI, "#ffffff", 0),
         addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 1.6, [-58, 0, -46], 1.4, "#8a8f91", 0.08, true),
@@ -1872,7 +1925,7 @@ export default function GameClient() {
     (window as unknown as { __ER2?: unknown }).__ER2 = {
       // 只放 mount.dataset 冇嘅嘢。位置、敵人數、鏡頭角度嗰啲一早已經喺
       // dataset 度，喺呢度再開一份就係同一件事有兩個出處。
-      map: () => ({ arenaR: ARENA.r, court: { ...COURT }, bridge: { ...BRIDGE }, north: { ...NORTH }, hall: { ...HALL }, link: { ...LINK } }),
+      map: () => ({ arenaR: ARENA.r, court: { ...COURT }, bridge: { ...BRIDGE }, north: { ...NORTH }, hall: { ...HALL }, link: { ...LINK }, wallT: WALL_T }),
       walls: () => staticBoxes.map(({ body: _b, ...rest }) => rest),
       scenery: () => sceneryBoxes.map((b) => ({ ...b })),
       // 由真正畫緊嗰個 InstancedMesh 度拆返出嚟，唔係抄一份來源數據——

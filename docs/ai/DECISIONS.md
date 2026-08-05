@@ -4060,3 +4060,32 @@ gap.
 Not done, and stated rather than quietly dropped: the decorative `wall.glb` copies still sit 1.8 m
 inside the collider plane they decorate, so their visible inner face is not where you stop. The new
 boxes make that overlap visible instead of invisible, which is better but not right.
+
+## ADR-166 — Elden Ring II: the wall you see and the wall you stop at were a metre and a third apart
+
+Date: 2026-08-05. Status: accepted.
+
+ADR-165 ended by naming this and not fixing it, so here it is measured: **all 28 corridor wall
+models had their inner face 1.36 m inside the collider plane** (two kaykit pieces, 1.58 m). You walk
+at a wall, and you stop a metre and a third after entering it. Same cause as the round before —
+the models sat at hand-written `z = ±5.8` while the colliders came from `BRIDGE.halfWidth = 5.6`.
+Coverage was thin too: 15.9 m of models along a 24.65 m bridge.
+
+Both now come from the corridor's own numbers. `鋪一排()` takes a face plane, which side the player
+is on, and a run; it loads the model once, measures it, sets the centre to `面 + 內·(WALL_T − 深/2)`
+so the model's inner face lands exactly on the collider face, and tiles `round(run / model width)`
+copies. Changing a corridor's width, its endpoints, or the model itself now needs no second number.
+The four flatMap coordinate lists are gone; the L-shortcut's start/end points were hoisted into
+`LINK_RUN` so the colliders and the decoration read the same six values. 28 models → 60, inner-face
+error 1.36 m → 0.00 m.
+
+Cost of doubling the models: motion-seconds over a fixed 32 s window went 6.0 → 5.9, under 2 % and
+inside run-to-run noise. The clones share geometry and material, so this is draw calls, not geometry.
+
+**The gate was green under its own mutation** — the sixth time this session. `內` points at the
+walkable side, so a wall intruding into the corridor gives a *positive* projected difference; I
+filtered on `< -0.05`. Putting the models back at ±5.8 left it passing. With the sign corrected the
+mutation reports `wall.glb (-44.9, -5.8) 入咗 1.36m` — the number measured before the fix, which is
+the only evidence that the gate resolves the thing it is named after.
+
+`hud-layout.mjs` is 44/44.
