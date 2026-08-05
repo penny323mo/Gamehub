@@ -1,4 +1,12 @@
 :root {
+  /* 右上角嗰疊嘢：兩粒工具掣，下面係目標面板。三個數本來各寫各嘅
+     （掣 top: 82px、高 32px，面板 top: 103px），中間得 21px 淨——即係
+     淨係喺掣唔高過 21px 嘅時候先啱，而佢哋一直係 32px，早就疊住個面板
+     個盒，只係啱好未撞到入面嘅字。掣加大到 44px 之後就真係撞埋。
+     而家面板個 top 由掣嗰兩個數計出嚟，改邊個都唔會再撞。 */
+  --utility-top: 82px;
+  --utility-size: 44px;
+  --utility-gap: 12px;
   --font-cormorant: "Cormorant Garamond", Georgia, serif;
   --font-geist-mono: "SFMono-Regular", Consolas, monospace;
   --ink: #050608;
@@ -99,17 +107,20 @@ button {
 .utility-controls {
   position: absolute;
   z-index: 6;
-  top: 82px;
+  top: var(--utility-top);
   right: 30px;
   display: flex;
   gap: 8px;
 }
 
+/* 32px 係一個睇落啱、但撳落唔啱嘅數。呢兩粒（♪ 靜音、© 授權）同 credits
+   嘅關閉掣，五個尺寸全部 32×32——低過呢個專案自己喺 Hub 度用開嗰條 44px
+   （ADR-133）。細螢幕上面仲要 ♪ 同關閉掣會撞埋一齊。 */
 .utility-controls button,
 .credits-close {
   display: grid;
-  width: 32px;
-  height: 32px;
+  width: var(--utility-size);
+  height: var(--utility-size);
   place-items: center;
   border: 1px solid rgba(208, 193, 161, 0.28);
   border-radius: 50%;
@@ -575,7 +586,7 @@ kbd {
 .objective-panel {
   position: absolute;
   z-index: 4;
-  top: 103px;
+  top: calc(var(--utility-top) + var(--utility-size) + var(--utility-gap));
   right: 30px;
   min-width: 210px;
   padding: 12px 15px;
@@ -727,14 +738,12 @@ kbd {
     padding: 16px;
   }
 
-  .utility-controls {
-    top: 62px;
-    right: 16px;
+  :root {
+    --utility-top: 62px;
   }
 
-  .utility-controls button {
-    width: 30px;
-    height: 30px;
+  .utility-controls {
+    right: 16px;
   }
 
   .credits-card {

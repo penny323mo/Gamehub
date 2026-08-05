@@ -3960,3 +3960,39 @@ being comfortable on a desktop says nothing about a phone — which is exactly h
 Removing the `min-height` reproduces 41/41/30/31/41.
 
 `tests/hud-layout.mjs` is 38/38.
+
+## ADR-164 — Elden Ring II: the last two unmeasured screens, and a stack held together by luck
+
+Status: accepted. Date: 2026-08-05.
+
+Continuing the sweep of states nothing had ever laid out: the two utility buttons (♪ mute, ©
+credits) and the credits panel itself. Both are reachable without playing a second of the game, and
+neither had been measured.
+
+**The buttons are 32×32 at every viewport** — below the 44 px line this project already applies to
+the Hub (ADR-133), and the same class of defect as the 30 px start button in ADR-163. The credits
+close button shares the rule and was equally small. All three are 44 px now.
+
+**The credits overlaps were my detector again — third time.** It reported pairs like
+`Oathbound. × Credits & Licenses`: the title screen showing through the modal. A modal is *supposed*
+to cover what is behind it, so when one is open only its subtree is measured.
+
+Enlarging the buttons then broke the in-game HUD at three viewports: `♪ × FIRST WARD · REVENANT
+LINE (44×3)`. The right-hand column was three unrelated constants — buttons at `top: 82px`, 32 px
+tall, objective panel at `top: 103px` — leaving 21 px of clearance for a 32 px element. **They were
+already overlapping before I touched anything**; the buttons covered the panel's box and merely
+missed its text, so nothing complained. Twelve more pixels turned a latent collision into a visible
+one.
+
+The panel's offset is now `calc(var(--utility-top) + var(--utility-size) + var(--utility-gap))`, so
+the stack cannot drift again, and the narrow-viewport media query overrides `--utility-top` alone
+instead of restating the sizes — which is what had been forcing 30 px on the two smallest screens
+even after the base rule was fixed. Same remedy as `.player-hud` in ADR-147: stop writing the second
+number.
+
+Worth stating plainly: this round's defect was **created by this round's fix**, and only caught
+because the whole suite reruns. A change that satisfies the check you just wrote is not finished
+until everything else still passes.
+
+`tests/hud-layout.mjs` is 40/40; setting `--utility-size` back to 32 px reproduces the failure at
+all five sizes.

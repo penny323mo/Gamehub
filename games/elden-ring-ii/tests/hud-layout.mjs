@@ -76,7 +76,12 @@ await page.waitForTimeout(1500);
 // 亦跳過鋪滿成個畫面嘅背景（畫布、暗角、雜訊）——佢哋本來就喺所有嘢下面。
 const 量重疊 = () => page.evaluate(() => {
     const vis = [];
-    document.querySelectorAll('body *').forEach((el) => {
+    // 有 modal 開住嘅時候，只量 modal 入面嘅嘢。一個蓋幅本來就係要遮住後面
+    // 嗰版——量埋後面就會報「credits 標題 × 選角畫面嘅字」，而嗰個唔係缺陷，
+    // 係蓋幅嘅定義。（呢個係我支尺第三次報假陽性。）
+    const modal = document.querySelector('.credits-card');
+    const 範圍 = modal ? modal.querySelectorAll('*') : document.querySelectorAll('body *');
+    範圍.forEach((el) => {
         // 純裝飾嘅嘢唔算：`.sigil` 個徽記係 `<div aria-hidden><i/><b/><em/></div>`，
         // 三塊絕對定位嘅形狀**特登**疊喺一齊砌個圖案。標題畫面一量就報咗
         // 幾十對，全部係佢哋——同暗角、雜訊一樣，係背景唔係內容。
@@ -160,6 +165,48 @@ const 尺寸 = [
     }
     check('三個職業掣同入場掣，五個尺寸都夠 44px 而且中心點撳得中自己',
         太細.length === 0, 太細.slice(0, 6));
+}
+
+// ---------- Credits 蓋幅同兩粒工具掣 ----------
+//
+// 標題畫面右上角嗰兩粒（♪ 靜音、© credits）同 credits 蓋幅本身，一樣係唔
+// 使打機就去到嘅畫面，一樣由頭到尾冇量過。© 蓋幅仲要係授權聲明——一個
+// fan-made 專案入面，佢係唯一一個講清楚啲資產邊度嚟嘅地方。
+{
+    const 蓋幅重疊 = [], 掣太細 = [];
+    for (const [w, h, 名] of 尺寸) {
+        await page.setViewportSize({ width: w, height: h });
+        await page.waitForTimeout(400);
+        const 工具 = await page.evaluate(() => [...document.querySelectorAll('.utility-controls button')]
+            .map((el) => {
+                const r = el.getBoundingClientRect();
+                const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+                return { t: (el.innerText || '').trim(), w: Math.round(r.width), h: Math.round(r.height),
+                    撳得中: !!hit && (el === hit || el.contains(hit)) };
+            }));
+        for (const b of 工具) if (b.w < 44 || b.h < 44 || !b.撳得中) 掣太細.push(`${名}: ${JSON.stringify(b)}`);
+        // 打開 credits，量完再閂返
+        const 開 = await page.evaluate(() => {
+            const el = [...document.querySelectorAll('.utility-controls button')]
+                .find((b) => (b.innerText || '').includes('©'));
+            if (!el) return false;
+            el.click();
+            return true;
+        });
+        if (!開) { 蓋幅重疊.push(`${名}: 揾唔到 © 掣`); continue; }
+        await page.waitForTimeout(400);
+        const r = await 量重疊();
+        if (r.重疊.length) 蓋幅重疊.push(`${名}: ${r.重疊.slice(0, 3).join('／')}`);
+        await page.keyboard.press('Escape');
+        await page.evaluate(() => {
+            const x = [...document.querySelectorAll('button')].find((b) => b.className.includes('credits-close'));
+            if (x) x.click();
+        });
+        await page.waitForTimeout(300);
+    }
+    check('♪ 同 © 兩粒工具掣，五個尺寸都夠 44px 而且撳得中自己',
+        掣太細.length === 0, 掣太細.slice(0, 6));
+    check('Credits 蓋幅打開之後，五個尺寸都冇重疊', 蓋幅重疊.length === 0, 蓋幅重疊.slice(0, 5));
 }
 
 await page.setViewportSize({ width: 1280, height: 800 });
