@@ -552,6 +552,94 @@ for (const [w, h, 名] of 尺寸) {
         los != null && los.通唔到.length === 0, los && { 通唔到: los.通唔到 });
 }
 
+// ---------- 鏡頭同搖桿（Penny 落手玩之後報嘅三樣） ----------
+//
+// 一、**一入去視覺咁近**：出生點寫死 `z = 17`，離南面環牆得 5.35 米，而鏡頭
+//     要企喺玩家後面 8.3 米 + 牆 0.42 + 遮擋 pad 1.35 = 10.07 米。結果一開波
+//     鏡頭就撞牆，跌到遮擋邏輯嘅 2.4 米下限——**實測四個尺寸 2.73–2.84 米，
+//     設計距離嘅三分一**。而家出生點由 `ARENA_RADIUS − CAMERA_CLEARANCE` 度
+//     出，唔再手寫。
+// 二、**冇 zoom**：深淵之橋有 `view.zoomBy`（0.7–1.7，滾輪 + 雙指），ER2 冇。
+// 三、**控桿太左**：釘死喺左下角，打橫嗰陣中心喺畫面 8.3%／10.5% 位置。而家
+//     照深淵之橋做浮動——你撳邊度就喺邊度出。
+{
+    for (const [w, h, 名] of 尺寸) {
+        await page.setViewportSize({ width: w, height: h });
+        await page.waitForTimeout(900);
+        const r = await page.evaluate(() => {
+            const el = document.querySelector('[data-camera-position]');
+            const [cx, cz] = el.dataset.cameraPosition.split(',').map(Number);
+            const [px, pz] = el.dataset.playerPosition.split(',').map(Number);
+            return { 距離: +Math.hypot(cx - px, cz - pz).toFixed(2), pz };
+        });
+        // 條線唔係我揀嘅數，係遊戲自己個 `CAMERA_BACK`：入場第一眼唔可以連
+        // 設計距離嘅七成都冇。
+        check(`${名} ${w}×${h}：入場第一眼鏡頭唔會撞埋牆`,
+            r.距離 >= 8.3 * 0.7, { 鏡頭距離: r.距離, 出生點z: r.pz });
+    }
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.waitForTimeout(600);
+
+    const z = await page.evaluate(() => {
+        const api = window.__ER2;
+        if (!api || !api.zoomBy) return null;
+        const 起 = api.zoom();
+        const 拉遠 = api.zoomBy(1.09 ** 12);      // 撳到頂
+        const 拉近 = api.zoomBy((1 / 1.09) ** 30); // 撳到底
+        return { 起, 拉遠, 拉近 };
+    });
+    check('有得縮放，而且夾住上下限（同深淵之橋一樣 0.7–1.7）',
+        z != null && z.起 === 1 && z.拉遠 === 1.7 && z.拉近 === 0.7, z);
+
+    // 搖桿要喺一個真係「摸得到」嘅 page 度量：手機 CSS 收喺
+    // `@media (max-width: 760px), (pointer: coarse)` 入面，而套件本身嗰個
+    // page 冇 touch，所以 `.touch-stick` 連 `position: fixed` 都冇——第一版
+    // 就係咁報「搖桿出咗喺 (0, 0)」，而個缺陷喺我支尺度唔喺遊戲度。
+    const 手機 = await browser.newContext({
+        viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true,
+    });
+    const p3 = await 手機.newPage();
+    await p3.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
+    await p3.waitForTimeout(1200);
+    await p3.getByText('OATHBOUND', { exact: false }).first().click();
+    await p3.getByText('ENTER THE VEIL').first().click();
+    await p3.waitForTimeout(4000);
+    const 掣位 = await p3.evaluate(() => {
+        const zone = document.querySelector('.touch-zone');
+        if (!zone) return null;
+        const z = zone.getBoundingClientRect();
+        return [...document.querySelectorAll('.touch-actions button')].map((b) => {
+            const r = b.getBoundingClientRect();
+            return { 掣: b.innerText.trim().slice(0, 6),
+                喺搖桿區入面: r.left < z.right && r.right > z.left && r.top < z.bottom && r.bottom > z.top };
+        });
+    });
+    check('動作掣唔可以跌入搖桿區（撳攻擊唔應該開咗搖桿）',
+        掣位 != null && 掣位.length === 3 && 掣位.every((b) => !b.喺搖桿區入面), 掣位);
+    const st = await p3.evaluate(async () => {
+        const out = [];
+        for (const [x, y] of [[101, 293], [253, 234], [380, 332]]) {
+            const zone = document.querySelector('.touch-zone');
+            if (!zone) return { 冇區: true };
+            zone.dispatchEvent(new PointerEvent('pointerdown',
+                { pointerId: 7, pointerType: 'touch', clientX: x, clientY: y, bubbles: true }));
+            await new Promise((r) => setTimeout(r, 90));
+            const el = document.querySelector('.touch-stick');
+            const b = el ? el.getBoundingClientRect() : null;
+            out.push(b ? { 撳: [x, y], 差: [Math.round(b.left + b.width / 2 - x), Math.round(b.top + b.height / 2 - y)] } : { 撳: [x, y], 冇出: true });
+            zone.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, pointerType: 'touch', bubbles: true }));
+            await new Promise((r) => setTimeout(r, 60));
+        }
+        const 收返 = !document.querySelector('.touch-stick');
+        return { out, 收返 };
+    });
+    check('搖桿撳邊出邊（唔再釘死喺左下角），放手收返',
+        st != null && !st.冇區 && st.收返 &&
+        st.out.every((o) => !o.冇出 && Math.abs(o.差[0]) <= 2 && Math.abs(o.差[1]) <= 2),
+        st);
+    await 手機.close();
+}
+
 // ---------- 敵人隔住掩護打唔打得中 ----------
 //
 // ADR-172 加咗視線落**玩家**嗰邊，但敵人出手嗰兩個判定冇跟。實測：射程之內、

@@ -22,6 +22,18 @@ export type AddBox = (
 export const ARENA_RADIUS = 22.35;
 export const BOSS_SPAWN_Z = -48;
 
+// 玩家出生點。
+//
+// 本來寫死 `z = 17`，即係離南面環牆得 5.35 米——而鏡頭要企喺玩家後面 8.3 米，
+// 加埋牆嘅 0.42 半厚同 1.35 遮擋 pad 就係 10.07 米。結果鏡頭一開波就撞牆，
+// 被夾到遮擋邏輯嘅 2.4 米下限：**實測四個尺寸入場第一眼都係 2.73–2.84 米，
+// 設計距離嘅三分一**（Penny 落手玩第一句就係「一入去視覺咁近」）。
+//
+// 所以呢個數唔應該係手寫嘅：佢係「場邊減鏡頭要嘅位」。
+export const CAMERA_BACK = 8.3;
+export const CAMERA_CLEARANCE = CAMERA_BACK + 0.42 + 1.35;
+export const PLAYER_SPAWN_Z = Math.round((ARENA_RADIUS - CAMERA_CLEARANCE) * 10) / 10;
+
 // 霧門：清晒三關之前攔住 boss 場嘅暫時牆。
 export const FOG_GATE = {
   pos: [0, 2.5, -ARENA_RADIUS + 0.6] as [number, number, number],

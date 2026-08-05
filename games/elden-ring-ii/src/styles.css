@@ -843,7 +843,10 @@ kbd {
     bottom: 72px;
     left: 20px;
     display: flex;
-    justify-content: space-between;
+    /* 搖桿浮動之後就唔再喺 flex flow 入面（`position: fixed`），所以
+       `space-between` 會將剩返嗰組動作掣推去**左邊**——實測 667×375 同
+       375×667 兩個尺寸，三粒掣全部跌晒入搖桿區入面。而家明講擺右邊。 */
+    justify-content: flex-end;
     align-items: flex-end;
     pointer-events: none;
   }
@@ -860,8 +863,22 @@ kbd {
     pointer-events: none;
   }
 
+  /* 搖桿區：畫面左邊嗰半（右邊留返畀轉鏡頭同技能掣，唔會撞）。
+     照深淵之橋做——你撳邊度搖桿就喺邊度出，所以冇「太左」呢回事。 */
+  .touch-zone {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 55vw;
+    height: 62vh;
+    pointer-events: auto;
+    touch-action: none;
+    z-index: 5;
+  }
+
   .touch-stick {
-    position: relative;
+    position: fixed;
+    margin: -63px 0 0 -63px;
     width: 126px;
     height: 126px;
     border: 1px solid rgba(205, 197, 182, 0.2);
@@ -979,6 +996,7 @@ kbd {
   }
 
   .touch-stick {
+    margin: -50px 0 0 -50px;
     width: 100px;
     height: 100px;
   }

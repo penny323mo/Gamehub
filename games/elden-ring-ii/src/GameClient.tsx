@@ -10,7 +10,7 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { GameAudio } from "./audio";
-import { ARENA_RADIUS, BOSS_SPAWN_Z, FOG_GATE, buildMap } from "./map";
+import { ARENA_RADIUS, BOSS_SPAWN_Z, CAMERA_BACK, FOG_GATE, PLAYER_SPAWN_Z, buildMap } from "./map";
 import { MINION_ATTACK_RANGE, MINION_SPEED, canLand, chaseDirection, makeBlocked, makeLineOfSight } from "./chase";
 import { hasSupabaseFoundation, recordCompletedRun } from "./progress";
 
@@ -162,7 +162,7 @@ export const shouldShowWaypoint = (distance: number | null, alive: boolean) =>
 // 地圖嘅骨架數（場邊半徑、boss 出生點、霧門）全部住喺 `map.ts`。呢度轉出去，
 // 令現有嘅 import 唔使改。擺喺 module 層係因為畫霧門喺檔案上半段而個 collider
 // 喺下半段——同 ADR-151 嗰個 `minionRadius` TDZ 一模一樣嘅坑。
-export { ARENA_RADIUS, BOSS_SPAWN_Z, FOG_GATE } from "./map";
+export { ARENA_RADIUS, BOSS_SPAWN_Z, FOG_GATE, PLAYER_SPAWN_Z } from "./map";
 
 // Boss 埋到幾近就唔再行、開始出手。
 export const BOSS_REACH = 3.15;
@@ -232,6 +232,10 @@ export default function GameClient() {
   const selectedClassRef = useRef<CharacterClass>("warrior");
   const stickRef = useRef<HTMLDivElement>(null);
   const stickPointer = useRef<number | null>(null);
+  const [stickOrigin, setStickOrigin] = useState<{ x: number; y: number } | null>(null);
+  // `updateStick` 係 pointermove 嗰下即刻行，而 React state 要下一個 render
+  // 先睇得到——所以中心點要有個 ref，否則第一下拖會攞到 null。
+  const stickOriginRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     startedRef.current = started;
@@ -250,6 +254,15 @@ export default function GameClient() {
     let cameraYaw = 0;
     let cameraShake = 0;
     let cameraDragging = false;
+    // 縮放。抄深淵之橋嗰條線（`view.zoomBy`）：夾喺 0.7–1.7，滾輪同雙指都用得。
+    // 拉遠係「我睇下周圍有咩」，拉近係「我而家要打得準」——一個第三身遊戲冇呢
+    // 個掣，玩家連自己企喺個場邊個位都判斷唔到。
+    let camZoom = 1;
+    const zoomBy = (factor: number) => {
+      camZoom = Math.min(1.7, Math.max(0.7, camZoom * factor));
+    };
+    const pinchPointers = new Map<number, { x: number; y: number }>();
+    let pinchSpan = 0;
     let cameraPointerId: number | null = null;
     let lastCameraPointerX = 0;
     const gameAudio = new GameAudio();
@@ -795,7 +808,7 @@ export default function GameClient() {
       material: actorPhysicsMaterial,
       linearDamping: 0.78,
       fixedRotation: true,
-      position: new CANNON.Vec3(0, playerGroundOffset, 17),
+      position: new CANNON.Vec3(0, playerGroundOffset, PLAYER_SPAWN_Z),
     });
     addCapsuleShapes(playerBody, playerRadius, playerSegment);
     const bossBody = new CANNON.Body({
@@ -1540,8 +1553,8 @@ export default function GameClient() {
 
       configureModel(skeletonGltf.scene, 1.88, "#afb8b0", 0.08);
       const minionSpawns: Array<{ wave: 0 | 1 | 2; spawn: [number, number] }> = [
-        { wave: 0, spawn: [-4.2, 8.2] },
-        { wave: 0, spawn: [4.2, 7.2] },
+        { wave: 0, spawn: [-4.2, 3.2] },
+        { wave: 0, spawn: [4.2, 2.2] },
         { wave: 1, spawn: [-5.1, -2.7] },
         { wave: 1, spawn: [0, -5.3] },
         { wave: 1, spawn: [5.1, -2.7] },
@@ -1656,7 +1669,7 @@ export default function GameClient() {
       player.invincibleUntil = 0;
       player.knockbackUntil = 0;
       playerRoot.position.set(0, 0, 17);
-      playerBody.position.set(0, playerGroundOffset, 17);
+      playerBody.position.set(0, playerGroundOffset, PLAYER_SPAWN_Z);
       playerBody.velocity.setZero();
       playerBody.angularVelocity.setZero();
       playerBody.wakeUp();
@@ -1759,6 +1772,10 @@ export default function GameClient() {
     };
     const onKeyUp = (event: KeyboardEvent) => keys.delete(event.code);
     const onPointerDown = (event: PointerEvent) => {
+      if (event.pointerType !== "mouse") {
+        pinchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (pinchPointers.size === 2) pinchSpan = 0;
+      }
       renderer.domElement.focus();
       beginAudio();
       const canvasBounds = renderer.domElement.getBoundingClientRect();
@@ -1781,6 +1798,9 @@ export default function GameClient() {
       }
     };
     const onPointerMove = (event: PointerEvent) => {
+      onPinchMove(event);
+      // 兩隻手指喺度就係縮放，唔係轉鏡頭——否則一捏就連帶掃咗個 yaw。
+      if (pinchPointers.size >= 2) return;
       if (!cameraDragging || cameraPointerId !== event.pointerId) return;
       const horizontalDelta =
         event.pointerType === "mouse" ? event.movementX : event.clientX - lastCameraPointerX;
@@ -1789,6 +1809,8 @@ export default function GameClient() {
       event.preventDefault();
     };
     const onPointerUp = (event: PointerEvent) => {
+      pinchPointers.delete(event.pointerId);
+      if (pinchPointers.size < 2) pinchSpan = 0;
       if (cameraPointerId !== event.pointerId) return;
       cameraDragging = false;
       cameraPointerId = null;
@@ -1809,6 +1831,21 @@ export default function GameClient() {
     window.addEventListener("keydown", onKeyDown, { passive: false });
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("resize", onResize);
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      zoomBy(event.deltaY > 0 ? 1.09 : 1 / 1.09);
+    };
+    const onPinchMove = (event: PointerEvent) => {
+      if (!pinchPointers.has(event.pointerId)) return;
+      pinchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (pinchPointers.size !== 2) return;
+      const [a, b] = [...pinchPointers.values()];
+      const span = Math.hypot(a.x - b.x, a.y - b.y);
+      // 同深淵之橋一樣：6 px 死區，否則手指微震都會不停縮放。
+      if (pinchSpan && Math.abs(span - pinchSpan) > 6) zoomBy(pinchSpan / span);
+      pinchSpan = span;
+    };
+    renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointermove", onPointerMove);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
@@ -1881,6 +1918,8 @@ export default function GameClient() {
         canLand({ x: from[0], z: from[1] }, { x: to[0], z: to[1] }, reach,
           makeLineOfSight(staticBoxes)),
       射程: () => ({ 雜兵: 2.35, boss一階: 3.9, boss二階: 4.5, 撲擊: 5.2 }),
+      zoom: () => camZoom,
+      zoomBy: (f: number) => { zoomBy(f); return camZoom; },
       // 由 A 追去 B，行一次真物理，唔畫任何嘢。
       //
       // 「雜兵追唔追得到你」呢條問題之前答唔到：唯一嘅方法係喺瀏覽器度企定
@@ -2580,7 +2619,7 @@ export default function GameClient() {
       }
 
       const cameraTarget = targetRoot(nearestEnemy());
-      const cameraDistance = locked && cameraTarget ? 9.6 : 8.3;
+      const cameraDistance = (locked && cameraTarget ? CAMERA_BACK + 1.3 : CAMERA_BACK) * camZoom;
       const desiredYaw = locked
         ? Math.atan2(
             (cameraTarget?.position.x ?? playerRoot.position.x) - playerRoot.position.x,
@@ -2624,9 +2663,17 @@ export default function GameClient() {
         }
         if (ok && t0 < allowed) allowed = Math.max(2.4, t0);
       }
+      // 鏡頭俾牆逼近咗就要**升高兼俯視**，唔係跟住縮埋落地。
+      //
+      // 本來高度係 `2.2 + (allowed / cameraDistance) * 2.6`，即係愈近愈矮——
+      // 兩樣一齊縮，角色就會塞爆成幅畫。實測開波第一格：出生點 (0, 17) 離南
+      // 面環牆得 5.35 米，而鏡頭要 8.3 + 1.77 米先企得穩，所以 `allowed` 直接
+      // 跌到下限 **2.4 米**（實測四個尺寸 2.73–2.84）——**入場第一眼就係設計
+      // 距離嘅三分一**。愈逼近就愈高，最少維持到望得到自己企喺邊。
+      const 逼近 = 1 - allowed / cameraDistance;
       targetCamera.set(
         playerRoot.position.x + camDir.x * allowed,
-        2.2 + (allowed / cameraDistance) * 2.6,
+        2.2 + (allowed / cameraDistance) * 2.6 + 逼近 * 3.4,
         playerRoot.position.z + camDir.z * allowed,
       );
       camera.position.lerp(targetCamera, 1 - Math.pow(0.001, delta));
@@ -2695,6 +2742,7 @@ export default function GameClient() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("resize", onResize);
+      renderer.domElement.removeEventListener("wheel", onWheel);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
@@ -2727,11 +2775,13 @@ export default function GameClient() {
   };
 
   const updateStick = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (stickPointer.current !== event.pointerId || !stickRef.current) return;
-    const box = stickRef.current.getBoundingClientRect();
-    const radius = box.width * 0.36;
-    const x = clamp((event.clientX - (box.left + box.width / 2)) / radius, -1, 1);
-    const y = clamp((event.clientY - (box.top + box.height / 2)) / radius, -1, 1);
+    if (stickPointer.current !== event.pointerId) return;
+    const 中 = stickOriginRef.current;
+    if (!中) return;
+    // 半徑同深淵之橋一樣行 52px：一個大姆指掃得舒服嘅距離。
+    const radius = 52;
+    const x = clamp((event.clientX - 中.x) / radius, -1, 1);
+    const y = clamp((event.clientY - 中.y) / radius, -1, 1);
     const length = Math.hypot(x, y);
     const next = length > 1 ? { x: x / length, y: y / length } : { x, y };
     setStick(next);
@@ -2740,6 +2790,8 @@ export default function GameClient() {
 
   const releaseStick = () => {
     stickPointer.current = null;
+    stickOriginRef.current = null;
+    setStickOrigin(null);
     setStick({ x: 0, y: 0 });
     engineRef.current?.setMove(0, 0);
   };
@@ -2925,19 +2977,35 @@ export default function GameClient() {
       {started && hud.status === "playing" && (
         <div className="mobile-controls" aria-label="Touch controls">
           <span className="touch-look-hint" aria-hidden="true">DRAG RIGHT SIDE · LOOK</span>
+          {/* 搖桿浮動，唔再釘死喺左下角。
+              實測釘死嗰陣，打橫嘅時候佢個中心喺畫面 **8.3%／10.5%** 位置、左
+              邊淨係 20px——即係大姆指要伸到最邊先撳到（Penny：「控桿太左」）。
+              深淵之橋嘅做法係：畫面左邊嗰半，你撳邊度佢就喺邊度出現。冇「太
+              左」呢回事，因為佢冇固定位置。 */}
           <div
-            ref={stickRef}
-            className="touch-stick"
+            className="touch-zone"
             onPointerDown={(event) => {
+              if (event.pointerType === "mouse") return;
               stickPointer.current = event.pointerId;
-              event.currentTarget.setPointerCapture(event.pointerId);
-              updateStick(event);
+              stickOriginRef.current = { x: event.clientX, y: event.clientY };
+              setStickOrigin(stickOriginRef.current);
+              // 捕捉係錦上添花，狀態先係正經事——同深淵之橋一樣包住 try：
+              // 冇 active pointer 嗰陣佢會掟錯，而嗰下錯會打斷成個 handler。
+              try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* 冇捕捉照用 */ }
             }}
             onPointerMove={updateStick}
             onPointerUp={releaseStick}
             onPointerCancel={releaseStick}
           >
-            <i style={{ transform: `translate(${stick.x * 28}px, ${stick.y * 28}px)` }} />
+            {stickOrigin && (
+              <div
+                ref={stickRef}
+                className="touch-stick"
+                style={{ left: stickOrigin.x, top: stickOrigin.y }}
+              >
+                <i style={{ transform: `translate(${stick.x * 28}px, ${stick.y * 28}px)` }} />
+              </div>
+            )}
           </div>
           <div className="touch-actions">
             <button className="touch-lock" onPointerDown={() => engineRef.current?.toggleLock()} aria-label="Toggle target lock">◎</button>

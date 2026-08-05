@@ -4338,3 +4338,46 @@ Both now derive from the region they end at. Both mutations name their own regio
 `BOSS_SPAWN_Z` reports `聖所: 牆 (-5.6, -35.2)`, restoring `-47` reports the courtyard pair.
 
 `map.test.mjs` 4/4 in 40 ms, `hud-layout.mjs` 52/52.
+
+## ADR-175 — Elden Ring II: Penny played it on a phone and named three things in one sentence
+
+Date: 2026-08-05. Status: accepted.
+
+「點解一入去視覺咁近，冇 zoom in zoom out 功能，控桿太左，麻煩參考深淵之橋個邊。」 Three defects, all
+real, all measurable, none of which fifty-two gates had caught — because every one of them is about
+what the game *feels* like to hold, and the whole suite had been measuring what it *is*.
+
+**Too close on entry.** Measured at four viewports: the camera sits **2.73–2.84 m** behind the
+player at spawn, against a designed 8.3 m. The player spawned at a hand-written `z = 17`, which is
+5.35 m from the arena's south ring wall, and the camera needs `8.3 + 0.42 + 1.35 = 10.07` m of room
+behind — so the occlusion logic clamped it to its 2.4 m floor on the very first frame. The spawn is
+now `ARENA_RADIUS − CAMERA_CLEARANCE`, derived rather than written, and wave one's two revenants
+moved with it to keep the opening distance. **2.73 → 8.84–9.13 m.** Separately, the camera used to
+*drop* as it was squeezed (`2.2 + (allowed/distance) × 2.6`), so both numbers shrank together and
+the character filled the frame; it now rises as it closes in, which helps everywhere near a wall,
+not just at the spawn.
+
+**No zoom.** 深淵之橋 has had `view.zoomBy` for rounds — clamped 0.7–1.7, wheel on desktop, pinch on
+touch, with a 6 px dead zone so a trembling finger doesn't ratchet it. ER2 now has the same rule,
+the same limits, and the same dead zone, applied to the follow distance.
+
+**Stick too far left.** It was pinned to the layout: measured centre at **8.3 % and 10.5 % of screen
+width** in the two landscape phone sizes, 20 px from the edge — a thumb has to leave the grip to
+reach it. 深淵之橋's answer is that the stick has no position: touch anywhere in the left 55 % and it
+appears under your finger. ER2 does that now, with the same 52 px throw.
+
+Two defects came out of that last change and were caught by re-running everything. Taking the stick
+out of the flex flow (`position: fixed`) left `justify-content: space-between` with one child, which
+threw the three action buttons to the **left** — into the stick zone, so tapping ATTACK would have
+opened the stick. And `setPointerCapture` throws when there is no live pointer, which aborted the
+whole handler; 深淵之橋 already wraps that call in a `try` for exactly this reason, and now so does
+this.
+
+One of the new gates failed for my own reasons before it failed for the game's: the mobile styles
+live behind `@media (max-width: 760px), (pointer: coarse)`, and the suite's page has neither, so
+`.touch-stick` had no `position: fixed` and the gate reported the stick appearing at (0, 0). It runs
+on a `hasTouch` context now.
+
+All three mutations reproduce their measurement: spawn back to 17 gives 2.69–2.80 m at five sizes,
+an unclamped zoom gives 2.81 and 0.21, a pinned stick reports the same offset at every touch point.
+`hud-layout.mjs` 60/60.
