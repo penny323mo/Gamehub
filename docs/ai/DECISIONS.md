@@ -4223,3 +4223,32 @@ where a death sends you is a design decision with a difficulty curve attached (A
 curve once already), not a defect to quietly patch at the end of a long session.
 
 `hud-layout.mjs` 47/47.
+
+## ADR-171 — Elden Ring II: the sanctum was the emptiest region, and there was exactly one asset left
+
+Date: 2026-08-05. Status: accepted.
+
+The handoff has said for several rounds that "the sanctum has nothing but the boss". Measured, that
+is wrong in its reason and right in its conclusion. Counting ground-standing props over 1 m tall,
+excluding the corridor wall runs: arena **0.96 per 100 m²** (15 items, 9 kinds), courtyard **0.55**
+(5 items, 4 kinds), sanctum **0.48** (6 items, **2 kinds** — four pillars and two piles of rubble).
+So the boss arena is the sparsest and by far the most repetitive, not empty.
+
+The obvious fix — more pillars — is the one thing not allowed: Penny's standing instruction is not
+to keep reusing the existing 3D assets. Counting every environment model against its uses in the
+source, exactly one has shipped to players and never once appeared: `bridge-straight-pillar`.
+ADR-161 tried it down the middle of the west corridor and rejected it, because the render showed the
+deck sitting at head height so the player walks *under* it and the frame reads as a wall across the
+path. That makes it wrong as a route and right as a **ruin**: placed behind the boss against the
+north wall at (0, −63), you fight in front of it rather than through it.
+
+It is solid, from the same "geometry below 2 m" rule as every other prop, and the gates decided
+whether that was allowed: the boss reachability probe drops from 41 sample positions to 38 (three
+now sit inside the ruin) and still reports **0 unreachable**. Sanctum density 0.48 → 0.56.
+
+Worth stating plainly rather than papering over: with one unused asset in the repository and a
+standing instruction against reusing the rest, the amount of *visual* expansion available without
+new art is exactly one model. Further map growth needs either new assets or geometry that is not
+model-based.
+
+`hud-layout.mjs` 47/47, `npm test` 6/6, `hub.mjs` 96/96.

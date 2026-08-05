@@ -1454,6 +1454,15 @@ export default function GameClient() {
         addEnvironment("/assets/environment/tower-square.glb", 12, [-17, 0, -62], 0.3, "#79817f"),
         addEnvironment("/assets/environment/tower-square.glb", 12, [17, 0, -62], -0.3, "#79817f"),
         addEnvironment("/assets/environment/wall-doorway.glb", 7.4, [0, 0, -67], Math.PI, "#8b9290"),
+        // 聖所係三個場入面最疏嗰個：實測 **0.48 件/100 平方米**（圓場 0.96、
+        // 庭院 0.55），而且淨係得兩種嘢（四條柱、兩堆碎石）。
+        //
+        // 加嘢唔可以再抄多幾條柱落去（Penny 講明唔好重覆用現有 3D 資產），而
+        // 成個倉入面**得返一個 ship 咗但由頭到尾冇出現過嘅模型**：
+        // `bridge-straight-pillar`。ADR-161 擺過佢落中線，影出嚟先知橋面喺人
+        // 頭高度，玩家由橋底穿過去讀落係一堵牆——所以佢唔啱做路。做**塌咗嘅
+        // 高架水道**就啱：擺喺 boss 背後貼住北牆，你係喺佢面前打，唔係穿過佢。
+        addEnvironment("/assets/environment/bridge-straight-pillar.glb", 9, [0, 0, -63], 0, "#7f8a8d", 0.48, true),
         addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 6.2, [-9, 0, -41], 0, "#9aa2a6", 0.08, true),
         addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 6.2, [9, 0, -41], 0, "#9aa2a6", 0.08, true),
         addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 6.2, [-9, 0, -55], 0, "#9aa2a6", 0.08, true),
