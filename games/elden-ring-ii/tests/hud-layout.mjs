@@ -438,6 +438,54 @@ for (const [w, h, 名] of 尺寸) {
     }
 }
 
+// ---------- 開波第一幅畫要係一個場景，唔係一浸嘢 ----------
+//
+// 上面所有版位檢查都係量矩形——矩形完全睇唔到「鏡頭埋咗入牆」呢類缺陷。
+// 呢個 session 撞過兩次（走廊、L 形捷徑），兩次都係影相先發現，而每次張
+// 牆表都話鏡頭同角色之間乜都冇（碰撞盒 0.42 米薄，而牆嘅網格厚好多）。
+//
+// 所以直接量像素。取畫面中下方一橫帶（避開 HUD），三個數：平均亮度、亮度
+// 標準差、唯一色數。
+//
+// **拆成兩條，因為一條量度分唔開兩種失效。** 第一版淨係用標準差 ≥ 10，
+// 而反方向驗證（月光同半球光全滅）**唔肯響**：亮度由 34.3 跌到 10.3，但標
+// 準差反而升到 21.93——一幅接近全黑但有幾點亮嘅畫，變化係大嘅。三個狀態
+// 實測：
+//   正常出生點      亮度 34.3　標準差 16.6　色數 308
+//   鏡頭埋咗入牆    亮度 25.6　標準差  7.2　色數  66
+//   全部燈熄晒      亮度 10.3　標準差 21.9　色數 232
+// 分得開「一浸平色」嘅係**色數**，分得開「實質全黑」嘅係**亮度**。
+//
+// **講清楚佢守唔到乜**：呢兩條企喺出生點，而嗰兩次鏡頭插牆都喺走廊先出現
+// ——佢哋捉唔到嗰兩單。佢哋守嘅係開波第一幅畫，而其他檢查一律睇唔到像素。
+{
+    const buf = await page.screenshot();
+    const st = await page.evaluate(async (b64) => {
+        const img = new Image();
+        await new Promise((r) => { img.onload = r; img.src = 'data:image/png;base64,' + b64; });
+        const c = document.createElement('canvas');
+        c.width = img.width; c.height = img.height;
+        const g = c.getContext('2d');
+        g.drawImage(img, 0, 0);
+        const x0 = Math.round(img.width * 0.15), x1 = Math.round(img.width * 0.85);
+        const y0 = Math.round(img.height * 0.45), y1 = Math.round(img.height * 0.95);
+        const d = g.getImageData(x0, y0, x1 - x0, y1 - y0).data;
+        let n = 0, s = 0, s2 = 0;
+        const seen = new Set();
+        for (let i = 0; i < d.length; i += 4) {
+            const L = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+            n++; s += L; s2 += L * L;
+            seen.add(((d[i] >> 3) << 10) | ((d[i + 1] >> 3) << 5) | (d[i + 2] >> 3));
+        }
+        const m = s / n;
+        return { 亮度: +m.toFixed(1), 標準差: +Math.sqrt(s2 / n - m * m).toFixed(2), 色數: seen.size };
+    }, buf.toString('base64'));
+    check('開波第一幅畫唔係一浸平色（鏡頭埋咗入牆就係咁）',
+        st.色數 >= 120 && st.標準差 >= 10, st);
+    check('開波第一幅畫唔係實質全黑（燈掛咗就係咁）',
+        st.亮度 >= 18, st);
+}
+
 // 主 page 仲喺度跑一個 WebGL loop，軟件光柵化之下佢會食晒 CPU，令新開嗰版
 // 連撳個掣都 timeout。以下嘅檢查全部用自己開嘅版，所以泊咗主 page 先。
 await page.goto('about:blank');

@@ -3888,3 +3888,43 @@ meshes).
 
 `tests/hud-layout.mjs` is 34/34; sealing the courtyard's north opening fires the new loop check at
 `z -16.3…-17.8`.
+
+## ADR-162 — Elden Ring II: measuring the pixels, and one metric that could not tell two failures apart
+
+Status: accepted. Date: 2026-08-05.
+
+Every layout check in this suite measures rectangles, and rectangles are blind to the failure that
+bit twice this session: the camera ending up inside a wall. Both times the wall list said nothing
+stood between camera and player — because the colliders are 0.42 m thick and the meshes are not
+(ADR-161). Nothing in the suite looks at what was actually drawn.
+
+So: sample the framebuffer. A band across the lower-middle of the frame, avoiding the HUD, reduced
+to mean luminance, luminance standard deviation, and distinct colours at 5-bit-per-channel
+quantisation. Three states measured:
+
+| | mean | stdev | colours |
+|---|---|---|---|
+| normal spawn | 34.3 | 16.6 | 308 |
+| camera inside a wall | 25.6 | 7.2 | 66 |
+| all scene lights off | 10.3 | 21.9 | 232 |
+
+**The first version used standard deviation alone and did not fire.** Killing the moon and
+hemisphere lights dropped the mean to 10.3 — and pushed stdev *up* to 21.9, because a nearly black
+frame with a few bright points is high-variance. Contrast is not brightness, and one number cannot
+own two failures.
+
+Two checks now, each owning one: **distinct colours ≥ 120** catches a flat surface filling the frame
+(66 when buried, 227–308 otherwise), and **mean luminance ≥ 18** catches a scene that is effectively
+unlit (10.3–10.5 with lights off, 25–34 otherwise). Both verified in both directions: the buried
+camera fires the first and leaves the second green; the lights mutation does the exact reverse.
+
+What they do **not** guard is stated in the test beside them: both sample the spawn frame, and both
+of this session's camera-in-wall incidents happened in corridors the suite cannot walk to. They
+would not have caught either one. What they do guard is the first frame every player sees — a
+lighting regression, a camera starting inside a structure, a render pipeline that silently produces
+nothing — and no other check in this repo looks at a pixel.
+
+That is the tenth "for the wrong reason" this session, and the second where the metric, not the
+code, was the thing that was wrong.
+
+`tests/hud-layout.mjs` is 36/36.
