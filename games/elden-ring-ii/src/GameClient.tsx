@@ -148,6 +148,13 @@ const INITIAL_HUD: HudState = {
 //
 // 揀招寫成純函數，唔寫喺 tick 入面：要驗「第二階段真係多咗招」，唔應該
 // 要求測試打贏兩波雜兵先見到 boss。
+// 目標離幾遠先值得亮光柱。抽成純函數嘅理由同 chooseBossMove 一樣：
+// 「遠嘅時候會亮」呢個方向要打到第三關先驗到，而一條要贏咗場先量到嘢
+// 嘅 gate 冇人會跑。
+export const WAYPOINT_MIN_DISTANCE = 25;
+export const shouldShowWaypoint = (distance: number | null, alive: boolean) =>
+  alive && distance != null && distance > WAYPOINT_MIN_DISTANCE;
+
 export const LEAP_MIN_RANGE = 6.5;
 export type BossMove = "punch" | "leap";
 export const chooseBossMove = (
@@ -592,6 +599,28 @@ export default function GameClient() {
     graceLightB.position.copy(graces[1].position).setY(2.2);
     scene.add(graceLightB);
 
+    // 目標指示光柱。
+    //
+    // 第三關喺西面庭院，離出生點六十米。目標面板寫住「Take the westgate
+    // courtyard」，但喺一個夜晚、冇小地圖、二百米闊嘅場入面，一句字唔等於
+    // 一個方向——清完第二波之後玩家企喺原地，而下一個目標喺畫面外。
+    // 呢個缺口係我自己擴地圖整出嚟嘅，所以要一齊修。
+    const waypoint = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.55, 1.4, 26, 12, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: "#e7bd67",
+        transparent: true,
+        opacity: 0.14,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        fog: false,
+      }),
+    );
+    waypoint.position.y = 13;
+    waypoint.visible = false;
+    scene.add(waypoint);
+
     const telegraph = new THREE.Mesh(
       new THREE.RingGeometry(2.35, 2.55, 64),
       new THREE.MeshBasicMaterial({
@@ -783,8 +812,10 @@ export default function GameClient() {
     // 個形狀寫成數據，唔係一堆 addStaticBox。牆係由呢幾個數生出嚟嘅，
     // 所以「牆喺邊」同「地圖係點」永遠唔會各講各嘅。
     const ARENA = { r: 22.35 };
-    const GATE = { angle: Math.PI, halfWidth: 0.16 };   // 西面開口（弧度）
-    const BRIDGE = { x0: -47, x1: -ARENA.r, halfWidth: 3.2 };
+    const GATE = { angle: Math.PI, halfWidth: 0.25 };   // 西面開口（弧度）
+    // 走廊闊度：鏡頭喺玩家後面八米，走廊太窄成半幅畫面都係牆（實測 3.2 米
+    // 半闊嗰陣就係咁）。5.6 米半闊 = 11.2 米通道，鏡頭有位退。
+    const BRIDGE = { x0: -47, x1: -ARENA.r, halfWidth: 5.6 };
     const COURT = { cx: -60, cz: 0, r: 17 };
     const WALL_Y = 1.8, WALL_H = 1.8, WALL_T = 0.42;
 
@@ -1232,8 +1263,8 @@ export default function GameClient() {
         // 高度，玩家係由**橋底**穿過去，畫面讀落係一堵牆擋住條路。連通性
         // 個 gate 當時係綠嘅（物理上真係行得過），但綠嘅 gate 唔代表個景啱。
         ...[-27.5, -34.5, -41.5, -46.5].flatMap((x) => [
-          addEnvironment("/assets/environment/wall.glb", 5.2, [x, 0, -3.4], 0, "#818986"),
-          addEnvironment("/assets/environment/wall.glb", 5.2, [x, 0, 3.4], 0, "#818986"),
+          addEnvironment("/assets/environment/wall.glb", 5.2, [x, 0, -5.8], 0, "#818986"),
+          addEnvironment("/assets/environment/wall.glb", 5.2, [x, 0, 5.8], 0, "#818986"),
         ]),
         // 兩座塔擺喺庭院牆外做天際線，唔擺入場中——16 米高嘅塔放喺一個
         // 十幾米半徑嘅院入面，鏡頭一入去就係成幅牆。
@@ -1579,6 +1610,9 @@ export default function GameClient() {
       // 揮擊弧線畫成點 vs 判定實際係點——兩組數分開出，等測試可以夾佢哋
       bossMove: (phase: 1 | 2, distance: number, roll: number) => chooseBossMove(phase, distance, roll),
       leapMinRange: () => LEAP_MIN_RANGE,
+      waypoint: () => ({ 亮: waypoint.visible, x: waypoint.position.x, z: waypoint.position.z,
+        門檻: WAYPOINT_MIN_DISTANCE }),
+      waypointRule: (distance: number | null, alive: boolean) => shouldShowWaypoint(distance, alive),
       swing: () => {
         const p = attackArc.geometry.parameters as { radius: number; arc: number };
         const cfg = CLASS_CONFIG[currentClass];
@@ -2275,6 +2309,27 @@ export default function GameClient() {
           1 - Math.pow(0.002, delta),
         );
       }
+      // 目標離得遠先亮光柱：近嘅時候你已經見到敵人，再插支柱落去就係阻住。
+      {
+        const live = livingMinions();
+        const targetPos = bossActive && boss.hp > 0
+          ? bossRoot.position
+          : live.length
+            ? live.reduce((sum, m) => sum.add(m.root.position), new THREE.Vector3())
+                .multiplyScalar(1 / live.length)
+            : null;
+        const far = shouldShowWaypoint(
+          targetPos == null ? null : playerRoot.position.distanceTo(targetPos),
+          player.state !== "dead" && boss.state !== "dead",
+        );
+        waypoint.visible = far;
+        if (far && targetPos) {
+          waypoint.position.set(targetPos.x, 13, targetPos.z);
+          (waypoint.material as THREE.MeshBasicMaterial).opacity =
+            0.1 + Math.sin(now * 1.6) * 0.045;
+        }
+      }
+
       camera.lookAt(cameraLook);
       // 陰影框跟玩家行。唔 update target 嘅 matrix 嘅話，three.js 仲係
       // 用住舊嗰個方向——燈郁咗，陰影唔郁。

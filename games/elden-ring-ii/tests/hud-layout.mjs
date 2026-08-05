@@ -209,6 +209,49 @@ for (const [w, h, 名] of 尺寸) {
         r != null && r.卡住.length === 0, r && { 共: r.共, 卡住: r.卡住 });
 }
 
+// ---------- 目標喺畫面外嘅時候要指得返出嚟 ----------
+//
+// 第三關喺西面庭院，離出生點六十米。目標面板寫住「Take the westgate
+// courtyard」，但一句字唔等於一個方向——夜晚、冇小地圖、二百米闊嘅場。
+// 呢個缺口係擴地圖自己整出嚟嘅（ADR-148/149），所以一齊修：目標離玩家
+// 超過 25 米就亮一支光柱喺目標度。
+//
+// 兩個方向都要守。淨係守「遠嘅時候有」，一支永遠著住嘅光柱一樣過關，
+// 而嗰個係更加差嘅遊戲——你打緊埋身，一支柱插喺敵人身上阻住晒。
+{
+    const r = await page.evaluate(() => {
+        const el = document.querySelector('[data-player-position]');
+        const w = window.__ER2.waypoint();
+        const [px, pz] = el.dataset.playerPosition.split(',').map(Number);
+        const 兵 = (el.dataset.minionPositions || '').split('|').filter(Boolean)
+            .map((s) => s.split(',').map(Number));
+        const 距 = 兵.length
+            ? Math.hypot(px - 兵.reduce((a, m) => a + m[0], 0) / 兵.length,
+                         pz - 兵.reduce((a, m) => a + m[1], 0) / 兵.length)
+            : null;
+        return { ...w, 距: 距 };
+    });
+    check('第一波喺眼前嘅時候唔會亮光柱（近距離插支柱落去只會阻住）',
+        r.距 != null && r.距 <= r.門檻 && r.亮 === false,
+        { 目標距離: r.距 == null ? null : +r.距.toFixed(1), 門檻: r.門檻, 亮: r.亮 });
+
+    // 「遠嘅時候會亮」呢個方向要打到第三關先見到，所以問個規則本身。
+    const rule = await page.evaluate(() => {
+        const api = window.__ER2;
+        const R = api.waypoint().門檻;
+        return {
+            遠: api.waypointRule(R + 30, true),
+            近: api.waypointRule(R - 5, true),
+            啱好: api.waypointRule(R, true),
+            冇目標: api.waypointRule(null, true),
+            死咗: api.waypointRule(R + 30, false),
+        };
+    });
+    check('目標遠過門檻就亮，近過就唔亮，冇目標同死咗都唔亮',
+        rule.遠 === true && rule.近 === false && rule.啱好 === false
+        && rule.冇目標 === false && rule.死咗 === false, rule);
+}
+
 // ---------- Boss 第二階段要係新嘢，唔淨係快咗 ----------
 //
 // 本來 boss 由頭到尾得一招 Punch，而「第二階段」只係同一招換組數（前搖

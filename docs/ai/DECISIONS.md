@@ -3582,3 +3582,35 @@ something you do while already in someone's face. Only the middle one fires on t
 since the other two describe behaviour the old code also had.
 
 `tests/hud-layout.mjs` is 18/18.
+
+## ADR-153 — Elden Ring II: the third ward was sixty metres away and nothing pointed at it
+
+Status: accepted. Date: 2026-08-05.
+
+Playing the game through the browser for the first time since changing the encounter chain confirmed
+0 → 1 works: two revenants die, the cloister wave of three spawns. It also exposed a gap **this
+session created**. ADR-149 put ward three in the courtyard at `x = -60`. The objective panel says
+"Take the westgate courtyard", but a line of text is not a direction on a 200 m map at night with no
+minimap. Clear the cloister and you stand where you are with the next objective off-screen.
+
+A faint additive light shaft now marks the live objective — the mean position of the living
+revenants, or the boss — and only when it is more than 25 m away. Both directions matter and both
+are gated: an always-on beacon passes "shows when far" and is a *worse* game, because in melee it is
+a column planted on top of the thing you are fighting.
+
+`shouldShowWaypoint(distance, alive)` is a pure module-scope function, same reasoning as
+`chooseBossMove` in ADR-152: the "shows when far" case only occurs in ward three, and a gate that
+must beat two waves to observe anything will never run. The running-state check still covers
+integration — at spawn, with the objective 5.8 m away, the beam is off. Making the rule return
+`alive && distance != null` fires both checks.
+
+Two corrections from actually playing. My first pass drove the game with `Space` believing it was
+attack — it is dodge; attack is `J`/`F`. Forty rolls carried the player from `z = 17` to `z = -8`
+with nothing killed, and I nearly recorded "attacks do not land" as a defect. Reading the key map
+before writing the probe would have cost a minute. Second, the causeway was built 6.4 m wide, and a
+screenshot from inside it is half stone: the camera sits 8 m behind the player, so a corridor
+narrower than that has nowhere for it to go even with ADR-148's pull-in. It is 11.2 m now, with the
+visual walls and the physics rails both derived from the same `BRIDGE.halfWidth`, and the doorway
+angle widened to match.
+
+`tests/hud-layout.mjs` is 20/20.
