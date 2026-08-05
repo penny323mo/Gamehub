@@ -589,8 +589,22 @@ export default function GameClient() {
     telegraph.visible = false;
     scene.add(telegraph);
 
+    // 揮擊弧線嘅幾何要由**打中判定用嘅同一組數**度計出嚟。
+    //
+    // 本來畫嘅係一個半徑 1.55（縮放後 1.1–2.0 米）、跨 243° 嘅圓環，而真正
+    // 嘅判定係一條向前 4.4 米、側向 ±1.32 米（即係 ±17°）嘅膠囊。畫面同規則
+    // 講緊兩件唔同嘅事：射程少報咗一倍幾（你打得到弧線從來冇掃過嘅嘢），
+    // 而覆蓋角度多報咗十四倍（睇落掃成個身位，實際係向前㧬一下）。
+    // 同一個病喺 MOBA 度出現過（ADR-125／144）：一件事寫兩次就有兩個答案。
+    const SWEEP_RADIUS = { melee: 0.92, ranged: 0.28 };
+    // 只用武器自己嗰個 sweep，唔加目標半徑——判定加目標半徑係「隻怪有幾
+    // 肥」嘅事，唔係「你把刀掃幾闊」。（第一版加咗，而 `minionRadius` 喺
+    // 五十行之後先宣告，一載入就 TDZ 死機、成版黑晒——係條「零 page error」
+    // 嘅 gate 捉返嘅。）
+    const arcGeometryFor = (range: number, sweep: number) =>
+      new THREE.TorusGeometry(range * 0.82, 0.05, 6, 42, 2 * Math.atan2(sweep, range));
     const attackArc = new THREE.Mesh(
-      new THREE.TorusGeometry(1.55, 0.045, 6, 42, Math.PI * 1.35),
+      arcGeometryFor(CLASS_CONFIG.warrior.range, SWEEP_RADIUS.melee),
       new THREE.MeshBasicMaterial({
         color: "#efc86f",
         transparent: true,
@@ -1136,6 +1150,13 @@ export default function GameClient() {
     };
 
     const selectCharacterClass = (characterClass: CharacterClass) => {
+      // 每個職業射程唔同，弧線要跟返佢自己嗰個（遠程唔會顯示，但一樣計啱）。
+      const cfg = CLASS_CONFIG[characterClass];
+      attackArc.geometry.dispose();
+      attackArc.geometry = arcGeometryFor(
+        cfg.range,
+        cfg.projectile === "none" ? SWEEP_RADIUS.melee : SWEEP_RADIUS.ranged,
+      );
       currentClass = characterClass;
       mount.dataset.characterClass = characterClass;
       playerLoadouts.forEach((loadout, loadoutClass) => {
@@ -1535,6 +1556,15 @@ export default function GameClient() {
       map: () => ({ arenaR: ARENA.r, court: { ...COURT }, bridge: { ...BRIDGE } }),
       walls: () => staticBoxes.map((b) => ({ ...b })),
       clock: () => ({ real: performance.now() / 1000, motion: motionClock, attacks: minionAttacks }),
+      // 揮擊弧線畫成點 vs 判定實際係點——兩組數分開出，等測試可以夾佢哋
+      swing: () => {
+        const p = attackArc.geometry.parameters as { radius: number; arc: number };
+        const cfg = CLASS_CONFIG[currentClass];
+        return {
+          畫: { 半徑: p.radius * attackArc.scale.x, 角度: p.arc },
+          判: { 射程: cfg.range, 側向: (cfg.projectile === "none" ? SWEEP_RADIUS.melee : SWEEP_RADIUS.ranged) + minionRadius },
+        };
+      },
       spawns: () => minions.map((m) => ({ wave: m.wave, x: m.spawn[0], z: m.spawn[1] })),
     };
 
@@ -1724,7 +1754,7 @@ export default function GameClient() {
             1 - (player.stateUntil - now) / classConfig.attackDuration;
           attackArc.position.copy(playerRoot.position).add(new THREE.Vector3(0, 1.15, 0));
           attackArc.rotation.z = -player.rotation + 0.2;
-          attackArc.scale.setScalar(0.72 + attackProgress * 0.58);
+          attackArc.scale.setScalar(0.94 + attackProgress * 0.1);
           (attackArc.material as THREE.MeshBasicMaterial).opacity = clamp(1 - attackProgress, 0, 0.8);
           if (classConfig.projectile !== "none" && !player.impactDone) {
             const flightProgress = clamp(
@@ -1759,7 +1789,7 @@ export default function GameClient() {
             arrowProjectile.visible = false;
             attackTarget = findSweptAttackTarget(
               classConfig.range,
-              classConfig.projectile === "none" ? 0.92 : 0.28,
+              classConfig.projectile === "none" ? SWEEP_RADIUS.melee : SWEEP_RADIUS.ranged,
             );
             const hitTargetRoot = targetRoot(attackTarget);
             if (attackTarget && hitTargetRoot) {

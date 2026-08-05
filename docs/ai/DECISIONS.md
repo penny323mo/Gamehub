@@ -3514,3 +3514,38 @@ camera blended its look target with a bare `lerp(..., 0.34)` while the same came
 `1 - pow(0.001, delta)` and its yaw uses `delta * 2.2`. Two thirds of one job was frame-rate
 independent and the last third was not, so tracking lag behind a moving target differed roughly
 fourfold between 30 and 120 fps. Now `1 - pow(0.002, delta)`.
+
+## ADR-151 — Elden Ring II: the swing arc was drawing a different weapon than the one that hits
+
+Status: accepted. Date: 2026-08-05.
+
+The melee attack draws `attackArc`, a torus of radius 1.55 scaled 0.72–1.30 spanning `Math.PI * 1.35`
+— a **243° ring at 1.1–2.0 m**. The hit test is `findSweptAttackTarget(classConfig.range, 0.92)`: a
+forward capsule reaching **4.4 m** with a lateral half-width of 1.32 m, i.e. a cone of about **33°**.
+
+Two independent numbers describing one swing, written in two places, disagreeing in both directions
+at once: the picture **hides more than half the reach** (you kill things the arc never touched) and
+**over-states the spread fourteenfold** (it looks like a sweep around the body; it is a forward
+poke). Same family as ADR-125 and ADR-144 in the MOBA — one fact with two sources gets two answers.
+
+The arc geometry is now derived from the same constants the hit test uses, rebuilt per class in
+`selectCharacterClass` since each class has its own range, and the sweep radius is a named constant
+both sides read. The visual sits at `range * 0.82` = 3.61 m with a 24° span.
+
+The arc deliberately uses the weapon's sweep alone and **not** the target radius the hit test adds:
+how fat the enemy is belongs to the enemy, not to how wide your blade travels. My first version did
+add it — and `minionRadius` is declared fifty lines *after* `attackArc` is constructed, so the call
+hit the temporal dead zone and the game died on load with a black screen. The suite's "zero page
+error" check caught it on the next run; the layout checks alone would not have, because a page that
+never renders has no overlapping elements.
+
+The gate states a position rather than restating the formula (a test that recomputes the
+implementation only proves the implementation ran): the drawing may not promise reach the rules do
+not have, may not hide more than 40% of the reach they do have, and may not exceed the real cone by
+more than 20%. Restoring the old torus fires two of the three — 1.55 against a required 2.64, and
+243° against 33°. The first check stays green there, correctly: the old arc under-promised reach
+rather than over-promising it, and each check owns one direction.
+
+Left measured but unchanged: a swing damages exactly one enemy, because `findSweptAttackTarget`
+returns a single best candidate. With three-revenant waves that is now visible, but whether a sweep
+should cleave is a balance decision, not a defect, and it is recorded here rather than guessed at.
