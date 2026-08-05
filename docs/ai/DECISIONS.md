@@ -4128,3 +4128,40 @@ restoring the mirrored rotation convention fails all three at once. Sealing the 
 ring, and is why the two tests are not redundant.
 
 `npm test` is now 6/6 and covers map shape as well as the built files.
+
+## ADR-168 — Elden Ring II: 18 places a player could stand where the wave could never reach them
+
+Date: 2026-08-05. Status: accepted.
+
+ADR-167 said the point of moving the map out of the React effect was to make "can the enemy reach
+you" answerable. Here is the answer, and it is bad — and it is bad *because of ADR-165*.
+
+The chase rule moved to `src/chase.ts` as a pure function, and `__ER2.追擊試(from, to, seconds)` runs
+it against the real collider table in a throwaway `CANNON.World` at a fixed 1/60 step, drawing
+nothing. 233 chases take four seconds inside one `evaluate()`, with no dependence on frame rate at
+all — the thing that made this unanswerable for eight rounds.
+
+Sampling player positions across each wave's region: **18 of 233 could never be reached.** The
+minions stopped dead at (±11.2, −11.6), (13, 8) and (−68, −8) — the columns, the trebuchet and the
+courtyard rock, every one of them a prop that *had no collider until earlier today*, when ADR-165
+made props solid to stop them being walk-through. And because a wave must be cleared before the next
+one starts, an unreachable player position is not "an easier fight", it is a dead run.
+
+The chase rule had no avoidance at all. It now probes 1.6 m ahead and, if that is blocked, tries
+turns out to ±2.45 rad and takes the first clear one — when nothing is in the way the first probe is
+the straight line, so open-field behaviour is unchanged. That fixed 17 of 18.
+
+The last one needed the part that is easy to leave out: **once you have picked a side, keep it.**
+Re-deciding every step makes the minion oscillate in front of anything wider than the probe, and the
+courtyard rock's collider is 8.7 m across against a 1.6 m lookahead. With the turn sign remembered
+between steps it slides along the obstacle instead. 18 → **0**, longest chase 16.3 s against a 24 s
+budget.
+
+Two things worth writing down rather than fixing quietly. That rock's collider is 8.7 × 9.3 m, from
+the "geometry below 2 m" rule of ADR-165 — `rocks-large` is a scattered cluster, so at body height
+it really is that wide, but the hand-written box it replaced was 4.2 m. The visible model is 14 m
+across, so its outermost stones are still walk-through. Neither is wrong exactly; both are bigger
+changes to how that corner of the courtyard plays than "give the props colliders" sounds.
+
+Verified in the failing direction: deleting the avoidance branch reproduces exactly 18, at the same
+coordinates. `hud-layout.mjs` is 45/45.

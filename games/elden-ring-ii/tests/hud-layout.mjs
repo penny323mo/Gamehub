@@ -516,6 +516,53 @@ for (const [w, h, 名] of 尺寸) {
         r != null && r.卡住.length === 0, r && { 共: r.共, 卡住: r.卡住 });
 }
 
+// ---------- 雜兵追唔追得到你 ----------
+//
+// 清晒一波先開到下一關。即係話「有一個玩家企得到嘅位置係雜兵永遠到唔到嘅」
+// 唔止係「打得輕鬆啲」——係成局卡死。
+//
+// 呢條之前答唔到：唯一嘅方法係喺瀏覽器度企定等佢行過嚟，而軟件光柵化一秒
+// 三幀、角色一秒行半米，量到嘅係機械人蠢定係地圖爛（ADR-157）。而家用
+// `__ER2.追擊試()`：同一批 collider、同一條 `chase.ts` 規則、固定 1/60 步長，
+// 唔畫任何嘢——233 次追擊四秒跑完，同幀率完全無關。
+//
+// 實測（加迴避之前）：**233 個位入面 18 個到唔到**，全部停喺今個 session 先
+// 啱啱變實心嗰啲嘢前面——圓場兩條柱 (±11.2, -11.6)、投石車 (13, 8)、庭院嗰
+// 嚿石 (-68, -8)。即係 ADR-165 嗰個修正**順手整咗個卡死出嚟**。
+{
+    const r = await page.evaluate(() => {
+        const api = window.__ER2;
+        if (!api || !api.追擊試) return null;
+        const m = api.map();
+        const 區 = [
+            { wave: 0, cx: 0, cz: 0, r: m.arenaR },
+            { wave: 1, cx: 0, cz: 0, r: m.arenaR },
+            { wave: 2, cx: m.court.cx, cz: m.court.cz, r: m.court.r },
+        ];
+        const walls = api.walls();
+        const 企得 = (x, z) => !walls.some((b) => window.__尺.入面(x, z, b, 0.5));
+        const 壞 = [];
+        let 試 = 0, 最耐 = 0;
+        for (const g of 區) {
+            const 位 = [];
+            for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) for (const f of [0.35, 0.7, 0.92]) {
+                const x = g.cx + Math.cos(a) * g.r * f, z = g.cz + Math.sin(a) * g.r * f;
+                if (企得(x, z)) 位.push([+x.toFixed(1), +z.toFixed(1)]);
+            }
+            for (const s of api.spawns().filter((x) => x.wave === g.wave)) for (const p of 位) {
+                試 += 1;
+                const out = api.追擊試([s.x, s.z], p, 24);
+                最耐 = Math.max(最耐, out.用咗);
+                if (!out.到) 壞.push(`wave${s.wave} (${s.x},${s.z}) → (${p[0]},${p[1]}) 最近 ${out.最近} 停喺 ${out.尾}`);
+            }
+        }
+        return { 試, 壞, 最耐: +最耐.toFixed(1) };
+    });
+    check('每一個玩家企得到嘅位，雜兵都追得到（唔會卡死喺障礙物前面）',
+        r != null && r.試 > 200 && r.壞.length === 0,
+        r && { 試咗幾多次: r.試, 到唔到嘅: r.壞.length, 最耐幾秒: r.最耐, 例: r.壞.slice(0, 5) });
+}
+
 // ---------- 分區補光行遠咗要熄 ----------
 //
 // PointLight 設咗 `distance` 之後超過嗰個距離貢獻係零，但 three.js 照樣

@@ -11,6 +11,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { GameAudio } from "./audio";
 import { ARENA_RADIUS, BOSS_SPAWN_Z, FOG_GATE, buildMap } from "./map";
+import { MINION_ATTACK_RANGE, MINION_SPEED, chaseDirection, makeBlocked } from "./chase";
 import { hasSupabaseFoundation, recordCompletedRun } from "./progress";
 
 type GameStatus = "loading" | "ready" | "playing" | "victory" | "dead" | "error";
@@ -123,6 +124,7 @@ type MinionEnemy = {
   impactDone: boolean;
   nextAttack: number;
   lastAttackMotion: number;
+  avoid: { turn: number };
   currentAction: string;
   spawn: [number, number];
   knockbackUntil: number;
@@ -1585,6 +1587,7 @@ export default function GameClient() {
           impactDone: false,
           nextAttack: 0,
           lastAttackMotion: 0,
+          avoid: { turn: 0 },
           currentAction: "",
           spawn,
           knockbackUntil: 0,
@@ -1841,6 +1844,58 @@ export default function GameClient() {
         };
       },
       spawns: () => minions.map((m) => ({ wave: m.wave, x: m.spawn[0], z: m.spawn[1] })),
+      // 由 A 追去 B，行一次真物理，唔畫任何嘢。
+      //
+      // 「雜兵追唔追得到你」呢條問題之前答唔到：唯一嘅方法係喺瀏覽器度企定
+      // 等佢行過嚟，而軟件光柵化一秒三幀、角色一秒行半米——量到嘅係機械人蠢
+      // 定係地圖爛，分唔開（ADR-157）。呢度用**同一批 collider**（連今個
+      // session 先啱啱變實心嗰啲柱同石）同**同一條追擊規則**（`chase.ts`），
+      // 固定 1/60 步長行落去，一次 evaluate 幾千步，同幀率完全無關。
+      //
+      // 點解要緊：清晒一波先開到下一關。有一個玩家企得到嘅位置係雜兵永遠
+      // 到唔到嘅，就唔止「打得輕鬆啲」——係成局卡死。
+      追擊試: (from: [number, number], to: [number, number], seconds = 24) => {
+        const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -18, 0) });
+        world.broadphase = new CANNON.SAPBroadphase(world);
+        world.defaultContactMaterial.friction = 0.02;
+        world.addBody(new CANNON.Body({
+          type: CANNON.Body.STATIC, shape: new CANNON.Plane(),
+          quaternion: new CANNON.Quaternion().setFromEuler(-Math.PI / 2, 0, 0),
+        }));
+        for (const b of staticBoxes) {
+          const body = new CANNON.Body({
+            type: CANNON.Body.STATIC,
+            shape: new CANNON.Box(new CANNON.Vec3(b.hx, b.hy, b.hz)),
+            position: new CANNON.Vec3(b.x, b.y, b.z),
+          });
+          body.quaternion.setFromEuler(0, b.ry, 0);
+          world.addBody(body);
+        }
+        const runner = new CANNON.Body({
+          mass: 44, linearDamping: 0.84, fixedRotation: true,
+          position: new CANNON.Vec3(from[0], minionGroundOffset, from[1]),
+        });
+        addCapsuleShapes(runner, minionRadius, minionSegment);
+        runner.updateMassProperties();
+        world.addBody(runner);
+        const 目標 = { x: to[0], z: to[1] };
+        const memo = { turn: 0 };
+        const dt = 1 / 60;
+        let 最近 = Infinity, 用咗 = seconds;
+        for (let step = 0; step * dt < seconds; step += 1) {
+          const 位 = { x: runner.position.x, z: runner.position.z };
+          const d = Math.hypot(位.x - 目標.x, 位.z - 目標.z);
+          if (d < 最近) 最近 = d;
+          if (d <= MINION_ATTACK_RANGE) { 用咗 = step * dt; break; }
+          const dir = chaseDirection(位, 目標, [], makeBlocked(staticBoxes, minionRadius), memo);
+          runner.velocity.x = dir.x * MINION_SPEED[2];
+          runner.velocity.z = dir.z * MINION_SPEED[2];
+          world.step(dt);
+        }
+        return { 最近: +最近.toFixed(2), 用咗: +用咗.toFixed(2),
+          到: 最近 <= MINION_ATTACK_RANGE,
+          尾: [+runner.position.x.toFixed(1), +runner.position.z.toFixed(1)] };
+      },
     };
 
     frame = requestAnimationFrame(tick);
@@ -2240,20 +2295,17 @@ export default function GameClient() {
               }
             }
             if (now >= minion.stateUntil) minion.state = "idle";
-          } else if (minionDistance > 1.82) {
+          } else if (minionDistance > MINION_ATTACK_RANGE) {
             minion.state = "run";
-            const direction = toPlayer.normalize();
-            const separation = new THREE.Vector3();
-            livingMinions().forEach((other) => {
-              if (other === minion) return;
-              const away = minion.root.position.clone().sub(other.root.position);
-              const distanceSq = away.lengthSq();
-              if (distanceSq > 0.001 && distanceSq < 2.25) {
-                separation.add(away.normalize().multiplyScalar(1 - Math.sqrt(distanceSq) / 1.5));
-              }
-            });
-            direction.addScaledVector(separation, 0.72).normalize();
-            const speed = [4.3, 5.1, 5.4][minion.wave];
+            // 條規則喺 `chase.ts`，測試行嘅係同一條。
+            const direction = chaseDirection(
+              minion.root.position,
+              playerRoot.position,
+              livingMinions().filter((other) => other !== minion).map((other) => other.root.position),
+              makeBlocked(staticBoxes, minionRadius),
+              minion.avoid,
+            );
+            const speed = MINION_SPEED[minion.wave];
             minion.body.velocity.x = direction.x * speed;
             minion.body.velocity.z = direction.z * speed;
             minion.currentAction = playAction(
