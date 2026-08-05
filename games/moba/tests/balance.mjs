@@ -28,21 +28,23 @@ const 陪跑 = ['longshot', 'ironhulk'];
 const t0 = Date.now();
 const 結果 = [];
 for (const c of CHAMPION_IDS) {
-    let w = 0, l = 0, d = 0, 分鐘 = 0;
+    let w = 0, l = 0, d = 0, 分鐘 = 0, 死 = 0;
     for (let seed = 1; seed <= SEEDS; seed++) {
         const 揸藍 = seed % 2 === 1;
         const A = [c, ...陪跑], B = [基準, ...陪跑];
         const sim = new Sim({ seed, lineups: 揸藍
             ? { [TEAM.BLUE]: A, [TEAM.RED]: B } : { [TEAM.BLUE]: B, [TEAM.RED]: A } });
         const bots = sim.champions.map(x => createBot(sim, x));
+        const 我 = sim.champions.find(x => x.champId === c && x.team === (揸藍 ? TEAM.BLUE : TEAM.RED));
         let t = 0;
         while (!sim.over && sim.time < GAME_MAX) { updateBots(bots, TICK, t); sim.step(TICK); t++; }
         分鐘 += sim.time / 60;
+        死 += 我.deaths;
         const win = sim.over?.winner, 我隊 = 揸藍 ? TEAM.BLUE : TEAM.RED;
         if (win == null) d++; else if (win === 我隊) w++; else l++;
     }
     結果.push({ 英雄: c, 勝: w, 負: l, 和: d, 勝率: Math.round(w / SEEDS * 100),
-        平均分鐘: +(分鐘 / SEEDS).toFixed(1) });
+        平均分鐘: +(分鐘 / SEEDS).toFixed(1), 每分鐘死: +(死 / 分鐘).toFixed(2) });
 }
 console.table(結果);
 const 率 = 結果.map(r => r.勝率);
@@ -62,3 +64,18 @@ if (過火.length) {
     process.exit(1);
 }
 console.log('六個英雄都喺 20–85% 之內');
+
+// 死亡頻率：玩家真正感受到嘅「幾密㩒乜都冇反應」。sim.mjs T40 守單次鎖幾耐
+// 同一局幾長，但守唔到呢個——三局分唔清 0.87 同 0.90，而真變化係 0.79 對
+// 1.04（ADR-141）。要 24 局先分得清，所以擺喺呢度。
+//
+// 呢個數同勝率係兩件事：一個英雄可以贏得夠，但成局都喺度死同行路。實測
+// 重生時間減短完全冇改善總冇得玩時間（150 對 151 秒），因為死一次短咗
+// 三成半，一局就死多三成——個掣係呢度，唔係計時器。
+const 密 = 結果.map(r => r.每分鐘死);
+console.log(`每分鐘死：${Math.min(...密).toFixed(2)} – ${Math.max(...密).toFixed(2)}`);
+const 太密 = 結果.filter(r => r.每分鐘死 > 1.05);
+if (太密.length) {
+    console.log('死得太密（一分鐘過 1.05 次）：', 太密.map(r => `${r.英雄} ${r.每分鐘死}`).join('、'));
+    process.exit(1);
+}

@@ -3095,3 +3095,55 @@ follows what the tyres can use
   invariant did not work. Verified properly with a genuinely field-incomplete minion, it fires —
   and shows the contamination **spreads**: one bad object puts `NaN` into six champions' positions
   through the separation pass. That is why the T28 projectile hit everything rather than nothing.
+
+## ADR-141 — How much of a match the player spends unable to act, and why the respawn timer is not the lever
+
+Status: accepted. Date: 2026-08-05.
+
+The gates so far measure whether rules are correct. None of them measures the quantity a player
+actually feels: **how much of a match is spent holding a phone that does not respond**. T10 asks
+whether a respawn time exists, which is always yes.
+
+Measured, 157 respawns across six champions: the nominal timer (`RESPAWN_BASE +
+RESPAWN_PER_LEVEL × level`) has a median of 15.2 s, but the player is not back in the game until
+they have also walked from the fountain — a further 5.8 s median, 41 m. **The constant named
+"respawn time" under-states the real wait by 48% on average.** Same shape as `dropped` in
+`pace.js`: a number that names a whole policy and owns half of it. Total per death: 22.3 s median,
+45.4 s worst. Melee champions die 9 times a match; one measured match was **45% unplayable**.
+
+Two obvious fixes were implemented, measured, and **both reverted**.
+
+- Flattening the curve (8 + 1.8·L → 6 + 1.1·L, a 35% cut) changed total unplayable time by one
+  second across 24 matches: **150 s against 151 s**. Deaths per match rose from 7.6 to 9.9 — you
+  come back sooner, so you die sooner. The idle total is a fixed point of the **death rate**, not
+  of the timer. Pushed further (5 + 0.75·L) matches stretched from 9.6 to 13.9 minutes.
+- A decaying speed boost on leaving your own fountain, sized so it reaches zero at |x| = 32 while
+  first contact happens at |x| = 29 median — geometry doing the work of an out-of-combat check.
+  At 24 matches it made idle time **worse** (150 → 158 s) by lengthening matches. At 8 matches the
+  two configurations it was tested against disagreed in sign, which is the whole reason it was
+  re-run at 24.
+
+The gate went through three versions, and the two discarded ones are the finding.
+
+- **Version one measured a proportion.** Cutting the timer to 5 + 0.75·L moved it from 26% to 19%
+  and it passed — while absolute idle time got worse. The denominator grew.
+- **Version two measured absolute seconds.** Verifying it in the failing direction by halving the
+  tracked champion's HP made it read 182 s → 91 s and pass, because the team now loses in four
+  minutes. The numerator shrank for the same reason.
+- Both are the same illness: any per-match total or fraction moves with match length, and match
+  length is one of the things under test. **A quantity normalised by something you are changing
+  cannot answer a question about it.**
+
+What is gated now, each owning one failure mode that the others cannot dilute:
+
+- `sim.mjs` T40: longest single lockout ≤ 40 s, and no match over 16 minutes. Verified failing —
+  tripling `RESPAWN_BASE` to 25 leaves the mean untouched (182 → 196, noise) but takes the longest
+  lockout to 62 s and fires. Three seeds resolve this cleanly (36 against 62).
+- `balance.mjs`: deaths per minute ≤ 1.05, currently 0.21–0.80. This one **cannot** live in the
+  fast suite: three seeds read 0.87 against 0.90 for a change that is 0.79 against 1.04 at 24
+  seeds. A gate that cannot resolve the effect it names is not loose, it is fake — the same rule
+  `balance.mjs` already states about win rates below 24 matches.
+
+All three lines are ratchets set above the measured worst, not targets. Three minutes of a
+ten-minute match is still too much idle time; the measurement says the way down is the melee death
+rate (ADR-130's open axis), not any timer.
