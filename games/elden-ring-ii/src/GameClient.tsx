@@ -1394,10 +1394,11 @@ export default function GameClient() {
         addEnvironment("/assets/environment/wall-corner-half-tower.glb", 7.8, [21, 0, 0], -Math.PI / 2, "#7d8582"),
         addEnvironment("/assets/environment/siege-trebuchet.glb", 5.6, [13, 0, 8], -0.7, "#948570", 0.48, true),
         addEnvironment("/assets/environment/rocks-large.glb", 3.8, [-14, 0, 12], 0.4, "#8b8d88", 0.48, true),
-        // 出生點喺 z = 17，而 (9, 15) 度一直有一個 1.7 米嘅 collider 但冇任何
-        // 模型——即係開波行兩步就撞到一嚿睇唔見嘅嘢。量出嚟嗰陣佢係最後一個
-        // 「成條長度都隱形」嘅障礙。
-        addEnvironment("/assets/environment/rocks-large.glb", 1.6, [9, 0, 15], 1.1, "#8b8d88", 0.48, true),
+        // (9, 15) 一直有個 1.7 米嘅 collider 但冇模型——開波行兩步就撞到一嚿
+        // 睇唔見嘅嘢。ADR-165 補咗嚿石落去，**而嗰個位就係第一個恩典點**：
+        // 即係由一開始，個 checkpoint 就企唔到人，補完石之後仲要變咗嚿石壓住
+        // 佢。石搬去 (15.5, 12)，恩典點唔郁。
+        addEnvironment("/assets/environment/rocks-large.glb", 1.6, [15.5, 0, 12], 1.1, "#8b8d88", 0.48, true),
         addEnvironment("/assets/environment/rocks-large.glb", 4.4, [14, 0, -6], 1.7, "#838985", 0.48, true),
         addEnvironment("/assets/environment/tree-large.glb", 8.5, [-18, 0, 10], -0.6, "#56635b", 0.48, true),
         addEnvironment("/assets/environment/tree-large.glb", 7.4, [18, 0, 14], 0.8, "#526057", 0.48, true),
@@ -1437,11 +1438,11 @@ export default function GameClient() {
         addEnvironment("/assets/environment/tower-square-top-roof-high-windows.glb", 16, [-62, 0, -24], 0, "#818b90"),
         addEnvironment("/assets/environment/tower-square.glb", 11, [-78, 0, 9], 0.5, "#7c8582"),
         addEnvironment("/assets/environment/wall-corner-half-tower.glb", 7.8, [-60, 0, 17.6], Math.PI, "#7d8582"),
-        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 5.6, [-53, 0, -7.4], 0, "#909aa0", 0.08, true),
-        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 5.6, [-53, 0, 7.4], 0, "#909aa0", 0.08, true),
+        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 5.6, [-53, 0, -9.6], 0, "#909aa0", 0.08, true),
+        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 5.6, [-53, 0, 9.6], 0, "#909aa0", 0.08, true),
         addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 1.8, [-64.5, 0, 8.4], 0.9, "#8a8f91", 0.08, true),
-        addEnvironment("/assets/environment/kaykit-dungeon/torch_mounted.gltf.glb", 1.3, [-51.6, 2.5, -2.4], 0, "#ffffff", 0),
-        addEnvironment("/assets/environment/kaykit-dungeon/torch_mounted.gltf.glb", 1.3, [-51.6, 2.5, 2.4], 0, "#ffffff", 0),
+        addEnvironment("/assets/environment/kaykit-dungeon/torch_mounted.gltf.glb", 1.3, [-51.6, 2.5, -3.6], 0, "#ffffff", 0),
+        addEnvironment("/assets/environment/kaykit-dungeon/torch_mounted.gltf.glb", 1.3, [-51.6, 2.5, 3.6], 0, "#ffffff", 0),
         addEnvironment("/assets/environment/rocks-large.glb", 4.0, [-68, 0, -8], 2.2, "#8b8d88", 0.48, true),
         addEnvironment("/assets/environment/tree-large.glb", 8.0, [-66, 0, 12], 1.1, "#56635b", 0.48, true),
 
@@ -1847,6 +1848,7 @@ export default function GameClient() {
         };
       },
       spawns: () => minions.map((m) => ({ wave: m.wave, x: m.spawn[0], z: m.spawn[1] })),
+      graces: () => graces.map((g) => ({ x: g.position.x, z: g.position.z })),
       // 由 A 追去 B，行一次真物理，唔畫任何嘢。
       //
       // 「雜兵追唔追得到你」呢條問題之前答唔到：唯一嘅方法係喺瀏覽器度企定

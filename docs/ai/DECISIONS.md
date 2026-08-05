@@ -4193,3 +4193,33 @@ Boss now uses `chaseDirection` with `makeBlocked(staticBoxes, bossRadius)` and i
 the chase branch and nowhere else, so the probe and the game agree on when the boss stops running.
 
 `hud-layout.mjs` 46/46, `npm test` 6/6, `hub.mjs` 96/96.
+
+## ADR-170 — Elden Ring II: something was standing on both checkpoints
+
+Date: 2026-08-05. Status: accepted.
+
+Third consequence of ADR-165, after the 18 unreachable player positions and the boss's quarter-arena
+safe spot. The graces — this game's only heal and its only checkpoints — are at (9, 15) and
+(−52.5, −6.5). Measured: **both are inside a collider.**
+
+(9, 15) was blocked *before today*. The hand-written obstacle box `addStaticBox([9, 0.75, 15], …)`
+sat exactly on it, which is also why ADR-165's invisible-collider sweep found an obstacle there with
+no model and dutifully placed a rock on it. The invisible thing standing on the checkpoint became a
+visible rock standing on the checkpoint. Nothing errors when a checkpoint cannot be stood on; it
+simply stops existing.
+
+(−52.5, −6.5) I broke today, by giving the courtyard's `pillar_decorated` pieces colliders.
+
+Both props moved, both graces left where they are — a checkpoint's position is a gameplay decision,
+a decoration's is not. The rock goes to (15.5, 12); the courtyard pillars to (−53, ±9.6) with their
+torches following, which also widens the gateway they frame.
+
+The gate asserts every grace is standable, and putting the rock back on (9, 15) reproduces
+`企唔到 ['9.1,15.1 prop']`.
+
+Worth writing down and not acting on yet: `restart()` sets `encounterStage = 0`, so dying to the
+boss replays all three waves. In a game with graces in it, that is the wrong shape — but changing
+where a death sends you is a design decision with a difficulty curve attached (ADR-141 measured that
+curve once already), not a defect to quietly patch at the end of a long session.
+
+`hud-layout.mjs` 47/47.

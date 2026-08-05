@@ -516,6 +516,30 @@ for (const [w, h, 名] of 尺寸) {
         r != null && r.卡住.length === 0, r && { 共: r.共, 卡住: r.卡住 });
 }
 
+// ---------- 恩典點企唔企得到 ----------
+//
+// 恩典點係呢隻遊戲唯一嘅回血同 checkpoint。實測兩個**都喺 collider 入面**：
+// (9, 15) 嗰個一直被一個手寫盒封住（ADR-165 仲要喺嗰個位補咗嚿石落去，變成
+// 一嚿石壓住個 checkpoint），而 (-52.5, -6.5) 嗰個係今個 session 令庭院啲柱
+// 變實心之後先封死嘅。一個企唔到人嘅 checkpoint 唔會報錯，佢淨係唔存在。
+//
+// 呢個係 ADR-165 嗰一個改動嘅**第三個後果**（前兩個：18 個雜兵追唔到嘅位、
+// boss 場四分一安全區）。畀啲裝飾加 collider 呢句話，比佢聽落改得多好多。
+{
+    const g = await page.evaluate(() => {
+        const api = window.__ER2;
+        if (!api || !api.graces) return null;
+        const walls = api.walls();
+        const 壞 = api.graces()
+            .filter((p) => walls.some((b) => window.__尺.入面(p.x, p.z, b, 0.42)))
+            .map((p) => `(${p.x.toFixed(1)}, ${p.z.toFixed(1)})`);
+        return { 共: api.graces().length, 壞 };
+    });
+    check('每個恩典點都企得到人（冇嘢壓住個 checkpoint）',
+        g != null && g.共 >= 2 && g.壞.length === 0,
+        g && { 共: g.共, 企唔到嘅: g.壞 });
+}
+
 // ---------- 雜兵追唔追得到你 ----------
 //
 // 清晒一波先開到下一關。即係話「有一個玩家企得到嘅位置係雜兵永遠到唔到嘅」
