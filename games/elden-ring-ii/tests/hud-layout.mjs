@@ -71,17 +71,16 @@ page.on('console', m => { if (m.type() === 'error') errors.push(`console: ${m.te
 
 await page.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
 await page.waitForTimeout(1500);
-await page.getByText('OATHBOUND', { exact: false }).first().click();
-await page.getByText('ENTER THE VEIL').first().click();
-await page.waitForTimeout(4000);
-
-check('入到遊戲，HUD 出到職業同目標', /OATHBOUND/.test(await page.evaluate(() => document.body.innerText)));
 
 // 量矩形。跳過有仔嘅容器（只計最入面嗰層，否則父子必然「重疊」），
 // 亦跳過鋪滿成個畫面嘅背景（畫布、暗角、雜訊）——佢哋本來就喺所有嘢下面。
 const 量重疊 = () => page.evaluate(() => {
     const vis = [];
     document.querySelectorAll('body *').forEach((el) => {
+        // 純裝飾嘅嘢唔算：`.sigil` 個徽記係 `<div aria-hidden><i/><b/><em/></div>`，
+        // 三塊絕對定位嘅形狀**特登**疊喺一齊砌個圖案。標題畫面一量就報咗
+        // 幾十對，全部係佢哋——同暗角、雜訊一樣，係背景唔係內容。
+        if (el.closest('[aria-hidden="true"]')) return;
         if (el.children.length && el.tagName !== 'BUTTON') return;
         const r = el.getBoundingClientRect();
         const st = getComputedStyle(el);
@@ -119,6 +118,58 @@ const 尺寸 = [
     [667, 375, 'iPhone SE 橫'],
     [375, 667, 'iPhone SE 直'],
 ];
+// ---------- 標題／選角畫面 ----------
+//
+// 五個尺寸嘅重疊檢查本來全部喺入咗遊戲之後先做，即係**每個玩家見到嘅第一
+// 幅嘢由頭到尾冇量過版位**——同死亡蓋幅嗰單（ADR-160）一模一樣嘅缺口，
+// 只不過呢一幅更加緊要：撳唔到「入場」就連遊戲都入唔到。
+{
+    const 量掣 = () => page.evaluate(() => {
+        const out = [];
+        for (const t of ['OATHBOUND', 'ASTROLOGER', 'WAYFARER', 'ENTER THE VEIL']) {
+            const el = [...document.querySelectorAll('button')]
+                .find((b) => (b.innerText || '').includes(t));
+            if (!el) { out.push({ t, 冇: true }); continue; }
+            const r = el.getBoundingClientRect();
+            const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+            out.push({ t, w: Math.round(r.width), h: Math.round(r.height),
+                撳得中: !!hit && (el === hit || el.contains(hit)) });
+        }
+        return out;
+    });
+    const 標題重疊 = [];
+    for (const [w, h, 名] of 尺寸) {
+        await page.setViewportSize({ width: w, height: h });
+        await page.waitForTimeout(600);
+        const r = await 量重疊();
+        if (r.重疊.length) 標題重疊.push(`${名}: ${r.重疊.join('／')}`);
+    }
+    check('標題／選角畫面五個尺寸都冇 HUD 重疊', 標題重疊.length === 0, 標題重疊);
+
+    // 三個職業掣同入場掣都要撳得到，而且**逐個尺寸都要量**——一個掣喺桌面
+    // 夠大唔代表喺手機夠大，而呢啲掣係「入唔入到遊戲」嘅唯一途徑。
+    // 44px 唔係我發明嘅數，係呢個專案自己喺 Hub 度用開嗰條（ADR-133）。
+    const 太細 = [];
+    for (const [w, h, 名] of 尺寸) {
+        await page.setViewportSize({ width: w, height: h });
+        await page.waitForTimeout(400);
+        const b = await 量掣();
+        for (const x of b) {
+            if (x.冇 || x.w < 44 || x.h < 44 || !x.撳得中) 太細.push(`${名}: ${JSON.stringify(x)}`);
+        }
+    }
+    check('三個職業掣同入場掣，五個尺寸都夠 44px 而且中心點撳得中自己',
+        太細.length === 0, 太細.slice(0, 6));
+}
+
+await page.setViewportSize({ width: 1280, height: 800 });
+await page.waitForTimeout(400);
+await page.getByText('OATHBOUND', { exact: false }).first().click();
+await page.getByText('ENTER THE VEIL').first().click();
+await page.waitForTimeout(4000);
+
+check('入到遊戲，HUD 出到職業同目標', /OATHBOUND/.test(await page.evaluate(() => document.body.innerText)));
+
 for (const [w, h, 名] of 尺寸) {
     await page.setViewportSize({ width: w, height: h });
     await page.waitForTimeout(600);

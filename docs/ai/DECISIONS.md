@@ -3928,3 +3928,35 @@ That is the tenth "for the wrong reason" this session, and the second where the 
 code, was the thing that was wrong.
 
 `tests/hud-layout.mjs` is 36/36.
+
+## ADR-163 — Elden Ring II: the button that starts the game was 30 px tall on a phone
+
+Status: accepted. Date: 2026-08-05.
+
+Every layout measurement in this suite happened *after* clicking into the game, so the title and
+class-select screen — literally the first thing every player sees, and the only route into the game
+— had never been measured at any viewport. Same gap as the death overlay in ADR-160, one screen
+earlier. The entry sequence is now deferred until after a five-viewport sweep of the title screen.
+
+The overlap sweep immediately reported dozens of collisions at every size, and again they were
+**mine**. `.sigil` is `<div aria-hidden="true"><i/><b/><em/></div>` — three absolutely-positioned
+shapes stacked **on purpose** to draw an emblem. Decoration is not content; the detector now skips
+anything inside an `[aria-hidden="true"]` subtree, the same reasoning that already excluded the
+canvas, vignette and grain. With that, the title screen is genuinely clean at all five sizes.
+
+The real finding is the touch targets. The three class buttons are 114×60 everywhere. **`ENTER THE
+VEIL` is 41 px tall on desktop and portrait, and 30–31 px on both landscape phone sizes** — the
+configurations where a thumb is actually involved. 44 px is not a number I invented: it is the line
+this project already applies to the Hub (ADR-133).
+
+The cause is that its height was entirely emergent — 10 px of text plus `padding: 14px 30px` gives
+41 px, and the narrow-viewport media query trims the padding further, dropping it to 30. A height
+that is a by-product of two unrelated declarations will drift every time either one is touched.
+`min-height: 44px` with grid centring makes the floor explicit, so padding can change freely without
+the tap target following it down.
+
+The check measures **all four buttons at all five viewports** rather than once, because a control
+being comfortable on a desktop says nothing about a phone — which is exactly how this one survived.
+Removing the `min-height` reproduces 41/41/30/31/41.
+
+`tests/hud-layout.mjs` is 38/38.

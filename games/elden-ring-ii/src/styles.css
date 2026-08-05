@@ -416,6 +416,13 @@ button {
 .enter-button {
   position: relative;
   min-width: 290px;
+  /* 高度唔可以淨係靠 padding 撐——字得 10px，14px padding 出嚟只有 41px，
+     而窄機嘅 media query 再壓細 padding 之後跌到 30px。呢個掣係入遊戲嘅
+     唯一途徑，而 44px 係呢個專案自己喺 Hub 度用開嗰條線（ADR-133）。
+     所以直接寫 min-height，padding 點變都好，撳擊區唔會跌穿。 */
+  min-height: 44px;
+  display: grid;
+  place-items: center;
   padding: 14px 30px;
   overflow: hidden;
   border: 1px solid rgba(207, 174, 107, 0.52);
