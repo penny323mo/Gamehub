@@ -122,6 +122,63 @@ for (const [w, h, 名] of 尺寸) {
         { 可見元素: r.可見, 重疊: r.重疊 });
 }
 
+// ---------- 地圖連唔連得通 ----------
+//
+// 地圖由一個半徑 22.35 嘅圓場，擴成「圓場 + 橋 + 西面庭院」。加咗新地方
+// 最容易靜靜哋出事嘅一樣，就係個開口冇開到——牆係由一組數生出嚟嘅，
+// 差半格就變成一堵完整嘅牆，而畫面上面完全睇唔出。
+//
+// 唔用「行過去」嚟驗：呢度冇 GPU，三幀一秒，角色一秒行半米，一撞到雜兵
+// 就企喺度。量到嘅會係「我隻機械人蠢」，唔係「地圖通唔通」。所以直接問
+// 真正建咗出嚟嘅物理世界：由圓場中心一路到庭院中心，逐點問有冇牆擋住。
+{
+    await page.setViewportSize({ width: 900, height: 500 });
+    await page.waitForTimeout(400);
+    const r = await page.evaluate(() => {
+        const api = window.__ER2;
+        if (!api) return { 冇接口: true };
+        const walls = api.walls();
+        const { court, bridge } = api.map();
+        const 半徑 = 0.42;                       // 玩家膠囊半徑
+        // 一個點撞唔撞到某個（可以轉咗角度嘅）方盒
+        const 撞 = (px, pz) => walls.some((b) => {
+            const dx = px - b.x, dz = pz - b.z;
+            const c = Math.cos(-b.ry), s = Math.sin(-b.ry);
+            const lx = dx * c - dz * s, lz = dx * s + dz * c;
+            return Math.abs(lx) <= b.hx + 半徑 && Math.abs(lz) <= b.hz + 半徑;
+        });
+        const 擋住 = [];
+        for (let x = 0; x >= court.cx; x -= 0.25) {
+            if (撞(x, 0)) 擋住.push(+x.toFixed(2));
+        }
+        return { 牆數: walls.length, 擋住, 橋: bridge, 庭院: court };
+    });
+    check('由圓場中心一路行到西面庭院，中線上冇任何牆擋住',
+        !r.冇接口 && r.擋住.length === 0,
+        { 牆數: r.牆數, 擋住嘅位: (r.擋住 ?? []).slice(0, 12) });
+}
+
+// ---------- 鏡頭唔可以喺牆入面 ----------
+//
+// 鏡頭本來永遠釘死喺玩家後面 8.3 米，冇問過嗰個位有冇嘢。出生點喺
+// z = 17，而場邊半徑 22.35——即係開波第一格，鏡頭已經喺 z = 25.3，
+// **喺場外面差唔多三米**。空曠場入面睇唔出，但一開走廊就成幅牆貼面。
+{
+    await page.setViewportSize({ width: 900, height: 500 });
+    await page.waitForTimeout(1200);
+    const r = await page.evaluate(() => {
+        const el = document.querySelector('[data-camera-position]');
+        const arenaR = window.__ER2 ? window.__ER2.map().arenaR : null;
+        if (!el || arenaR == null) return null;
+        const [cx, cz] = el.dataset.cameraPosition.split(',').map(Number);
+        const [px, pz] = el.dataset.playerPosition.split(',').map(Number);
+        return { cx, cz, px, pz, arenaR, camR: Math.hypot(cx, cz) };
+    });
+    check('開波第一格，鏡頭已經喺場邊入面（唔會插入牆）',
+        r != null && r.camR < r.arenaR,
+        r && { 鏡頭距中心: +r.camR.toFixed(2), 場邊: r.arenaR, 玩家: `${r.px},${r.pz}` });
+}
+
 check('由頭到尾零 browser error', errors.length === 0, errors.slice(0, 3));
 
 await browser.close();

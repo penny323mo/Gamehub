@@ -310,21 +310,36 @@ export default function GameClient() {
     const hemi = new THREE.HemisphereLight("#9eb7da", "#242128", 1.12);
     scene.add(hemi);
 
+    // 月光嘅陰影相機跟住玩家行，唔係釘死喺原點。
+    //
+    // 本來係 ±32 米一個固定框，啱啱好蓋得住嗰個半徑 22 嘅圓場。地圖向西
+    // 擴咗之後，庭院喺 x = -60，完全跌出個框——即係行過去就成個場冇晒
+    // 陰影。而「將個框車大到蓋晒」係最差嗰個答案：同一張 2048 貼圖攤開
+    // 一倍半，全場陰影一齊變糊（31 毫米／texel 變 78）。
+    // 跟住玩家行反而可以收窄到 ±26，即係比原本仲要銳利，而且無論地圖
+    // 幾大都一樣。
+    const MOON_OFFSET = new THREE.Vector3(-18, 28, 16);
     const moonLight = new THREE.DirectionalLight("#c7d8f4", 3.35);
-    moonLight.position.set(-18, 28, 16);
+    moonLight.position.copy(MOON_OFFSET);
     moonLight.castShadow = true;
     moonLight.shadow.mapSize.set(2048, 2048);
-    moonLight.shadow.camera.left = -32;
-    moonLight.shadow.camera.right = 32;
-    moonLight.shadow.camera.top = 32;
-    moonLight.shadow.camera.bottom = -32;
-    moonLight.shadow.camera.far = 80;
+    moonLight.shadow.camera.left = -26;
+    moonLight.shadow.camera.right = 26;
+    moonLight.shadow.camera.top = 26;
+    moonLight.shadow.camera.bottom = -26;
+    moonLight.shadow.camera.far = 90;
     moonLight.shadow.bias = -0.0005;
     scene.add(moonLight);
+    scene.add(moonLight.target);
 
     const arenaFill = new THREE.PointLight("#7f9fc8", 14, 38, 1.55);
     arenaFill.position.set(0, 9, 10);
     scene.add(arenaFill);
+
+    // 西面庭院自己嘅補光。冇呢盞，過咗橋就只剩半球光，個場會平到冇立體感。
+    const courtFill = new THREE.PointLight("#6f8fbe", 13, 34, 1.6);
+    courtFill.position.set(-60, 9, 0);
+    scene.add(courtFill);
 
     const bloodLight = new THREE.PointLight("#b72c1e", 22, 20, 2);
     bloodLight.position.set(0, 3.5, -8);
@@ -392,6 +407,10 @@ export default function GameClient() {
     moonHalo.lookAt(camera.position);
     scene.add(moonHalo);
 
+    // 地面要蓋得晒新地圖：西面庭院去到 x ≈ -73.5，東面圓場去到 +22.35。
+    const GROUND_W = 200;
+    const GROUND_D = 110;
+
     const textureLoader = new THREE.TextureLoader();
     const diffuseMap = textureLoader.load("/assets/materials/cobblestone-01/diffuse.jpg");
     const normalMap = textureLoader.load("/assets/materials/cobblestone-01/normal.jpg");
@@ -400,12 +419,15 @@ export default function GameClient() {
     [diffuseMap, normalMap, roughnessMap].forEach((texture) => {
       texture.wrapS = THREE.RepeatWrapping;
       texture.wrapT = THREE.RepeatWrapping;
-      texture.repeat.set(12, 12);
+      // 地面本來 84×84、repeat 12（即 0.143 個貼圖／米）。地圖向西擴咗之後
+      // 個平面要跟住大，而 repeat 要跟住比例走——唔跟嘅話新嗰邊嘅石仔會
+      // 被扯到成米咁大。呢兩個數係同一件事嘅兩半，所以由同一組常數計出嚟。
+      texture.repeat.set(GROUND_W / 7, GROUND_D / 7);
       texture.anisotropy = maxAnisotropy;
     });
     diffuseMap.colorSpace = THREE.SRGBColorSpace;
 
-    const groundGeometry = new THREE.PlaneGeometry(84, 84);
+    const groundGeometry = new THREE.PlaneGeometry(GROUND_W, GROUND_D);
     const ground = new THREE.Mesh(
       groundGeometry,
       new THREE.MeshStandardMaterial({
@@ -663,11 +685,19 @@ export default function GameClient() {
     physicsWorld.addBody(playerBody);
     physicsWorld.addBody(bossBody);
 
+    // 記住所有靜態障礙，畀測試查「兩個場之間有冇路行」。
+    // 用瀏覽器行過去驗證喺呢度唔可行：軟件光柵化只得三幀，角色一秒行
+    // 半米，而且一撞到雜兵就企喺度——量到嘅係機械人蠢，唔係地圖通唔通。
+    const staticBoxes: Array<{ x: number; z: number; hx: number; hz: number; ry: number }> = [];
     const addStaticBox = (
       position: [number, number, number],
       halfExtents: [number, number, number],
       rotationY = 0,
     ) => {
+      staticBoxes.push({
+        x: position[0], z: position[2],
+        hx: halfExtents[0], hz: halfExtents[2], ry: rotationY,
+      });
       const body = new CANNON.Body({
         type: CANNON.Body.STATIC,
         material: groundPhysicsMaterial,
@@ -679,15 +709,57 @@ export default function GameClient() {
       return body;
     };
 
-    const boundarySegments = 32;
-    const boundaryRadius = 22.35;
-    const boundaryHalfLength = boundaryRadius * Math.tan(Math.PI / boundarySegments) + 0.18;
-    for (let index = 0; index < boundarySegments; index += 1) {
-      const angle = (index / boundarySegments) * Math.PI * 2;
+    // ---------- 地圖形狀 ----------
+    //
+    // 本來成隻遊戲得一個半徑 22.35 嘅圓場，而所有嘢都排喺 z = +17 行到
+    // z = -15 嗰條走廊入面（出生、兩波雜兵、boss 全部喺 x ≈ 0 附近）。
+    // 即係一個 1569 平方米嘅場，真正用到嘅大約係 12 米闊嗰條，四分三嘅
+    // 地你行得到但永遠冇理由去。
+    //
+    // 所以擴張唔係「將個圓車大啲」——空地唔係地圖。西面開一道門，過條橋
+    // 去到第二個庭院，嗰度有自己嘅目標。橋同門同塔用嘅係倉入面已經有、
+    // 但由頭到尾冇擺出嚟過嘅三個模型（bridge-straight-pillar、gate、
+    // tower-square-top-roof-high-windows）——佢哋一直都有 ship 畀玩家落載，
+    // 只係一格都冇出現過。
+    //
+    // 個形狀寫成數據，唔係一堆 addStaticBox。牆係由呢幾個數生出嚟嘅，
+    // 所以「牆喺邊」同「地圖係點」永遠唔會各講各嘅。
+    const ARENA = { r: 22.35 };
+    const GATE = { angle: Math.PI, halfWidth: 0.16 };   // 西面開口（弧度）
+    const BRIDGE = { x0: -47, x1: -ARENA.r, halfWidth: 3.2 };
+    const COURT = { cx: -60, cz: 0, r: 17 };
+    const WALL_Y = 1.8, WALL_H = 1.8, WALL_T = 0.42;
+
+    // 圓形牆，但要留返個門口。留門嗰段唔可以靠「跳過一格」——一格嘅闊度
+    // 係跟分段數走嘅，改分段數個門口就會自己變大變細。所以用角度界定。
+    const ringWall = (cx: number, cz: number, radius: number, segments: number,
+                      skip?: { angle: number; halfWidth: number }) => {
+      const half = radius * Math.tan(Math.PI / segments) + 0.18;
+      for (let index = 0; index < segments; index += 1) {
+        const angle = (index / segments) * Math.PI * 2;
+        if (skip) {
+          let d = Math.abs(angle - skip.angle) % (Math.PI * 2);
+          if (d > Math.PI) d = Math.PI * 2 - d;
+          if (d < skip.halfWidth) continue;
+        }
+        addStaticBox(
+          [cx + Math.cos(angle) * radius, WALL_Y, cz + Math.sin(angle) * radius],
+          [half, WALL_H, WALL_T],
+          Math.PI / 2 - angle,
+        );
+      }
+    };
+    ringWall(0, 0, ARENA.r, 32, GATE);
+    ringWall(COURT.cx, COURT.cz, COURT.r, 28, { angle: 0, halfWidth: 0.19 });
+
+    // 橋兩邊嘅欄杆。冇欄杆嘅話玩家會由橋邊行出去，然後企喺半空——
+    // 呢度冇「跌落去」呢回事，地板係一塊無限平面。
+    const bridgeLength = BRIDGE.x1 - BRIDGE.x0;
+    const bridgeMidX = (BRIDGE.x0 + BRIDGE.x1) / 2;
+    for (const side of [-1, 1]) {
       addStaticBox(
-        [Math.cos(angle) * boundaryRadius, 1.8, Math.sin(angle) * boundaryRadius],
-        [boundaryHalfLength, 1.8, 0.42],
-        Math.PI / 2 - angle,
+        [bridgeMidX, WALL_Y, side * BRIDGE.halfWidth],
+        [bridgeLength / 2, WALL_H, WALL_T],
       );
     }
     addStaticBox([-14, 1.5, 12], [2.1, 1.5, 1.8], -0.4);
@@ -1074,6 +1146,32 @@ export default function GameClient() {
         addEnvironment("/assets/environment/kaykit-dungeon/torch_mounted.gltf.glb", 1.3, [2.2, 2.5, -20.7], 0, "#ffffff", 0),
         addEnvironment("/assets/environment/kaykit-dungeon/barrel_small_stack.gltf.glb", 1.3, [-11.5, 0, 1.5], 0.4, "#ffffff", 0),
         addEnvironment("/assets/environment/kaykit-dungeon/crates_stacked.gltf.glb", 1.8, [11.5, 0, 0], -0.35, "#ffffff", 0),
+
+        // ---------- 西面：門、橋、庭院 ----------
+        // 呢三個模型（gate、bridge-straight-pillar、tower-square-top-roof-
+        // high-windows）一直都喺 public/ 入面、一直都 ship 咗畀玩家落載，
+        // 但一格都冇出現過。擴地圖唔使加新資產，用返已經喺度嗰啲就夠。
+        addEnvironment("/assets/environment/gate.glb", 8.6, [-22.3, 0, 0], Math.PI / 2, "#8a9196"),
+        // 通道兩邊用 wall.glb 砌走廊。原本擺咗三座 bridge-straight-pillar
+        // 落中線，影出嚟先知嗰個模型係一整段有橋墩嘅高架橋——橋面喺人頭
+        // 高度，玩家係由**橋底**穿過去，畫面讀落係一堵牆擋住條路。連通性
+        // 個 gate 當時係綠嘅（物理上真係行得過），但綠嘅 gate 唔代表個景啱。
+        ...[-27.5, -34.5, -41.5, -46.5].flatMap((x) => [
+          addEnvironment("/assets/environment/wall.glb", 5.2, [x, 0, -3.4], 0, "#818986"),
+          addEnvironment("/assets/environment/wall.glb", 5.2, [x, 0, 3.4], 0, "#818986"),
+        ]),
+        // 兩座塔擺喺庭院牆外做天際線，唔擺入場中——16 米高嘅塔放喺一個
+        // 十幾米半徑嘅院入面，鏡頭一入去就係成幅牆。
+        addEnvironment("/assets/environment/tower-square-top-roof-high-windows.glb", 16, [-62, 0, -24], 0, "#818b90"),
+        addEnvironment("/assets/environment/tower-square.glb", 11, [-78, 0, 9], 0.5, "#7c8582"),
+        addEnvironment("/assets/environment/wall-corner-half-tower.glb", 7.8, [-60, 0, 17.6], Math.PI, "#7d8582"),
+        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 5.6, [-53, 0, -7.4], 0, "#909aa0", 0.08),
+        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 5.6, [-53, 0, 7.4], 0, "#909aa0", 0.08),
+        addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 1.8, [-58.5, 0, 5.1], 0.9, "#8a8f91", 0.08),
+        addEnvironment("/assets/environment/kaykit-dungeon/torch_mounted.gltf.glb", 1.3, [-51.6, 2.5, -2.4], 0, "#ffffff", 0),
+        addEnvironment("/assets/environment/kaykit-dungeon/torch_mounted.gltf.glb", 1.3, [-51.6, 2.5, 2.4], 0, "#ffffff", 0),
+        addEnvironment("/assets/environment/rocks-large.glb", 4.0, [-68, 0, -8], 2.2, "#8b8d88"),
+        addEnvironment("/assets/environment/tree-large.glb", 8.0, [-66, 0, 12], 1.1, "#56635b"),
       ]);
       const characterClasses = Object.keys(CLASS_CONFIG) as CharacterClass[];
       const [characterGltfs, bossGltf, skeletonGltf] = await Promise.all([
@@ -1389,7 +1487,17 @@ export default function GameClient() {
 
     const tick = (nowMs: number) => {
       if (!alive) return;
-      frame = requestAnimationFrame(tick);
+      // 只讀嘅量度接口。冇呢個，測試就只可以望住畫面估——而「玩家去唔去到
+    // 西面庭院」呢條問題，望畫面係答唔到嘅（黑燈瞎火、鏡頭又跟住人）。
+    // 只出唔入：冇任何一個欄位改得到遊戲狀態。
+    (window as unknown as { __ER2?: unknown }).__ER2 = {
+      // 只放 mount.dataset 冇嘅嘢。位置、敵人數、鏡頭角度嗰啲一早已經喺
+      // dataset 度，喺呢度再開一份就係同一件事有兩個出處。
+      map: () => ({ arenaR: ARENA.r, court: { ...COURT }, bridge: { ...BRIDGE } }),
+      walls: () => staticBoxes.map((b) => ({ ...b })),
+    };
+
+    frame = requestAnimationFrame(tick);
       const now = nowMs / 1000;
       const delta = Math.min((nowMs - lastTime) / 1000, 0.05);
       lastTime = nowMs;
@@ -1938,6 +2046,8 @@ export default function GameClient() {
         mount.dataset.playerPosition =
           `${playerBody.position.x.toFixed(2)},${playerBody.position.z.toFixed(2)}`;
         mount.dataset.cameraYaw = cameraYaw.toFixed(3);
+        mount.dataset.cameraPosition =
+          `${camera.position.x.toFixed(2)},${camera.position.z.toFixed(2)}`;
         mount.dataset.targetLocked = String(locked);
         mount.dataset.bossPosition =
           `${bossBody.position.x.toFixed(2)},${bossBody.position.z.toFixed(2)}`;
@@ -1963,10 +2073,42 @@ export default function GameClient() {
           ) + Math.PI
         : cameraYaw;
       if (locked && cameraTarget) cameraYaw += Math.atan2(Math.sin(desiredYaw - cameraYaw), Math.cos(desiredYaw - cameraYaw)) * delta * 2.2;
+      // 鏡頭撞牆就收短。
+      //
+      // 本來鏡頭永遠釘死喺玩家後面 8.3 米，冇問過嗰個位有冇嘢。喺一個
+      // 空曠圓場入面呢個假設成立，因為玩家背後乜都冇；一開走廊同庭院，
+      // 鏡頭就直接插入牆入面，畫面變成一幅貼面嘅石屎——實測擺個角色落
+      // 新通道度影相，成幅畫都係牆。
+      //
+      // 呢個唔係新地圖嘅缺陷，係鏡頭一直都冇做遮擋處理，只不過舊地圖冇
+      // 嘢遮到佢。所以次序係：先修鏡頭，先開得到室內空間。
+      const camDir = new THREE.Vector3(Math.sin(cameraYaw), 0, Math.cos(cameraYaw));
+      const camOrigin = playerRoot.position.clone().setY(2.6);
+      let allowed = cameraDistance;
+      for (const b of staticBoxes) {
+        // 由玩家向鏡頭方向行，撞到邊個盒就喺嗰度停。用 2D 就夠：所有靜態
+        // 障礙都係由地面起、垂直嘅牆同石。
+        const c = Math.cos(-b.ry), sn = Math.sin(-b.ry);
+        const pad = 0.55;
+        const ox = camOrigin.x - b.x, oz = camOrigin.z - b.z;
+        const lox = ox * c - oz * sn, loz = ox * sn + oz * c;
+        const ldx = camDir.x * c - camDir.z * sn, ldz = camDir.x * sn + camDir.z * c;
+        // 光線同軸對齊方盒相交（slab 法）
+        let t0 = 0, t1 = allowed;
+        let ok = true;
+        for (const [o, d, h] of [[lox, ldx, b.hx + pad], [loz, ldz, b.hz + pad]] as const) {
+          if (Math.abs(d) < 1e-6) { if (Math.abs(o) > h) { ok = false; break; } continue; }
+          const ta = (-h - o) / d, tb = (h - o) / d;
+          t0 = Math.max(t0, Math.min(ta, tb));
+          t1 = Math.min(t1, Math.max(ta, tb));
+          if (t0 > t1) { ok = false; break; }
+        }
+        if (ok && t0 < allowed) allowed = Math.max(2.4, t0);
+      }
       targetCamera.set(
-        playerRoot.position.x + Math.sin(cameraYaw) * cameraDistance,
-        4.8,
-        playerRoot.position.z + Math.cos(cameraYaw) * cameraDistance,
+        playerRoot.position.x + camDir.x * allowed,
+        2.2 + (allowed / cameraDistance) * 2.6,
+        playerRoot.position.z + camDir.z * allowed,
       );
       camera.position.lerp(targetCamera, 1 - Math.pow(0.001, delta));
       if (cameraShake > 0) {
@@ -1979,6 +2121,11 @@ export default function GameClient() {
         cameraLook.lerp(cameraTarget.position.clone().add(new THREE.Vector3(0, 1.35, 0)), 0.34);
       }
       camera.lookAt(cameraLook);
+      // 陰影框跟玩家行。唔 update target 嘅 matrix 嘅話，three.js 仲係
+      // 用住舊嗰個方向——燈郁咗，陰影唔郁。
+      moonLight.position.copy(playerRoot.position).add(MOON_OFFSET);
+      moonLight.target.position.copy(playerRoot.position);
+      moonLight.target.updateMatrixWorld();
       moonHalo.lookAt(camera.position);
       gameAudio.updateListener(
         camera.position.x,

@@ -3389,3 +3389,52 @@ real 5px collision** (`VEIL OF THE HOLLOW CROWN` × `OATHBOUND`); it is 1px now.
 for comfort rather than from the defect is a line drawn where it cannot see what it is guarding.
 The detector also has to skip full-screen backdrops — the canvas, vignette and grain cover
 everything by construction, and counting them reported 12 overlaps of which 12 were noise.
+
+## ADR-148 — Elden Ring II: the map could not be expanded until the camera stopped going through walls
+
+Status: accepted. Date: 2026-08-05.
+
+The whole game was one circular arena of radius 22.35 — 1569 m² — with spawn, both minion waves and
+the boss all strung along `x ≈ 0` from `z = +17` to `z = -15`. Roughly a quarter of the floor was
+ever a reason to walk anywhere; the rest is reachable and pointless. Expanding it is therefore not
+"make the circle bigger": empty floor is not map.
+
+Three environment models ship to every player and were never placed in a single frame:
+`bridge-straight-pillar.glb`, `gate.glb`, `tower-square-top-roof-high-windows.glb`. The expansion is
+built from those — a gate in the west wall, a walled causeway, and a second courtyard (centre
+`x = -60`, radius 17) with two towers as skyline. The arena shape is now **data** (`ARENA`, `GATE`,
+`BRIDGE`, `COURT`) and the walls are generated from it, so "where the walls are" and "what the map
+is" cannot drift apart. The gate opening is defined by **angle**, not by skipping a segment index —
+skipping an index makes the doorway's width depend on the segment count.
+
+**The order of work was wrong at first, and measuring is what corrected it.** With the corridor
+built, the connectivity gate went green — the physics world genuinely has a clear path from `x = 0`
+to `x = -60`. The screenshots did not agree: standing in the causeway, the entire frame was a slab
+of stone. Two separate causes, and neither was the corridor.
+
+- `bridge-straight-pillar.glb` is a *viaduct* — deck at head height on piers. Placing three of them
+  down the centreline meant the player walked underneath, and the model read as a wall across the
+  road. Replaced with `wall.glb` pieces lining the causeway.
+- The real one: **the third-person camera had no occlusion handling at all.** It sat rigidly 8.3 m
+  behind the player and never asked whether anything was there. In a single open arena that
+  assumption holds because nothing is ever behind you. Arithmetic from the existing constants shows
+  it was already broken before any of this work: the player spawns at `z = 17`, so the camera sits
+  at `z = 25.3` while the arena wall is at 22.35 — **the camera starts 2.95 m outside the arena**.
+  Measured in the running game with occlusion disabled: 25.85. With it: 20.51.
+
+So the camera fix is not a consequence of the new map; the new map is what made a pre-existing
+defect visible. The camera now marches a 2D slab test from the player along the boom and stops at
+the first static box, with a 2.4 m floor, and its height interpolates with the shortened distance so
+a pulled-in camera looks down rather than clipping. In the open arena at full extension the framing
+is unchanged.
+
+Two smaller things. The moon's shadow camera was a fixed ±32 box around the origin, which the new
+courtyard falls entirely outside; enlarging it to cover the map would spread one 2048 map over
+160 m (31 mm/texel → 78 mm). It follows the player instead and **narrows** to ±26, so shadows are
+sharper than before at any map size. And I added a `window.__ER2` debug object before noticing the
+game already publishes player position, camera yaw, enemy count and minion states on
+`mount.dataset` — the same "one fact, two sources" shape as ADR-144. `__ER2` is now only the two
+things dataset cannot express: the map shape and the static-box list.
+
+Gates: 9/9 in `tests/hud-layout.mjs`, each verified failing. Closing the gate opening blocks the
+corridor at `x = -21.75…-23`; disabling the camera pull-in puts the camera 3.5 m outside the wall.
