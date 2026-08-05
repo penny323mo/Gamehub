@@ -3233,3 +3233,42 @@ Still unguarded and accepted as such: sieging while defenders are present, and n
 17% HP under commitment. Both make the bot play worse without changing any measured outcome outside
 noise, and no threshold for "the bot retreats often enough" survives the test ADR-142 sets — it
 would read plausibly in both directions.
+
+## ADR-144 — One fact written in three places, and 11.2% of attack sounds were wrong
+
+Status: accepted. Date: 2026-08-05.
+
+`sim.js` emits twenty-six event types. Six of them — `gameover`, `recallStart`, `respawn`, `sell`,
+`shoot`, `wave` — have no consumer anywhere in `src/`. Most are harmless: the HUD polls
+`recallProgress()` rather than listening for `recallStart`, and the match-over screen reads
+`sim.over`. `shoot` is not harmless. It is emitted at the exact moment a projectile is created and
+says what kind — and both consumers ignore it and re-derive the same fact from range:
+
+| where | expression |
+|---|---|
+| `sim.js` | `proj && dist(a, target) > 2.5` |
+| `sfx.js` | `a.def?.projectile \|\| a.range > 5` |
+| `view.js` | `e.range < 5` |
+
+Three expressions, three answers. Measured over two full matches, 5253 auto-attacks: **588 of them
+(11.2%) played a bowstring sound with nothing flying**, and the reverse error was zero. The
+breakdown is worse than the total suggests — **350 of the 588 are towers and the nexus, which have
+no projectile at all, so every single shot a tower takes at you is wrong**. The rest are ranged
+units attacking inside 2.5 m, where the sim resolves the hit instantly. `view.js` has the same
+defect visually, drawing an arrow trail for the same shots.
+
+The fix is not a fourth condition in each consumer. The `attack` event now carries `projectile`,
+set from the one place that knows, and both consumers read it — the same rule `ai.js` already
+states for siege targeting: 「規則喺 sim 度，唔喺呢度抄一份」.
+
+T43 guards the contract dynamically: over two matches, every `attack` event's `projectile` must
+agree with whether a `shoot` was actually emitted for that attacker, and structures must never
+report one. Verified failing by re-introducing the old `sfx.js` heuristic into the emit, which
+reproduces the measured numbers exactly — 588 disagreements, 350 of them structures — and by
+dropping the 2.5 m condition (2993 disagreements).
+
+Note for the next sweep: a static grep for `case 'x'` found the consumer list, but the six
+unconsumed types were only confirmed by grepping the raw names across all of `src/` — the first
+pass would have missed any handler written in another syntax. The check that matters is the
+dynamic one; the grep only pointed at where to look. Source changed, so the cache token moved to
+`assets-27`.

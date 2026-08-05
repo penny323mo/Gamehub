@@ -307,7 +307,8 @@ export class Sfx {
                     if (!a) break;
                     const v = near(ev.id);
                     if (v < 0.12) break;
-                    this.play(a.def?.projectile || a.range > 5 ? 'arrow' : 'swing', { volume: v });
+                    // 唔好自己估有冇嘢飛：sim 喺個事件度講咗（ADR-144）。
+                    this.play(ev.projectile ? 'arrow' : 'swing', { volume: v });
                     break;
                 }
                 case 'cast': this.play('cast', { volume: near(ev.id) }); break;

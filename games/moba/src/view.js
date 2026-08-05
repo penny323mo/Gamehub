@@ -10,10 +10,10 @@ import { EffectComposer } from '../vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from '../vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/postprocessing/OutputPass.js';
-import { MAP, TEAM } from './constants.js?v=assets-26';
-import { CHAMPION_LOOK, MINION_LOOK, ARENA_LOOK, TEAM_COLOUR, CLIP, championFx } from './looks.js?v=assets-26';
-import { Rig } from './rig.js?v=assets-26';
-import { Fx } from './fx.js?v=assets-26';
+import { MAP, TEAM } from './constants.js?v=assets-27';
+import { CHAMPION_LOOK, MINION_LOOK, ARENA_LOOK, TEAM_COLOUR, CLIP, championFx } from './looks.js?v=assets-27';
+import { Rig } from './rig.js?v=assets-27';
+import { Fx } from './fx.js?v=assets-27';
 
 // 平滑追趕：每秒收窄 rate 咁多，而且同幀率無關。
 //
@@ -696,10 +696,12 @@ export class View {
                     // 交代呢一下——所以近戰畫一道弧，遠程／法術喺出手位置閃一下。
                     const t = this.sim.entities.find(x => x.id === ev.target);
                     if (!t) break;
-                    const melee = e.range < 5;
+                    // 同音效一樣：有冇嘢飛係 sim 講嘅，唔係喺呢度用射程再估
+                    // 一次（塔射程 15.5 但一下都冇飛過）。ADR-144。
+                    const 有飛 = ev.projectile != null;
                     const profile = e.kind === 'champ' ? championFx(e.def.id) : {
-                        style: melee ? 'minion-slash' : 'minion-shot',
-                        family: melee ? 'guard' : 'arrow',
+                        style: 有飛 ? 'minion-shot' : 'minion-slash',
+                        family: 有飛 ? 'arrow' : 'guard',
                         colour: u.look.ringColour ?? 0xffe9c4, accent: 0xffffff,
                     };
                     this.fx.attack(e.x, e.z, t.x, t.z, profile);

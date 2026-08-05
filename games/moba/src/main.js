@@ -4,20 +4,20 @@
 // 兩樣分開嘅原因同 sim.js 唔 import three.js 一樣：規則要可重現，
 // 畫面要跟硬件。一個 120Hz 螢幕唔應該令小兵行快一倍。
 
-import { Assets } from './assets.js?v=assets-26';
-import { armTap } from './tap.js?v=assets-26';
-import { Sim } from './sim.js?v=assets-26';
-import { createBot, updateBots } from './ai.js?v=assets-26';
-import { View } from './view.js?v=assets-26';
-import { Hud } from './hud.js?v=assets-26';
-import { createInput } from './input.js?v=assets-26';
-import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=assets-26';
-import { TEAM, TICK, teamName } from './constants.js?v=assets-26';
-import { CHAMPION_LOOK } from './looks.js?v=assets-26';
-import { Sfx } from './sfx.js?v=assets-26';
-import { planFrame } from './pace.js?v=assets-26';
-import { settings } from './settings.js?v=assets-26';
-import { renderPortraits } from './portraits.js?v=assets-26';
+import { Assets } from './assets.js?v=assets-27';
+import { armTap } from './tap.js?v=assets-27';
+import { Sim } from './sim.js?v=assets-27';
+import { createBot, updateBots } from './ai.js?v=assets-27';
+import { View } from './view.js?v=assets-27';
+import { Hud } from './hud.js?v=assets-27';
+import { createInput } from './input.js?v=assets-27';
+import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=assets-27';
+import { TEAM, TICK, teamName } from './constants.js?v=assets-27';
+import { CHAMPION_LOOK } from './looks.js?v=assets-27';
+import { Sfx } from './sfx.js?v=assets-27';
+import { planFrame } from './pace.js?v=assets-27';
+import { settings } from './settings.js?v=assets-27';
+import { renderPortraits } from './portraits.js?v=assets-27';
 
 const $ = (sel) => document.querySelector(sel);
 

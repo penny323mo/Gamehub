@@ -13,7 +13,7 @@ const games = [
         id: 'xiangqi',
         title: '中國象棋',
         subtitle: '中國象棋！挑戰進階 AI',
-        icon: 'assets/xiangqi_logo.png?v=assets-26',
+        icon: 'assets/xiangqi_logo.png?v=assets-27',
         isImage: true,
         category: '棋類',
         link: 'games/xiangqi-ai/dist/index.html',
@@ -32,7 +32,7 @@ const games = [
         id: 'doudizhu',
         title: '鬥地主',
         subtitle: '鬥地主！對戰 2 個 AI',
-        icon: 'assets/doudizhu_logo.png?v=assets-26',
+        icon: 'assets/doudizhu_logo.png?v=assets-27',
         isImage: true,
         category: '卡牌',
         link: 'games/doudizhu/index.html',
@@ -89,7 +89,7 @@ const games = [
         subtitle: '🗡️ 三對三 MOBA！補刀出裝、越塔強殺、推爆水晶',
         icon: '🗡️',
         category: 'MOBA',
-        link: 'games/moba/index.html?v=assets-26',
+        link: 'games/moba/index.html?v=assets-27',
         playable: true
     },
     {

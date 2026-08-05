@@ -4,7 +4,7 @@ Updated: 2026-08-05 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `main`
-Status: `ai.js` 突變掃描 (ADR-143), 兩個都解得通嘅數 (ADR-142)
+Status: 一件事寫三次 (ADR-144), `ai.js` 突變掃描 (ADR-143)
 
 ## Current objective
 
@@ -12,38 +12,41 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
 
 ## Completed
 
-### `ai.js` 突變掃描，同埋一個掃描呃你嘅兩種方法 (ADR-143)
+### 一件事寫三次，就有三個唔同嘅答案 (ADR-144)
 
-- 十四個突變（條件反轉／拆走規則）跑 `sim.mjs`：**七個殺死七個生還**。三個生還者係同一形狀——一條
-  規則永遠唔成立，成類行為靜靜哋消失而 256 條全綠：bot 唔用保命技、唔奶隊友、唔用位移。
-- 補三條規則就係三個特例。**T42 問返個總嘅問題**：兩局真對局打完，每個英雄嘅每個技能有冇出過手、
-  每個 bot 有冇買到嘢。一條 gate 冚住成類，包埋將來新加嘅技能。反方向驗過：保命技突變令
-  `ironward.W/R`、`ironhulk.W` 一次都唔出；奶隊友突變令 `dawnkeeper.W` 一次都唔出。
-- **一個做唔到自己個名嗰件事嘅突變，會令一條好 gate 睇落好弱。** 掃描報「永遠唔買嘢」生還——但佢
-  改嘅係 `wantsToShop()`，而 ADR-104 之後嗰個只決定使唔使行返屋企。改真正個 `shop()` body，T42
-  即刻響（六個都 0 件），連 T40 都響（冇裝備一局拖到 17 分鐘）。係個標籤錯，唔係套件弱。
-- **一個生還者只係對住你跑嗰個偵測器生還。** 剩低嘅生還者入面，「血剩 32% 都唔退」同「見人就打唔
-  計實力」令每分鐘死由 0.79 升到 **1.21／1.47**，遠超 `balance.mjs` 條 1.05 線。冇靠估——真係跑咗
-  慢套件驗證：duskblade 8% 勝率、1.26 每分鐘死，兩條線都響。**佢哋一直有人守，只係掃描冇叫過嗰個。**
-- 而嗰次驗證照出上一輪我自己寫嘅缺陷：勝率條線 `process.exit(1)` 喺死亡頻率條線之前，即係同時整爛
-  兩樣只會報第一樣。**一條會遮住另一條嘅 gate，等於少咗一條。** 兩條而家一齊收集一齊報。
-- 仍然冇守而且接受：有人守都照攻城、17% 血唔甩身——只係打得差啲，冇量到嘅後果超出噪音。
+- `sim.js` 發出 26 種事件，六種（`gameover`／`recallStart`／`respawn`／`sell`／`shoot`／`wave`）全份
+  `src/` 冇消費者。大部分無害（HUD 輪詢 `recallProgress()` 代替），但 **`shoot` 唔係**：「呢一下有冇
+  嘢飛」寫咗三次——sim `proj && dist > 2.5`、sfx `a.def?.projectile || a.range > 5`、view `e.range < 5`。
+  實測兩局 5253 下普攻，音效 **588 下（11.2%）播弓弦聲而冇任何嘢飛**，反方向零次；其中 **350 下係塔
+  同水晶，佢哋根本冇彈道即係每一下都錯**。`view.js` 同一個病，畫住箭嘅拖影。
+- 修法唔係逐邊補條件（嗰樣係第四條式），係擺返件事實喺事件度：`attack` 而家帶 `projectile`，兩個消費
+  者照讀。同 `ai.js` 攻城嗰句一樣：**規則喺 sim 度，唔喺呢度抄一份**。
+- T43 動態守合約：每下普攻事件講嘅要同真係有冇 `shoot` 一致，建築永遠唔可以報有飛。反方向驗過——將
+  舊嗰條 sfx 估法搬入個 emit，**一模一樣重現咗 588／350**。呢輪改咗 source，token 升到 `assets-27`。
+
+### 上一個檢查點：`ai.js` 突變掃描 (ADR-143)
+
+- 十四個突變跑 `sim.mjs`：**七殺七生**。三個生還者同一形狀——規則永遠唔成立，成類行為靜靜哋消失而
+  256 條全綠。**T42 問返總嘅問題**：兩局真對局打完，每個技能有冇出手、每個 bot 有冇買到嘢。
+- **做唔到自己個名嗰件事嘅突變，會令好 gate 睇落好弱**：報「永遠唔買嘢」生還，但佢改嘅係
+  `wantsToShop()`（ADR-104 之後只決定行唔行返屋企）；改真正個 `shop()`，T42 同 T40 即刻一齊響。
+- **一個生還者只係對住你跑嗰個偵測器生還**：「32% 唔退」同「見人就打」令每分鐘死 0.79 → 1.21／1.47，
+  真係跑咗慢套件驗證：duskblade 8% 勝率、1.26 每分鐘死，兩條線都響。
+- 而嗰次驗證照出我上一輪自己寫嘅缺陷：勝率條線 `process.exit(1)` 喺死亡頻率之前，**一條會遮住另一條
+  嘅 gate 等於少咗一條**；而家一齊報。兩個生還者接受唔守（攻城、17% 甩身）。
 
 ### 之前三個檢查點，濃縮 (ADR-142/141/135/140)
 
-- **一個兩邊都解得通嘅數唔算守衛** (ADR-142)。暮刃位移技冷卻好晒佔 80% 時間（最高）而一分鐘只用 1.9
-  次（最低）；查落唔係 bot 唔識用，窗口一開佢 1.5 秒就出手，**係冇機會用**。T41 守轉換率。但**掉咗
-  嗰條先係重點**：本來守「近戰掂得到敵方英雄嘅時間」，將暮刃速度斬半個數反而**升到 17.8%**——行得慢
-  就走唔甩，畀人追住劏一樣算「掂得到」。探針三個缺陷，最衰係用 `d <= range` 而唔係系統自己嗰條
-  `d <= range + target.r`，暮刃即刻 9.9% → 0.6%。**要用返系統自己評嗰條式。**
-- **玩家郁唔到嘅時間** (ADR-141)。個常數叫「重生時間」但要再行 5.8 秒先返到場，**少報 48%**；最差
-  一局 45% 郁唔到。兩個明顯修法量完**兩個都 revert**：重生曲線拉平三成半，總時間 **150 對 151 秒**
-  （一局死多三成）——**個掣係死亡頻率唔係計時器**。條 gate 三版掉咗兩版：守佔比同守絕對秒數都會跟住
-  局長走。**任何用「一場波」做分母或者總量嘅數都答唔到一條關於局長嘅問題。**
-- **突變測試** (ADR-135/140)。邊界算子係等價突變冇價值，數值放大 12 個生還 11 個，反轉 `if` 12 個殺
-  8 個。**一句 ADR 唔等於一條守衛**：ADR-124／118／117 三句聲稱都冇 gate。ADR-117 嗰個係真嘢——T28
-  手砌小兵缺欄位令座標變 **NaN**，而 NaN 比大細永遠 false，所有距離守衛一次過失效；而家包住
-  `Sim.prototype.step` 逐格斷言冇非有限座標。
+- **一個兩邊都解得通嘅數唔算守衛** (ADR-142)。暮刃位移技冷卻好晒佔 80% 時間而一分鐘只用 1.9 次——唔
+  係 bot 唔識用，窗口一開佢 1.5 秒就出手，**係冇機會用**（T41 守轉換率）。但**掉咗嗰條先係重點**：
+  本來守「近戰掂得到敵方英雄嘅時間」，將暮刃速度斬半個數反而**升到 17.8%**（行得慢就走唔甩）；探針
+  最衰嗰個缺陷係用 `d <= range` 而唔係系統自己嗰條 `d <= range + target.r`（9.9% → 0.6%）。
+- **玩家郁唔到嘅時間** (ADR-141)。「重生時間」少報 48%；最差一局 45% 郁唔到。兩個明顯修法量完**兩個
+  都 revert**：曲線拉平三成半，總時間 **150 對 151 秒**——**個掣係死亡頻率唔係計時器**。條 gate 三版
+  掉咗兩版：**任何用「一場波」做分母或者總量嘅數都答唔到一條關於局長嘅問題。**
+- **突變測試** (ADR-135/140)。邊界算子係等價突變，數值放大 12 生還 11，反轉 `if` 12 殺 8。**一句 ADR
+  唔等於一條守衛**。ADR-117 嗰個係真嘢——T28 手砌小兵缺欄位令座標變 **NaN**，NaN 比大細永遠 false，
+  所有距離守衛一次過失效；而家逐格斷言冇非有限座標。
 
 ### Earlier checkpoints, in one line each
 
@@ -82,17 +85,14 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
 ## Verification
 
 - `node tests/hub.mjs` → **95/95**; Racing Car 6/6, Royale 8/8, Xiangqi build + selftests pass.
-  `cache-bust.mjs` → pass; `sim.mjs` → **258/258** (44 s); `balance.mjs 24` → all six inside
-  20–85% and 0.21–0.80 deaths a minute (328 s, not a fast gate). Browser suite not re-run: this
-  round changed tests only, no source.
-- `node games/moba/tests/browser.mjs` → **196/196** at five sizes (~10 min): select and post-match
-  layout, full matches, FX and framing, the attack swing, smoothness at 120/60/30 fps, a skill press
-  surviving a failed pointer capture, shop, draw calls, taps.
+  `cache-bust.mjs` → pass (`assets-27`); `sim.mjs` → **260/260** (52 s); `balance.mjs 24` → all six
+  inside 20–85% and 0.21–0.80 deaths a minute (328 s, not a fast gate).
+- `node games/moba/tests/browser.mjs` → **196/196** at five sizes (~10 min): layout, full matches, FX
+  and framing, the attack swing, smoothness at 120/60/30 fps, shop, draw calls, taps.
 
 ## Changed files
 
-- Hub `index.html`/`launcher.js`/`style.css`/`tests/hub.mjs`, Xiangqi build files, `games/moba/*`
-  (new `src/pace.js`, `tests/balance.mjs`), `scripts/*`, `docs/ai/*.md`. This round: tests only.
+- Hub `index.html`/`launcher.js`/`style.css`/`tests/hub.mjs`, Xiangqi build files, `games/moba/*`, `scripts/*`, `docs/ai/*.md`.
 
 ## Known issues and cautions
 
@@ -100,10 +100,10 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
   while dead, GPU context lost with the shop open, `.hidden` swallowing taps, shop/settings both open,
   the 420-gold shutdown cap never firing, the layout gate's 900 ms wait not drifting.
 - Playwright lives only in `games/Racing Car/tests/node_modules`; both browser suites point there by
-  path — if missing, `npm ci` there. `games/tower` still fetches Inter/Oxanium from Google.
+  path — if missing, `npm ci` there. `games/tower` still fetches fonts from Google.
 - **未解嘅**：打直取景 gate 飄過兩次；診斷已落，過嗰次讀到 −6.8／−6.8／58，即係「飄返泉水」呢個假設未證實。
-- Cache token covers the whole module graph **and the Hub stylesheet** (ADR-111/133). Change it with
-  `node scripts/moba-bump-cache.mjs <token>` — never by hand; `cache-bust.mjs` fails on any drift.
+- Cache token covers the whole module graph **and the Hub stylesheet** (ADR-111/133); change it with
+  `node scripts/moba-bump-cache.mjs <token>`, never by hand. `cache-bust.mjs` fails on any drift.
 
 ## Exact next action
 

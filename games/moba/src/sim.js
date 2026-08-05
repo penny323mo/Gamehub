@@ -11,9 +11,9 @@ import {
     RESPAWN_BASE, RESPAWN_PER_LEVEL, SHUTDOWN_PER_STREAK, SHUTDOWN_MAX,
     armourMul, structureArmour, TOWER_AGGRO_MEMORY, FOUNTAIN_HEAL_PCT, FOUNTAIN_RADIUS,
     PUSH_STRENGTH, SIEGE_DENSE_AT, SIEGE_EVERY_WAVE_AT, WARDEN, RECALL,
-} from './constants.js?v=assets-26';
-import { CHAMPIONS, abilityRank, scaled } from './champions.js?v=assets-26';
-import { ITEMS, MAX_ITEMS, itemBonus } from './items.js?v=assets-26';
+} from './constants.js?v=assets-27';
+import { CHAMPIONS, abilityRank, scaled } from './champions.js?v=assets-27';
+import { ITEMS, MAX_ITEMS, itemBonus } from './items.js?v=assets-27';
 
 // 可重現嘅亂數：測試要跑到同一場比賽。
 //
@@ -600,7 +600,10 @@ export class Sim {
         }
 
         const proj = a.kind === 'champ' ? a.def.projectile : a.def?.projectile;
-        if (proj && dist(a, target) > 2.5) {
+        // 「呢一下有冇嘢飛出去」得呢度知：要有彈道種類，而且要企得夠遠。
+        // 塔同水晶根本冇 projectile，貼身嘅遠程亦係即時打——兩樣都唔會飛。
+        const flew = !!proj && dist(a, target) > 2.5;
+        if (flew) {
             this.projectiles.push({
                 kind: proj, team: a.team, sourceId: a.id, targetId: target.id,
                 x: a.x, z: a.z, speed: 30, damage, physical: true,
@@ -610,7 +613,13 @@ export class Sim {
             this.damage(target, damage, a, { physical: true });
             this.emit('hit', { id: a.id, target: target.id });
         }
-        this.emit('attack', { id: a.id, target: target.id });
+        // `projectile` 要跟住個事件走，唔可以留返畀畫面同音效自己估。
+        // 之前三邊各寫一條式：sim 係 `proj && d > 2.5`、sfx 係
+        // `a.def?.projectile || a.range > 5`、view 係 `e.range < 5`。實測兩局
+        // 5253 下普攻，音效有 588 下（11.2%）播弓弦聲而**冇任何嘢飛**——
+        // 塔同水晶嗰 350 下係一下都冇飛過（佢哋根本冇彈道），其餘係遠程
+        // 貼身嗰陣。一件事寫三次，就係三個唔同嘅答案。
+        this.emit('attack', { id: a.id, target: target.id, projectile: flew ? proj : null });
     }
 
     // 所有彈道嘅移動同命中都喺呢度。分開兩種：追蹤彈鎖住一個目標，技能彈道

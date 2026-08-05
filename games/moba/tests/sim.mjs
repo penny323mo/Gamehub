@@ -1374,6 +1374,47 @@ function dodgeCase(px, speed) {
         Object.fromEntries(買到));
 }
 
+// ---------- T43：「呢一下有冇嘢飛出去」只准有一個答案 ----------
+//
+// `sim.js` 有六個事件由頭到尾冇任何消費者。多數係無害嘅（`recallStart`
+// 有人用 `recallProgress()` 輪詢代替、`gameover` 有人睇 `sim.over`），但
+// `shoot` 唔係：sfx 同 view 冇聽佢，各自用射程再估一次同一件事。
+//   sim  ：`proj && dist(a, target) > 2.5`
+//   sfx  ：`a.def?.projectile || a.range > 5`
+//   view ：`e.range < 5`
+// 實測兩局 5253 下普攻，音效有 **588 下（11.2%）播弓弦聲而冇任何嘢飛**，
+// 其中塔同水晶佔 350 下——佢哋根本冇彈道，即係每一下都錯。反方向零次。
+// 一件事寫三次，就係三個唔同嘅答案，而佢哋只會喺玩家對面撞埋。
+//
+// 修法唔係逐邊補條件（嗰樣係第四條式），係擺返件事實喺事件度：
+// `attack` 而家帶住 `projectile`，兩個消費者照讀。呢條 gate 守嗰個合約。
+{
+    let 對 = 0, 錯 = 0, 建築報有飛 = 0;
+    for (const seed of [1, 2]) {
+        const sim = new Sim({ seed, lineups: {
+            [TEAM.BLUE]: CHAMPION_IDS.slice(0, 3), [TEAM.RED]: CHAMPION_IDS.slice(3, 6) } });
+        const bots = sim.champions.map(x => createBot(sim, x));
+        let t = 0;
+        while (!sim.over && sim.time < GAME_MAX) {
+            updateBots(bots, TICK, t); sim.step(TICK); t++;
+            const evs = sim.drain();
+            // 同一批入面邊個真係射咗嘢出嚟
+            const 射咗 = new Set(evs.filter(e => e.type === 'shoot').map(e => e.id));
+            for (const ev of evs) {
+                if (ev.type !== 'attack') continue;
+                const a = sim.entities.find(x => x.id === ev.id);
+                if (!a) continue;
+                if ((ev.projectile != null) === 射咗.has(ev.id)) 對++; else 錯++;
+                if ((a.kind === 'tower' || a.kind === 'nexus') && ev.projectile != null) 建築報有飛++;
+            }
+        }
+    }
+    check('每一下普攻，事件講嘅「有冇嘢飛」同實際射出嚟嘅彈道一致',
+        錯 === 0 && 對 > 1000, { 一致: 對, 唔一致: 錯 });
+    check('塔同水晶永遠唔會報話有嘢飛（佢哋根本冇彈道）',
+        建築報有飛 === 0, { 報咗: 建築報有飛 });
+}
+
 check('成份測試由頭到尾冇實體變成 NaN 座標', NaN汙染.length === 0, NaN汙染.slice(0, 5));
 
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);
