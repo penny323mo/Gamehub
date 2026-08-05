@@ -139,6 +139,24 @@ const INITIAL_HUD: HudState = {
   bossActive: false,
 };
 
+// Boss 招式：第二階段先開撲擊。
+//
+// 本來 boss 由頭到尾得一招（Punch），而「第二階段」只係同一招換咗一組數
+// （前搖 0.72 → 0.52、傷害 25 → 34、半徑 3.9 → 4.5）。玩家角度睇，第二
+// 階段唔係一件新嘢，只係同一件嘢快咗——打法完全唔使變，企遠啲一樣安全。
+// demon.gltf 有十四段動畫，用緊得五段；Jump／Jump_Land 一直冇出現過。
+//
+// 揀招寫成純函數，唔寫喺 tick 入面：要驗「第二階段真係多咗招」，唔應該
+// 要求測試打贏兩波雜兵先見到 boss。
+export const LEAP_MIN_RANGE = 6.5;
+export type BossMove = "punch" | "leap";
+export const chooseBossMove = (
+  phase: 1 | 2,
+  distance: number,
+  roll: number,
+): BossMove =>
+  phase === 2 && distance > LEAP_MIN_RANGE && roll < 0.55 ? "leap" : "punch";
+
 const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value));
 
@@ -922,6 +940,8 @@ export default function GameClient() {
       nextAttack: 0,
       phase: 1,
       knockbackUntil: 0,
+      move: "punch" as BossMove,
+      leapTarget: new THREE.Vector3(),
     };
 
     const minions: MinionEnemy[] = [];
@@ -1557,6 +1577,8 @@ export default function GameClient() {
       walls: () => staticBoxes.map((b) => ({ ...b })),
       clock: () => ({ real: performance.now() / 1000, motion: motionClock, attacks: minionAttacks }),
       // 揮擊弧線畫成點 vs 判定實際係點——兩組數分開出，等測試可以夾佢哋
+      bossMove: (phase: 1 | 2, distance: number, roll: number) => chooseBossMove(phase, distance, roll),
+      leapMinRange: () => LEAP_MIN_RANGE,
       swing: () => {
         const p = attackArc.geometry.parameters as { radius: number; arc: number };
         const cfg = CLASS_CONFIG[currentClass];
@@ -2030,18 +2052,43 @@ export default function GameClient() {
         } else if (boss.state === "hit") {
           if (now >= boss.stateUntil) boss.state = "idle";
         } else if (boss.state === "windup") {
+          const leaping = boss.move === "leap";
+          const windup = leaping ? 0.78 : boss.phase === 2 ? 0.52 : 0.72;
+          const hitRadius = leaping ? 5.2 : boss.phase === 2 ? 4.5 : 3.9;
           telegraph.visible = true;
-          telegraph.position.x = bossRoot.position.x;
-          telegraph.position.z = bossRoot.position.z;
-          const pulse = clamp(1 - (boss.impactAt - now) / (boss.phase === 2 ? 0.52 : 0.72), 0, 1);
-          telegraph.scale.setScalar(0.4 + pulse * 0.9);
+          // 撲擊嘅圈畫喺落點，普通拳嘅圈畫喺自己身上。
+          telegraph.position.x = leaping ? boss.leapTarget.x : bossRoot.position.x;
+          telegraph.position.z = leaping ? boss.leapTarget.z : bossRoot.position.z;
+          const pulse = clamp(1 - (boss.impactAt - now) / windup, 0, 1);
+          telegraph.scale.setScalar((leaping ? 1.55 : 0.4) + pulse * (leaping ? 0.62 : 0.9));
           (telegraph.material as THREE.MeshBasicMaterial).opacity = 0.25 + pulse * 0.65;
+          if (leaping && !boss.impactDone) {
+            // 向住鎖死咗嘅落點飛，順手起一個弧線高度。
+            const toLand = boss.leapTarget.clone().sub(bossRoot.position);
+            toLand.y = 0;
+            const remain = Math.max(0.02, boss.impactAt - now);
+            bossBody.velocity.x = toLand.x / remain;
+            bossBody.velocity.z = toLand.z / remain;
+            bossRoot.position.y = Math.sin(pulse * Math.PI) * 1.9;
+          }
           if (!boss.impactDone && now >= boss.impactAt) {
             boss.impactDone = true;
             telegraph.visible = false;
+            bossRoot.position.y = 0;
+            if (leaping) {
+              bossBody.velocity.x = 0;
+              bossBody.velocity.z = 0;
+              currentBossAction = playAction(bossActions, "Jump_Land", currentBossAction, true, 1.2);
+              cameraShake = 0.6;
+            }
             gameAudio.play("bossSlam", bossRoot.position.x, bossRoot.position.z);
-            if (bossDistance < (boss.phase === 2 ? 4.5 : 3.9) && now > player.invincibleUntil) {
-              player.hp = clamp(player.hp - (boss.phase === 2 ? 34 : 25), 0, 100);
+            // 撲擊量嘅係「離落點幾遠」，唔係「離 boss 幾遠」——玩家係靠
+            // 個圈避開嗰塊地，唔係靠避開隻怪。
+            const impactDistance = leaping
+              ? playerRoot.position.distanceTo(boss.leapTarget)
+              : bossDistance;
+            if (impactDistance < hitRadius && now > player.invincibleUntil) {
+              player.hp = clamp(player.hp - (leaping ? 30 : boss.phase === 2 ? 34 : 25), 0, 100);
               player.knockbackUntil = now + (boss.phase === 2 ? 0.32 : 0.24);
               player.knockbackDirection
                 .copy(toBoss)
@@ -2075,12 +2122,24 @@ export default function GameClient() {
           bossBody.velocity.z = direction.z * bossSpeed;
           currentBossAction = playAction(bossActions, "Run", currentBossAction, false, boss.phase === 2 ? 2.1 : 1.82);
         } else if (now >= boss.nextAttack) {
+          boss.move = chooseBossMove(boss.phase as 1 | 2, bossDistance, Math.random());
           boss.state = "windup";
           boss.impactDone = false;
-          boss.impactAt = now + (boss.phase === 2 ? 0.52 : 0.72);
-          boss.stateUntil = boss.impactAt + 0.15;
-          boss.nextAttack = now + (boss.phase === 2 ? 1.55 : 2.2);
-          currentBossAction = playAction(bossActions, "Punch", currentBossAction, true, boss.phase === 2 ? 1.3 : 0.95);
+          if (boss.move === "leap") {
+            // 撲擊：起跳嗰刻鎖死落點，然後成段前搖都向住嗰點飛。
+            // 預警圈畫喺**落點**唔係畫喺 boss 度——玩家要讀嘅係「佢會落
+            // 邊」，唔係「佢而家企邊」。呢個先係同 Punch 唔同嘅玩法。
+            boss.leapTarget.copy(playerRoot.position);
+            boss.impactAt = now + 0.78;
+            boss.stateUntil = boss.impactAt + 0.2;
+            boss.nextAttack = now + 2.4;
+            currentBossAction = playAction(bossActions, "Jump", currentBossAction, true, 1.05);
+          } else {
+            boss.impactAt = now + (boss.phase === 2 ? 0.52 : 0.72);
+            boss.stateUntil = boss.impactAt + 0.15;
+            boss.nextAttack = now + (boss.phase === 2 ? 1.55 : 2.2);
+            currentBossAction = playAction(bossActions, "Punch", currentBossAction, true, boss.phase === 2 ? 1.3 : 0.95);
+          }
         } else {
           boss.state = "idle";
           currentBossAction = playAction(bossActions, "Idle", currentBossAction);

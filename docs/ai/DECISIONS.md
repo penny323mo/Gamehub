@@ -3549,3 +3549,36 @@ rather than over-promising it, and each check owns one direction.
 Left measured but unchanged: a swing damages exactly one enemy, because `findSweptAttackTarget`
 returns a single best candidate. With three-revenant waves that is now visible, but whether a sweep
 should cleave is a balance decision, not a defect, and it is recorded here rather than guessed at.
+
+## ADR-152 — Elden Ring II: phase two was the same fight with bigger numbers
+
+Status: accepted. Date: 2026-08-05.
+
+The boss had exactly one attack. `boss.phase = 2` at half health changed the windup (0.72 → 0.52),
+the damage (25 → 34), the hit radius (3.9 → 4.5), the cadence and the run speed — every one of them
+a number on the same `Punch`. Nothing the player *does* changes: read the ring on the boss, roll,
+punish. A second phase that alters no decision is a difficulty slider wearing a phase transition's
+clothes.
+
+`demon.gltf` ships fourteen animation clips and the game uses five. `Jump`, `Jump_Land`, `Duck`,
+`Wave`, `Weapon`, `No`, `Yes` and `Jump_Idle` have never been on screen — the same finding as the
+three never-placed environment models in ADR-148. Phase two now opens with a **leap**: the landing
+point is locked at take-off, the boss flies there over 0.78 s on a sine arc, and the telegraph ring
+is drawn **at the landing point rather than on the boss**. That is the part that makes it a
+different fight — the thing you read is where it will land, not where it is standing, so backing
+away is no longer automatically safe. Impact distance is measured against the locked landing point
+for the same reason.
+
+The move choice is a **pure function at module scope**, `chooseBossMove(phase, distance, roll)`, not
+a branch buried in the tick. The reason is testability, and it is not academic: reaching the boss
+headlessly means clearing eight revenants under software rasterisation at three frames a second. A
+gate that requires winning the game before it can observe anything is a gate nobody will ever run.
+Extracting the decision means the whole input space can be swept in a millisecond.
+
+Three checks, all verified failing by making `chooseBossMove` return `"punch"` unconditionally:
+phase one is punch-only at every distance; phase two beyond 6.5 m produces **both** moves across
+forty rolls; phase two inside 6.5 m stays punch, because a leap is how you close distance, not
+something you do while already in someone's face. Only the middle one fires on the mutant — correct,
+since the other two describe behaviour the old code also had.
+
+`tests/hud-layout.mjs` is 18/18.
