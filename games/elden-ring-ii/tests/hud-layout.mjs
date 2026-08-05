@@ -561,6 +561,33 @@ for (const [w, h, 名] of 尺寸) {
     check('每一個玩家企得到嘅位，雜兵都追得到（唔會卡死喺障礙物前面）',
         r != null && r.試 > 200 && r.壞.length === 0,
         r && { 試咗幾多次: r.試, 到唔到嘅: r.壞.length, 最耐幾秒: r.最耐, 例: r.壞.slice(0, 5) });
+
+    // Boss 一樣。佢卡住唔會令成局玩唔落去（boss 唔使清先過關），但聖所最大
+    // 嗰個特徵就係嗰四條柱，而實測**41 個位入面 10 個** boss 到唔到——佢企死
+    // 喺 x = ±4.3，即係柱嘅內側。即係話成個 boss 場有四分一係安全區。
+    const bb = await page.evaluate(() => {
+        const api = window.__ER2;
+        if (!api || !api.追擊試) return null;
+        const m = api.map();
+        const walls = api.walls();
+        const 企得 = (x, z) => !walls.some((b) => window.__尺.入面(x, z, b, 1.0));
+        const 位 = [];
+        for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) for (const f of [0.3, 0.55, 0.8, 0.93]) {
+            const x = Math.cos(a) * m.north.r * f, z = m.north.cz + Math.sin(a) * m.north.r * f;
+            if (企得(x, z)) 位.push([+x.toFixed(1), +z.toFixed(1)]);
+        }
+        const 壞 = [];
+        let 最耐 = 0;
+        for (const p of 位) {
+            const out = api.追擊試([0, m.north.cz], p, 24, 'boss');
+            最耐 = Math.max(最耐, out.用咗);
+            if (!out.到) 壞.push(`(${p[0]},${p[1]}) 最近 ${out.最近} 停喺 ${out.尾}`);
+        }
+        return { 試: 位.length, 壞, 最耐: +最耐.toFixed(1) };
+    });
+    check('boss 場入面每一個企得到嘅位，boss 都追得到（冇安全區）',
+        bb != null && bb.試 > 30 && bb.壞.length === 0,
+        bb && { 試咗幾多次: bb.試, 到唔到嘅: bb.壞.length, 最耐幾秒: bb.最耐, 例: bb.壞.slice(0, 5) });
 }
 
 // ---------- 分區補光行遠咗要熄 ----------

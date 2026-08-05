@@ -4165,3 +4165,31 @@ changes to how that corner of the courtyard plays than "give the props colliders
 
 Verified in the failing direction: deleting the avoidance branch reproduces exactly 18, at the same
 coordinates. `hud-layout.mjs` is 45/45.
+
+## ADR-169 — Elden Ring II: a quarter of the boss arena was a safe spot, and my probe was measuring a boss the game does not have
+
+Date: 2026-08-05. Status: accepted.
+
+ADR-168 gave the minions avoidance. The boss still steered with a bare `toBoss.normalize()`, and the
+sanctum has had four solid pillars since ADR-165. So the same measurement, pointed at the boss.
+
+It came back 0 of 41 unreachable — and that was wrong. `追擊試()` calls `chaseDirection`, which now
+avoids obstacles; the boss's own code did not. **The probe was measuring a boss the game does not
+have.** That is the failure mode this whole method exists to catch, and it caught it only because
+the number was suspiciously clean for a rule with no avoidance in it.
+
+With the boss wired to the same rule and the avoidance branch removed at the call site — so the
+measurement is of the shipped rule minus one change — the real number is **10 of 41 positions the
+boss can never reach**, and it stops at x = ±4.3 in every one of them: the inner face of the pillars
+at (±9, −41) and (±9, −55). A quarter of the boss arena was somewhere you could stand and watch the
+Crownless jog on the spot.
+
+Unlike the minion case this is not a softlock — nothing requires the boss to reach you — which is
+exactly why it would never have shown up in a playthrough that anybody bothered to finish. It is
+just the climax of the game being free if you stand in the right place.
+
+Boss now uses `chaseDirection` with `makeBlocked(staticBoxes, bossRadius)` and its own turn memory.
+0 of 41, longest chase 9.4 s. `BOSS_REACH` is a named constant now rather than a `3.15` written in
+the chase branch and nowhere else, so the probe and the game agree on when the boss stops running.
+
+`hud-layout.mjs` 46/46, `npm test` 6/6, `hub.mjs` 96/96.

@@ -164,6 +164,8 @@ export const shouldShowWaypoint = (distance: number | null, alive: boolean) =>
 // 喺下半段——同 ADR-151 嗰個 `minionRadius` TDZ 一模一樣嘅坑。
 export { ARENA_RADIUS, BOSS_SPAWN_Z, FOG_GATE } from "./map";
 
+// Boss 埋到幾近就唔再行、開始出手。
+export const BOSS_REACH = 3.15;
 export const LEAP_MIN_RANGE = 6.5;
 export type BossMove = "punch" | "leap";
 export const chooseBossMove = (
@@ -1023,6 +1025,7 @@ export default function GameClient() {
       impactDone: false,
       nextAttack: 0,
       phase: 1,
+      avoid: { turn: 0 },
       knockbackUntil: 0,
       move: "punch" as BossMove,
       leapTarget: new THREE.Vector3(),
@@ -1854,7 +1857,10 @@ export default function GameClient() {
       //
       // 點解要緊：清晒一波先開到下一關。有一個玩家企得到嘅位置係雜兵永遠
       // 到唔到嘅，就唔止「打得輕鬆啲」——係成局卡死。
-      追擊試: (from: [number, number], to: [number, number], seconds = 24) => {
+      追擊試: (from: [number, number], to: [number, number], seconds = 24, 邊個 = "minion") => {
+        const 誰 = 邊個 === "boss"
+          ? { r: bossRadius, seg: bossSegment, 高: bossGroundOffset, 速: 6.3, 射: BOSS_REACH, 質: 120 }
+          : { r: minionRadius, seg: minionSegment, 高: minionGroundOffset, 速: MINION_SPEED[2], 射: MINION_ATTACK_RANGE, 質: 44 };
         const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -18, 0) });
         world.broadphase = new CANNON.SAPBroadphase(world);
         world.defaultContactMaterial.friction = 0.02;
@@ -1872,10 +1878,10 @@ export default function GameClient() {
           world.addBody(body);
         }
         const runner = new CANNON.Body({
-          mass: 44, linearDamping: 0.84, fixedRotation: true,
-          position: new CANNON.Vec3(from[0], minionGroundOffset, from[1]),
+          mass: 誰.質, linearDamping: 0.84, fixedRotation: true,
+          position: new CANNON.Vec3(from[0], 誰.高, from[1]),
         });
-        addCapsuleShapes(runner, minionRadius, minionSegment);
+        addCapsuleShapes(runner, 誰.r, 誰.seg);
         runner.updateMassProperties();
         world.addBody(runner);
         const 目標 = { x: to[0], z: to[1] };
@@ -1886,14 +1892,14 @@ export default function GameClient() {
           const 位 = { x: runner.position.x, z: runner.position.z };
           const d = Math.hypot(位.x - 目標.x, 位.z - 目標.z);
           if (d < 最近) 最近 = d;
-          if (d <= MINION_ATTACK_RANGE) { 用咗 = step * dt; break; }
-          const dir = chaseDirection(位, 目標, [], makeBlocked(staticBoxes, minionRadius), memo);
-          runner.velocity.x = dir.x * MINION_SPEED[2];
-          runner.velocity.z = dir.z * MINION_SPEED[2];
+          if (d <= 誰.射) { 用咗 = step * dt; break; }
+          const dir = chaseDirection(位, 目標, [], makeBlocked(staticBoxes, 誰.r), memo);
+          runner.velocity.x = dir.x * 誰.速;
+          runner.velocity.z = dir.z * 誰.速;
           world.step(dt);
         }
         return { 最近: +最近.toFixed(2), 用咗: +用咗.toFixed(2),
-          到: 最近 <= MINION_ATTACK_RANGE,
+          到: 最近 <= 誰.射,
           尾: [+runner.position.x.toFixed(1), +runner.position.z.toFixed(1)] };
       },
     };
@@ -2421,9 +2427,18 @@ export default function GameClient() {
           }
         } else if (boss.state === "recover") {
           if (now >= boss.stateUntil) boss.state = "idle";
-        } else if (bossDistance > 3.15) {
+        } else if (bossDistance > BOSS_REACH) {
           boss.state = "run";
-          const direction = toBoss.normalize();
+          // Boss 同雜兵行同一條規則。**佢本來冇迴避**，而聖所而家有四條實心
+          // 柱（ADR-165 之後）——一隻兜唔到柱嘅 boss 唔會卡死成局（佢唔使清），
+          // 但佢會喺柱前面企定畀人免費打，而個場最大嗰個特徵就係嗰四條柱。
+          const direction = chaseDirection(
+            bossRoot.position,
+            playerRoot.position,
+            [],
+            makeBlocked(staticBoxes, bossRadius),
+            boss.avoid,
+          );
           const bossSpeed = boss.phase === 2 ? 8.3 : 6.3;
           bossBody.velocity.x = direction.x * bossSpeed;
           bossBody.velocity.z = direction.z * bossSpeed;
