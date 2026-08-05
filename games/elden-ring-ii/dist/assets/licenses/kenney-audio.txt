@@ -1,0 +1,13 @@
+RPG Audio and Impact Sounds
+Created and distributed by Kenney (https://kenney.nl/)
+
+Source pages:
+https://kenney.nl/assets/rpg-audio
+https://kenney.nl/assets/impact-sounds
+
+License: Creative Commons Zero (CC0 1.0)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+The selected Ogg effects were transcoded to MP3 for broad browser playback.
+Kenney permits these assets in personal and commercial projects; attribution is
+not mandatory.

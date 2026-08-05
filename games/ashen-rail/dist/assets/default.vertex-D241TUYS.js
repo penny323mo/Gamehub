@@ -1,0 +1,1 @@
+import{t as e}from"./default.vertex-DQ1iocOy.js";export{e as defaultVertexShaderWGSL};

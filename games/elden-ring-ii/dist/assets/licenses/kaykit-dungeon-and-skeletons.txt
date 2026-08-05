@@ -1,0 +1,17 @@
+KayKit Dungeon Remastered 1.0 and Character Pack: Skeletons 1.0
+Created and distributed by Kay Lousberg (https://kaylousberg.com/)
+
+Official repositories:
+https://github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0
+https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0
+
+License: Creative Commons Zero (CC0 1.0)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+The selected GLB/glTF assets are free to use in personal, educational, and
+commercial projects. Attribution is not mandatory.
+
+Bundled content:
+- Modular arches, broken/cracked walls, columns, rubble, banners, torches,
+  barrels, and crates from Dungeon Remastered.
+- Skeleton Minion character and its bundled animations from Skeletons.

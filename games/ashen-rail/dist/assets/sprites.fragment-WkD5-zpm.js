@@ -1,0 +1,1 @@
+import{t as e}from"./sprites.fragment-CVolMj-i.js";export{e as spritesPixelShaderWGSL};

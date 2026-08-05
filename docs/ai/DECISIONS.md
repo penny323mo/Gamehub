@@ -3272,3 +3272,46 @@ unconsumed types were only confirmed by grepping the raw names across all of `sr
 pass would have missed any handler written in another syntax. The check that matters is the
 dynamic one; the grep only pointed at where to look. Source changed, so the cache token moved to
 `assets-27`.
+
+## ADR-145 — Two of the hub's thirteen tiles have been 404 on the live site
+
+Status: accepted. Date: 2026-08-05.
+
+Every round so far has measured the MOBA. The hub itself has been measured for touch-target sizes,
+carousel geometry and dot spacing (ADR-133) — but never for the most basic property of a menu:
+**that tapping a tile leads somewhere.** Loading all eleven launcher entries in a browser and
+recording responses found `games/ashen-rail/dist/index.html` returning **404**. Reading the links
+statically instead of through a browser found thirteen entries and a second dead one,
+`games/elden-ring-ii/dist/index.html` — the browser sweep had missed it because my entry-extraction
+regex required an `id:` field the launcher does not always place nearby. The cheap static check was
+both faster and more complete than the elaborate one.
+
+The cause is `.gitignore`: both `dist/` directories were excluded. This repo is a static GitHub
+Pages site with no CI build step — Pages serves the checked-in files, so `dist/` is not an
+intermediate artefact, it **is** the deliverable. `tower`, `snake-game` and `xiangqi-ai` all commit
+theirs; these two did not. A generic habit ("don't commit build output") applied to a repo where
+the build output is the website means "don't ship it".
+
+Both projects build cleanly from source (`npm ci` then `npm run build`, 133 and 47 packages), and
+both were loaded in a browser before committing: Ashen Rail reaches its loading screen at
+「載入 荒原槍手… 50%」, Elden Ring II renders its title, **zero page errors and zero external
+requests each**. The builds add ~53 MB across 1002 files, an order of magnitude more than the other
+committed dists (716 KB / 276 KB / 616 KB) because both ship GLB models and audio.
+
+That size is a real cost and it is largely duplication: `dist/assets` is a copy of `public/`, which
+git already tracks. The alternative — `publicDir: false` plus rewriting asset URLs to `../public/`
+— was rejected rather than skipped: the URLs are relative under `base: "./"`, the change would
+break `npm run dev` (Vite refuses paths outside the project root), and neither game can be visually
+verified from here. A dead tile is strictly worse than a duplicated asset, and consistency with the
+three games that already work matters more than the megabytes.
+
+`tests/hub.mjs` now reads every `link:` in `launcher.js` and asserts the file exists. It fired on
+both dead links before the fix and passes at 13/13 after. The `.gitignore` comment states the rule
+that was missing: excluding a `dist/` requires removing its launcher tile in the same change.
+
+Two clean negatives found on the way, both recorded so they are not re-investigated. Four games
+load `@supabase/supabase-js@2` from jsdelivr and one fetches an HDRI from `dl.polyhaven.org`;
+blocking every external host shows they degrade rather than break — gomoku logs
+`[Online] Supabase SDK not loaded` and carries on, and no game raises a page error. And
+`games/gomoku/build_info.js` 404s locally because `deploy-pages.yml:66` generates it at deploy
+time; the page guards on `window.__BUILD__` and simply shows nothing.

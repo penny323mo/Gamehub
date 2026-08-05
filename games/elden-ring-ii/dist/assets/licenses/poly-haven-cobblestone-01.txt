@@ -1,0 +1,12 @@
+Poly Haven — Cobblestone 01
+https://polyhaven.com/a/cobblestone_01
+
+License: CC0 1.0 Universal
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Downloaded from the official Poly Haven CDN at 1K resolution:
+- Diffuse JPG
+- OpenGL normal JPG
+- Roughness JPG
+
+The files are used as a tiled PBR arena-floor material.

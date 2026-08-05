@@ -1,0 +1,1 @@
+import{t as e}from"./default.fragment-D32x_BIx.js";export{e as defaultPixelShaderWGSL};

@@ -24,10 +24,18 @@ node_modules
 .DS_Store
 **/.DS_Store
 
-# Build output (keep tower/dist as it's needed for GitHub Pages)
-# games/tower/dist/
-games/ashen-rail/dist/
-games/elden-ring-ii/dist/
+# Build output.
+#
+# 呢個倉係一個靜態 GitHub Pages 站：冇 CI build step，Pages 直接派倉入面
+# 嘅檔。即係 `dist/` 唔係中間產物，佢本身就係交付物。
+#
+# 之前 ashen-rail 同 elden-ring-ii 兩個 dist 被排除咗，而 `launcher.js` 兩格
+# 都連住 `dist/index.html`——結果已上線嘅 Hub 有兩格撳落去係 404。一個
+# 「唔好入 build 產物」嘅通用習慣，用喺一個 build 產物就係網站嘅倉度，
+# 就變成「唔好上線」。tower／snake／xiangqi 三個一直都有入，得佢哋兩個冇。
+#
+# `tests/hub.mjs` 而家逐個 launcher 入口查檔案在唔在，所以呢件事唔會再靜靜哋
+# 發生。要再排除任何 dist，就要連 launcher 嗰格一齊拎走。
 
 # Claude Code runtime state
 .claude/scheduled_tasks.lock

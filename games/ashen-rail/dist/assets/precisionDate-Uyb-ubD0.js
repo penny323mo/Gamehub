@@ -1,0 +1,1 @@
+import{i as e}from"./domManagement-BqltO0ki.js";var t=class{static get Now(){return e()&&window.performance&&window.performance.now?window.performance.now():Date.now()}};export{t};

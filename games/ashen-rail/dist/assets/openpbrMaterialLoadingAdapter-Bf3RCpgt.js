@@ -1,0 +1,1 @@
+import{t as e}from"./openpbrMaterialLoadingAdapter-8ack4FXo.js";export{e as OpenPBRMaterialLoadingAdapter};

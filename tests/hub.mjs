@@ -274,6 +274,34 @@ for (const viewport of [
     await page.close();
 }
 
+// ---------- 每個入口都要真係去到一個存在嘅檔 ----------
+//
+// Hub 一直有量掣夠唔夠大、圓點隔幾遠、輪播排得啱唔啱（ADR-133），但由頭到
+// 尾冇量過**最基本嗰件事：撳落去有冇嘢**。實測用瀏覽器逐個入口載入，
+// `games/ashen-rail/dist/index.html` 回 **404**——即係已上線嘅網站入面，
+// 灰燼鐵道嗰格由第一日起撳落去就係一版白。
+//
+// 成因喺 `.gitignore`：`games/ashen-rail/dist/` 被排除，而呢個係一個靜態
+// GitHub Pages 站，`dist` 本身就係交付物。其他遊戲（snake／tower／xiangqi）
+// 嘅 dist 全部有入 git，得佢冇。一個「唔好入 build 產物」嘅通用習慣，用喺
+// 一個 build 產物就係網站嘅倉度，就變成「唔好上線」。
+//
+// 呢條檢查唔開瀏覽器：靜態讀 `launcher.js` 嘅 link，逐個查檔案在唔在。
+// 開瀏覽器嗰個版本會慢十倍，而且答案一樣。
+{
+    const src = fs.readFileSync(path.join(ROOT, 'launcher.js'), 'utf8');
+    const links = [...src.matchAll(/link:\s*'([^']+)'/g)].map(m => m[1]);
+    const 死 = [];
+    for (const raw of links) {
+        const rel = decodeURIComponent(raw.split(/[?#]/)[0]);
+        if (/^https?:/i.test(rel)) continue;          // 外部連結唔喺呢度管
+        const f = path.join(ROOT, rel);
+        if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) 死.push(raw);
+    }
+    check('launcher 每個入口都指住一個存在嘅檔', 死.length === 0,
+        { 一共: links.length, 死鏈: 死 });
+}
+
 await browser.close();
 await new Promise(resolve => server.close(resolve));
 console.log(`\nhub: ${pass}/${pass + fail} 通過`);
