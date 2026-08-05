@@ -4089,3 +4089,42 @@ mutation reports `wall.glb (-44.9, -5.8) 入咗 1.36m` — the number measured b
 the only evidence that the gate resolves the thing it is named after.
 
 `hud-layout.mjs` is 44/44.
+
+## ADR-167 — Elden Ring II: the map moves out of the React effect, and gets tested in 270 ms
+
+Date: 2026-08-05. Status: accepted.
+
+Every question about this map has had to be answered through a real browser, because the map only
+existed inside a `useEffect`. That is why ADR-157 gave up on a playing bot: software rasterisation
+runs at three frames a second and the character walks half a metre in one, so "the enemy never
+reached me" and "the map is broken" are the same measurement. It is also why the mirrored rotation
+of ADR-165 survived so long — the only instrument was expensive enough that nobody ran two of them.
+
+`src/map.ts` now holds the shape: the constants, and `buildMap(add)` which generates every static
+box. It imports neither three.js nor cannon-es — placing a box is injected. The game passes "make a
+CANNON body"; a test passes "write this down", and gets the whole collision world in Node.
+
+Behaviour-preserving by construction and by check: the 111-box collider table, dumped from the
+running game and sorted, is **byte-identical before and after**.
+
+`tests/map.test.mjs` runs in Node with `--experimental-strip-types`, in **270 ms** against the
+browser suite's six and a half minutes, and asks three things the browser suite never could afford
+to: that all three regions are reachable from the spawn, that the playable area is **sealed** (the
+ground is an infinite plane, so "can you walk off the map" is a real question and had never been
+asked), and that each ring wall has exactly the openings it should, at the angles it should.
+
+Two of the three failed on their first run, and both were the instrument:
+
+- The containment probes sat outside the flood-fill grid, so the index ran off the end of one column
+  into the next and read a neighbouring cell — a fabricated "you can walk off the map". `到()` now
+  throws on an out-of-range probe instead of answering.
+- The opening sweep starts at angle 0, so the courtyard's east gate — which straddles 0 — came back
+  as **two** openings at 0.05 and 6.23. Wrapping segments are now joined before counting.
+
+Verified in the failing direction, all three mutations sub-second: sealing the arena's north gate
+gives `1 opening, expected 2`; shortening the bridge railings by 3 m gives `漫咗出場外 (0, 45)`;
+restoring the mirrored rotation convention fails all three at once. Sealing the north gate does
+*not* make the sanctum unreachable — the L shortcut still gets there — which is the map being a
+ring, and is why the two tests are not redundant.
+
+`npm test` is now 6/6 and covers map shape as well as the built files.
