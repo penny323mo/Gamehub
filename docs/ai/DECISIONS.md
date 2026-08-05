@@ -4252,3 +4252,30 @@ new art is exactly one model. Further map growth needs either new assets or geom
 model-based.
 
 `hud-layout.mjs` 47/47, `npm test` 6/6, `hub.mjs` 96/96.
+
+## ADR-172 — Elden Ring II: cover did nothing, because nothing ever checked whether it was in the way
+
+Date: 2026-08-05. Status: accepted.
+
+`findSweptAttackTarget` scored candidates on forward distance and lateral offset. `nearestEnemy`,
+which picks what a projectile flies at, used squared distance. Neither asked whether anything stood
+between. So every pillar, column, rock and wall in the game was **decoration as far as combat was
+concerned** — you shoot through them, and the minions punch through them — and this held in both
+directions, which is why nothing about it ever felt asymmetric enough to notice.
+
+It is also the last piece of the ADR-165 thread. Those props only became solid at all this session;
+before that you could walk through them too, so "does cover work" was not yet a question that had
+a wrong answer.
+
+`makeLineOfSight(boxes)` in `chase.ts` samples the segment at 0.3 m — under the thinnest wall's
+0.42 m half-thickness, so nothing slips through a gap between samples. Swept melee targeting rejects
+candidates without sight; `nearestEnemy(需要視線)` takes it as an argument and only the projectile
+site passes `true`, because an arrow should not pass through a column but the camera should not snap
+off a target the instant it steps behind one.
+
+Both directions gated, and both mutations run: with sight never blocked, `隔住一件障礙物` fails on
+all 27 props; with everything blocking, the open-ground control fails **and both ranged classes stop
+being able to clear wave 1** — which is the part worth having, because it shows the seam the gate
+reads and the code path the game runs are the same one, not two implementations that agree.
+
+`hud-layout.mjs` 49/49.

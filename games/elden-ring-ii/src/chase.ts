@@ -87,3 +87,26 @@ export const chaseDirection = (
   }
   return base;
 };
+
+// 兩點之間有冇嘢擋住。
+//
+// 搵攻擊目標本來淨係計距離同橫向偏移——即係**隔住條柱一樣打得中**，而且兩
+// 邊都係：你射得穿佢，佢都打得穿你。場入面啲柱同石本來就係為咗做掩護，一日
+// 冇視線檢查，佢哋喺戰鬥入面等於唔存在。
+//
+// 一條線段對一堆方盒，用取樣：步長細過最薄嗰塊牆（0.42 米半厚）就唔會漏。
+export const LOS_STEP = 0.3;
+export const makeLineOfSight = (boxes: readonly Box[]) => {
+  const blocked = makeBlocked(boxes, 0);
+  return (from: Pt, to: Pt): boolean => {
+    const dx = to.x - from.x, dz = to.z - from.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-6) return true;
+    const steps = Math.ceil(len / LOS_STEP);
+    for (let i = 1; i < steps; i += 1) {
+      const t = i / steps;
+      if (blocked(from.x + dx * t, from.z + dz * t)) return false;
+    }
+    return true;
+  };
+};

@@ -11,7 +11,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { GameAudio } from "./audio";
 import { ARENA_RADIUS, BOSS_SPAWN_Z, FOG_GATE, buildMap } from "./map";
-import { MINION_ATTACK_RANGE, MINION_SPEED, chaseDirection, makeBlocked } from "./chase";
+import { MINION_ATTACK_RANGE, MINION_SPEED, chaseDirection, makeBlocked, makeLineOfSight } from "./chase";
 import { hasSupabaseFoundation, recordCompletedRun } from "./progress";
 
 type GameStatus = "loading" | "ready" | "playing" | "victory" | "dead" | "error";
@@ -1150,14 +1150,20 @@ export default function GameClient() {
       else if (encounterStage === 2) unlockBossEncounter();
     };
 
-    const nearestEnemy = () => {
-      let nearest: MinionEnemy | "boss" | null = bossActive && boss.hp > 0 ? "boss" : null;
+    // `需要視線` 只有射嘢嗰邊會開：鏡頭鎖敵人唔應該因為對方閃咗入柱後面
+    // 就即刻甩鏡，但一支箭係唔應該穿過條柱嘅。
+    const nearestEnemy = (需要視線 = false) => {
+      const 睇得到 = 需要視線 ? makeLineOfSight(staticBoxes) : null;
+      const 見到 = (root: THREE.Object3D) =>
+        !睇得到 || 睇得到(playerRoot.position, root.position);
+      let nearest: MinionEnemy | "boss" | null =
+        bossActive && boss.hp > 0 && 見到(bossRoot) ? "boss" : null;
       let nearestDistance = nearest === "boss"
         ? playerRoot.position.distanceToSquared(bossRoot.position)
         : Number.POSITIVE_INFINITY;
       livingMinions().forEach((minion) => {
         const distance = playerRoot.position.distanceToSquared(minion.root.position);
-        if (distance < nearestDistance) {
+        if (distance < nearestDistance && 見到(minion.root)) {
           nearest = minion;
           nearestDistance = distance;
         }
@@ -1180,11 +1186,14 @@ export default function GameClient() {
       );
       const candidates: Array<MinionEnemy | "boss"> = [...livingMinions()];
       if (bossActive && boss.hp > 0) candidates.push("boss");
+      const 睇得到 = makeLineOfSight(staticBoxes);
       let best: MinionEnemy | "boss" | null = null;
       let bestScore = Number.POSITIVE_INFINITY;
       candidates.forEach((candidate) => {
         const root = targetRoot(candidate);
         if (!root) return;
+        // 隔住牆嘅唔算目標。冇呢一行，場入面啲柱同石喺戰鬥入面等於唔存在。
+        if (!睇得到(origin, root.position)) return;
         const offset = root.position.clone().sub(origin);
         const projected = offset.dot(attackDirection);
         const radius = candidate === "boss" ? bossRadius : minionRadius;
@@ -1858,6 +1867,8 @@ export default function GameClient() {
       },
       spawns: () => minions.map((m) => ({ wave: m.wave, x: m.spawn[0], z: m.spawn[1] })),
       graces: () => graces.map((g) => ({ x: g.position.x, z: g.position.z })),
+      視線: (from: [number, number], to: [number, number]) =>
+        makeLineOfSight(staticBoxes)({ x: from[0], z: from[1] }, { x: to[0], z: to[1] }),
       // 由 A 追去 B，行一次真物理，唔畫任何嘢。
       //
       // 「雜兵追唔追得到你」呢條問題之前答唔到：唯一嘅方法係喺瀏覽器度企定
@@ -2047,7 +2058,7 @@ export default function GameClient() {
           player.impactDone = false;
           player.stamina -= classConfig.attackCost;
           player.combo = (player.combo + 1) % 2;
-          attackTarget = nearestEnemy();
+          attackTarget = nearestEnemy(true);
           const selectedTargetRoot = targetRoot(attackTarget);
           const attackName = classConfig.attackAnimations[player.combo];
           currentPlayerAction = playAction(playerActions, attackName, currentPlayerAction, true, 1.26);
