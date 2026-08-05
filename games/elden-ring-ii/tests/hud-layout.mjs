@@ -409,6 +409,60 @@ for (const [w, h, 名] of 尺寸) {
     }
 }
 
+// 主 page 仲喺度跑一個 WebGL loop，軟件光柵化之下佢會食晒 CPU，令新開嗰版
+// 連撳個掣都 timeout。以下嘅檢查全部用自己開嘅版，所以泊咗主 page 先。
+await page.goto('about:blank');
+
+// ---------- 碌開要真係少食好多嘢 ----------
+//
+// 之前二十四條檢查冇一條掂過閃避，而佢係呢類遊戲嘅核心動詞。壞咗唔會報錯，
+// 只會變成「點解我碌極都食晒」，而套件照樣全綠。
+//
+// 守後果，唔守常數：同一段**郁動時間**入面，不停碌收到嘅傷害率要顯著低過
+// 企定唔郁。用郁動時間做分母，因為兩次跑嘅真實時間唔一樣（企定嗰次早死）。
+//
+// **佢守嘅係位移，唔係無敵幀。** 兩個機制拆開量（%HP／郁動秒，企定唔郁係
+// 8.89）：
+//     　　　　　冇位移　　有位移
+//   冇無敵幀　  9.05　　　1.77
+//   有無敵幀　  4.67　　　1.78
+// 即係無敵幀單獨拎出嚟係有用嘅（9.05 → 4.67，少一半），但**加喺位移上面
+// 一蚊都唔值**（1.77 → 1.78）——因為碌一下行 12.4 米/秒 × 0.68 秒 ≈ 8.4 米，
+// 而雜兵攻擊距離得 1.82 米，你一早唔喺度，根本輪唔到無敵幀出場。
+// 所以剷走無敵幀呢條 gate 唔會響（ADR-159）。
+{
+    const 試 = async (碌) => {
+        const p2 = await browser.newPage({ viewport: { width: 560, height: 340 } });
+        await p2.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
+        await p2.waitForTimeout(1500);
+        await p2.getByText('OATHBOUND', { exact: false }).first().click();
+        await p2.getByText('ENTER THE VEIL').first().click();
+        await p2.waitForTimeout(4500);
+        const 血 = () => p2.evaluate(() => {
+            const w = document.querySelector('.bar.health i');
+            return w ? parseFloat(w.style.width) : null;
+        });
+        const 鐘 = () => p2.evaluate(() => window.__ER2.clock().motion);
+        const h0 = await 血(), m0 = await 鐘();
+        for (let i = 0; i < 45; i++) {
+            if (碌) await p2.keyboard.press('Space');
+            await p2.waitForTimeout(500);
+            const st = await p2.evaluate(() =>
+                document.querySelector('[data-game-status]').dataset.gameStatus);
+            if (st !== 'playing') break;
+        }
+        const h1 = await 血(), m1 = await 鐘();
+        await p2.close();
+        return { 率: (h0 - h1) / Math.max(0.5, m1 - m0), 掉: h0 - h1, 秒: +(m1 - m0).toFixed(1) };
+    };
+    const 定 = await 試(false);
+    const 碌 = await 試(true);
+    check('不停碌收到嘅傷害率，要低過企定唔郁嘅一半（守嘅係位移，唔係無敵幀）',
+        定.率 > 1 && 碌.率 <= 定.率 * 0.5,
+        { 企定: `${定.掉.toFixed(0)}% / ${定.秒}s = ${定.率.toFixed(2)}%每秒`,
+          不停碌: `${碌.掉.toFixed(0)}% / ${碌.秒}s = ${碌.率.toFixed(2)}%每秒` });
+}
+
 // ---------- 三個職業都要玩得到 ----------
 //
 // 上面每一條檢查都揀 OATHBOUND。即係三個職業入面兩個由頭到尾冇載入過——
@@ -418,9 +472,6 @@ for (const [w, h, 名] of 尺寸) {
 // 唔重跑成套（三倍時間），只問每個職業最基本嗰幾樣：載得入、冇 error、
 // 弧線幾何跟返自己嗰個射程、真係殺得死嘢。
 {
-    // 主 page 仲喺度跑一個 WebGL loop，軟件光柵化之下佢會食晒 CPU，令新開
-    // 嗰版連撳個掣都 timeout。呢度之後嘅檢查唔再用主 page，所以泊咗佢先。
-    await page.goto('about:blank');
     for (const [職, 射程] of [['ASTROLOGER', 16], ['WAYFARER', 18]]) {
         const p2 = await browser.newPage({ viewport: { width: 640, height: 380 } });
         const e2 = [];

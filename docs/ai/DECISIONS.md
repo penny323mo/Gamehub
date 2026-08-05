@@ -3778,3 +3778,41 @@ loop, and under software rasterisation that starved the CPU enough that clicking
 timed out at 30 s. The main page is parked at `about:blank` first; nothing after that point uses it.
 
 `tests/hud-layout.mjs` is 31/31.
+
+## ADR-159 — Elden Ring II: the dodge's invincibility frames never get a chance to matter
+
+Status: accepted. Date: 2026-08-05.
+
+Twenty-four checks and not one touched the dodge, which is the core verb of the genre. Broken
+i-frames raise no error; they turn into "why do I get hit when I roll" while the suite stays green.
+
+Measured as a consequence rather than pinned as a constant: damage taken per second of **motion**
+time — motion, not wall clock, because the standing run dies early and real seconds are not
+comparable. Standing still: **8.89–9.02 %HP/s**. Rolling continuously: **1.78 %HP/s**, an 80% cut.
+The gate demands at least half.
+
+Then the mutation refused to fire. Deleting the invincibility window entirely —
+`invincibleUntil = now` instead of `now + 0.52` — moved rolling from 1.78 to **1.77**. So I took the
+two mechanisms apart, because "i-frames do nothing" and "i-frames are redundant here" are different
+claims and only the second turned out to be true:
+
+| | no displacement | with displacement |
+|---|---|---|
+| **no i-frames** | 9.05 %/s | 1.77 %/s |
+| **with i-frames** | 4.67 %/s | 1.78 %/s |
+
+Read across: i-frames on their own are worth a **48% cut** (9.05 → 4.67) — they work. Read down the
+right column: on top of the displacement they are worth **nothing** (1.77 → 1.78). A roll travels
+12.4 m/s for 0.68 s, about **8.4 m**, while a revenant attacks from 1.82 m. You are already gone;
+the invincibility never gets tested. And the top-left cell confirms the floor — rolling in place
+with no i-frames is exactly as bad as not rolling at all (9.05 against 8.89).
+
+The check is kept and renamed to say what it actually holds: **it guards the displacement.** Removing
+the i-frames leaves it green, and that is now written into the test beside the table rather than
+being a surprise for whoever runs the mutation next. Nothing was changed in the game. The i-frames
+are not dead code — they are load-bearing in exactly the situations this environment cannot produce
+(cornered, or rolling through an attack already in flight), and deleting a mechanic because it did
+not show up in one measurement would be the same error as tuning on a bot's death (ADR-157).
+
+That is the eighth gate this session found green for a reason other than the one it appeared to
+test. The tell was the same every time.
