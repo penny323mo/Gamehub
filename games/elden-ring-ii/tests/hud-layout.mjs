@@ -158,7 +158,13 @@ for (const [w, h, 名] of 尺寸) {
         for (let x = 0; x >= court.cx; x -= 0.25) if (撞(x, 0)) 西.push(+x.toFixed(2));
         const 北 = [];
         for (let z = 0; z >= api.map().north.cz; z -= 0.25) if (撞(0, z)) 北.push(+z.toFixed(2));
-        return { 牆數: walls.length, 西, 北, 橋: bridge, 庭院: court };
+        // L 形捷徑：庭院北口 → z = -48 → 聖所西口。行呢條就唔使原路行返
+        // 出圓場，成個地圖係一個環而唔係一棵樹。
+        const n = api.map().north;
+        const 環 = [];
+        for (let z = court.cz - court.r + 1; z >= n.cz; z -= 0.25) if (撞(court.cx, z)) 環.push(`z${z.toFixed(1)}`);
+        for (let x = court.cx; x <= -n.r; x += 0.25) if (撞(x, n.cz)) 環.push(`x${x.toFixed(1)}`);
+        return { 牆數: walls.length, 西, 北, 環, 橋: bridge, 庭院: court };
     });
     check('由圓場中心一路行到西面庭院，中線上冇任何牆擋住',
         !r.冇接口 && r.西.length === 0,
@@ -166,6 +172,9 @@ for (const [w, h, 名] of 尺寸) {
     // 北面通道係 boss 場嘅入口。霧門本身係一個清晒三關先拆走嘅 collider，
     // 佢喺 staticBoxes 入面，所以呢條檢查連霧門都會當成牆——啱嘅，因為
     // 「未打完三關就入唔到」正正就係要守嗰件事嘅另一半。
+    check('由西面庭院直接行得到北面聖所（唔使原路折返成一百二十米）',
+        !r.冇接口 && r.環.length === 0,
+        { 擋住嘅位: (r.環 ?? []).slice(0, 12) });
     check('由圓場中心一路行到北面聖所，除咗霧門之外冇任何永久牆擋住',
         !r.冇接口 && r.北.length === 0,
         { 擋住嘅位: (r.北 ?? []).slice(0, 12) });

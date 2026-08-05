@@ -3852,3 +3852,39 @@ That is the ninth "for the wrong reason" this session and the first that was **r
 reason rather than green. The correction is the same either way: run the mutation.
 
 `tests/hud-layout.mjs` is 33/33.
+
+## ADR-161 — Elden Ring II: the map was a tree, and the camera was standing inside the walls
+
+Status: accepted. Date: 2026-08-05.
+
+The west courtyard was a **dead end I built myself**. Ward three sits at `x = -60`; clearing it meant
+walking the whole 60 m causeway back east and then 48 m north to the fog gate — about 120 m of
+retreading ground you have already seen, which is the part of level design players notice as tedium
+rather than distance.
+
+The map is a **loop** now. The courtyard gets a north opening, the sanctum gets a west one, and an
+L-shaped passage joins them: south along `x = -60` to `z = -48`, then east to the sanctum. Same
+11.2 m width as the other corridors, read off `BRIDGE.halfWidth` rather than written again.
+
+The L corner was wrong on the first attempt, and the connectivity gate caught it before any
+screenshot. Walls were built as centre-plus-half-length, symmetric, so **each leg's wall ran straight
+through the other leg's mouth** — the horizontal run's north wall spanned `x = -60…-20`, sealing the
+vertical corridor, and the vertical run's east wall spanned `z = -11…-54`, sealing the horizontal
+one. The gate named both (`z-41.8…-43.0` and `x-55.0…-53.8`). Walls are now built from explicit
+start and end points and stop at the corner, which is what an L needs.
+
+Then the screenshot came back **black** — and the wall list said nothing stood between the camera
+and the player. The camera occlusion (ADR-148) marches against `staticBoxes`, which are **0.42 m
+thick**, while the `wall.glb` mesh drawn at the same place is far thicker. The camera stopped
+legitimately outside the collider at `x = -64.63`, roughly half a metre clear of it, and that put it
+**inside the visual wall**, which then filled the frame. The pad went from 0.55 to 1.35 m so the stop
+distance covers the mesh, not just the box. This is a general fix, not a corridor one — it applies
+anywhere the camera backs into a wall, and it is probably what the causeway widening in ADR-153
+papered over rather than solved.
+
+Two rounds of "the picture and the data disagree, so measure which one is lying" — the first time
+the data was right (walls crossing), the second time the data was incomplete (colliders are not the
+meshes).
+
+`tests/hud-layout.mjs` is 34/34; sealing the courtyard's north opening fires the new loop check at
+`z -16.3…-17.8`.

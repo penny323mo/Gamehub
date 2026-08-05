@@ -385,6 +385,11 @@ export default function GameClient() {
     sanctumFill.position.set(0, 11, BOSS_SPAWN_Z);
     scene.add(sanctumFill);
 
+    // L 形捷徑自己嘅光，擺喺拐角——由兩邊行過嚟都照得到。
+    const linkFill = new THREE.PointLight("#7b86a8", 11, 36, 1.6);
+    linkFill.position.set(-60, 8, -48);
+    scene.add(linkFill);
+
     // 分區補光行遠咗就熄。
     //
     // PointLight 設咗 `distance` 之後，超過嗰個距離貢獻係零——但 three.js
@@ -395,7 +400,7 @@ export default function GameClient() {
     //
     // 個門檻由燈自己個 `distance` 出，唔另外寫一個數——兩個數各寫各嘅，
     // 就係今個 session 捉過好多次嗰個形狀。
-    const regionalFills = [courtFill, sanctumFill];
+    const regionalFills = [courtFill, sanctumFill, linkFill];
 
     const bloodLight = new THREE.PointLight("#b72c1e", 22, 20, 2);
     bloodLight.position.set(0, 3.5, -8);
@@ -888,10 +893,40 @@ export default function GameClient() {
       }
     };
     // 圓場有兩個開口：西面去走廊，北面去聖所。
+    // 庭院同聖所各自再開一個口，畀一條 L 形捷徑接埋——**唔想個地圖係一棵
+    // 樹**。本來西面庭院係死路：打完第三關要原路行返六十米出返圓場，再向北
+    // 行四十八米先入到 boss 場，即係成一百二十米純粹重行。接埋之後成個地圖
+    // 係一個環，行過嘅路唔使再行第二次。
     const NORTH_GATE = { angle: -Math.PI / 2, halfWidth: 0.25 };
+    const COURT_NORTH = { angle: -Math.PI / 2, halfWidth: 0.24 };   // 庭院北口
+    const NORTH_WEST = { angle: Math.PI, halfWidth: 0.24 };         // 聖所西口
     ringWall(0, 0, ARENA.r, 32, [GATE, NORTH_GATE]);
-    ringWall(COURT.cx, COURT.cz, COURT.r, 28, [{ angle: 0, halfWidth: 0.19 }]);
-    ringWall(0, NORTH.cz, NORTH.r, 30, [{ angle: Math.PI / 2, halfWidth: 0.22 }]);
+    ringWall(COURT.cx, COURT.cz, COURT.r, 28, [{ angle: 0, halfWidth: 0.19 }, COURT_NORTH]);
+    ringWall(0, NORTH.cz, NORTH.r, 30, [{ angle: Math.PI / 2, halfWidth: 0.22 }, NORTH_WEST]);
+
+    // L 形捷徑：由庭院北口向北去到 z = -48，再向東入聖所西口。
+    // 闊度同其他通道共用同一個數，唔另外寫。
+    const LINK = { halfWidth: BRIDGE.halfWidth, x: COURT.cx, z: NORTH.cz };
+    {
+      // 一段軸對齊嘅牆，由 (x0,z0) 去到 (x1,z1)。用明確嘅起訖點，唔用
+      // 「中心加半長」——第一版用對稱寫法，結果**兩段牆各自穿過對方條
+      // 走廊**（橫嗰段嘅北牆由 x=-60 一路行到 -20，啱好封死咗直嗰段個口；
+      // 直嗰段嘅東牆由 z=-11 行到 -54，啱好封死咗橫嗰段）。L 形拐角要
+      // 兩邊都喺角位收口，唔可以行過龍。
+      const 牆 = (x0: number, z0: number, x1: number, z1: number) =>
+        addStaticBox(
+          [(x0 + x1) / 2, WALL_Y, (z0 + z1) / 2],
+          [Math.abs(x1 - x0) / 2 + WALL_T, WALL_H, Math.abs(z1 - z0) / 2 + WALL_T],
+        );
+      const 西 = LINK.x - LINK.halfWidth, 東 = LINK.x + LINK.halfWidth;
+      const 北 = LINK.z + LINK.halfWidth, 南 = LINK.z - LINK.halfWidth;
+      const 起 = COURT.cz - COURT.r + 1;                 // 由庭院北口開始
+      const 尾 = -NORTH.r;                               // 到聖所西口
+      牆(西, 起, 西, 南);            // 直段西牆，去到拐角外側
+      牆(東, 起, 東, 北);            // 直段東牆，喺拐角內側收口
+      牆(西, 南, 尾, 南);            // 橫段南牆，由拐角外側向東
+      牆(東, 北, 尾, 北);            // 橫段北牆，由拐角內側向東
+    }
 
     // 橋兩邊嘅欄杆。冇欄杆嘅話玩家會由橋邊行出去，然後企喺半空——
     // 呢度冇「跌落去」呢回事，地板係一塊無限平面。
@@ -1365,6 +1400,22 @@ export default function GameClient() {
         addEnvironment("/assets/environment/kaykit-dungeon/banner_patternA_red.gltf.glb", 3.8, [4, 3.4, -66.4], 0, "#ffffff", 0),
         addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 2.0, [-12, 0, -47], 0.6, "#8a8f91", 0.08),
         addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 1.8, [12, 0, -50], -0.9, "#8a8f91", 0.08),
+
+        // ---------- 庭院 → 聖所 嘅 L 形捷徑 ----------
+        // 走廊兩邊行牆，拐角擺座塔做地標——一條淨係得兩幅牆嘅通道，行到中間
+        // 唔知自己去緊邊。
+        ...[-24, -31, -38].flatMap((z) => [
+          addEnvironment("/assets/environment/wall.glb", 5.2, [-65.8, 0, z], Math.PI / 2, "#79827f"),
+          addEnvironment("/assets/environment/wall.glb", 5.2, [-54.2, 0, z], Math.PI / 2, "#79827f"),
+        ]),
+        addEnvironment("/assets/environment/wall-corner-half-tower.glb", 8.4, [-66, 0, -54], 0, "#7d8582"),
+        ...[-48, -40, -32].flatMap((x) => [
+          addEnvironment("/assets/environment/wall.glb", 5.2, [x, 0, -53.8], 0, "#79827f"),
+          addEnvironment("/assets/environment/wall.glb", 5.2, [x, 0, -42.2], 0, "#79827f"),
+        ]),
+        addEnvironment("/assets/environment/kaykit-dungeon/torch_mounted.gltf.glb", 1.3, [-54.6, 2.5, -30], -Math.PI / 2, "#ffffff", 0),
+        addEnvironment("/assets/environment/kaykit-dungeon/torch_mounted.gltf.glb", 1.3, [-44, 2.5, -42.6], Math.PI, "#ffffff", 0),
+        addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 1.6, [-58, 0, -46], 1.4, "#8a8f91", 0.08),
       ]);
       const characterClasses = Object.keys(CLASS_CONFIG) as CharacterClass[];
       const [characterGltfs, bossGltf, skeletonGltf] = await Promise.all([
@@ -2365,7 +2416,11 @@ export default function GameClient() {
         // 由玩家向鏡頭方向行，撞到邊個盒就喺嗰度停。用 2D 就夠：所有靜態
         // 障礙都係由地面起、垂直嘅牆同石。
         const c = Math.cos(-b.ry), sn = Math.sin(-b.ry);
-        const pad = 0.55;
+        // 呢個 pad 唔係「畀鏡頭啲鬆動位」咁簡單：碰撞盒係 0.42 米薄，而畫
+        // 出嚟嗰幅 `wall.glb` 厚好多。鏡頭停喺盒外面 0.5 米，實際上已經插咗
+        // 入面幅牆嘅網格——實測企喺捷徑走廊度影相，成幅畫係黑嘅，而附近根本
+        // 冇嘢擋喺鏡頭同角色之間。所以 pad 要蓋埋視覺網格伸出碰撞盒嗰截。
+        const pad = 1.35;
         const ox = camOrigin.x - b.x, oz = camOrigin.z - b.z;
         const lox = ox * c - oz * sn, loz = ox * sn + oz * c;
         const ldx = camDir.x * c - camDir.z * sn, ldz = camDir.x * sn + camDir.z * c;
