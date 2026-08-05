@@ -741,10 +741,27 @@ function dodgeCase(px, speed) {
     const longshot = CHAMPIONS.longshot.abilities.find(a => a.form === 'skillshot' && a.speed >= 60);
     const step = longshot.speed * TICK;
     const reach = longshot.width + 0.62;                 // 小兵 r = 0.62
-    const victim = { kind: 'minion', team: 1 - shooter.team, def: { gold: 0, xp: 0 },
-        x: step * 1.5, z: reach - 0.12, r: 0.62, alive: true,
-        hp: 500, maxHp: 500, armour: 0, id: 8801 };
-    sim.entities.push(victim);
+    // 目標一定要係一隻**真**小兵。之前呢度用手砌嘅物件，欠咗真小兵嘅欄位
+    // （速度、射程之類），於是小兵 tick 一行就將佢嘅座標算成 NaN——而
+    // `NaN > 界` 係 false，即係支彈打中晒所有嘢。條 gate 由寫低嗰日起
+    // 一直綠燈，但佢驗緊嘅唔係掃掠碰撞，係「座標 NaN 嘅嘢會中招」。
+    // 用突變照出嚟：將 along 迫成 step（即係改返做到達點取樣，ADR-117
+    // 之前嗰個令所有技能彈穿人嘅寫法），佢照樣過。
+    let guard0 = 0;
+    while (!sim.entities.some(e => e.alive && e.kind === 'minion' && e.team !== shooter.team)
+        && guard0++ < 60 / TICK) sim.step();
+    const victim = sim.entities.find(e => e.alive && e.kind === 'minion' && e.team !== shooter.team);
+    // 其他人搬走，唔好嚟阻住或者順手打死佢
+    for (const e of sim.entities) {
+        if (e === victim || e === shooter) continue;
+        if (e.kind === 'minion' || e.kind === 'champ') { e.x = 500; e.z = 500; }
+    }
+    const 定位 = () => { victim.x = step * 1.5; victim.z = reach - 0.12;
+        victim.orderX = null; victim.orderZ = null; victim.target = null; };
+    // 速度設零：驗緊嘅係彈道碰撞，唔係小兵走位。唔噉樣做，佢喺量度嗰兩格
+    // 之內自己行開咗，幾何就唔再係測試聲稱嗰個幾何。
+    victim.speed = 0;
+    定位(); victim.hp = 500; victim.maxHp = 500; victim.armour = 0;
     sim.projectiles.push({
         kind: 'ultra', skill: true, team: shooter.team, sourceId: shooter.id,
         x: 0, z: 0, vx: 1, vz: 0, speed: longshot.speed, width: longshot.width,
@@ -756,8 +773,9 @@ function dodgeCase(px, speed) {
     check('佢的確落喺兩個取樣點之間（唔係啱啱好踩中）',
         Math.hypot(step * 0.5, victim.z) > reach,
         { 距最近取樣點: +Math.hypot(step * 0.5, victim.z).toFixed(2), reach: +reach.toFixed(2) });
-    for (let i = 0; i < 4; i++) sim.step();
-    check('快彈道唔會穿過側邊嘅目標', victim.hp < 500, { hp: victim.hp });
+    for (let i = 0; i < 4; i++) { sim.step(); 定位(); }
+    check('快彈道唔會穿過側邊嘅目標', victim.hp < 500 && Number.isFinite(victim.z),
+        { hp: victim.hp, z: victim.z });
 }
 
 // ---------- T29：每一個 skillshot 技能都要打得中 ----------

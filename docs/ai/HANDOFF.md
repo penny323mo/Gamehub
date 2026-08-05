@@ -15,30 +15,33 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
 ### 將決定手感嘅數字放大一倍，238 條檢查一條都冇響 (ADR-135)
 
 - 「量咗但冇 assert」用喺 `sim.mjs` 空手而回，改用突變測試。**第一批完全冇價值**（邊界突變喺浮點時間
-  度係等價突變，結果講緊我揀嘅算子）。第二批（數值放大）**12 個生還 11 個**：脫戰回血、箭速、索敵
-  半徑、塔半徑全部冇人守。
-- 但答案唔係逐個常數釘死——嗰種就係「記錄實作而唔係記錄意圖」。要守嘅係後果：企喺安全位由半血養返
-  滿要 **199.7／242.5／267 秒**，而一場波平均八分鐘——「等返血」根本唔係選項。T33 釘 120–360 秒。
-- 其餘生還者逐個嚟，守後果唔守常數：索敵半徑 **18 米**（T34 釘 12–24）、追蹤彈最遠射程 **0.267 秒**
-  （T35 釘 0.18–0.45）、近戰拆塔企 **4.19 米**（T36 釘 3.5–5.2）。
-- 換算子再噴一次：反轉 `if` 條件 **12 個殺死 8 個**。四個生還者已補 T37–T39：拆塔嘅錢派畀邊隊、
-  時限打和嘅第二層決勝（呢條分支從來冇行過）、範圍技有冇界住半徑。
+  度係等價突變）。第二批（數值放大）**12 個生還 11 個**：回血、箭速、索敵半徑、塔半徑全部冇人守。
+- 但答案唔係逐個常數釘死（嗰種係「記錄實作」）。要守後果：企喺安全位由半血養返滿 **199.7／242.5／
+  267 秒**，而一場波平均八分鐘——「等返血」根本唔係選項。T33 釘 120–360 秒。
+- 逐個守後果唔守常數：索敵半徑 **18 米**（T34）、追蹤彈最遠射程 **0.267 秒**（T35）、近戰拆塔企
+  **4.19 米**（T36）；三條都兩個方向驗過。
+- 反轉 `if` 條件 **12 個殺死 8 個**，四個生還者已補 T37–T39：拆塔嘅錢派畀邊隊、時限打和嘅第二層決勝
+  （呢條分支從來冇行過）、範圍技有冇界住半徑。
 - `view.js` 唔廣噴（一跑十分鐘），揀咗 **ADR-127 自己聲稱嘅兩件事**：拆走瞬移門檻同拆走鏡頭平滑，
   兩個都有守，後者係畀上一輪先修好嗰條 framing gate 捉到。
-- 同一問法問 `input.js` 同 `hud.js`：拆走搖桿嘅鏡頭轉軸（ADR-110）**一次肥五條**；拆走 `flash()`
-  清走舊提示嗰行（ADR-124 聲稱已修）**生還，195/195**——條 gate 只出過一個提示，堆疊冇機會發生。
-  而家連叫兩次。**一句 ADR 唔等於一條守衛**：四個聲稱噴落去，三個有守一個冇。
-- 同一形狀掃返舊 ADR，搵到第四個：ADR-118 聲稱指數式令「轉身同鏡頭喺任何幀率下一樣」，而冇任何 gate
-  比較過兩個幀率。新 gate 跑啱啱一秒鏡頭追隨：乾淨樹三十同六十幀都係 −0.7326（即 ADR-118 講嗰
-  1.83%），改返 `dt·rate` 就變 −0.5465 對 −0.6372。
+- 同一問法問 `input.js`／`hud.js`：拆走搖桿轉軸（ADR-110）**一次肥五條**；拆走 `flash()` 清走舊提示
+  （ADR-124 聲稱已修）**生還 195/195**——條 gate 只出過一個提示。而家連叫兩次。
+- 掃返舊 ADR 搵到第四個：ADR-118 聲稱指數式令「任何幀率行為一樣」，而冇 gate 比較過兩個幀率。新
+  gate 跑一秒鏡頭追隨：乾淨樹三十／六十幀都係 −0.7326；改返 `dt·rate` 變 −0.5465 對 −0.6372。
 - **未解嘅**：打直取景 gate 呢輪飄咗兩次（其他次過）。診斷欄位（玩家 x、鏡頭焦點、夾界）已經落咗，
   過嗰次讀到 −6.8／−6.8／58——我原本「飄返泉水令鏡頭夾界」嘅假設**未證實**。下次再飄佢會自己講。
+- 同一形狀掃入 sim 層（一噴 25 秒）：四句聲稱兩句死得乾淨，兩句生還。**ADR-117 嗰個係真嘢**——將碰撞
+  改返到達點取樣，252 條檢查照樣全綠。原因喺 fixture：T28 用手砌一個 `kind: 'minion'` 物件，缺欄位，
+  小兵 tick 一行就將座標寫成 **NaN**，而任何距離同 NaN 比都係 false，於是支彈打中晒全世界。而家改用
+  真小兵（速度設零）：乾淨樹 500→400，到達點取樣目標**完好無缺**，第一次分得開兩者。
+- 另一個生還者唔係缺陷：拆走 ADR-109 嘅八次暖機，量四千個種子——第一個輸出平均 0.5005（有暖機
+  0.5069），桶仲平均啲；冇擴散先係 0.1222，即原本嗰個病。**擴散先係修正**，暖機係錦上添花。
 
 ### Earlier checkpoints, in one line each
 
-- 版本標記只覆蓋到 67 個請求入面嘅 19 個：`vendor/`、Draco、**全部十二個 `.glb` 模型**都冇，而
-  `cache-bust.mjs` 一直綠燈，因為佢查 `src/` 嘅 import——從來唔係有風險嗰半。個改動即刻整爛咗資產
-  重試 gate（佢攔 `**/*.glb`，一加 query 就一次都冇攔過）。新 gate 直接錄低瀏覽器攞過乜。ADR-134。
+- 版本標記只覆蓋 67 個請求入面 19 個：`vendor/`、Draco、**十二個 `.glb` 模型**都冇，而 `cache-bust`
+  一直綠燈（佢查 `src/` import，唔係有風險嗰半）。個改動即刻整爛咗資產重試 gate（攔 `**/*.glb`，
+  一加 query 就一次都冇攔過）。新 gate 直接錄低瀏覽器攞過乜。ADR-134。
 - Hub 係玩家真正打開嘅第一塊畫面，但**一粒掣都冇量過**：分頁圓點 8×8、箭咀 34–42，全部低過
   專案自己嗰條 44px。箭咀升到 44；四粒點喺 320 闊之下每粒 44 幾何上塞唔落，改用 WCAG 2.5.8
   嘅 24×24 加圓心間距。而呢啲改動本來一個玩家都到唔到——Hub 個 `style.css` 冇版本標記。ADR-133。
@@ -46,14 +49,12 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
   dying in the warm-up and respawning at its own fountain — every swing measured inside the fountain.
   Fixed by ordering, `atFountain` asserted false; the layout gate's 900 ms wait **holds**. ADR-132.
 - Gold: **74.4% of match time a champion holds enough to buy something while the build list forbids
-  it** (avg 1122); a full build costs 8502 and a champion earns 4191 a match, so **0/72 could
-  complete one**. `nextPurchase` now scans to the next affordable item within the same build. ADR-130.
+  it**; a full build costs 8502 and a champion earns 4191 a match, so **0/72 completes one**. ADR-130.
 - Champion spread was 66 points (longshot 83, duskblade 17), tracking **range** almost exactly; now
   **34** (dawnkeeper 63, duskblade 29) after mechanism-tied changes. Melee die on the way in: **9.6**
   deaths a match against 1.3–4.3 ranged. ADR-130.
 - **The yardstick was one of the things being tuned** (ADR-131): buffing melee armour made the game
-  *less* even (34 → 66) because ironhulk is a companion in every measured match — the biggest mover
-  was untouched dawnkeeper. So **"66 → 46" was never a clean before/after**.
+  *less* even (34 → 66) because ironhulk is a companion in every measured match.
 - **Every layout gate began after `#pick-go`**: on short screens the pick grid's visible height was
   smaller than one card (78 vs 228 at 568×320) — **zero complete cards**, `max-height: 74vh` never
   binding under flex shrink. Two probe misreadings on the way. ADR-129.
@@ -64,8 +65,7 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
   jumps — 120 fps of 30 Hz motion; render interpolation took it to **97.5%**, and `src/pace.js` owns
   the fixed-step rule, deriving `MAX_FRAME` from `MAX_STEPS * TICK`. ADR-127.
 - The combat gate warmed the sim 750 ticks with **no view frame between**: the FX count read a 25 s
-  backlog (**green for the wrong reason**), the target could die inside the tick, and an unseen
-  respawn ran `revive()` over the swing. ADR-126.
+  backlog, the target could die inside the tick, and an unseen respawn ran `revive()`. ADR-126.
 - The buy rule was written three times, agreeing **only because `canShop` returns `!!c`**; T31 pins
   the contract (ADR-125). A lost GPU context used to end the match (ADR-120); audio is pinned
   (ADR-121); twelve models loaded via one `Promise.all` with no retry (ADR-122).

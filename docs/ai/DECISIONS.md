@@ -3049,3 +3049,34 @@ follows what the tyres can use
   clamp. My hypothesis was that the champion had drifted to its fountain where the camera clamps
   and stops centring it, and **that is not confirmed**; the next failure will now name its own
   cause instead of needing another campaign to guess at it.
+
+## ADR-140: ADR-117's headline gate had never tested what it claimed
+
+- Date: 2026-08-05
+- Status: accepted
+- Decision: T28 builds its target from a **real minion** taken out of the wave, with its speed
+  zeroed so the geometry the test describes is the geometry it measures.
+- Method: continuing the "a claim in an ADR is not a guard" sweep into the sim layer, where a
+  mutation costs 25 s instead of ten minutes. Four claims sprayed: ADR-113 (bot order
+  alternates) and ADR-104 (buying is not tied to the fountain) both died properly. Two lived.
+- ADR-117 is the one that matters — "every skillshot in the game had never once hit anything",
+  fixed by swept-segment collision. Forcing the projectile back to endpoint sampling left the
+  suite at 252/252. Chasing that took two wrong probes of my own before the answer appeared:
+  the first mutation produced `NaN` rather than endpoint sampling, and reading the intermediate
+  values is what showed it.
+- The cause is in the fixture, and it is worse than a weak assertion. T28 built its victim by
+  hand — an object literal with `kind: 'minion'` and a handful of fields. The minion tick then
+  ran on it, read the fields that were missing, and wrote **`NaN` into its coordinates**. Every
+  distance comparison against `NaN` is false, so `if (d > width + r) continue` never fired and
+  the projectile hit everything in the world. The gate reported the victim damaged, which is
+  what it asserts, so it stayed green from the day it was written.
+- Measured after the fixture was rebuilt from a real minion: clean code damages the victim
+  (500 → 400), endpoint sampling leaves it **untouched at 500** and the gate fails. That is the
+  first time this check has distinguished the two.
+- The other survivor is not a defect. ADR-109 credits both a seed diffusion and an 8-step
+  warm-up; removing the warm-up changes nothing the suite can see, and measuring 4000 seeds
+  says why — first-output mean is 0.5005 without it against 0.5069 with it, and the buckets are
+  if anything flatter (389–412 against 352–437). Without the **diffusion** the mean is 0.1222,
+  which was the original defect. The diffusion carries the fix; the warm-up is belt and braces.
+  It stays, because removing it reseeds every deterministic test for no measurable gain, but
+  ADR-109 should not be read as saying both halves are load-bearing.
