@@ -3147,3 +3147,48 @@ What is gated now, each owning one failure mode that the others cannot dilute:
 All three lines are ratchets set above the measured worst, not targets. Three minutes of a
 ten-minute match is still too much idle time; the measurement says the way down is the melee death
 rate (ADR-130's open axis), not any timer.
+
+## ADR-142 — `ai.js` had no guard on when abilities fire, and a metric that reads well in both directions is not a guard
+
+Status: accepted. Date: 2026-08-05.
+
+Starting point was a pair of numbers that looked like a bug. Duskblade — the assassin, 2.4 m
+range, worst win rate (29%) and highest death rate (0.80 a minute) — has its dash **off cooldown
+80% of the time, the highest of the six**, and casts it **1.9 times a minute, the lowest**. Every
+other champion converts availability into use at two to five times that rate.
+
+It is not the bot. Measured over six matches: whenever the geometric window is open (dash ready,
+an enemy champion between 2.5 m and dash range) it casts on average every **1.5 s** against a 5 s
+cooldown — as often as the cooldown permits. The window is open for **185 s out of 3081 s alive**.
+The assassin does not lack the instinct, it lacks the opportunity.
+
+That investigation exposed something with no guard at all: **the mutation sweep of ADR-135 covered
+`sim`, `input`, `hud` and `view`, but never `ai.js`** — and four of the five champions on screen
+are driven by it. The dash rule requires `state === STATE.FIGHT`. Narrow that condition by any
+means — a moved engage threshold, a change to the state machine, a change to `fightTarget()` — and
+the dash silently becomes an ability that never fires, while every existing check stays green. T30
+asks whether an ability does what its data says, never when it is used.
+
+T41 now measures the conversion: with the window open, a cast must follow within 3 s (currently
+1.57 s). Verified against three independent mutations of `ai.js`, all of which kill it: deleting
+the dash branch (0 casts), swapping `STATE.FIGHT` for the unreachable `STATE.SIEGE` (5 casts,
+41 s apart), and raising the lower distance bound past the ability's range (0 casts). The 3 s line
+is deliberately loose — a broken rule does not drift, it goes to zero, so the gate only has to
+separate "fires" from "never fires".
+
+**The gate this replaced is the more useful record.** The first version measured how much of its
+alive time a melee champion spends within `range + target.r` of an enemy champion — duskblade
+9.5%, ironhulk 15.1%, ironward 15.7%, and duskblade being lowest lines up with its win rate and
+death rate. Verifying it in the failing direction by cutting duskblade's speed from 7.4 to 3.5
+sent the number **up to 17.8%**: a champion that cannot close also cannot disengage, and time
+spent being caught and killed counts as contact. The metric reads plausibly in both directions —
+low means either cannot reach (bad) or fights resolve fast (neutral); high means either doing its
+job (good) or standing there dying (bad). **A number with a good story for every direction is a
+description, not a guard**, and it was deleted rather than shipped.
+
+Two probe defects on the way, both of which produced clean-looking tables of zeros before they
+were caught: the cast event carries `index`, not `slot`, and the hit event carries `target`, not
+`targetId`. A row of all zeros across every champion is a probe signature, not a finding. A third,
+worse one: measuring reach as `d <= range` instead of the game's own `d <= range + target.r`
+dropped duskblade from 9.9% to 0.6% and nearly became the headline "the assassin never reaches
+anyone". Measure with the expression the system actually evaluates, not one that sounds equivalent.

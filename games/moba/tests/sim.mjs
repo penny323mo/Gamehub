@@ -1275,6 +1275,60 @@ function dodgeCase(px, speed) {
         最長局 <= 16, { 最長分鐘: 最長局, 三局: 分鐘.map(v => +v.toFixed(1)) });
 }
 
+// ---------- T41：位移技一有機會就要出手（守 ai.js 嘅技能規則）----------
+//
+// 突變測試掃過 sim／input／hud／view，但**冇掃過 `ai.js`**，而 bot 嘅技能
+// 規則係玩家全程對住嘅嘢——五個 bot 之中四個係佢揸。
+//
+// 呢度嘅起點係一組睇落好似 bug 嘅數：暮刃個位移技冷卻好晒嘅時間佔 80%
+// （六個英雄最高）而一分鐘只用 1.9 次（最低）。查落去唔係 bot 唔識用——
+// 幾何窗口一開，佢平均 1.5 秒就出手，而冷卻係五秒，即係開得幾密出得幾密。
+// 個窗口一共只開 185 秒（生存 3081 秒），**係冇機會用，唔係唔用**。
+//
+// 但呢個過程照出咗一件冇人守嘅事：`ai.js` 嗰條位移規則要求
+// `state === STATE.FIGHT`。呢個條件一旦收窄到入唔到（改門檻、改狀態機、
+// 改 `fightTarget()`），位移技就會靜靜哋變成一個永遠唔出手嘅技能，而所有
+// 現存檢查都照樣綠——T30 只問「技能做唔做到 data 講嘅嘢」，唔問幾時出手。
+//
+// **點解唔守「近戰掂唔掂到身」**（寫咗，量咗，掉咗）：暮刃 9.5%、鐵魁
+// 15.1%、鐵衛 15.7%，睇落係一條好 gate。但反方向驗證嗰陣將暮刃速度由
+// 7.4 斬到 3.5，個數**升到 17.8%**——行得慢就走唔甩，畀人追住打嗰段時間
+// 一樣算「掂得到」。個數兩邊都有歧義：低可以係埋唔到身（差），可以係
+// 交火快（唔關事）；高可以係打得好（好），可以係企喺度畀人劏（差）。
+// 一個兩邊都解得通嘅數係描述，唔係守衛。
+{
+    let 窗 = 0, 出手 = 0;
+    for (const seed of [1, 2]) {
+        const sim = new Sim({ seed, lineups: {
+            [TEAM.BLUE]: ['duskblade', 'longshot', 'ironhulk'],
+            [TEAM.RED]: ['ironward', 'longshot', 'ironhulk'] } });
+        const bots = sim.champions.map(x => createBot(sim, x));
+        const 我 = sim.champions.find(x => x.champId === 'duskblade');
+        const ab = 我.def.abilities[0];      // 影襲，form: 'dash'
+        let t = 0;
+        while (!sim.over && sim.time < GAME_MAX) {
+            updateBots(bots, TICK, t); sim.step(TICK); t++;
+            for (const ev of sim.drain()) if (ev.type === 'cast' && ev.id === 我.id && ev.index === 0) 出手++;
+            if (!我.alive || 我.abilityCd[0] > 0) continue;
+            // 窗口用返 ai.js 條規則自己嗰個幾何範圍：2.5 米到射程 +1。
+            let 近 = Infinity;
+            for (const o of sim.champions) if (o.team !== 我.team && o.alive)
+                近 = Math.min(近, Math.hypot(o.x - 我.x, o.z - 我.z));
+            if (近 > 2.5 && 近 < ab.range + 1) 窗++;
+        }
+    }
+    // 窗口開住嘅每一秒，平均要換到幾多次出手。實測 1.5 秒一次（冷卻五秒，
+    // 即係差唔多開幾多用幾多）。條線劃喺三秒：位移規則一旦入唔到，呢個
+    // 數會直接變成無限大（零次出手），唔係慢慢漂——所以三秒同一秒對呢條
+    // gate 嚟講係同一件事，重點係佢分得清「有出手」同「一次都冇」。
+    // 零次出手要報得出「一次都冇」，唔可以報 Infinity——JSON 化之後會變 null，
+    // 而一條肥咗嘅 gate 報 null 係最難查嗰種。
+    const 隔 = 出手 > 0 ? +(窗 * TICK / 出手).toFixed(2) : null;
+    check('位移技一有機會就要出手（窗口開住平均三秒內出一次）',
+        隔 != null && 隔 <= 3,
+        { 窗口秒: +(窗 * TICK).toFixed(0), 出手次數: 出手, 平均隔幾耐: 隔 ?? '一次都冇' });
+}
+
 check('成份測試由頭到尾冇實體變成 NaN 座標', NaN汙染.length === 0, NaN汙染.slice(0, 5));
 
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);
