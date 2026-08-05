@@ -1415,6 +1415,54 @@ function dodgeCase(px, speed) {
         建築報有飛 === 0, { 報咗: 建築報有飛 });
 }
 
+// ---------- T44：冷卻要一路跌，唔理你嗰刻喺度做緊乜 ----------
+//
+// Penny 影咗張相報「技能 CD 會卡住」：普攻掣個掃描停死喺度唔郁。
+//
+// 成因係兩個冷卻都寫喺「做緊嗰件事」入面，而唔係喺 tick 度：
+//   `a.cd -= dt` 喺 `#tryAttack` 度，而 `#tryAttack` 淨係喺有目標喺射程內
+//   先會叫——實測收手之後五秒，`p.cd` 一直凍結喺 0.925。除咗個掣睇落壞咗，
+//   仲有一個真影響：隔十秒再開打，你要由凍結嗰個位等返落去先出到第一下。
+//   `abilityCd` 喺 `#tickChampion` 度跌，而死咗嘅單位入唔到嗰個函數——死住
+//   嗰段時間技能完全唔轉，返嚟大招仲讀緊死之前嗰個數。死一次罰兩次。
+//
+// 同一形狀喺同一個 loop 修過一次：`moving` 之前只喺 `#moveToward` 設 true，
+// 停低冇人清，角色原地永久跑步。**一個只喺某條路徑先有人管嘅值**。
+//
+// 搬個位最大風險係攻速變咗，所以量過：longshot／ironhulk／duskblade 三個
+// 二十秒都係打足 20 下，搬前搬後一模一樣。
+{
+    const sim = new Sim({ seed: 5, lineups: {
+        [TEAM.BLUE]: ['longshot', 'ironward', 'ironhulk'],
+        [TEAM.RED]: ['duskblade', 'emberwake', 'dawnkeeper'] } });
+    const p = sim.champions.find(c => c.champId === 'longshot');
+    const foe = sim.champions.find(c => c.team !== p.team);
+    for (const e of sim.entities)
+        if (e !== p && e !== foe && (e.kind === 'minion' || e.kind === 'champ')) { e.x = 900; e.z = 900; }
+    // 打一下，令普攻入冷卻
+    p.x = 0; p.z = 0; foe.x = 3; foe.z = 0; foe.hp = 1e9; foe.maxHp = 1e9;
+    p.orderTarget = foe.id;
+    for (let i = 0; i < 3; i++) { sim.step(TICK); p.x = 0; p.z = 0; foe.x = 3; foe.z = 0; }
+    const 入咗冷卻 = p.cd;
+    // 收手：目標行走，冇任何指令
+    p.orderTarget = null; p.orderX = null; p.orderZ = null;
+    foe.x = 900; foe.z = 900;
+    for (let i = 0; i < 3 / TICK; i++) { sim.step(TICK); p.x = 0; p.z = 0; }
+    check('收手之後普攻冷卻仲會繼續跌（唔會卡住個掃描）',
+        入咗冷卻 > 0.3 && p.cd === 0, { 打完: +入咗冷卻.toFixed(3), 三秒後: +p.cd.toFixed(3) });
+
+    // 死住嗰陣技能冷卻一樣要跌
+    const q = sim.champions.find(c => c.champId === 'ironward');
+    q.level = 9; q.mp = q.maxMp; q.abilityCd = [0, 0, 0, 0];
+    sim.cast(q, 0, { x: q.x + 3, z: q.z });
+    const 落咗 = q.abilityCd[0];
+    q.alive = false; q.hp = 0; q.respawnAt = sim.time + 999;
+    for (let i = 0; i < 2 / TICK; i++) sim.step(TICK);
+    check('死住嗰陣技能冷卻一樣會跌（死一次唔應該罰兩次）',
+        落咗 > 2 && q.abilityCd[0] <= 落咗 - 1.9,
+        { 落冷卻: +落咗.toFixed(2), 死兩秒後: +q.abilityCd[0].toFixed(2) });
+}
+
 check('成份測試由頭到尾冇實體變成 NaN 座標', NaN汙染.length === 0, NaN汙染.slice(0, 5));
 
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);

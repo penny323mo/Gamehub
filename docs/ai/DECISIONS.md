@@ -3315,3 +3315,47 @@ blocking every external host shows they degrade rather than break — gomoku log
 `[Online] Supabase SDK not loaded` and carries on, and no game raises a page error. And
 `games/gomoku/build_info.js` 404s locally because `deploy-pages.yml:66` generates it at deploy
 time; the page guards on `window.__BUILD__` and simply shows nothing.
+
+## ADR-146 — A cooldown that only ticks while you are using it (Penny's bug report)
+
+Status: accepted. Date: 2026-08-05.
+
+Penny sent a screenshot: 「技能CD會卡住」 — the basic-attack button's cooldown sweep frozen mid-way.
+
+Both cooldowns in the game were decremented inside the code path that *uses* them rather than in
+the tick:
+
+- `a.cd -= dt` lived in `#tryAttack`, which is only called when a unit has a target in range.
+  Measured: attack once, then stop — `p.cd` sits at **0.925 for as long as you like** (5 s sampled,
+  it never moves). Two consequences, one cosmetic and one not: the button sweep sticks, and
+  re-engaging ten seconds later still makes you wait out the frozen remainder before the first swing.
+- `abilityCd` was decremented in `#tickChampion`, which dead units never reach. Measured: cast, die,
+  wait two seconds — the cooldown is unchanged. You die with a 60 s ult and come back to a 60 s ult.
+  Death already costs 22 s of idle time (ADR-141); this charges for it twice.
+
+**This is the same shape the same loop was already fixed for once.** `moving` used to be set only in
+`#moveToward` and never cleared, so a champion that stopped walking ran on the spot forever. A value
+that only某條路徑有人管. Both cooldowns now decrement unconditionally at the top of `step()`'s entity
+loop, before the `alive` check, and the two old sites are gone.
+
+Attack rate is unchanged: longshot, ironhulk and duskblade each land exactly 20 attacks in 20 s
+before and after, matching their attack-speed stat. T44 guards both halves and was verified by
+putting each decrement back where it was — the attack half freezes at 0.925, the ability half stays
+at 7.00 through two seconds of death.
+
+**The fix makes the game harder, and the balance suite now fails.** Towers and minions were the
+biggest beneficiaries of the bug: an idle tower kept a stale cooldown, so its first shot on
+acquiring a target was delayed. It now fires immediately, which is what it should always have done.
+Melee champions, who spend the most time walking into tower and minion fire, lose the most. Measured
+at 24 matches: the spread goes from 34 points to 45, and **ironhulk falls to 17%, below the project's
+own 20% floor** — consistently, in both the full fix and the attack-half-only variant (17% in each).
+Duskblade reads 13% with both halves and in-band with the attack half alone, which at ±17 points of
+confidence is noise; ironhulk is the robust signal.
+
+The fix ships anyway. A cooldown that stops running when you look away is a defect Penny can see,
+and reverting it to keep a balance number would be keeping a bug because it happened to compensate
+for a different problem. What the numbers actually say is that **melee were being protected by this
+bug** — ADR-130's open axis was worse than measured all along. Re-tuning in the same round would
+repeat ADR-131's mistake of moving the yardstick while measuring with it, so the balance suite is
+left red, stated plainly here and in the handoff, and the next round is dedicated to it with a fresh
+baseline. Source changed; cache token moved to `assets-28`.

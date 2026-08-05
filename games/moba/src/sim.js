@@ -11,9 +11,9 @@ import {
     RESPAWN_BASE, RESPAWN_PER_LEVEL, SHUTDOWN_PER_STREAK, SHUTDOWN_MAX,
     armourMul, structureArmour, TOWER_AGGRO_MEMORY, FOUNTAIN_HEAL_PCT, FOUNTAIN_RADIUS,
     PUSH_STRENGTH, SIEGE_DENSE_AT, SIEGE_EVERY_WAVE_AT, WARDEN, RECALL,
-} from './constants.js?v=assets-27';
-import { CHAMPIONS, abilityRank, scaled } from './champions.js?v=assets-27';
-import { ITEMS, MAX_ITEMS, itemBonus } from './items.js?v=assets-27';
+} from './constants.js?v=assets-28';
+import { CHAMPIONS, abilityRank, scaled } from './champions.js?v=assets-28';
+import { ITEMS, MAX_ITEMS, itemBonus } from './items.js?v=assets-28';
 
 // 可重現嘅亂數：測試要跑到同一場比賽。
 //
@@ -293,9 +293,24 @@ export class Sim {
 
         this.#spawnWaves();
         for (const e of this.entities) {
+            // 冷卻要喺呢度跌，唔可以留喺「做緊嗰件事」入面跌。
+            //
+            // 普攻冷卻本來寫喺 `#tryAttack` 度，而 `#tryAttack` 淨係喺有目標
+            // 喺射程內先會叫——即係一收手，個數就凍結。Penny 影到嗰張圖就係
+            // 咁：普攻掣個掃描停死喺度唔郁。仲衰過睇落唔舒服嘅係，隔咗十秒
+            // 再開打，你仲要由凍結嗰個位等返落去。
+            //
+            // 技能冷卻同一個病嘅另一半：佢喺 `#tickChampion` 度跌，而死咗嘅
+            // 單位根本入唔到 `#tickChampion`——死十五秒返嚟，個大招仲係讀緊
+            // 死之前嗰個數。死一次已經罰咗一次（ADR-141），唔應該罰兩次。
+            //
+            // 呢個形狀喺同一個 loop 修過一次：`moving` 之前只喺 #moveToward
+            // 設 true，停低冇人清，角色就原地永久跑步。同樣係「一個只喺某條
+            // 路徑先有人管嘅值」，所以兩個都搬咗上嚟，每一格無條件行。
+            if (e.cd > 0) e.cd = Math.max(0, e.cd - dt);
+            if (e.abilityCd) for (let i = 0; i < e.abilityCd.length; i++)
+                e.abilityCd[i] = Math.max(0, e.abilityCd[i] - dt);
             if (!e.alive) { this.#tickDead(e, dt); continue; }
-            // moving 係「呢一格有冇真位移」，唔係一個會黐住嘅狀態。之前只喺
-            // #moveToward 設 true，普通停低冇清返，角色就會原地永久跑步。
             if (e.kind === 'champ' || e.kind === 'minion') e.moving = false;
             if (e.kind === 'champ') this.#tickChampion(e, dt);
             else if (e.kind === 'minion') this.#tickMinion(e, dt);
@@ -465,7 +480,8 @@ export class Sim {
         c.gold += GOLD_PER_SEC * dt;
         if (c.shieldUntil <= this.time) c.shield = 0;
         if (c.stackUntil <= this.time) c.stacks = 0;
-        for (let i = 0; i < 4; i++) c.abilityCd[i] = Math.max(0, c.abilityCd[i] - dt);
+        // abilityCd 唔喺呢度跌——搬咗去 step() 個主 loop，因為死咗嘅單位
+        // 入唔到呢個函數。
 
         if (!this.canAct(c)) return;
         if (this.#tickRecall(c)) return;      // 返程讀秒：企定唔郁
@@ -567,7 +583,6 @@ export class Sim {
         a.moving = false;
         const st = a.kind === 'champ' ? this.stats(a) : null;
         const rate = st ? st.attackSpeed : a.attackSpeed;
-        a.cd -= dt;
         a.facing = Math.atan2(target.x - a.x, target.z - a.z);
         if (a.cd > 0) return;
         a.cd = 1 / Math.max(0.05, rate);
