@@ -3438,3 +3438,36 @@ things dataset cannot express: the map shape and the static-box list.
 
 Gates: 9/9 in `tests/hud-layout.mjs`, each verified failing. Closing the gate opening blocks the
 corridor at `x = -21.75…-23`; disabling the camera pull-in puts the camera 3.5 m outside the wall.
+
+## ADR-149 — Elden Ring II: giving the new courtyard a reason to exist
+
+Status: accepted. Date: 2026-08-05.
+
+ADR-148 built the westgate causeway and courtyard but left them scenery — a place with nothing in
+it. A map you can walk to and have no reason to visit is the same defect the expansion was meant to
+fix, just moved somewhere new.
+
+The courtyard is now the third ward. Waves were typed `0 | 1` and the encounter was
+`"approach" | "cloister" | "boss"`; both are widened, three revenants spawn in the courtyard, and
+`advanceEncounter` runs 0 → 1 → 2 → boss, so **the boss gate does not open until the courtyard is
+taken**. Going west is no longer optional.
+
+Two places resisted the third case, and both were the same shape — a binary written as a ternary:
+
+- `wave === 0 ? "approach" : "cloister"` appeared twice in `activateWave` (audio mix and HUD state).
+  With a third wave the two copies would have to be corrected in lockstep. Replaced with one indexed
+  table.
+- Minion damage, speed and reach were each `minion.wave === 0 ? a : b`. Now `[a, b, c][minion.wave]`,
+  with the courtyard wave hitting for 15 against 10/13 and moving at 5.4 against 4.3/5.1.
+
+The grace point had the same problem in a worse form. It was a single `grace` whose position was
+read in three separate places — distance test, the `E` heal, and the hint string. Copying it for a
+second location would have written one job twice; instead `graces` is a list and everything asks
+`nearestGrace(...)`. The second one sits in the courtyard at `(-52.5, -6.5)`, so clearing the third
+ward does not require walking the whole causeway back to heal.
+
+New gates, both verified failing. **Three waves, none empty** reads 2/3/3. **No spawn point is
+stuck inside geometry** tests all eight spawns against the real static-box list — an enemy spawned
+inside a rock does not error, it just never arrives, and since each ward requires clearing the last,
+one bad spawn ends the run permanently. Moving a courtyard spawn onto the wall at `(-60, 17)` fires
+it. `tests/hud-layout.mjs` is 11/11.

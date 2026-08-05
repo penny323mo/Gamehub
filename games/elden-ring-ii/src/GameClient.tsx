@@ -88,7 +88,7 @@ type HudState = {
   locked: boolean;
   hint: string;
   loading: number;
-  encounter: "approach" | "cloister" | "boss";
+  encounter: "approach" | "cloister" | "causeway" | "boss";
   enemiesRemaining: number;
   bossActive: boolean;
 };
@@ -115,7 +115,7 @@ type MinionEnemy = {
   hp: number;
   active: boolean;
   bodyAdded: boolean;
-  wave: 0 | 1;
+  wave: 0 | 1 | 2;
   state: "idle" | "run" | "attack" | "hit" | "dead";
   stateUntil: number;
   impactAt: number;
@@ -483,22 +483,42 @@ export default function GameClient() {
     boundary.position.y = 0.04;
     scene.add(boundary);
 
-    const grace = new THREE.Group();
-    grace.position.set(9, 0, 15);
-    const graceBase = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.8, 1.2, 0.24, 9),
-      new THREE.MeshStandardMaterial({ color: "#28241c", roughness: 0.9 }),
-    );
-    graceBase.receiveShadow = true;
-    grace.add(graceBase);
-    const graceSpiral = new THREE.Mesh(
-      new THREE.TorusKnotGeometry(0.34, 0.055, 72, 8, 2, 3),
-      new THREE.MeshBasicMaterial({ color: "#f0c96f" }),
-    );
-    graceSpiral.position.y = 0.72;
-    graceSpiral.scale.set(1, 1.8, 1);
-    grace.add(graceSpiral);
-    scene.add(grace);
+    // 恩典點係一個列表，唔係一個變數。
+    //
+    // 本來得一個 `grace`，而佢個位置喺三個地方各自讀一次（量距離、按 E
+    // 回血、出提示）。加第二個嗰陣，如果照抄一份就會變成同一份工寫兩次
+    // ——第三次改嘅時候一定有一邊漏。而家一律問「最近嗰個」。
+    const makeGrace = (x: number, z: number) => {
+      const group = new THREE.Group();
+      group.position.set(x, 0, z);
+      const base = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.8, 1.2, 0.24, 9),
+        new THREE.MeshStandardMaterial({ color: "#28241c", roughness: 0.9 }),
+      );
+      base.receiveShadow = true;
+      group.add(base);
+      const spiral = new THREE.Mesh(
+        new THREE.TorusKnotGeometry(0.34, 0.055, 72, 8, 2, 3),
+        new THREE.MeshBasicMaterial({ color: "#f0c96f" }),
+      );
+      spiral.position.y = 0.72;
+      spiral.scale.set(1, 1.8, 1);
+      group.add(spiral);
+      scene.add(group);
+      return group;
+    };
+    // 第二個擺喺西面庭院：過咗橋、打第三波之前有個唞氣位。冇呢個，
+    // 玩家由頭到尾要走返成條走廊返去回血。
+    const graces = [makeGrace(9, 15), makeGrace(-52.5, -6.5)];
+    const grace = graces[0];
+    const nearestGrace = (from: THREE.Vector3) => {
+      let best = graces[0], bestD = Infinity;
+      for (const g of graces) {
+        const d = from.distanceTo(g.position);
+        if (d < bestD) { best = g; bestD = d; }
+      }
+      return { grace: best, distance: bestD };
+    };
 
     const starMaterial = new THREE.PointsMaterial({
       color: "#dcb85f",
@@ -547,6 +567,12 @@ export default function GameClient() {
     );
     graceDust.position.copy(grace.position);
     scene.add(graceDust);
+    const graceDustB = graceDust.clone();
+    graceDustB.position.copy(graces[1].position);
+    scene.add(graceDustB);
+    const graceLightB = new THREE.PointLight("#e7bd67", 26, 18, 2);
+    graceLightB.position.copy(graces[1].position).setY(2.2);
+    scene.add(graceLightB);
 
     const telegraph = new THREE.Mesh(
       new THREE.RingGeometry(2.35, 2.55, 64),
@@ -885,7 +911,7 @@ export default function GameClient() {
     };
 
     const minions: MinionEnemy[] = [];
-    let encounterStage: 0 | 1 | 2 = 0;
+    let encounterStage: 0 | 1 | 2 | 3 = 0;
     let bossActive = false;
     let attackTarget: MinionEnemy | "boss" | null = null;
     let runStartedAt: number | null = null;
@@ -909,7 +935,7 @@ export default function GameClient() {
 
     const livingMinions = () => minions.filter((minion) => minion.active && minion.hp > 0);
 
-    const activateWave = (wave: 0 | 1) => {
+    const activateWave = (wave: 0 | 1 | 2) => {
       encounterStage = wave;
       minions.forEach((minion) => {
         if (minion.wave !== wave) return;
@@ -942,18 +968,21 @@ export default function GameClient() {
         burst(minion.root.position, "#8cb9a1");
         gameAudio.play("enemySpawn", minion.root.position.x, minion.root.position.z);
       });
-      gameAudio.setEncounter(wave === 0 ? "approach" : "cloister");
+      // 三個 wave 對三個名，用一個表——之前係 `wave === 0 ? a : b`，
+      // 寫喺兩個地方，加第三個就一定有一邊漏。
+      const mix = (["approach", "cloister", "causeway"] as const)[wave];
+      gameAudio.setEncounter(mix);
       const count = minions.filter((minion) => minion.wave === wave).length;
       setHud((state) => ({
         ...state,
-        encounter: wave === 0 ? "approach" : "cloister",
+        encounter: mix,
         enemiesRemaining: count,
         bossActive: false,
       }));
     };
 
     const unlockBossEncounter = () => {
-      encounterStage = 2;
+      encounterStage = 3;
       bossActive = true;
       if (bossGateBody) {
         physicsWorld.removeBody(bossGateBody);
@@ -981,7 +1010,8 @@ export default function GameClient() {
         return;
       }
       if (encounterStage === 0) activateWave(1);
-      else if (encounterStage === 1) unlockBossEncounter();
+      else if (encounterStage === 1) activateWave(2);
+      else if (encounterStage === 2) unlockBossEncounter();
     };
 
     const nearestEnemy = () => {
@@ -1210,12 +1240,17 @@ export default function GameClient() {
       currentBossAction = playAction(bossActions, "Idle", "");
 
       configureModel(skeletonGltf.scene, 1.88, "#afb8b0", 0.08);
-      const minionSpawns: Array<{ wave: 0 | 1; spawn: [number, number] }> = [
+      const minionSpawns: Array<{ wave: 0 | 1 | 2; spawn: [number, number] }> = [
         { wave: 0, spawn: [-4.2, 8.2] },
         { wave: 0, spawn: [4.2, 7.2] },
         { wave: 1, spawn: [-5.1, -2.7] },
         { wave: 1, spawn: [0, -5.3] },
         { wave: 1, spawn: [5.1, -2.7] },
+        // 第三波擺喺西面庭院。冇呢一波，新地圖就係得個景 —— 有地方，
+        // 但玩家永遠冇理由行過去。而家唔清呢一波，boss 門唔會開。
+        { wave: 2, spawn: [-56.5, -4.6] },
+        { wave: 2, spawn: [-61.5, 0] },
+        { wave: 2, spawn: [-56.5, 4.6] },
       ];
       minionSpawns.forEach(({ wave, spawn }) => {
         const model = cloneSkinned(skeletonGltf.scene);
@@ -1495,6 +1530,7 @@ export default function GameClient() {
       // dataset 度，喺呢度再開一份就係同一件事有兩個出處。
       map: () => ({ arenaR: ARENA.r, court: { ...COURT }, bridge: { ...BRIDGE } }),
       walls: () => staticBoxes.map((b) => ({ ...b })),
+      spawns: () => minions.map((m) => ({ wave: m.wave, x: m.spawn[0], z: m.spawn[1] })),
     };
 
     frame = requestAnimationFrame(tick);
@@ -1521,9 +1557,14 @@ export default function GameClient() {
       }
       ashPos.needsUpdate = true;
 
-      graceSpiral.rotation.y += delta * 0.7;
-      graceSpiral.rotation.z = Math.sin(now * 0.8) * 0.14;
+      // 兩個恩典點一齊轉。`graces` 係列表，所以呢度唔使記住有幾多個。
+      for (const g of graces) {
+        const spiral = g.children[1];
+        spiral.rotation.y += delta * 0.7;
+        spiral.rotation.z = Math.sin(now * 0.8) * 0.14;
+      }
       graceLight.intensity = 23 + Math.sin(now * 2.2) * 4;
+      graceLightB.intensity = graceLight.intensity;
       const gracePos = graceParticleGeometry.attributes.position as THREE.BufferAttribute;
       for (let i = 0; i < gracePos.count; i += 1) {
         let y = gracePos.getY(i) + delta * (0.28 + (i % 5) * 0.05);
@@ -1822,12 +1863,13 @@ export default function GameClient() {
 
         playerRoot.rotation.y = player.rotation;
 
-        const distanceToGrace = playerRoot.position.distanceTo(grace.position);
+        const near = nearestGrace(playerRoot.position);
+        const distanceToGrace = near.distance;
         if (queuedInteract && distanceToGrace < 3.2) {
           player.hp = 100;
           player.stamina = 100;
-          burst(grace.position, "#f3ce72");
-          gameAudio.play("heal", grace.position.x, grace.position.z);
+          burst(near.grace.position, "#f3ce72");
+          gameAudio.play("heal", near.grace.position.x, near.grace.position.z);
         }
         queuedInteract = false;
 
@@ -1847,7 +1889,7 @@ export default function GameClient() {
             if (!minion.impactDone && now >= minion.impactAt) {
               minion.impactDone = true;
               if (minionDistance < 2.35 && now > player.invincibleUntil) {
-                player.hp = clamp(player.hp - (minion.wave === 0 ? 10 : 13), 0, 100);
+                player.hp = clamp(player.hp - [10, 13, 15][minion.wave], 0, 100);
                 player.knockbackUntil = now + 0.18;
                 player.knockbackDirection.copy(toPlayer).normalize().multiplyScalar(4.2);
                 burst(playerRoot.position, "#b74937");
@@ -1890,7 +1932,7 @@ export default function GameClient() {
               }
             });
             direction.addScaledVector(separation, 0.72).normalize();
-            const speed = minion.wave === 0 ? 4.3 : 5.1;
+            const speed = [4.3, 5.1, 5.4][minion.wave];
             minion.body.velocity.x = direction.x * speed;
             minion.body.velocity.z = direction.z * speed;
             minion.currentAction = playAction(
@@ -1898,7 +1940,7 @@ export default function GameClient() {
               "Running_A",
               minion.currentAction,
               false,
-              minion.wave === 0 ? 1.84 : 2.16,
+              [1.84, 2.16, 2.24][minion.wave],
             );
           } else if (now >= minion.nextAttack) {
             minion.state = "attack";
@@ -2051,7 +2093,7 @@ export default function GameClient() {
         mount.dataset.targetLocked = String(locked);
         mount.dataset.bossPosition =
           `${bossBody.position.x.toFixed(2)},${bossBody.position.z.toFixed(2)}`;
-        mount.dataset.encounter = encounterStage === 2 ? "boss" : `wave-${encounterStage + 1}`;
+        mount.dataset.encounter = encounterStage === 3 ? "boss" : `wave-${encounterStage + 1}`;
         mount.dataset.enemiesRemaining = String(livingMinions().length);
         mount.dataset.minionPositions = livingMinions()
           .map((minion) => `${minion.body.position.x.toFixed(1)},${minion.body.position.z.toFixed(1)}`)
@@ -2215,6 +2257,11 @@ export default function GameClient() {
       area: "Broken Cloister",
       kicker: "SECOND WARD · INNER COURT",
       objective: "Clear the cloister wardens",
+    },
+    causeway: {
+      area: "Westgate Causeway",
+      kicker: "THIRD WARD · BEYOND THE GATE",
+      objective: "Take the westgate courtyard",
     },
     boss: {
       area: "Crownless Sanctum",

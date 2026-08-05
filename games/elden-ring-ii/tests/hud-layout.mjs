@@ -179,6 +179,36 @@ for (const [w, h, 名] of 尺寸) {
         r && { 鏡頭距中心: +r.camR.toFixed(2), 場邊: r.arenaR, 玩家: `${r.px},${r.pz}` });
 }
 
+// ---------- 出生點唔可以喺牆入面 ----------
+//
+// 一隻喺石頭入面出世嘅雜兵唔會報錯，佢只會永遠卡喺嗰度，而玩家要企喺
+// 空地度等一個永遠唔會嚟嘅敵人——之後成場波都推唔落去，因為要清晒先開
+// 到下一關。加新一波（西面庭院嗰三隻）嘅時候，呢個係最容易靜靜哋整爛
+// 嘅嘢，所以逐個出生點對住真正建咗出嚟嘅靜態障礙查一次。
+{
+    const r = await page.evaluate(() => {
+        const api = window.__ER2;
+        if (!api) return null;
+        const walls = api.walls();
+        const spawns = api.spawns();
+        const 半徑 = 0.4 + 0.34;                  // 雜兵膠囊
+        const 撞 = (px, pz) => walls.some((b) => {
+            const dx = px - b.x, dz = pz - b.z;
+            const c = Math.cos(-b.ry), sn = Math.sin(-b.ry);
+            const lx = dx * c - dz * sn, lz = dx * sn + dz * c;
+            return Math.abs(lx) <= b.hx + 半徑 && Math.abs(lz) <= b.hz + 半徑;
+        });
+        return {
+            共: spawns.length,
+            每波: [0, 1, 2].map((w) => spawns.filter((s) => s.wave === w).length),
+            卡住: spawns.filter((s) => 撞(s.x, s.z)).map((s) => `wave${s.wave} (${s.x}, ${s.z})`),
+        };
+    });
+    check('三波雜兵都有人，冇一波係空嘅', r != null && r.每波.every((n) => n > 0), r && r.每波);
+    check('每個雜兵出生點都唔會卡喺牆或者石入面',
+        r != null && r.卡住.length === 0, r && { 共: r.共, 卡住: r.卡住 });
+}
+
 check('由頭到尾零 browser error', errors.length === 0, errors.slice(0, 3));
 
 await browser.close();

@@ -17,7 +17,7 @@ export type GameSound =
   | "swordSwing"
   | "victory";
 
-export type EncounterMix = "approach" | "cloister" | "boss";
+export type EncounterMix = "approach" | "cloister" | "causeway" | "boss";
 
 type SoundProfile = {
   files: string[];
