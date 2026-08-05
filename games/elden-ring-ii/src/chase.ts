@@ -110,3 +110,14 @@ export const makeLineOfSight = (boxes: readonly Box[]) => {
     return true;
   };
 };
+
+// 一下攻擊落唔落得到：夠唔夠近，**同埋**中間冇嘢擋。
+//
+// 之前兩邊都淨係計距離。ADR-172 加咗視線落玩家嗰邊，但敵人出手嗰兩個判定
+// 冇跟——實測射程之內、視線斷咗嘅位置，**雜兵 85/85、boss 一階 128/128、
+// 二階 196/196 全部照打得中**。即係我上一輪令掩護變成「淨係幫到敵人」，
+// 比兩邊一齊錯仲差。一條規則，三個出手點一齊用。
+export const canLand = (
+  from: Pt, to: Pt, reach: number,
+  sight: (a: Pt, b: Pt) => boolean,
+): boolean => Math.hypot(to.x - from.x, to.z - from.z) < reach && sight(from, to);

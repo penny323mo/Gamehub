@@ -4279,3 +4279,33 @@ being able to clear wave 1** — which is the part worth having, because it show
 reads and the code path the game runs are the same one, not two implementations that agree.
 
 `hud-layout.mjs` 49/49.
+
+## ADR-173 — Elden Ring II: last round I fixed one side of the wall, which is worse than fixing neither
+
+Date: 2026-08-05. Status: accepted.
+
+ADR-172's own text said the cover problem "held in both directions, which is why nothing about it
+ever felt asymmetric enough to notice" — and then gave line of sight to the player's targeting only.
+The two places an enemy damages you still asked one question: distance.
+
+Measured against the shipped build: positions where an attacker and the player stand on opposite
+sides of a real obstacle, close enough to be in reach — **minion 85/85, boss phase one 128/128,
+phase two 196/196 still land.** Every single one. So after last round, cover was worth 100% to the
+player and 0% to the enemies. That is a worse game than the one where neither side had it, because
+it is the player's own advantage that hides the bug from them.
+
+One rule now, `canLand(from, to, reach, sight)` in `chase.ts`, used at all three impact sites. For
+a leap the origin is the landing point rather than the boss, matching the existing rule that the
+leap measures distance from where it lands — you dodge the circle, not the monster — so the sight
+line is cast from the same place the damage is.
+
+Both directions gated over 612 sampled positions, with reaches read from the game rather than
+written into the test. Making `canLand` ignore sight reproduces the walls at (22.4, 0), (21.9, 4.4)
+and the rest; a control at the same distances in open ground fails if the rule ever refuses
+everything.
+
+`hud-layout.mjs` 51/51.
+
+Also recorded: the container reverted the clone to `aa4569f` for the third time this session. Every
+round was already pushed, so the fix was `git fetch` plus `npm ci`; nothing was lost. The habit of
+committing and merging every round is what makes that a two-minute recovery.

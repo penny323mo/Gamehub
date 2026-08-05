@@ -552,6 +552,46 @@ for (const [w, h, 名] of 尺寸) {
         los != null && los.通唔到.length === 0, los && { 通唔到: los.通唔到 });
 }
 
+// ---------- 敵人隔住掩護打唔打得中 ----------
+//
+// ADR-172 加咗視線落**玩家**嗰邊，但敵人出手嗰兩個判定冇跟。實測：射程之內、
+// 視線斷咗嘅位置，**雜兵 85/85、boss 一階 128/128、二階 196/196 全部照打得
+// 中**——即係嗰一輪令掩護變成「淨係幫到敵人」，比兩邊一齊錯仲差。
+//
+// 條 gate 問嘅係遊戲自己嗰條 `canLand`，射程亦都由遊戲出，唔喺測試度寫死。
+{
+    const h = await page.evaluate(() => {
+        const api = window.__ER2;
+        if (!api || !api.出手) return null;
+        const 射 = api.射程();
+        const 障礙 = api.walls().filter((b) => b.tag === 'prop' || b.tag === 'wall');
+        const 打得穿 = [], 打唔到 = [];
+        let 共 = 0;
+        for (const [名, r] of Object.entries(射)) {
+            for (const b of 障礙) {
+                for (const [ux, uz] of [[1, 0], [0, 1], [0.707, 0.707]]) {
+                    const d = Math.abs(ux) * b.hx + Math.abs(uz) * b.hz + 0.45;
+                    if (d * 2 >= r) continue;              // 隔住呢件嘢已經超出射程
+                    共 += 1;
+                    const p = [b.x - ux * d, b.z - uz * d], q = [b.x + ux * d, b.z + uz * d];
+                    if (api.出手(p, q, r)) 打得穿.push(`${名} ${b.tag} (${b.x.toFixed(1)},${b.z.toFixed(1)})`);
+                }
+            }
+            // 對照：同樣距離但空地，一定要打得中。冇呢一半，一個「乜都打唔中」
+            // 嘅實作都會綠。
+            for (const [p, q] of [[[0, 17], [0, 17 - r * 0.8]], [[0, -48], [r * 0.8, -48]]]) {
+                if (!api.出手(p, q, r)) 打唔到.push(`${名} ${p} → ${q}`);
+            }
+        }
+        return { 共, 打得穿, 打唔到 };
+    });
+    check('敵人隔住掩護打唔中（射程之內但視線斷咗）',
+        h != null && h.共 > 100 && h.打得穿.length === 0,
+        h && { 量咗幾多個位: h.共, 打得穿: h.打得穿.slice(0, 5) });
+    check('空地上面同樣距離打得中（把尺唔係乜都話打唔到）',
+        h != null && h.打唔到.length === 0, h && { 打唔到: h.打唔到 });
+}
+
 // ---------- 恩典點企唔企得到 ----------
 //
 // 恩典點係呢隻遊戲唯一嘅回血同 checkpoint。實測兩個**都喺 collider 入面**：

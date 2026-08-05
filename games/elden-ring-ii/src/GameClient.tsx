@@ -11,7 +11,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { GameAudio } from "./audio";
 import { ARENA_RADIUS, BOSS_SPAWN_Z, FOG_GATE, buildMap } from "./map";
-import { MINION_ATTACK_RANGE, MINION_SPEED, chaseDirection, makeBlocked, makeLineOfSight } from "./chase";
+import { MINION_ATTACK_RANGE, MINION_SPEED, canLand, chaseDirection, makeBlocked, makeLineOfSight } from "./chase";
 import { hasSupabaseFoundation, recordCompletedRun } from "./progress";
 
 type GameStatus = "loading" | "ready" | "playing" | "victory" | "dead" | "error";
@@ -1869,6 +1869,12 @@ export default function GameClient() {
       graces: () => graces.map((g) => ({ x: g.position.x, z: g.position.z })),
       視線: (from: [number, number], to: [number, number]) =>
         makeLineOfSight(staticBoxes)({ x: from[0], z: from[1] }, { x: to[0], z: to[1] }),
+      // 敵人出手嗰條規則本身，唔係抄一份出嚟——遊戲三個出手點行嘅係同一個
+      // `canLand`。射程照跟遊戲自己啲數。
+      出手: (from: [number, number], to: [number, number], reach: number) =>
+        canLand({ x: from[0], z: from[1] }, { x: to[0], z: to[1] }, reach,
+          makeLineOfSight(staticBoxes)),
+      射程: () => ({ 雜兵: 2.35, boss一階: 3.9, boss二階: 4.5, 撲擊: 5.2 }),
       // 由 A 追去 B，行一次真物理，唔畫任何嘢。
       //
       // 「雜兵追唔追得到你」呢條問題之前答唔到：唯一嘅方法係喺瀏覽器度企定
@@ -2292,7 +2298,11 @@ export default function GameClient() {
           } else if (minion.state === "attack") {
             if (!minion.impactDone && now >= minion.impactAt) {
               minion.impactDone = true;
-              if (minionDistance < 2.35 && now > player.invincibleUntil) {
+              if (
+                canLand(minion.root.position, playerRoot.position, 2.35,
+                  makeLineOfSight(staticBoxes))
+                && now > player.invincibleUntil
+              ) {
                 player.hp = clamp(player.hp - [10, 13, 15][minion.wave], 0, 100);
                 player.knockbackUntil = now + 0.18;
                 player.knockbackDirection.copy(toPlayer).normalize().multiplyScalar(4.2);
@@ -2419,10 +2429,14 @@ export default function GameClient() {
             gameAudio.play("bossSlam", bossRoot.position.x, bossRoot.position.z);
             // 撲擊量嘅係「離落點幾遠」，唔係「離 boss 幾遠」——玩家係靠
             // 個圈避開嗰塊地，唔係靠避開隻怪。
-            const impactDistance = leaping
-              ? playerRoot.position.distanceTo(boss.leapTarget)
-              : bossDistance;
-            if (impactDistance < hitRadius && now > player.invincibleUntil) {
+            // 撲擊由落點度起，普攻由 boss 度起——同上面嗰句一樣嘅道理，
+            // 而視線亦都要由同一點度：一浸由落點散開嘅衝擊波，擋唔擋得住
+            // 睇嘅係落點同你之間有冇嘢，唔係隻怪同你之間。
+            const 出手點 = leaping ? boss.leapTarget : bossRoot.position;
+            if (
+              canLand(出手點, playerRoot.position, hitRadius, makeLineOfSight(staticBoxes))
+              && now > player.invincibleUntil
+            ) {
               player.hp = clamp(player.hp - (leaping ? 30 : boss.phase === 2 ? 34 : 25), 0, 100);
               player.knockbackUntil = now + (boss.phase === 2 ? 0.32 : 0.24);
               player.knockbackDirection
