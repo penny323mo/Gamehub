@@ -209,6 +209,33 @@ for (const [w, h, 名] of 尺寸) {
         r != null && r.卡住.length === 0, r && { 共: r.共, 卡住: r.卡住 });
 }
 
+// ---------- 成隻遊戲得一把鐘 ----------
+//
+// 本來 `now` 係 `performance.now()`（真實時間），而郁動／物理／動畫用夾住
+// 0.05 秒嘅 `delta`。兩把鐘一齊行，幀率一跌，角色行慢咗，但雜兵出手間隔、
+// boss 預警圈、閃避無敵幀全部照住真實時間走——**部機愈跟唔上，隻遊戲對玩家
+// 愈唔公平**，而且靜靜哋發生。
+//
+// 條線唔係同另一次量度比（兩次都可以一齊錯），係同遊戲自己個常數比：
+// 雜兵出手間隔寫住 1.4 秒，即係每秒最多 0.71 下。修之前實測每「郁動秒」
+// 出手 2.33 下（CPU 節流 6× 之下 2.90）——即係遊戲自己講嘅節奏嘅三到四倍。
+// 修完 0.62–0.67，同個常數對得返上。
+{
+    await page.setViewportSize({ width: 640, height: 380 });
+    await page.waitForTimeout(500);
+    await page.keyboard.down('KeyW');           // 行埋去逼雜兵開打
+    const a = await page.evaluate(() => window.__ER2.clock());
+    await page.waitForTimeout(22000);
+    const b = await page.evaluate(() => window.__ER2.clock());
+    await page.keyboard.up('KeyW');
+    const 動 = b.motion - a.motion;
+    const 率 = (b.attacks - a.attacks) / Math.max(0.01, 動);
+    check('雜兵出手節奏跟返遊戲自己個常數（1.4 秒一下，即係唔多過 0.9/秒）',
+        動 > 1.5 && 率 <= 0.9,
+        { 郁動秒: +動.toFixed(1), 出手: b.attacks - a.attacks, 每秒: +率.toFixed(2),
+          真實秒: +(b.real - a.real).toFixed(1) });
+}
+
 check('由頭到尾零 browser error', errors.length === 0, errors.slice(0, 3));
 
 await browser.close();

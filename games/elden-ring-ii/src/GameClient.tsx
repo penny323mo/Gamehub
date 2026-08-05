@@ -933,6 +933,10 @@ export default function GameClient() {
       });
     };
 
+    // 量度用：郁動用嘅時間累加咗幾多、雜兵出咗幾多手。
+    let motionClock = 0;
+    let minionAttacks = 0;
+
     const livingMinions = () => minions.filter((minion) => minion.active && minion.hp > 0);
 
     const activateWave = (wave: 0 | 1 | 2) => {
@@ -945,7 +949,7 @@ export default function GameClient() {
         minion.stateUntil = 0;
         minion.knockbackUntil = 0;
         minion.impactDone = false;
-        minion.nextAttack = performance.now() / 1000 + 0.8 + Math.random() * 0.7;
+        minion.nextAttack = motionClock + 0.8 + Math.random() * 0.7;
         minion.root.visible = true;
         minion.healthBar.visible = true;
         minion.healthFill.scale.x = 1;
@@ -992,7 +996,7 @@ export default function GameClient() {
       bossBody.position.set(0, bossGroundOffset, -15);
       bossBody.velocity.setZero();
       bossBody.wakeUp();
-      boss.nextAttack = performance.now() / 1000 + 1.4;
+      boss.nextAttack = motionClock + 1.4;
       burst(bossRoot.position, "#ff4b2e");
       gameAudio.setEncounter("boss");
       gameAudio.play("gateOpen", bossGate.position.x, bossGate.position.z);
@@ -1365,7 +1369,7 @@ export default function GameClient() {
       boss.state = "idle";
       boss.phase = 1;
       boss.knockbackUntil = 0;
-      boss.nextAttack = performance.now() / 1000 + 1.4;
+      boss.nextAttack = motionClock + 1.4;
       bossRoot.position.set(0, 0, -15);
       bossBody.position.set(0, bossGroundOffset, -15);
       bossBody.velocity.setZero();
@@ -1530,13 +1534,25 @@ export default function GameClient() {
       // dataset 度，喺呢度再開一份就係同一件事有兩個出處。
       map: () => ({ arenaR: ARENA.r, court: { ...COURT }, bridge: { ...BRIDGE } }),
       walls: () => staticBoxes.map((b) => ({ ...b })),
+      clock: () => ({ real: performance.now() / 1000, motion: motionClock, attacks: minionAttacks }),
       spawns: () => minions.map((m) => ({ wave: m.wave, x: m.spawn[0], z: m.spawn[1] })),
     };
 
     frame = requestAnimationFrame(tick);
-      const now = nowMs / 1000;
+      // 成隻遊戲得一把鐘。
+      //
+      // 本來 `now` 係 `performance.now()`（真實時間），而郁動、物理、動畫
+      // 用嘅係夾住 0.05 秒嘅 `delta`。即係兩把鐘：幀率一跌，角色行慢咗，
+      // 但雜兵嘅出手間隔、boss 個預警圈、閃避嘅無敵幀全部照住真實時間走。
+      // 部機愈跟唔上，隻遊戲對玩家愈唔公平——而呢件事係靜靜哋發生嘅。
+      //
+      // 實測（CPU 節流 1× 對 6×）：每一秒郁動時間，雜兵出手由 2.33 升到
+      // 2.90 下，多咗兩成半。而家 `now` 由同一個 `delta` 累加出嚟，兩把鐘
+      // 併返做一把——夾時間依然會令成隻遊戲慢，但慢得一致。
       const delta = Math.min((nowMs - lastTime) / 1000, 0.05);
       lastTime = nowMs;
+      motionClock += delta;
+      const now = motionClock;
       playerMixer?.update(delta);
       bossMixer?.update(delta);
       minions.forEach((minion) => minion.mixer.update(delta));
@@ -1948,6 +1964,7 @@ export default function GameClient() {
             minion.impactAt = now + 0.42;
             minion.stateUntil = now + 0.82;
             minion.nextAttack = now + 1.4 + Math.random() * 0.45;
+            minionAttacks += 1;
             gameAudio.play("enemyAttack", minion.root.position.x, minion.root.position.z);
             minion.currentAction = playAction(
               minion.actions,
@@ -2160,7 +2177,14 @@ export default function GameClient() {
       }
       cameraLook.copy(playerRoot.position).add(new THREE.Vector3(0, 1.25, 0));
       if (locked && cameraTarget) {
-        cameraLook.lerp(cameraTarget.position.clone().add(new THREE.Vector3(0, 1.35, 0)), 0.34);
+        // 同一個鏡頭有三處平滑：位置用 `1 - pow(0.001, delta)`、偏航用
+        // `delta * 2.2`，得呢一處係一個裸常數 0.34。即係鎖定之後個注視點
+        // 每一「幀」拉近三成四，而唔係每一「秒」——三十幀同一百二十幀之下
+        // 追唔追得上目標差四倍。三分一嘅工冇跟另外三分二。
+        cameraLook.lerp(
+          cameraTarget.position.clone().add(new THREE.Vector3(0, 1.35, 0)),
+          1 - Math.pow(0.002, delta),
+        );
       }
       camera.lookAt(cameraLook);
       // 陰影框跟玩家行。唔 update target 嘅 matrix 嘅話，three.js 仲係

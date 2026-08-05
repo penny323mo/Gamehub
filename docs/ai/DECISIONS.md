@@ -3471,3 +3471,46 @@ stuck inside geometry** tests all eight spawns against the real static-box list 
 inside a rock does not error, it just never arrives, and since each ward requires clearing the last,
 one bad spawn ends the run permanently. Moving a courtyard spawn onto the wall at `(-60, 17)` fires
 it. `tests/hud-layout.mjs` is 11/11.
+
+## ADR-150 — Elden Ring II ran on two clocks, and the slower your device the less fair the game got
+
+Status: accepted. Date: 2026-08-05.
+
+While driving the game headlessly I could not get the player anywhere: minions ignored me for twenty
+seconds, and the warrior — whose `speed` constant is 12.5 — covered ground at roughly 0.6 m/s. The
+first explanation I reached for was that my test robot was bad. It was not, and chasing the real
+answer found the biggest gameplay defect in this game so far.
+
+The tick had **two clocks**:
+
+- `const now = nowMs / 1000` — raw `performance.now()`. Every combat timer hangs off this: minion
+  attack cadence, `boss.impactAt`, the telegraph ring's shrink, `stateUntil`, and the player's
+  dodge invincibility window.
+- `const delta = Math.min((nowMs - lastTime) / 1000, 0.05)` — clamped. Movement, physics and all
+  animation mixers use this.
+
+The clamp is a legitimate spiral-of-death guard, but it means that below 20 fps game motion advances
+slower than real time while **the combat timers do not**. The player moves in slow motion into
+attacks arriving at full speed, with a dodge window measured in real seconds. The game gets harder
+in exact proportion to how badly the device is struggling, silently.
+
+Measured with CPU throttling, counting minion attacks per second of *motion* time: **2.33 at 1×,
+2.90 at 6× — 25% more attacks for the same amount of movement.** Anchoring against the game's own
+constant makes it starker still: minions are specified to attack every 1.4 s, i.e. at most 0.71/s,
+and they were landing 2.33–2.90 — **three to four times the designed cadence** whenever frames were
+slow. After unifying on one accumulated clock: 0.62–0.67, which is what the constant says.
+
+`now` is now `motionClock`, accumulated from the same `delta`, and the three `performance.now()`
+spawn-time assignments follow it. Time still dilates under load — that is the guard doing its job —
+but everything dilates together. Run duration for the stats record deliberately stays on wall clock;
+that is a real-world number, not a gameplay one.
+
+The gate is anchored to the constant rather than to a second measurement, because two runs can both
+be wrong in the same way: attacks per motion-second must be ≤ 0.9. It reads 0.48 now and **2.63**
+with the old `now` restored.
+
+One more from the same family, found by grepping for smoothing that ignores `delta`: the lock-on
+camera blended its look target with a bare `lerp(..., 0.34)` while the same camera's position uses
+`1 - pow(0.001, delta)` and its yaw uses `delta * 2.2`. Two thirds of one job was frame-rate
+independent and the last third was not, so tracking lag behind a moving target differed roughly
+fourfold between 30 and 120 fps. Now `1 - pow(0.002, delta)`.

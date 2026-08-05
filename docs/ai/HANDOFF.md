@@ -4,7 +4,7 @@ Updated: 2026-08-05 (Asia/Macau)
 Prepared by: Claude Code (cloud)
 Integration branch: `main`
 Work branch: `main`
-Status: Elden Ring II 第三關 + 恩典點 (ADR-149)；**MOBA balance 仍然紅**
+Status: Elden Ring II 兩把鐘 (ADR-150)；**MOBA balance 仍然紅**
 
 ## Current objective
 
@@ -12,45 +12,46 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
 
 ## Completed
 
-### Elden Ring II：地圖擴唔到，因為鏡頭一直穿牆 (ADR-147/148)
+### Elden Ring II：兩把鐘，部機愈跟唔上遊戲對玩家愈唔公平 (ADR-150)
 
-- 之前淨係有「啲檔在唔在」嘅測試。第一件事係整支尺：`tests/hud-layout.mjs` 用真瀏覽器行入遊戲逐個
-  HUD 元素量矩形，draw call 喺載入前包住。即刻捉到 `.player-hud` 用寫死嘅 `top`（91／63／45），而
-  上面嘅品牌字係 `clamp(20px, 2vw, 30px)`——高度跟**闊度**變，兩套斷點喺 **844×390（iPhone 14 打
-  橫）**夾唔埋，副標題壓住職業徽章。個 gate 自己都改正過：門檻本來 6px，照肥咗一條真嘅 5px 重疊。
-- 地圖：成隻遊戲得一個半徑 22.35 圓場，所有嘢排喺 `x ≈ 0` 一條走廊。擴張唔係「將個圓車大啲」——空地唔
-  係地圖。西面開門、走廊、第二個庭院（`x = -60`, r = 17），用**三個一直 ship 咗但一格都冇出現過**嘅
-  模型。形狀寫成數據；門口用**角度**界定（跳格嘅話門闊度會跟分段數變）。
-- **次序一開始係錯嘅，係量度改返正。** 連通性 gate 綠咗（物理上行得過），但影相成幅都係石。一、
-  `bridge-straight-pillar` 係**高架橋**，玩家由橋底穿過，讀落係一堵牆。二、真兇：**鏡頭冇做遮擋**。
-- 鏡頭嗰個唔係新地圖整出嚟，係新地圖令一個一直存在嘅缺陷現形：出生點 `z = 17`，鏡頭釘死後面 8.3 米即
-  `z = 25.3`，而場邊 22.35——**開波第一格鏡頭已經喺場外三米**（實測關遮擋 25.85、開 20.51）。而家沿鏡
-  頭方向做 2D slab 測試，撞到靜態盒就停（下限 2.4 米）。
-- 月光陰影框本來係原點 ±32 固定框，新庭院完全喺框外；車大到蓋晒會令 2048 攤開一倍半，所以改成跟玩家
-  行再**收窄到 ±26**。另外 `__ER2` 加咗先發現 `mount.dataset` 一早有同樣嘅嘢，已收窄。
-- Gate 11/11，每條都驗過反方向：封返門口走廊喺 `x = -21.75…-23` 塞死；關咗鏡頭收短就出場外 3.5 米。
-- **庭院而家有事做 (ADR-149)**：第三波三隻擺喺庭院，`advanceEncounter` 行 0 → 1 → 2 → boss，即係
-  **唔攞低庭院就開唔到 boss 門**。兩處抵抗第三個 case 嘅都係同一形狀——二元寫成三元（`activateWave`
-  入面出現兩次，傷害／速度／範圍又各一次），全部改成索引表；恩典點更差，一個 `grace` 喺三個地方各讀
-  一次位置，改成 `graces` 列表 + `nearestGrace()`。新 gate：三波都有人、八個出生點冇一個卡喺牆。
+- 用瀏覽器驅動嗰陣完全推唔郁隻角色（雜兵廿秒唔埋嚟，戰士 `speed` 12.5 但行 0.6 m/s）。第一個念頭係
+  「我隻機械人蠢」，追落去先發現係呢隻遊戲到目前為止最大嗰個 gameplay 缺陷。
+- tick 有**兩把鐘**：`now = nowMs / 1000` 係原始 `performance.now()`，所有戰鬥計時器（雜兵出手間隔、
+  boss `impactAt`、預警圈、閃避無敵幀）掛喺佢度；而 `delta` 夾住 0.05 秒，郁動／物理／動畫用佢。
+  夾時間本身係防死鎖嘅正當守衛，但代價係**跌穿 20 fps 之後郁動慢過真實時間，而戰鬥計時器唔會**。
+- CPU 節流量每一秒**郁動時間**出幾多手：**1× 2.33，6× 2.90——多兩成半**。同遊戲自己個常數比更誇：
+  雜兵寫住 1.4 秒一下（最多 0.71/秒），實際 2.33–2.90，**係設計節奏嘅三到四倍**。併成一把鐘之後
+  0.62–0.67，同常數對得返上。時間依然會低幀率之下拉慢，但而家係一齊慢。
+- 條 gate 釘喺**常數**唔係釘喺另一次量度（兩次可以一齊錯）：出手率 ≤ 0.9/秒，而家 0.48，將舊 `now`
+  放返去就 **2.63**。同族仲有一個：鎖定鏡頭注視點用裸 `lerp(..., 0.34)`，而同一個鏡頭位置用
+  `1 - pow(0.001, delta)`、偏航用 `delta * 2.2`——三分二做咗幀率無關，剩返三分一冇。已改。
+
+### 上一個檢查點：擴地圖 + 鏡頭遮擋 + 第三關 (ADR-147/148/149)
+
+- 之前淨係有「啲檔在唔在」嘅測試。整咗支尺（`tests/hud-layout.mjs`，真瀏覽器行入遊戲量矩形）即刻捉到
+  `.player-hud` 用寫死嘅 `top`（91／63／45），而上面品牌字係 `clamp(20px, 2vw, 30px)`——高度跟**闊度**
+  變，兩套斷點喺 **844×390（iPhone 14 打橫）**夾唔埋。個 gate 自己都改正過：門檻 6px 照肥咗真嘅 5px。
+- 地圖本來得一個半徑 22.35 圓場，所有嘢排喺 `x ≈ 0`。擴張唔係「將個圓車大啲」——空地唔係地圖。西面開
+  門、走廊、庭院（`x = -60`, r = 17），用**三個一直 ship 咗但一格都冇出現過**嘅模型；門口用**角度**
+  界定。**次序一開始錯咗，係量度改返正**：連通性 gate 綠咗但影相成幅都係石——`bridge-straight-pillar`
+  原來係高架橋，而真兇係**鏡頭由頭到尾冇做遮擋**（出生點鏡頭已經喺場外三米，實測 25.85 → 20.51）。
+- **庭院要有事做 (ADR-149)**：第三波擺喺庭院，`advanceEncounter` 行 0 → 1 → 2 → boss，**唔攞低庭院就
+  開唔到 boss 門**。抵抗第三個 case 嘅都係「二元寫成三元」，改成索引表；恩典點由一個變數改成 `graces`
+  列表 + `nearestGrace()`。新 gate：三波都有人、八個出生點冇一個卡喺牆。
 
 ### 上一個檢查點：Penny 報嘅「技能 CD 會卡住」(ADR-146)
 
-- 兩個冷卻都寫喺「用緊佢嗰條路徑」入面。`a.cd -= dt` 喺 `#tryAttack`，而佢淨係喺有目標喺射程內先叫
-  ——收手之後 `p.cd` **永遠停喺 0.925**；隔十秒再開打仲要由凍結嗰個位等返落去。`abilityCd` 喺
-  `#tickChampion`，死咗嘅單位入唔到，死兩秒個數紋風不動。兩個都搬咗上 `step()` entity loop 頂。
-- **但個修正令遊戲難咗，balance 而家肥咗。** 閒置嘅塔本來留住舊冷卻，而家即刻開火（本來就應該係咁）。
-  24 局：差幅 34 → **45**，**ironhulk 17%** 低過條 20% 線。照出——為咗一個平衡數字而留住玩家見到嘅缺
-  陷，等於留住一個啱好補償緊另一個問題嘅 bug。啲數講嘅係：**近戰一直被呢個 bug 保護緊**。
+- 兩個冷卻都寫喺「用緊佢嗰條路徑」入面：`a.cd -= dt` 喺 `#tryAttack`（收手就凍結喺 0.925），
+  `abilityCd` 喺 `#tickChampion`（死咗入唔到）。兩個都搬咗上 `step()` entity loop 頂。
+- **但個修正令遊戲難咗，balance 而家肥咗**：閒置嘅塔本來留住舊冷卻，而家即刻開火（本來就應該係咁）。
+  24 局差幅 34 → **45**，**ironhulk 17%** 低過 20% 線。照出——啲數講嘅係**近戰一直被呢個 bug 保護緊**。
 
 ### 再之前：Hub 兩格一直係 404 (ADR-145)
 
-- Hub 量過掣夠唔夠大、圓點隔幾遠（ADR-133），但冇量過一個選單最基本嗰件事：**撳落去有冇嘢**。
-  `ashen-rail` 同 `elden-ring-ii` 兩個 `dist/index.html` 都係 **404**——成因喺 `.gitignore` 排除咗
-  佢哋嘅 `dist/`，而呢個倉係靜態 Pages，**`dist/` 本身就係交付物**。兩個都 build 返、載過、commit 咗
-  （約 53 MB）。`tests/hub.mjs` 而家逐個 link 查檔案在唔在。
-- Clean negative：四隻遊戲由 jsdelivr 載 `supabase-js@2`、象棋攞 HDRI，攔晒外部主機之後全部只係降級；
-  `gomoku/build_info.js` 本地 404 係 `deploy-pages.yml` 部署時先生成。
+- Hub 冇量過一個選單最基本嗰件事：**撳落去有冇嘢**。`ashen-rail` 同 `elden-ring-ii` 兩個
+  `dist/index.html` 都係 404——`.gitignore` 排除咗，而呢個倉係靜態 Pages，**`dist/` 本身就係交付物**。
+  兩個都 build 返、載過、commit 咗（約 53 MB）。`tests/hub.mjs` 而家逐個 link 查檔案在唔在。
+- Clean negative：四隻遊戲由 jsdelivr 載 `supabase-js@2`、象棋攞 HDRI，攔晒外部主機之後全部只係降級。
 
 ### 之前五個檢查點 (ADR-144/143/142/141/135)
 
@@ -70,19 +71,19 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
 - 版本標記只覆蓋 67 個請求入面 19 個，而 `cache-bust` 一直綠燈——佢查 `src/` import，唔係有風險嗰半
   （ADR-134）。Hub 圓點 8×8、箭咀 34–42 全部低過自己條 44px，而嗰啲改動本來一個玩家都到唔到，因為
   Hub 個 `style.css` 冇版本標記（ADR-133）。
-- 戰鬥 gate 聲稱角色企喺 **x = -6**，出手嗰刻其實喺 **x = -62**——熱身時死咗，每一下都喺自己泉水入面
-  量（ADR-132）。Gold：**74.4% 時間買得起但 build list 唔畀買**，**0/72 砌得完**；差幅曾經 66 點、
-  幾乎完全跟射程走（ADR-130），而**把尺本身就係被調嗰樣嘢**（ADR-131）。
-- **所有版位 gate 都由 `#pick-go` 之後先開始**：568×320 之下選角格可見高度 78 對一張卡 228——**零張
-  完整卡**（ADR-129）。`.moba-recall` 成場冚住 `.moba-shopbtn`（ADR-119）。重疊 gate 豁免咗
-  `.moba-tip`，順手跌出真 bug：`setPointerCapture` 喺記低瞄準之前叫，一拋就施法失敗。
-- 120 Hz 上面得 **25.2%** 幀郁過角色，內插後 **97.5%**，`src/pace.js` owns 定步規則（ADR-127）。戰鬥
-  gate 熱身 750 格**中間一幀都冇畫**（ADR-126）。買嘢規則寫咗三次，**淨係因為 `canShop` 回 `!!c` 先
-  一致**（ADR-125）。GPU context lost 曾經直接完場（ADR-120）；十二個模型一個 `Promise.all` 冇重試
-  （ADR-122）；`makeRng` 攞 seed 直接做狀態，**第一個輸出平均 0.007**（ADR-109）。
-- `1 - exp(-rate·dt)` 做轉向／鏡頭追隨（ADR-118）；Hub 分頁 dock、象棋 build 重寫（ADR-102）、字體自架
-  （ADR-112）、隨處買（ADR-104）。iOS：`overflow-y: auto` + `touch-action: pan-y` 會當拖拽係捲動而唔發
-  `click`；`src/tap.js` owns「乜嘢先算一下 tap」（ADR-105/106/107）。
+- 戰鬥 gate 聲稱角色企喺 **x = -6**，出手嗰刻其實喺 **x = -62**——熱身時死咗，每一下都喺自己泉水量
+  （ADR-132）。Gold：**74.4% 時間買得起但 build list 唔畀買**，**0/72 砌得完**；差幅曾經 66 點、幾乎
+  完全跟射程走（ADR-130），而**把尺本身就係被調嗰樣嘢**（ADR-131）。
+- **所有版位 gate 都由 `#pick-go` 之後先開始**：568×320 之下選角格可見高度 78 對一張卡 228——**零張完
+  整卡**（ADR-129）。`.moba-recall` 成場冚住 `.moba-shopbtn`（ADR-119）。重疊 gate 豁免咗 `.moba-tip`，
+  順手跌出真 bug：`setPointerCapture` 喺記低瞄準之前叫。
+- 120 Hz 上面得 **25.2%** 幀郁過角色，內插後 **97.5%**（ADR-127）。戰鬥 gate 熱身 750 格**中間一幀都冇
+  畫**（ADR-126）。買嘢規則寫咗三次，**淨係因為 `canShop` 回 `!!c` 先一致**（ADR-125）。GPU context
+  lost 曾經直接完場（ADR-120）；`makeRng` 攞 seed 直接做狀態，**第一個輸出平均 0.007**（ADR-109）。
+- `1 - exp(-rate·dt)` 做轉向／鏡頭追隨（ADR-118）；象棋 build 重寫（ADR-102）、字體自架（ADR-112）、
+  隨處買（ADR-104）。iOS：`overflow-y: auto` + `touch-action: pan-y` 會當拖拽係捲動而唔發 `click`；
+  `src/tap.js` owns「乜嘢先算一下 tap」（ADR-105/106/107）。
+
 
 ## Verification
 
@@ -99,16 +100,15 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
 
 - 查過乾淨，唔好再推導（ADR-123/129/130/132）：返程被傷害打斷、死住轉向、開住商店 GPU context lost、
   `.hidden` 食咗 tap、商店同設定一齊開、420 金上限從來冇觸發、版位 gate 個 900ms 等待冇漂移。
-- Playwright 只喺 `games/Racing Car/tests/node_modules`，三個瀏覽器套件都用路徑指過去；冇就喺嗰度
-  `npm ci`。`games/tower` 仲係去 Google 攞字體。ER2 改完 `src/` 一定要 `npm run build`，因為 Pages
-  派嘅係 `dist/`。
+- Playwright 只喺 `games/Racing Car/tests/node_modules`，三個瀏覽器套件都用路徑指過去。`games/tower`
+  仲係去 Google 攞字體。**ER2 改完 `src/` 一定要 `npm run build`**，因為 Pages 派嘅係 `dist/`。
 - **未解嘅**：MOBA 打直取景 gate 飄過兩次；診斷已落，過嗰次讀到 −6.8／−6.8／58，假設未證實。
 - Cache token 覆蓋成個 module graph **同 Hub stylesheet**（ADR-111/133）；用
   `node scripts/moba-bump-cache.mjs <token>` 改，唔好手改，`cache-bust.mjs` 一漂移就肥。
 
 ## Exact next action
 
-1. **ER2 續攤**：西面庭院而家係空嘅——有地方但未有事做。下一步係第三場遭遇同第二個 grace。
+1. **ER2 續攤**：戰鬥手感（衝刺、擊退、命中回饋）同 boss 第二階段；地圖可以再向北開一塊。
 2. **MOBA 平衡專場**：ADR-146 之後 ironhulk 17%、差幅 45，成因已知（塔同小兵冷卻修好，環境傷害上升）。
    重新做基準，一次改一樣，每次 ≥24 局；ADR-131：ironward／longshot／ironhulk 係把尺。
 
