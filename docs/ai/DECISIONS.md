@@ -3713,3 +3713,36 @@ stayed a wall in the list the connectivity gate reads, and rebuilding it produce
 That is the seventh gate this session found green for the wrong reason, and the seventh time the
 tell was the same: run the mutation, do not trust the green. `tests/hud-layout.mjs` is 25/25, and it
 now genuinely plays the game — it stands still until the revenants kill it, then restarts.
+
+## ADR-157 — Elden Ring II: a bot that plays, and two things it proved were not wrong
+
+Status: accepted. Date: 2026-08-05.
+
+`tests/hud-layout.mjs` had started genuinely playing the game (standing still until the revenants
+kill it, ADR-156), so the obvious next question was whether the game can be finished at all — the
+one property no gate covers. `tests/playthrough.mjs` drives a bot that walks to the nearest revenant
+and swings inside melee reach, prints what ward it reaches, and **does not judge**. It is not in the
+fast suite.
+
+It does not judge because a bot dying proves nothing about the game. Two runs: ward one (two
+revenants) cleared in 26–28 s; ward two (three) killed **2 of 3** before the bot died. A human
+repositions and rolls; the bot walks in and trades. That is a difficulty step, and the number is a
+reference line, not a pass mark.
+
+Two hypotheses formed on the way, both measured, **both wrong** — recorded so they are not
+re-derived.
+
+- Reading the death snapshot, the three ward-two revenants sat within 1.7 m of each other and looked
+  like a single blob you cannot fight or separate, which would have made the AI's separation force
+  the culprit. Measured across 29 samples during the fight: median gap **3.09 m**, minimum 1.12, and
+  **0%** under 0.9 m, where two capsules touching is 0.80. Separation works. The snapshot was the
+  instant of death, when all three had converged on the same corpse — one frame is not a pattern.
+- The first bot dodged whenever an enemy came within 2.6 m, and killed nothing in 89 seconds. Melee
+  reach is 4.4 m, so it was rolling away at exactly the distance it could have hit from. Bot, not
+  game. Same shape as reading `Space` as attack in ADR-153: two rounds lost to not checking the
+  numbers the game already states.
+
+Nothing was tuned on any of this. The ward-two step might warrant a change, but a bot's death is not
+the evidence that would justify one, and the one lever that suggests itself — letting a swing cleave
+— is now argued *against* by ADR-151: the arc was made honest about being a narrow 24° poke, so
+cleaving would put the picture and the rules back out of step in the opposite direction.
