@@ -3080,3 +3080,18 @@ follows what the tyres can use
   which was the original defect. The diffusion carries the fix; the warm-up is belt and braces.
   It stays, because removing it reseeds every deterministic test for no measurable gain, but
   ADR-109 should not be read as saying both halves are load-bearing.
+- Rather than auditing the remaining hand-built fixtures one at a time, `sim.mjs` now wraps
+  `Sim.prototype.step` once and asserts the invariant directly: **no entity ever holds a
+  non-finite x, z or hp**. One malformed object dropped into a real system raises nothing; it
+  just turns into `NaN`, and every `>` comparison against `NaN` is false, so every distance guard
+  in the game quietly stops existing.
+- Two corrections to my own work while building it. The first version sampled every thirtieth
+  step to save time and **failed to catch T28**, which runs four steps — an invariant that only
+  holds over long matches cannot protect short-lived fixtures, which are exactly the ones most
+  likely to be malformed. Per-step checking costs 25.1 s -> 25.4 s, so the saving bought nothing
+  and cost the only case that mattered.
+- The second: my first attempt to verify it in the failing direction reverted T28 only partly,
+  leaving `victim.speed = 0` in place, which is enough to stop the NaN, so it looked as though the
+  invariant did not work. Verified properly with a genuinely field-incomplete minion, it fires —
+  and shows the contamination **spreads**: one bad object puts `NaN` into six champions' positions
+  through the separation pass. That is why the T28 projectile hit everything rather than nothing.

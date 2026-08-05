@@ -13,6 +13,35 @@ import { TEAM, MAP, TICK, XP_TO_LEVEL, MAX_LEVEL, GAME_MAX, TOWER, MINION, struc
 import { ITEMS, BUILDS, MAX_ITEMS, itemBonus, nextPurchase } from '../src/items.js';
 import { planFrame, MAX_STEPS, MAX_FRAME } from '../src/pace.js';
 
+// ---------- 全域不變量：實體嘅座標永遠唔可以變成 NaN ----------
+//
+// ADR-140：T28 用手砌一個 `kind: 'minion'` 物件，缺欄位，小兵 tick 一行就將
+// 佢座標寫成 NaN。而 `NaN > 任何嘢` 都係 false，即係所有「太遠就唔理」嘅守衛
+// 一次過失效——支彈打中晒全世界，而條 gate 仲要係綠嘅。
+//
+// 呢類毛病唔應該逐個 fixture 人手審。一個假物件掉入真系統唔會報錯，只會
+// 靜靜哋變 NaN，所以喺呢度包住 step()，全份測試每一格都查。
+// 逐格查，唔抽樣。第一版三十格抽一次，結果**捉唔返 T28 本身**——嗰條測試
+// 只行四格，抽樣啱啱好跳過。一個只喺長局先生效嘅不變量，守唔到短命 fixture，
+// 而短命 fixture 正正就係最容易砌錯嗰種。實測逐格查嘅代價：25.1 → 26.6 秒。
+const NaN汙染 = [];
+{
+    const orig = Sim.prototype.step;
+    let n = 0;
+    Sim.prototype.step = function patched(...args) {
+        const r = orig.apply(this, args);
+        n++;
+        {
+            for (const e of this.entities) {
+                if (Number.isFinite(e.x) && Number.isFinite(e.z) && Number.isFinite(e.hp)) continue;
+                const 記 = `${e.kind}#${e.id} x=${e.x} z=${e.z} hp=${e.hp}`;
+                if (!NaN汙染.includes(記)) NaN汙染.push(記);
+            }
+        }
+        return r;
+    };
+}
+
 let pass = 0, fail = 0;
 const failed = [];
 function check(name, ok, detail) {
@@ -1180,6 +1209,8 @@ function dodgeCase(px, speed) {
     check('嘲諷唔會嘲到範圍外面嗰個', 敵[1].tauntUntil === 0,
         { 半徑: ult.radius, 遠距離: +Math.abs(敵[1].x - 鐵衛.x).toFixed(1), 遠: 敵[1].tauntUntil });
 }
+
+check('成份測試由頭到尾冇實體變成 NaN 座標', NaN汙染.length === 0, NaN汙染.slice(0, 5));
 
 console.log(`\nmoba sim: ${pass}/${pass + fail} 通過`);
 if (fail) { console.log('失敗項目:', failed.join('、')); process.exit(1); }

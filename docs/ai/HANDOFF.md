@@ -25,17 +25,17 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
 - `view.js` 唔廣噴（一跑十分鐘），揀咗 **ADR-127 自己聲稱嘅兩件事**：拆走瞬移門檻同拆走鏡頭平滑，
   兩個都有守，後者係畀上一輪先修好嗰條 framing gate 捉到。
 - 同一問法問 `input.js`／`hud.js`：拆走搖桿轉軸（ADR-110）**一次肥五條**；拆走 `flash()` 清走舊提示
-  （ADR-124 聲稱已修）**生還 195/195**——條 gate 只出過一個提示。而家連叫兩次。
-- 掃返舊 ADR 搵到第四個：ADR-118 聲稱指數式令「任何幀率行為一樣」，而冇 gate 比較過兩個幀率。新
-  gate 跑一秒鏡頭追隨：乾淨樹三十／六十幀都係 −0.7326；改返 `dt·rate` 變 −0.5465 對 −0.6372。
-- **未解嘅**：打直取景 gate 呢輪飄咗兩次（其他次過）。診斷欄位（玩家 x、鏡頭焦點、夾界）已經落咗，
-  過嗰次讀到 −6.8／−6.8／58——我原本「飄返泉水令鏡頭夾界」嘅假設**未證實**。下次再飄佢會自己講。
+  （ADR-124 聲稱已修）**生還 195/195**。而家連叫兩次。**一句 ADR 唔等於一條守衛**。
+- 掃返舊 ADR 搵到第四個：ADR-118 聲稱指數式令「任何幀率行為一樣」，而冇 gate 比較過兩個幀率。新 gate
+  跑一秒鏡頭追隨：乾淨樹三十／六十幀都係 −0.7326；改返 `dt·rate` 變 −0.5465 對 −0.6372。
+- **未解嘅**：打直取景 gate 飄過兩次（其他次過）。診斷欄位（玩家 x、鏡頭焦點、夾界）已落，過嗰次讀到
+  −6.8／−6.8／58，即係我「飄返泉水令鏡頭夾界」嘅假設**未證實**。下次再飄佢會自己講。
 - 同一形狀掃入 sim 層（一噴 25 秒）：四句聲稱兩句死得乾淨，兩句生還。**ADR-117 嗰個係真嘢**——將碰撞
-  改返到達點取樣，252 條檢查照樣全綠。原因喺 fixture：T28 用手砌一個 `kind: 'minion'` 物件，缺欄位，
-  小兵 tick 一行就將座標寫成 **NaN**，而任何距離同 NaN 比都係 false，於是支彈打中晒全世界。而家改用
-  真小兵（速度設零）：乾淨樹 500→400，到達點取樣目標**完好無缺**，第一次分得開兩者。
-- 另一個生還者唔係缺陷：拆走 ADR-109 嘅八次暖機，量四千個種子——第一個輸出平均 0.5005（有暖機
-  0.5069），桶仲平均啲；冇擴散先係 0.1222，即原本嗰個病。**擴散先係修正**，暖機係錦上添花。
+  改返到達點取樣，252 條檢查照樣全綠。原因喺 fixture：T28 手砌嘅 `kind: 'minion'` 缺欄位，小兵 tick
+  一行就將座標寫成 **NaN**，而距離同 NaN 比都係 false，支彈打中晒全世界。而家用真小兵（速度設零）。
+- 唔逐個 fixture 人手審，改為包住 `Sim.prototype.step` 斷言**每格都冇實體嘅 x／z／hp 係非有限數**（第
+  一版三十格抽一次**捉唔返 T28**）。反方向驗過即刻響，仲照出 NaN 會**傳染**：一個壞物件冚六個英雄。
+- 拆走 ADR-109 八次暖機唔係缺陷：四千個種子平均 0.5005（有暖機 0.5069）；冇擴散先係 0.1222。
 
 ### Earlier checkpoints, in one line each
 
@@ -83,7 +83,7 @@ Make the MOBA hold up on Penny's phone. Not finished; this is a tested checkpoin
 ## Verification
 
 - `node tests/hub.mjs` → **95/95**; Racing Car 6/6, Royale 8/8, Xiangqi build + selftests pass.
-  `cache-bust.mjs` → pass; `sim.mjs` → **252/252**; `balance.mjs 24` → all six inside 20–85%
+  `cache-bust.mjs` → pass; `sim.mjs` → **253/253**; `balance.mjs 24` → all six inside 20–85%
   (318 s, not a fast gate).
 - `node games/moba/tests/browser.mjs` → **196/196 pass** at five sizes (~10 min): select and
   post-match layout, full matches, FX and framing, the attack swing playing, smoothness at
