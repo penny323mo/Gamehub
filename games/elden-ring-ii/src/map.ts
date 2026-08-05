@@ -48,13 +48,24 @@ export const buildMap = (addStaticBox: AddBox) => {
   const GATE = { angle: Math.PI, halfWidth: 0.25 };   // 西面開口（弧度）
   // 走廊闊度：鏡頭喺玩家後面八米，走廊太窄成半幅畫面都係牆（實測 3.2 米
   // 半闊嗰陣就係咁）。5.6 米半闊 = 11.2 米通道，鏡頭有位退。
-  const BRIDGE = { x0: -47, x1: -ARENA.r, halfWidth: 5.6 };
+  // 同 `HALL` 一樣：條橋由圓場西門去到**庭院東門**，唔係去到庭院入面。
+  // `x0` 本來寫死 -47，而庭院東邊喺 `COURT.cx + COURT.r = -43`——即係兩條欄
+  // 杆插咗入庭院四米。捉到佢嘅唔係我，係「場入面唔應該有唔屬於佢自己嗰道環
+  // 牆嘅牆」嗰條不變量，寫嚟守北面嗰單，一跑就順手捉埋西面。
   const COURT = { cx: -60, cz: 0, r: 17 };
+  const BRIDGE = { x0: COURT.cx + COURT.r, x1: -ARENA.r, halfWidth: 5.6 };
   // 北面聖所：boss 自己嘅場。本來 boss 企喺 z = -15，即係同兩波雜兵**同
   // 一個圓場**入面，霧門只係喺 z = -9 攔住個北邊三分一——深度得十三米，
   // 而 boss 一撲就六米幾。霧門開咗之後通去嘅唔係一個新地方，係同一塊地。
   const NORTH = { cz: BOSS_SPAWN_Z, r: 20 };
-  const HALL = { z0: BOSS_SPAWN_Z, z1: -ARENA.r, halfWidth: 5.6 };
+  // 條通道由圓場北門去到聖所南門，**唔係去到 boss 腳下**。
+  //
+  // 本來 `z0` 借咗 `BOSS_SPAWN_Z` 嚟用——一個數兼兩份工，而嗰兩份工冇關係：
+  // boss 企喺聖所正中 (0, -48)，而聖所南門喺 `NORTH.cz + NORTH.r = -28`。
+  // 結果兩幅走廊牆由 -28 一路插入場中二十米，**將 boss 場南半邊界開兩份**。
+  // 實測：boss 第二階段嘅撲擊組合入面 **56.6% 中間有嘢擋住**，而例子全部係
+  // 由場東邊撲向中線嗰啲——擋住佢哋嘅就係呢兩幅唔應該喺度嘅牆。
+  const HALL = { z0: NORTH.cz + NORTH.r, z1: -ARENA.r, halfWidth: 5.6 };
   // 牆高同 `wall.glb` 一樣 5.2 米：collider 同裝飾模型唔應該一高一矮。
   const WALL_Y = 2.6, WALL_H = 2.6, WALL_T = 0.42;
 

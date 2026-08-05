@@ -783,6 +783,22 @@ for (const [w, h, 名] of 尺寸) {
     check('第二階段埋身唔會撲（撲擊係用嚟埋位嘅，唔係貼身用）',
         r != null && r.二階近.join() === 'punch',
         r && { 二階近: r.二階近 });
+
+    // 撲擊嘅預警圈畫喺**落點**，傷害亦都由落點度起——所以撲向一個隔住柱嘅
+    // 目標，就係將個圈畫喺玩家過唔到嘅地方，而隻怪卡喺柱前面。實測第二階段
+    // 嘅撲擊組合入面 **32.8% 中間有嘢擋住**（走廊牆修好之前係 56.6%）。
+    const 睇 = await page.evaluate(() => {
+        const api = window.__ER2;
+        const R = api.leapMinRange();
+        const 掃 = (見到) => {
+            const out = new Set();
+            for (let i = 0; i < 40; i++) out.add(api.bossMove(2, R + 8, i / 40, 見到));
+            return [...out].sort().join();
+        };
+        return { 見到: 掃(true), 見唔到: 掃(false) };
+    });
+    check('見唔到落點就唔撲（見到嘅時候照撲）',
+        睇 != null && 睇.見唔到 === 'punch' && 睇.見到 === 'leap,punch', 睇);
 }
 
 // ---------- 揮擊弧線唔可以講大話 ----------

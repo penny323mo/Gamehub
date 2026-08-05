@@ -114,3 +114,35 @@ test('環牆得應該有嗰幾個開口，冇多冇少', () => {
     掃(M.COURT.cx, M.COURT.cz, M.COURT.r, [0, Math.PI * 1.5]);
     掃(0, M.NORTH.cz, M.NORTH.r, [Math.PI / 2, Math.PI]);
 });
+
+test('冇一幅走廊牆插入場中間', () => {
+    // 北面通道嘅 `z0` 本來借咗 `BOSS_SPAWN_Z` 嚟用——一個數兼兩份冇關係嘅工。
+    // 結果兩幅走廊牆由聖所南門 (-28) 一路插到場心 (-48)，**將 boss 場南半邊
+    // 界開兩份**：第二階段撲擊組合入面 56.6% 中間有嘢擋住，而 boss 由場東邊
+    // 行過嚟要繞成二十米（追擊探點最耐 9.4 秒；修完 2.9 秒）。
+    //
+    // 條不變量唔係「條走廊幾長」，而係**一個場入面唔應該有唔屬於佢自己嗰道
+    // 環牆嘅牆**。要喺場入面擺嘢，就擺障礙物（`prop`），唔係擺走廊。
+    const 場 = [
+        { 名: '圓場', cx: 0, cz: 0, r: ARENA_RADIUS },
+        { 名: '庭院', cx: M.COURT.cx, cz: M.COURT.cz, r: M.COURT.r },
+        { 名: '聖所', cx: 0, cz: M.NORTH.cz, r: M.NORTH.r },
+    ];
+    const 入侵 = [];
+    for (const g of 場) {
+        for (const b of 盒) {
+            if (b.tag !== 'wall') continue;
+            // 盒嘅四隻角有冇任何一隻深入場入面兩米以上
+            const c = Math.cos(b.rotationY), s = Math.sin(b.rotationY);
+            for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+                const lx = sx * b.hx, lz = sz * b.hz;
+                const x = b.x + lx * c + lz * s, z = b.z - lx * s + lz * c;
+                if (Math.hypot(x - g.cx, z - g.cz) < g.r - 2) {
+                    入侵.push(`${g.名}: 牆 (${b.x.toFixed(1)}, ${b.z.toFixed(1)})`);
+                    break;
+                }
+            }
+        }
+    }
+    assert.deepEqual([...new Set(入侵)], [], '有牆插咗入場中間');
+});

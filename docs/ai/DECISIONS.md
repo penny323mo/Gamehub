@@ -4309,3 +4309,32 @@ everything.
 Also recorded: the container reverted the clone to `aa4569f` for the third time this session. Every
 round was already pushed, so the fix was `git fetch` plus `npm ci`; nothing was lost. The habit of
 committing and merging every round is what makes that a two-minute recovery.
+
+## ADR-174 — Elden Ring II: the corridor ran twenty metres into the boss arena
+
+Date: 2026-08-05. Status: accepted.
+
+Now that cover means something, the boss's leap became worth measuring: it locks a landing point at
+take-off, draws the telegraph there, and measures damage from there. Sampling every phase-two leap
+pair in the sanctum, **56.6 % had something between the boss and the landing point.**
+
+The examples pointed at `x = ±5.6` — the north hall's walls. `HALL.z0` was `BOSS_SPAWN_Z`, one
+number doing two unrelated jobs: the boss stands at the sanctum's centre (0, −48), while the
+sanctum's south gate is at `NORTH.cz + NORTH.r = −28`. So the corridor's two walls ran twenty metres
+past the door and **cut the southern half of the boss arena in two**. Deriving `z0` from the gate
+drops the blocked leaps to 32.8 %, opens ten more standable positions, and takes the boss's longest
+chase across its own arena from **9.4 s to 2.9 s** — it had been walking around a wall that should
+never have been there.
+
+The remaining third is real cover, so the fix is the rule, not the map: `chooseBossMove` takes
+`見到落點` and will not choose a leap it cannot see. A boss that leaps at a pillar puts the warning
+circle somewhere the player cannot be standing and then wedges itself against the column.
+
+The invariant is not "how long is the corridor". It is **a region may not contain walls that are not
+its own ring** — put obstacles inside a room, not corridors. As a 40 ms Node check it immediately
+found the same bug on the west side: `BRIDGE.x0` was a hand-written `-47` while the courtyard's east
+edge is `COURT.cx + COURT.r = -43`, so the bridge railings poked four metres into the courtyard.
+Both now derive from the region they end at. Both mutations name their own region: restoring
+`BOSS_SPAWN_Z` reports `聖所: 牆 (-5.6, -35.2)`, restoring `-47` reports the courtyard pair.
+
+`map.test.mjs` 4/4 in 40 ms, `hud-layout.mjs` 52/52.

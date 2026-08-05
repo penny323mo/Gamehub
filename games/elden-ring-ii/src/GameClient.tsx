@@ -168,12 +168,17 @@ export { ARENA_RADIUS, BOSS_SPAWN_Z, FOG_GATE } from "./map";
 export const BOSS_REACH = 3.15;
 export const LEAP_MIN_RANGE = 6.5;
 export type BossMove = "punch" | "leap";
+// `見到落點` 一日冇，boss 就會撲向一個佢去唔到嘅位——實測第二階段嘅撲擊組合
+// 入面 **32.8% 中間有嘢擋住**（未修走廊牆之前係 56.6%）。撲擊嘅預警圈畫喺
+// 落點，而傷害亦都由落點度起，所以撲向柱後面唔止撞埋去咁簡單：個圈畫咗喺你
+// 過唔到嘅地方，而隻怪就卡喺柱前面。見唔到就打拳。
 export const chooseBossMove = (
   phase: 1 | 2,
   distance: number,
   roll: number,
+  見到落點 = true,
 ): BossMove =>
-  phase === 2 && distance > LEAP_MIN_RANGE && roll < 0.55 ? "leap" : "punch";
+  phase === 2 && distance > LEAP_MIN_RANGE && roll < 0.55 && 見到落點 ? "leap" : "punch";
 
 const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value));
@@ -1848,7 +1853,8 @@ export default function GameClient() {
       clock: () => ({ real: performance.now() / 1000, motion: motionClock, attacks: minionAttacks,
         間隔: attackGaps.slice() }),
       // 揮擊弧線畫成點 vs 判定實際係點——兩組數分開出，等測試可以夾佢哋
-      bossMove: (phase: 1 | 2, distance: number, roll: number) => chooseBossMove(phase, distance, roll),
+      bossMove: (phase: 1 | 2, distance: number, roll: number, 見到落點 = true) =>
+        chooseBossMove(phase, distance, roll, 見到落點),
       leapMinRange: () => LEAP_MIN_RANGE,
       waypoint: () => ({ 亮: waypoint.visible, x: waypoint.position.x, z: waypoint.position.z,
         門檻: WAYPOINT_MIN_DISTANCE }),
@@ -2480,7 +2486,10 @@ export default function GameClient() {
           bossBody.velocity.z = direction.z * bossSpeed;
           currentBossAction = playAction(bossActions, "Run", currentBossAction, false, boss.phase === 2 ? 2.1 : 1.82);
         } else if (now >= boss.nextAttack) {
-          boss.move = chooseBossMove(boss.phase as 1 | 2, bossDistance, Math.random());
+          boss.move = chooseBossMove(
+            boss.phase as 1 | 2, bossDistance, Math.random(),
+            makeLineOfSight(staticBoxes)(bossRoot.position, playerRoot.position),
+          );
           boss.state = "windup";
           boss.impactDone = false;
           if (boss.move === "leap") {
