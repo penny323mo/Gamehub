@@ -155,6 +155,12 @@ export const WAYPOINT_MIN_DISTANCE = 25;
 export const shouldShowWaypoint = (distance: number | null, alive: boolean) =>
   alive && distance != null && distance > WAYPOINT_MIN_DISTANCE;
 
+// 地圖嘅骨架數擺喺 module 層，唔擺喺 useEffect 入面：boss 出生點同霧門位置
+// 喺檔案上半段就要用到，而地圖數據原本喺下半段先宣告——同 ADR-151 嗰個
+// `minionRadius` TDZ 一模一樣嘅坑，唔想踩第二次。
+export const ARENA_RADIUS = 22.35;
+export const BOSS_SPAWN_Z = -48;
+
 export const LEAP_MIN_RANGE = 6.5;
 export type BossMove = "punch" | "leap";
 export const chooseBossMove = (
@@ -366,6 +372,12 @@ export default function GameClient() {
     courtFill.position.set(-60, 9, 0);
     scene.add(courtFill);
 
+    // 北面聖所自己嘅光。用暖紅色，同圓場嗰啲冷藍分開——過咗霧門就係另一
+    // 個地方，唔淨止係另一格空地。
+    const sanctumFill = new THREE.PointLight("#c06a4a", 16, 42, 1.7);
+    sanctumFill.position.set(0, 11, BOSS_SPAWN_Z);
+    scene.add(sanctumFill);
+
     const bloodLight = new THREE.PointLight("#b72c1e", 22, 20, 2);
     bloodLight.position.set(0, 3.5, -8);
     scene.add(bloodLight);
@@ -432,9 +444,9 @@ export default function GameClient() {
     moonHalo.lookAt(camera.position);
     scene.add(moonHalo);
 
-    // 地面要蓋得晒新地圖：西面庭院去到 x ≈ -73.5，東面圓場去到 +22.35。
+    // 地面要蓋得晒成幅地圖：西面庭院去到 x ≈ -77，北面聖所去到 z ≈ -68。
     const GROUND_W = 200;
-    const GROUND_D = 110;
+    const GROUND_D = 170;
 
     const textureLoader = new THREE.TextureLoader();
     const diffuseMap = textureLoader.load("/assets/materials/cobblestone-01/diffuse.jpg");
@@ -734,7 +746,7 @@ export default function GameClient() {
     const playerRoot = new THREE.Group();
     const bossRoot = new THREE.Group();
     playerRoot.position.set(0, 0, 17);
-    bossRoot.position.set(0, 0, -15);
+    bossRoot.position.set(0, 0, BOSS_SPAWN_Z);
     scene.add(playerRoot, bossRoot);
 
     const addCapsuleShapes = (body: CANNON.Body, radius: number, segment: number) => {
@@ -764,7 +776,7 @@ export default function GameClient() {
       material: enemyPhysicsMaterial,
       linearDamping: 0.86,
       fixedRotation: true,
-      position: new CANNON.Vec3(0, bossGroundOffset, -15),
+      position: new CANNON.Vec3(0, bossGroundOffset, BOSS_SPAWN_Z),
     });
     addCapsuleShapes(bossBody, bossRadius, bossSegment);
     playerBody.updateMassProperties();
@@ -775,15 +787,16 @@ export default function GameClient() {
     // 記住所有靜態障礙，畀測試查「兩個場之間有冇路行」。
     // 用瀏覽器行過去驗證喺呢度唔可行：軟件光柵化只得三幀，角色一秒行
     // 半米，而且一撞到雜兵就企喺度——量到嘅係機械人蠢，唔係地圖通唔通。
-    const staticBoxes: Array<{ x: number; z: number; hx: number; hz: number; ry: number }> = [];
+    const staticBoxes: Array<{ x: number; z: number; hx: number; hz: number; ry: number; tag?: string }> = [];
     const addStaticBox = (
       position: [number, number, number],
       halfExtents: [number, number, number],
       rotationY = 0,
+      tag?: string,
     ) => {
       staticBoxes.push({
         x: position[0], z: position[2],
-        hx: halfExtents[0], hz: halfExtents[2], ry: rotationY,
+        hx: halfExtents[0], hz: halfExtents[2], ry: rotationY, tag,
       });
       const body = new CANNON.Body({
         type: CANNON.Body.STATIC,
@@ -811,26 +824,33 @@ export default function GameClient() {
     //
     // 個形狀寫成數據，唔係一堆 addStaticBox。牆係由呢幾個數生出嚟嘅，
     // 所以「牆喺邊」同「地圖係點」永遠唔會各講各嘅。
-    const ARENA = { r: 22.35 };
+    const ARENA = { r: ARENA_RADIUS };
     const GATE = { angle: Math.PI, halfWidth: 0.25 };   // 西面開口（弧度）
     // 走廊闊度：鏡頭喺玩家後面八米，走廊太窄成半幅畫面都係牆（實測 3.2 米
     // 半闊嗰陣就係咁）。5.6 米半闊 = 11.2 米通道，鏡頭有位退。
     const BRIDGE = { x0: -47, x1: -ARENA.r, halfWidth: 5.6 };
     const COURT = { cx: -60, cz: 0, r: 17 };
+    // 北面聖所：boss 自己嘅場。本來 boss 企喺 z = -15，即係同兩波雜兵**同
+    // 一個圓場**入面，霧門只係喺 z = -9 攔住個北邊三分一——深度得十三米，
+    // 而 boss 一撲就六米幾。霧門開咗之後通去嘅唔係一個新地方，係同一塊地。
+    const NORTH = { cz: BOSS_SPAWN_Z, r: 20 };
+    const HALL = { z0: BOSS_SPAWN_Z, z1: -ARENA.r, halfWidth: 5.6 };
     const WALL_Y = 1.8, WALL_H = 1.8, WALL_T = 0.42;
 
     // 圓形牆，但要留返個門口。留門嗰段唔可以靠「跳過一格」——一格嘅闊度
     // 係跟分段數走嘅，改分段數個門口就會自己變大變細。所以用角度界定。
     const ringWall = (cx: number, cz: number, radius: number, segments: number,
-                      skip?: { angle: number; halfWidth: number }) => {
+                      skips: Array<{ angle: number; halfWidth: number }> = []) => {
       const half = radius * Math.tan(Math.PI / segments) + 0.18;
       for (let index = 0; index < segments; index += 1) {
         const angle = (index / segments) * Math.PI * 2;
-        if (skip) {
+        let skipped = false;
+        for (const skip of skips) {
           let d = Math.abs(angle - skip.angle) % (Math.PI * 2);
           if (d > Math.PI) d = Math.PI * 2 - d;
-          if (d < skip.halfWidth) continue;
+          if (d < skip.halfWidth) { skipped = true; break; }
         }
+        if (skipped) continue;
         addStaticBox(
           [cx + Math.cos(angle) * radius, WALL_Y, cz + Math.sin(angle) * radius],
           [half, WALL_H, WALL_T],
@@ -838,8 +858,11 @@ export default function GameClient() {
         );
       }
     };
-    ringWall(0, 0, ARENA.r, 32, GATE);
-    ringWall(COURT.cx, COURT.cz, COURT.r, 28, { angle: 0, halfWidth: 0.19 });
+    // 圓場有兩個開口：西面去走廊，北面去聖所。
+    const NORTH_GATE = { angle: -Math.PI / 2, halfWidth: 0.25 };
+    ringWall(0, 0, ARENA.r, 32, [GATE, NORTH_GATE]);
+    ringWall(COURT.cx, COURT.cz, COURT.r, 28, [{ angle: 0, halfWidth: 0.19 }]);
+    ringWall(0, NORTH.cz, NORTH.r, 30, [{ angle: Math.PI / 2, halfWidth: 0.22 }]);
 
     // 橋兩邊嘅欄杆。冇欄杆嘅話玩家會由橋邊行出去，然後企喺半空——
     // 呢度冇「跌落去」呢回事，地板係一塊無限平面。
@@ -849,6 +872,15 @@ export default function GameClient() {
       addStaticBox(
         [bridgeMidX, WALL_Y, side * BRIDGE.halfWidth],
         [bridgeLength / 2, WALL_H, WALL_T],
+      );
+    }
+    // 北面通道嘅兩邊。同走廊一樣，闊度由同一個數出。
+    const hallLength = HALL.z1 - HALL.z0;
+    const hallMidZ = (HALL.z0 + HALL.z1) / 2;
+    for (const side of [-1, 1]) {
+      addStaticBox(
+        [side * HALL.halfWidth, WALL_Y, hallMidZ],
+        [WALL_T, WALL_H, hallLength / 2],
       );
     }
     addStaticBox([-14, 1.5, 12], [2.1, 1.5, 1.8], -0.4);
@@ -896,11 +928,16 @@ export default function GameClient() {
         `,
       }),
     );
-    bossGate.position.set(0, 2.5, -9);
+    bossGate.position.set(0, 2.5, -ARENA_RADIUS + 0.6);
     scene.add(bossGate);
+    // 標住個霧門：佢係一道打完三關會拆走嘅暫時牆，唔應該同永久牆一齊
+    // 計「條路通唔通」。冇呢個標記，「封死北面」同「霧門喺度」喺同一個
+    // z 位置，條 gate 就分唔開——我第一版就係咁，封死咗都照綠。
     let bossGateBody: CANNON.Body | null = addStaticBox(
-      [0, 2.5, -9],
-      [4, 2.5, 0.36],
+      [0, 2.5, -ARENA_RADIUS + 0.6],
+      [5.6, 2.5, 0.36],
+      0,
+      "fog-gate",
     );
     let gateFade = 1;
 
@@ -1058,7 +1095,7 @@ export default function GameClient() {
         bossGateBody = null;
       }
       gateFade = 1;
-      bossBody.position.set(0, bossGroundOffset, -15);
+      bossBody.position.set(0, bossGroundOffset, BOSS_SPAWN_Z);
       bossBody.velocity.setZero();
       bossBody.wakeUp();
       boss.nextAttack = motionClock + 1.4;
@@ -1278,6 +1315,23 @@ export default function GameClient() {
         addEnvironment("/assets/environment/kaykit-dungeon/torch_mounted.gltf.glb", 1.3, [-51.6, 2.5, 2.4], 0, "#ffffff", 0),
         addEnvironment("/assets/environment/rocks-large.glb", 4.0, [-68, 0, -8], 2.2, "#8b8d88"),
         addEnvironment("/assets/environment/tree-large.glb", 8.0, [-66, 0, 12], 1.1, "#56635b"),
+
+        // ---------- 北面：通道同聖所 ----------
+        ...[-28, -35, -42].flatMap((z) => [
+          addEnvironment("/assets/environment/wall.glb", 5.2, [-5.8, 0, z], Math.PI / 2, "#7c8489"),
+          addEnvironment("/assets/environment/wall.glb", 5.2, [5.8, 0, z], Math.PI / 2, "#7c8489"),
+        ]),
+        addEnvironment("/assets/environment/tower-square.glb", 12, [-17, 0, -62], 0.3, "#79817f"),
+        addEnvironment("/assets/environment/tower-square.glb", 12, [17, 0, -62], -0.3, "#79817f"),
+        addEnvironment("/assets/environment/wall-doorway.glb", 7.4, [0, 0, -67], Math.PI, "#8b9290"),
+        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 6.2, [-9, 0, -41], 0, "#9aa2a6", 0.08),
+        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 6.2, [9, 0, -41], 0, "#9aa2a6", 0.08),
+        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 6.2, [-9, 0, -55], 0, "#9aa2a6", 0.08),
+        addEnvironment("/assets/environment/kaykit-dungeon/pillar_decorated.gltf.glb", 6.2, [9, 0, -55], 0, "#9aa2a6", 0.08),
+        addEnvironment("/assets/environment/kaykit-dungeon/banner_patternA_red.gltf.glb", 3.8, [-4, 3.4, -66.4], 0, "#ffffff", 0),
+        addEnvironment("/assets/environment/kaykit-dungeon/banner_patternA_red.gltf.glb", 3.8, [4, 3.4, -66.4], 0, "#ffffff", 0),
+        addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 2.0, [-12, 0, -47], 0.6, "#8a8f91", 0.08),
+        addEnvironment("/assets/environment/kaykit-dungeon/rubble_large.gltf.glb", 1.8, [12, 0, -50], -0.9, "#8a8f91", 0.08),
       ]);
       const characterClasses = Object.keys(CLASS_CONFIG) as CharacterClass[];
       const [characterGltfs, bossGltf, skeletonGltf] = await Promise.all([
@@ -1442,8 +1496,8 @@ export default function GameClient() {
       boss.phase = 1;
       boss.knockbackUntil = 0;
       boss.nextAttack = motionClock + 1.4;
-      bossRoot.position.set(0, 0, -15);
-      bossBody.position.set(0, bossGroundOffset, -15);
+      bossRoot.position.set(0, 0, BOSS_SPAWN_Z);
+      bossBody.position.set(0, bossGroundOffset, BOSS_SPAWN_Z);
       bossBody.velocity.setZero();
       bossBody.angularVelocity.setZero();
       bossBody.wakeUp();
@@ -1604,7 +1658,7 @@ export default function GameClient() {
     (window as unknown as { __ER2?: unknown }).__ER2 = {
       // 只放 mount.dataset 冇嘅嘢。位置、敵人數、鏡頭角度嗰啲一早已經喺
       // dataset 度，喺呢度再開一份就係同一件事有兩個出處。
-      map: () => ({ arenaR: ARENA.r, court: { ...COURT }, bridge: { ...BRIDGE } }),
+      map: () => ({ arenaR: ARENA.r, court: { ...COURT }, bridge: { ...BRIDGE }, north: { ...NORTH }, hall: { ...HALL } }),
       walls: () => staticBoxes.map((b) => ({ ...b })),
       clock: () => ({ real: performance.now() / 1000, motion: motionClock, attacks: minionAttacks }),
       // 揮擊弧線畫成點 vs 判定實際係點——兩組數分開出，等測試可以夾佢哋

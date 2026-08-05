@@ -141,21 +141,29 @@ for (const [w, h, 名] of 尺寸) {
         const { court, bridge } = api.map();
         const 半徑 = 0.42;                       // 玩家膠囊半徑
         // 一個點撞唔撞到某個（可以轉咗角度嘅）方盒
-        const 撞 = (px, pz) => walls.some((b) => {
+        // 霧門唔算：佢係打完三關會拆走嘅暫時牆。
+        const 永久 = walls.filter((b) => b.tag !== 'fog-gate');
+        const 撞 = (px, pz, list = 永久) => list.some((b) => {
             const dx = px - b.x, dz = pz - b.z;
             const c = Math.cos(-b.ry), s = Math.sin(-b.ry);
             const lx = dx * c - dz * s, lz = dx * s + dz * c;
             return Math.abs(lx) <= b.hx + 半徑 && Math.abs(lz) <= b.hz + 半徑;
         });
-        const 擋住 = [];
-        for (let x = 0; x >= court.cx; x -= 0.25) {
-            if (撞(x, 0)) 擋住.push(+x.toFixed(2));
-        }
-        return { 牆數: walls.length, 擋住, 橋: bridge, 庭院: court };
+        const 西 = [];
+        for (let x = 0; x >= court.cx; x -= 0.25) if (撞(x, 0)) 西.push(+x.toFixed(2));
+        const 北 = [];
+        for (let z = 0; z >= api.map().north.cz; z -= 0.25) if (撞(0, z)) 北.push(+z.toFixed(2));
+        return { 牆數: walls.length, 西, 北, 橋: bridge, 庭院: court };
     });
     check('由圓場中心一路行到西面庭院，中線上冇任何牆擋住',
-        !r.冇接口 && r.擋住.length === 0,
-        { 牆數: r.牆數, 擋住嘅位: (r.擋住 ?? []).slice(0, 12) });
+        !r.冇接口 && r.西.length === 0,
+        { 牆數: r.牆數, 擋住嘅位: (r.西 ?? []).slice(0, 12) });
+    // 北面通道係 boss 場嘅入口。霧門本身係一個清晒三關先拆走嘅 collider，
+    // 佢喺 staticBoxes 入面，所以呢條檢查連霧門都會當成牆——啱嘅，因為
+    // 「未打完三關就入唔到」正正就係要守嗰件事嘅另一半。
+    check('由圓場中心一路行到北面聖所，除咗霧門之外冇任何永久牆擋住',
+        !r.冇接口 && r.北.length === 0,
+        { 擋住嘅位: (r.北 ?? []).slice(0, 12) });
 }
 
 // ---------- 鏡頭唔可以喺牆入面 ----------

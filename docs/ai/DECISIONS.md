@@ -3614,3 +3614,39 @@ visual walls and the physics rails both derived from the same `BRIDGE.halfWidth`
 angle widened to match.
 
 `tests/hud-layout.mjs` is 20/20.
+
+## ADR-154 — Elden Ring II: the fog gate opened onto the same field it was standing in
+
+Status: accepted. Date: 2026-08-05.
+
+The boss fight happened at `z = -15` — inside the same 22.35 m circle as both minion waves, with the
+fog wall at `z = -9` fencing off the northern third. Roughly thirteen metres deep, for a boss that
+as of ADR-152 leaps 6.5 m and covers the gap in under a second. Passing through a fog gate is the
+genre's clearest promise that somewhere else begins; here it opened onto the same floor.
+
+The map is now three places. North of the arena: an opening in the ring wall at `-π/2`, an 11.2 m
+walled hall, and a sanctum of radius 20 centred at `z = -48` with its own **warm** fill light against
+the arena's cold blue, two towers, a doorway, four pillars and banners. The boss and the fog gate
+move with it — the gate now sits at the mouth of the hall on the arena's north wall, widened from
+8 m to 11.2 m to match `HALL.halfWidth`, and the ground plane grows to 170 m deep to carry it.
+
+`ringWall` took a single optional `skip`; the arena needs two openings now, so it takes a list. The
+opening angles stay angles rather than segment indices, for the reason ADR-148 gave: an index makes
+the doorway's width depend on the segment count.
+
+`ARENA_RADIUS` and `BOSS_SPAWN_Z` are module-scope constants, not locals in the effect. The boss
+spawn and the gate position are needed in the first half of the file while the map data block sits
+in the second — exactly the temporal-dead-zone trap that took the game to a black screen in ADR-151.
+Once bitten.
+
+**My own gate failed to catch its own defect first time round.** I extended the corridor check north
+with `北.every(z => z > -24)`, reasoning that the fog gate blocks around `z = -21.75` so anything
+past `-24` must be a real wall. Sealing the north opening entirely — the exact regression the check
+exists for — left it green, because the arena wall sits at `-22.35`, which is also greater than
+`-24`. A threshold cannot separate two things that occupy the same position. `addStaticBox` now
+takes a tag, the fog gate carries `"fog-gate"`, and the check filters it out and demands **zero**
+permanent walls. Sealing the opening now reports blockage at `-21.75` through `-23` and fires. This
+is the fifth time this session a gate has been green for the wrong reason; the tell each time was
+running the mutation rather than trusting the green.
+
+`tests/hud-layout.mjs` is 21/21.
