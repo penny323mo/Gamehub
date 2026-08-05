@@ -477,11 +477,19 @@ kbd {
   font-weight: 400;
 }
 
+/* 排喺品牌字下面，用正常文檔流。之前係 position:absolute 加三個斷點各自
+   一個寫死嘅 top（91／63／45），而上面嘅品牌字高度係跟闊度變嘅
+   （clamp(20px, 2vw, 30px)）。同一份工分成兩半各自寫，喺 844×390
+   （iPhone 14 打橫）就夾唔埋，副標題壓住咗徽章同職業名。而家高度自己
+   推落嚟，冇一個數要跟另一個數。 */
+.topbar-left {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  min-width: 0;
+}
+
 .player-hud {
-  position: absolute;
-  z-index: 4;
-  top: 91px;
-  left: 30px;
   display: flex;
   gap: 12px;
   align-items: center;
@@ -787,8 +795,6 @@ kbd {
   }
 
   .player-hud {
-    top: 63px;
-    left: 16px;
     width: 58vw;
   }
 
@@ -938,10 +944,6 @@ kbd {
 @media (max-height: 640px) and (orientation: landscape) {
   .game-topbar {
     padding: 11px 16px;
-  }
-
-  .player-hud {
-    top: 45px;
   }
 
   .title-screen {

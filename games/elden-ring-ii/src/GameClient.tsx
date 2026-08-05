@@ -2083,10 +2083,29 @@ export default function GameClient() {
       <div className="grain" aria-hidden="true" />
 
       <header className="game-topbar">
-        <div className="brand-lockup" aria-label="Elden Ring Two">
-          <span className="brand-kicker">A FAN-MADE WEB EXPERIENCE</span>
-          <strong>ELDEN RING <i>II</i></strong>
-          <span className="brand-subtitle">VEIL OF THE HOLLOW CROWN</span>
+        <div className="topbar-left">
+          <div className="brand-lockup" aria-label="Elden Ring Two">
+            <span className="brand-kicker">A FAN-MADE WEB EXPERIENCE</span>
+            <strong>ELDEN RING <i>II</i></strong>
+            <span className="brand-subtitle">VEIL OF THE HOLLOW CROWN</span>
+          </div>
+          {/* 玩家狀態排喺品牌字下面，用正常文檔流，唔用寫死嘅 top。
+              之前佢係 position:absolute 加三個斷點各自一個 top（91／63／45），
+              而上面嘅字高度係跟闊度變嘅（clamp(20px, 2vw, 30px)）——兩套斷點
+              喺 844×390（iPhone 14 打橫）夾唔埋，個副標題就壓住咗徽章同職業名。 */}
+          {started && hud.status !== "loading" && (
+            <section className="player-hud" aria-label="Player status">
+              <div className="rune-mark">{CLASS_CONFIG[selectedClass].icon}</div>
+              <div className="player-bars">
+                <small>{CLASS_CONFIG[selectedClass].label}</small>
+                <div className="bar health"><i style={{ width: `${hud.hp}%` }} /></div>
+                <div className="bar focus">
+                  <i style={{ width: `${CLASS_CONFIG[selectedClass].focus}%` }} />
+                </div>
+                <div className="bar stamina"><i style={{ width: `${hud.stamina}%` }} /></div>
+              </div>
+            </section>
+          )}
         </div>
         <div className="area-name">
           <span>FORSAKEN REALM</span>
@@ -2113,20 +2132,6 @@ export default function GameClient() {
           ©
         </button>
       </nav>
-
-      {started && hud.status !== "loading" && (
-        <section className="player-hud" aria-label="Player status">
-          <div className="rune-mark">{CLASS_CONFIG[selectedClass].icon}</div>
-          <div className="player-bars">
-            <small>{CLASS_CONFIG[selectedClass].label}</small>
-            <div className="bar health"><i style={{ width: `${hud.hp}%` }} /></div>
-            <div className="bar focus">
-              <i style={{ width: `${CLASS_CONFIG[selectedClass].focus}%` }} />
-            </div>
-            <div className="bar stamina"><i style={{ width: `${hud.stamina}%` }} /></div>
-          </div>
-        </section>
-      )}
 
       {started && hud.status !== "loading" && hud.bossActive && hud.bossHp > 0 && (
         <section className="boss-hud" aria-label="Boss status">

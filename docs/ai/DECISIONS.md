@@ -3359,3 +3359,33 @@ bug** — ADR-130's open axis was worse than measured all along. Re-tuning in th
 repeat ADR-131's mistake of moving the yardstick while measuring with it, so the balance suite is
 left red, stated plainly here and in the handoff, and the next round is dedicated to it with a fresh
 baseline. Source changed; cache token moved to `assets-28`.
+
+## ADR-147 — Elden Ring II: two breakpoint systems that never agreed, and the first instrument for this game
+
+Status: accepted. Date: 2026-08-05.
+
+This game had no test beyond `static-build.test.mjs`, which checks that files exist. Nothing had ever
+looked at the running game, so the first work is an instrument, not a change: `tests/hud-layout.mjs`
+serves `dist/` over a local server, drives a real browser into gameplay through the same clicks a
+player makes, and measures every HUD element's rectangle. Draw calls and frame counts are wrapped at
+`WebGLRenderingContext.prototype` before page load, so nothing in the game needs a test hook.
+
+What it found: `.player-hud` was positioned with a hard-coded `top` — **91px on desktop, 63px on
+narrow/coarse, 45px on short landscape** — while the brand lockup directly above it sizes with
+`font-size: clamp(20px, 2vw, 30px)`, so its height tracks viewport *width*. Two halves of one job,
+written in two places, keyed off two different axes. They agree only at the sizes someone happened
+to open. Measured across five viewports: clean at 1280×800, clean at 667×375 and 375×667, and
+**broken at 900×500 and at 844×390 — iPhone 14 in landscape**, where `VEIL OF THE HOLLOW CROWN`
+overlaps the class sigil by 45×8 px and the class name by 97×5 px.
+
+The fix is structural rather than another offset: `.player-hud` moves inside the topbar's left
+column and flows under the brand lockup, and all three hard-coded `top` values are deleted. Nothing
+now needs to track anything. 7/7 across the five viewports, verified by screenshot as well as by
+rectangle — "no overlap" is also satisfiable by pushing an element off-screen, which the picture
+rules out.
+
+One correction to my own gate while building it. The overlap threshold started at 6px and **hid a
+real 5px collision** (`VEIL OF THE HOLLOW CROWN` × `OATHBOUND`); it is 1px now. A threshold chosen
+for comfort rather than from the defect is a line drawn where it cannot see what it is guarding.
+The detector also has to skip full-screen backdrops — the canvas, vignette and grain cover
+everything by construction, and counting them reported 12 overlaps of which 12 were noise.
