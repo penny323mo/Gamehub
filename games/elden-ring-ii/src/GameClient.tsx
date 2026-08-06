@@ -775,26 +775,37 @@ export default function GameClient() {
     const projectileStart = new THREE.Vector3();
     const projectileTarget = new THREE.Vector3();
 
-    const impactGeometry = new THREE.BufferGeometry();
-    const impactPositions = new Float32Array(42 * 3);
-    impactGeometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(impactPositions, 3),
-    );
-    const impact = new THREE.Points(
-      impactGeometry,
-      new THREE.PointsMaterial({
-        color: "#ffcf72",
-        size: 0.12,
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-      }),
-    );
-    scene.add(impact);
-    let impactLife = 0;
-    const impactVelocities = Array.from({ length: 42 }, () => new THREE.Vector3());
+    // 打擊碎屑。
+    //
+    // 本來全場得**一組**：`burst()` 每次都覆蓋同一個 `THREE.Points`，所以
+    // 0.55 秒未散完又有第二下打擊，頭嗰蓬碎屑就會**成蓬瞬移去新位置**。實測
+    // 喺真打鬥入面 **七次有兩次（29%）**被搶——你斬中一刀、同時捱一拳，斬中
+    // 嗰蓬就飛咗上你自己身上。所以要一個池，唔係一個。
+    const IMPACT_POOL = 5, IMPACT_COUNT = 42;
+    const 碎屑重力 = 9.81;        // 本來 5——碎屑喺半空慢動作咁浮
+    type Burst = {
+      points: THREE.Points;
+      velocities: THREE.Vector3[];
+      life: number;
+    };
+    const bursts: Burst[] = Array.from({ length: IMPACT_POOL }, () => {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position",
+        new THREE.BufferAttribute(new Float32Array(IMPACT_COUNT * 3), 3));
+      const points = new THREE.Points(geometry, new THREE.PointsMaterial({
+        color: "#ffcf72", size: 0.12, transparent: true, opacity: 0,
+        depthWrite: false, blending: THREE.AdditiveBlending,
+      }));
+      scene.add(points);
+      return {
+        points,
+        velocities: Array.from({ length: IMPACT_COUNT }, () => new THREE.Vector3()),
+        life: 0,
+      };
+    });
+    // 全場得一組碎屑嗰陣量到：0.55 秒未散完又有第二下打擊，就會由頭嗰下搶
+    // 返去——實測 29%。而家留住呢兩個數，係為咗證明個池真係夠用。
+    let 碎屑次數 = 0, 碎屑被搶 = 0;
 
     const playerRoot = new THREE.Group();
     const bossRoot = new THREE.Group();
@@ -1336,22 +1347,41 @@ export default function GameClient() {
       });
     };
 
-    const burst = (position: THREE.Vector3, color = "#ffcf72") => {
-      impact.position.copy(position).add(new THREE.Vector3(0, 1.25, 0));
-      const attribute = impactGeometry.attributes.position as THREE.BufferAttribute;
-      const material = impact.material as THREE.PointsMaterial;
+    // `打嚟嘅方向`：由攻擊者指向被打嗰個嘅水平方向。碎屑要向住呢邊噴走。
+    //
+    // 本來噴濺同打擊完全冇關係：`(rand − 0.5) × 5` 兩條水平軸等向，而垂直係
+    // `rand × 4.2`——**永遠 ≥ 0**。實測 42 粒有 39–42 粒係向上，即係無論邊個
+    // 方向斬落去，出嚟嘅都係同一個噴泉。真嘅濺射係**背住嗰一下走**。
+    const 噴 = new THREE.Vector3();
+    const burst = (position: THREE.Vector3, color = "#ffcf72", 打嚟嘅方向?: THREE.Vector3) => {
+      碎屑次數 += 1;
+      // 揀池入面命最短嗰個：全部都喺度散緊嘅話，覆蓋最舊嗰蓬。
+      let b = bursts[0];
+      for (const 個 of bursts) if (個.life < b.life) b = 個;
+      if (b.life > 0) 碎屑被搶 += 1;
+      b.points.position.copy(position).add(new THREE.Vector3(0, 1.25, 0));
+      const attribute = b.points.geometry.attributes.position as THREE.BufferAttribute;
+      const material = b.points.material as THREE.PointsMaterial;
       material.color.set(color);
       material.opacity = 1;
-      for (let i = 0; i < 42; i += 1) {
+      // 冇方向（例如聖所回血）就照返舊嗰個等向噴泉。
+      const 有方向 = 打嚟嘅方向 !== undefined && 打嚟嘅方向.lengthSq() > 1e-6;
+      if (有方向) 噴.copy(打嚟嘅方向!).setY(0).normalize();
+      for (let i = 0; i < IMPACT_COUNT; i += 1) {
         attribute.setXYZ(i, 0, 0, 0);
-        impactVelocities[i].set(
-          (Math.random() - 0.5) * 5,
-          Math.random() * 4.2,
-          (Math.random() - 0.5) * 5,
-        );
+        if (有方向) {
+          // 一個繞住打擊方向嘅錐：主要向前，加少少側向同向上抛。
+          const 側 = (Math.random() - 0.5) * 2.6;
+          const 上 = (Math.random() - 0.2) * 3.6;      // 有機會向下，唔再係噴泉
+          const 前 = 1.2 + Math.random() * 3.4;
+          b.velocities[i].set(噴.x * 前 - 噴.z * 側, 上, 噴.z * 前 + 噴.x * 側);
+        } else {
+          b.velocities[i].set((Math.random() - 0.5) * 5,
+            (Math.random() - 0.2) * 4.2, (Math.random() - 0.5) * 5);
+        }
       }
       attribute.needsUpdate = true;
-      impactLife = 0.55;
+      b.life = 0.55;
     };
 
     const loaderManager = new THREE.LoadingManager();
@@ -2045,6 +2075,24 @@ export default function GameClient() {
       重置動作量度: () => { 起步用時 = 0; 起步計時 = null; 玩最快側滑 = 0; 敵最快側滑 = 0; 敵最高速 = 0; 最快轉向 = 0; 最快加速 = 0; 出手位移.length = 0; 踏前幀 = 0; 踏前力 = 0; 最高速 = 0; 踏前實速 = 0; 指令距離 = 0; 實際距離 = 0; 發招 = 0; 有瞄 = 0; 對得上 = 0; 落點 = 0; 打出傷害 = 0; 出手偏差.length = 0; 落點偏差.length = 0; 箭落差.length = 0; 箭到位.length = 0; },
       // 條線由遊戲自己出，唔喺測試度寫死。
       郁動上限: () => ({ 轉向: TURN_RATE, 加速: ACCEL, 減速: DECEL, 踏前: LUNGE_SPEED }),
+      // 打擊特效：42 粒碎屑而家喺邊、飛緊去邊，同埋鏡頭震幾多。
+      打擊: () => {
+        // 報返命最長嗰蓬（最新嗰下打擊），連埋成個池嘅狀態。
+        let b = bursts[0];
+        for (const 個 of bursts) if (個.life > b.life) b = 個;
+        const a = b.points.geometry.attributes.position as THREE.BufferAttribute;
+        const 粒 = [];
+        for (let i = 0; i < a.count; i += 1) {
+          粒.push({ x: +a.getX(i).toFixed(3), y: +a.getY(i).toFixed(3), z: +a.getZ(i).toFixed(3),
+            vx: +b.velocities[i].x.toFixed(2), vy: +b.velocities[i].y.toFixed(2),
+            vz: +b.velocities[i].z.toFixed(2) });
+        }
+        return { 命: +b.life.toFixed(3), 震: +cameraShake.toFixed(3),
+          次數: 碎屑次數, 被搶: 碎屑被搶, 池: bursts.length,
+          活: bursts.filter((個) => 個.life > 0).length, 重力: 碎屑重力,
+          原點: { x: +b.points.position.x.toFixed(2), y: +b.points.position.y.toFixed(2),
+                  z: +b.points.position.z.toFixed(2) }, 粒 };
+      },
       zoom: () => camZoom,
       zoomBy: (f: number) => { zoomBy(f); return camZoom; },
       // 由 A 追去 B，行一次真物理，唔畫任何嘢。
@@ -2144,12 +2192,13 @@ export default function GameClient() {
       }
       gracePos.needsUpdate = true;
 
-      if (impactLife > 0) {
-        impactLife -= delta;
-        const attribute = impactGeometry.attributes.position as THREE.BufferAttribute;
+      for (const b of bursts) {
+        if (b.life <= 0) continue;
+        b.life -= delta;
+        const attribute = b.points.geometry.attributes.position as THREE.BufferAttribute;
         for (let i = 0; i < attribute.count; i += 1) {
-          const velocity = impactVelocities[i];
-          velocity.y -= delta * 5;
+          const velocity = b.velocities[i];
+          velocity.y -= delta * 碎屑重力;
           attribute.setXYZ(
             i,
             attribute.getX(i) + velocity.x * delta,
@@ -2158,7 +2207,7 @@ export default function GameClient() {
           );
         }
         attribute.needsUpdate = true;
-        (impact.material as THREE.PointsMaterial).opacity = clamp(impactLife * 2, 0, 1);
+        (b.points.material as THREE.PointsMaterial).opacity = clamp(b.life * 2, 0, 1);
       }
 
       if (queuedLock) {
@@ -2408,6 +2457,8 @@ export default function GameClient() {
               burst(
                 hitPosition,
                 classConfig.projectile === "magic" ? "#70ccff" : "#ffcf72",
+                // 碎屑背住你嗰一下噴——即係你面住嘅方向。
+                new THREE.Vector3(Math.sin(player.rotation), 0, Math.cos(player.rotation)),
               );
               gameAudio.play(
                 classConfig.projectile === "magic"
@@ -2608,7 +2659,7 @@ export default function GameClient() {
                 player.hp = clamp(player.hp - [10, 13, 15][minion.wave], 0, 100);
                 player.knockbackUntil = now + 0.18;
                 player.knockbackDirection.copy(toPlayer).normalize().multiplyScalar(4.2);
-                burst(playerRoot.position, "#b74937");
+                burst(playerRoot.position, "#b74937", toPlayer);
                 gameAudio.play("playerHit", playerRoot.position.x, playerRoot.position.z);
                 cameraShake = 0.24;
                 if (player.hp <= 0) {
@@ -2776,7 +2827,7 @@ export default function GameClient() {
                 .copy(toBoss)
                 .normalize()
                 .multiplyScalar(boss.phase === 2 ? 7.4 : 5.8);
-              burst(playerRoot.position, "#d64a35");
+              burst(playerRoot.position, "#d64a35", toBoss);
               gameAudio.play("playerHit", playerRoot.position.x, playerRoot.position.z);
               cameraShake = 0.46;
               if (player.hp <= 0) {

@@ -1339,6 +1339,68 @@ await page.goto('about:blank');
     await p5.close();
 }
 
+// ---------- 打擊碎屑 ----------
+//
+// 三樣量到嘅嘢，全部都係「呢個特效根本唔知自己代表緊乜」：
+//
+// 1. 全場得**一組** `THREE.Points`。0.55 秒未散完又有第二下打擊，頭嗰蓬就成
+//    蓬瞬移去新位置——實測真打鬥入面 **七次有兩次（29%）**被搶。
+// 2. 噴濺同打擊方向完全冇關係：兩條水平軸等向亂數，平均橫向 0.09–0.58（噪音
+//    水平），而垂直係 `rand × 4.2`——**永遠 ≥ 0**，42 粒有 39–42 粒向上。
+//    即係無論邊個方向斬落去，出嚟都係同一個噴泉。
+// 3. 碎屑重力寫住 5，唔係 9.81——半空慢動作。
+{
+    const p7 = await browser.newPage({ viewport: { width: 640, height: 380 } });
+    await p7.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
+    await p7.waitForTimeout(1500);
+    await p7.getByText('OATHBOUND', { exact: false }).first().click();
+    await p7.getByText('ENTER THE VEIL').first().click();
+    await p7.waitForTimeout(4500);
+    // 企喺度斬：自己斬中同時捱雜兵嘅拳，兩邊都出碎屑——重疊就係咁嚟。
+    const 樣本 = [];
+    for (let i = 0; i < 16; i += 1) {
+        await p7.keyboard.press('KeyJ');
+        await p7.waitForTimeout(400);
+        const f = await p7.evaluate(() => window.__ER2.打擊());
+        if (f.命 > 0.2) 樣本.push(f);
+    }
+    const fx = await p7.evaluate(() => window.__ER2.打擊());
+    // 重力：兩次抽樣之間 vy 跌咗幾多 ÷ 郁動秒。量嘅係**積分本身**，唔係讀個
+    // 常數返嚟同自己比。
+    let 重力 = null;
+    for (let i = 0; i < 6 && 重力 === null; i += 1) {
+        await p7.keyboard.press('KeyJ');
+        await p7.waitForTimeout(250);
+        const a1 = await p7.evaluate(() => ({ t: window.__ER2.clock().motion, f: window.__ER2.打擊() }));
+        await p7.waitForTimeout(300);
+        const a2 = await p7.evaluate(() => ({ t: window.__ER2.clock().motion, f: window.__ER2.打擊() }));
+        if (a1.f.命 > 0.25 && a2.f.命 > 0 && a2.f.命 < a1.f.命 && a2.t > a1.t) {
+            重力 = (a1.f.粒[0].vy - a2.f.粒[0].vy) / (a2.t - a1.t);
+        }
+    }
+    await p7.close();
+
+    check('打擊碎屑唔會畀下一下打擊搶走（一個池，唔係一個）',
+        fx != null && fx.次數 >= 4 && fx.被搶 === 0 && fx.池 >= 3,
+        fx && { 出過幾多蓬: fx.次數, 被搶: fx.被搶, 池: fx.池 });
+
+    // 「集中度」＝ 42 粒嘅平均速度向量嘅水平長度 ÷ 平均速率。等向亂數會近零，
+    // 一個真濺射錐會近一。實測未修 0.09–0.58 ÷ 速率 ≈ 0.05–0.15，修完 0.83–0.91。
+    const 集中 = 樣本.map((f) => {
+        const mx = f.粒.reduce((s, q) => s + q.vx, 0) / f.粒.length;
+        const mz = f.粒.reduce((s, q) => s + q.vz, 0) / f.粒.length;
+        const 平均速率 = f.粒.reduce((s, q) => s + Math.hypot(q.vx, q.vy, q.vz), 0) / f.粒.length;
+        return 平均速率 > 0 ? +(Math.hypot(mx, mz) / 平均速率).toFixed(2) : 0;
+    });
+    check('碎屑背住打嚟嗰個方向噴，唔係四面八方嘅噴泉',
+        集中.length >= 3 && 集中.every((c) => c >= 0.45),
+        { 集中度: 集中.slice(0, 6) });
+
+    check('碎屑跌落嚟嘅係真重力（唔係半速慢動作）',
+        重力 !== null && 重力 > 9.0 && 重力 < 10.6,
+        { 量到: 重力 === null ? null : +重力.toFixed(2), 真值: 9.81 });
+}
+
 check('由頭到尾零 browser error', errors.length === 0, errors.slice(0, 3));
 
 await browser.close();

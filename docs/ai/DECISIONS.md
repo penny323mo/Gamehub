@@ -4467,6 +4467,37 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-181 — Elden Ring II: an impact effect that did not know it was an impact
+
+Date: 2026-08-06. Status: accepted.
+
+Three measured defects in the hit effect, all the same shape: the effect is drawn without reference
+to the event it depicts.
+
+- **One emitter for the whole game.** `burst()` overwrote a single `THREE.Points`, so a second hit
+  inside the 0.55 s lifetime **teleported the first cloud onto the new position**. Measured in a real
+  fight: **two of seven bursts stolen (29 %)** — you land a blow and its debris jumps onto you
+  because a minion hit you in the same beat. Now a pool of five, evicting the oldest; peak concurrent
+  use measured at 2.
+- **The spray ignored the blow.** Horizontal velocities were isotropic random and vertical was
+  `random() * 4.2` — **never negative**, so 39–42 of 42 particles always flew upward. Whatever angle
+  you struck from, the same fountain came out. Debris now launches into a cone around the blow
+  direction, with lift that can be downward. Directional concentration (mean velocity ÷ mean speed)
+  goes from **0.03–0.11**, which is the noise floor, to **0.75–0.93**.
+- **Debris fell at 5 m/s².** Half gravity, so it hung in the air. Measured by integration rather than
+  by reading the constant: **5.0 → 9.80** against a true 9.81.
+
+**A hazard worth writing down.** The first mutation run reported 72/72 green. The mutation had a type
+error, `npm run build` aborted, and **the previous `dist` was still on disk** — the suite serves
+`dist`, so it happily tested the unmutated bundle and called it green. A build that fails leaves a
+stale artifact that reads as success. The mutation was rewritten to compile, and then all three gates
+went red reproducing the original figures exactly: 被搶 2/7, 集中度 0.03–0.11, 重力 5.0.
+
+Camera shake is still a constant 0.24 for every player attack regardless of damage (13 through 22).
+That is visible in the source but I have not measured it as a defect, so it is left alone and noted.
+
+Suite: 69 → **72** browser checks.
+
 ## ADR-180 — Elden Ring II: the acceleration cap that finished in one frame, and a body that walked sideways
 
 Date: 2026-08-06. Status: accepted.
