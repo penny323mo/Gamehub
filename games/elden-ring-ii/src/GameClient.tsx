@@ -12,6 +12,7 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import { GameAudio } from "./audio";
 import { ARENA_RADIUS, BOSS_SPAWN_Z, CAMERA_BACK, FOG_GATE, PLAYER_SPAWN_Z, buildMap } from "./map";
 import { MINION_ATTACK_RANGE, MINION_SPEED, canLand, chaseDirection, makeBlocked, makeLineOfSight } from "./chase";
+import { ACCEL, TURN_RATE, TURN_RATE_BOSS, TURN_RATE_ENEMY, approachSpeed, turnToward } from "./motion";
 import { hasSupabaseFoundation, recordCompletedRun } from "./progress";
 
 type GameStatus = "loading" | "ready" | "playing" | "victory" | "dead" | "error";
@@ -1075,6 +1076,14 @@ export default function GameClient() {
     // 量度用：郁動用嘅時間累加咗幾多、雜兵出咗幾多手。
     let motionClock = 0;
     let minionAttacks = 0;
+    // 「機械人」有冇得量？有：**一幀之內轉幾多度、一幀之內加幾多速**。人手做
+    // 唔到瞬間反向，一隻腳踩住地嘅角色亦都唔會一 tick 由靜止去到全速。呢兩個
+    // 峰值就係「機械」同「有重量」之間嗰條界。
+    let 上幀朝向: number | null = null;
+    let 上幀速度 = 0;
+    let 最快轉向 = 0;      // 弧度／秒
+    let 最快加速 = 0;      // 米／秒²
+    let 上幀自己行 = false;
     // 每次出手之間隔咗幾多「郁動秒」。
     //
     // 本來條 gate 係「22 秒窗口入面數下數，除以郁動秒」。實測窗口得 3.9 秒
@@ -1918,6 +1927,14 @@ export default function GameClient() {
         canLand({ x: from[0], z: from[1] }, { x: to[0], z: to[1] }, reach,
           makeLineOfSight(staticBoxes)),
       射程: () => ({ 雜兵: 2.35, boss一階: 3.9, boss二階: 4.5, 撲擊: 5.2 }),
+      動作: () => ({
+        最快轉向: +最快轉向.toFixed(2), 最快加速: +最快加速.toFixed(2),
+        速度: +Math.hypot(playerBody.velocity.x, playerBody.velocity.z).toFixed(2),
+        動畫: currentPlayerAction,
+      }),
+      重置動作量度: () => { 最快轉向 = 0; 最快加速 = 0; },
+      // 條線由遊戲自己出，唔喺測試度寫死。
+      郁動上限: () => ({ 轉向: TURN_RATE, 加速: ACCEL }),
       zoom: () => camZoom,
       zoomBy: (f: number) => { zoomBy(f); return camZoom; },
       // 由 A 追去 B，行一次真物理，唔畫任何嘢。
@@ -2289,14 +2306,22 @@ export default function GameClient() {
           const sprinting = keys.has("ShiftLeft") && player.stamina > 2;
           const speed = sprinting ? classConfig.speed * 1.55 : classConfig.speed;
           movement.normalize();
-          playerBody.velocity.x = movement.x * speed;
-          playerBody.velocity.z = movement.z * speed;
-          player.rotation = Math.atan2(movement.x, movement.z);
+          // 唔再一 tick 到全速：由而家嘅速度向目標靠。
+          const 現速 = Math.hypot(playerBody.velocity.x, playerBody.velocity.z);
+          const 新速 = approachSpeed(現速, speed, delta);
+          playerBody.velocity.x = movement.x * 新速;
+          playerBody.velocity.z = movement.z * 新速;
+          // 轉身有速度上限。要轉嘅係 `player.rotation` **本身**，唔淨係個模型：
+          // 揮擊判定用嘅就係佢，兩者一分開，弧線就會講大話（ADR-151）。
+          player.rotation = turnToward(player.rotation, Math.atan2(movement.x, movement.z), delta);
           if (now >= nextFootstep) {
             gameAudio.play("footstep", playerRoot.position.x, playerRoot.position.z);
             nextFootstep = now + (sprinting ? 0.14 : 0.2);
           }
           if (sprinting) player.stamina = Math.max(0, player.stamina - delta * 13);
+          // 動畫速率跟**真實地面速度**，唔係一個常數。起步嗰兩三幀身體仲未到
+          // 全速，而腳照樣用全速踩——嗰個就係「腳踏空」嘅來源。
+          const 步速 = sprinting ? 1.9 : 2.15;
           currentPlayerAction = playAction(
             playerActions,
             sprinting
@@ -2306,8 +2331,9 @@ export default function GameClient() {
               : "Walk",
             currentPlayerAction,
             false,
-            sprinting ? 1.9 : 2.15,
+            步速 * Math.max(0.35, 新速 / speed),
           );
+          playerActions.get(currentPlayerAction)?.setEffectiveTimeScale(步速 * Math.max(0.35, 新速 / speed));
         } else {
           currentPlayerAction = playAction(playerActions, "Idle_Weapon", currentPlayerAction);
         }
@@ -2316,6 +2342,20 @@ export default function GameClient() {
           player.stamina = Math.min(100, player.stamina + delta * 28);
         }
 
+        // 加速度只計「自己行」嗰啲幀。擊退同閃避係衝量——一下撞埋嚟或者一個
+        // 翻滾**本來就應該係瞬間**，將佢哋撈埋一齊量，就係用一把尺量兩件事。
+        const 自己行 = player.state === "idle" && now >= player.knockbackUntil;
+        if (上幀朝向 !== null && delta > 0) {
+          const d = Math.atan2(Math.sin(player.rotation - 上幀朝向), Math.cos(player.rotation - 上幀朝向));
+          最快轉向 = Math.max(最快轉向, Math.abs(d) / delta);
+          const v = Math.hypot(playerBody.velocity.x, playerBody.velocity.z);
+          if (自己行 && 上幀自己行) 最快加速 = Math.max(最快加速, Math.abs(v - 上幀速度) / delta);
+          上幀速度 = v;
+        } else {
+          上幀速度 = Math.hypot(playerBody.velocity.x, playerBody.velocity.z);
+        }
+        上幀自己行 = 自己行;
+        上幀朝向 = player.rotation;
         playerRoot.rotation.y = player.rotation;
 
         const near = nearestGrace(playerRoot.position);
@@ -2423,7 +2463,10 @@ export default function GameClient() {
               minion.currentAction,
             );
           }
-          minion.root.rotation.y = Math.atan2(toPlayer.x, toPlayer.z);
+          // 雜兵同 boss 一樣要有轉身時間。佢哋本來每一幀都直接指住你，
+          // 即係你繞到佢背後嗰一刻佢已經轉咗——**繞後**呢個動作等於唔存在。
+          minion.root.rotation.y = turnToward(
+            minion.root.rotation.y, Math.atan2(toPlayer.x, toPlayer.z), delta, TURN_RATE_ENEMY);
         });
 
         if (bossActive) {
@@ -2551,7 +2594,8 @@ export default function GameClient() {
           currentBossAction = playAction(bossActions, "Idle", currentBossAction);
         }
         if (boss.state !== "dead") {
-          bossRoot.rotation.y = Math.atan2(toBoss.x, toBoss.z);
+          bossRoot.rotation.y = turnToward(
+            bossRoot.rotation.y, Math.atan2(toBoss.x, toBoss.z), delta, TURN_RATE_BOSS);
         }
         } else {
           telegraph.visible = false;

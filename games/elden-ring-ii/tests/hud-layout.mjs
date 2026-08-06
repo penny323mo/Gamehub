@@ -601,8 +601,19 @@ for (const [w, h, 名] of 尺寸) {
     const p3 = await 手機.newPage();
     await p3.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
     await p3.waitForTimeout(1200);
-    await p3.getByText('OATHBOUND', { exact: false }).first().click();
-    await p3.getByText('ENTER THE VEIL').first().click();
+    // 呢個 mobile context 入面唔用 Playwright 嘅 `click()`：`getByText` 會撳中
+    // 標題嗰個 `<span>Oathbound.</span>`，而 `locator('button')` 撳完之後
+    // Playwright 會一直「等 scheduled navigation」等到 timeout。直接叫 DOM
+    // 嘅 `click()`——呢度要測嘅係入到遊戲之後嘅搖桿，唔係點樣撳粒掣。
+    const 撳 = (t) => p3.evaluate((text) => {
+        const b = [...document.querySelectorAll('button')].find((el) => (el.innerText || '').includes(text));
+        if (b) b.click();
+    }, t);
+    await 撳('OATHBOUND');
+    // 入場掣載緊嘢嗰陣係 `disabled`，DOM 嘅 `.click()` 唔會有反應（Playwright
+    // 嘅 `click()` 會等，所以第一版睇唔出）。等佢 enable 咗先撳。
+    await p3.waitForSelector('.enter-button:not([disabled])', { timeout: 60000 });
+    await 撳('ENTER THE VEIL');
     await p3.waitForTimeout(4000);
     const 掣位 = await p3.evaluate(() => {
         const zone = document.querySelector('.touch-zone');
@@ -926,11 +937,15 @@ for (const [w, h, 名] of 尺寸) {
 {
     await page.setViewportSize({ width: 640, height: 380 });
     await page.waitForTimeout(500);
-    await page.keyboard.down('KeyW');           // 行埋去逼雜兵開打
+    // 唔可以一路揸住 W：玩家 12.5 米／秒而雜兵 4.3–5.4，揸住就係跑晒佢哋，
+    // 收到嘅樣本得零個。埋咗位就放手企定——雜兵而家追得到人（ADR-168），
+    // 所以企喺度先係真正「不停俾人打」嗰個狀態。
+    await page.keyboard.down('KeyW');
+    await page.waitForTimeout(2600);
+    await page.keyboard.up('KeyW');
     const a = await page.evaluate(() => window.__ER2.clock());
     await page.waitForTimeout(32000);
     const b = await page.evaluate(() => window.__ER2.clock());
-    await page.keyboard.up('KeyW');
     const 動 = b.motion - a.motion;
     // 唔再用「窗口入面數下數 ÷ 郁動秒」。實測嗰個率一下出手值 0.26/秒，而門檻
     // 0.9 啱好夾喺 3 下（0.81）同 4 下（1.04）中間——同一份程式碼跑兩次，一次
@@ -944,9 +959,12 @@ for (const [w, h, 名] of 尺寸) {
     // 秒就會跌到 0.25 左右。兩者差六倍，一個間隔已經分得開。
     const 間隔 = b.間隔.slice(a.間隔.length);
     const 最短 = 間隔.length ? Math.min(...間隔) : null;
+    // 要求兩個間隔會飄：同一份程式碼有時攞到 4 個、有時 1 個（雜兵要企啱位
+    // 先出手，而佢哋而家仲要轉身）。一個間隔已經分得開——1.75 對住「時鐘改
+    // 返做真實時間」嗰個 0.25，差七倍。
     check('雜兵兩下出手之間，至少隔住遊戲自己寫嗰個 1.4 郁動秒',
-        間隔.length >= 2 && 最短 >= 1.4,
-        { 動: +動.toFixed(1), 量到幾多個間隔: 間隔.length,
+        間隔.length >= 1 && 動 > 3 && 最短 >= 1.4,
+        { 動: +動.toFixed(1), 出手: b.attacks - a.attacks, 量到幾多個間隔: 間隔.length,
           最短: 最短 === null ? null : +最短.toFixed(2),
           全部: 間隔.map((g) => +g.toFixed(2)).slice(0, 8),
           真實秒: +(b.real - a.real).toFixed(1) });
@@ -1098,12 +1116,20 @@ await page.goto('about:blank');
         });
         const 鐘 = () => p2.evaluate(() => window.__ER2.clock().motion);
         const h0 = await 血(), m0 = await 鐘();
-        for (let i = 0; i < 45; i++) {
+        // 唔好用「幾時死」做指標：45 次窗口之下兩邊都啱啱好掉 40%（整條比較企
+        // 晒喺分母度），拉長到 90 次之後兩邊都死，而「死得幾快」跑兩次讀到
+        // 2.00× 同 1.74×——**條 2× 門檻直接落喺噪音入面**。
+        //
+        // 改為**固定郁動時間**窗口，兩邊都行夠 7 秒（或者死咗為止）先比傷害。
+        // 分母一樣，剩返嘅差別就淨係「食咗幾多」。
+        for (let i = 0; i < 120; i++) {
             if (碌) await p2.keyboard.press('Space');
             await p2.waitForTimeout(500);
-            const st = await p2.evaluate(() =>
-                document.querySelector('[data-game-status]').dataset.gameStatus);
-            if (st !== 'playing') break;
+            const st = await p2.evaluate(() => ({
+                s: document.querySelector('[data-game-status]').dataset.gameStatus,
+                m: window.__ER2.clock().motion,
+            }));
+            if (st.s !== 'playing' || st.m - m0 >= 7) break;
         }
         const h1 = await 血(), m1 = await 鐘();
         await p2.close();
@@ -1115,6 +1141,44 @@ await page.goto('about:blank');
         定.率 > 1 && 碌.率 <= 定.率 * 0.5,
         { 企定: `${定.掉.toFixed(0)}% / ${定.秒}s = ${定.率.toFixed(2)}%每秒`,
           不停碌: `${碌.掉.toFixed(0)}% / ${碌.秒}s = ${碌.率.toFixed(2)}%每秒` });
+}
+
+// ---------- 隻角色郁得似唔似有重量 ----------
+//
+// 「機械人」量得到：**一幀之內轉幾多度、一幀之內加幾多速**。實測未修之前，
+// 玩家最快轉向 **62.6 弧度／秒（每秒 3587 度）**、行走最快加速 **250 米／秒²
+// （約 25 g）**——推前推後之間零過渡，轉身同起步都係一 tick 完成。
+//
+// 條線唔係我拍腦袋揀嘅：佢就係 `motion.ts` 自己嗰兩個上限。擊退同閃避唔計
+// ——嗰啲係衝量，本來就應該瞬間。
+//
+// **開自己一版**：呢條要揸住個角色行十幾秒，喺共用嗰版度做就會令玩家喺後面
+// 嗰啲檢查開始之前已經死咗——第一版就係咁，跟住條出手節奏 gate 量到 0 下出手
+// （而唔係「雜兵唔識打」）。一條 gate 唔應該整污糟後面嗰啲。
+{
+    const p4 = await browser.newPage({ viewport: { width: 640, height: 380 } });
+    await p4.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
+    await p4.waitForTimeout(1500);
+    await p4.getByText('OATHBOUND', { exact: false }).first().click();
+    await p4.getByText('ENTER THE VEIL').first().click();
+    await p4.waitForTimeout(4500);
+    await p4.evaluate(() => window.__ER2.重置動作量度());
+    for (let i = 0; i < 2; i += 1) {
+        await p4.keyboard.down('KeyW'); await p4.waitForTimeout(1300);
+        await p4.keyboard.up('KeyW'); await p4.keyboard.down('KeyS'); await p4.waitForTimeout(1300);
+        await p4.keyboard.up('KeyS'); await p4.waitForTimeout(700);
+        await p4.keyboard.down('KeyA'); await p4.waitForTimeout(900); await p4.keyboard.up('KeyA');
+        await p4.waitForTimeout(600);
+    }
+    const m = await p4.evaluate(() => window.__ER2.動作());
+    const 上限 = await p4.evaluate(() => window.__ER2.郁動上限());
+    await p4.close();
+    check('轉身唔可以一 tick 完成（有角速度上限）',
+        m != null && m.最快轉向 > 0 && m.最快轉向 <= 上限.轉向 * 1.05,
+        { 量到: m.最快轉向, 上限: 上限.轉向, 度每秒: Math.round(m.最快轉向 * 180 / Math.PI) });
+    check('起步唔可以一 tick 到全速（有加速度上限）',
+        m != null && m.最快加速 > 0 && m.最快加速 <= 上限.加速 * 1.05,
+        { 量到: m.最快加速, 上限: 上限.加速 });
 }
 
 // ---------- 三個職業都要玩得到 ----------

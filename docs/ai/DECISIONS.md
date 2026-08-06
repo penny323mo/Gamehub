@@ -4381,3 +4381,48 @@ on a `hasTouch` context now.
 All three mutations reproduce their measurement: spawn back to 17 gives 2.69–2.80 m at five sizes,
 an unclamped zoom gives 2.81 and 0.21, a pinned stick reports the same offset at every touch point.
 `hud-layout.mjs` 60/60.
+
+## ADR-176 — Elden Ring II: the character turned at 3587 degrees a second
+
+Date: 2026-08-05. Status: accepted.
+
+"Robotic" sounds like a taste judgement until you ask what a robot does that a body cannot: it
+changes state instantly. Two numbers say it, and both were measured inside the game rather than
+guessed — peak turn rate and peak locomotion acceleration, in radians and metres per **motion**
+second so frame rate cannot flatter them.
+
+**62.6 rad/s — 3587°/s — and 250 m/s², about 25 g.** The character spun ten times faster than any
+body turns and reached 12.5 m/s in a single clamped tick. `player.rotation` was assigned
+`Math.atan2(movement.x, movement.z)` outright and `playerBody.velocity` was assigned `direction ×
+speed` outright. Nothing in between.
+
+`src/motion.ts` holds the two rules, pure, no three.js and no cannon-es, so Node tests them in
+milliseconds: `turnToward` (capped, shortest-arc — 350° to 10° turns forward through 20°) and
+`approachSpeed` (separate accel and decel limits, because stopping slower than starting is what
+skating feels like). Player turn is 9 rad/s (516°/s) and acceleration 70 m/s², reaching full speed in
+0.18 s. The turn cap is applied to `player.rotation` itself, not to the model, because the swing
+test reads that same value — splitting them is how the attack arc starts lying (ADR-151).
+
+Enemies got turn rates too, and slower ones: 5.2 rad/s for revenants, 3.4 for the boss. They used to
+face you exactly every frame, which means **getting behind something was not a move that existed**.
+
+Animation playback now follows real ground speed instead of a constant `2.15`, so the first strides
+of a move no longer run at full cadence while the body is still accelerating.
+
+Three gates in the existing suite went red, and each was worth the trip:
+
+- The dodge gate (ADR-159) measured "how fast do you die" over a fixed number of real seconds. Run
+  twice on identical code it read **2.00× and 1.74×** against a 2× threshold — the line sat inside
+  the noise. It now runs both conditions for the same 7 s of motion time and compares damage taken:
+  **60 % standing, 20 % rolling, a clean 3×.**
+- The attack-cadence gate read zero attacks. Not the game: **my new motion gate drove the player
+  around the shared page for sixteen seconds and left them dead**, so everything downstream measured
+  a corpse. It has its own page now.
+- Acceleration at 55 m/s² was slow enough to cost the dodge gate its margin; 70 keeps the ramp and
+  the evasion.
+
+Verified by mutation: making both helpers return their targets outright reproduces **62.6 rad/s and
+250 m/s² exactly** — the numbers from before the fix, off the same instrument. `hud-layout.mjs`
+62/62, `npm test` 10/10.
+
+Not done: attack feel itself — no lunge, no hit-stop, no impact recoil. That is the next round.
