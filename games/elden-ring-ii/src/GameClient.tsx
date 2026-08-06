@@ -12,7 +12,7 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import { GameAudio } from "./audio";
 import { ARENA_RADIUS, BOSS_SPAWN_Z, CAMERA_BACK, FOG_GATE, PLAYER_SPAWN_Z, buildMap } from "./map";
 import { MINION_ATTACK_RANGE, MINION_SPEED, canLand, chaseDirection, makeBlocked, makeLineOfSight } from "./chase";
-import { ACCEL, DECEL, LUNGE_SPEED, TURN_RATE, TURN_RATE_ATTACK, TURN_RATE_BOSS, TURN_RATE_ENEMY, approachSpeed, snapShadowTarget, turnToward } from "./motion";
+import { ACCEL, DECEL, LUNGE_SPEED, gaitStep, TURN_RATE, TURN_RATE_ATTACK, TURN_RATE_BOSS, TURN_RATE_ENEMY, approachSpeed, snapShadowTarget, turnToward } from "./motion";
 import { hasSupabaseFoundation, recordCompletedRun } from "./progress";
 
 type GameStatus = "loading" | "ready" | "playing" | "victory" | "dead" | "error";
@@ -133,6 +133,7 @@ type MinionEnemy = {
   currentAction: string;
   spawn: [number, number];
   knockbackUntil: number;
+  速: number;            // 步態速度（`gaitStep` 嘅狀態）
 };
 
 const INITIAL_HUD: HudState = {
@@ -1066,6 +1067,7 @@ export default function GameClient() {
       phase: 1,
       avoid: { turn: 0 },
       knockbackUntil: 0,
+      速: 0,                       // 步態速度（`gaitStep` 嘅狀態）
       move: "punch" as BossMove,
       leapTarget: new THREE.Vector3(),
     };
@@ -1117,10 +1119,19 @@ export default function GameClient() {
     // 診斷：指令走幾遠 vs 真係走咗幾遠。兩個數一齊累加，比率就係物理引擎
     // 食咗幾多。
     let 指令距離 = 0, 實際距離 = 0, 上幀位 = { x: 0, z: 0 }, 有上幀位 = false;
+    // 敵人嗰邊嘅同一組數。玩家有加速斜坡同轉身上限，敵人淨係有轉身上限——
+    // 「側滑」量嘅係**佢實際行緊嗰個方向**同**個模型面向嗰個方向**差幾多。
+    let 敵最快側滑 = 0, 敵最高速 = 0;
+    // 「有冇加速斜坡」唔可以淨係問加速度：`delta` 封喺 0.05 秒，而 ACCEL 70
+    // 配 4.4 米／秒即係斜坡 0.063 秒行完——一幀。一條真斜坡同一個瞬間跳，
+    // 喺加速度呢把尺入面分唔開。要問嘅係**由靜止去到全速用咗幾耐郁動時間**。
+    let 起步計時: number | null = null, 起步用時 = 0;
+    // 玩家側滑：身體行緊嘅方向，同個模型面住嘅方向，差幾多。
+    let 玩最快側滑 = 0;
     // 「瞄住嗰個」同「打中嗰個」係唔係同一個。出手嗰刻揀一次目標（箭飛去
     // 佢），落點嗰刻再揀一次（傷害計喺佢身上）——兩條規則唔同就會出現
     // 「箭插咗入去但佢冇少過血」。
-    let 發招 = 0, 有瞄 = 0, 對得上 = 0, 落點 = 0;
+    let 發招 = 0, 有瞄 = 0, 對得上 = 0, 落點 = 0, 打出傷害 = 0;
     const 落點偏差: number[] = [];   // 落點嗰刻，朝向同目標之間差幾多弧度
     // 支箭飛去出手嗰刻抄低嗰個定點，同目標喺落點嗰刻真正企嗰度，差幾多米。
     // 呢把尺唔靠邊個修法：定點永遠照抄，所以佢量嘅係「目標喺飛行時間入面
@@ -1140,14 +1151,31 @@ export default function GameClient() {
     // 所以橫向由遊戲自己行：位置直接加 `速度 × delta`，撞到就用同一張 collider
     // 表沿住牆滑（單軸試兩次），Y 軸（重力、落地）照樣交返畀物理引擎。咁樣
     // **卡上面寫幾多就行幾多**，唔使再靠一個冇人量過嘅折扣率。
-    const 行一步 = (body: CANNON.Body, radius: number, dx: number, dz: number) => {
+    //
+    // 行返嘅係「有冇整足呢一步」。碰撞會令位移縮水甚至變零，而由位置度出嚟
+    // 嘅加速度就分唔開「加速好勁」同「撞咗牆」——實測條加速 gate 讀到 41.4
+    // 米／秒²（上限 14），真兇係跑北面撞到嘢。量度要跳過呢啲幀。
+    const 行一步 = (body: CANNON.Body, radius: number, dx: number, dz: number): boolean => {
       const 擋 = makeBlocked(staticBoxes, radius);
       const x0 = body.position.x, z0 = body.position.z;
-      if (!擋(x0 + dx, z0 + dz)) { body.position.x = x0 + dx; body.position.z = z0 + dz; return; }
-      if (dx !== 0 && !擋(x0 + dx, z0)) { body.position.x = x0 + dx; return; }
-      if (dz !== 0 && !擋(x0, z0 + dz)) { body.position.z = z0 + dz; return; }
+      if (!擋(x0 + dx, z0 + dz)) { body.position.x = x0 + dx; body.position.z = z0 + dz; return true; }
+      if (dx !== 0 && !擋(x0 + dx, z0)) { body.position.x = x0 + dx; return false; }
+      if (dz !== 0 && !擋(x0, z0 + dz)) { body.position.z = z0 + dz; return false; }
+      return false;
     };
-    const 走一步 = (dx: number, dz: number) => 行一步(playerBody, playerRadius, dx, dz);
+    // 量度：呢一幀角色**自己行咗幾遠**，同埋中間有冇畀嘢阻過。
+    //
+    // 唔可以用「位置差」嚟量自己嘅加速度：位置差入面仲有牆嘅滑行、同雜兵嘅
+    // 剛體接觸推撞、重力落地。實測條加速 gate 讀到 **41.4 米／秒²**（上限
+    // 14）而且每次一模一樣——真兇係接觸推撞，唔係加速。舊上限 95 夠鬆，所以
+    // 呢個污染一直冚住。被人推唔係「你嘅加速度」，兩件事唔可以用一把尺。
+    let 玩家撞咗 = false, 自己位移 = 0;
+    const 走一步 = (dx: number, dz: number) => {
+      const 順 = 行一步(playerBody, playerRadius, dx, dz);
+      if (!順) 玩家撞咗 = true;
+      自己位移 = Math.hypot(dx, dz);
+      return 順;
+    };
     // 每次出手之間隔咗幾多「郁動秒」。
     //
     // 本來條 gate 係「22 秒窗口入面數下數，除以郁動秒」。實測窗口得 3.9 秒
@@ -1704,6 +1732,7 @@ export default function GameClient() {
           currentAction: "",
           spawn,
           knockbackUntil: 0,
+          速: 0,
         });
       });
 
@@ -1996,6 +2025,7 @@ export default function GameClient() {
       射程: () => ({ 雜兵: 2.35, boss一階: 3.9, boss二階: 4.5, 撲擊: 5.2 }),
       動作: () => ({
         最快轉向: +最快轉向.toFixed(2), 最快加速: +最快加速.toFixed(2),
+        起步用時: +起步用時.toFixed(3), 側滑: +玩最快側滑.toFixed(2),
         速度: +Math.hypot(playerBody.velocity.x, playerBody.velocity.z).toFixed(2),
         動畫: currentPlayerAction,
         出手位移: 出手位移.slice(), 踏前幀, 踏前力: +踏前力.toFixed(2),
@@ -2004,8 +2034,15 @@ export default function GameClient() {
         指令距離: +指令距離.toFixed(2), 實際距離: +實際距離.toFixed(2),
       }),
       // 瞄住嗰個同打中嗰個。`對得上 / 有瞄` 就係「你射出去嗰箭有幾多成算數」。
-      瞄準: () => ({ 發招, 有瞄, 落點, 對得上, 偏差: 出手偏差.slice(), 落點偏差: 落點偏差.slice(), 箭落差: 箭落差.slice(), 箭到位: 箭到位.slice() }),
-      重置動作量度: () => { 最快轉向 = 0; 最快加速 = 0; 出手位移.length = 0; 踏前幀 = 0; 踏前力 = 0; 最高速 = 0; 踏前實速 = 0; 指令距離 = 0; 實際距離 = 0; 發招 = 0; 有瞄 = 0; 對得上 = 0; 落點 = 0; 出手偏差.length = 0; 落點偏差.length = 0; 箭落差.length = 0; 箭到位.length = 0; },
+      瞄準: () => ({ 發招, 有瞄, 落點, 對得上, 打出傷害, 偏差: 出手偏差.slice(), 落點偏差: 落點偏差.slice(), 箭落差: 箭落差.slice(), 箭到位: 箭到位.slice() }),
+      // 敵人嗰邊嘅郁動。玩家有加速斜坡（ADR-176/178），敵人淨係有轉身上限。
+      敵動作: () => ({
+        // 冇「最快加速」：`行一步` 貼住牆嗰幀走 0 米、下一幀走足，由位置度
+        // 出嚟嘅加速度會讀到碰撞而唔係步態。側滑冇呢個問題。
+        最快側滑: +敵最快側滑.toFixed(2),
+        最高速: +敵最高速.toFixed(2), 設計速: MINION_SPEED.slice(),
+      }),
+      重置動作量度: () => { 起步用時 = 0; 起步計時 = null; 玩最快側滑 = 0; 敵最快側滑 = 0; 敵最高速 = 0; 最快轉向 = 0; 最快加速 = 0; 出手位移.length = 0; 踏前幀 = 0; 踏前力 = 0; 最高速 = 0; 踏前實速 = 0; 指令距離 = 0; 實際距離 = 0; 發招 = 0; 有瞄 = 0; 對得上 = 0; 落點 = 0; 打出傷害 = 0; 出手偏差.length = 0; 落點偏差.length = 0; 箭落差.length = 0; 箭到位.length = 0; },
       // 條線由遊戲自己出，唔喺測試度寫死。
       郁動上限: () => ({ 轉向: TURN_RATE, 加速: ACCEL, 減速: DECEL, 踏前: LUNGE_SPEED }),
       zoom: () => camZoom,
@@ -2028,20 +2065,27 @@ export default function GameClient() {
       // `chaseDirection`。
       追擊試: (from: [number, number], to: [number, number], seconds = 24, 邊個 = "minion") => {
         const 誰 = 邊個 === "boss"
-          ? { r: bossRadius, 速: 3.9, 射: BOSS_REACH }
-          : { r: minionRadius, 速: MINION_SPEED[2], 射: MINION_ATTACK_RANGE };
+          ? { r: bossRadius, 速: 3.9, 射: BOSS_REACH, 轉: TURN_RATE_BOSS }
+          : { r: minionRadius, 速: MINION_SPEED[2], 射: MINION_ATTACK_RANGE, 轉: TURN_RATE_ENEMY };
         const 身 = { position: { x: from[0], y: 0, z: from[1] } } as unknown as CANNON.Body;
         const 目標 = { x: to[0], z: to[1] };
         const memo = { turn: 0 };
         const dt = 1 / 60;
         let 最近 = Infinity, 用咗 = seconds;
+        // 起手朝向指住目標——出生嗰陣佢真係咁。
+        const gait = { heading: Math.atan2(to[0] - from[0], to[1] - from[1]), speed: 0 };
         for (let step = 0; step * dt < seconds; step += 1) {
           const 位 = { x: 身.position.x, z: 身.position.z };
           const d = Math.hypot(位.x - 目標.x, 位.z - 目標.z);
           if (d < 最近) 最近 = d;
           if (d <= 誰.射) { 用咗 = step * dt; break; }
           const dir = chaseDirection(位, 目標, [], makeBlocked(staticBoxes, 誰.r), memo);
-          行一步(身, 誰.r, dir.x * 誰.速 * dt, dir.z * 誰.速 * dt);
+          // 遊戲行 `gaitStep`（轉身 → 沿住面向、入彎收力），呢度就一定要行
+          // 同一條。差一條規則，量到嘅就係一隻遊戲入面唔存在嘅雜兵——
+          // ADR-169 已經喺 boss 度撞過一次一模一樣嘅坑。
+          const 步 = gaitStep(gait, Math.atan2(dir.x, dir.z), 誰.速, dt, 誰.轉);
+          gait.heading = 步.heading; gait.speed = 步.speed;
+          行一步(身, 誰.r, 步.dx, 步.dz);
         }
         return { 最近: +最近.toFixed(2), 用咗: +用咗.toFixed(2),
           到: 最近 <= 誰.射,
@@ -2341,6 +2385,7 @@ export default function GameClient() {
             const hitTargetRoot = targetRoot(attackTarget);
             if (attackTarget && hitTargetRoot) {
               const damage = classConfig.damage[player.combo];
+              打出傷害 += damage;
               if (attackTarget === "boss") {
                 boss.hp = clamp(boss.hp - damage, 0, 100);
                 boss.state = boss.hp <= 0 ? "dead" : "hit";
@@ -2434,13 +2479,33 @@ export default function GameClient() {
           // 重新開始，實際速度就變成 `ACCEL × delta`——實測玩家平均得
           // **0.09 米／秒**（設計 12.5），而六十二條 gate 全綠，因為冇一條量
           // 過最高速度，全部淨係量變化率。所以速度自己要有個狀態。
-          const 新速 = approachSpeed(playerSpeed, speed, delta);
+          // 轉身 → 沿住面向行，一條規則做齊（`gaitStep`）。
+          //
+          // 本來位移用 `movement`（想去嗰邊）而朝向係另一條有上限嘅線，兩者
+          // 一分開身體就滑向一個佢冇面住嘅方向——實測**側滑到 2.0 弧度
+          // （115 度）**：撳 A 個人面住北、身體向西全速平移。
+          //
+          // 轉嘅係 `player.rotation` **本身**，唔淨係個模型：揮擊判定用嘅就係
+          // 佢，兩者一分開弧線就會講大話（ADR-151）。
+          const 步 = gaitStep(
+            { heading: player.rotation, speed: playerSpeed },
+            Math.atan2(movement.x, movement.z), speed, delta);
+          // 由靜止起步用咗幾多郁動時間先去到九成五全速。
+          if (playerSpeed < 0.05) 起步計時 = motionClock;
+          if (起步計時 !== null && 步.speed >= speed * 0.95) {
+            起步用時 = Math.max(起步用時, motionClock - 起步計時);
+            起步計時 = null;
+          }
+          const 新速 = 步.speed;
           playerSpeed = 新速;
+          player.rotation = 步.heading;
           最高速 = Math.max(最高速, 新速);
-          走一步(movement.x * 新速 * delta, movement.z * 新速 * delta);
-          // 轉身有速度上限。要轉嘅係 `player.rotation` **本身**，唔淨係個模型：
-          // 揮擊判定用嘅就係佢，兩者一分開，弧線就會講大話（ADR-151）。
-          player.rotation = turnToward(player.rotation, Math.atan2(movement.x, movement.z), delta);
+          if (Math.hypot(步.dx, 步.dz) > 1e-6) {
+            const 差 = Math.atan2(步.dx, 步.dz) - player.rotation;
+            玩最快側滑 = Math.max(玩最快側滑,
+              Math.abs(Math.atan2(Math.sin(差), Math.cos(差))));
+          }
+          走一步(步.dx, 步.dz);
           if (now >= nextFootstep) {
             gameAudio.play("footstep", playerRoot.position.x, playerRoot.position.z);
             nextFootstep = now + (sprinting ? 0.14 : 0.2);
@@ -2463,10 +2528,10 @@ export default function GameClient() {
           playerActions.get(currentPlayerAction)?.setEffectiveTimeScale(步速 * Math.max(0.35, 新速 / speed));
         } else {
           // 放手唔係即刻停：由 `DECEL` 收返落零，方向保持原本嗰個。
-          playerSpeed = approachSpeed(playerSpeed, 0, delta);
+          const 收 = gaitStep({ heading: player.rotation, speed: playerSpeed }, null, 0, delta);
+          playerSpeed = 收.speed;
           if (playerSpeed > 0.01) {
-            走一步(Math.sin(player.rotation) * playerSpeed * delta,
-                   Math.cos(player.rotation) * playerSpeed * delta);
+            走一步(收.dx, 收.dz);
           }
           currentPlayerAction = playAction(playerActions, "Idle_Weapon", currentPlayerAction);
         }
@@ -2488,18 +2553,24 @@ export default function GameClient() {
         }
         // 加速度只計「自己行」嗰啲幀。擊退同閃避係衝量——一下撞埋嚟或者一個
         // 翻滾**本來就應該係瞬間**，將佢哋撈埋一齊量，就係用一把尺量兩件事。
-        const 自己行 = player.state === "idle" && now >= player.knockbackUntil;
+        // 撞咗牆嗰啲幀唔算數（見 `行一步`）。`玩家撞咗` 由上一幀嘅 `走一步`
+        // 設好，讀完就清返。
+        const 撞過 = 玩家撞咗;
+        玩家撞咗 = false;
+        const 自己行 = player.state === "idle" && now >= player.knockbackUntil && !撞過;
         if (上幀朝向 !== null && delta > 0) {
           const d = Math.atan2(Math.sin(player.rotation - 上幀朝向), Math.cos(player.rotation - 上幀朝向));
           最快轉向 = Math.max(最快轉向, Math.abs(d) / delta);
-          // 量位置差，唔係量剛體速度——角色而家自己積分位置，剛體速度永遠係
-          // 零。第一版照量速度，兩條 gate 即刻讀到 0：**支尺又跟唔上實作**。
-          const v = 有上幀位 ? Math.hypot(playerBody.position.x - 上幀位.x, playerBody.position.z - 上幀位.z) / delta : 0;
+          // 量角色**自己行咗嗰一步**，唔量剛體速度（自己積分之後永遠係零），
+          // 亦都唔量位置差（入面撈埋咗牆滑行同雜兵推撞——實測條 gate 讀到
+          // 41.4 對上限 14，而真兇係接觸）。
+          const v = 自己位移 / delta;
           if (自己行 && 上幀自己行) 最快加速 = Math.max(最快加速, Math.abs(v - 上幀速度) / delta);
           上幀速度 = v;
         } else {
-          上幀速度 = Math.hypot(playerBody.velocity.x, playerBody.velocity.z);
+          上幀速度 = 0;
         }
+        自己位移 = 0;
         上幀自己行 = 自己行;
         上幀朝向 = player.rotation;
         playerRoot.rotation.y = player.rotation;
@@ -2577,7 +2648,28 @@ export default function GameClient() {
             // 同玩家行同一套：位置自己積分，卡上面寫幾多就行幾多。淨係改玩家
             // 嗰邊就會令玩家快敵人四倍——一個改動整出嚟嘅唔對稱。
             const speed = MINION_SPEED[minion.wave];
-            行一步(minion.body, minionRadius, direction.x * speed * delta, direction.z * speed * delta);
+            const 量前 = { x: minion.body.position.x, z: minion.body.position.z };
+            // 同玩家一條規則：轉身 → 沿住面向行。轉身上限喺下面嗰行本來係
+            // 分開做嘅，即係**個模型慢慢轉、個身體即刻改方向**——側滑。
+            const 步 = gaitStep(
+              { heading: minion.root.rotation.y, speed: minion.速 },
+              Math.atan2(direction.x, direction.z), speed, delta, TURN_RATE_ENEMY);
+            minion.root.rotation.y = 步.heading;
+            minion.速 = 步.speed;
+            行一步(minion.body, minionRadius, 步.dx, 步.dz);
+            {
+              // 兩把尺都由**實際位置**度，唔由指令度（ADR-178 就係讀指令讀出事）。
+              const 走 = Math.hypot(minion.body.position.x - 量前.x, minion.body.position.z - 量前.z);
+              const 實速 = 走 / Math.max(delta, 1e-4);
+              敵最高速 = Math.max(敵最高速, 實速);
+              if (走 > 1e-4) {
+                // 側滑：真係行緊嗰個方向，同個模型面住嗰個方向，差幾多。
+                const 差 = Math.atan2(minion.body.position.x - 量前.x,
+                                      minion.body.position.z - 量前.z) - minion.root.rotation.y;
+                敵最快側滑 = Math.max(敵最快側滑,
+                  Math.abs(Math.atan2(Math.sin(差), Math.cos(差))));
+              }
+            }
             minion.currentAction = playAction(
               minion.actions,
               "Running_A",
@@ -2610,10 +2702,16 @@ export default function GameClient() {
               minion.currentAction,
             );
           }
-          // 雜兵同 boss 一樣要有轉身時間。佢哋本來每一幀都直接指住你，
-          // 即係你繞到佢背後嗰一刻佢已經轉咗——**繞後**呢個動作等於唔存在。
-          minion.root.rotation.y = turnToward(
-            minion.root.rotation.y, Math.atan2(toPlayer.x, toPlayer.z), delta, TURN_RATE_ENEMY);
+          // 雜兵同 boss 一樣要有轉身時間（繞後先做得到）。跑緊嗰陣轉身已經
+          // 由 `gaitStep` 做咗——喺度再轉一次就會**打橫覆蓋返佢**，個身體
+          // 又同個朝向分開。所以淨係企定／出手嗰陣先喺呢度轉。
+          if (minion.state !== "run") {
+            // 唔跑就收油，否則下次起步由一個舊速開始（＝又冇咗條斜坡）。
+            minion.速 = gaitStep({ heading: minion.root.rotation.y, speed: minion.速 },
+              null, 0, delta).speed;
+            minion.root.rotation.y = turnToward(
+              minion.root.rotation.y, Math.atan2(toPlayer.x, toPlayer.z), delta, TURN_RATE_ENEMY);
+          }
         });
 
         if (bossActive) {
@@ -2711,7 +2809,14 @@ export default function GameClient() {
             boss.avoid,
           );
           const bossSpeed = boss.phase === 2 ? 4.9 : 3.9;
-          行一步(bossBody, bossRadius, direction.x * bossSpeed * delta, direction.z * bossSpeed * delta);
+          // 同雜兵同玩家一條規則。大隻嘅轉得最慢，所以佢入彎蝕得最犀利——
+          // 呢個就係「玩家繞得到佢」嗰個玩法本身。
+          const 步 = gaitStep(
+            { heading: bossRoot.rotation.y, speed: boss.速 },
+            Math.atan2(direction.x, direction.z), bossSpeed, delta, TURN_RATE_BOSS);
+          bossRoot.rotation.y = 步.heading;
+          boss.速 = 步.speed;
+          行一步(bossBody, bossRadius, 步.dx, 步.dz);
           currentBossAction = playAction(bossActions, "Run", currentBossAction, false, boss.phase === 2 ? 2.1 : 1.82);
         } else if (now >= boss.nextAttack) {
           boss.move = chooseBossMove(
@@ -2739,7 +2844,11 @@ export default function GameClient() {
           boss.state = "idle";
           currentBossAction = playAction(bossActions, "Idle", currentBossAction);
         }
-        if (boss.state !== "dead") {
+        // 跑緊嗰陣轉身已經喺 `gaitStep` 度做咗；喺度再轉一次就會覆蓋返佢，
+        // 個身體又同個朝向分開。
+        if (boss.state !== "dead" && boss.state !== "run") {
+          boss.速 = gaitStep({ heading: bossRoot.rotation.y, speed: boss.速 },
+            null, 0, delta).speed;
           bossRoot.rotation.y = turnToward(
             bossRoot.rotation.y, Math.atan2(toBoss.x, toBoss.z), delta, TURN_RATE_BOSS);
         }

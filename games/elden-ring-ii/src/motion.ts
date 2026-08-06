@@ -13,11 +13,19 @@ export const TURN_RATE = 9;        // 弧度／秒 ≈ 每秒 516 度
 // 都直接指住你，即係繞後等於唔存在。
 export const TURN_RATE_ENEMY = 5.2;
 export const TURN_RATE_BOSS = 3.4;   // 大隻嘅轉得更慢，撲擊之後尤其明顯
-// 加速度：55 嗰陣「不停碌收到嘅傷害要低過企定一半」條 gate 啱啱好肥（3.56%
-// 對 3.48% 上限）——起步太慢就走位唔切。70 仲係一條真斜坡（全速 12.5 大約
-// 0.18 秒到，未修之前係一 tick），但唔會蝕咗閃避嘅價值。
-export const ACCEL = 70;           // 米／秒²
-export const DECEL = 95;           // 煞停快過起步，否則會「溜冰」
+// 加速度。
+//
+// 呢兩個數本來係 70 同 95，而**條上限乜都冇做過**：全速 4.4 米／秒配 70
+// 米／秒²，即係斜坡 0.063 秒行完，而 `delta` 封咗喺 0.05 秒——**一幀**。
+// 實測起步用時 **0.05 秒**，即係由靜止到全速真係一 tick。一條有上限嘅斜坡
+// 同一個瞬間跳，喺「加速度」呢把尺入面分唔開，要問嘅係**用咗幾耐**。
+//
+// 人由企定去到慢跑大約半秒到一秒。8 米／秒²＝4.4 米／秒用 0.55 秒，煞停
+// 快一半。（70 嗰個數係 ADR-176 為咗餵飽閃避嗰條 gate 揀嘅，而嗰陣個玩家
+// 實際只行到指令嘅兩成三，成條線都建喺一個爛咗嘅速度上面。）
+export const ACCEL = 8;            // 米／秒²
+export const DECEL = 14;           // 煞停快過起步，否則會「溜冰」
+
 
 // 一刀落去嘅踏前。實測未加之前，**企定同跑住出手，位移都係 0.00 米**——把刀
 // 好似個轉盤咁掃過，隻腳釘死喺地下。呢個距離要**由招式決定**，唔係由你出手
@@ -83,4 +91,43 @@ export const snapShadowTarget = (target: Vec3, offset: Vec3, texel: number): Vec
     y: 右.y * a + 上.y * b + 前.y * c,
     z: 右.z * a + 上.z * b + 前.z * c,
   };
+};
+
+// ---------------------------------------------------------------------------
+// 一步「人形嘅郁動」：轉身 → 沿住面向行。
+//
+// 未有呢條規則之前，位移用嘅係**想去嗰個方向**，而個模型嘅朝向係另一條有
+// 上限嘅線——兩條線分開，身體就會滑向一個佢完全冇面住嘅方向。實測**玩家
+// 側滑到 2.0 弧度（115 度）**：撳 A 嗰陣個人面住北，身體向西全速平移，而
+// 跑步動畫照樣向前踩。敵人係 0.43 弧度（25 度）。
+//
+// 人唔係咁行嘅。人係先轉身，再向住自己面住嗰邊行；而且**轉得越急就越維持
+// 唔到全速**——入彎要收力，唔係原速掃過去。呢條規則做齊三樣。
+export type Gait = { heading: number; speed: number };
+
+// 轉幾急就蝕幾多速度。1 = 偏離九十度或以上就完全停低（要先煞停再轉身），
+// 0 = 點轉都唔蝕。0.8 留返少少餘速，唔會撳一下掉頭就釘死喺度。
+export const TURN_DRAG = 0.8;
+
+export const gaitStep = (
+  gait: Gait,
+  // 想向邊行（弧度）。`null` = 冇輸入，收油煞停，朝向唔變。
+  desired: number | null,
+  maxSpeed: number,
+  dt: number,
+  turnRate = TURN_RATE,
+  accel = ACCEL,
+  decel = DECEL,
+): { heading: number; speed: number; dx: number; dz: number } => {
+  const heading = desired === null
+    ? gait.heading
+    : turnToward(gait.heading, desired, dt, turnRate);
+  let target = 0;
+  if (desired !== null) {
+    const 偏 = Math.abs(Math.atan2(Math.sin(desired - heading), Math.cos(desired - heading)));
+    target = maxSpeed * (1 - TURN_DRAG * Math.min(1, 偏 / (Math.PI / 2)));
+  }
+  const speed = approachSpeed(gait.speed, target, dt, accel, decel);
+  // 位移沿住**面向**，唔沿住想去嗰邊。呢一行就係「唔會側滑」本身。
+  return { heading, speed, dx: Math.sin(heading) * speed * dt, dz: Math.cos(heading) * speed * dt };
 };

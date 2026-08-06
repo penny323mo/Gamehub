@@ -4467,6 +4467,51 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-180 — Elden Ring II: the acceleration cap that finished in one frame, and a body that walked sideways
+
+Date: 2026-08-06. Status: accepted.
+
+ADR-176 gave the player an acceleration cap and I recorded it as fixed. It was not. `ACCEL = 70`
+against a top speed of 4.4 m/s means the ramp completes in **0.063 s**, and `delta` is clamped to
+0.05 — **one frame**. Measured on the shipped build: **time from standstill to top speed, 0.05 s**.
+A capped ramp and an instant jump are the same number under an acceleration ruler; the question that
+separates them is *how long did it take*, and nothing asked it. 70 m/s² is 7 g.
+
+The second defect was visible rather than numeric. Displacement used **the direction you want to go**
+while the model's facing was a separate rate-limited line, so the body slid in a direction it was not
+facing at all: **player sideslip 2.0 rad (115°)** — hold A and the character faces north while
+travelling west at full speed with the run animation playing forward. Minions measured 0.43 rad.
+
+Both are now one rule, `gaitStep` in `src/motion.ts`: turn toward the desired heading at the capped
+rate, move **along the facing**, and lose speed while turning hard (a runner brakes into a corner).
+Player, minions, boss and the `追擊試` reachability seam all call it — the seam especially, because a
+seam running different rules from the game measures an enemy that does not exist (ADR-169's trap).
+`ACCEL` 70 → 8, `DECEL` 95 → 14. Sideslip 2.0 → **0.00** and 0.43 → **0.00**.
+
+**Three rulers were measuring something other than what they named.**
+
+- The acceleration gate read **41.4 m/s² against a limit of 14**, unchanged when I excluded wall
+  collisions. It derived acceleration from *position deltas*, and a position delta also contains wall
+  sliding, gravity, and **minions shoving the player through rigid-body contact**. Being pushed is not
+  your acceleration. It now measures the step the controller applied to itself, on frames nothing
+  interfered: exactly `DECEL`.
+- The minion-cadence gate ran on the shared page and its 32-second window ended with
+  `狀態: "dead"` — it was **measuring a corpse**, and it had been for some time. Own page, and it
+  stops the moment the player dies instead of timing out into nothing.
+- `打得死嘢` asked whether an enemy count dropped, and four impacts × ~17 damage = 68 against two
+  minions' 70 hp: **the threshold was finer than the thing it guarded**, one hit either way. It
+  measures cumulative damage dealt now, which has no threshold sitting in noise.
+
+**One gate I wrote and then deleted.** A browser check on ramp duration read 0.5 s healthy and 0.3 s
+with `ACCEL` put back to 70 — another line I would have had to pick inside the noise, because in the
+real game "starting" and "turning" are not separable (turning costs speed by design). The pure-function
+test answers the same question at **0.067 s versus 0.55 s**. It also carries the check the browser
+gates structurally cannot: they compare against the game's own constant, so changing the constant
+moves both sides — a Node test asserts `ACCEL` is on a human scale at all.
+
+Suite: 68 → **69** browser checks (one added, one deleted), `npm test` 11 → **16**, hub 96/96. Both
+fixes were reverted and reproduced their original measurements.
+
 ## ADR-179 — Elden Ring II: the archer fires sideways, and my first ruler read its own denominator wrong
 
 Date: 2026-08-06. Status: accepted.

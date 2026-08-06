@@ -1,7 +1,7 @@
 // 郁動嘅重量：兩條純函數，喺 Node 度直接量，唔使開瀏覽器。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { TURN_RATE, TURN_RATE_ENEMY, TURN_RATE_BOSS, ACCEL, DECEL, turnToward, approachSpeed, snapShadowTarget } from '../src/motion.ts';
+import { TURN_RATE, TURN_RATE_ENEMY, TURN_RATE_BOSS, ACCEL, DECEL, turnToward, approachSpeed, snapShadowTarget, gaitStep } from '../src/motion.ts';
 
 test('轉身有速度上限，而且行最短弧', () => {
     const dt = 1 / 60;
@@ -35,13 +35,15 @@ test('敵人轉得慢過玩家，boss 慢過雜兵', () => {
 });
 
 test('起步同煞停都要時間，而且煞停快過起步', () => {
-    const dt = 1 / 60, 全速 = 12.5;
+    // 呢條本來寫住 `全速 = 12.5`——一個遊戲一早唔再用嘅數（職業卡而家係
+    // 4.4）。支尺量緊一個唔存在嘅機制，就永遠唔會紅。
+    const dt = 1 / 60, 全速 = 4.4;
     let v = 0, n = 0;
-    while (v < 全速 && n < 600) { v = approachSpeed(v, 全速, dt); n++; }
+    while (v < 全速 && n < 6000) { v = approachSpeed(v, 全速, dt); n++; }
     const 起步秒 = n * dt;
-    assert.ok(起步秒 > 0.15 && 起步秒 < 0.35, `起步用咗 ${起步秒.toFixed(2)} 秒`);
+    assert.ok(起步秒 > 0.3 && 起步秒 < 1.2, `起步用咗 ${起步秒.toFixed(2)} 秒`);
     let m = 0;
-    while (v > 0 && m < 600) { v = approachSpeed(v, 0, dt); m++; }
+    while (v > 0 && m < 6000) { v = approachSpeed(v, 0, dt); m++; }
     assert.ok(m < n, `煞停 ${m} 幀慢過起步 ${n} 幀`);
     assert.ok(DECEL > ACCEL);
 });
@@ -72,4 +74,77 @@ test('陰影相機只准喺 texel 格上面郁', () => {
         const d = Math.hypot(s.x - p.x, s.y - p.y, s.z - p.z);
         assert.ok(d <= texel * 1.5, `貼格之後偏咗 ${d.toFixed(3)} 米`);
     }
+});
+
+// ---------------------------------------------------------------------------
+// gaitStep：人形嘅一步。
+
+test('起步唔可以一 tick 到全速——條斜坡要真係用到時間', () => {
+    const dt = 1 / 60, 全速 = 4.4;
+    let g = { heading: 0, speed: 0 };
+    let 步 = 0;
+    while (g.speed < 全速 * 0.95 && 步 < 6000) { g = gaitStep(g, 0, 全速, dt); 步 += 1; }
+    const 秒 = 步 * dt;
+    for (let i = 0; i < 200; i++) g = gaitStep(g, 0, 全速, dt);   // 跑到頂
+    // 舊值 ACCEL 70：4.4 ÷ 70 = 0.063 秒，而 `delta` 封喺 0.05——即係一幀。
+    // 一條有上限嘅斜坡同一個瞬間跳，喺加速度嗰把尺入面分唔開。
+    assert.ok(秒 > 0.3, `起步只用咗 ${秒.toFixed(3)} 秒，同一 tick 分唔開`);
+    assert.ok(秒 < 1.2, `起步用咗 ${秒.toFixed(3)} 秒，慢到唔似跑`);
+    // 而且**去得返**全速——ADR-178 就係條斜坡永遠去唔到目標值。
+    assert.ok(Math.abs(g.speed - 全速) < 0.01, `頂到 ${g.speed}，設計 ${全速}`);
+});
+
+test('位移沿住面向，唔沿住想去嗰邊（唔會側滑）', () => {
+    const dt = 1 / 60, 全速 = 4.4;
+    // 先向北跑到全速，然後突然要求向西。
+    let g = { heading: 0, speed: 0 };
+    for (let i = 0; i < 200; i++) g = gaitStep(g, 0, 全速, dt);
+    let 最大側滑 = 0;
+    for (let i = 0; i < 200; i++) {
+        const r = gaitStep(g, -Math.PI / 2, 全速, dt);
+        if (Math.hypot(r.dx, r.dz) > 1e-6) {
+            const 差 = Math.atan2(r.dx, r.dz) - r.heading;
+            最大側滑 = Math.max(最大側滑, Math.abs(Math.atan2(Math.sin(差), Math.cos(差))));
+        }
+        g = { heading: r.heading, speed: r.speed };
+    }
+    // 實測未修之前玩家側滑到 2.0 弧度（115 度）。
+    assert.ok(最大側滑 < 1e-9, `側滑咗 ${最大側滑.toFixed(3)} 弧度`);
+});
+
+test('轉得越急，維持唔到全速（入彎要收力）', () => {
+    const dt = 1 / 60, 全速 = 4.4;
+    let 直 = { heading: 0, speed: 0 };
+    for (let i = 0; i < 400; i++) 直 = gaitStep(直, 0, 全速, dt);
+    // 一路要求一個同面向差九十度嘅方向：轉緊嗰陣一定慢過直路。
+    let 彎 = { heading: 0, speed: 0 }, 彎中最快 = 0;
+    for (let i = 0; i < 400; i++) {
+        彎 = gaitStep(彎, 彎.heading - Math.PI / 2, 全速, dt);
+        彎中最快 = Math.max(彎中最快, 彎.speed);
+    }
+    assert.ok(直.speed > 彎中最快 * 1.5,
+        `直路 ${直.speed.toFixed(2)}、一路急轉最快 ${彎中最快.toFixed(2)}——入彎冇收過力`);
+});
+
+test('放手（desired = null）會煞停，而且唔會轉身', () => {
+    const dt = 1 / 60, 全速 = 4.4;
+    let g = { heading: 1.1, speed: 0 };
+    for (let i = 0; i < 300; i++) g = gaitStep(g, 1.1, 全速, dt);
+    assert.ok(g.speed > 全速 * 0.9, '未跑到速');
+    let 步 = 0;
+    while (g.speed > 0.01 && 步 < 6000) { g = gaitStep(g, null, 全速, dt); 步 += 1; }
+    assert.equal(g.speed, 0);
+    assert.equal(g.heading, 1.1, '收油唔應該轉身');
+    const 秒 = 步 * dt;
+    assert.ok(秒 > 0.15 && 秒 < 0.7, `煞停用咗 ${秒.toFixed(3)} 秒`);
+});
+
+test('加速度要係人嘅尺度，唔係火箭', () => {
+    // 呢條唔同上面嗰啲：上面問「有冇上限」，呢條問「個上限本身合唔合理」。
+    // 瀏覽器嗰邊嘅 gate 同**遊戲自己個常數**比，所以改咗常數兩邊一齊郁——
+    // 佢永遠捉唔到「個常數係 70 米／秒²（7 g）」呢件事。
+    //
+    // 人由企定去到慢跑大約 3–5 米／秒²，衝刺起步誇張啲十幾。30 已經好鬆。
+    assert.ok(ACCEL > 2 && ACCEL <= 30, `ACCEL = ${ACCEL} 米／秒²（${(ACCEL / 9.81).toFixed(1)} g）`);
+    assert.ok(DECEL > ACCEL && DECEL <= 40, `DECEL = ${DECEL}`);
 });

@@ -935,14 +935,35 @@ for (const [w, h, 名] of 尺寸) {
 // 出手 2.33 下（CPU 節流 6× 之下 2.90）——即係遊戲自己講嘅節奏嘅三到四倍。
 // 修完 0.62–0.67，同個常數對得返上。
 {
-    await page.setViewportSize({ width: 640, height: 380 });
-    await page.waitForTimeout(500);
-    // 完全唔郁。雜兵而家會自己行埋嚟（實測企定四秒之內兩隻都埋到身、出到手、
-    // 玩家血由 100% 跌到 80%），所以「行過去逼佢哋開打」呢一步反而係製造距離
-    // ——之前版本行咗兩秒幾，之後成個窗口都追唔返，樣本得零個。
-    const a = await page.evaluate(() => window.__ER2.clock());
-    await page.waitForTimeout(32000);
-    const b = await page.evaluate(() => window.__ER2.clock());
+    // **開自己一版。** 本來喺共用嗰版度做，而前面啲檢查已經捱咗一輪打——
+    // 玩家喺個 32 秒窗口中間死咗，雜兵凍結喺 "attack"，`minionAttacks` 唔再
+    // 加。收場讀到 `狀態: "dead"`、間隔零個，即係**支尺量緊一具屍體**。
+    const p6 = await browser.newPage({ viewport: { width: 640, height: 380 } });
+    await p6.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
+    await p6.waitForTimeout(1500);
+    await p6.getByText('OATHBOUND', { exact: false }).first().click();
+    await p6.getByText('ENTER THE VEIL').first().click();
+    await p6.waitForTimeout(4500);
+    // 完全唔郁。雜兵會自己行埋嚟（實測 1.3 郁動秒之內兩隻都埋到身出到手），
+    // 所以「行過去逼佢哋開打」反而係製造距離。
+    const a = await p6.evaluate(() => window.__ER2.clock());
+    // 企定捱打會死，一死就再冇出手可以量。所以窗口一開始就量，而且**發現死咗
+    // 就即刻停**——唔好等夠 32 秒先發現量咗一段冇嘢發生嘅時間。
+    // 一隻雜兵要出兩次手先度得到一個「間隔」，而呢個環境一秒三幀——固定等
+    // 32 秒有時得 2.6 郁動秒，樣本零個。所以**等到有嘢量為止**，而唔係等一
+    // 個固定時間；玩家一死就即刻停（死咗之後再冇出手，等落去只係浪費時間）。
+    let 收場狀態 = null, b = a;
+    for (let i = 0; i < 30; i += 1) {
+        await p6.waitForTimeout(2000);
+        收場狀態 = await p6.evaluate(() => ({
+            狀態: document.querySelector('[data-game-status]')?.dataset.gameStatus,
+            剩: document.querySelector('[data-enemies-remaining]')?.dataset.enemiesRemaining,
+        }));
+        b = await p6.evaluate(() => window.__ER2.clock());
+        if (收場狀態.狀態 !== 'playing') break;
+        if (b.間隔.length - a.間隔.length >= 2) break;
+    }
+    await p6.close();
     const 動 = b.motion - a.motion;
     // 唔再用「窗口入面數下數 ÷ 郁動秒」。實測嗰個率一下出手值 0.26/秒，而門檻
     // 0.9 啱好夾喺 3 下（0.81）同 4 下（1.04）中間——同一份程式碼跑兩次，一次
@@ -960,11 +981,11 @@ for (const [w, h, 名] of 尺寸) {
     // 先出手，而佢哋而家仲要轉身）。一個間隔已經分得開——1.75 對住「時鐘改
     // 返做真實時間」嗰個 0.25，差七倍。
     check('雜兵兩下出手之間，至少隔住遊戲自己寫嗰個 1.4 郁動秒',
-        間隔.length >= 1 && 動 > 3 && 最短 >= 1.4,
+        間隔.length >= 1 && 動 > 2 && 最短 >= 1.4,
         { 動: +動.toFixed(1), 出手: b.attacks - a.attacks, 量到幾多個間隔: 間隔.length,
           最短: 最短 === null ? null : +最短.toFixed(2),
           全部: 間隔.map((g) => +g.toFixed(2)).slice(0, 8),
-          真實秒: +(b.real - a.real).toFixed(1) });
+          真實秒: +(b.real - a.real).toFixed(1), 收場: 收場狀態 });
 }
 
 // ---------- 死完再玩，唔可以多咗一道睇唔見嘅牆 ----------
@@ -1160,6 +1181,12 @@ await page.goto('about:blank');
     await p4.getByText('ENTER THE VEIL').first().click();
     await p4.waitForTimeout(4500);
     await p4.evaluate(() => window.__ER2.重置動作量度());
+    // 先直線跑一段長嘅。**條斜坡而家係真嘅**（0.55 秒到全速），而呢個環境
+    // 一秒三幀——1.3 秒嘅撳掣得四幀，根本未加速完，最高速讀到 4.3 對 4.4 就
+    // 紅。條 gate 唔係量錯咗嘢，係**冇畀夠時間畀佢要量嗰件事發生**。
+    // 向北係 34 米空地（出生點 z 12.3，霧門喺 −21.75）。
+    await p4.keyboard.down('KeyW'); await p4.waitForTimeout(6000); await p4.keyboard.up('KeyW');
+    await p4.waitForTimeout(800);
     for (let i = 0; i < 2; i += 1) {
         await p4.keyboard.down('KeyW'); await p4.waitForTimeout(1300);
         await p4.keyboard.up('KeyW'); await p4.keyboard.down('KeyS'); await p4.waitForTimeout(1300);
@@ -1171,6 +1198,7 @@ await page.goto('about:blank');
     for (let i = 0; i < 4; i += 1) { await p4.keyboard.press('KeyJ'); await p4.waitForTimeout(700); }
     const m = await p4.evaluate(() => window.__ER2.動作());
     const 上限 = await p4.evaluate(() => window.__ER2.郁動上限());
+    const 敵 = await p4.evaluate(() => window.__ER2.敵動作());
     await p4.close();
     check('轉身唔可以一 tick 完成（有角速度上限）',
         m != null && m.最快轉向 > 0 && m.最快轉向 <= 上限.轉向 * 1.05,
@@ -1190,6 +1218,25 @@ await page.goto('about:blank');
     check('玩家去得返自己職業卡寫嗰個速度（唔係淨係加速度啱）',
         m != null && m.最高速 >= m.設計速 * 0.98,
         { 最高速: m.最高速, 設計速: m.設計速 });
+
+    // 身體行緊嘅方向，要就係個模型面住嘅方向。
+    //
+    // 未修之前，位移用「想去嗰個方向」而朝向係另一條有上限嘅線——兩條線分
+    // 開，身體就滑向一個佢完全冇面住嘅方向。實測**玩家側滑 2.0 弧度（115
+    // 度）**：撳 A 個人面住北、身體向西全速平移，而跑步動畫照樣向前踩。雜兵
+    // 係 0.43 弧度。而家兩邊都行 `gaitStep`：先轉身，再沿住面向行。
+    check('身體行嘅方向就係個模型面嘅方向（唔會側住身平移）',
+        m != null && m.側滑 <= 0.02 && 敵 != null && 敵.最快側滑 <= 0.02,
+        { 玩家側滑: m.側滑, 雜兵側滑: 敵 && 敵.最快側滑 });
+
+    // 「條斜坡用唔用到時間」呢條問題**唔喺呢度守**。試過寫喺度：把 ACCEL
+    // 揼返做 70（原本個爛值）之後，瀏覽器度量到 0.3 秒對 0.5 秒——條線又要
+    // 揀喺噪音中間。原因係喺真遊戲入面「起步」同「轉身」分唔開（入彎要收
+    // 力），兩件事撈埋一齊量。`motion.test.mjs` 嗰條純函數 test 問同一件事
+    // 但冇呢個混淆：同一個突變，佢讀到 **0.067 秒**，紅得斬釘截鐵。
+    //
+    // 而 `郁動上限` 呢條 gate 亦都答唔到「個常數本身合唔合理」——佢同遊戲
+    // 自己個常數比，改咗常數兩邊一齊郁。人形尺度嗰條線寫喺 Node 嗰邊。
 
     // 一刀落去要有踏前。實測未加之前，**企定同跑住出手位移都係 0.00 米**：
     // 把刀好似個轉盤咁掃過，隻腳釘死喺地下。距離要由招式決定，唔係由你出手
@@ -1235,11 +1282,16 @@ await page.goto('about:blank');
             sw && { 判射程: sw.判.射程, 畫半徑: +sw.畫.半徑.toFixed(2) });
         // 「推得郁」本來寫住 `關 !== 'wave-1' || 狀態 !== 'playing'`——而**打死
         // 咗**同**畀人打死**兩樣都令狀態唔再係 'playing'。即係企喺度企到死，
-        // 呢條 gate 一樣綠。所以而家要問返「有冇少過敵人」，同埋明寫「唔可以
-        // 係 defeat」。
-        check(`${職}：打得死嘢，推得郁關卡（唔係企到死都算數）`,
-            後.狀態 !== 'defeat' && (後.關 !== 'wave-1' || 後.剩 < 前),
-            { 開場敵人: 前, 之後: 後 });
+        // 呢條 gate 一樣綠。
+        //
+        // 改成「敵人數少咗」之後仲有第二個問題：**條線細過佢要守嗰件事**。
+        // 呢個環境一秒三幀，26 下撳掣得四下真係到落點，四下 × 約 17 點傷害
+        // ＝ 68，而兩隻雜兵共 70 血——同一份程式碼跑兩次，一次 1 一次 2。
+        // 所以主問題改成量**打出咗幾多傷害**（連續量、冇門檻夾喺噪音入面），
+        // 敵人數同關卡照留做次要訊號。
+        check(`${職}：打得中嘢（真係有傷害入到帳）`,
+            後.狀態 !== 'defeat' && 瞄 != null && 瞄.打出傷害 >= 45,
+            { 打出傷害: 瞄 && 瞄.打出傷害, 落點: 瞄 && 瞄.落點, 開場敵人: 前, 之後: 後 });
 
         // 支箭停喺邊，就要係目標喺邊。實測舊寫法：出手嗰刻抄低一個定點，而
         // 目標喺 0.43 秒飛行時間入面行得郁——**支箭插咗喺離佢 1.8 米嘅空地
