@@ -47,7 +47,11 @@ const CLASS_CONFIG: Record<
     impactDelay: 0.27,
     damage: [13, 17],
     range: 4.4,
-    speed: 12.5,
+    // 速度改咗做真數。舊值 12.5 米／秒快過世界紀錄短跑——之所以一直冇人覺得
+    // 誇張，係因為剛體速度只送到兩成三，實際行 3.32。而家角色控制器行足指令
+    // （12.01／12.5 = 0.98），所以個數本身要企得住：4.4 係快步跑，配衝刺
+    // ×1.55 = 6.8，即係一個著住甲嘅人跑得到嘅上限。
+    speed: 4.4,
     focus: 72,
     projectile: "none",
   },
@@ -62,7 +66,7 @@ const CLASS_CONFIG: Record<
     impactDelay: 0.48,
     damage: [18, 22],
     range: 16,
-    speed: 12.1,
+    speed: 4.2,
     focus: 100,
     projectile: "magic",
   },
@@ -77,7 +81,7 @@ const CLASS_CONFIG: Record<
     impactDelay: 0.43,
     damage: [15, 19],
     range: 18,
-    speed: 13.4,
+    speed: 4.6,
     focus: 84,
     projectile: "arrow",
   },
@@ -1110,6 +1114,40 @@ export default function GameClient() {
     // 玩家自己嗰個速度狀態（唔可以由 body 讀返，見下面）。
     let playerSpeed = 0;
     let 最高速 = 0;
+    // 診斷：指令走幾遠 vs 真係走咗幾遠。兩個數一齊累加，比率就係物理引擎
+    // 食咗幾多。
+    let 指令距離 = 0, 實際距離 = 0, 上幀位 = { x: 0, z: 0 }, 有上幀位 = false;
+    // 「瞄住嗰個」同「打中嗰個」係唔係同一個。出手嗰刻揀一次目標（箭飛去
+    // 佢），落點嗰刻再揀一次（傷害計喺佢身上）——兩條規則唔同就會出現
+    // 「箭插咗入去但佢冇少過血」。
+    let 發招 = 0, 有瞄 = 0, 對得上 = 0, 落點 = 0;
+    const 落點偏差: number[] = [];   // 落點嗰刻，朝向同目標之間差幾多弧度
+    // 支箭飛去出手嗰刻抄低嗰個定點，同目標喺落點嗰刻真正企嗰度，差幾多米。
+    // 呢把尺唔靠邊個修法：定點永遠照抄，所以佢量嘅係「目標喺飛行時間入面
+    // 行咗幾遠」，即係舊寫法支箭插偏咗幾多。
+    const 靜態瞄點 = new THREE.Vector3();
+    const 箭落差: number[] = [];
+    // 畫出嚟嗰支箭，落點嗰刻真係停喺離目標幾多米。
+    const 箭到位: number[] = [];
+    const 出手偏差: number[] = [];   // 出手嗰刻，朝向同目標之間差幾多弧度
+    // 角色橫向郁動自己積分，唔交畀剛體速度。
+    //
+    // 實測：交畀 cannon-es 之後，**指令走 22.69 米、實際走 6.05 米——比率
+    // 0.267**。即係「職業卡寫 12.5」同「你真係行 3.48」係兩件事，而且冇人
+    // 知道。關掉阻尼同摩擦淨係補返一半（0.454），剩返嗰半喺求解器同接觸裡面
+    // ——追落去唔會令個數變得可控。
+    //
+    // 所以橫向由遊戲自己行：位置直接加 `速度 × delta`，撞到就用同一張 collider
+    // 表沿住牆滑（單軸試兩次），Y 軸（重力、落地）照樣交返畀物理引擎。咁樣
+    // **卡上面寫幾多就行幾多**，唔使再靠一個冇人量過嘅折扣率。
+    const 行一步 = (body: CANNON.Body, radius: number, dx: number, dz: number) => {
+      const 擋 = makeBlocked(staticBoxes, radius);
+      const x0 = body.position.x, z0 = body.position.z;
+      if (!擋(x0 + dx, z0 + dz)) { body.position.x = x0 + dx; body.position.z = z0 + dz; return; }
+      if (dx !== 0 && !擋(x0 + dx, z0)) { body.position.x = x0 + dx; return; }
+      if (dz !== 0 && !擋(x0, z0 + dz)) { body.position.z = z0 + dz; return; }
+    };
+    const 走一步 = (dx: number, dz: number) => 行一步(playerBody, playerRadius, dx, dz);
     // 每次出手之間隔咗幾多「郁動秒」。
     //
     // 本來條 gate 係「22 秒窗口入面數下數，除以郁動秒」。實測窗口得 3.9 秒
@@ -1945,6 +1983,9 @@ export default function GameClient() {
       },
       spawns: () => minions.map((m) => ({ wave: m.wave, x: m.spawn[0], z: m.spawn[1] })),
       graces: () => graces.map((g) => ({ x: g.position.x, z: g.position.z })),
+      // 活住嘅雜兵而家喺邊（唔係出生點）——「佢哋郁唔郁得」淨係得呢個答得到。
+      敵人: () => minions.filter((m) => m.active && m.hp > 0)
+        .map((m) => ({ x: +m.root.position.x.toFixed(2), z: +m.root.position.z.toFixed(2), 狀態: m.state })),
       視線: (from: [number, number], to: [number, number]) =>
         makeLineOfSight(staticBoxes)({ x: from[0], z: from[1] }, { x: to[0], z: to[1] }),
       // 敵人出手嗰條規則本身，唔係抄一份出嚟——遊戲三個出手點行嘅係同一個
@@ -1960,8 +2001,11 @@ export default function GameClient() {
         出手位移: 出手位移.slice(), 踏前幀, 踏前力: +踏前力.toFixed(2),
         最高速: +最高速.toFixed(2), 設計速: CLASS_CONFIG[currentClass].speed,
         踏前實速: +踏前實速.toFixed(2),
+        指令距離: +指令距離.toFixed(2), 實際距離: +實際距離.toFixed(2),
       }),
-      重置動作量度: () => { 最快轉向 = 0; 最快加速 = 0; 出手位移.length = 0; 踏前幀 = 0; 踏前力 = 0; 最高速 = 0; 踏前實速 = 0; },
+      // 瞄住嗰個同打中嗰個。`對得上 / 有瞄` 就係「你射出去嗰箭有幾多成算數」。
+      瞄準: () => ({ 發招, 有瞄, 落點, 對得上, 偏差: 出手偏差.slice(), 落點偏差: 落點偏差.slice(), 箭落差: 箭落差.slice(), 箭到位: 箭到位.slice() }),
+      重置動作量度: () => { 最快轉向 = 0; 最快加速 = 0; 出手位移.length = 0; 踏前幀 = 0; 踏前力 = 0; 最高速 = 0; 踏前實速 = 0; 指令距離 = 0; 實際距離 = 0; 發招 = 0; 有瞄 = 0; 對得上 = 0; 落點 = 0; 出手偏差.length = 0; 落點偏差.length = 0; 箭落差.length = 0; 箭到位.length = 0; },
       // 條線由遊戲自己出，唔喺測試度寫死。
       郁動上限: () => ({ 轉向: TURN_RATE, 加速: ACCEL, 減速: DECEL, 踏前: LUNGE_SPEED }),
       zoom: () => camZoom,
@@ -1976,50 +2020,32 @@ export default function GameClient() {
       //
       // 點解要緊：清晒一波先開到下一關。有一個玩家企得到嘅位置係雜兵永遠
       // 到唔到嘅，就唔止「打得輕鬆啲」——係成局卡死。
+      // 由 A 追去 B，行一次**同遊戲一模一樣嘅郁動**，唔畫任何嘢。
+      //
+      // 第一版喺呢度開一個即棄 `CANNON.World` 再設速度——而遊戲改成自己積分
+      // 位置之後，嗰個 seam 就變咗「量一隻遊戲入面唔存在嘅雜兵」（ADR-169
+      // 撞過一模一樣嘅坑，嗰次係 boss）。而家兩邊行同一個 `行一步` 同同一個
+      // `chaseDirection`。
       追擊試: (from: [number, number], to: [number, number], seconds = 24, 邊個 = "minion") => {
         const 誰 = 邊個 === "boss"
-          ? { r: bossRadius, seg: bossSegment, 高: bossGroundOffset, 速: 6.3, 射: BOSS_REACH, 質: 120 }
-          : { r: minionRadius, seg: minionSegment, 高: minionGroundOffset, 速: MINION_SPEED[2], 射: MINION_ATTACK_RANGE, 質: 44 };
-        const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -18, 0) });
-        world.broadphase = new CANNON.SAPBroadphase(world);
-        world.defaultContactMaterial.friction = 0.02;
-        world.addBody(new CANNON.Body({
-          type: CANNON.Body.STATIC, shape: new CANNON.Plane(),
-          quaternion: new CANNON.Quaternion().setFromEuler(-Math.PI / 2, 0, 0),
-        }));
-        for (const b of staticBoxes) {
-          const body = new CANNON.Body({
-            type: CANNON.Body.STATIC,
-            shape: new CANNON.Box(new CANNON.Vec3(b.hx, b.hy, b.hz)),
-            position: new CANNON.Vec3(b.x, b.y, b.z),
-          });
-          body.quaternion.setFromEuler(0, b.ry, 0);
-          world.addBody(body);
-        }
-        const runner = new CANNON.Body({
-          mass: 誰.質, linearDamping: 0.84, fixedRotation: true,
-          position: new CANNON.Vec3(from[0], 誰.高, from[1]),
-        });
-        addCapsuleShapes(runner, 誰.r, 誰.seg);
-        runner.updateMassProperties();
-        world.addBody(runner);
+          ? { r: bossRadius, 速: 3.9, 射: BOSS_REACH }
+          : { r: minionRadius, 速: MINION_SPEED[2], 射: MINION_ATTACK_RANGE };
+        const 身 = { position: { x: from[0], y: 0, z: from[1] } } as unknown as CANNON.Body;
         const 目標 = { x: to[0], z: to[1] };
         const memo = { turn: 0 };
         const dt = 1 / 60;
         let 最近 = Infinity, 用咗 = seconds;
         for (let step = 0; step * dt < seconds; step += 1) {
-          const 位 = { x: runner.position.x, z: runner.position.z };
+          const 位 = { x: 身.position.x, z: 身.position.z };
           const d = Math.hypot(位.x - 目標.x, 位.z - 目標.z);
           if (d < 最近) 最近 = d;
           if (d <= 誰.射) { 用咗 = step * dt; break; }
           const dir = chaseDirection(位, 目標, [], makeBlocked(staticBoxes, 誰.r), memo);
-          runner.velocity.x = dir.x * 誰.速;
-          runner.velocity.z = dir.z * 誰.速;
-          world.step(dt);
+          行一步(身, 誰.r, dir.x * 誰.速 * dt, dir.z * 誰.速 * dt);
         }
         return { 最近: +最近.toFixed(2), 用咗: +用咗.toFixed(2),
           到: 最近 <= 誰.射,
-          尾: [+runner.position.x.toFixed(1), +runner.position.z.toFixed(1)] };
+          尾: [+身.position.x.toFixed(1), +身.position.z.toFixed(1)] };
       },
     };
 
@@ -2157,6 +2183,15 @@ export default function GameClient() {
           player.combo = (player.combo + 1) % 2;
           attackTarget = nearestEnemy(true);
           const selectedTargetRoot = targetRoot(attackTarget);
+          發招 += 1;
+          if (selectedTargetRoot) {
+            有瞄 += 1;
+            const 差 = selectedTargetRoot.position.clone().sub(playerRoot.position);
+            出手偏差.push(+Math.abs(Math.atan2(
+              Math.sin(Math.atan2(差.x, 差.z) - player.rotation),
+              Math.cos(Math.atan2(差.x, 差.z) - player.rotation),
+            )).toFixed(2));
+          }
           const attackName = classConfig.attackAnimations[player.combo];
           currentPlayerAction = playAction(playerActions, attackName, currentPlayerAction, true, 1.26);
           attackArc.visible = classConfig.projectile === "none";
@@ -2173,6 +2208,7 @@ export default function GameClient() {
                   Math.cos(player.rotation) * classConfig.range,
                 ));
             }
+            靜態瞄點.copy(projectileTarget);
             magicProjectile.position.copy(projectileStart);
             arrowProjectile.position.copy(projectileStart);
             magicProjectile.visible = classConfig.projectile === "magic";
@@ -2191,20 +2227,30 @@ export default function GameClient() {
         queuedAttack = false;
 
         if (now < player.knockbackUntil) {
-          playerBody.velocity.x = player.knockbackDirection.x;
-          playerBody.velocity.z = player.knockbackDirection.z;
+          playerSpeed = Math.hypot(player.knockbackDirection.x, player.knockbackDirection.z);
+          走一步(player.knockbackDirection.x * delta, player.knockbackDirection.z * delta);
         } else if (player.state === "dodge") {
-          playerBody.velocity.x = player.dodgeDirection.x * 12.4;
-          playerBody.velocity.z = player.dodgeDirection.z * 12.4;
+          // 12.4 米／秒係「指令值」年代嘅數，實際只行到兩成三。而家行足，所以
+          // 收返 6.5——一個翻滾大約兩米幾，唔係六米。
+          playerSpeed = 6.5;
+          走一步(player.dodgeDirection.x * 6.5 * delta, player.dodgeDirection.z * 6.5 * delta);
           player.rotation = Math.atan2(player.dodgeDirection.x, player.dodgeDirection.z);
           if (now >= player.stateUntil) player.state = "idle";
         } else if (player.state === "attack") {
           const activeTargetRoot = targetRoot(attackTarget);
           if (activeTargetRoot) toBoss.copy(activeTargetRoot.position).sub(playerRoot.position);
           else toBoss.set(Math.sin(player.rotation), 0, Math.cos(player.rotation));
-          if (locked && toBoss.lengthSq() > 0.01) {
-            // ADR-176 封咗郁動嗰邊嘅瞬間轉向，但呢行漏咗——鎖定住出手照樣
-            // 一幀轉曬。出手中轉得慢過行路：可以修正準星，唔可以原地打轉。
+          if (activeTargetRoot && toBoss.lengthSq() > 0.01) {
+            // 出手就一定轉入去，鎖唔鎖定都一樣。
+            //
+            // 呢行本來寫住 `locked &&`。實測未修之前：**出手嗰刻，朝向同目標
+            // 之間差到 0.82 弧度（47 度）**——隻角色側住身射箭，成個人冇郁過。
+            // 冇人會咁樣放箭。鎖定應該係改「你仲有幾多修正空間」，唔係改
+            // 「你使唔使望住你打緊嗰個」。
+            //
+            // ADR-176 封咗郁動嗰邊嘅瞬間轉向，呢度用同一個上限：出手中轉得慢
+            // 過行路，可以修正準星，唔可以原地打轉。前搖 0.43 秒 × 4.5 弧度／
+            // 秒 = 1.9 弧度，量到嗰個 0.82 covers 得晒。
             player.rotation = turnToward(
               player.rotation, Math.atan2(toBoss.x, toBoss.z), delta, TURN_RATE_ATTACK);
           }
@@ -2215,9 +2261,9 @@ export default function GameClient() {
           if (classConfig.projectile === "none") {
             const 前搖 = Math.max(0.001, classConfig.impactDelay / classConfig.attackDuration);
             const 力 = attackProgress < 前搖 ? 1 - attackProgress / 前搖 : 0;
-            playerBody.velocity.x = Math.sin(player.rotation) * LUNGE_SPEED * 力;
-            playerBody.velocity.z = Math.cos(player.rotation) * LUNGE_SPEED * 力;
             playerSpeed = LUNGE_SPEED * 力;
+            走一步(Math.sin(player.rotation) * playerSpeed * delta,
+                   Math.cos(player.rotation) * playerSpeed * delta);
             踏前幀 += 1; 踏前力 = Math.max(踏前力, 力);
           }
           attackArc.position.copy(playerRoot.position).add(new THREE.Vector3(0, 1.15, 0));
@@ -2230,6 +2276,12 @@ export default function GameClient() {
               0,
               1,
             );
+            // 落點跟住個活目標行。本來喺出手嗰刻抄低一個定點，而目標喺
+            // 0.43 秒飛行時間入面行得郁——所以支箭係射向佢**頭先企嗰度**，
+            // 插喺空地上面，然後傷害照計。而家飛去邊就係打中邊。
+            if (activeTargetRoot) {
+              projectileTarget.copy(activeTargetRoot.position).add(new THREE.Vector3(0, 1.22, 0));
+            }
             const activeProjectile =
               classConfig.projectile === "magic" ? magicProjectile : arrowProjectile;
             activeProjectile.position.lerpVectors(
@@ -2255,10 +2307,37 @@ export default function GameClient() {
             player.impactDone = true;
             magicProjectile.visible = false;
             arrowProjectile.visible = false;
+            const 瞄住 = attackTarget;
+            落點 += 1;
+            {
+              const r = targetRoot(瞄住);
+              if (r) {
+                const 差 = r.position.clone().sub(playerRoot.position);
+                落點偏差.push(+Math.abs(Math.atan2(
+                  Math.sin(Math.atan2(差.x, 差.z) - player.rotation),
+                  Math.cos(Math.atan2(差.x, 差.z) - player.rotation),
+                )).toFixed(2));
+                if (classConfig.projectile !== "none") {
+                  const 身 = r.position.clone().add(new THREE.Vector3(0, 1.22, 0));
+                  箭落差.push(+靜態瞄點.distanceTo(身).toFixed(2));
+                  箭到位.push(+(classConfig.projectile === "magic" ? magicProjectile : arrowProjectile)
+                    .position.distanceTo(身).toFixed(2));
+                }
+              }
+            }
+            // 出手嗰刻揀一次目標（箭飛去佢），落點嗰刻再掃一次前方錐形（傷害
+            // 計喺佢身上）——兩條規則。我試過改成「投射物打中佢飛去嗰個」，
+            // 但**量度話呢個分支永遠行唔到**：落點嗰刻兩條規則 4/4 對得上，
+            // 剷走個分支個數一模一樣。原因喺下面轉向嗰段——人面向住目標，
+            // 個錐形就一定包住佢。所以留返一條規則。
+            //
+            // （順帶一提，我一開始讀錯咗自己支尺：`對得上 3/6` 嘅分母係
+            // **發招**唔係**落點**，中間差嗰啲係畀人打斷咗、根本冇到過落點。）
             attackTarget = findSweptAttackTarget(
               classConfig.range,
               classConfig.projectile === "none" ? SWEEP_RADIUS.melee : SWEEP_RADIUS.ranged,
             );
+            if (瞄住 && 瞄住 === attackTarget) 對得上 += 1;
             const hitTargetRoot = targetRoot(attackTarget);
             if (attackTarget && hitTargetRoot) {
               const damage = classConfig.damage[player.combo];
@@ -2358,8 +2437,7 @@ export default function GameClient() {
           const 新速 = approachSpeed(playerSpeed, speed, delta);
           playerSpeed = 新速;
           最高速 = Math.max(最高速, 新速);
-          playerBody.velocity.x = movement.x * 新速;
-          playerBody.velocity.z = movement.z * 新速;
+          走一步(movement.x * 新速 * delta, movement.z * 新速 * delta);
           // 轉身有速度上限。要轉嘅係 `player.rotation` **本身**，唔淨係個模型：
           // 揮擊判定用嘅就係佢，兩者一分開，弧線就會講大話（ADR-151）。
           player.rotation = turnToward(player.rotation, Math.atan2(movement.x, movement.z), delta);
@@ -2387,8 +2465,8 @@ export default function GameClient() {
           // 放手唔係即刻停：由 `DECEL` 收返落零，方向保持原本嗰個。
           playerSpeed = approachSpeed(playerSpeed, 0, delta);
           if (playerSpeed > 0.01) {
-            playerBody.velocity.x = Math.sin(player.rotation) * playerSpeed;
-            playerBody.velocity.z = Math.cos(player.rotation) * playerSpeed;
+            走一步(Math.sin(player.rotation) * playerSpeed * delta,
+                   Math.cos(player.rotation) * playerSpeed * delta);
           }
           currentPlayerAction = playAction(playerActions, "Idle_Weapon", currentPlayerAction);
         }
@@ -2398,9 +2476,7 @@ export default function GameClient() {
         }
 
         // 出手期間攻擊者自己行咗幾遠
-        if (player.state === "attack") {
-          踏前實速 = Math.max(踏前實速, Math.hypot(playerBody.velocity.x, playerBody.velocity.z));
-        }
+        if (player.state === "attack") 踏前實速 = Math.max(踏前實速, playerSpeed);
         if (player.state === "attack" && !出手中) {
           出手中 = true;
           出手起點 = { x: playerRoot.position.x, z: playerRoot.position.z };
@@ -2416,7 +2492,9 @@ export default function GameClient() {
         if (上幀朝向 !== null && delta > 0) {
           const d = Math.atan2(Math.sin(player.rotation - 上幀朝向), Math.cos(player.rotation - 上幀朝向));
           最快轉向 = Math.max(最快轉向, Math.abs(d) / delta);
-          const v = Math.hypot(playerBody.velocity.x, playerBody.velocity.z);
+          // 量位置差，唔係量剛體速度——角色而家自己積分位置，剛體速度永遠係
+          // 零。第一版照量速度，兩條 gate 即刻讀到 0：**支尺又跟唔上實作**。
+          const v = 有上幀位 ? Math.hypot(playerBody.position.x - 上幀位.x, playerBody.position.z - 上幀位.z) / delta : 0;
           if (自己行 && 上幀自己行) 最快加速 = Math.max(最快加速, Math.abs(v - 上幀速度) / delta);
           上幀速度 = v;
         } else {
@@ -2496,9 +2574,10 @@ export default function GameClient() {
               makeBlocked(staticBoxes, minionRadius),
               minion.avoid,
             );
+            // 同玩家行同一套：位置自己積分，卡上面寫幾多就行幾多。淨係改玩家
+            // 嗰邊就會令玩家快敵人四倍——一個改動整出嚟嘅唔對稱。
             const speed = MINION_SPEED[minion.wave];
-            minion.body.velocity.x = direction.x * speed;
-            minion.body.velocity.z = direction.z * speed;
+            行一步(minion.body, minionRadius, direction.x * speed * delta, direction.z * speed * delta);
             minion.currentAction = playAction(
               minion.actions,
               "Running_A",
@@ -2631,9 +2710,8 @@ export default function GameClient() {
             makeBlocked(staticBoxes, bossRadius),
             boss.avoid,
           );
-          const bossSpeed = boss.phase === 2 ? 8.3 : 6.3;
-          bossBody.velocity.x = direction.x * bossSpeed;
-          bossBody.velocity.z = direction.z * bossSpeed;
+          const bossSpeed = boss.phase === 2 ? 4.9 : 3.9;
+          行一步(bossBody, bossRadius, direction.x * bossSpeed * delta, direction.z * bossSpeed * delta);
           currentBossAction = playAction(bossActions, "Run", currentBossAction, false, boss.phase === 2 ? 2.1 : 1.82);
         } else if (now >= boss.nextAttack) {
           boss.move = chooseBossMove(
@@ -2686,6 +2764,12 @@ export default function GameClient() {
         }
       }
 
+      if (有上幀位) {
+        實際距離 += Math.hypot(playerBody.position.x - 上幀位.x, playerBody.position.z - 上幀位.z);
+      }
+      指令距離 += playerSpeed * delta;
+      上幀位 = { x: playerBody.position.x, z: playerBody.position.z };
+      有上幀位 = true;
       physicsWorld.step(1 / 60, delta, 4);
       playerRoot.position.set(
         playerBody.position.x,

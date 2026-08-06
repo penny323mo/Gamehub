@@ -4467,6 +4467,47 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-179 — Elden Ring II: the archer fires sideways, and my first ruler read its own denominator wrong
+
+Date: 2026-08-06. Status: accepted.
+
+The last red gate was `WAYFARER：打得死嘢，推得郁關卡` — arrows fly, nothing dies. Chasing it turned
+up one real defect, one visual defect, and one instrument error of my own.
+
+**The instrument error first, because it shaped everything after it.** I instrumented "the target we
+aim at" versus "the target damage resolves against" and read **對得上 3/6 and 4/7** — half the arrows
+apparently landing on nothing. That denominator was **發招 (swings started)**, not **落點 (impacts
+that actually ran)**. Once I counted impacts, the pre-fix build read **4/4** — the two target rules
+had never disagreed. The missing swings were interruptions: a minion hits you mid-draw, the state
+leaves `attack`, and the impact block never runs. Correct behaviour, misread as a bug. I had already
+written the "fix" (projectiles resolve against what they were launched at) before checking; the
+mutation showed **identical numbers with the branch deleted**, so it is gone. One rule at impact.
+
+**The real defect.** Attack turning was written `if (locked && …)`. `locked` initialises to `true`,
+so every one of the sixty-four gates ran locked and **the `false` branch of that condition had never
+been executed by anything**. My first version of the facing gate measured on a locked page: green,
+and just as green with the `locked &&` put back — worthless. Pressing Q first is what made the ruler
+real: **at impact the character is still 0.43 / 0.39 / 0.17 / 0.46 rad off its target (up to 26°),
+identical to the deviation at swing start** — the entire wind-up passes without the body rotating at
+all. It looses arrows out of its side. Lock-on should govern *how much* aim correction you get, not
+*whether you look at the thing you are hitting*. Turning now runs whenever there is a target, at the
+existing `TURN_RATE_ATTACK`; deviation at impact goes to **0.00** from launch deviations up to 0.82.
+
+**The visual defect.** The projectile's destination was copied once at launch, and the target walks
+during the 0.43 s flight: the arrow buries itself **up to 1.8 m from the enemy** in open ground while
+that enemy takes full damage. The destination tracks the live target now. Two rulers, deliberately
+split: `箭落差` measures how far the target moved during flight (independent of any fix, so it stays
+non-zero and keeps the gate from passing vacuously), `箭到位` measures where the drawn arrow actually
+stops — 1.8 → 0.00, and reverting the tracking puts `箭到位` back exactly equal to `箭落差`.
+
+**A gate that was green for the wrong reason.** `打得死嘢，推得郁關卡` asserted
+`關 !== 'wave-1' || 狀態 !== 'playing'` — and **dying also stops the status being `playing`**. Stand
+still until a minion kills you and the gate passed. It now requires `狀態 !== 'defeat'` and that the
+enemy count actually fell.
+
+Suite: 64 → **68** browser checks, `npm test` 11/11, hub 96/96. Every new gate was run against its
+mutation and reproduced the original measurement.
+
 ## ADR-178 — Elden Ring II: I shipped a character who moves at 0.09 m/s, and sixty-two gates said fine
 
 Date: 2026-08-05. Status: accepted.

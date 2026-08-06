@@ -8,7 +8,9 @@
 // 抄一份出嚟做測試係唔算數嘅：抄出嚟嗰份綠，只證明抄本自己一致。
 
 export const MINION_ATTACK_RANGE = 1.82;
-export const MINION_SPEED = [4.3, 5.1, 5.4];
+// 雜兵速度。同玩家一樣，呢個數而家係**真數**（位置自己積分），唔再係一個
+// 只送到兩成三嘅指令值。3.6–4.4 對住玩家 4.4：追得到，但唔會貼到實。
+export const MINION_SPEED = [3.6, 4.1, 4.4];
 export const SEPARATION_RANGE = 1.5;      // 相距近過呢個就互相推開
 export const SEPARATION_WEIGHT = 0.72;
 

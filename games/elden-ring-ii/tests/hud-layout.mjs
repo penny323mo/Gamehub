@@ -937,12 +937,9 @@ for (const [w, h, 名] of 尺寸) {
 {
     await page.setViewportSize({ width: 640, height: 380 });
     await page.waitForTimeout(500);
-    // 唔可以一路揸住 W：玩家 12.5 米／秒而雜兵 4.3–5.4，揸住就係跑晒佢哋，
-    // 收到嘅樣本得零個。埋咗位就放手企定——雜兵而家追得到人（ADR-168），
-    // 所以企喺度先係真正「不停俾人打」嗰個狀態。
-    await page.keyboard.down('KeyW');
-    await page.waitForTimeout(2600);
-    await page.keyboard.up('KeyW');
+    // 完全唔郁。雜兵而家會自己行埋嚟（實測企定四秒之內兩隻都埋到身、出到手、
+    // 玩家血由 100% 跌到 80%），所以「行過去逼佢哋開打」呢一步反而係製造距離
+    // ——之前版本行咗兩秒幾，之後成個窗口都追唔返，樣本得零個。
     const a = await page.evaluate(() => window.__ER2.clock());
     await page.waitForTimeout(32000);
     const b = await page.evaluate(() => window.__ER2.clock());
@@ -1224,19 +1221,70 @@ await page.goto('about:blank');
         const sw = await p2.evaluate(() => window.__ER2 && window.__ER2.swing());
         const 前 = await p2.evaluate(() =>
             +document.querySelector('[data-enemies-remaining]').dataset.enemiesRemaining);
+        await p2.evaluate(() => window.__ER2.重置動作量度());
         for (let i = 0; i < 26; i++) { await p2.keyboard.press('KeyF'); await p2.waitForTimeout(700); }
         const 後 = await p2.evaluate(() => ({
             關: document.querySelector('[data-encounter]').dataset.encounter,
             狀態: document.querySelector('[data-game-status]').dataset.gameStatus,
+            剩: +document.querySelector('[data-enemies-remaining]').dataset.enemiesRemaining,
         }));
+        const 瞄 = await p2.evaluate(() => window.__ER2.瞄準());
         check(`${職}：載得入、零 error`, e2.length === 0, e2.slice(0, 2));
         check(`${職}：弧線幾何跟返自己嗰個射程（唔係抄近戰嗰個）`,
             sw != null && sw.判.射程 === 射程 && sw.畫.半徑 > 射程 * 0.6 && sw.畫.半徑 <= 射程,
             sw && { 判射程: sw.判.射程, 畫半徑: +sw.畫.半徑.toFixed(2) });
-        check(`${職}：打得死嘢，推得郁關卡`, 後.關 !== 'wave-1' || 後.狀態 !== 'playing',
+        // 「推得郁」本來寫住 `關 !== 'wave-1' || 狀態 !== 'playing'`——而**打死
+        // 咗**同**畀人打死**兩樣都令狀態唔再係 'playing'。即係企喺度企到死，
+        // 呢條 gate 一樣綠。所以而家要問返「有冇少過敵人」，同埋明寫「唔可以
+        // 係 defeat」。
+        check(`${職}：打得死嘢，推得郁關卡（唔係企到死都算數）`,
+            後.狀態 !== 'defeat' && (後.關 !== 'wave-1' || 後.剩 < 前),
             { 開場敵人: 前, 之後: 後 });
+
+        // 支箭停喺邊，就要係目標喺邊。實測舊寫法：出手嗰刻抄低一個定點，而
+        // 目標喺 0.43 秒飛行時間入面行得郁——**支箭插咗喺離佢 1.8 米嘅空地
+        // 上面，佢照樣扣血**。`箭落差` 量嘅係目標飛行期間行咗幾遠（同修法
+        // 無關，永遠 > 0），`箭到位` 量嘅係畫出嚟嗰支箭最後同佢差幾多。
+        check(`${職}：支箭停喺目標度，唔係停喺佢頭先企嗰度`,
+            瞄 != null && 瞄.箭到位.length >= 3 &&
+            Math.max(...瞄.箭落差) >= 0.5 &&
+            瞄.箭到位.every((d) => d <= 0.2),
+            瞄 && { 箭落差: 瞄.箭落差, 箭到位: 瞄.箭到位 });
         await p2.close();
     }
+}
+
+// ---------- 唔鎖定嗰陣，出手會唔會轉入去 ----------
+//
+// 出手轉向本來寫住 `if (locked && …)`。而 `locked` 開波係 true，所以上面每
+// 一條 gate 都行喺鎖定狀態——**條件入面嗰個 `locked` 從來冇被試過係 false**。
+// 我第一版把尺就係咁：喺鎖定嘅頁度量朝向，剷走個 `locked &&` 個數一模一樣，
+// 綠得毫無意義。
+//
+// 撳 Q 解鎖之後量到嘅先係真嘢：**落點嗰刻，朝向同目標仲差 0.43／0.39／0.17／
+// 0.46 弧度（最多 26 度）**，同出手嗰刻嘅偏差一個字都冇變——即係成個前搖
+// 完全冇轉過身，側住身射箭。鎖定應該係改「你仲有幾多修正空間」，唔係改
+// 「你使唔使望住你打緊嗰個」。
+{
+    const p5 = await browser.newPage({ viewport: { width: 640, height: 380 } });
+    await p5.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
+    await p5.waitForTimeout(1500);
+    await p5.getByText('WAYFARER', { exact: false }).first().click();
+    await p5.getByText('ENTER THE VEIL').first().click();
+    await p5.waitForTimeout(4500);
+    await p5.keyboard.press('KeyQ');          // 解鎖
+    await p5.waitForTimeout(600);
+    const 鎖 = await p5.evaluate(() => document.querySelector('[data-target-locked]')?.dataset.targetLocked);
+    await p5.evaluate(() => window.__ER2.重置動作量度());
+    for (let i = 0; i < 16; i++) { await p5.keyboard.press('KeyF'); await p5.waitForTimeout(700); }
+    const 解 = await p5.evaluate(() => window.__ER2.瞄準());
+    check('解咗鎖之後，把尺真係量緊未鎖定嘅狀態', 鎖 === 'false', { targetLocked: 鎖 });
+    check('冇鎖定都會轉入去出手（唔會側住身射箭）',
+        鎖 === 'false' && 解 != null && 解.落點偏差.length >= 3 &&
+        Math.max(...解.偏差) >= 0.15 &&
+        解.落點偏差.every((d) => d <= 0.12),
+        解 && { 出手偏差: 解.偏差, 落點偏差: 解.落點偏差 });
+    await p5.close();
 }
 
 check('由頭到尾零 browser error', errors.length === 0, errors.slice(0, 3));
