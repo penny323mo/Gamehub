@@ -19,6 +19,13 @@ export const TURN_RATE_BOSS = 3.4;   // 大隻嘅轉得更慢，撲擊之後尤�
 export const ACCEL = 70;           // 米／秒²
 export const DECEL = 95;           // 煞停快過起步，否則會「溜冰」
 
+// 一刀落去嘅踏前。實測未加之前，**企定同跑住出手，位移都係 0.00 米**——把刀
+// 好似個轉盤咁掃過，隻腳釘死喺地下。呢個距離要**由招式決定**，唔係由你出手
+// 嗰刻啱好跑緊幾快決定，所以佢係一個常數速度曲線，唔係「保留原本嘅速度」。
+export const LUNGE_SPEED = 6.4;    // 米／秒，喺前搖嗰段線性收到零
+// 鎖定住出手嗰陣仲可以微調準星，但唔可以原地轉圈——比行路慢一半。
+export const TURN_RATE_ATTACK = 4.5;
+
 // 由 `from` 轉向 `to`，一步最多轉 `rate * dt`。
 // 用最短弧：由 350° 去 10° 係轉 20°，唔係轉 340°。
 export const turnToward = (from: number, to: number, dt: number, rate = TURN_RATE): number => {

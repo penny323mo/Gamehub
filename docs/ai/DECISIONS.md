@@ -4466,3 +4466,43 @@ this symptom, fixed from cause rather than from measurement here.
 
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
+
+## ADR-178 — Elden Ring II: I shipped a character who moves at 0.09 m/s, and sixty-two gates said fine
+
+Date: 2026-08-05. Status: accepted.
+
+Going after attack feel, I measured the wrong thing first and found something much worse.
+
+ADR-176 replaced `velocity = direction × speed` with a ramp: `approachSpeed(現速, speed, delta)`,
+where `現速` was read back off the physics body. But every frame begins with
+`playerBody.velocity.x = 0`, so `現速` is **always zero** — the ramp restarted from a standstill on
+every frame and the commanded speed never exceeded `ACCEL × delta`. Measured on the shipped build:
+the player travels **0.09 m/s against a designed 12.5**. The game was close to unplayable and I
+merged it.
+
+Sixty-two gates were green. Every one of them measured a **rate of change** — peak turn rate, peak
+acceleration, damage per second — and not one measured **a value**. The acceleration gate in
+particular read exactly `ACCEL`, which is what a correct ramp and a completely broken one both
+produce. Speed now has its own state variable, and the suite asks the question it never asked:
+**does the character reach the speed printed on its own class card?** 12.5 against 12.5.
+
+The attack work that started the round:
+
+- **A swing moved the character 0.00 m**, standing or running — the blade sweeps like a turnstile
+  while the feet stay planted. There is a lunge now, and the important part is that it is *written*
+  rather than *added*: velocity is set to `LUNGE_SPEED` decaying across the wind-up, so the step is
+  the same whether you attacked from a sprint or from a standstill. The distance belongs to the
+  move, not to how fast you happened to be running.
+- **ADR-176's turn cap had a hole**: locked-on attacks still ran `player.rotation = atan2(...)`
+  outright, so you could still spin instantly mid-swing. Attacks turn at half the walking rate now —
+  enough to correct your aim, not enough to pirouette.
+
+Left open and measured, not hidden: **the body travels at 28 % of its commanded velocity** —
+3.48 m/s sustained against 12.5 commanded. Removing the per-frame zeroing changes nothing (3.47), so
+it is not that. This is long-standing, not from this round, and it means the speed on the class card
+has never been the speed you move at. Fixing it properly means integrating the character
+kinematically and leaving cannon-es for collision only — too large to start at this end of a long
+session, and it needs its own round.
+
+Mutations: reading `現速` back off the body reproduces **3.5 against 12.5**; deleting the lunge
+reproduces `踏前實速 0`. `hud-layout.mjs` 64/64.

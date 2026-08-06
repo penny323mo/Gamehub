@@ -12,7 +12,7 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import { GameAudio } from "./audio";
 import { ARENA_RADIUS, BOSS_SPAWN_Z, CAMERA_BACK, FOG_GATE, PLAYER_SPAWN_Z, buildMap } from "./map";
 import { MINION_ATTACK_RANGE, MINION_SPEED, canLand, chaseDirection, makeBlocked, makeLineOfSight } from "./chase";
-import { ACCEL, TURN_RATE, TURN_RATE_BOSS, TURN_RATE_ENEMY, approachSpeed, snapShadowTarget, turnToward } from "./motion";
+import { ACCEL, DECEL, LUNGE_SPEED, TURN_RATE, TURN_RATE_ATTACK, TURN_RATE_BOSS, TURN_RATE_ENEMY, approachSpeed, snapShadowTarget, turnToward } from "./motion";
 import { hasSupabaseFoundation, recordCompletedRun } from "./progress";
 
 type GameStatus = "loading" | "ready" | "playing" | "victory" | "dead" | "error";
@@ -1100,6 +1100,16 @@ export default function GameClient() {
     let 最快轉向 = 0;      // 弧度／秒
     let 最快加速 = 0;      // 米／秒²
     let 上幀自己行 = false;
+    // 出手嗰一下，攻擊者自己郁咗幾多米。
+    // 一刀斬落去應該係一個「踏前」——距離要由招式決定，唔係由你出手嗰刻
+    // 啱好跑緊幾快決定。
+    const 出手位移: number[] = [];
+    let 出手中 = false;
+    let 出手起點 = { x: 0, z: 0 };
+    let 踏前幀 = 0, 踏前力 = 0, 踏前實速 = 0;
+    // 玩家自己嗰個速度狀態（唔可以由 body 讀返，見下面）。
+    let playerSpeed = 0;
+    let 最高速 = 0;
     // 每次出手之間隔咗幾多「郁動秒」。
     //
     // 本來條 gate 係「22 秒窗口入面數下數，除以郁動秒」。實測窗口得 3.9 秒
@@ -1947,10 +1957,13 @@ export default function GameClient() {
         最快轉向: +最快轉向.toFixed(2), 最快加速: +最快加速.toFixed(2),
         速度: +Math.hypot(playerBody.velocity.x, playerBody.velocity.z).toFixed(2),
         動畫: currentPlayerAction,
+        出手位移: 出手位移.slice(), 踏前幀, 踏前力: +踏前力.toFixed(2),
+        最高速: +最高速.toFixed(2), 設計速: CLASS_CONFIG[currentClass].speed,
+        踏前實速: +踏前實速.toFixed(2),
       }),
-      重置動作量度: () => { 最快轉向 = 0; 最快加速 = 0; },
+      重置動作量度: () => { 最快轉向 = 0; 最快加速 = 0; 出手位移.length = 0; 踏前幀 = 0; 踏前力 = 0; 最高速 = 0; 踏前實速 = 0; },
       // 條線由遊戲自己出，唔喺測試度寫死。
-      郁動上限: () => ({ 轉向: TURN_RATE, 加速: ACCEL }),
+      郁動上限: () => ({ 轉向: TURN_RATE, 加速: ACCEL, 減速: DECEL, 踏前: LUNGE_SPEED }),
       zoom: () => camZoom,
       zoomBy: (f: number) => { zoomBy(f); return camZoom; },
       // 由 A 追去 B，行一次真物理，唔畫任何嘢。
@@ -2190,10 +2203,23 @@ export default function GameClient() {
           if (activeTargetRoot) toBoss.copy(activeTargetRoot.position).sub(playerRoot.position);
           else toBoss.set(Math.sin(player.rotation), 0, Math.cos(player.rotation));
           if (locked && toBoss.lengthSq() > 0.01) {
-            player.rotation = Math.atan2(toBoss.x, toBoss.z);
+            // ADR-176 封咗郁動嗰邊嘅瞬間轉向，但呢行漏咗——鎖定住出手照樣
+            // 一幀轉曬。出手中轉得慢過行路：可以修正準星，唔可以原地打轉。
+            player.rotation = turnToward(
+              player.rotation, Math.atan2(toBoss.x, toBoss.z), delta, TURN_RATE_ATTACK);
           }
           const attackProgress =
             1 - (player.stateUntil - now) / classConfig.attackDuration;
+          // 踏前：由招式話事，唔係由你出手嗰刻啱好幾快話事。所以速度**寫落去**
+          // （唔係加落去），喺前搖嗰段線性收到零；過咗撞擊點就完全停低。
+          if (classConfig.projectile === "none") {
+            const 前搖 = Math.max(0.001, classConfig.impactDelay / classConfig.attackDuration);
+            const 力 = attackProgress < 前搖 ? 1 - attackProgress / 前搖 : 0;
+            playerBody.velocity.x = Math.sin(player.rotation) * LUNGE_SPEED * 力;
+            playerBody.velocity.z = Math.cos(player.rotation) * LUNGE_SPEED * 力;
+            playerSpeed = LUNGE_SPEED * 力;
+            踏前幀 += 1; 踏前力 = Math.max(踏前力, 力);
+          }
           attackArc.position.copy(playerRoot.position).add(new THREE.Vector3(0, 1.15, 0));
           attackArc.rotation.z = -player.rotation + 0.2;
           attackArc.scale.setScalar(0.94 + attackProgress * 0.1);
@@ -2323,8 +2349,15 @@ export default function GameClient() {
           const speed = sprinting ? classConfig.speed * 1.55 : classConfig.speed;
           movement.normalize();
           // 唔再一 tick 到全速：由而家嘅速度向目標靠。
-          const 現速 = Math.hypot(playerBody.velocity.x, playerBody.velocity.z);
-          const 新速 = approachSpeed(現速, speed, delta);
+          //
+          // **個「現速」唔可以由 body 度讀返**：每一幀開頭都有
+          // `playerBody.velocity.x = 0`，所以讀返嚟永遠係零，條斜坡每幀由零
+          // 重新開始，實際速度就變成 `ACCEL × delta`——實測玩家平均得
+          // **0.09 米／秒**（設計 12.5），而六十二條 gate 全綠，因為冇一條量
+          // 過最高速度，全部淨係量變化率。所以速度自己要有個狀態。
+          const 新速 = approachSpeed(playerSpeed, speed, delta);
+          playerSpeed = 新速;
+          最高速 = Math.max(最高速, 新速);
           playerBody.velocity.x = movement.x * 新速;
           playerBody.velocity.z = movement.z * 新速;
           // 轉身有速度上限。要轉嘅係 `player.rotation` **本身**，唔淨係個模型：
@@ -2351,6 +2384,12 @@ export default function GameClient() {
           );
           playerActions.get(currentPlayerAction)?.setEffectiveTimeScale(步速 * Math.max(0.35, 新速 / speed));
         } else {
+          // 放手唔係即刻停：由 `DECEL` 收返落零，方向保持原本嗰個。
+          playerSpeed = approachSpeed(playerSpeed, 0, delta);
+          if (playerSpeed > 0.01) {
+            playerBody.velocity.x = Math.sin(player.rotation) * playerSpeed;
+            playerBody.velocity.z = Math.cos(player.rotation) * playerSpeed;
+          }
           currentPlayerAction = playAction(playerActions, "Idle_Weapon", currentPlayerAction);
         }
 
@@ -2358,6 +2397,19 @@ export default function GameClient() {
           player.stamina = Math.min(100, player.stamina + delta * 28);
         }
 
+        // 出手期間攻擊者自己行咗幾遠
+        if (player.state === "attack") {
+          踏前實速 = Math.max(踏前實速, Math.hypot(playerBody.velocity.x, playerBody.velocity.z));
+        }
+        if (player.state === "attack" && !出手中) {
+          出手中 = true;
+          出手起點 = { x: playerRoot.position.x, z: playerRoot.position.z };
+        } else if (player.state !== "attack" && 出手中) {
+          出手中 = false;
+          出手位移.push(+Math.hypot(
+            playerRoot.position.x - 出手起點.x, playerRoot.position.z - 出手起點.z).toFixed(2));
+          if (出手位移.length > 40) 出手位移.shift();
+        }
         // 加速度只計「自己行」嗰啲幀。擊退同閃避係衝量——一下撞埋嚟或者一個
         // 翻滾**本來就應該係瞬間**，將佢哋撈埋一齊量，就係用一把尺量兩件事。
         const 自己行 = player.state === "idle" && now >= player.knockbackUntil;
