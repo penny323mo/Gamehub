@@ -38,3 +38,42 @@ export const approachSpeed = (
   const step = rate * dt;
   return Math.abs(diff) <= step ? target : current + Math.sign(diff) * step;
 };
+
+// 陰影貼圖嘅 texel 對齊。
+//
+// 平行光嘅陰影相機跟住玩家行（唔跟就一行出圓場全場冇陰影，ADR 早有記錄），
+// 但佢每幀滑動嘅距離唔係 texel 嘅整數倍——即係同一條陰影邊界每幀落喺 texel
+// 嘅唔同位置，全場陰影會「爬」同埋閃。呢個係固定框陰影最常見嗰個瑕疵。
+//
+// 解法唔係郁少啲，係**只准喺 texel 格上面郁**：將目標點投影落光源自己嗰個
+// 基底，四捨五入到整數 texel，再投返出嚟。
+export type Vec3 = { x: number; y: number; z: number };
+
+const 減 = (a: Vec3, b: Vec3): Vec3 => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
+const 叉 = (a: Vec3, b: Vec3): Vec3 => ({
+  x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x,
+});
+const 點 = (a: Vec3, b: Vec3) => a.x * b.x + a.y * b.y + a.z * b.z;
+const 歸一 = (a: Vec3): Vec3 => {
+  const n = Math.hypot(a.x, a.y, a.z) || 1;
+  return { x: a.x / n, y: a.y / n, z: a.z / n };
+};
+
+// `offset` 係光源相對目標嘅固定偏移（光源位置 = 目標 + offset）。
+export const snapShadowTarget = (target: Vec3, offset: Vec3, texel: number): Vec3 => {
+  if (!(texel > 0)) return { ...target };
+  const 前 = 歸一(減({ x: 0, y: 0, z: 0 }, offset));      // 由光源望向目標
+  const 右 = 歸一(叉(前, { x: 0, y: 1, z: 0 }));
+  const 上 = 叉(右, 前);
+  // 三個軸都貼格。沿住光線方向嗰個其實唔影響陰影（只改深度範圍），但一齊
+  // 貼咗，條不變量就簡單得多——**回傳嘅位置本身係量化嘅**，唔使叫測試自己
+  // 再砌一次同一個基底去驗（抄一次基底＝多一個會錯嘅地方）。
+  const a = Math.round(點(target, 右) / texel) * texel;
+  const b = Math.round(點(target, 上) / texel) * texel;
+  const c = Math.round(點(target, 前) / texel) * texel;
+  return {
+    x: 右.x * a + 上.x * b + 前.x * c,
+    y: 右.y * a + 上.y * b + 前.y * c,
+    z: 右.z * a + 上.z * b + 前.z * c,
+  };
+};

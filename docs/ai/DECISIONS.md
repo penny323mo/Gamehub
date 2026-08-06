@@ -4426,3 +4426,43 @@ Verified by mutation: making both helpers return their targets outright reproduc
 62/62, `npm test` 10/10.
 
 Not done: attack feel itself — no lunge, no hit-stop, no impact recoil. That is the next round.
+
+## ADR-177 — Elden Ring II: three known causes of background shimmer, and an instrument that cannot see it
+
+Date: 2026-08-05. Status: accepted.
+
+Penny: 背景有抖動/閃爍. **I could not reproduce it here, and the reason is worth stating plainly:
+flicker is a per-frame phenomenon and this environment renders about three frames a second.** My
+capture loop samples every 420 ms — 2.4 Hz against a 60 Hz effect. Any "it looks fine to me" from
+this box would be an artefact of the instrument, not a finding.
+
+What the instrument did produce was a false lead. A per-pixel "changes and changes back" map over
+six frames put a hot cell at **67 %** — which looked like textbook z-fighting until I looked at the
+actual screenshot: that cell is where **the two revenants are standing**, and the alternation is
+their idle animation. The measurement was working; it was measuring characters.
+
+The wall hypothesis it suggested was tested anyway and refuted by measurement: ADR-166 deliberately
+put the decorative `wall.glb` inner face exactly on the collider plane, which makes those two
+surfaces coplanar, so I gave the instanced wall boxes a polygon offset — the hot cell went 67 → 58,
+i.e. **not the cause**. The offset stays, because coplanar surfaces are wrong regardless.
+
+So the round is explicit about its epistemic status: three causes that are known to produce exactly
+this symptom, fixed from cause rather than from measurement here.
+
+- **The shadow camera slid by sub-texel amounts every frame.** The directional light follows the
+  player (it has to; a fixed frustum means no shadows once you leave the arena), but nothing
+  quantised that motion, so every shadow edge in the scene resamples each frame and the ground
+  crawls. `snapShadowTarget` projects the target onto the light's own basis, rounds to whole texels
+  (52 m / 2048 = 25.4 mm, derived from the shadow frustum rather than written down), and projects
+  back. Node-tested: forty steps of one-eighth of a texel now move the target on fewer than 35 % of
+  frames instead of every one, and never further than a texel and a half from the true position.
+- **`near` was 0.1 against a `far` of 180.** The ground and the cobbled path are 15 mm apart; at
+  1800:1 on a 16-bit depth buffer — which is what a lot of phones give you — that gap is well inside
+  the noise. The camera occlusion logic already guarantees nothing renders closer than 2.4 m, so
+  `near` is 0.6 now: six times the precision, nothing clipped.
+- The coplanar wall surfaces above.
+
+`npm test` 11/11, `hud-layout.mjs` 62/62. Removing the texel rounding turns the new test red.
+
+If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
+across them.

@@ -12,7 +12,7 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import { GameAudio } from "./audio";
 import { ARENA_RADIUS, BOSS_SPAWN_Z, CAMERA_BACK, FOG_GATE, PLAYER_SPAWN_Z, buildMap } from "./map";
 import { MINION_ATTACK_RANGE, MINION_SPEED, canLand, chaseDirection, makeBlocked, makeLineOfSight } from "./chase";
-import { ACCEL, TURN_RATE, TURN_RATE_BOSS, TURN_RATE_ENEMY, approachSpeed, turnToward } from "./motion";
+import { ACCEL, TURN_RATE, TURN_RATE_BOSS, TURN_RATE_ENEMY, approachSpeed, snapShadowTarget, turnToward } from "./motion";
 import { hasSupabaseFoundation, recordCompletedRun } from "./progress";
 
 type GameStatus = "loading" | "ready" | "playing" | "victory" | "dead" | "error";
@@ -328,7 +328,11 @@ export default function GameClient() {
     physicsGround.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
     physicsWorld.addBody(physicsGround);
 
-    const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 180);
+    // `near` 本來 0.1，而 `far` 180——1800:1 嘅深度範圍。地面同石路面只差 15
+    // 毫米，喺精度低嘅深度緩衝（手機好多時 16 bit）上面就會互相穿插閃爍。
+    // 鏡頭遮擋邏輯保證咗**冇嘢會近過 2.4 米**（`Math.max(2.4, t0)`），所以
+    // `near` 拉到 0.6 一件嘢都唔會被切走，而深度精度直接好六倍。
+    const camera = new THREE.PerspectiveCamera(48, 1, 0.6, 180);
     camera.position.set(0, 5.2, 11);
 
     const renderer = new THREE.WebGLRenderer({
@@ -384,6 +388,9 @@ export default function GameClient() {
     moonLight.shadow.camera.bottom = -26;
     moonLight.shadow.camera.far = 90;
     moonLight.shadow.bias = -0.0005;
+    // 一個 texel 蓋幾多米：52 米闊嘅框攤喺 2048 貼圖上面 = 25.4 毫米。
+    const SHADOW_TEXEL =
+      (moonLight.shadow.camera.right - moonLight.shadow.camera.left) / moonLight.shadow.mapSize.x;
     scene.add(moonLight);
     scene.add(moonLight.target);
 
@@ -884,7 +891,16 @@ export default function GameClient() {
     const wallBoxes = staticBoxes.filter((b) => b.tag === "wall");
     const wallMesh = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshStandardMaterial({ color: "#6c706d", roughness: 0.94, metalness: 0.04 }),
+      // `polygonOffset`：實體牆嘅盒同裝飾用嘅 `wall.glb` **啱啱好同一個平面**
+      // ——ADR-166 特登將模型內面貼實 collider 面（唔貼實就會企到入牆），而
+      // 貼實嘅代價就係兩塊面同深度，深度緩衝分唔開邊塊喺前，逐幀跳來跳去。
+      // 實測企定唔郁連拍六幀，畫面有一格 **67% 像素喺度「跳完又跳返」**。
+      // 唔郁幾何（郁咗就同 ADR-165 條「網格＝collider」gate 打交），淨係喺深
+      // 度上面推後少少，等裝飾嗰塊永遠贏。
+      new THREE.MeshStandardMaterial({
+        color: "#6c706d", roughness: 0.94, metalness: 0.04,
+        polygonOffset: true, polygonOffsetFactor: 1.2, polygonOffsetUnits: 1.2,
+      }),
       wallBoxes.length,
     );
     wallMesh.castShadow = true;
@@ -2765,8 +2781,11 @@ export default function GameClient() {
       camera.lookAt(cameraLook);
       // 陰影框跟玩家行。唔 update target 嘅 matrix 嘅話，three.js 仲係
       // 用住舊嗰個方向——燈郁咗，陰影唔郁。
-      moonLight.position.copy(playerRoot.position).add(MOON_OFFSET);
-      moonLight.target.position.copy(playerRoot.position);
+      // 陰影相機只准喺 texel 格上面郁——唔貼格就會全場陰影每幀「爬」一下。
+      // texel 大細由陰影框同貼圖尺寸出，唔另外寫一個數。
+      const 貼格 = snapShadowTarget(playerRoot.position, MOON_OFFSET, SHADOW_TEXEL);
+      moonLight.target.position.set(貼格.x, 貼格.y, 貼格.z);
+      moonLight.position.set(貼格.x + MOON_OFFSET.x, 貼格.y + MOON_OFFSET.y, 貼格.z + MOON_OFFSET.z);
       moonLight.target.updateMatrixWorld();
       moonHalo.lookAt(camera.position);
       gameAudio.updateListener(

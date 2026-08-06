@@ -1,7 +1,7 @@
 // 郁動嘅重量：兩條純函數，喺 Node 度直接量，唔使開瀏覽器。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { TURN_RATE, TURN_RATE_ENEMY, TURN_RATE_BOSS, ACCEL, DECEL, turnToward, approachSpeed } from '../src/motion.ts';
+import { TURN_RATE, TURN_RATE_ENEMY, TURN_RATE_BOSS, ACCEL, DECEL, turnToward, approachSpeed, snapShadowTarget } from '../src/motion.ts';
 
 test('轉身有速度上限，而且行最短弧', () => {
     const dt = 1 / 60;
@@ -44,4 +44,32 @@ test('起步同煞停都要時間，而且煞停快過起步', () => {
     while (v > 0 && m < 600) { v = approachSpeed(v, 0, dt); m++; }
     assert.ok(m < n, `煞停 ${m} 幀慢過起步 ${n} 幀`);
     assert.ok(DECEL > ACCEL);
+});
+
+test('陰影相機只准喺 texel 格上面郁', () => {
+    const 偏移 = { x: -18, y: 28, z: 16 };
+    const texel = 52 / 2048;                       // 25.4 毫米
+    // 玩家每次行一個好細嘅步（遠細過一個 texel），貼格之後個目標唔應該
+    // 每步都郁——郁咗就係「陰影每幀爬一下」。
+    const 位 = [];
+    for (let i = 0; i < 40; i += 1) {
+        const p = { x: i * (texel / 8), y: 0, z: 0 };
+        const s = snapShadowTarget(p, 偏移, texel);
+        位.push(`${s.x.toFixed(4)},${s.y.toFixed(4)},${s.z.toFixed(4)}`);
+    }
+    // 條不變量唔係「幾多個唔同位置」（嗰個要我自己拍個數出嚟），而係
+    // **大部分幀之間根本冇郁過**——郁咗就係陰影爬。八分一 texel 一步，
+    // 理應大約每八步先郁一次。
+    let 郁過 = 0;
+    for (let i = 1; i < 位.length; i += 1) if (位[i] !== 位[i - 1]) 郁過 += 1;
+    assert.ok(郁過 / (位.length - 1) < 0.35,
+        `${位.length - 1} 步入面郁咗 ${郁過} 次，即係差唔多逐幀都郁`);
+    assert.ok(new Set(位).size >= 2, '完全唔郁就變返「行出圓場冇陰影」');
+    // 貼格之後個點唔應該離原本個點好遠：最多一個 texel 嘅對角
+    for (let i = 0; i < 30; i += 1) {
+        const p = { x: i * 0.37, y: 0, z: i * -0.21 };
+        const s = snapShadowTarget(p, 偏移, texel);
+        const d = Math.hypot(s.x - p.x, s.y - p.y, s.z - p.z);
+        assert.ok(d <= texel * 1.5, `貼格之後偏咗 ${d.toFixed(3)} 米`);
+    }
 });
