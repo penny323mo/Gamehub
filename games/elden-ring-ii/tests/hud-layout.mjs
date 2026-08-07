@@ -920,23 +920,43 @@ for (const [w, h, 名] of 尺寸) {
         const api = window.__ER2;
         if (!api) return null;
         const R = api.leapMinRange();
+        const 窗 = api.leapRange();
+        const 窗中 = (窗.min + 窗.max) / 2;
         const 掃 = (phase, dist) => {
             const out = new Set();
             for (let i = 0; i < 40; i++) out.add(api.bossMove(phase, dist, i / 40));
             return [...out].sort();
         };
+        const 撲率 = (phase, dist) => {
+            let n = 0;
+            for (let i = 0; i < 40; i++) if (api.bossMove(phase, dist, i / 40) === 'leap') n++;
+            return n;
+        };
         return {
-            R,
-            一階遠: 掃(1, R + 8), 一階近: 掃(1, 2),
-            二階遠: 掃(2, R + 8), 二階近: 掃(2, R - 1),
+            R, 窗,
+            // 「遠」要喺**窗口正中**攞，唔係由下限加個數出嚟。加咗上限之後
+            // 舊嗰個 `R + 8`（14.5 米）跌咗出窗口外面，三條 gate 一齊變紅——
+            // 支尺自己砌條規則嘅輸入，就會跟唔上條規則。
+            一階遠: 掃(1, 窗中), 一階近: 掃(1, 2),
+            二階遠: 掃(2, 窗中), 二階近: 掃(2, R - 1),
+            太遠: 掃(2, 窗.max + 5),
+            一階撲幾多: 撲率(1, 窗中), 二階撲幾多: 撲率(2, 窗中),
         };
     });
-    check('第一階段永遠淨係用拳（唔理遠近）',
-        r != null && r.一階遠.join() === 'punch' && r.一階近.join() === 'punch',
-        r && { 遠: r.一階遠, 近: r.一階近 });
-    check('第二階段企遠會撲，兩招都出得到',
+    // 本來寫「第一階段永遠淨係用拳」。實測**boss 換第二階段嗰刻同玩家嘅距離
+    // 係 6.0 米**，已經細過撲擊嘅 6.5——即係「第二階段先有嘅招」永遠等唔到
+    // 自己嘅距離。一個埋身手段淨係喺已經埋咗身之後先開放，等於冇。兩個階段
+    // 而家都撲得，而條 gate 問返真正嗰個分別：**第二階段撲得密好多**。
+    check('兩個階段都撲得，但第二階段撲得密好多',
+        r != null && r.一階撲幾多 > 0 && r.二階撲幾多 > r.一階撲幾多 * 1.5,
+        r && { 一階: `${r.一階撲幾多}/40`, 二階: `${r.二階撲幾多}/40` });
+    check('第二階段企喺窗口入面會撲，兩招都出得到',
         r != null && r.二階遠.length === 2,
-        r && { 二階遠: r.二階遠, 起跳距離: r.R });
+        r && { 二階遠: r.二階遠, 窗口: r.窗 });
+    // 撲擊嘅飛行段係 `位移 ÷ 剩返嘅前搖`——冇上限就會由六十米外用癲速撲埋嚟。
+    check('太遠就唔撲（撲擊有上限，唔係由場邊飛過嚟）',
+        r != null && r.太遠.join() === 'punch',
+        r && { 太遠: r.太遠, 窗口: r.窗 });
     check('第二階段埋身唔會撲（撲擊係用嚟埋位嘅，唔係貼身用）',
         r != null && r.二階近.join() === 'punch',
         r && { 二階近: r.二階近 });
@@ -946,10 +966,11 @@ for (const [w, h, 名] of 尺寸) {
     // 嘅撲擊組合入面 **32.8% 中間有嘢擋住**（走廊牆修好之前係 56.6%）。
     const 睇 = await page.evaluate(() => {
         const api = window.__ER2;
-        const R = api.leapMinRange();
+        const 窗 = api.leapRange();
+        const 窗中 = (窗.min + 窗.max) / 2;
         const 掃 = (見到) => {
             const out = new Set();
-            for (let i = 0; i < 40; i++) out.add(api.bossMove(2, R + 8, i / 40, 見到));
+            for (let i = 0; i < 40; i++) out.add(api.bossMove(2, 窗中, i / 40, 見到));
             return [...out].sort().join();
         };
         return { 見到: 掃(true), 見唔到: 掃(false) };
@@ -1467,9 +1488,17 @@ for (const [名, 推幾次, 想要] of [['第二波', 1, 1], ['boss 場', 3, 3]]
         await p8.waitForTimeout(700);
     }
     const 死前 = await p8.evaluate(() => window.__ER2.關());
-    // 企定捱打到死。
+    // 行埋去先。
+    //
+    // 本來淨係企喺出生點等死——而**當時真兇係八隻雜兵**：`推關()` 冇清佢哋，
+    // 所以呢條 gate 一直靠一堆唔應該存在嘅雜兵打死玩家先綠。`推關()` 修好之
+    // 後，boss 場淨返 boss 一隻，而佢喺六十米外，行過嚟就用十幾郁動秒——條
+    // gate 即刻 timeout。行埋去就唔使等佢行過嚟。
+    await p8.keyboard.down('KeyW');
+    await p8.waitForTimeout(20000);
+    await p8.keyboard.up('KeyW');
     let 死咗 = false;
-    for (let i = 0; i < 45 && !死咗; i += 1) {
+    for (let i = 0; i < 60 && !死咗; i += 1) {
         await p8.waitForTimeout(1500);
         死咗 = await p8.evaluate(() =>
             document.querySelector('[data-game-status]').dataset.gameStatus !== 'playing');
@@ -1493,6 +1522,60 @@ for (const [名, 推幾次, 想要] of [['第二波', 1, 1], ['boss 場', 3, 3]]
     check(`死喺${名}重開之後，霧門「畫幾多道」同「攔幾多道」對得上`,
         重開.霧門 === 重開.霧門畫,
         { collider: 重開.霧門, 畫: 重開.霧門畫, boss開咗: 重開.boss開咗 });
+}
+
+// ---------- Boss 打唔打得成一場仗 ----------
+//
+// 第二階段從來冇喺真遊戲入面量過。用 `推關()` 去到 boss 場（佢會用遊戲自己
+// 條死亡路徑清晒雜兵，唔會整出一個「boss 開咗但八隻雜兵仲追緊你」嘅唔存在
+// 狀態），跟住用射手真打一場。量到兩件事：
+//
+// 1. **撲擊喺遊戲入面永遠揀唔到。** `chooseBossMove` 要 `distance > 6.5` 先揀
+//    撲擊，而個 caller 喺 `else if (bossDistance > BOSS_REACH)` 之後——即係只有
+//    距離 ≤ 3.15 先入到去。3.15 < 6.5。個純函數自己有 gate 而且係綠嘅，因為
+//    條 gate 直接餵一啲遊戲從來唔會餵嘅距離入去（同 ADR-179 個 `locked` 一樣）。
+//    而且**boss 換第二階段嗰刻距離係 6.0 米**，仲細過 6.5——就算通咗個 caller，
+//    「第二階段先有嘅招」都等唔到自己嘅距離。
+// 2. **每一下命中都取消緊 boss 出緊嗰招。** 實測射手打到 boss 剩 17 血：
+//    **出手 1 次、到落點 0 次**——佢由六十米外行過嚟、換咗階段、跌到剩一成幾
+//    血，一拳都未打出過。個預警圈變咗裝飾。
+{
+    const p9 = await browser.newPage({ viewport: { width: 640, height: 380 } });
+    await p9.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
+    await p9.waitForTimeout(1500);
+    await 入場(p9, 'WAYFARER');
+    for (let i = 0; i < 3; i += 1) {
+        await p9.evaluate(() => window.__ER2.推關());
+        await p9.waitForTimeout(700);
+    }
+    let b = null;
+    for (let i = 0; i < 110; i += 1) {
+        await p9.keyboard.press('KeyF');
+        if (i % 3 === 0) await p9.keyboard.press('Space');
+        await p9.waitForTimeout(450);
+        b = await p9.evaluate(() => window.__ER2.boss());
+        const st = await p9.evaluate(() =>
+            document.querySelector('[data-game-status]').dataset.gameStatus);
+        if (st !== 'playing' || b.hp <= 0) break;
+    }
+    await p9.close();
+
+    check('Boss 出得到手，而且出咗嘅招唔會畀人打斷（有霸體）',
+        b != null && b.出手數 >= 2 && b.落點數 >= b.出手數 - 1,
+        b && { 出手數: b.出手數, 落點數: b.落點數, 打中數: b.打中數,
+               打出傷害: b.打出傷害, hp: b.hp, 階段: b.階段 });
+
+    check('撲擊喺真遊戲入面出得到（唔係一個永遠揀唔到嘅分支）',
+        b != null && b.撲擊數 >= 1,
+        b && { 撲擊數: b.撲擊數, 出手數: b.出手數, 階段: b.階段 });
+
+    // `nextAttack = now + 1.55`（第二階段最短嗰個）係一個**數學下限**：下一下
+    // 前搖唔可能早過佢。所以呢條唔係我揀出嚟嘅門檻。時鐘一改返做真實時間
+    // （ADR-150 嗰個缺陷），換算返郁動秒就會塌落 0.3 左右。
+    const 最短 = b && b.間隔.length ? Math.min(...b.間隔) : null;
+    check('Boss 兩下出手之間，至少隔住佢自己寫嗰個 1.55 郁動秒',
+        最短 !== null && 最短 >= 1.54,
+        { 最短, 全部: b && b.間隔.slice(0, 6) });
 }
 
 check('由頭到尾零 browser error', errors.length === 0, errors.slice(0, 3));

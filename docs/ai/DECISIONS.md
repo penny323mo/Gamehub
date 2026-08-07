@@ -4467,6 +4467,62 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-184 — Elden Ring II: the boss crossed sixty metres, changed phase, and dropped to one bar without throwing a single punch
+
+Date: 2026-08-06. Status: accepted.
+
+`__ER2.推關()` from ADR-182 made the boss reachable in a test for the first time. The first thing it
+did was expose a defect in itself, and then two in the fight.
+
+**The seam built a state the game cannot be in.** It advanced the stage without killing anything, so
+the boss opened while all eight minions were still alive and chasing. The ruler then measured a fight
+where the player is beaten to death by trash while the boss is still sixty metres away — a game that
+does not exist, the ADR-169/180 trap once more. The reason it could not do better is that the whole
+"a minion dies" sequence lived **inside the player's impact handler**: the only way to kill a minion
+was to swing at it. That is now `殺死雜兵()`, called by both.
+
+With a faithful state, two real defects:
+
+- **The leap can never be chosen.** `chooseBossMove` returns `"leap"` only when
+  `distance > LEAP_MIN_RANGE` (6.5), and the call site sits after `else if (bossDistance > BOSS_REACH)`
+  — reachable only when distance ≤ **3.15**. 3.15 < 6.5. The pure function has a gate and the gate is
+  green, because it feeds the function distances the game never supplies. Exactly ADR-179's `locked`.
+  And measurement found a second lock on the same door: the boss enters phase 2 at a measured **6.0 m**,
+  already inside the leap's minimum, so even with the call site fixed a "phase-2 move" could never reach
+  its own range. A gap-closer that unlocks only after the gap is closed is not a gap-closer. Both phases
+  leap now; phase 2 leaps far more often, and there is a `LEAP_MAX_RANGE` because the flight is
+  `displacement ÷ remaining wind-up` and an unbounded leap flies at an absurd speed.
+- **Every hit cancelled whatever the boss was doing.** A landing blow set `state = "hit"`
+  unconditionally, wind-up included, so the attack simply evaporated. Measured against a ranger: the
+  boss reached **17 hp having started 1 attack and landed 0** — it crossed sixty metres, changed phase,
+  and fell to one bar without ever throwing a punch. The telegraph ring was decoration; the counterplay
+  was "out-damage it", not "read it and move". Hyper-armour now: a hit does not interrupt a wind-up
+  (death still overrides everything). After: **4 attacks started, 4 landed, 132 damage dealt**, and the
+  leap fires — the phase-2 transition was measured mid-leap at 1.5 m.
+
+The rule moved to `src/boss.ts` (no three.js, no cannon-es, no JSX) so Node can test it. That was forced
+by the work: a `.tsx` cannot be imported under `--experimental-strip-types`, so a rule living in
+`GameClient.tsx` is testable only through a browser. The new Node test asserts what the browser cannot:
+that the leap window is **compatible with the call site** — `LEAP_MIN_RANGE > BOSS_REACH` and the window
+is wide enough to survive the boss crossing it.
+
+**Three existing gates went red, all for real reasons, and two of them had been green for the wrong one.**
+
+- `第一階段永遠淨係用拳` and `第二階段企遠會撲` both built their "far" distance as `LEAP_MIN_RANGE + 8`
+  = 14.5 m. With an upper bound that is now outside the window, so both read "punch". A ruler that
+  constructs the rule's input from one end of the range cannot follow the rule; the seam exposes
+  `leapRange()` now and the gates sample the middle of the window. The phase-1 gate was also asserting
+  a design that measurement has retired, so it asks the real distinction instead: both phases leap,
+  **phase 2 far more often** (12/40 against 22/40).
+- The boss-restart gate from ADR-182 stopped seeing the player die. It had been passing because
+  **eight minions that should not have existed were killing them** — the very state the seam fix
+  removed. My own gate from the previous round, green for the wrong reason, one round later. It walks
+  the player to the boss now instead of waiting for a boss sixty metres away.
+
+Suite: 78 → **82** browser checks, `npm test` 16 → **17**. Both fixes were reverted and reproduced
+their original measurements: without hyper-armour, 4 attacks started and **1 landed**; with the leap
+choice back behind the approach branch, **0 leaps**.
+
 ## ADR-183 — Elden Ring II: the analog stick was digital, and half the players could not run
 
 Date: 2026-08-06. Status: accepted.

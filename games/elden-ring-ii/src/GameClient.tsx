@@ -12,6 +12,8 @@ import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js
 import { GameAudio } from "./audio";
 import { ARENA_RADIUS, BOSS_SPAWN_Z, CAMERA_BACK, FOG_GATE, PLAYER_SPAWN_Z, buildMap } from "./map";
 import { MINION_ATTACK_RANGE, MINION_SPEED, canLand, chaseDirection, makeBlocked, makeLineOfSight } from "./chase";
+import { BOSS_REACH, LEAP_MAX_RANGE, LEAP_MIN_RANGE, chooseBossMove } from "./boss";
+import type { BossMove } from "./boss";
 import { ACCEL, DECEL, LUNGE_SPEED, gaitStep, TURN_RATE, TURN_RATE_ATTACK, TURN_RATE_BOSS, TURN_RATE_ENEMY, approachSpeed, snapShadowTarget, turnToward } from "./motion";
 import { hasSupabaseFoundation, recordCompletedRun } from "./progress";
 
@@ -170,21 +172,9 @@ export const shouldShowWaypoint = (distance: number | null, alive: boolean) =>
 // 喺下半段——同 ADR-151 嗰個 `minionRadius` TDZ 一模一樣嘅坑。
 export { ARENA_RADIUS, BOSS_SPAWN_Z, FOG_GATE, PLAYER_SPAWN_Z } from "./map";
 
-// Boss 埋到幾近就唔再行、開始出手。
-export const BOSS_REACH = 3.15;
-export const LEAP_MIN_RANGE = 6.5;
-export type BossMove = "punch" | "leap";
-// `見到落點` 一日冇，boss 就會撲向一個佢去唔到嘅位——實測第二階段嘅撲擊組合
-// 入面 **32.8% 中間有嘢擋住**（未修走廊牆之前係 56.6%）。撲擊嘅預警圈畫喺
-// 落點，而傷害亦都由落點度起，所以撲向柱後面唔止撞埋去咁簡單：個圈畫咗喺你
-// 過唔到嘅地方，而隻怪就卡喺柱前面。見唔到就打拳。
-export const chooseBossMove = (
-  phase: 1 | 2,
-  distance: number,
-  roll: number,
-  見到落點 = true,
-): BossMove =>
-  phase === 2 && distance > LEAP_MIN_RANGE && roll < 0.55 && 見到落點 ? "leap" : "punch";
+export { BOSS_REACH, LEAP_MIN_RANGE, LEAP_MAX_RANGE, chooseBossMove } from "./boss";
+export type { BossMove } from "./boss";
+
 
 const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value));
@@ -806,6 +796,10 @@ export default function GameClient() {
     // 全場得一組碎屑嗰陣量到：0.55 秒未散完又有第二下打擊，就會由頭嗰下搶
     // 返去——實測 29%。而家留住呢兩個數，係為咗證明個池真係夠用。
     let 碎屑次數 = 0, 碎屑被搶 = 0;
+    // Boss 嘅出手帳。分階段睇：第二階段應該真係打得快啲、痛啲。
+    let boss出手 = 0, boss落點 = 0, boss撲擊 = 0, boss打中 = 0, boss打出傷害 = 0;
+    let boss上次出手 = 0;
+    const boss間隔: number[] = [];
 
     const playerRoot = new THREE.Group();
     const bossRoot = new THREE.Group();
@@ -1202,6 +1196,30 @@ export default function GameClient() {
     const attackGaps: number[] = [];
 
     const livingMinions = () => minions.filter((minion) => minion.active && minion.hp > 0);
+
+    // 一隻雜兵死咗要做嘅嘢，一個地方寫。
+    //
+    // 本來呢段成段寫喺玩家嘅落點判定入面，即係**唯一殺得死雜兵嘅方法就係玩家
+    // 親手斬**。`__ER2.推關()` 想跳關嘅時候冇嘢叫得，結果佢整出咗一個
+    // **遊戲永遠去唔到嘅狀態**：boss 開咗，但三波共八隻雜兵仲喺度追你。跟住
+    // 支尺就量咗一場「玩家畀雜兵打死、boss 喺六十米外跑咗成場都未到」嘅仗
+    // ——又係量緊一隻唔存在嘅遊戲（ADR-169／180 同一個坑）。
+    const 殺死雜兵 = (minion: MinionEnemy) => {
+      minion.hp = 0;
+      minion.active = false;
+      minion.healthBar.visible = false;
+      minion.body.velocity.setZero();
+      minion.body.collisionResponse = false;
+      if (minion.bodyAdded) {
+        physicsWorld.removeBody(minion.body);
+        minion.bodyAdded = false;
+      }
+      minion.currentAction = playAction(
+        minion.actions, "Death_A", minion.currentAction, true, 1.08,
+      );
+      gameAudio.play("enemyDeath", minion.root.position.x, minion.root.position.z);
+      advanceEncounter();
+    };
 
     const activateWave = (wave: 0 | 1 | 2) => {
       encounterStage = wave;
@@ -2042,6 +2060,10 @@ export default function GameClient() {
       // 揮擊弧線畫成點 vs 判定實際係點——兩組數分開出，等測試可以夾佢哋
       bossMove: (phase: 1 | 2, distance: number, roll: number, 見到落點 = true) =>
         chooseBossMove(phase, distance, roll, 見到落點),
+      // 撲擊個**窗口**，唔係淨係一頭。舊 seam 得 `leapMinRange()`，於是測試
+      // 要自己砌一個「遠」出嚟（寫住 `R + 8`）——加咗上限之後嗰個 14.5 米就
+      // 跌咗出窗口外面，三條 gate 一齊紅。支尺唔應該自己砌條規則嘅輸入。
+      leapRange: () => ({ min: LEAP_MIN_RANGE, max: LEAP_MAX_RANGE }),
       leapMinRange: () => LEAP_MIN_RANGE,
       waypoint: () => ({ 亮: waypoint.visible, x: waypoint.position.x, z: waypoint.position.z,
         門檻: WAYPOINT_MIN_DISTANCE }),
@@ -2115,13 +2137,21 @@ export default function GameClient() {
       // `zoomBy` 一樣。冇佢就到唔到 boss 場——清三波雜兵喺一秒三幀嘅環境要
       // 幾分鐘，而「死喺 boss 手上再重開」嗰條路正正就係冇測試行過嗰條。
       推關: () => {
-        if (encounterStage === 0) activateWave(1);
-        else if (encounterStage === 1) activateWave(2);
-        else if (encounterStage === 2) unlockBossEncounter();
+        // 先清乾淨呢一關嘅雜兵——真人推得到下一關，就係因為佢殺晒佢哋。
+        // 唔清嘅話會整出一個遊戲入面唔存在嘅狀態（boss 開咗但八隻雜兵仲喺度）。
+        // 用嘅係遊戲自己嗰條死亡路徑，唔係喺呢度抄一份。
+        livingMinions().forEach(殺死雜兵);
         return encounterStage;
       },
       關: () => ({ 關: encounterStage, boss開咗: bossActive,
         霧門: bossGateBodies.length, 霧門畫: bossGates.filter((m) => m.visible).length }),
+      // Boss 而家係咩狀態。**佢第二階段從來冇喺真遊戲入面量過**：`chooseBossMove`
+      // 個純函數有 gate，但「打到佢半血、佢真係換咗檔」呢件事冇。
+      boss: () => ({ hp: boss.hp, 階段: boss.phase, 狀態: boss.state, 招: boss.move,
+        距離: +bossRoot.position.distanceTo(playerRoot.position).toFixed(1),
+        開咗: bossActive, 出手數: boss出手, 落點數: boss落點,
+        撲擊數: boss撲擊, 打中數: boss打中, 打出傷害: boss打出傷害,
+        間隔: boss間隔.slice() }),
       zoom: () => camZoom,
       zoomBy: (f: number) => { zoomBy(f); return camZoom; },
       // 由 A 追去 B，行一次真物理，唔畫任何嘢。
@@ -2473,8 +2503,23 @@ export default function GameClient() {
               打出傷害 += damage;
               if (attackTarget === "boss") {
                 boss.hp = clamp(boss.hp - damage, 0, 100);
-                boss.state = boss.hp <= 0 ? "dead" : "hit";
-                boss.stateUntil = now + 0.34;
+                // 霸體：一下打擊唔會取消緊出緊嘅招。
+                //
+                // 本來每一下命中都無條件將 `state` 揼做 `"hit"`，包括佢
+                // 前搖到一半嗰陣——**招就咁冇咗**。實測射手打到 boss 得返
+                // 17 血：**出手 1 次、到落點 0 次**。即係佢由六十米外行過
+                // 嚟、換咗第二階段、跌到剩返一成幾血，**由頭到尾一拳都未
+                // 打出過**。個預警圈變咗裝飾——正路係「睇住個圈行開」，
+                // 唔係「打得夠快就唔使閃」。
+                //
+                // 死亡照樣即刻蓋過所有嘢。
+                if (boss.hp <= 0) {
+                  boss.state = "dead";
+                  boss.stateUntil = now + 0.34;
+                } else if (boss.state !== "windup") {
+                  boss.state = "hit";
+                  boss.stateUntil = now + 0.34;
+                }
                 boss.knockbackUntil = now + 0.16;
                 bossBody.velocity.x = Math.sin(player.rotation) * 2.2;
                 bossBody.velocity.z = Math.cos(player.rotation) * 2.2;
@@ -2516,27 +2561,7 @@ export default function GameClient() {
                   currentBossAction = playAction(bossActions, "HitReact", currentBossAction, true, 1.1);
                 }
               } else if (attackTarget.hp <= 0) {
-                attackTarget.active = false;
-                attackTarget.healthBar.visible = false;
-                attackTarget.body.velocity.setZero();
-                attackTarget.body.collisionResponse = false;
-                if (attackTarget.bodyAdded) {
-                  physicsWorld.removeBody(attackTarget.body);
-                  attackTarget.bodyAdded = false;
-                }
-                attackTarget.currentAction = playAction(
-                  attackTarget.actions,
-                  "Death_A",
-                  attackTarget.currentAction,
-                  true,
-                  1.08,
-                );
-                gameAudio.play(
-                  "enemyDeath",
-                  attackTarget.root.position.x,
-                  attackTarget.root.position.z,
-                );
-                advanceEncounter();
+                殺死雜兵(attackTarget);
               } else {
                 attackTarget.currentAction = playAction(
                   attackTarget.actions,
@@ -2822,6 +2847,29 @@ export default function GameClient() {
           gameAudio.play("bossSlam", bossRoot.position.x, bossRoot.position.z);
         }
 
+        // 呢一步揀嘅係「而家出唔出手、出咩」，而佢**要喺距離判斷之前算**。
+        //
+        // 本來個出手分支寫喺 `else if (bossDistance > BOSS_REACH) { 跑 }` 之後，
+        // 即係**只有距離 ≤ 3.15 先入到去**；而 `chooseBossMove` 要 `distance >
+        // LEAP_MIN_RANGE`（6.5）先揀撲擊。3.15 < 6.5——**撲擊喺遊戲入面永遠揀
+        // 唔到**。個純函數自己有 gate，而佢綠，因為條 gate 直接餵一啲遊戲從來
+        // 唔會餵嘅距離入去（同 ADR-179 個 `locked` 一模一樣個形）。
+        //
+        // 後果唔止「少咗個動畫」：第二階段嘅招牌招式係佢個埋身手段，冇咗佢，
+        // boss 由六十米外行過嚟嘅一路上完全冇還手之力——實測射手可以喺佢出
+        // 第一下手之前就打到佢半血以下。
+        const 揀到嘅招 = (boss.state === "idle" || boss.state === "run")
+          && bossActive && boss.hp > 0 && now >= boss.nextAttack
+          ? (() => {
+              const 招 = chooseBossMove(
+                boss.phase as 1 | 2, bossDistance, Math.random(),
+                makeLineOfSight(staticBoxes)(bossRoot.position, playerRoot.position),
+              );
+              // 普攻仍然要行埋去先打得到；撲擊本身就係用嚟過嗰段距離。
+              return 招 === "leap" || bossDistance <= BOSS_REACH ? 招 : null;
+            })()
+          : null;
+
         if (boss.state === "dead") {
           telegraph.visible = false;
         } else if (boss.state === "hit") {
@@ -2847,6 +2895,7 @@ export default function GameClient() {
             bossRoot.position.y = Math.sin(pulse * Math.PI) * 1.9;
           }
           if (!boss.impactDone && now >= boss.impactAt) {
+            boss落點 += 1;
             boss.impactDone = true;
             telegraph.visible = false;
             bossRoot.position.y = 0;
@@ -2867,7 +2916,9 @@ export default function GameClient() {
               canLand(出手點, playerRoot.position, hitRadius, makeLineOfSight(staticBoxes))
               && now > player.invincibleUntil
             ) {
-              player.hp = clamp(player.hp - (leaping ? 30 : boss.phase === 2 ? 34 : 25), 0, 100);
+              const boss傷 = leaping ? 30 : boss.phase === 2 ? 34 : 25;
+              boss打中 += 1; boss打出傷害 += boss傷;
+              player.hp = clamp(player.hp - boss傷, 0, 100);
               player.knockbackUntil = now + (boss.phase === 2 ? 0.32 : 0.24);
               player.knockbackDirection
                 .copy(toBoss)
@@ -2893,6 +2944,31 @@ export default function GameClient() {
           }
         } else if (boss.state === "recover") {
           if (now >= boss.stateUntil) boss.state = "idle";
+        } else if (揀到嘅招 !== null) {
+          // 出手。**呢個分支要行喺「行過去」之前**：撲擊本身就係用嚟過嗰段
+          // 距離嘅，擺喺後面就等於「行到埋身先准撲」——即係永遠撲唔到。
+          boss.move = 揀到嘅招;
+          boss.state = "windup";
+          boss.impactDone = false;
+          boss出手 += 1;
+          if (boss.move === "leap") boss撲擊 += 1;
+          if (boss上次出手 > 0) boss間隔.push(+(motionClock - boss上次出手).toFixed(2));
+          boss上次出手 = motionClock;
+          if (boss.move === "leap") {
+            // 撲擊：起跳嗰刻鎖死落點，然後成段前搖都向住嗰點飛。預警圈畫喺
+            // **落點**唔係畫喺 boss 度——玩家要讀嘅係「佢會落邊」，唔係「佢
+            // 而家企邊」。呢個先係同 Punch 唔同嘅玩法。
+            boss.leapTarget.copy(playerRoot.position);
+            boss.impactAt = now + 0.78;
+            boss.stateUntil = boss.impactAt + 0.2;
+            boss.nextAttack = now + 2.4;
+            currentBossAction = playAction(bossActions, "Jump", currentBossAction, true, 1.05);
+          } else {
+            boss.impactAt = now + (boss.phase === 2 ? 0.52 : 0.72);
+            boss.stateUntil = boss.impactAt + 0.15;
+            boss.nextAttack = now + (boss.phase === 2 ? 1.55 : 2.2);
+            currentBossAction = playAction(bossActions, "Punch", currentBossAction, true, boss.phase === 2 ? 1.3 : 0.95);
+          }
         } else if (bossDistance > BOSS_REACH) {
           boss.state = "run";
           // Boss 同雜兵行同一條規則。**佢本來冇迴避**，而聖所而家有四條實心
@@ -2915,28 +2991,6 @@ export default function GameClient() {
           boss.速 = 步.speed;
           行一步(bossBody, bossRadius, 步.dx, 步.dz);
           currentBossAction = playAction(bossActions, "Run", currentBossAction, false, boss.phase === 2 ? 2.1 : 1.82);
-        } else if (now >= boss.nextAttack) {
-          boss.move = chooseBossMove(
-            boss.phase as 1 | 2, bossDistance, Math.random(),
-            makeLineOfSight(staticBoxes)(bossRoot.position, playerRoot.position),
-          );
-          boss.state = "windup";
-          boss.impactDone = false;
-          if (boss.move === "leap") {
-            // 撲擊：起跳嗰刻鎖死落點，然後成段前搖都向住嗰點飛。
-            // 預警圈畫喺**落點**唔係畫喺 boss 度——玩家要讀嘅係「佢會落
-            // 邊」，唔係「佢而家企邊」。呢個先係同 Punch 唔同嘅玩法。
-            boss.leapTarget.copy(playerRoot.position);
-            boss.impactAt = now + 0.78;
-            boss.stateUntil = boss.impactAt + 0.2;
-            boss.nextAttack = now + 2.4;
-            currentBossAction = playAction(bossActions, "Jump", currentBossAction, true, 1.05);
-          } else {
-            boss.impactAt = now + (boss.phase === 2 ? 0.52 : 0.72);
-            boss.stateUntil = boss.impactAt + 0.15;
-            boss.nextAttack = now + (boss.phase === 2 ? 1.55 : 2.2);
-            currentBossAction = playAction(bossActions, "Punch", currentBossAction, true, boss.phase === 2 ? 1.3 : 0.95);
-          }
         } else {
           boss.state = "idle";
           currentBossAction = playAction(bossActions, "Idle", currentBossAction);

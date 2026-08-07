@@ -1,6 +1,7 @@
 // 郁動嘅重量：兩條純函數，喺 Node 度直接量，唔使開瀏覽器。
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { chooseBossMove, BOSS_REACH, LEAP_MIN_RANGE, LEAP_MAX_RANGE } from '../src/boss.ts';
 import { TURN_RATE, TURN_RATE_ENEMY, TURN_RATE_BOSS, ACCEL, DECEL, turnToward, approachSpeed, snapShadowTarget, gaitStep } from '../src/motion.ts';
 
 test('轉身有速度上限，而且行最短弧', () => {
@@ -147,4 +148,28 @@ test('加速度要係人嘅尺度，唔係火箭', () => {
     // 人由企定去到慢跑大約 3–5 米／秒²，衝刺起步誇張啲十幾。30 已經好鬆。
     assert.ok(ACCEL > 2 && ACCEL <= 30, `ACCEL = ${ACCEL} 米／秒²（${(ACCEL / 9.81).toFixed(1)} g）`);
     assert.ok(DECEL > ACCEL && DECEL <= 40, `DECEL = ${DECEL}`);
+});
+
+test('撲擊有一個真嘅距離窗口，而且遊戲餵得到佢', () => {
+    // `chooseBossMove` 本來寫住 `phase === 2 && distance > LEAP_MIN_RANGE`，而
+    // 個 caller 只有 `distance <= BOSS_REACH`（3.15）先入到去——3.15 < 6.5，
+    // **呢個分支喺遊戲入面永遠揀唔到**。條純函數 gate 綠，因為佢直接餵咗一啲
+    // 遊戲從來唔會餵嘅距離。所以呢度要問埋：個窗口同 caller 對唔對得上。
+    assert.ok(LEAP_MIN_RANGE > BOSS_REACH,
+        '撲擊嘅最短距離要遠過埋身距離，否則佢淨係一個貴啲嘅拳');
+    assert.ok(LEAP_MAX_RANGE > LEAP_MIN_RANGE + 2,
+        `窗口得 ${(LEAP_MAX_RANGE - LEAP_MIN_RANGE).toFixed(1)} 米，boss 行過嗰段路太快`);
+    // 窗口入面揀得到，窗口外面揀唔到。
+    assert.equal(chooseBossMove(2, LEAP_MIN_RANGE + 0.1, 0.1), 'leap');
+    assert.equal(chooseBossMove(2, LEAP_MAX_RANGE - 0.1, 0.1), 'leap');
+    assert.equal(chooseBossMove(2, LEAP_MIN_RANGE - 0.1, 0.1), 'punch');
+    assert.equal(chooseBossMove(2, LEAP_MAX_RANGE + 5, 0.1), 'punch', '由太遠都撲，就會飛得癲');
+    // 兩個階段都撲得到——實測 boss 換第二階段嗰刻距離已經係 6.0 米（細過
+    // 6.5），即係「第二階段先有嘅招」永遠等唔到自己嘅距離。
+    assert.equal(chooseBossMove(1, LEAP_MIN_RANGE + 0.5, 0.1), 'leap');
+    // 但第二階段撲得密好多。
+    assert.equal(chooseBossMove(1, LEAP_MIN_RANGE + 0.5, 0.45), 'punch');
+    assert.equal(chooseBossMove(2, LEAP_MIN_RANGE + 0.5, 0.45), 'leap');
+    // 見唔到落點就唔撲（ADR-174）。
+    assert.equal(chooseBossMove(2, LEAP_MIN_RANGE + 0.5, 0.1, false), 'punch');
 });
