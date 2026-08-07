@@ -1578,6 +1578,62 @@ for (const [名, 推幾次, 想要] of [['第二波', 1, 1], ['boss 場', 3, 3]]
         { 最短, 全部: b && b.間隔.slice(0, 6) });
 }
 
+// ---------- 畫面抖動 ----------
+//
+// Penny 報「畫面一直抖動」。ADR-177 果次我用截圖查，喺一秒三幀嘅環境重現唔
+// 到——420 毫秒抽一張相去追一個逐幀嘅現象，注定睇唔到。今次用逐幀嘅尺。
+//
+// **企定出戰鬥其實係穩定嘅**（鏡頭逐幀郁 0.012 米中位）。而我第一個嚇人嘅
+// 數字「`allowed` 一幀跳 8.2 米」係**我支尺自己嘅 bug**：reset 冇清上一幀嘅
+// 值，第一幀攞 8.4 同 0 比。兩個真嘢係：
+{
+    // 1. **renderer 同 composer 用緊兩個唔同嘅像素比**（1.8 對 1.55）。
+    //    dpr ≤ 1.55 兩個夾出嚟一樣，所以**喺預設嗰版必然睇唔到**——條 gate
+    //    一定要喺 dpr > 1.55 度跑，否則佢會喺缺陷仲喺度嗰陣照樣綠（實測：
+    //    dsf 1 讀到 1 對 1，dsf 2 讀到 1.8 對 1.55）。高 dpr 之下成幅畫喺
+    //    1.55 度算完再貼落 1.8 嘅畫布，即係**逐幀一次非整數重採樣**，而個鏡頭
+    //    永遠跟住玩家郁——邊緣就會逐幀爬。電話同 retina 先中招。
+    const 高清 = await browser.newContext({
+        viewport: { width: 640, height: 380 }, deviceScaleFactor: 3 });
+    const pA = await 高清.newPage();
+    await pA.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
+    await pA.waitForTimeout(1500);
+    await 入場(pA, 'OATHBOUND', 3500);
+    const 比 = await pA.evaluate(() => window.__ER2.像素比());
+    await 高清.close();
+    check('高 dpr 之下，算圖同出圖用同一個像素比（唔會逐幀重採樣）',
+        比 != null && 比.dpr > 1.55 && 比.renderer === 比.composer,
+        比);
+
+    // 2. **震動係加落 `camera.position`，而嗰個位置就係 lerp 自己個狀態**——
+    //    一下震會寫咗入狀態，之後每幀只散走 lerp 嗰個比例，下一下震又加多
+    //    一層。喺一個目標完全唔郁嘅場景度連續震：修之前平滑狀態**永遠收唔
+    //    到**（喺 0.03–0.16 米之間遊走），修完收斂到 0.004。打交期間震動一直
+    //    喺度出，即係鏡頭有個持續嘅擺動。
+    const pB = await browser.newPage({ viewport: { width: 640, height: 380 } });
+    await pB.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
+    await pB.waitForTimeout(1500);
+    await 入場(pB);
+    // 推去 boss 場：雜兵死晒，而 boss 喺六十米外行緊——呢十幾秒冇人打得到
+    // 玩家，即係鏡頭目標唔會郁，量到嘅漂移淨係得震動一個成因。
+    for (let i = 0; i < 3; i += 1) {
+        await pB.evaluate(() => window.__ER2.推關());
+        await pB.waitForTimeout(700);
+    }
+    await pB.evaluate(() => window.__ER2.量鏡開());
+    for (let i = 0; i < 24; i += 1) {
+        await pB.evaluate(() => window.__ER2.震一下(0.24));
+        await pB.waitForTimeout(500);
+    }
+    const 鏡 = await pB.evaluate(() => window.__ER2.鏡());
+    await pB.close();
+    const 目標定住 = 鏡 != null && new Set(鏡.allowed序列).size <= 2;
+    check('震完鏡頭收得返自己個位（震動唔可以寫入平滑狀態）',
+        目標定住 && 鏡.離目標尾中位 !== null && 鏡.離目標尾中位 < 0.02,
+        鏡 && { 離目標尾中位: 鏡.離目標尾中位, 尾段: 鏡.離目標序列.slice(-6),
+                目標定住, allowed: 鏡.allowed序列.slice(-3) });
+}
+
 check('由頭到尾零 browser error', errors.length === 0, errors.slice(0, 3));
 
 await browser.close();

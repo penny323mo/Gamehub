@@ -4467,6 +4467,51 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-185 — Elden Ring II: Penny says the screen shakes, and the first number I produced was my own ruler's
+
+Date: 2026-08-06. Status: accepted.
+
+ADR-177 investigated the same report with screenshots and failed, for a reason worth restating: a
+per-frame artefact cannot be sampled at 2.4 Hz. This round used a **per-frame in-game ruler** instead
+— camera position, occlusion distance, and the camera's distance from its own smoothing target,
+recorded inside the render loop. That removes the screenshot limitation but not the frame-rate one, so
+I still could not reproduce the shake directly; what it did do was let me find two real defects.
+
+**The first number I got was wrong, and it was mine.** `allowed` — the wall-occlusion camera distance
+— appeared to jump **8.2 m in one frame while the player stood perfectly still**. `量鏡開()` reset the
+sample buffers but not `上幀allowed`, so the first frame compared 8.4 against 0. With the reset fixed:
+standing still, `allowed` moves **0.021 m** and the camera **0.012 m** median. The camera is steady.
+I nearly went and "fixed" a stable system. Every ruler needs its own first-sample guard.
+
+Two defects it did find:
+
+- **The renderer and the composer present at different pixel ratios** — `min(dpr, 1.8)` against
+  `min(dpr, 1.55)`. Below 1.55 they clamp to the same value, which is why **this defect is invisible on
+  the test machine and on ordinary desktop monitors**, and why a gate on the default page would be
+  green with it still present: measured, dsf 1 reads 1 against 1, dsf 2 reads **1.8 against 1.55**. At
+  phone or retina density every frame is rendered at 1.55 and blitted into a 1.8 canvas — a non-integer
+  resample, every frame, under a camera that never stops moving. Edges crawl. The gate runs at
+  `deviceScaleFactor: 3` for exactly this reason.
+- **The shake was written into the smoothing state.** `camera.position` *is* the lerp's state, and the
+  shake was added to it after the lerp, so each shake sample persisted and bled off at only the lerp
+  rate while the next one piled on. Isolated properly — pushed to the boss stage so the minions are
+  dead and the boss is still sixty metres away, giving a stationary camera target — repeated shakes
+  left the state **wandering between 0.03 and 0.16 m and never settling**; with the shake as a
+  render-time offset it converges to **0.004**. Combat fires shakes continuously, and ADR-184 has just
+  made the boss land attacks it never used to, so this wobble is now permanent during a fight.
+
+Isolation mattered more than usual here. My first two attempts at the shake experiment were
+contaminated — minions kept hitting the player, the knockback moved the camera target a full metre, and
+I read the smoothing lag as accumulation. The measurement only became decisive once the scene had
+nothing in it that could move the target.
+
+**What I have not established** is that either defect is what Penny is seeing. The first fits the
+symptom well and only appears on a high-density display; the second is real but small. Both are fixed
+and gated; if it still shakes, the useful next facts are the device and whether it shakes in the menu
+as well as in play.
+
+Suite: 82 → **84** browser checks.
+
 ## ADR-184 — Elden Ring II: the boss crossed sixty metres, changed phase, and dropped to one bar without throwing a single punch
 
 Date: 2026-08-06. Status: accepted.

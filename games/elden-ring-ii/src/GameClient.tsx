@@ -249,6 +249,7 @@ export default function GameClient() {
     let worldReady = false;
     let cameraYaw = 0;
     let cameraShake = 0;
+    const camSmooth = new THREE.Vector3();
     let cameraDragging = false;
     // 縮放。抄深淵之橋嗰條線（`view.zoomBy`）：夾喺 0.7–1.7，滾輪同雙指都用得。
     // 拉遠係「我睇下周圍有咩」，拉近係「我而家要打得準」——一個第三身遊戲冇呢
@@ -329,13 +330,23 @@ export default function GameClient() {
     // `near` 拉到 0.6 一件嘢都唔會被切走，而深度精度直接好六倍。
     const camera = new THREE.PerspectiveCamera(48, 1, 0.6, 180);
     camera.position.set(0, 5.2, 11);
+    camSmooth.copy(camera.position);
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: false,
       powerPreference: "high-performance",
     });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.8));
+    // 一個像素比，兩邊用同一個。
+    //
+    // 本來 renderer 用 `min(dpr, 1.8)`、composer 用 `min(dpr, 1.55)`。dpr ≤ 1.55
+    // （呢部測試機係 1，普通桌面螢幕都係 1）兩個夾出嚟一樣，所以**呢個缺陷喺
+    // 呢度必然睇唔到**。但喺手機或者 retina（dpr 2–3）就變成：成幅畫喺 1.55
+    // 度算完，再貼落一個 1.8 嘅畫布——**逐幀做一次 1.161 倍嘅非整數重採樣**。
+    // 加上呢隻遊戲個鏡頭永遠跟住玩家郁，個取樣格就逐幀喺幾何邊緣上面滑，
+    // 邊緣會爬會閃。喺電話上面睇落就係「畫面一直抖」。
+    const PIXEL_RATIO = Math.min(window.devicePixelRatio, 1.55);
+    renderer.setPixelRatio(PIXEL_RATIO);
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -347,7 +358,7 @@ export default function GameClient() {
     mount.appendChild(renderer.domElement);
 
     const composer = new EffectComposer(renderer);
-    composer.setPixelRatio(Math.min(window.devicePixelRatio, 1.55));
+    composer.setPixelRatio(PIXEL_RATIO);
     const renderPass = new RenderPass(scene, camera);
     const bloomPass = new UnrealBloomPass(
       new THREE.Vector2(mount.clientWidth, mount.clientHeight),
@@ -796,6 +807,19 @@ export default function GameClient() {
     // 全場得一組碎屑嗰陣量到：0.55 秒未散完又有第二下打擊，就會由頭嗰下搶
     // 返去——實測 29%。而家留住呢兩個數，係為咗證明個池真係夠用。
     let 碎屑次數 = 0, 碎屑被搶 = 0;
+    // 鏡頭抖唔抖。逐幀量，唔靠截圖——ADR-177 果次用 420 毫秒抽一張相去追一個
+    // 逐幀嘅現象，2.4 赫茲對住 60 赫茲，注定睇唔到。
+    let 上幀鏡 = { x: 0, y: 0, z: 0 }, 有上幀鏡 = false;
+    let 鏡最大跳 = 0, 鏡跳樣本: number[] = [];
+    // 鏡頭同佢自己個目標差幾遠。震動係**加落 `camera.position`**，而嗰個位置
+    // 就係平滑嘅狀態本身——即係一下震會留低一個偏移，之後每幀只散走 lerp
+    // 嗰個比例。連續中招就會變成一個隨機遊走。
+    let 離目標最大 = 0; const 離目標樣本: number[] = [];
+    const allowed樣本: number[] = [];
+    const 有目標樣本: number[] = [];
+    const 上限樣本: number[] = [];
+    let 上幀allowed = 0, 有上幀allowed = false, allowed最大跳 = 0;
+    let 量鏡 = false;
     // Boss 嘅出手帳。分階段睇：第二階段應該真係打得快啲、痛啲。
     let boss出手 = 0, boss落點 = 0, boss撲擊 = 0, boss打中 = 0, boss打出傷害 = 0;
     let boss上次出手 = 0;
@@ -2152,6 +2176,27 @@ export default function GameClient() {
         開咗: bossActive, 出手數: boss出手, 落點數: boss落點,
         撲擊數: boss撲擊, 打中數: boss打中, 打出傷害: boss打出傷害,
         間隔: boss間隔.slice() }),
+      // 鏡頭抖動：`allowed`（遮擋算出嚟嘅距離）同鏡頭實際位置，逐幀嘅跳幅。
+      鏡: () => {
+        const 排 = 鏡跳樣本.slice().sort((a, b) => a - b);
+        return {
+          allowed跳: +allowed最大跳.toFixed(3), 位跳: +鏡最大跳.toFixed(3),
+          中位: 排.length ? 排[排.length >> 1] : null,
+          九成: 排.length ? 排[Math.floor(排.length * 0.9)] : null,
+          樣本: 排.length, 震: +cameraShake.toFixed(3), allowed序列: allowed樣本.slice(-16),
+          有目標序列: 有目標樣本.slice(-16), 上限序列: 上限樣本.slice(-16),
+          離目標最大: +離目標最大.toFixed(3), 離目標序列: 離目標樣本.slice(-16),
+          離目標尾中位: (() => { const t = 離目標樣本.slice(-8).sort((a, b) => a - b);
+            return t.length ? t[t.length >> 1] : null; })(),
+        };
+      },
+      // 直接叫遊戲自己震一下，唔使真係中招（中招會擊退玩家，跟住鏡頭目標
+      // 自己郁咗，兩件事就分唔開）。
+      震一下: (v: number) => { cameraShake = v; },
+      量鏡開: () => { 量鏡 = true; 離目標最大 = 0; 離目標樣本.length = 0; allowed樣本.length = 0; 有目標樣本.length = 0; 上限樣本.length = 0; 有上幀allowed = false; 鏡最大跳 = 0; allowed最大跳 = 0; 鏡跳樣本.length = 0; 有上幀鏡 = false; },
+      // 兩條算完之後畫出嚟嘅解析度。唔夾就會逐幀重採樣。
+      像素比: () => ({ dpr: window.devicePixelRatio,
+        renderer: renderer.getPixelRatio(), composer: (composer as unknown as { _pixelRatio: number })._pixelRatio }),
       zoom: () => camZoom,
       zoomBy: (f: number) => { zoomBy(f); return camZoom; },
       // 由 A 追去 B，行一次真物理，唔畫任何嘢。
@@ -3132,7 +3177,46 @@ export default function GameClient() {
         2.2 + (allowed / cameraDistance) * 2.6 + 逼近 * 3.4,
         playerRoot.position.z + camDir.z * allowed,
       );
-      camera.position.lerp(targetCamera, 1 - Math.pow(0.001, delta));
+      if (量鏡) {
+        // 兩把尺分開：`allowed` 係「遮擋計算」自己跳幾多，鏡頭位置係最後畫
+        // 出嚟嗰樣（已經行過 lerp 平滑）。前者跳而後者唔跳，就係平滑食咗；
+        // 兩個都跳，就係源頭喺遮擋度。
+        // 第一幀冇「上一幀」可以比——唔 reset 呢個旗就會攞 8.4 同 0 比，讀到
+        // 一個 8.4 米嘅假跳幅。我第一次量就係咁，差啲順住個假數去修錯嘢。
+        if (有上幀allowed) allowed最大跳 = Math.max(allowed最大跳, Math.abs(allowed - 上幀allowed));
+        上幀allowed = allowed; 有上幀allowed = true;
+        allowed樣本.push(+allowed.toFixed(2));
+        有目標樣本.push(cameraTarget ? 1 : 0);
+        上限樣本.push(+cameraDistance.toFixed(2));
+        if (allowed樣本.length > 60) { allowed樣本.shift(); 有目標樣本.shift(); 上限樣本.shift(); }
+        if (有上幀鏡) {
+          const d = Math.hypot(camera.position.x - 上幀鏡.x,
+            camera.position.y - 上幀鏡.y, camera.position.z - 上幀鏡.z);
+          鏡最大跳 = Math.max(鏡最大跳, d);
+          鏡跳樣本.push(+d.toFixed(3));
+          if (鏡跳樣本.length > 400) 鏡跳樣本.shift();
+        }
+        上幀鏡 = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
+        有上幀鏡 = true;
+        const 離 = camSmooth.distanceTo(targetCamera);
+        離目標最大 = Math.max(離目標最大, 離);
+        離目標樣本.push(+離.toFixed(3));
+        if (離目標樣本.length > 400) 離目標樣本.shift();
+      }
+      // 平滑嘅狀態同畫出嚟嘅位置要分開。
+      //
+      // 本來震動係**加落 `camera.position`**，而嗰個位置就係 lerp 自己個狀態
+      // ——即係一下震會寫咗入狀態，之後每幀只散走 lerp 嗰個比例（60 fps 大約
+      // 一成一），而下一下震又加多一層。連續中招就變成一個**隨機遊走**。
+      //
+      // 實測企定捱打：鏡頭離自己個目標由 0.03 米一路爬到 **1.35 米**，而嗰陣
+      // `cameraShake` 已經讀到 0——個偏移活得耐過個震好多。企定唔打交嗰陣
+      // 同一把尺讀 0.04 → 0.007，即係平滑本身冇問題，問題係震動污染咗佢。
+      //
+      // 而家 `camSmooth` 係狀態，震動係一個**每幀由零重新算**嘅偏移，加喺
+      // 寫出去嗰一刻。散得走，因為佢從來冇入過狀態。
+      camSmooth.lerp(targetCamera, 1 - Math.pow(0.001, delta));
+      camera.position.copy(camSmooth);
       if (cameraShake > 0) {
         cameraShake = Math.max(0, cameraShake - delta * 1.8);
         camera.position.x += (Math.random() - 0.5) * cameraShake;
