@@ -47,6 +47,23 @@ function check(name, ok, detail) {
     else { fail++; failed.push(name); console.log(`FAIL  ${name}`, JSON.stringify(detail)); }
 }
 
+// 入場：撳職業掣，等入場掣 enable 咗，撳入場，等場景載好。
+//
+// **唔用 Playwright 嘅 `click()`。** 呢個檔嘅手機版塊一早記低咗原因：撳完之後
+// Playwright 會一直等一個 scheduled navigation，等到 30 秒 timeout。頁數一多
+// （而家一套跑落嚟開到第八版）就開始中招。同一段嘢本來喺六個地方各抄一份，
+// 六份一齊中——所以而家得一份。
+async function 入場(頁, 職業 = 'OATHBOUND', 等 = 4500) {
+    const 撳 = (文) => 頁.evaluate((t) => {
+        const b = [...document.querySelectorAll('button')].find((el) => (el.innerText || '').includes(t));
+        if (b) b.click();
+    }, 文);
+    await 撳(職業);
+    await 頁.waitForSelector('.enter-button:not([disabled])', { timeout: 60000 });
+    await 撳('ENTER THE VEIL');
+    await 頁.waitForTimeout(等);
+}
+
 const server = http.createServer((req, res) => {
     const u = decodeURIComponent(req.url.split('?')[0]);
     const f = path.join(ROOT, u);
@@ -246,9 +263,7 @@ const 尺寸 = [
 
 await page.setViewportSize({ width: 1280, height: 800 });
 await page.waitForTimeout(400);
-await page.getByText('OATHBOUND', { exact: false }).first().click();
-await page.getByText('ENTER THE VEIL').first().click();
-await page.waitForTimeout(4000);
+await 入場(page, 'OATHBOUND', 4000);
 
 check('入到遊戲，HUD 出到職業同目標', /OATHBOUND/.test(await page.evaluate(() => document.body.innerText)));
 
@@ -941,9 +956,7 @@ for (const [w, h, 名] of 尺寸) {
     const p6 = await browser.newPage({ viewport: { width: 640, height: 380 } });
     await p6.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
     await p6.waitForTimeout(1500);
-    await p6.getByText('OATHBOUND', { exact: false }).first().click();
-    await p6.getByText('ENTER THE VEIL').first().click();
-    await p6.waitForTimeout(4500);
+    await 入場(p6);
     // 完全唔郁。雜兵會自己行埋嚟（實測 1.3 郁動秒之內兩隻都埋到身出到手），
     // 所以「行過去逼佢哋開打」反而係製造距離。
     const a = await p6.evaluate(() => window.__ER2.clock());
@@ -1125,9 +1138,7 @@ await page.goto('about:blank');
         const p2 = await browser.newPage({ viewport: { width: 560, height: 340 } });
         await p2.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
         await p2.waitForTimeout(1500);
-        await p2.getByText('OATHBOUND', { exact: false }).first().click();
-        await p2.getByText('ENTER THE VEIL').first().click();
-        await p2.waitForTimeout(4500);
+        await 入場(p2);
         const 血 = () => p2.evaluate(() => {
             const w = document.querySelector('.bar.health i');
             return w ? parseFloat(w.style.width) : null;
@@ -1177,9 +1188,7 @@ await page.goto('about:blank');
     const p4 = await browser.newPage({ viewport: { width: 640, height: 380 } });
     await p4.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
     await p4.waitForTimeout(1500);
-    await p4.getByText('OATHBOUND', { exact: false }).first().click();
-    await p4.getByText('ENTER THE VEIL').first().click();
-    await p4.waitForTimeout(4500);
+    await 入場(p4);
     await p4.evaluate(() => window.__ER2.重置動作量度());
     // 先直線跑一段長嘅。**條斜坡而家係真嘅**（0.55 秒到全速），而呢個環境
     // 一秒三幀——1.3 秒嘅撳掣得四幀，根本未加速完，最高速讀到 4.3 對 4.4 就
@@ -1262,9 +1271,7 @@ await page.goto('about:blank');
         p2.on('console', (m) => { if (m.type() === 'error') e2.push('console: ' + m.text().slice(0, 90)); });
         await p2.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
         await p2.waitForTimeout(1500);
-        await p2.getByText(職, { exact: false }).first().click();
-        await p2.getByText('ENTER THE VEIL').first().click();
-        await p2.waitForTimeout(4500);
+        await 入場(p2, 職);
         const sw = await p2.evaluate(() => window.__ER2 && window.__ER2.swing());
         const 前 = await p2.evaluate(() =>
             +document.querySelector('[data-enemies-remaining]').dataset.enemiesRemaining);
@@ -1321,9 +1328,7 @@ await page.goto('about:blank');
     const p5 = await browser.newPage({ viewport: { width: 640, height: 380 } });
     await p5.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
     await p5.waitForTimeout(1500);
-    await p5.getByText('WAYFARER', { exact: false }).first().click();
-    await p5.getByText('ENTER THE VEIL').first().click();
-    await p5.waitForTimeout(4500);
+    await 入場(p5, 'WAYFARER');
     await p5.keyboard.press('KeyQ');          // 解鎖
     await p5.waitForTimeout(600);
     const 鎖 = await p5.evaluate(() => document.querySelector('[data-target-locked]')?.dataset.targetLocked);
@@ -1353,9 +1358,7 @@ await page.goto('about:blank');
     const p7 = await browser.newPage({ viewport: { width: 640, height: 380 } });
     await p7.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
     await p7.waitForTimeout(1500);
-    await p7.getByText('OATHBOUND', { exact: false }).first().click();
-    await p7.getByText('ENTER THE VEIL').first().click();
-    await p7.waitForTimeout(4500);
+    await 入場(p7);
     // 企喺度斬：自己斬中同時捱雜兵嘅拳，兩邊都出碎屑——重疊就係咁嚟。
     const 樣本 = [];
     for (let i = 0; i < 16; i += 1) {
@@ -1399,6 +1402,54 @@ await page.goto('about:blank');
     check('碎屑跌落嚟嘅係真重力（唔係半速慢動作）',
         重力 !== null && 重力 > 9.0 && 重力 < 10.6,
         { 量到: 重力 === null ? null : +重力.toFixed(2), 真值: 9.81 });
+}
+
+// ---------- 死一次唔應該將成條路清零 ----------
+//
+// 實測未修之前：清咗第一波、死喺第二波、撳 R——**返返去 wave-1**。你已經行
+// 完嗰段要由頭再行過，而個場入面明明有 checkpoint（賜福）。Soulslike 嘅慣例
+// 係「敵人重置、世界進度唔重置」。
+//
+// 用 `__ER2.推關()` 推去指定嗰關：佢**唔重寫任何嘢**，叫嘅就係遊戲自己嗰兩個
+// 轉換函數（`activateWave` / `unlockBossEncounter`），同 `zoomBy` 一樣。冇佢
+// 就到唔到 boss 場——清三波雜兵喺一秒三幀嘅環境要幾分鐘，而「死喺 boss 手上
+// 再重開」正正就係一條從來冇測試行過嘅路。
+for (const [名, 推幾次, 想要] of [['第二波', 1, 1], ['boss 場', 3, 3]]) {
+    const p8 = await browser.newPage({ viewport: { width: 640, height: 380 } });
+    await p8.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
+    await p8.waitForTimeout(1500);
+    await 入場(p8);
+    for (let i = 0; i < 推幾次; i += 1) {
+        await p8.evaluate(() => window.__ER2.推關());
+        await p8.waitForTimeout(700);
+    }
+    const 死前 = await p8.evaluate(() => window.__ER2.關());
+    // 企定捱打到死。
+    let 死咗 = false;
+    for (let i = 0; i < 45 && !死咗; i += 1) {
+        await p8.waitForTimeout(1500);
+        死咗 = await p8.evaluate(() =>
+            document.querySelector('[data-game-status]').dataset.gameStatus !== 'playing');
+    }
+    await p8.keyboard.press('KeyR');
+    await p8.waitForTimeout(3000);
+    const 重開 = await p8.evaluate(() => window.__ER2.關());
+    const 狀態 = await p8.evaluate(() => ({
+        關: document.querySelector('[data-encounter]').dataset.encounter,
+        狀態: document.querySelector('[data-game-status]').dataset.gameStatus,
+    }));
+    await p8.close();
+
+    check(`死喺${名}，重開返嗰一關（唔係由第一波再嚟）`,
+        死咗 && 重開.關 === 想要 && 狀態.狀態 === 'playing',
+        { 死前: 死前.關, 死到: 死咗, 重開: 重開.關, 想要, 狀態 });
+
+    // 霧門畫出嚟同攔唔攔要一致。修呢一輪嗰陣我自己整過呢個缺陷出嚟：重開set
+    // 返 `gateFade = 1`，而下一幀嘅淡出段會將 `visible` 覆蓋返 true——即係喺
+    // boss 場中間憑空淡出一道**望得見但行得穿**嘅牆。
+    check(`死喺${名}重開之後，霧門「畫幾多道」同「攔幾多道」對得上`,
+        重開.霧門 === 重開.霧門畫,
+        { collider: 重開.霧門, 畫: 重開.霧門畫, boss開咗: 重開.boss開咗 });
 }
 
 check('由頭到尾零 browser error', errors.length === 0, errors.slice(0, 3));

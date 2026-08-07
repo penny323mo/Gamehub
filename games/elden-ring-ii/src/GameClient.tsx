@@ -809,7 +809,7 @@ export default function GameClient() {
 
     const playerRoot = new THREE.Group();
     const bossRoot = new THREE.Group();
-    playerRoot.position.set(0, 0, 17);
+    playerRoot.position.set(0, 0, PLAYER_SPAWN_Z);
     bossRoot.position.set(0, 0, BOSS_SPAWN_Z);
     scene.add(playerRoot, bossRoot);
 
@@ -1800,7 +1800,7 @@ export default function GameClient() {
       player.stateUntil = 0;
       player.invincibleUntil = 0;
       player.knockbackUntil = 0;
-      playerRoot.position.set(0, 0, 17);
+      playerRoot.position.set(0, 0, PLAYER_SPAWN_Z);
       playerBody.position.set(0, playerGroundOffset, PLAYER_SPAWN_Z);
       playerBody.velocity.setZero();
       playerBody.angularVelocity.setZero();
@@ -1818,20 +1818,31 @@ export default function GameClient() {
       bossBody.angularVelocity.setZero();
       bossBody.wakeUp();
       bossRoot.visible = true;
-      bossActive = false;
-      encounterStage = 0;
+      // 死一次唔應該將成條路清零。
+      //
+      // 實測未修之前：清咗第一波、死喺第二波、撳 R——**返返去 wave-1**。即係
+      // 你已經行完嗰段要由頭再行一次，而個場入面明明有 checkpoint（賜福）。
+      // Soulslike 嘅慣例係「敵人重置、世界進度唔重置」：boss 回滿血、你死嗰
+      // 嗰波原封不動咁再嚟，但清咗嘅波唔會翻生。
+      const 重開關 = encounterStage;
+      bossActive = 重開關 === 3;
       attackTarget = null;
       runStartedAt = performance.now();
       runRecorded = false;
-      bossGates.forEach((mesh) => { mesh.visible = true; });
-      gateFade = 1;
-      (bossGate.material as THREE.ShaderMaterial).uniforms.opacity.value = 0.82;
+      // 霧門跟返你到咗邊：開咗 boss 場就唔會喺你面前重新關埋。
+      const 要攔 = 重開關 !== 3;
+      bossGates.forEach((mesh) => { mesh.visible = 要攔; });
+      // `gateFade` 要跟返攔唔攔。留返 1 嘅話，下一幀嘅淡出段（`bossActive &&
+      // gateFade > 0`）會由不透明重新淡入一次，而且將 `visible` 覆蓋返 true
+      // ——即係喺 boss 場中間憑空淡出一道你行得穿嘅牆。
+      gateFade = 要攔 ? 1 : 0;
+      (bossGate.material as THREE.ShaderMaterial).uniforms.opacity.value = 要攔 ? 0.82 : 0;
       // 唔用 `if (!bossGateBody)`：嗰個寫法令「開咗 boss 門先死」同「未開就
       // 死」行兩條唔同嘅路，而只有前者會重建個 collider。結果就係一條要
       // 「打到 boss、死、再重開」先觸發到嘅 bug——而條測試點都行唔到嗰度。
       // 一律拆走再重建，兩種死法行同一條路。
       bossGateBodies.forEach(removeStaticBox);
-      bossGateBodies = makeFogGateBodies();
+      bossGateBodies = 要攔 ? makeFogGateBodies() : [];
       minions.forEach((minion) => {
         minion.mixer.stopAllAction();
         minion.currentAction = "";
@@ -1852,16 +1863,23 @@ export default function GameClient() {
       bloodLight.intensity = 22;
       currentPlayerAction = playAction(playerActions, "Idle_Weapon", currentPlayerAction);
       currentBossAction = playAction(bossActions, "Idle", currentBossAction);
-      gameAudio.setEncounter("approach");
-      activateWave(0);
+      // 死嗰陣你企緊嘅嗰一關，原封不動咁再嚟一次。`activateWave` 自己會將
+      // `encounterStage` 設返做同一個數，所以呢度唔使再寫多一次。
+      if (重開關 === 3) {
+        gameAudio.setEncounter("boss");
+        boss.nextAttack = motionClock + 1.4;
+      } else {
+        gameAudio.setEncounter("approach");
+        activateWave(重開關);
+      }
       setHud({
         ...INITIAL_HUD,
         status: "playing",
         loading: 100,
         locked: true,
-        encounter: "approach",
-        enemiesRemaining: 2,
-        bossActive: false,
+        encounter: 重開關 === 3 ? "boss" : "approach",
+        enemiesRemaining: 重開關 === 3 ? 0 : livingMinions().length,
+        bossActive: 重開關 === 3,
       });
       renderer.domElement.focus();
     };
@@ -2093,6 +2111,17 @@ export default function GameClient() {
           原點: { x: +b.points.position.x.toFixed(2), y: +b.points.position.y.toFixed(2),
                   z: +b.points.position.z.toFixed(2) }, 粒 };
       },
+      // 推去下一關。**唔重寫任何嘢**：叫嘅就係遊戲自己嗰兩個轉換函數，同
+      // `zoomBy` 一樣。冇佢就到唔到 boss 場——清三波雜兵喺一秒三幀嘅環境要
+      // 幾分鐘，而「死喺 boss 手上再重開」嗰條路正正就係冇測試行過嗰條。
+      推關: () => {
+        if (encounterStage === 0) activateWave(1);
+        else if (encounterStage === 1) activateWave(2);
+        else if (encounterStage === 2) unlockBossEncounter();
+        return encounterStage;
+      },
+      關: () => ({ 關: encounterStage, boss開咗: bossActive,
+        霧門: bossGateBodies.length, 霧門畫: bossGates.filter((m) => m.visible).length }),
       zoom: () => camZoom,
       zoomBy: (f: number) => { zoomBy(f); return camZoom; },
       // 由 A 追去 B，行一次真物理，唔畫任何嘢。

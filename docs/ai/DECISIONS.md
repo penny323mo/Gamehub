@@ -4467,6 +4467,44 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-182 — Elden Ring II: dying sent you back to the first wave, and no test could reach the boss
+
+Date: 2026-08-06. Status: accepted.
+
+Open since ADR-170 and deferred twice: `restart()` set `encounterStage = 0` unconditionally. Measured
+end to end — cleared wave 1, died on wave 2, pressed R — and it puts you back on **wave-1**. Everything
+you had already done, you do again. The arena has checkpoints (graces) and they meant nothing across a
+death.
+
+The soulslike convention is *enemies reset, world progress does not*, and that is what it does now:
+the boss returns to full health, the wave you died on comes back whole, cleared waves stay cleared,
+and the fog gates match the stage you had reached rather than closing in front of you again.
+
+**The reason this sat for three rounds is that no test could get to the boss.** Clearing three waves
+of trash in a 3 fps software rasteriser takes minutes, so "die to the boss, then restart" was a path
+nothing had ever executed — the same shape as ADR-179's `locked` branch. `__ER2.推關()` fixes that: it
+**re-implements nothing**, it calls the game's own `activateWave` / `unlockBossEncounter`, exactly as
+`zoomBy` calls the game's own zoom. The boss encounter is now reachable in seconds.
+
+It immediately earned its keep by catching a defect **I had just written**. Restart set `gateFade = 1`
+so the gate would fade in; but the per-frame fade block is `if (bossActive && gateFade > 0)` and it
+assigns `visible = gateFade > 0`, so on a boss restart my `visible = false` was overwritten and a fog
+gate **faded into existence in the middle of the boss arena — drawn, but with no collider**. The gate
+that caught it asks a question worth keeping: *the number of gates drawn equals the number of gates
+that stop you*.
+
+**The same build hazard as ADR-181, again.** The first mutation had a type error, `npm run build`
+aborted, the stale `dist` stayed on disk, and the probe reported healthy numbers. I now expect this:
+if a mutation's numbers do not move, check that the build actually produced a new bundle.
+
+**One flake removed by construction.** The entry sequence (click class, click enter, wait) was copied
+into six places using Playwright's `click()`, which waits for a scheduled navigation that never comes.
+With the suite now opening eight pages, the sixth started timing out — the mobile block had documented
+this exact failure and its DOM-click workaround years of context ago, in one place only. There is one
+`入場()` helper now.
+
+Suite: 72 → **76** browser checks.
+
 ## ADR-181 — Elden Ring II: an impact effect that did not know it was an impact
 
 Date: 2026-08-06. Status: accepted.
