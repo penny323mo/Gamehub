@@ -42,9 +42,27 @@ const MIME = {
 
 let pass = 0, fail = 0;
 const failed = [];
+// `ER2_TIME=1` 會喺每條 gate 前面印「由上一條到而家用咗幾秒」。套件跑到半個
+// 鐘之後，「邊條慢」呢個問題冇一把尺答得到——所以擺一把喺度。
+// 量郁動時間嗰啲 gate 用嘅視窗。
+//
+// 佢哋一條都唔關解析度事——量嘅係郁動秒同計數器（速度、側滑、碎屑、boss
+// 出手、重開到邊關）。而喺軟件光柵化之下解析度**就係**幀率：實測同一部機，
+// 640×380 得 **1.7 fps**、420×250 **3.2**、320×190 **4.2**。而 `delta` 封喺
+// 0.05，所以郁動時間跟住幀率走——細視窗即係同一段真實時間入面遊戲行多 2.5
+// 倍。套件本來跑成半個鐘，慢到手機嗰節等入場掣等到 60 秒 timeout 掛咗。
+//
+// 版位／鏡頭／觸控嗰啲 gate 照用真尺寸，佢哋量緊嘅就係尺寸本身。
+const 快版 = { width: 320, height: 190 };
+const 計時 = process.env.ER2_TIME === '1';
+let 上次 = Date.now(), 用時 = [];
 function check(name, ok, detail) {
-    if (ok) { pass++; console.log(`PASS  ${name}`, detail === undefined ? '' : detail); }
-    else { fail++; failed.push(name); console.log(`FAIL  ${name}`, JSON.stringify(detail)); }
+    const 秒 = (Date.now() - 上次) / 1000;
+    上次 = Date.now();
+    if (計時) 用時.push([+秒.toFixed(1), name]);
+    const 前 = 計時 ? `[${秒.toFixed(1)}s] ` : '';
+    if (ok) { pass++; console.log(`${前}PASS  ${name}`, detail === undefined ? '' : detail); }
+    else { fail++; failed.push(name); console.log(`${前}FAIL  ${name}`, JSON.stringify(detail)); }
 }
 
 // 入場：撳職業掣，等入場掣 enable 咗，撳入場，等場景載好。
@@ -606,107 +624,6 @@ for (const [w, h, 名] of 尺寸) {
     check('有得縮放，而且夾住上下限（同深淵之橋一樣 0.7–1.7）',
         z != null && z.起 === 1 && z.拉遠 === 1.7 && z.拉近 === 0.7, z);
 
-    // 搖桿要喺一個真係「摸得到」嘅 page 度量：手機 CSS 收喺
-    // `@media (max-width: 760px), (pointer: coarse)` 入面，而套件本身嗰個
-    // page 冇 touch，所以 `.touch-stick` 連 `position: fixed` 都冇——第一版
-    // 就係咁報「搖桿出咗喺 (0, 0)」，而個缺陷喺我支尺度唔喺遊戲度。
-    const 手機 = await browser.newContext({
-        viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true,
-    });
-    const p3 = await 手機.newPage();
-    await p3.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
-    await p3.waitForTimeout(1200);
-    // 呢個 mobile context 入面唔用 Playwright 嘅 `click()`：`getByText` 會撳中
-    // 標題嗰個 `<span>Oathbound.</span>`，而 `locator('button')` 撳完之後
-    // Playwright 會一直「等 scheduled navigation」等到 timeout。直接叫 DOM
-    // 嘅 `click()`——呢度要測嘅係入到遊戲之後嘅搖桿，唔係點樣撳粒掣。
-    const 撳 = (t) => p3.evaluate((text) => {
-        const b = [...document.querySelectorAll('button')].find((el) => (el.innerText || '').includes(text));
-        if (b) b.click();
-    }, t);
-    await 撳('OATHBOUND');
-    // 入場掣載緊嘢嗰陣係 `disabled`，DOM 嘅 `.click()` 唔會有反應（Playwright
-    // 嘅 `click()` 會等，所以第一版睇唔出）。等佢 enable 咗先撳。
-    await p3.waitForSelector('.enter-button:not([disabled])', { timeout: 60000 });
-    await 撳('ENTER THE VEIL');
-    await p3.waitForTimeout(4000);
-    const 掣位 = await p3.evaluate(() => {
-        const zone = document.querySelector('.touch-zone');
-        if (!zone) return null;
-        const z = zone.getBoundingClientRect();
-        return [...document.querySelectorAll('.touch-actions button')].map((b) => {
-            const r = b.getBoundingClientRect();
-            return { 掣: b.innerText.trim().slice(0, 6),
-                喺搖桿區入面: r.left < z.right && r.right > z.left && r.top < z.bottom && r.bottom > z.top };
-        });
-    });
-    check('動作掣唔可以跌入搖桿區（撳攻擊唔應該開咗搖桿）',
-        掣位 != null && 掣位.length === 3 && 掣位.every((b) => !b.喺搖桿區入面), 掣位);
-    const st = await p3.evaluate(async () => {
-        const out = [];
-        for (const [x, y] of [[101, 293], [253, 234], [380, 332]]) {
-            const zone = document.querySelector('.touch-zone');
-            if (!zone) return { 冇區: true };
-            zone.dispatchEvent(new PointerEvent('pointerdown',
-                { pointerId: 7, pointerType: 'touch', clientX: x, clientY: y, bubbles: true }));
-            await new Promise((r) => setTimeout(r, 90));
-            const el = document.querySelector('.touch-stick');
-            const b = el ? el.getBoundingClientRect() : null;
-            out.push(b ? { 撳: [x, y], 差: [Math.round(b.left + b.width / 2 - x), Math.round(b.top + b.height / 2 - y)] } : { 撳: [x, y], 冇出: true });
-            zone.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, pointerType: 'touch', bubbles: true }));
-            await new Promise((r) => setTimeout(r, 60));
-        }
-        const 收返 = !document.querySelector('.touch-stick');
-        return { out, 收返 };
-    });
-    check('搖桿撳邊出邊（唔再釘死喺左下角），放手收返',
-        st != null && !st.冇區 && st.收返 &&
-        st.out.every((o) => !o.冇出 && Math.abs(o.差[0]) <= 2 && Math.abs(o.差[1]) <= 2),
-        st);
-
-    // 支「模擬」搖桿其實係數位嘅。
-    //
-    // `updateStick` 好好地算咗個幅度出嚟，跟住 `movement.normalize()` 即刻將
-    // 佢掉咗——**輕輕推同推到底一樣快**，成隻遊戲冇「慢行」呢件事。而且衝刺
-    // 淨係綁 `ShiftLeft`：三粒觸控掣係 ◎／DODGE／⚔，即係**成個 1.55 倍嘅移動
-    // 機制，手機玩家一世都用唔到**。加多粒掣會逼爆 HUD（ADR-175 為咗掣位打
-    // 過一場），所以用主機遊戲嗰個做法：推到個環度就係跑。
-    const 推 = async (px, 秒) => {
-        await p3.evaluate(() => window.__ER2.重置動作量度());
-        await p3.evaluate((d) => {
-            const z = document.querySelector('.touch-zone');
-            z.dispatchEvent(new PointerEvent('pointerdown',
-                { pointerId: 9, pointerType: 'touch', clientX: 400, clientY: 250, bubbles: true }));
-            z.dispatchEvent(new PointerEvent('pointermove',
-                { pointerId: 9, pointerType: 'touch', clientX: 400, clientY: 250 - d, bubbles: true }));
-        }, px);
-        await p3.waitForTimeout(秒);
-        const r = await p3.evaluate(() => window.__ER2.動作());
-        await p3.evaluate(() => document.querySelector('.touch-zone')
-            .dispatchEvent(new PointerEvent('pointerup',
-                { pointerId: 9, pointerType: 'touch', bubbles: true })));
-        await p3.waitForTimeout(2500);
-        return r;
-    };
-    // 搖桿半徑 52px：26 ＝ 啱啱好半推，62 ＝ 推穿個環。
-    const 半 = await 推(26, 11000);
-    const 盡 = await 推(62, 11000);
-    // 條規則講「推幾多就行幾快」，即係半推**預測**係設計速嘅一半。呢度對嘅係
-    // 個預測值，唔係一條我自己揀出嚟嘅門檻——條規則爛咗個數就係 4.4（全速）
-    // 或者 0，兩邊都離預測值好遠。
-    check('搖桿推幾多就行幾快（唔係撳親就全速）',
-        半 != null && 盡 != null && Math.abs(半.最高速 - 半.設計速 * 0.5) <= 0.35,
-        { 半推: 半 && 半.最高速, 預測: 盡 && +(盡.設計速 * 0.5).toFixed(2),
-          推到底: 盡 && 盡.最高速, 設計速: 盡 && 盡.設計速 });
-
-    // 呢條**唔使揀門檻**：行路嗰條路嘅速度目標係 `設計速 × 推度`，而 `推度`
-    // 上限係 1——即係行路**數學上唔可能**行得快過 4.4。任何高過 4.4 嘅數，
-    // 本身就證明咗衝刺入咗。（第一版寫 `> 設計速 × 1.05`，實測 4.8 對 4.62
-    // ——一條貼住噪音嘅線，而佢守嗰件事其實係非黑即白。）
-    check('手機都衝刺到（搖桿推到個環度就係跑）',
-        盡 != null && 盡.最高速 > 盡.設計速 + 0.05 && /Run/.test(盡.動畫 || ''),
-        { 推到底: 盡 && 盡.最高速, 行路唔可能過: 盡 && 盡.設計速, 動畫: 盡 && 盡.動畫 });
-    await 手機.close();
 }
 
 // ---------- 敵人隔住掩護打唔打得中 ----------
@@ -1002,68 +919,6 @@ for (const [w, h, 名] of 尺寸) {
                真錐角: +(錐角 * 180 / Math.PI).toFixed(0) + '°' });
 }
 
-// ---------- 成隻遊戲得一把鐘 ----------
-//
-// 本來 `now` 係 `performance.now()`（真實時間），而郁動／物理／動畫用夾住
-// 0.05 秒嘅 `delta`。兩把鐘一齊行，幀率一跌，角色行慢咗，但雜兵出手間隔、
-// boss 預警圈、閃避無敵幀全部照住真實時間走——**部機愈跟唔上，隻遊戲對玩家
-// 愈唔公平**，而且靜靜哋發生。
-//
-// 條線唔係同另一次量度比（兩次都可以一齊錯），係同遊戲自己個常數比：
-// 雜兵出手間隔寫住 1.4 秒，即係每秒最多 0.71 下。修之前實測每「郁動秒」
-// 出手 2.33 下（CPU 節流 6× 之下 2.90）——即係遊戲自己講嘅節奏嘅三到四倍。
-// 修完 0.62–0.67，同個常數對得返上。
-{
-    // **開自己一版。** 本來喺共用嗰版度做，而前面啲檢查已經捱咗一輪打——
-    // 玩家喺個 32 秒窗口中間死咗，雜兵凍結喺 "attack"，`minionAttacks` 唔再
-    // 加。收場讀到 `狀態: "dead"`、間隔零個，即係**支尺量緊一具屍體**。
-    const p6 = await browser.newPage({ viewport: { width: 640, height: 380 } });
-    await p6.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
-    await p6.waitForTimeout(1500);
-    await 入場(p6);
-    // 完全唔郁。雜兵會自己行埋嚟（實測 1.3 郁動秒之內兩隻都埋到身出到手），
-    // 所以「行過去逼佢哋開打」反而係製造距離。
-    const a = await p6.evaluate(() => window.__ER2.clock());
-    // 企定捱打會死，一死就再冇出手可以量。所以窗口一開始就量，而且**發現死咗
-    // 就即刻停**——唔好等夠 32 秒先發現量咗一段冇嘢發生嘅時間。
-    // 一隻雜兵要出兩次手先度得到一個「間隔」，而呢個環境一秒三幀——固定等
-    // 32 秒有時得 2.6 郁動秒，樣本零個。所以**等到有嘢量為止**，而唔係等一
-    // 個固定時間；玩家一死就即刻停（死咗之後再冇出手，等落去只係浪費時間）。
-    let 收場狀態 = null, b = a;
-    for (let i = 0; i < 30; i += 1) {
-        await p6.waitForTimeout(2000);
-        收場狀態 = await p6.evaluate(() => ({
-            狀態: document.querySelector('[data-game-status]')?.dataset.gameStatus,
-            剩: document.querySelector('[data-enemies-remaining]')?.dataset.enemiesRemaining,
-        }));
-        b = await p6.evaluate(() => window.__ER2.clock());
-        if (收場狀態.狀態 !== 'playing') break;
-        if (b.間隔.length - a.間隔.length >= 2) break;
-    }
-    await p6.close();
-    const 動 = b.motion - a.motion;
-    // 唔再用「窗口入面數下數 ÷ 郁動秒」。實測嗰個率一下出手值 0.26/秒，而門檻
-    // 0.9 啱好夾喺 3 下（0.81）同 4 下（1.04）中間——同一份程式碼跑兩次，一次
-    // 綠一次紅，差別淨係一下出手。**一條分辨率細過自己要守嗰個效果嘅 gate，
-    // 綠嘅時候咩都證明唔到。** 拉長窗口亦都唔得：玩家企喺度俾三隻雜兵打，
-    // 捱唔到九十秒。
-    //
-    // 而家量每隻雜兵兩下出手之間隔咗幾多**郁動秒**。遊戲自己寫住
-    // `nextAttack = now + 1.4 + rand`，所以只要 `now` 係郁動鐘，每個間隔都
-    // 一定 ≥ 1.4；`now` 一改返做真實時間（ADR-150 嗰個缺陷），間隔換算成郁動
-    // 秒就會跌到 0.25 左右。兩者差六倍，一個間隔已經分得開。
-    const 間隔 = b.間隔.slice(a.間隔.length);
-    const 最短 = 間隔.length ? Math.min(...間隔) : null;
-    // 要求兩個間隔會飄：同一份程式碼有時攞到 4 個、有時 1 個（雜兵要企啱位
-    // 先出手，而佢哋而家仲要轉身）。一個間隔已經分得開——1.75 對住「時鐘改
-    // 返做真實時間」嗰個 0.25，差七倍。
-    check('雜兵兩下出手之間，至少隔住遊戲自己寫嗰個 1.4 郁動秒',
-        間隔.length >= 1 && 動 > 2 && 最短 >= 1.4,
-        { 動: +動.toFixed(1), 出手: b.attacks - a.attacks, 量到幾多個間隔: 間隔.length,
-          最短: 最短 === null ? null : +最短.toFixed(2),
-          全部: 間隔.map((g) => +g.toFixed(2)).slice(0, 8),
-          真實秒: +(b.real - a.real).toFixed(1), 收場: 收場狀態 });
-}
 
 // ---------- 死完再玩，唔可以多咗一道睇唔見嘅牆 ----------
 //
@@ -1180,6 +1035,184 @@ for (const [w, h, 名] of 尺寸) {
 // 連撳個掣都 timeout。以下嘅檢查全部用自己開嘅版，所以泊咗主 page 先。
 await page.goto('about:blank');
 
+// ---------- 以下兩節本來喺主 page 泊低之前跑 ----------
+//
+// 主 page 係一個仲喺度行緊嘅 WebGL loop，軟件光柵化之下佢食晒 CPU。呢兩節
+// 各自開自己嘅版，即係同主 page 爭——實測手機嗰節等入場掣等到 **60 秒
+// timeout，成個套件掛咗**。佢哋兩個都係自足嘅（自己開 context／page、自己
+// 入場、自己 close），所以搬落嚟泊咗主 page 之後跑，一行都唔使改。
+{
+    // 搖桿要喺一個真係「摸得到」嘅 page 度量：手機 CSS 收喺
+    // `@media (max-width: 760px), (pointer: coarse)` 入面，而套件本身嗰個
+    // page 冇 touch，所以 `.touch-stick` 連 `position: fixed` 都冇——第一版
+    // 就係咁報「搖桿出咗喺 (0, 0)」，而個缺陷喺我支尺度唔喺遊戲度。
+    const 手機 = await browser.newContext({
+        viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true,
+    });
+    const p3 = await 手機.newPage();
+    await p3.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
+    await p3.waitForTimeout(1200);
+    // 呢個 mobile context 入面唔用 Playwright 嘅 `click()`：`getByText` 會撳中
+    // 標題嗰個 `<span>Oathbound.</span>`，而 `locator('button')` 撳完之後
+    // Playwright 會一直「等 scheduled navigation」等到 timeout。直接叫 DOM
+    // 嘅 `click()`——呢度要測嘅係入到遊戲之後嘅搖桿，唔係點樣撳粒掣。
+    const 撳 = (t) => p3.evaluate((text) => {
+        const b = [...document.querySelectorAll('button')].find((el) => (el.innerText || '').includes(text));
+        if (b) b.click();
+    }, t);
+    await 撳('OATHBOUND');
+    // 入場掣載緊嘢嗰陣係 `disabled`，DOM 嘅 `.click()` 唔會有反應（Playwright
+    // 嘅 `click()` 會等，所以第一版睇唔出）。等佢 enable 咗先撳。
+    await p3.waitForSelector('.enter-button:not([disabled])', { timeout: 60000 });
+    await 撳('ENTER THE VEIL');
+    await p3.waitForTimeout(4000);
+    const 掣位 = await p3.evaluate(() => {
+        const zone = document.querySelector('.touch-zone');
+        if (!zone) return null;
+        const z = zone.getBoundingClientRect();
+        return [...document.querySelectorAll('.touch-actions button')].map((b) => {
+            const r = b.getBoundingClientRect();
+            return { 掣: b.innerText.trim().slice(0, 6),
+                喺搖桿區入面: r.left < z.right && r.right > z.left && r.top < z.bottom && r.bottom > z.top };
+        });
+    });
+    check('動作掣唔可以跌入搖桿區（撳攻擊唔應該開咗搖桿）',
+        掣位 != null && 掣位.length === 3 && 掣位.every((b) => !b.喺搖桿區入面), 掣位);
+    const st = await p3.evaluate(async () => {
+        const out = [];
+        for (const [x, y] of [[101, 293], [253, 234], [380, 332]]) {
+            const zone = document.querySelector('.touch-zone');
+            if (!zone) return { 冇區: true };
+            zone.dispatchEvent(new PointerEvent('pointerdown',
+                { pointerId: 7, pointerType: 'touch', clientX: x, clientY: y, bubbles: true }));
+            await new Promise((r) => setTimeout(r, 90));
+            const el = document.querySelector('.touch-stick');
+            const b = el ? el.getBoundingClientRect() : null;
+            out.push(b ? { 撳: [x, y], 差: [Math.round(b.left + b.width / 2 - x), Math.round(b.top + b.height / 2 - y)] } : { 撳: [x, y], 冇出: true });
+            zone.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, pointerType: 'touch', bubbles: true }));
+            await new Promise((r) => setTimeout(r, 60));
+        }
+        const 收返 = !document.querySelector('.touch-stick');
+        return { out, 收返 };
+    });
+    check('搖桿撳邊出邊（唔再釘死喺左下角），放手收返',
+        st != null && !st.冇區 && st.收返 &&
+        st.out.every((o) => !o.冇出 && Math.abs(o.差[0]) <= 2 && Math.abs(o.差[1]) <= 2),
+        st);
+
+    // 支「模擬」搖桿其實係數位嘅。
+    //
+    // `updateStick` 好好地算咗個幅度出嚟，跟住 `movement.normalize()` 即刻將
+    // 佢掉咗——**輕輕推同推到底一樣快**，成隻遊戲冇「慢行」呢件事。而且衝刺
+    // 淨係綁 `ShiftLeft`：三粒觸控掣係 ◎／DODGE／⚔，即係**成個 1.55 倍嘅移動
+    // 機制，手機玩家一世都用唔到**。加多粒掣會逼爆 HUD（ADR-175 為咗掣位打
+    // 過一場），所以用主機遊戲嗰個做法：推到個環度就係跑。
+    const 推 = async (px, 秒) => {
+        await p3.evaluate(() => window.__ER2.重置動作量度());
+        await p3.evaluate((d) => {
+            const z = document.querySelector('.touch-zone');
+            z.dispatchEvent(new PointerEvent('pointerdown',
+                { pointerId: 9, pointerType: 'touch', clientX: 400, clientY: 250, bubbles: true }));
+            z.dispatchEvent(new PointerEvent('pointermove',
+                { pointerId: 9, pointerType: 'touch', clientX: 400, clientY: 250 - d, bubbles: true }));
+        }, px);
+        await p3.waitForTimeout(秒);
+        const r = await p3.evaluate(() => window.__ER2.動作());
+        await p3.evaluate(() => document.querySelector('.touch-zone')
+            .dispatchEvent(new PointerEvent('pointerup',
+                { pointerId: 9, pointerType: 'touch', bubbles: true })));
+        await p3.waitForTimeout(2500);
+        return r;
+    };
+    // 搖桿半徑 52px：26 ＝ 啱啱好半推，62 ＝ 推穿個環。
+    const 半 = await 推(26, 11000);
+    const 盡 = await 推(62, 11000);
+    // 條規則講「推幾多就行幾快」，即係半推**預測**係設計速嘅一半。呢度對嘅係
+    // 個預測值，唔係一條我自己揀出嚟嘅門檻——條規則爛咗個數就係 4.4（全速）
+    // 或者 0，兩邊都離預測值好遠。
+    check('搖桿推幾多就行幾快（唔係撳親就全速）',
+        半 != null && 盡 != null && Math.abs(半.最高速 - 半.設計速 * 0.5) <= 0.35,
+        { 半推: 半 && 半.最高速, 預測: 盡 && +(盡.設計速 * 0.5).toFixed(2),
+          推到底: 盡 && 盡.最高速, 設計速: 盡 && 盡.設計速 });
+
+    // 呢條**唔使揀門檻**：行路嗰條路嘅速度目標係 `設計速 × 推度`，而 `推度`
+    // 上限係 1——即係行路**數學上唔可能**行得快過 4.4。任何高過 4.4 嘅數，
+    // 本身就證明咗衝刺入咗。（第一版寫 `> 設計速 × 1.05`，實測 4.8 對 4.62
+    // ——一條貼住噪音嘅線，而佢守嗰件事其實係非黑即白。）
+    // 條件淨係得速度一項。第一版仲要求動畫係 `Run*`——而動畫係**抽樣嗰刻嘅
+    // 瞬時狀態**：實測有一次讀到 `RecieveHit`（啱好中招），速度 6.82 好地地
+    // 但條 gate 紅咗。速度本身已經係證明（行路數學上唔可能過 4.4），加個動畫
+    // 條款冇證多啲嘢，淨係加咗個會飄嘅狀態。
+    check('手機都衝刺到（搖桿推到個環度就係跑）',
+        盡 != null && 盡.最高速 > 盡.設計速 + 0.05,
+        { 推到底: 盡 && 盡.最高速, 行路唔可能過: 盡 && 盡.設計速, 動畫: 盡 && 盡.動畫 });
+    await 手機.close();
+}
+
+// ---------- 成隻遊戲得一把鐘 ----------
+//
+// 本來 `now` 係 `performance.now()`（真實時間），而郁動／物理／動畫用夾住
+// 0.05 秒嘅 `delta`。兩把鐘一齊行，幀率一跌，角色行慢咗，但雜兵出手間隔、
+// boss 預警圈、閃避無敵幀全部照住真實時間走——**部機愈跟唔上，隻遊戲對玩家
+// 愈唔公平**，而且靜靜哋發生。
+//
+// 條線唔係同另一次量度比（兩次都可以一齊錯），係同遊戲自己個常數比：
+// 雜兵出手間隔寫住 1.4 秒，即係每秒最多 0.71 下。修之前實測每「郁動秒」
+// 出手 2.33 下（CPU 節流 6× 之下 2.90）——即係遊戲自己講嘅節奏嘅三到四倍。
+// 修完 0.62–0.67，同個常數對得返上。
+{
+    // **開自己一版。** 本來喺共用嗰版度做，而前面啲檢查已經捱咗一輪打——
+    // 玩家喺個 32 秒窗口中間死咗，雜兵凍結喺 "attack"，`minionAttacks` 唔再
+    // 加。收場讀到 `狀態: "dead"`、間隔零個，即係**支尺量緊一具屍體**。
+    const p6 = await browser.newPage({ viewport: 快版 });
+    await p6.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
+    await p6.waitForTimeout(1500);
+    await 入場(p6);
+    // 完全唔郁。雜兵會自己行埋嚟（實測 1.3 郁動秒之內兩隻都埋到身出到手），
+    // 所以「行過去逼佢哋開打」反而係製造距離。
+    const a = await p6.evaluate(() => window.__ER2.clock());
+    // 企定捱打會死，一死就再冇出手可以量。所以窗口一開始就量，而且**發現死咗
+    // 就即刻停**——唔好等夠 32 秒先發現量咗一段冇嘢發生嘅時間。
+    // 一隻雜兵要出兩次手先度得到一個「間隔」，而呢個環境一秒三幀——固定等
+    // 32 秒有時得 2.6 郁動秒，樣本零個。所以**等到有嘢量為止**，而唔係等一
+    // 個固定時間；玩家一死就即刻停（死咗之後再冇出手，等落去只係浪費時間）。
+    let 收場狀態 = null, b = a;
+    for (let i = 0; i < 30; i += 1) {
+        await p6.waitForTimeout(2000);
+        收場狀態 = await p6.evaluate(() => ({
+            狀態: document.querySelector('[data-game-status]')?.dataset.gameStatus,
+            剩: document.querySelector('[data-enemies-remaining]')?.dataset.enemiesRemaining,
+        }));
+        b = await p6.evaluate(() => window.__ER2.clock());
+        if (收場狀態.狀態 !== 'playing') break;
+        if (b.間隔.length - a.間隔.length >= 2) break;
+    }
+    await p6.close();
+    const 動 = b.motion - a.motion;
+    // 唔再用「窗口入面數下數 ÷ 郁動秒」。實測嗰個率一下出手值 0.26/秒，而門檻
+    // 0.9 啱好夾喺 3 下（0.81）同 4 下（1.04）中間——同一份程式碼跑兩次，一次
+    // 綠一次紅，差別淨係一下出手。**一條分辨率細過自己要守嗰個效果嘅 gate，
+    // 綠嘅時候咩都證明唔到。** 拉長窗口亦都唔得：玩家企喺度俾三隻雜兵打，
+    // 捱唔到九十秒。
+    //
+    // 而家量每隻雜兵兩下出手之間隔咗幾多**郁動秒**。遊戲自己寫住
+    // `nextAttack = now + 1.4 + rand`，所以只要 `now` 係郁動鐘，每個間隔都
+    // 一定 ≥ 1.4；`now` 一改返做真實時間（ADR-150 嗰個缺陷），間隔換算成郁動
+    // 秒就會跌到 0.25 左右。兩者差六倍，一個間隔已經分得開。
+    const 間隔 = b.間隔.slice(a.間隔.length);
+    const 最短 = 間隔.length ? Math.min(...間隔) : null;
+    // 要求兩個間隔會飄：同一份程式碼有時攞到 4 個、有時 1 個（雜兵要企啱位
+    // 先出手，而佢哋而家仲要轉身）。一個間隔已經分得開——1.75 對住「時鐘改
+    // 返做真實時間」嗰個 0.25，差七倍。
+    check('雜兵兩下出手之間，至少隔住遊戲自己寫嗰個 1.4 郁動秒',
+        間隔.length >= 1 && 動 > 2 && 最短 >= 1.4,
+        { 動: +動.toFixed(1), 出手: b.attacks - a.attacks, 量到幾多個間隔: 間隔.length,
+          最短: 最短 === null ? null : +最短.toFixed(2),
+          全部: 間隔.map((g) => +g.toFixed(2)).slice(0, 8),
+          真實秒: +(b.real - a.real).toFixed(1), 收場: 收場狀態 });
+}
+
+
 // ---------- 碌開要真係少食好多嘢 ----------
 //
 // 之前二十四條檢查冇一條掂過閃避，而佢係呢類遊戲嘅核心動詞。壞咗唔會報錯，
@@ -1199,7 +1232,7 @@ await page.goto('about:blank');
 // 所以剷走無敵幀呢條 gate 唔會響（ADR-159）。
 {
     const 試 = async (碌) => {
-        const p2 = await browser.newPage({ viewport: { width: 560, height: 340 } });
+        const p2 = await browser.newPage({ viewport: 快版 });
         await p2.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
         await p2.waitForTimeout(1500);
         await 入場(p2);
@@ -1249,7 +1282,7 @@ await page.goto('about:blank');
 // 嗰啲檢查開始之前已經死咗——第一版就係咁，跟住條出手節奏 gate 量到 0 下出手
 // （而唔係「雜兵唔識打」）。一條 gate 唔應該整污糟後面嗰啲。
 {
-    const p4 = await browser.newPage({ viewport: { width: 640, height: 380 } });
+    const p4 = await browser.newPage({ viewport: 快版 });
     await p4.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
     await p4.waitForTimeout(1500);
     await 入場(p4);
@@ -1329,7 +1362,7 @@ await page.goto('about:blank');
 // 弧線幾何跟返自己嗰個射程、真係殺得死嘢。
 {
     for (const [職, 射程] of [['ASTROLOGER', 16], ['WAYFARER', 18]]) {
-        const p2 = await browser.newPage({ viewport: { width: 640, height: 380 } });
+        const p2 = await browser.newPage({ viewport: 快版 });
         const e2 = [];
         p2.on('pageerror', (e) => e2.push(e.message.split('\n')[0].slice(0, 90)));
         p2.on('console', (m) => { if (m.type() === 'error') e2.push('console: ' + m.text().slice(0, 90)); });
@@ -1389,7 +1422,7 @@ await page.goto('about:blank');
 // 完全冇轉過身，側住身射箭。鎖定應該係改「你仲有幾多修正空間」，唔係改
 // 「你使唔使望住你打緊嗰個」。
 {
-    const p5 = await browser.newPage({ viewport: { width: 640, height: 380 } });
+    const p5 = await browser.newPage({ viewport: 快版 });
     await p5.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
     await p5.waitForTimeout(1500);
     await 入場(p5, 'WAYFARER');
@@ -1419,7 +1452,7 @@ await page.goto('about:blank');
 //    即係無論邊個方向斬落去，出嚟都係同一個噴泉。
 // 3. 碎屑重力寫住 5，唔係 9.81——半空慢動作。
 {
-    const p7 = await browser.newPage({ viewport: { width: 640, height: 380 } });
+    const p7 = await browser.newPage({ viewport: 快版 });
     await p7.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
     await p7.waitForTimeout(1500);
     await 入場(p7);
@@ -1479,7 +1512,7 @@ await page.goto('about:blank');
 // 就到唔到 boss 場——清三波雜兵喺一秒三幀嘅環境要幾分鐘，而「死喺 boss 手上
 // 再重開」正正就係一條從來冇測試行過嘅路。
 for (const [名, 推幾次, 想要] of [['第二波', 1, 1], ['boss 場', 3, 3]]) {
-    const p8 = await browser.newPage({ viewport: { width: 640, height: 380 } });
+    const p8 = await browser.newPage({ viewport: 快版 });
     await p8.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
     await p8.waitForTimeout(1500);
     await 入場(p8);
@@ -1494,9 +1527,13 @@ for (const [名, 推幾次, 想要] of [['第二波', 1, 1], ['boss 場', 3, 3]]
     // 所以呢條 gate 一直靠一堆唔應該存在嘅雜兵打死玩家先綠。`推關()` 修好之
     // 後，boss 場淨返 boss 一隻，而佢喺六十米外，行過嚟就用十幾郁動秒——條
     // gate 即刻 timeout。行埋去就唔使等佢行過嚟。
-    await p8.keyboard.down('KeyW');
-    await p8.waitForTimeout(20000);
-    await p8.keyboard.up('KeyW');
+    if (想要 === 3) {
+        // 淨係 boss 場先需要行埋去：boss 喺六十米外，等佢行過嚟要十幾郁動秒。
+        // 第二波嗰啲雜兵就喺隔籬，行反而係製造距離。
+        await p8.keyboard.down('KeyW');
+        await p8.waitForTimeout(20000);
+        await p8.keyboard.up('KeyW');
+    }
     let 死咗 = false;
     for (let i = 0; i < 60 && !死咗; i += 1) {
         await p8.waitForTimeout(1500);
@@ -1540,7 +1577,7 @@ for (const [名, 推幾次, 想要] of [['第二波', 1, 1], ['boss 場', 3, 3]]
 //    **出手 1 次、到落點 0 次**——佢由六十米外行過嚟、換咗階段、跌到剩一成幾
 //    血，一拳都未打出過。個預警圈變咗裝飾。
 {
-    const p9 = await browser.newPage({ viewport: { width: 640, height: 380 } });
+    const p9 = await browser.newPage({ viewport: 快版 });
     await p9.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
     await p9.waitForTimeout(1500);
     await 入場(p9, 'WAYFARER');
@@ -1594,7 +1631,7 @@ for (const [名, 推幾次, 想要] of [['第二波', 1, 1], ['boss 場', 3, 3]]
     //    1.55 度算完再貼落 1.8 嘅畫布，即係**逐幀一次非整數重採樣**，而個鏡頭
     //    永遠跟住玩家郁——邊緣就會逐幀爬。電話同 retina 先中招。
     const 高清 = await browser.newContext({
-        viewport: { width: 640, height: 380 }, deviceScaleFactor: 3 });
+        viewport: 快版, deviceScaleFactor: 3 });
     const pA = await 高清.newPage();
     await pA.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
     await pA.waitForTimeout(1500);
@@ -1610,7 +1647,7 @@ for (const [名, 推幾次, 想要] of [['第二波', 1, 1], ['boss 場', 3, 3]]
     //    一層。喺一個目標完全唔郁嘅場景度連續震：修之前平滑狀態**永遠收唔
     //    到**（喺 0.03–0.16 米之間遊走），修完收斂到 0.004。打交期間震動一直
     //    喺度出，即係鏡頭有個持續嘅擺動。
-    const pB = await browser.newPage({ viewport: { width: 640, height: 380 } });
+    const pB = await browser.newPage({ viewport: 快版 });
     await pB.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
     await pB.waitForTimeout(1500);
     await 入場(pB);
@@ -1628,15 +1665,36 @@ for (const [名, 推幾次, 想要] of [['第二波', 1, 1], ['boss 場', 3, 3]]
     const 鏡 = await pB.evaluate(() => window.__ER2.鏡());
     await pB.close();
     const 目標定住 = 鏡 != null && new Set(鏡.allowed序列).size <= 2;
+    // 條不變量係**收唔收斂**，唔係「低過某個數」。
+    //
+    // 第一版寫「尾段中位 < 0.02」，就係攞住一次量到嘅 0.004 拍個數出嚟——跟住
+    // 有一次讀到 0.025，而嗰條尾段係 0.028 → 0.016，**明明就係喺度收斂**。
+    // 突變嗰個（震動寫返入狀態）嘅特徵唔係「數值大」，係**永遠唔收**：喺
+    // 0.03–0.16 之間遊走，升完又跌。所以問「尾段有冇一路細落去」。
+    const 尾 = 鏡 ? 鏡.離目標序列.slice(-6) : [];
+    // 「一路細落去」就係收斂，而**收到盡就係零**——第一版寫「尾項要細過首項
+    // 嘅 0.75 倍」，跟住讀到尾段 `[0,0,0,0,0,0]`：系統收得太乾淨，條 gate 反而
+    // 判紅。所以「已經到零」同「仲喺度細落去」兩樣都算收斂。
+    // 突變（震動寫返入狀態）嘅特徵係**上上落落**（0.028 → 0.069 → 0.076 →
+    // 0.043），單調嗰一項就已經捉到佢。
+    const 收斂 = 尾.length === 6
+        && 尾.every((v, i) => i === 0 || v <= 尾[i - 1] + 1e-9)
+        && (尾[5] === 0 || 尾[5] <= 尾[0] * 0.75);
     check('震完鏡頭收得返自己個位（震動唔可以寫入平滑狀態）',
-        目標定住 && 鏡.離目標尾中位 !== null && 鏡.離目標尾中位 < 0.02,
-        鏡 && { 離目標尾中位: 鏡.離目標尾中位, 尾段: 鏡.離目標序列.slice(-6),
-                目標定住, allowed: 鏡.allowed序列.slice(-3) });
+        目標定住 && 收斂,
+        鏡 && { 尾段: 尾, 收斂, 目標定住, allowed: 鏡.allowed序列.slice(-3) });
 }
 
 check('由頭到尾零 browser error', errors.length === 0, errors.slice(0, 3));
 
 await browser.close();
 await new Promise(r => server.close(r));
+if (計時) {
+    console.log('\n最貴嗰十條：');
+    for (const [秒, 名] of 用時.slice().sort((a, b) => b[0] - a[0]).slice(0, 10)) {
+        console.log(`  ${String(秒).padStart(6)}s  ${名}`);
+    }
+    console.log(`  合共 ${用時.reduce((a, b) => a + b[0], 0).toFixed(0)}s`);
+}
 console.log(`\nelden-ring-ii 版位: ${pass}/${pass + fail} 通過`);
 if (fail) { console.log('失敗項目:', failed.join('、')); process.exit(1); }

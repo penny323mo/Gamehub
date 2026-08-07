@@ -4467,6 +4467,47 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-186 — Elden Ring II: the suite got slow enough to start failing gates that were not broken
+
+Date: 2026-08-06. Status: accepted.
+
+The ER2 browser suite had grown to roughly half an hour and then stopped being merely slow: a run died
+outright when the mobile block waited sixty seconds for an enable-able Enter button, and a later run
+reported two red gates whose code was fine. Slowness had turned into wrong answers.
+
+There was no ruler for "which gate is slow", so `ER2_TIME=1` now prints the seconds between checks and
+a top-ten at the end. Measuring first paid immediately — my guess had been the explicit waits, which
+came to about eight minutes of a thirty-minute run.
+
+**Two causes, both structural.**
+
+- **Two blocks ran before the shared page was parked.** That page is a live WebGL loop; under software
+  rasterisation it takes the CPU with it, and the mobile block — which opens its own context — was
+  competing with it. A comment at the parking line already described this hazard for the blocks below
+  it; two blocks above it were doing exactly what the comment warned about. Both are self-contained, so
+  they moved below the park with no other change. **955 s**, down from about thirty minutes.
+- **Resolution is frame rate here, and frame rate is game time.** `delta` is clamped to 0.05, so every
+  gate that waits for motion seconds pays whatever the frame rate costs. Measured on this machine:
+  640×380 gives **1.7 fps**, 420×250 **3.2**, 320×190 **4.2**. Not one of the measurement pages cares
+  about resolution — they read motion seconds and counters — so they run at 320×190 now. Layout, camera
+  and touch gates keep their real sizes, because size is the thing they measure. **955 s → 637 s**, with
+  the boss fight going 174 s → 63 s and the boss restart 131 s → 60 s.
+
+**Two of my own gates were asking the wrong question, and load exposed it.**
+
+- The mobile sprint gate required both a speed above the walk cap *and* a `Run*` animation. Speed above
+  4.4 is already a proof — the walking path's target is `speed × 推度` with `推度 ≤ 1`, so it cannot
+  produce it. The animation is a sampled instant, and one run caught `RecieveHit` at exactly the wrong
+  moment: 6.82 m/s, gate red. The clause proved nothing and only added a state that could flicker.
+- The camera-settling gate asserted "tail median below 0.02", a number lifted from a single measurement
+  of 0.004. A run read 0.025 on a tail going 0.028 → 0.016 — **converging, and marked red for it**. The
+  mutation's signature was never magnitude; it was *never settling*, wandering 0.03–0.16 up and down.
+  The gate asks whether the tail decreases now, which is what convergence means and needs no constant
+  — and then it went red a third time, on `[0,0,0,0,0,0]`: **the system settled so completely that
+  "still shrinking" stopped being true of it.** Having arrived counts as having settled.
+
+Suite: 84 checks, **637 s** with timing on. Not fast, but it now finishes without eating its own results.
+
 ## ADR-185 — Elden Ring II: Penny says the screen shakes, and the first number I produced was my own ruler's
 
 Date: 2026-08-06. Status: accepted.
