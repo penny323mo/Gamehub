@@ -663,6 +663,49 @@ for (const [w, h, 名] of 尺寸) {
         st != null && !st.冇區 && st.收返 &&
         st.out.every((o) => !o.冇出 && Math.abs(o.差[0]) <= 2 && Math.abs(o.差[1]) <= 2),
         st);
+
+    // 支「模擬」搖桿其實係數位嘅。
+    //
+    // `updateStick` 好好地算咗個幅度出嚟，跟住 `movement.normalize()` 即刻將
+    // 佢掉咗——**輕輕推同推到底一樣快**，成隻遊戲冇「慢行」呢件事。而且衝刺
+    // 淨係綁 `ShiftLeft`：三粒觸控掣係 ◎／DODGE／⚔，即係**成個 1.55 倍嘅移動
+    // 機制，手機玩家一世都用唔到**。加多粒掣會逼爆 HUD（ADR-175 為咗掣位打
+    // 過一場），所以用主機遊戲嗰個做法：推到個環度就係跑。
+    const 推 = async (px, 秒) => {
+        await p3.evaluate(() => window.__ER2.重置動作量度());
+        await p3.evaluate((d) => {
+            const z = document.querySelector('.touch-zone');
+            z.dispatchEvent(new PointerEvent('pointerdown',
+                { pointerId: 9, pointerType: 'touch', clientX: 400, clientY: 250, bubbles: true }));
+            z.dispatchEvent(new PointerEvent('pointermove',
+                { pointerId: 9, pointerType: 'touch', clientX: 400, clientY: 250 - d, bubbles: true }));
+        }, px);
+        await p3.waitForTimeout(秒);
+        const r = await p3.evaluate(() => window.__ER2.動作());
+        await p3.evaluate(() => document.querySelector('.touch-zone')
+            .dispatchEvent(new PointerEvent('pointerup',
+                { pointerId: 9, pointerType: 'touch', bubbles: true })));
+        await p3.waitForTimeout(2500);
+        return r;
+    };
+    // 搖桿半徑 52px：26 ＝ 啱啱好半推，62 ＝ 推穿個環。
+    const 半 = await 推(26, 11000);
+    const 盡 = await 推(62, 11000);
+    // 條規則講「推幾多就行幾快」，即係半推**預測**係設計速嘅一半。呢度對嘅係
+    // 個預測值，唔係一條我自己揀出嚟嘅門檻——條規則爛咗個數就係 4.4（全速）
+    // 或者 0，兩邊都離預測值好遠。
+    check('搖桿推幾多就行幾快（唔係撳親就全速）',
+        半 != null && 盡 != null && Math.abs(半.最高速 - 半.設計速 * 0.5) <= 0.35,
+        { 半推: 半 && 半.最高速, 預測: 盡 && +(盡.設計速 * 0.5).toFixed(2),
+          推到底: 盡 && 盡.最高速, 設計速: 盡 && 盡.設計速 });
+
+    // 呢條**唔使揀門檻**：行路嗰條路嘅速度目標係 `設計速 × 推度`，而 `推度`
+    // 上限係 1——即係行路**數學上唔可能**行得快過 4.4。任何高過 4.4 嘅數，
+    // 本身就證明咗衝刺入咗。（第一版寫 `> 設計速 × 1.05`，實測 4.8 對 4.62
+    // ——一條貼住噪音嘅線，而佢守嗰件事其實係非黑即白。）
+    check('手機都衝刺到（搖桿推到個環度就係跑）',
+        盡 != null && 盡.最高速 > 盡.設計速 + 0.05 && /Run/.test(盡.動畫 || ''),
+        { 推到底: 盡 && 盡.最高速, 行路唔可能過: 盡 && 盡.設計速, 動畫: 盡 && 盡.動畫 });
     await 手機.close();
 }
 

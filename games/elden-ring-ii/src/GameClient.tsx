@@ -2269,6 +2269,13 @@ export default function GameClient() {
           (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0) -
           touchMove.y;
         movement.copy(forward).multiplyScalar(inputY).addScaledVector(right, inputX);
+        // 推幾盡。**呢個數本來即刻掉咗**：下面有一句 `movement.normalize()`，
+        // 所以支「模擬」搖桿其實係數位——輕輕推同推到底一樣快，冇慢行呢件事。
+        // 鍵盤永遠係 1（斜向 √2 夾返落 1），所以鍵盤嘅手感一個字都唔變。
+        const 推度 = Math.min(1, movement.length());
+        // 搖桿推度自己一份：衝刺門檻淨係睇搖桿，唔可以睇 `推度`——鍵盤按一下
+        // 就已經係 1，撳 W 即刻變咗衝刺。
+        const 搖桿推度 = touchMove.length();
         if (movement.lengthSq() > 1) movement.normalize();
 
         if (
@@ -2549,8 +2556,14 @@ export default function GameClient() {
             arrowProjectile.visible = false;
           }
         } else if (movement.lengthSq() > 0.035) {
-          const sprinting = keys.has("ShiftLeft") && player.stamina > 2;
-          const speed = sprinting ? classConfig.speed * 1.55 : classConfig.speed;
+          // 衝刺本來淨係綁 `ShiftLeft`——即係**成個 1.55 倍嘅移動機制，手機
+          // 玩家一世都用唔到**。三粒觸控掣係 ◎／DODGE／⚔，冇第四粒。
+          // 加多粒掣會逼爆 HUD（ADR-175 已經為咗掣位打過一場），所以用主機
+          // 遊戲嗰個做法：**搖桿推到個環度就係跑**。0.97 即係要撳到個可見嘅
+          // 環邊或者出面——係一個特登嘅動作，唔會撞手。
+          const sprinting = (keys.has("ShiftLeft") || 搖桿推度 >= 0.97) && player.stamina > 2;
+          // 推幾多就行幾快。鍵盤 `推度` 永遠 1，所以呢一行對鍵盤係 no-op。
+          const speed = sprinting ? classConfig.speed * 1.55 : classConfig.speed * 推度;
           movement.normalize();
           // 唔再一 tick 到全速：由而家嘅速度向目標靠。
           //
@@ -2603,9 +2616,13 @@ export default function GameClient() {
               : "Walk",
             currentPlayerAction,
             false,
-            步速 * Math.max(0.35, 新速 / speed),
+            步速 * Math.max(0.35, 新速 / classConfig.speed),
           );
-          playerActions.get(currentPlayerAction)?.setEffectiveTimeScale(步速 * Math.max(0.35, 新速 / speed));
+          // 分母用**職業卡個基礎速度**，唔用今幀個目標速度。用目標速度嘅話，
+          // 慢行嗰陣個比率照樣係 1，隻腳就會全速踩住一個行得好慢嘅身體——
+          // 即係「腳踏空」，而呢一段本來就係為咗修佢而寫嘅。
+          playerActions.get(currentPlayerAction)
+            ?.setEffectiveTimeScale(步速 * Math.max(0.35, 新速 / classConfig.speed));
         } else {
           // 放手唔係即刻停：由 `DECEL` 收返落零，方向保持原本嗰個。
           const 收 = gaitStep({ heading: player.rotation, speed: playerSpeed }, null, 0, delta);

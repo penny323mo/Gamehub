@@ -4467,6 +4467,37 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-183 — Elden Ring II: the analog stick was digital, and half the players could not run
+
+Date: 2026-08-06. Status: accepted.
+
+Two defects in one quantity: the stick's deflection.
+
+**`updateStick` computes a magnitude and the game throws it away.** One line later, `movement.normalize()`
+discards it, so a gentle nudge and a full push produce exactly the same 4.4 m/s. There is no walking in
+this game on a touch device — only stopped and full speed. Measured after the fix: a half push (26 px of
+the 52 px radius) gives **2.2 m/s with the Walk animation**, where it previously gave 4.4.
+
+**Sprint was bound to `ShiftLeft` and nothing else.** The touch scheme has exactly three action buttons —
+◎ / DODGE / ⚔ — so the entire 1.55× movement mechanic was unreachable on a phone. That is not a tuning
+gap, it is a mechanic that half the audience never had. A fourth button was the obvious move and the
+wrong one: ADR-175 already fought a round over action-button placement crowding the stick zone. The
+console convention costs no UI at all — **push the stick to the ring and you run**. Threshold 0.97, which
+means the thumb has to reach or pass the visible ring, so it cannot be hit by accident, and partial
+deflection now has a real purpose to make it worth staying inside. Measured: full push **5.6 m/s with
+`Run_Weapon`**, against a 4.4 walk.
+
+Keyboard is untouched by construction: its input magnitude is always 1 (diagonals clamp from √2), so the
+new scaling is a no-op there, and the sprint threshold reads a **separate** touch-only magnitude — reading
+the combined one would have made `W` alone a sprint.
+
+One thing fixed on the way past: the walk animation's rate was `新速 / speed`, where `speed` is the target
+for this frame. With a scaled target that ratio is ~1 whatever the speed, so a slow walk would play feet
+at full rate — the exact foot-slide that block was written to fix. The denominator is the class's base
+speed now.
+
+Suite: 76 → **78** browser checks.
+
 ## ADR-182 — Elden Ring II: dying sent you back to the first wave, and no test could reach the boss
 
 Date: 2026-08-06. Status: accepted.
