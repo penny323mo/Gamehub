@@ -4467,6 +4467,51 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-192 — Tower: the first ruler, and a difficulty curve that went backwards
+
+Date: 2026-08-06. Status: accepted.
+
+Seven thousand lines of TypeScript and **no test of any kind** — the one file named like a test was three
+lines printing three.js properties. So the first question was not "how does it look", it was whether it
+loads, draws, and does so without reaching outside itself.
+
+`tests/smoke.mjs` (5 checks) found two things immediately:
+
+- **The stylesheet's first line was `@import url('https://fonts.googleapis.com/…')`.** A CSS `@import`
+  is only discovered after that stylesheet has downloaded and parsed, so it costs a *serialised* second
+  request to a third party, and it **blocks rendering**. For a static game shipped on Pages that is a
+  first-paint dependency on a host you do not control — measured here as `net::ERR_CONNECTION_RESET`,
+  with the fallback being a bare `sans-serif` that matches neither weight nor width. Two local stacks
+  now, in `--font-ui` / `--font-display`. The gate is binary: **zero cross-origin requests**.
+- **A 404 on every load** for `/favicon.ico`, because the page declared no icon. The repo already has a
+  convention — an inline `data:image/svg+xml` — that several other games follow.
+
+Then the substantive one. `tests/balance.mjs` on the 99-wave table:
+
+- **Seven waves were easier than wave one.** The worst is **wave 38: two healers, 180 hp — 14 % of wave
+  one's 1260, at the thirty-eighth wave.** Also wave 34 at 500 and wave 12 at 750.
+- **Twenty-one times the difficulty fell by more than 40 % in a single wave**, one of them to **0.08×**
+  the wave before it. Play far enough and the game turns back into its own tutorial.
+
+The rule deliberately is *not* "monotonically rising" — hard-then-easy is the rhythm of the genre and the
+author clearly built that in. What it forbids is collapse: a non-boss wave must be at least as hard as
+wave one, and at least 55 % of the strongest of the previous five non-boss waves.
+
+**My first version of that rule was wrong, and the numbers said so.** I let boss waves feed the running
+maximum, so after wave 30's 14,680 hp every ordinary wave had to clear 12,478 — it wanted to scale **82
+of 89 waves, one of them 69×**. Boss waves are deliberate spikes; using them as the floor for normal
+waves measures a game nobody designed. Restricted to the non-boss series, the same rule touches 22 waves,
+each landing just above its floor, and the largest enemy count in the game is unchanged at 455.
+
+`scripts/fix-wave-curve.mjs` applies it and `tests/balance.mjs` **imports the rule from that script**
+rather than restating it — one fact, one place. Reverting the data turns both curve gates red and names
+exactly the waves above.
+
+Bounty scales with count, so raising a wave's size raises its payout too; the gate checks that the
+hp-per-gold ratio stays inside one band (5.6 to 15.6) so a difficulty fix cannot quietly tighten the
+economy.
+
+
 ## ADR-191 — Elden Ring II: it can be finished
 
 Date: 2026-08-06. Status: accepted.

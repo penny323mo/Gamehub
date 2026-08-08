@@ -1,4 +1,21 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Oxanium:wght@500;600;700;800&display=swap');
+/* 字體：唔再喺 render 途中飛去第三方攞。
+ *
+ * 本來呢度第一行係 `@import url('https://fonts.googleapis.com/...')`——CSS
+ * 嘅 `@import` 要等呢個 stylesheet 自己下載兼 parse 完先發現得到，然後**串行**
+ * 再向 fonts.googleapis.com 發一次請求，而且**擋住 render**。個 host 慢、封咗
+ * 或者你冇網，成版畫面就喺度等；而 fallback 淨係寫住裸 `sans-serif`，即係一
+ * fallback 落去，字重同字寬全部唔啱。實測喺一個封咗外網嘅環境：
+ * `net::ERR_CONNECTION_RESET`，而隻遊戲本身係一隻靜態 Pages 遊戲。
+ *
+ * 兩個堆疊本地解決：介面用系統 UI 字體（每個平台自己嗰隻，一定啱字重），
+ * 顯示字用有科技感嘅方頭字，跌返落 system-ui。數字位另外加 tabular-nums，
+ * 因為打緊機嗰陣啲數跳嚟跳去先係真問題。 */
+:root {
+  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    'Noto Sans', Arial, 'PingFang HK', 'Microsoft JhengHei', sans-serif;
+  --font-display: 'Bahnschrift', 'DIN Alternate', 'Avenir Next Condensed',
+    'Segoe UI Semibold', system-ui, sans-serif;
+}
 
 * {
   margin: 0;
@@ -28,7 +45,7 @@ body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-ui);
   background:
     radial-gradient(circle at top, rgba(48, 112, 74, 0.28), transparent 38%),
     radial-gradient(circle at bottom, rgba(22, 44, 31, 0.22), transparent 42%),
@@ -111,7 +128,7 @@ body {
 }
 
 #hud-wave .wave-remain {
-  font-family: 'Oxanium', sans-serif;
+  font-family: var(--font-display);
   font-size: 11px;
   font-weight: 700;
   color: rgba(232, 245, 247, 0.68);
@@ -228,7 +245,7 @@ body {
 
 #wave-banner-text {
   display: inline-block;
-  font-family: 'Oxanium', sans-serif;
+  font-family: var(--font-display);
   font-size: 28px;
   font-weight: 800;
   color: #f7fbf7;
@@ -330,7 +347,7 @@ body {
 .skill-key,
 .skill-cd {
   position: absolute;
-  font-family: 'Oxanium', sans-serif;
+  font-family: var(--font-display);
   font-size: 11px;
   font-weight: 700;
   border-radius: 999px;
@@ -356,7 +373,7 @@ body {
 }
 
 .build-title {
-  font-family: 'Oxanium', sans-serif;
+  font-family: var(--font-display);
   font-size: 12px;
   font-weight: 700;
   color: rgba(225, 243, 227, 0.56);
@@ -716,7 +733,7 @@ body {
 }
 
 .intro-kicker {
-  font-family: 'Oxanium', sans-serif;
+  font-family: var(--font-display);
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.28em;
@@ -726,7 +743,7 @@ body {
 }
 
 .game-title {
-  font-family: 'Oxanium', sans-serif;
+  font-family: var(--font-display);
   font-size: 60px;
   font-weight: 800;
   letter-spacing: 0.02em;
@@ -771,7 +788,7 @@ body {
 }
 
 .start-chip strong {
-  font-family: 'Oxanium', sans-serif;
+  font-family: var(--font-display);
   font-size: 20px;
   color: #f8fbf8;
 }
@@ -793,7 +810,7 @@ body {
 }
 
 .difficulty-label {
-  font-family: 'Oxanium', sans-serif;
+  font-family: var(--font-display);
   font-size: 13px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -887,7 +904,7 @@ body {
 }
 
 .end-kicker {
-  font-family: 'Oxanium', sans-serif;
+  font-family: var(--font-display);
   font-size: 13px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -1001,7 +1018,7 @@ body {
 }
 
 .stat-val {
-  font-family: 'Oxanium', sans-serif;
+  font-family: var(--font-display);
   font-weight: 700;
   color: var(--text-main);
 }
@@ -1429,7 +1446,7 @@ body {
   backdrop-filter: blur(10px);
   box-shadow: 0 0 20px rgba(255, 120, 60, 0.35), var(--shadow-lg);
   color: #fff2e0;
-  font-family: 'Oxanium', sans-serif;
+  font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: 0.08em;
   animation: modBadgeIn 0.5s cubic-bezier(0.2, 0.9, 0.3, 1),
@@ -1474,7 +1491,7 @@ body {
   border: 1px solid rgba(190, 239, 199, 0.12);
   box-shadow: var(--shadow-lg);
   color: #f7fbf7;
-  font-family: 'Oxanium', sans-serif;
+  font-family: var(--font-display);
   animation: previewIn 0.35s ease-out;
 }
 #next-wave-preview.hidden { display: none; }
@@ -1549,7 +1566,7 @@ body {
   left: 50%;
   transform: translate(-50%, -50%) scale(0.4);
   text-align: center;
-  font-family: 'Oxanium', sans-serif;
+  font-family: var(--font-display);
   color: #ffe1d0;
   text-shadow:
     0 0 18px rgba(255, 60, 40, 0.9),
