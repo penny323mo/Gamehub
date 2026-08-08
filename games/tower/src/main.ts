@@ -1461,6 +1461,7 @@ function gameLoop(time: number): void {
         return buildTower(state, type, col, row);
     },
     upgrade(towerId: number) { return upgradeTower(state, towerId); },
+    進化(towerId: number, targetType: string) { return evolveTower(state, towerId, targetType); },
     // 出一隻敵人，之後可以擺喺任何一格路上面（唔郁就量得準）。
     spawn(type: string, pathIndex = 0) {
         spawnEnemy(state, type as Parameters<typeof spawnEnemy>[1]);

@@ -14,6 +14,13 @@ const TOWER_COLORS: Record<string, number> = {
     lightning: 0xffee00,
     poison: 0x66ff33,
     sniper: 0x333399,
+    // 六個進化型：幾何跟返基礎型（同 arrow_rapid／arrow_pierce 一樣），色深一級。
+    cannon_siege: 0x3d3d44,
+    ice_glacier: 0x2f9fd8,
+    fire_inferno: 0xd32f00,
+    lightning_storm: 0xd8c400,
+    poison_plague: 0x2fbf1f,
+    sniper_railgun: 0x1f1f6e,
 };
 
 const ACCENT_COLORS: Record<string, number> = {
@@ -26,6 +33,12 @@ const ACCENT_COLORS: Record<string, number> = {
     lightning: 0xffffaa,
     poison: 0xaaff77,
     sniper: 0x6666cc,
+    cannon_siege: 0xbbbbc4,
+    ice_glacier: 0xddf6ff,
+    fire_inferno: 0xffbb66,
+    lightning_storm: 0xffffdd,
+    poison_plague: 0xccffaa,
+    sniper_railgun: 0x9999ee,
 };
 
 // Segment counts scale down on mobile
@@ -424,21 +437,27 @@ export class TowerRenderer {
                 this.buildBallista(turret, parts, scale, tower.type, accentColor);
                 break;
             case 'cannon':
+            case 'cannon_siege':
                 this.buildCannon(group, turret, parts, scale, accentColor);
                 break;
             case 'ice':
+            case 'ice_glacier':
                 this.buildIceSpire(group, turret, parts, scale, accentColor);
                 break;
             case 'fire':
+            case 'fire_inferno':
                 this.buildFireBrazier(turret, parts, scale);
                 break;
             case 'lightning':
+            case 'lightning_storm':
                 this.buildTeslaCoil(turret, parts, scale, accentColor);
                 break;
             case 'poison':
+            case 'poison_plague':
                 this.buildAlchemyStill(turret, parts, scale);
                 break;
             case 'sniper':
+            case 'sniper_railgun':
                 this.buildRailgunNest(group, turret, parts, scale, accentColor);
                 break;
         }

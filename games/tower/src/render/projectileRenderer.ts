@@ -72,7 +72,9 @@ export class ProjectileRenderer {
 
     private createProjectileMesh(type: TowerType): THREE.Object3D {
         const group = new THREE.Group();
-        const normalizedType = type === 'arrow_rapid' || type === 'arrow_pierce' ? 'arrow' : type;
+        // 進化型嘅名一律係「基礎型_乜乜」，所以拆一次就得——本來呢度逐個
+        // arrow 進化型列出嚟，加多六個進化型嗰陣就會靜靜哋畫唔到子彈。
+        const normalizedType = type.includes('_') ? type.split('_')[0] : type;
 
         switch (normalizedType) {
             case 'arrow': {

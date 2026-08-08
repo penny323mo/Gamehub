@@ -4467,6 +4467,65 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-194 — Tower: the map runs out of things to sell you at wave 26 of 99
+
+Date: 2026-08-08. Status: accepted.
+
+ADR-193 ended with a measurement I could not leave alone: a build policy any beginner could execute —
+build beside the path, upgrade when you can, otherwise build another — reaches **wave 41 without
+losing one of its 20 lives**. This round was about naming what that number means, and it turned out
+to be two separate defects that had been reading as one.
+
+`tests/playthrough.mjs` now measures three things it did not: it takes **evolutions** (without them
+I could not tell "the game has nothing to sell you" from "my bot does not know how to buy"), it
+accepts a **tower cap** so the difficulty can be probed from below, and it records **how far the
+deepest enemy of each wave gets along the path**, as a fraction. That last number is the one that
+says how close a wave came, which "you cleared it" never does.
+
+What they say:
+
+- **Income 41,184 over 40 waves. Everything the map can absorb: 29,260.** You can buy a maxed,
+  evolved tower on every path-adjacent cell and still be holding **12,324 gold** — with 59 waves
+  left to play. The purchase completes around wave 26. From there the only decision left is when to
+  press build.
+- **Deepest penetration, median across 40 waves: 0.03.** Enemies die in the first three percent of
+  the path. The single deepest moment all game was 0.47, and the closest wave was **wave 1**, played
+  with two towers.
+- The game is not *incapable* of difficulty — capping the build makes it real: **6 towers loses at
+  wave 30, 10 towers loses at wave 40**. So the waves can kill you. They just never get the chance,
+  because the game hands out more money than the map can take.
+
+The first defect is a missing sink, and it had a cause worth naming on its own: **six of the seven
+towers have no evolution at all.** Only `arrow` had any; every other tower reaches level 3 and the
+panel turns into a dead `⬆ MAX` button. So the entire late-game spend was 42 arrow evolutions at 250,
+and there was nothing else to want. Each base tower now has one — the geometry falls through to the
+base builder the way `arrow_rapid` already did, so this is a colour, a stat line and a config entry
+rather than new art — priced at one-for-one with the tower's cumulative investment. The most
+expensive fully-realised tower goes from 530 to 1,000, the map absorbs 62,000 instead of 32,860, and
+the point where you can afford all of it moves from wave 51 to **wave 78 of 99** (config arithmetic,
+which is a lower bound: the live run with difficulty scaling and interest bought out at 26). Measured
+end to end afterwards: leftover gold at wave 41 falls **12,324 → 5,206** and income over spend falls
+**1.41× → 1.13×**.
+
+Adding those six types immediately exposed a bug that had been sitting under the two arrow
+evolutions: the projectile renderer normalised evolved types with
+`type === 'arrow_rapid' || type === 'arrow_pierce' ? 'arrow' : type`, and `fx.ts` looked up trail and
+impact colours in a table keyed by base type. Every evolved type outside that hardcoded pair would
+have fallen through the mesh switch and drawn **no projectile at all**, and taken `undefined` for its
+colour. Both now derive the base type from the name once — evolved types are `base_suffix` by
+construction — instead of listing the cases.
+
+The gate is config arithmetic, no browser: what one cell can absorb × the path-adjacent cells,
+against what the waves pay out. Restoring the old `towers.json` turns it red naming wave 51.
+`balance.mjs` 6/6, `combat.mjs` 8/8, `smoke.mjs` 5/5.
+
+The second defect is **not** fixed and I am not going to pretend the sink touched it: after all of
+the above, the run is still **20/20 lives at wave 41 with a median penetration of 0.03**. Spending is
+now a real decision; surviving still is not. That is a wave-curve change — the numbers to aim at are
+in hand (6 towers dies at 30, 10 at 40, 56 is untouchable), and it needs to be walked in against
+`playthrough.mjs` a step at a time rather than guessed in one go, because the failure mode of
+overshooting is a game nobody can finish.
+
 ## ADR-193 — Tower: burn damage was the tick rate, not the number on the card
 
 Date: 2026-08-08. Status: accepted.
@@ -4532,9 +4591,11 @@ Fire and poison lost roughly half their real output here, so the honest follow-u
 game still holds up. `tests/playthrough.mjs` drives a real run through the seam with a policy any
 first-time player could execute — build beside the path, upgrade when you can, otherwise build
 another. It reaches **wave 41 having lost 0 of 20 lives**, fills every buildable cell at **56
-towers** by wave 26, and then just accumulates: **24,106 gold** with nothing left to buy. So the
-nerf costs the game nothing, and the thing worth naming next is not tower strength — it is that
-**the first forty waves cannot threaten a player who simply keeps building**.
+towers**, upgrades all of them, takes all 42 available evolutions, and still ends holding **12,548
+gold**. (My first run banked 24,106 because the policy did not try evolutions at all — that number
+was my bot's limit, not the game's, and the corrected figure is the one to quote.) So the nerf costs
+the game nothing, and the thing worth naming next is not tower strength — it is that **the first
+forty waves cannot threaten a player who simply keeps building**.
 
 ## ADR-192 — Tower: the first ruler, and a difficulty curve that went backwards
 

@@ -89,7 +89,33 @@
                 "dot": null,
                 "chain": null
             }
+        ],
+        "evolutions": [
+            {
+                "type": "cannon_siege",
+                "name": "Siege Mortar",
+                "cost": 400,
+                "desc": "射程＋範圍再大一截"
+            }
         ]
+    },
+    "cannon_siege": {
+        "name": "Siege Mortar",
+        "damageType": "physical",
+        "levels": [
+            {
+                "buildCost": 0,
+                "upgradeCost": 0,
+                "damage": 150,
+                "cooldownSec": 1.2,
+                "range": 4.5,
+                "slow": null,
+                "aoeRadius": 2.52,
+                "dot": null,
+                "chain": null
+            }
+        ],
+        "evolutions": []
     },
     "ice": {
         "name": "Ice",
@@ -137,7 +163,36 @@
                 "dot": null,
                 "chain": null
             }
+        ],
+        "evolutions": [
+            {
+                "type": "ice_glacier",
+                "name": "Glacier Spire",
+                "cost": 280,
+                "desc": "減速更狠，兼範圍凍"
+            }
         ]
+    },
+    "ice_glacier": {
+        "name": "Glacier Spire",
+        "damageType": "ice",
+        "levels": [
+            {
+                "buildCost": 0,
+                "upgradeCost": 0,
+                "damage": 33,
+                "cooldownSec": 0.64,
+                "range": 4.5,
+                "slow": {
+                    "pct": 0.65,
+                    "durationSec": 4.0
+                },
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": null
+            }
+        ],
+        "evolutions": []
     },
     "fire": {
         "name": "Fire",
@@ -185,7 +240,36 @@
                 },
                 "chain": null
             }
+        ],
+        "evolutions": [
+            {
+                "type": "fire_inferno",
+                "name": "Inferno Brazier",
+                "cost": 350,
+                "desc": "燒傷 dps 翻倍"
+            }
         ]
+    },
+    "fire_inferno": {
+        "name": "Inferno Brazier",
+        "damageType": "fire",
+        "levels": [
+            {
+                "buildCost": 0,
+                "upgradeCost": 0,
+                "damage": 48,
+                "cooldownSec": 0.64,
+                "range": 4.5,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": {
+                    "dps": 48,
+                    "durationSec": 3.5
+                },
+                "chain": null
+            }
+        ],
+        "evolutions": []
     },
     "lightning": {
         "name": "Lightning",
@@ -233,7 +317,36 @@
                     "rangeFalloff": 3.0
                 }
             }
+        ],
+        "evolutions": [
+            {
+                "type": "lightning_storm",
+                "name": "Storm Coil",
+                "cost": 380,
+                "desc": "Chain ×5"
+            }
         ]
+    },
+    "lightning_storm": {
+        "name": "Storm Coil",
+        "damageType": "lightning",
+        "levels": [
+            {
+                "buildCost": 0,
+                "upgradeCost": 0,
+                "damage": 60,
+                "cooldownSec": 0.64,
+                "range": 5.0,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": {
+                    "targets": 5,
+                    "rangeFalloff": 3.0
+                }
+            }
+        ],
+        "evolutions": []
     },
     "poison": {
         "name": "Poison",
@@ -281,7 +394,36 @@
                 },
                 "chain": null
             }
+        ],
+        "evolutions": [
+            {
+                "type": "poison_plague",
+                "name": "Plague Still",
+                "cost": 350,
+                "desc": "毒霧範圍大一倍"
+            }
         ]
+    },
+    "poison_plague": {
+        "name": "Plague Still",
+        "damageType": "poison",
+        "levels": [
+            {
+                "buildCost": 0,
+                "upgradeCost": 0,
+                "damage": 21,
+                "cooldownSec": 0.8,
+                "range": 4.5,
+                "slow": null,
+                "aoeRadius": 4.0,
+                "dot": {
+                    "dps": 36,
+                    "durationSec": 5.0
+                },
+                "chain": null
+            }
+        ],
+        "evolutions": []
     },
     "sniper": {
         "name": "Sniper",
@@ -320,7 +462,33 @@
                 "dot": null,
                 "chain": null
             }
+        ],
+        "evolutions": [
+            {
+                "type": "sniper_railgun",
+                "name": "Railgun Nest",
+                "cost": 500,
+                "desc": "單發傷害再上一級"
+            }
         ]
+    },
+    "sniper_railgun": {
+        "name": "Railgun Nest",
+        "damageType": "sniper",
+        "levels": [
+            {
+                "buildCost": 0,
+                "upgradeCost": 0,
+                "damage": 420,
+                "cooldownSec": 1.44,
+                "range": 9.5,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": null
+            }
+        ],
+        "evolutions": []
     },
     "arrow_rapid": {
         "name": "Rapid Arrow",

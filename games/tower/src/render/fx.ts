@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { GameState, TowerType } from '../core/types';
 import { GRAPHICS } from '../core/config';
 
+// 進化型冇自己一格就會攞到 undefined，所以查嘅時候拆返基礎型（見 proj色）。
 const PROJ_COLORS: Record<TowerType, number> = {
     arrow: 0xffdd44,
     arrow_rapid: 0xffef99,
@@ -13,6 +14,9 @@ const PROJ_COLORS: Record<TowerType, number> = {
     poison: 0x66ff33,
     sniper: 0xaaaaff,
 };
+
+const proj色 = (t: TowerType): number =>
+    PROJ_COLORS[t] ?? PROJ_COLORS[t.includes('_') ? t.split('_')[0] : t] ?? 0xffffff;
 
 // ── Particle pool for explosions & death effects ──
 interface Particle {
@@ -185,7 +189,7 @@ export class FxRenderer {
         for (const proj of state.projectiles) {
             if (!proj.alive) continue;
 
-            const trailColor = PROJ_COLORS[proj.towerType] ?? PROJ_COLORS.arrow;
+            const trailColor = proj色(proj.towerType);
             if (
                 proj.towerType === 'fire' ||
                 proj.towerType === 'poison' ||
@@ -239,7 +243,7 @@ export class FxRenderer {
     }
 
     addExplosion(x: number, z: number, type: TowerType): void {
-        const color = new THREE.Color(PROJ_COLORS[type]);
+        const color = new THREE.Color(proj色(type));
         const count = 16 + Math.floor(Math.random() * 10);
 
         for (let i = 0; i < count && this.particles.length < MAX_PARTICLES; i++) {
@@ -335,7 +339,7 @@ export class FxRenderer {
 
     /** Short upward burst at tower muzzle when firing. */
     addMuzzleFlash(x: number, z: number, towerType: TowerType): void {
-        const baseColor = new THREE.Color(PROJ_COLORS[towerType] ?? PROJ_COLORS.arrow);
+        const baseColor = new THREE.Color(proj色(towerType));
         // 1 bright central flash
         if (this.particles.length < MAX_PARTICLES) {
             this.particles.push({
@@ -369,7 +373,7 @@ export class FxRenderer {
 
     /** Ground-level ring burst at AOE impact. Uses existing particle pool. */
     addImpactFlash(x: number, z: number, radius: number, towerType: TowerType): void {
-        const baseColor = new THREE.Color(PROJ_COLORS[towerType] ?? PROJ_COLORS.cannon);
+        const baseColor = new THREE.Color(proj色(towerType));
         // White core flash
         for (let i = 0; i < 3 && this.particles.length < MAX_PARTICLES; i++) {
             this.particles.push({
