@@ -169,7 +169,7 @@ export function tickWave(state: GameState, dt: number): void {
     }
 }
 
-function spawnEnemy(state: GameState, type: EnemyType): void {
+export function spawnEnemy(state: GameState, type: EnemyType): void {
     const cfg = ENEMIES[type];
     const spawn = cellToWorld(MAP.path[0][0], MAP.path[0][1]);
     const diffCfg = DIFFICULTIES[state.difficulty];
@@ -205,6 +205,7 @@ function spawnEnemy(state: GameState, type: EnemyType): void {
         special: cfg.special ?? 'none',
         healCooldown: 0,
         shieldRegenTimer: 0,
+        dotFloatTimer: 0,
     };
 
     state.enemies.push(enemy);

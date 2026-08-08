@@ -1,7 +1,7 @@
 import type { GameState, Enemy, DamageType } from '../types';
 import { ENEMIES } from '../config';
 import { killEnemy } from './killSystem';
-import { SHIELD_REGEN_DELAY } from './enemySystem';
+import { SHIELD_REGEN_DELAY, applyDot } from './enemySystem';
 import { bus } from './eventBus';
 
 /** Move projectiles and resolve hits with counter system */
@@ -47,12 +47,7 @@ export function tickCombat(state: GameState, dt: number): void {
                             enemy.slow = { pct: proj.slow.pct, remaining: proj.slow.durationSec };
                         }
                         if (proj.dot) {
-                            // Add DOT, stacking with existing
-                            enemy.dots.push({
-                                dps: proj.dot.dps,
-                                remaining: proj.dot.durationSec,
-                                damageType: proj.damageType,
-                            });
+                            applyDot(enemy, proj.dot.dps, proj.dot.durationSec, proj.damageType);
                         }
                     }
                 }
@@ -100,11 +95,7 @@ export function tickCombat(state: GameState, dt: number): void {
                         target.slow = { pct: proj.slow.pct, remaining: proj.slow.durationSec };
                     }
                     if (proj.dot) {
-                        target.dots.push({
-                            dps: proj.dot.dps,
-                            remaining: proj.dot.durationSec,
-                            damageType: proj.damageType,
-                        });
+                        applyDot(target, proj.dot.dps, proj.dot.durationSec, proj.damageType);
                     }
                 }
             }

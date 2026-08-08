@@ -165,6 +165,7 @@ export interface Enemy {
     special: string;
     healCooldown: number;
     shieldRegenTimer: number;
+    dotFloatTimer: number;   // 燒傷數字一秒印一次，唔係一格印一次
 }
 
 export interface Projectile {

@@ -3,6 +3,9 @@ import { ENEMIES } from '../config';
 import { dist } from '../path';
 import { killEnemy } from './killSystem';
 
+// 一條 DoT 就算畀甲食晒都仲有咁多每秒（唔係每格）。
+export const DOT_MIN_DPS = 1;
+
 // Shield enemy type — regen after no-damage delay
 export const SHIELD_REGEN_DELAY = 4.0;   // seconds of no damage before regen starts
 const SHIELD_REGEN_RATE = 20;    // hp/sec
@@ -34,8 +37,7 @@ export function tickEnemies(state: GameState, dt: number): void {
         // Tick DOT effects
         for (let i = enemy.dots.length - 1; i >= 0; i--) {
             const dot = enemy.dots[i];
-            const dotDmg = dot.dps * dt;
-            applyRawDamage(state, enemy, dotDmg, dot.damageType);
+            applyDotTick(state, enemy, dot.dps, dot.damageType, dt);
             dot.remaining -= dt;
             if (dot.remaining <= 0) {
                 enemy.dots.splice(i, 1);
@@ -135,30 +137,67 @@ export function tickEnemies(state: GameState, dt: number): void {
     }
 }
 
-/** Apply raw damage considering armor and damage type weakness/resistance */
-function applyRawDamage(state: GameState, enemy: Enemy, baseDmg: number, damageType: DamageType): void {
+/**
+ * 落一條 DoT：**同一種傷害類型唔會疊，係刷新**。
+ *
+ * 原本兩個落點各自寫一次 `dots.push(...)`（「stacking with existing」），冇上限。
+ * 毒 L3 一秒射一次、燒足五秒，即係同一座塔自己就疊到五條，實際每秒係設計嘅
+ * **五倍**。而塔嗰版寫住嘅係 `DOT: 18 dmg/s (5s)`——一條，唔係五條。條 UI 就係
+ * 設計意圖嘅白紙黑字，疊落去就等於嗰版嘢講大話。
+ *
+ * 火同毒係兩種類型，仲係可以同時燒——刷新只係同類型之間嘅事。
+ */
+export function applyDot(enemy: Enemy, dps: number, durationSec: number, damageType: DamageType): void {
+    const 同類 = enemy.dots.find(d => d.damageType === damageType);
+    if (同類) {
+        同類.dps = Math.max(同類.dps, dps);
+        同類.remaining = Math.max(同類.remaining, durationSec);
+        return;
+    }
+    enemy.dots.push({ dps, remaining: durationSec, damageType });
+}
+
+/**
+ * 持續傷害嘅一格：**先減甲，再乘時間**。
+ *
+ * 原本呢度收嘅係「呢一格打幾多」＝ dps × dt，然後行同單次命中一模一樣嗰句
+ * `Math.max(1, dmg - armor)`。「一下最少打一點」係寫畀**一次命中**嘅規則；
+ * 擺喺**每格都行一次**嘅連續傷害度，佢就變成「每格最少一點」，即係
+ * **每秒最少 1 / LOGIC_DT ＝ 20 點**。實測（tests/combat.mjs 守住）：設計 8 dps
+ * 打出 20、設計 10 dps 打出 20；tank 有 8 甲兼弱火，24 dps 打出 20——**「弱火」
+ * 令佢食少過一隻冇弱點嘅雜兵**；boss 抗毒兼 12 甲，一樣係 20。甲、抗性、弱點
+ * 三樣喺 DoT 上面**全部冇作用**，因為佢哋都畀個地板食晒。
+ *
+ * 地板搬去 dps 嗰層之後，佢先至係一條同 tick 率無關嘅規則：無論一秒行幾多格，
+ * 一條 DoT 至少 DOT_MIN_DPS 每秒，最多就係佢設計嗰個 dps。
+ */
+function applyDotTick(state: GameState, enemy: Enemy, dps: number, damageType: DamageType, dt: number): void {
     const cfg = ENEMIES[enemy.type];
-    let dmg = baseDmg;
+    let effDps = dps;
 
     // Counter multipliers
-    if (cfg.weakness?.includes(damageType)) dmg *= 1.5;
-    if (cfg.resistance?.includes(damageType)) dmg *= 0.5;
+    if (cfg.weakness?.includes(damageType)) effDps *= 1.5;
+    if (cfg.resistance?.includes(damageType)) effDps *= 0.5;
 
-    // Armor reduces damage (flat)
-    dmg = Math.max(1, dmg - enemy.armor);
+    // Armor reduces damage (flat, per second — not per tick)
+    effDps = Math.max(DOT_MIN_DPS, effDps - enemy.armor);
+    const dmg = effDps * dt;
 
     // Reset shield regen delay on damage
     if (enemy.maxShield > 0) {
         enemy.shieldRegenTimer = SHIELD_REGEN_DELAY;
     }
 
-    // DOT damage float (green, only show if >= 2 to avoid spam)
-    if (dmg >= 2) {
+    // DOT damage float (green, only show once per second of burn to avoid spam)
+    enemy.dotFloatTimer = (enemy.dotFloatTimer ?? 0) - dt;
+    if (effDps >= 2 && enemy.dotFloatTimer <= 0) {
+        enemy.dotFloatTimer = 1;
         state.floatingTexts.push({
             id: state.nextId++,
             worldX: enemy.worldX,
             worldZ: enemy.worldZ,
-            value: `-${Math.round(dmg)}`,
+            // 一秒印一次，所以印嘅係**一秒**打幾多，唔係一格打幾多（一格得 0.4 點）。
+            value: `-${Math.round(effDps)}`,
             color: '#66ee44',
             life: 0.8,
             maxLife: 0.8,
@@ -167,7 +206,8 @@ function applyRawDamage(state: GameState, enemy: Enemy, baseDmg: number, damageT
 
     enemy.hp -= dmg;
     state.stats.totalDamageDealt += dmg;
-    state.stats.damageByType.poison = (state.stats.damageByType.poison ?? 0) + dmg;
+    // 本來寫死咗 `.poison`：火燒嘅傷害全部記落毒嗰格，收場嗰版統計係錯嘅。
+    state.stats.damageByType[damageType] = (state.stats.damageByType[damageType] ?? 0) + dmg;
     if (enemy.hp <= 0) {
         killEnemy(state, enemy);
     }

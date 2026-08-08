@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createInitialState } from './core/gameState';
 import { LOGIC_DT, MAP, TOWERS, SCORING, WAVES, GRAPHICS, ENEMIES } from './core/config';
-import { tickWave, startNextWave, MODIFIERS, templateIndex } from './core/systems/waveSystem';
+import { tickWave, startNextWave, MODIFIERS, templateIndex, spawnEnemy } from './core/systems/waveSystem';
 import { cellToWorld } from './core/path';
 import { tickEnemies } from './core/systems/enemySystem';
 import { tickTowers } from './core/systems/towerSystem';
@@ -1426,5 +1426,57 @@ function gameLoop(time: number): void {
 
     renderScene();
 }
+
+// ─── 量度用嘅接口 ───
+// 唔係遊戲玩法嘅一部分：呢度開一個窗口畀測試用真嘅系統跑真嘅一格邏輯，
+// 而唔係喺測試度抄一次公式。抄一次就變成「同一件事寫兩次」——兩邊一齊錯
+// 嘅時候把尺會綠。所以呢度淨係轉發 tick* 同 state，冇自己嘅計算。
+(window as unknown as Record<string, unknown>).__TD = {
+    get state() { return state; },
+    LOGIC_DT,
+    // 行 n 格邏輯。渲染唔關事——量嘅係邏輯。
+    // dt 開得出嚟，係因為「一條規則跟唔跟 tick 率」本身就係要量嘅嘢。
+    tick(n = 1, dt = LOGIC_DT) {
+        for (let i = 0; i < n; i += 1) {
+            tickWave(state, dt);
+            tickEnemies(state, dt);
+            tickTowers(state, dt);
+            tickCombat(state, dt);
+        }
+    },
+    // 一個乾淨嘅擂台：清走場上所有嘢，停低出波，錢畀夠。
+    擂台(gold = 99999) {
+        state.phase = 'wave';
+        state.paused = false;
+        state.enemies = [];
+        state.projectiles = [];
+        state.towers = [];
+        state.spawnCounts = state.spawnCounts.map(() => 0);
+        state.waveEnemiesSpawned = state.waveEnemiesTotal;
+        state.gold = gold;
+        state.lives = 999;
+        return { phase: state.phase, gold: state.gold };
+    },
+    build(type: TowerType, col: number, row: number) {
+        return buildTower(state, type, col, row);
+    },
+    upgrade(towerId: number) { return upgradeTower(state, towerId); },
+    // 出一隻敵人，之後可以擺喺任何一格路上面（唔郁就量得準）。
+    spawn(type: string, pathIndex = 0) {
+        spawnEnemy(state, type as Parameters<typeof spawnEnemy>[1]);
+        const e = state.enemies[state.enemies.length - 1];
+        if (pathIndex > 0) {
+            const [c, r] = MAP.path[Math.min(pathIndex, MAP.path.length - 1)];
+            const w = cellToWorld(c, r);
+            e.pathIndex = pathIndex; e.pathProgress = 0;
+            e.worldX = w.x; e.worldZ = w.z; e.prevWorldX = w.x; e.prevWorldZ = w.z;
+        }
+        return { id: e.id, hp: e.hp, maxHp: e.maxHp, armor: e.armor, shield: e.shield, x: e.worldX, z: e.worldZ };
+    },
+    敵(id: number) {
+        const e = state.enemies.find(x => x.id === id);
+        return e ? { hp: e.hp, alive: e.alive, shield: e.shield, dots: e.dots.length, slow: e.slow } : null;
+    },
+};
 
 requestAnimationFrame(gameLoop);

@@ -4467,6 +4467,75 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-193 — Tower: burn damage was the tick rate, not the number on the card
+
+Date: 2026-08-08. Status: accepted.
+
+Every tower panel in this game makes an arithmetic promise: `DPS: 30.0`, and for the two burn
+towers, `DOT: 18 dmg/s (5s)`. The enemy table makes another: the boss has **12 armour and resists
+poison**, the tank has **8 armour and is weak to fire**. ADR-192 opened the first two rulers on this
+game — does it load, does the difficulty curve collapse — and neither of them touched combat. So
+none of those promises had ever been checked against what the code does.
+
+The burn tick was this:
+
+```ts
+const dotDmg = dot.dps * dt;
+applyRawDamage(state, enemy, dotDmg, dot.damageType);   // → Math.max(1, dmg - armor)
+```
+
+`Math.max(1, dmg - armor)` is a rule about **one hit**: a hit always lands for at least a point.
+Applied to a **per-tick slice of a continuous stream** it says something completely different —
+at least a point *every tick*, which at `LOGIC_DT = 0.05` is **at least 20 damage per second**.
+Every configured burn in the game is below that. Measured on the shipped build:
+
+| burn | configured | measured |
+|---|---|---|
+| grunt, 10 dps | 10 | **20** |
+| grunt, 8 dps | 8 | **20** |
+| tank (8 armour, **weak to fire**), 24 dps | 36 intended | **20** |
+| boss (12 armour, **resists poison**), 18 dps | 9 intended | **20** |
+
+Armour, resistance and weakness all landed *below* the floor, so the floor ate all three. The
+sharpest way to say it: **being weak to fire made the tank take less fire damage than a plain grunt
+with no weakness at all** — 20 against 24. And the boss's poison resistance plus twelve armour
+produced exactly the same number as no defences whatsoever.
+
+The floor now sits on the **dps**, not on the slice: mitigate per second, then multiply by `dt`. That
+makes it a statement about the game rather than about the step size. The gate that catches it runs
+the same ten-second burn at `dt` = 0.1, 0.05 and 0.0125; before the fix those read **100 / 200 /
+800** — burn damage was *literally proportional to tick rate* — and now they read 80 / 80 / 80.
+
+Two more things fell out of the same function:
+
+- **Burns stacked without limit.** Both impact sites wrote their own `dots.push({...})` — the same
+  fact written twice, with the comment "stacking with existing" — and nothing capped it. Poison L3
+  fires every second and burns for five, so **one tower stacked five burns on one enemy** and dealt
+  five times the number on its own panel. Measured against a pinned target: fire **1.93×** and
+  poison **2.20×** their advertised output. Same damage type now refreshes instead of stacking;
+  different types still burn together, because fire and poison are two things.
+- Burn damage was credited to `damageByType.poison` **regardless of the actual type**, so every fire
+  tower's contribution showed up under poison on the end screen.
+
+Mutations, run separately so the two defects stay separable: restoring the per-tick floor turns the
+tick-rate gate and both counter gates red with the original 20/20/20; restoring `dots.push` turns
+the stack-count gates red at 2 and 6 concurrent burns and pushes fire and poison back over their
+panels. `tests/combat.mjs` 8/8, smoke 5/5, balance 5/5.
+
+One gate was red for a while and it was my ruler, not the game: sniper measured 41.7 dps against a
+promised 35.7 because a twelve-second window hands out a free opening shot every time (cooldowns
+start at zero). Warm up for six seconds and measure a minute and it reads 35.0. And I lost a round
+to the trap already written down in ADR-181 — the `dt` argument I had just added to the debug seam
+was **not in `dist`**, because I had not rebuilt. The numbers looked like a real half-rate bug.
+
+Fire and poison lost roughly half their real output here, so the honest follow-up is whether the
+game still holds up. `tests/playthrough.mjs` drives a real run through the seam with a policy any
+first-time player could execute — build beside the path, upgrade when you can, otherwise build
+another. It reaches **wave 41 having lost 0 of 20 lives**, fills every buildable cell at **56
+towers** by wave 26, and then just accumulates: **24,106 gold** with nothing left to buy. So the
+nerf costs the game nothing, and the thing worth naming next is not tower strength — it is that
+**the first forty waves cannot threaten a player who simply keeps building**.
+
 ## ADR-192 — Tower: the first ruler, and a difficulty curve that went backwards
 
 Date: 2026-08-06. Status: accepted.

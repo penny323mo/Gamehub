@@ -201,6 +201,7 @@ function showItem(category: 'tower' | 'enemy', name: string) {
             special: '',
             healCooldown: 0,
             shieldRegenTimer: 0,
+            dotFloatTimer: 0,
         } as Enemy);
         camera.position.set(1.5, 2, 2.5);
     }
