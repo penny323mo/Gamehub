@@ -31,6 +31,7 @@ import {
 } from './core/storage';
 import { ACHIEVEMENTS, type Achievement } from './core/achievements';
 import { makeDraggable, resetUiLayout } from './ui/draggable';
+import { 量模型 } from './render/assets';
 
 // ─── State ───
 const persisted: PersistedData = loadPersisted();
@@ -1434,6 +1435,9 @@ function gameLoop(time: number): void {
 (window as unknown as Record<string, unknown>).__TD = {
     get state() { return state; },
     LOGIC_DT,
+    // 資產嗰把尺量嘅係遊戲自己用嗰個 loader，唔係測試度另開一個——
+    // 另開一個就變成量緊一件遊戲唔會行嘅嘢。
+    量模型: 量模型,
     // 行 n 格邏輯。渲染唔關事——量嘅係邏輯。
     // dt 開得出嚟，係因為「一條規則跟唔跟 tick 率」本身就係要量嘅嘢。
     tick(n = 1, dt = LOGIC_DT) {

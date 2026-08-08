@@ -4467,6 +4467,70 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-195 — Tower: from zero assets to 66 CC0 models, and the road that actually reaches them
+
+Date: 2026-08-08. Status: accepted (half done — the renderers still draw the old procedural geometry).
+
+Penny wants the hand-built 3D gone. It should go: `towerRenderer.ts` is nine hundred lines that
+assemble every tower out of cylinders and boxes, and the game ships **no asset files at all**. The
+question was never whether to replace it, only what with — so this round is the scan, the fetch, and
+a ruler over what arrived. The renderers are the next round.
+
+**What this environment can actually reach.** I measured rather than assumed, and the answer is
+narrow. Blocked by the egress proxy: `kenney.nl`, `quaternius.com`, `polyhaven.com`,
+`opengameart.org`, `itch.io`, `codeload.github.com` (so no repo zips), the GitHub REST API (this
+session is bound to its own repositories), and `github.com` HTML. Reachable: **`git ls-remote` /
+`git clone` against public GitHub repos**, and **`raw.githubusercontent.com`** for individual files.
+That single fact decided the sourcing strategy: a blob-less partial clone to enumerate a repo's tree,
+then per-file fetches over `raw`. Anything that only exists behind an itch.io download button is out
+of reach from here regardless of its licence.
+
+**What is there.** `ETdoFresh/kenney.nl` mirrors Kenney's CC0 packs — 46,424 files, of which 23 kits
+carry 3D models. The one that matters is **`tower-defense-kit-1`, 146 glTF models**, and it is a
+closer fit than anything I would have designed:
+
+- **Towers are modular**: `towerRound_`/`towerSquare_` × `base / bottomA-C / middleA-C / topA-C /
+  roofA-C`, plus four weapon heads (`ballista`, `blaster`, `cannon`, `catapult`). A three-level
+  upgrade is a segment stacked on, which is exactly the game's model.
+- **Tiles**: straight, corners, crossing, split, spawn, end, river, hill, slope — and a full snow
+  reskin of all of it.
+- Details and wooden structures; the only enemies are UFOs, which is the wrong genre here.
+
+For enemies, `kenney_graveyardkit_3` has **skeleton, zombie, ghost, vampire, digger** as GLB. Five
+creatures against seven enemy types, so two still need an answer — scale and tint variants are the
+cheap one, another CC0 pack the honest one. Also confirmed reachable and unused so far:
+`kenney_natureKit_2.1` (329), `fantasy-town-kit-1.0` (153), `kenney_3droadpack` (302),
+`kenney_hexagonkit_1` (63), and the KayKit CC0 repos (Halloween Bits 63, Medieval Hexagon 221,
+City Builder 41, Prototype Bits 72).
+
+**66 files, 1.2 MB**, pulled by `scripts/fetch-assets.mjs` from a manifest with both `License.txt`
+files alongside them — because "which file, from where, under what licence" is not something a commit
+message can be checked against later.
+
+**The measurements are the reason to be confident, not the screenshots.** `tests/assets.mjs` runs the
+game's own loader (`src/render/assets.ts`), not a second one written for the test:
+
+- **All 21 tiles are exactly 1.000 × 1.000**, and `map.json` says `cellSize: 1`. No scaling, no
+  fudging — the grid the game already has *is* the grid the kit was authored on.
+- **All 18 tower segments are exactly 0.500 high**, so stacking them leaves no seam.
+- Every GLB parses, has meshes, materials and triangles; the heaviest is **920 triangles**; all are
+  self-contained with **zero textures** — flat-coloured materials, 12–33 KB each.
+
+Two mistakes worth keeping. I first exposed the whole `THREE` namespace on the debug seam so the test
+could measure bounding boxes, which defeated tree-shaking and took the bundle from **707 to 887 kB**
+— a debug hook is not worth 180 kB of shipped code, and the fix (expose the game's own `量模型`)
+is also the more honest instrument, since it now measures the loader the game runs. And
+`new URL('../../public/assets/', import.meta.url)` resolved, after Vite's rewrite, to the bundle's own
+filename with the asset path glued on: **`index-BPBhRWuv.jstiles/tile.glb`**, a URL that can only
+404 and that no amount of reading the source before building would have revealed. Relative
+`models/` works in dev and in `dist` alike. Moving the folder from `public/assets/` to
+`public/models/` also stops Vite merging the kit into `dist/assets/` next to its own hashed bundles.
+
+Not done, and not dressed up as done: `towerRenderer.ts`, `enemyRenderer.ts` and the ground are still
+the old procedural geometry. Nothing on screen has changed yet. What has changed is that the models
+are in the repo, licensed, verified loadable, and dimensionally proven against the map the game
+already uses.
+
 ## ADR-194 — Tower: the map runs out of things to sell you at wave 26 of 99
 
 Date: 2026-08-08. Status: accepted.
