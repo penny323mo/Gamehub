@@ -2234,6 +2234,7 @@ export default function GameClient() {
         關: encounterStage, 狀態: mount.dataset.gameStatus ?? "",
         兵: minions.filter((m) => m.active && m.hp > 0).map((m) => ({
           x: +m.root.position.x.toFixed(2), z: +m.root.position.z.toFixed(2),
+          血: Math.round(m.hp),
           態: m.state, 快出手: m.state === "attack" && !m.impactDone,
         })),
         boss: bossActive && boss.hp > 0
@@ -2779,7 +2780,17 @@ export default function GameClient() {
           currentPlayerAction = playAction(playerActions, "Idle_Weapon", currentPlayerAction);
         }
 
-        if (player.state !== "attack" && player.state !== "dodge" && !keys.has("ShiftLeft")) {
+        // 回氣封鎖喺**承諾期**，唔係成個動畫。
+        //
+        // 本來成個 0.66 秒出手動畫都唔回氣，而落點喺 0.27 秒——即係後面 0.39 秒
+        // 嘅收招期你企喺度乜都做唔到，亦都乜都回唔到。計落去：持續節奏一下／
+        // 1.26 秒 ＝ **11.9 dps**，而第二波三隻雜兵夾埋 **24.4 dps**。一格體力
+        // 買到 5 下出手，而一隻雜兵要 3 下——一波三隻等於兩格體力嘅攻勢。
+        //
+        // 你唔可以取消嘅係前搖（撳咗就一定揮出去）。落點之後你已經喺度收招，
+        // 呼吸返啖氣係合理嘅——而且呢一下令持續輸出由 11.9 升到約 17。
+        const 承諾中 = player.state === "attack" && now < player.impactAt;
+        if (!承諾中 && player.state !== "dodge" && !keys.has("ShiftLeft")) {
           player.stamina = Math.min(100, player.stamina + delta * 28);
         }
 

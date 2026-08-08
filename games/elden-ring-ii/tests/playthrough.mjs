@@ -196,8 +196,20 @@ for (let i = 0; i < STEPS; i++) {
     // 4. 入到射程、又夠體力打一輪，就打。
     if (d <= (s.boss ? 3.6 : 4.2) && s.體 >= 出手費) {
         const 前傷 = (await page.evaluate(() => window.__ER2.瞄準())).打出傷害;
+        // **連斬。** 每個決定都要一次 browser round-trip，所以「一個決定一刀」
+        // 令 bot 45 郁動秒淨係斬到 13 下——而佢死嗰陣仲有 91 體力，即係限制喺
+        // 支尺度唔喺遊戲度。人類埋到身係連斬嘅。
         await page.keyboard.press('KeyF');
         await 等郁(0.75);
+        for (let n = 0; n < 2; n += 1) {
+            const t = await 讀();
+            if (t.狀態 !== 'playing' || t.體 < 出手費) break;
+            const 仲喺 = [...t.兵, ...(t.boss ? [t.boss] : [])]
+                .some((m) => Math.hypot(m.x - t.我[0], m.z - t.我[1]) <= (t.boss ? 3.6 : 4.2));
+            if (!仲喺) break;
+            await page.keyboard.press('KeyF');
+            await 等郁(0.75);
+        }
         const 後 = await page.evaluate(() => window.__ER2.瞄準());
         const 視 = await page.evaluate((t) => window.__ER2.視線([t[0], t[1]], [t[2], t[3]]),
             [s.我[0], s.我[1], 目標.x, 目標.z]);

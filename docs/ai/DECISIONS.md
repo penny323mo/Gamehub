@@ -4467,6 +4467,42 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-190 — Elden Ring II: stamina regenerated during nothing, and the core exchange lost
+
+Date: 2026-08-06. Status: accepted.
+
+The question that actually decides whether this game ships is not "can a bot finish it" — that measures
+the bot. It is: **stand in front of the first wave, press attack, nothing else. Do you win?**
+
+You did not. Two reasons, both now fixed and both measured.
+
+**Regeneration was blocked during the whole swing.** The attack animation runs 0.66 s and lands at 0.27 s;
+the remaining 0.39 s is recovery, and stamina was suppressed through all of it. Sustained cadence came to
+one swing per 1.26 s — **11.9 dps** against wave two's 24.4 — and a full bar bought 5 swings while a single
+minion needs 3. What you cannot cancel is the wind-up; once the blow has landed you are already recovering,
+and breathing there is fair. Regeneration is now blocked only while `state === "attack" && now < impactAt`.
+
+**And ADR-189's lunge bug was suppressing the rest**: point-blank swings passed through the target, so the
+real output was 0.4 dps rather than 11.9.
+
+With both fixed, the trade measures: **13 seconds of nothing but the attack key clears wave one and wins the
+exchange 133 damage to 100** — no dodging, no retreating, no flask. The gate asserts exactly that, and
+deliberately does not require the player to survive afterwards: the policy then keeps standing in wave two
+against three minions with no healing, and dies. If the loop wins with no defensive play at all, it wins
+with the dodge, the retreat and the three flasks that the game actually gives you.
+
+**I misread this measurement once before believing it.** The first trade probe reported "146 damage dealt,
+zero minions killed", which looked like damage vanishing. Printing the minions' health showed
+`[35,35] → [22,35,18]` with the count going 2 → 3: both wave-one minions had died, the encounter had
+advanced, and I was looking at wave two's fresh spawns. The reading was right; my interpretation invented
+a bug that was not there.
+
+**What this does and does not establish.** It establishes the core exchange is winnable and that a wave
+falls to it. It does not establish a full clear — three waves and the boss end to end — and the bot still
+does not get there. But the failure is no longer arithmetic, and that is a different kind of gap.
+
+Suite: 91 → **92** browser checks.
+
 ## ADR-189 — Elden Ring II: you could not hit an enemy standing next to you
 
 Date: 2026-08-06. Status: accepted.

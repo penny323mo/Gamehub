@@ -1829,6 +1829,54 @@ for (const [名, 推幾次, 想要] of [['第二波', 1, 1], ['boss 場', 3, 3]]
         { 貼身距, 傷害: [前, 後.打出傷害], 落點: 後.落點 });
 }
 
+// ---------- 個核心循環贏唔贏得到 ----------
+//
+// 「產品級」最尾嗰條問題唔係「bot 通唔通到關」——嗰個量嘅係 bot。係**企定同
+// 佢對砍，你贏定輸**：呢個係隻遊戲最基本嗰個交換，唔靠任何走位技巧。
+//
+// 修之前贏唔到：出手 17 體力而**成個 0.66 秒動畫都唔回氣**（落點喺 0.27 秒，
+// 後面 0.39 秒收招期一樣封鎖），持續輸出得 **11.9 dps**；再加上踏前會**衝過個
+// 目標**令貼身斬空（ADR-189），實際輸出跌到 **0.4 dps**。而家回氣只喺前搖
+// （你取消唔到嗰段）封鎖。
+//
+// 條 gate 只按攻擊鍵——唔碌、唔走、唔飲藥。
+{
+    const pF = await browser.newPage({ viewport: 快版 });
+    await pF.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
+    await pF.waitForTimeout(1500);
+    await 入場(pF);
+    const 睇 = () => pF.evaluate(() => ({
+        g: window.__ER2.局面(), a: window.__ER2.瞄準(), t: window.__ER2.clock().motion }));
+    // 等佢哋自己行埋嚟。
+    let s = await 睇();
+    for (let i = 0; i < 25 && s.g.狀態 === 'playing'; i += 1) {
+        const d = Math.min(...s.g.兵.map((m) => Math.hypot(m.x - s.g.我[0], m.z - s.g.我[1])), 999);
+        if (d < 2.5) break;
+        await pF.waitForTimeout(1200);
+        s = await 睇();
+    }
+    const 開 = s;
+    for (let i = 0; i < 90; i += 1) {
+        const c = await 睇();
+        if (c.g.狀態 !== 'playing' || c.t - 開.t >= 13) break;
+        await pF.keyboard.press('KeyF');
+        await pF.waitForTimeout(400);
+    }
+    const 收 = await 睇();
+    await pF.close();
+    const 郁 = 收.t - 開.t;
+    const 出 = 收.a.打出傷害 - 開.a.打出傷害;
+    const 入 = 開.g.血 - 收.g.血;
+    // 唔要求收場仲生存：個政策係**淨係撳攻擊**——唔碌、唔走、唔飲藥、清完
+    // 第一波照樣企喺第二波三隻中間。連呢個都清得到一波兼且贏個交換，即係加返
+    // 走位同三支藥之後，個循環一定贏得到。（實測 100 血用嚟清第一波＋開第二
+    // 波，交換率 1.33。）
+    check('企定淨係撳攻擊，都清得到一波兼且贏個交換（核心循環要贏得到）',
+        郁 >= 8 && 收.g.關 > 開.g.關 && 出 > 入,
+        { 郁動秒: +郁.toFixed(1), 打出: 出, 捱: 入, 交換率: +(出 / Math.max(入, 1)).toFixed(2),
+          關: [開.g.關, 收.g.關], 血: [開.g.血, 收.g.血], 狀態: 收.g.狀態 });
+}
+
 check('由頭到尾零 browser error', errors.length === 0, errors.slice(0, 3));
 
 await browser.close();
