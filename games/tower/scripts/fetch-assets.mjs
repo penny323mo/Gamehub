@@ -20,6 +20,7 @@ const FORCE = process.argv.includes('--force');
 
 const TD = 'tower-defense-kit-1/Models/GLTF format';
 const GY = 'kenney_graveyardkit_3/Models/GLTF format';
+const FT = 'fantasy-town-kit-1.0/Models/GLTF format';
 
 // 塔係模組化嘅：base → bottom → middle → top → roof 疊上去，啱晒三級升級制。
 const 塔件 = [
@@ -48,6 +49,13 @@ const 裝飾 = [
 ];
 // 敵人：墓園 kit 嘅五隻生物。冇骨冇動畫，郁動照舊喺 code 度做（本來就係）。
 const 敵人 = ['skeleton', 'zombie', 'ghost', 'vampire', 'digger'];
+// 出生門同終點城堡：TD kit 冇門冇城堡，由 fantasy town kit 攞。兩套都係
+// 一單位格（量過：牆 1.0 × 1.0、柱 1.0 高），所以撈埋一齊唔使縮放。
+const 建築 = [
+  'wallDoorwaySquareWide', 'wallDoor', 'wallArch', 'pillarStone',
+  'wall', 'wallWindowRound', 'wallCorner', 'stairsStone',
+  'bannerRed', 'bannerGreen', 'roofHighPoint', 'lantern',
+];
 
 const 清單 = [
   ...塔件.map((n) => [`${TD}/${n}.glb`, `towers/${n}.glb`]),
@@ -55,8 +63,10 @@ const 清單 = [
   ...路磚.map((n) => [`${TD}/${n}.glb`, `tiles/${n}.glb`]),
   ...裝飾.map((n) => [`${TD}/${n}.glb`, `scenery/${n}.glb`]),
   ...敵人.map((n) => [`${GY}/${n}.glb`, `enemies/${n}.glb`]),
+  ...建築.map((n) => [`${FT}/${n}.glb`, `structures/${n}.glb`]),
   ['tower-defense-kit-1/License.txt', 'licenses/kenney-tower-defense-kit.txt'],
   ['kenney_graveyardkit_3/License.txt', 'licenses/kenney-graveyard-kit.txt'],
+  ['fantasy-town-kit-1.0/License.txt', 'licenses/kenney-fantasy-town-kit.txt'],
 ];
 
 // 一個 GLB 至少要似個 GLB：唔係就寧願唔好寫落去，等下次重跑再攞。

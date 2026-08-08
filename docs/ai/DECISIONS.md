@@ -4467,6 +4467,53 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-196 — Tower: the road had no beginning and no end
+
+Date: 2026-08-08. Status: accepted.
+
+Replacing the procedural board with real tiles (ADR-195's follow-up) removed two things I had not
+accounted for: the old `buildSpawnPortal()` and `buildGoalKeep()`. What was left was a road that
+started in an empty square and ended in another empty square — enemies walked out of nowhere and
+vanished into nowhere. Those two squares are the only two places in a tower defence that matter:
+where they come from, and what you are defending.
+
+Both are rebuilt from Kenney's fantasy-town kit (CC0, and measured to be on the same one-unit grid
+as the tower-defense kit — walls 1.0 × 1.0, pillars 1.0 tall — so the two kits mix without scaling):
+
+- **The entrance is a pair of doors.** A wide doorway wall, two flanking pillars with lanterns, and
+  two `wallDoor` panels each on its own pivot so they swing from their outer edge. Every spawn slams
+  them open and they ease shut over ~0.85 s. The trigger is a new `enemySpawned` bus event, not a
+  timer — one monster, one swing, and the gate test therefore also covers that the event fires.
+- **The exit is a keep with a health bar.** Walls, a second storey, a red roof, two banners that
+  drift, and a bar above it that tracks lives. It is not a copy of the HUD number: it sits on the
+  thing you are defending, so the state is where your eyes already are.
+
+Three defects, each found by measuring rather than looking:
+
+1. **The health bar was invisible.** `血條闊` read 1 — it was there and full-width — but the screen
+   showed only the dark backing. The bar was opaque and the backing transparent, and **three.js
+   draws every opaque object before any transparent one**; `renderOrder` only sorts within a pass.
+   The green bar drew first and the半-transparent backing painted over it. Marking the bar
+   `transparent: true` puts both in the same pass, where the render order applies.
+2. **The billboard was in a rotated parent.** The bar was a child of the keep group, which is
+   rotated to face the incoming road. Copying the camera quaternion onto a child composes with the
+   parent's rotation, so it never actually faced the camera. It hangs off the scene root now.
+3. **The gate was rotated ninety degrees wrong, and the measurement is what said so.**
+   `wallDoorwaySquareWide` is 0.1 × 1.0 × 1.0 — its thin axis is **X**, so the wall stands in the YZ
+   plane. Aiming local +Z down the path put the wall *alongside* the road instead of across it, and
+   buried the portal glow inside the wall. The flash variable read 0.82 while the pixels at the gate
+   went the wrong way: brightness **53.3 → 48.5**, cyan 0.63 % → 0.85 %. After the extra 90°, cyan
+   goes **0.65 % → 2.92 %** and brightness rises.
+
+That third one also corrected my ruler. I had written the gate as "brightness must rise by 4" before
+having a single measurement. The crop is mostly grass and stone, so its mean moves slowly; the signal
+that actually separates a flash from no flash is the **cyan fraction**, which is 1.35× when broken
+and 3.9–4.5× when working. The threshold is now derived from both measured states and both numbers
+are recorded in the test, so the next person can see why the line sits where it does.
+
+`gateway.mjs` 6/6, and look 7/7, assets 8/8, tiles 6/6, smoke 5/5, balance 6/6, combat 8/8 all still
+green.
+
 ## ADR-195 — Tower: from zero assets to 66 CC0 models, and the road that actually reaches them
 
 Date: 2026-08-08. Status: accepted (half done — the renderers still draw the old procedural geometry).

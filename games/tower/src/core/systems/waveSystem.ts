@@ -210,6 +210,9 @@ export function spawnEnemy(state: GameState, type: EnemyType): void {
 
     state.enemies.push(enemy);
 
+    // 出生門聽住呢個開門＋閃光（見 `render/gateway.ts`）。
+    bus.emit({ type: 'enemySpawned', enemyId: enemy.id, enemyType: type, worldX: enemy.worldX, worldZ: enemy.worldZ });
+
     if (type === 'boss') {
         bus.emit({
             type: 'bossSpawned',

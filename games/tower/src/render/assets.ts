@@ -71,7 +71,22 @@ export async function 取(rel: string): Promise<THREE.Group> {
 
 /** 一次過預載，開場前行——中途先載會見到嘢逐件跳出嚟。 */
 export async function 預載(list: readonly string[]): Promise<void> {
-    await Promise.all(list.map((r) => 載模型(r)));
+    await Promise.all(list.map(async (r) => { 現成.set(r, await 載模型(r)); }));
+}
+
+const 現成 = new Map<string, THREE.Group>();
+
+/**
+ * 同步攞一份副本。**淨係預載過先至攞到**。
+ *
+ * 起塔／起門係同步發生嘅（一個 bus event 就即刻要有嘢畫），冇得 await。
+ * 與其喺嗰度塞個 promise 令嘢遲幾幀先出現，不如開場前預載晒——未預載就
+ * 大聲掛，唔好靜靜哋畫少一件嘢。
+ */
+export function 取同步(rel: string): THREE.Group {
+    const g = 現成.get(rel);
+    if (!g) throw new Error(`模型未預載就攞：${rel}`);
+    return g.clone(true);
 }
 
 /**

@@ -31,7 +31,8 @@ import {
 } from './core/storage';
 import { ACHIEVEMENTS, type Achievement } from './core/achievements';
 import { makeDraggable, resetUiLayout } from './ui/draggable';
-import { 量模型 } from './render/assets';
+import { 量模型, 預載 } from './render/assets';
+import { Gateway } from './render/gateway';
 
 // ─── State ───
 const persisted: PersistedData = loadPersisted();
@@ -61,7 +62,11 @@ const lightingRig = setupLighting(sm.scene);
 // 鋪地要等模型載完，而 dist 出 IIFE（為咗 file:// 行得，見 vite.config），
 // 冇頂層 await。所以呢度攞住個 promise，撳 START 之前 await 佢——開場前一定鋪好，
 // 而載模型嗰段時間本來就係玩家喺開始畫面度嘅時間。
-const 地面好 = sm.buildGround();
+// 出生門同終點城堡都要模型，所以同鋪地一齊喺開場前預載好
+// （`取同步` 未預載會大聲掛，唔會靜靜哋少咗道門）。
+const gateway = new Gateway(sm.scene);
+const spawnWorld = cellToWorld(MAP.spawnCell[0], MAP.spawnCell[1]);
+const 地面好 = Promise.all([sm.buildGround(), 預載(Gateway.清單())]).then(() => { gateway.build(); });
 
 const towerRenderer = new TowerRenderer(sm.scene);
 const enemyRenderer = new EnemyRenderer(sm.scene);
@@ -179,6 +184,11 @@ bus.on('towerFired', e => {
 });
 bus.on('aoeImpact', e => {
     fxRenderer.addImpactFlash(e.worldX, e.worldZ, e.radius, e.towerType);
+});
+// 每出一隻怪，道門就揈開一次兼閃一下——時機由事件推，唔係計時器夾。
+bus.on('enemySpawned', () => {
+    gateway.開門();
+    fxRenderer.addBuildEffect(spawnWorld.x, spawnWorld.z);
 });
 bus.on('bossSpawned', () => {
     camCtrl.shake(0.6);
@@ -1304,6 +1314,7 @@ function gameLoop(time: number): void {
 
     if (state.phase === 'idle') {
         lightingRig.update(elapsedSec);
+    gateway.update(rawDt, state.lives, state.maxLives, camera);
         renderScene();
         return;
     }
@@ -1317,6 +1328,7 @@ function gameLoop(time: number): void {
             lastMusicPhase = 'off';
         }
         lightingRig.update(elapsedSec);
+    gateway.update(rawDt, state.lives, state.maxLives, camera);
         renderScene();
         return;
     }
@@ -1324,6 +1336,7 @@ function gameLoop(time: number): void {
     // Pause gate
     if (state.paused) {
         lightingRig.update(elapsedSec);
+    gateway.update(rawDt, state.lives, state.maxLives, camera);
         renderScene();
         return;
     }
@@ -1414,6 +1427,7 @@ function gameLoop(time: number): void {
     projectileRenderer.sync(state, dt);
     syncFloatingTexts(rawDt);
     lightingRig.update(elapsedSec);
+    gateway.update(rawDt, state.lives, state.maxLives, camera);
     camCtrl.tickShake(rawDt);
     applyAtmosphere(state.currentWave);
 
@@ -1443,6 +1457,9 @@ function gameLoop(time: number): void {
     // 資產嗰把尺量嘅係遊戲自己用嗰個 loader，唔係測試度另開一個——
     // 另開一個就變成量緊一件遊戲唔會行嘅嘢。
     量模型: 量模型,
+    門狀態() { return gateway.狀態(); },
+    地圖: { spawn: cellToWorld(MAP.spawnCell[0], MAP.spawnCell[1]), goal: cellToWorld(MAP.goalCell[0], MAP.goalCell[1]) },
+    開門() { gateway.開門(); },
     // 診斷用：呢三個係現成物件嘅引用，唔會令 bundle 大（試過 expose 成個
     // THREE namespace，一下就 707 → 887 kB，嗰個唔可以）。
     scene: sm.scene,

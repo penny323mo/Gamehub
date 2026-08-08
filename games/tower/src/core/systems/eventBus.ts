@@ -8,6 +8,8 @@ export type GameEvent =
     | { type: 'towerFired'; towerId: number; towerType: string; worldX: number; worldZ: number; aimAngle: number }
     | { type: 'aoeImpact'; worldX: number; worldZ: number; radius: number; towerType: string }
     | { type: 'bossSpawned'; enemyId: number; worldX: number; worldZ: number }
+    // 每出一隻怪都出一次——出生門就係聽住呢個開門同閃光。
+    | { type: 'enemySpawned'; enemyId: number; enemyType: string; worldX: number; worldZ: number }
     | { type: 'waveStarted'; wave: number }
     | { type: 'waveCleared'; wave: number; goldBonus: number; perfect: boolean }
     | { type: 'milestone'; wave: number }
