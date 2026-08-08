@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { GameState, Tower } from '../core/types';
 import { GRAPHICS } from '../core/config';
 import { cellToWorld } from '../core/path';
+import { 取同步 } from './assets';
 
 // Colour palettes per tower type
 const TOWER_COLORS: Record<string, number> = {
@@ -387,7 +388,42 @@ export class TowerRenderer {
         if (this.rangeRing) this.rangeRing.visible = false;
     }
 
-    // ─── Model construction ─────────────────────────────────────────────────
+    /**
+     * 量度用：一座塔喺場上實際幾高、有幾多件、身上用咗邊幾隻識別色。
+     *
+     * 「升一級疊多一節」係一句視覺承諾，而佢量得到。至於「七種塔分得開」，
+     * 用像素去量係量錯嘢——塔喺畫面上得幾十 px，剪個框出嚟九成係草同陰影
+     * （試過兩版都係讀返草色）。真正要問嘅係 `染色()` 有冇落到色，
+     * 而嗰個喺場景圖度讀得到，唔受燈同背景影響。
+     */
+    measure(id: number): { 高: number; 件: number; 色: string[] } | null {
+        const g = this.meshes.get(id);
+        if (!g) return null;
+        const box = new THREE.Box3().setFromObject(g);
+        let 件 = 0;
+        const 色 = new Set<string>();
+        g.traverse((o) => {
+            const m = o as THREE.Mesh;
+            if (!m.isMesh) return;
+            件 += 1;
+            for (const mm of (Array.isArray(m.material) ? m.material : [m.material])) {
+                const mat = mm as THREE.MeshStandardMaterial;
+                if (mat?.color && 主色名.has(mat.name)) 色.add('#' + mat.color.getHexString());
+            }
+        });
+        return { 高: +(box.max.y - box.min.y).toFixed(3), 件, 色: [...色].sort() };
+    }
+
+    // ─── 起塔：疊件，唔再砌幾何 ────────────────────────────────────────────
+    //
+    // 呢度本來係五百幾行程序幾何——圓柱、圓錐、十二面體，一種塔一隻手寫嘅
+    // 建構函數。而家用返 Kenney 嗰套模組化塔件：`base → bottom → middle →
+    // top`，每節啱啱好 0.5 高（量過，`tests/assets.mjs` 守住），所以**升一級
+    // 就係疊多一節**——同遊戲本身嘅三級制係同一個結構，唔使另外編一套視覺規則。
+    //
+    // 七種塔對四個武器頭：分唔開嗰幾種靠**塔身形狀**（圓／方）、**頂蓋款式**
+    // （A/B/C）同**顏色**分。顏色沿用本來每種塔嗰兩隻色，所以 HUD、子彈、特效
+    // 同塔身仍然係同一套色。
 
     private createTowerMesh(tower: Tower): THREE.Group {
         const group = new THREE.Group();
@@ -395,548 +431,115 @@ export class TowerRenderer {
         group.position.set(pos.x, 0, pos.z);
 
         const parts = group.userData as TowerParts;
-        parts.spin = [];
-        parts.bob = [];
-        parts.pulseScale = [];
-        parts.pulseEmissive = [];
-        parts.orbit = [];
-        parts.rise = [];
+        parts.buildProgress = 0;
+        parts.lastCooldown = 0;
+        parts.attackTimer = 0;
 
-        const baseColor = TOWER_COLORS[tower.type];
-        const accentColor = ACCENT_COLORS[tower.type];
-        const scale = 1 + tower.level * 0.15;
+        const 型 = TOWER_LOOK[tower.type] ?? TOWER_LOOK.arrow;
+        const 主 = new THREE.Color(TOWER_COLORS[tower.type] ?? TOWER_COLORS.arrow);
+        const 亮 = new THREE.Color(ACCENT_COLORS[tower.type] ?? ACCENT_COLORS.arrow);
 
-        // Soft contact shadow
-        const shadow = new THREE.Mesh(
-            new THREE.CircleGeometry(0.48 * scale, 24),
-            new THREE.MeshBasicMaterial({
-                color: 0x000000,
-                transparent: true,
-                opacity: 0.2,
-                side: THREE.DoubleSide,
-                depthWrite: false,
-            })
-        );
-        shadow.rotation.x = -Math.PI / 2;
-        shadow.position.y = 0.008;
-        group.add(shadow);
+        // 底座永遠有；跟住每一級疊多一節。level 由 0 起計。
+        const 節 = ['bottom', 'middle', 'top'] as const;
+        const 疊 = ['towers/towerRound_base.glb'];
+        for (let i = 0; i <= Math.min(tower.level, 2); i += 1) {
+            疊.push(`towers/${型.家}_${節[i]}${型.款}.glb`);
+        }
 
-        // Stone plinth base (shared architecture across all towers)
-        this.buildStoneBase(group, parts, scale, baseColor, accentColor);
+        let y = 0;
+        for (const rel of 疊) {
+            const piece = 取同步(rel);
+            piece.position.y = y;
+            染色(piece, 主, 亮);
+            group.add(piece);
+            y += rel.includes('_base') ? 0.21 : 0.5;
+        }
 
-        // Rotating head
+        // 頂上嘅嘢會轉去瞄準，所以要自己一個 group（animate() 靠呢個）。
         const turret = new THREE.Group();
-        turret.position.y = 0;
+        turret.position.y = y;
         group.add(turret);
         parts.turretGroup = turret;
 
-        switch (tower.type) {
-            case 'arrow':
-            case 'arrow_rapid':
-            case 'arrow_pierce':
-                this.buildBallista(turret, parts, scale, tower.type, accentColor);
-                break;
-            case 'cannon':
-            case 'cannon_siege':
-                this.buildCannon(group, turret, parts, scale, accentColor);
-                break;
-            case 'ice':
-            case 'ice_glacier':
-                this.buildIceSpire(group, turret, parts, scale, accentColor);
-                break;
-            case 'fire':
-            case 'fire_inferno':
-                this.buildFireBrazier(turret, parts, scale);
-                break;
-            case 'lightning':
-            case 'lightning_storm':
-                this.buildTeslaCoil(turret, parts, scale, accentColor);
-                break;
-            case 'poison':
-            case 'poison_plague':
-                this.buildAlchemyStill(turret, parts, scale);
-                break;
-            case 'sniper':
-            case 'sniper_railgun':
-                this.buildRailgunNest(group, turret, parts, scale, accentColor);
-                break;
-        }
+        if (型.武器) {
+            // **有武器嘅塔唔戴屋頂。** 呢啲屋頂高 0.93–1.18（量過），而武器得
+            // 0.19–0.63 高——擺埋一齊武器就成件埋咗入屋頂入面，睇唔到佢瞄邊度。
+            // 塔頂本來就係開嘅雉堞，武器企喺上面先至係 kit 原本嘅用法。
+            const w = 取同步(`towers/weapon_${型.武器}.glb`);
+            w.scale.setScalar(型.武器大細 ?? 1);
+            染色(w, 亮, 主);
+            const recoil = new THREE.Group();   // 後座力推嘅係武器，唔係成座塔
+            recoil.add(w);
+            turret.add(recoil);
+            parts.recoilNode = recoil;
+            parts.recoilAmount = 0.09;
+        } else {
+            // 冰同毒冇合適嘅武器頭（kit 得四個），改用屋頂＋水晶——順便令佢哋
+            // 個剪影同其餘五種一眼分得開。
+            const roof = 取同步(`towers/${型.家}_roof${型.款}.glb`);
+            染色(roof, 主, 亮);
+            turret.add(roof);
 
-        parts.lastCooldown = tower.cooldownRemaining;
-        parts.attackTimer = 0;
-        parts.buildProgress = parts.buildProgress ?? 0;
-
-        // Level gems floating around the front rim of the base
-        const gemGeo = new THREE.OctahedronGeometry(0.045);
-        for (let i = 0; i <= tower.level; i++) {
-            const gem = new THREE.Mesh(gemGeo, mat({
-                color: 0xffd76a,
-                emissive: 0xcc9a2a,
-                emissiveIntensity: 0.8,
-                metalness: 0.6,
-                roughness: 0.25,
-            }));
-            const a = (-0.35 + i * 0.35);
-            gem.position.set(Math.sin(a) * 0.42 * scale, 0.34, Math.cos(a) * 0.42 * scale);
-            group.add(gem);
-            parts.spin!.push({ node: gem, speed: 2.2, axis: 'y' });
-            parts.bob!.push({ node: gem, baseY: 0.34, amp: 0.025, speed: 3, phase: i * 1.3 });
+            // 水晶要企喺屋頂頂——高度由 bounding box 量，唔好逐個型號寫死。
+            const 頂高 = new THREE.Box3().setFromObject(roof).max.y;
+            const c = 取同步('towers/towerRound_crystals.glb');
+            c.position.y = 頂高 + 0.16;
+            c.scale.setScalar(0.55);
+            染色(c, 亮, 亮);
+            turret.add(c);
+            parts.spin = [{ node: c, axis: 'y', speed: 0.7 }];
         }
 
         return group;
     }
+}
 
-    /** Octagonal stepped stone plinth with corner buttresses + glowing rune ring. */
-    private buildStoneBase(group: THREE.Group, parts: TowerParts, scale: number, baseColor: number, accentColor: number): void {
-        const stone = mat({ color: 0x6a6f78, roughness: 0.92, metalness: 0.05, flatShading: true });
-        const stoneDark = mat({ color: 0x4b5058, roughness: 0.95, metalness: 0.04, flatShading: true });
+/** 每種塔用邊個塔身、邊個款、邊個武器頭。 */
+const TOWER_LOOK: Record<string, { 家: 'towerRound' | 'towerSquare'; 款: 'A' | 'B' | 'C'; 武器?: string; 武器大細?: number }> = {
+    arrow:           { 家: 'towerRound',  款: 'A', 武器: 'ballista' },
+    arrow_rapid:     { 家: 'towerRound',  款: 'B', 武器: 'ballista', 武器大細: 0.85 },
+    arrow_pierce:    { 家: 'towerRound',  款: 'C', 武器: 'ballista', 武器大細: 1.15 },
+    cannon:          { 家: 'towerSquare', 款: 'A', 武器: 'cannon' },
+    cannon_siege:    { 家: 'towerSquare', 款: 'C', 武器: 'cannon', 武器大細: 1.2 },
+    ice:             { 家: 'towerRound',  款: 'B' },
+    ice_glacier:     { 家: 'towerRound',  款: 'C' },
+    fire:            { 家: 'towerSquare', 款: 'B', 武器: 'catapult' },
+    fire_inferno:    { 家: 'towerSquare', 款: 'C', 武器: 'catapult', 武器大細: 1.15 },
+    lightning:       { 家: 'towerRound',  款: 'C', 武器: 'blaster' },
+    lightning_storm: { 家: 'towerRound',  款: 'A', 武器: 'blaster', 武器大細: 1.15 },
+    poison:          { 家: 'towerSquare', 款: 'B' },
+    poison_plague:   { 家: 'towerSquare', 款: 'A' },
+    sniper:          { 家: 'towerSquare', 款: 'C', 武器: 'blaster', 武器大細: 1.3 },
+    sniper_railgun:  { 家: 'towerSquare', 款: 'B', 武器: 'blaster', 武器大細: 1.45 },
+};
 
-        // Two stepped octagonal slabs
-        addMesh(group, new THREE.CylinderGeometry(0.42 * scale, 0.46 * scale, 0.1, 8), stoneDark, 0, 0.05, 0);
-        addMesh(group, new THREE.CylinderGeometry(0.34 * scale, 0.4 * scale, 0.12, 8), stone, 0, 0.16, 0);
+// 呢批模型入面實際有嘅材質名（由 .glb 數出嚟）：stone、stoneDark、red、purple、
+// wood、crystal。`red`／`purple` 係頂蓋同旗嗰啲——**俯視角度下佢哋先至係最大幅
+// 嘅有色面**，所以佢哋食該種塔嘅主色；石身留返石色（成排塔先似同一座城），
+// 木同水晶食亮色。
+const 主色名 = new Set(['red', 'purple']);
+const 亮色名 = new Set(['wood', 'crystal']);
 
-        // Corner buttress blocks
-        const buttressGeo = new THREE.BoxGeometry(0.1 * scale, 0.18, 0.1 * scale);
-        for (let i = 0; i < 4; i++) {
-            const a = i * Math.PI / 2 + Math.PI / 4;
-            const b = addMesh(group, buttressGeo, stoneDark, Math.cos(a) * 0.38 * scale, 0.13, Math.sin(a) * 0.38 * scale);
-            b.rotation.y = -a;
-        }
-
-        // Tinted collar in the tower's colour
-        addMesh(group, new THREE.CylinderGeometry(0.28 * scale, 0.32 * scale, 0.08, 8),
-            mat({ color: baseColor, roughness: 0.6, metalness: 0.25 }), 0, 0.26, 0);
-
-        // Glowing rune ring
-        const energyRingMaterial = mat({
-            color: accentColor,
-            emissive: accentColor,
-            emissiveIntensity: 0.22,
-            transparent: true,
-            opacity: 0.92,
-            roughness: 0.35,
-            metalness: 0.2,
-        }) as THREE.MeshStandardMaterial;
-        const energyRing = new THREE.Mesh(
-            new THREE.TorusGeometry(0.3 * scale, 0.025 * scale, 8, 32),
-            energyRingMaterial
-        );
-        energyRing.rotation.x = Math.PI / 2;
-        energyRing.position.y = 0.31;
-        group.add(energyRing);
-        parts.energyRingMaterial = energyRingMaterial;
-    }
-
-    /** Arrow family — timber watchtower with a detailed ballista on top. */
-    private buildBallista(turret: THREE.Group, parts: TowerParts, scale: number, type: string, accentColor: number): void {
-        const wood = mat({ color: 0x7a5230, roughness: 0.85 });
-        const woodDark = mat({ color: 0x54371f, roughness: 0.9 });
-        const iron = mat({ color: 0x3c3f45, roughness: 0.4, metalness: 0.75 });
-
-        // Timber mast + cross-braced legs
-        addMesh(turret, new THREE.CylinderGeometry(0.09 * scale, 0.13 * scale, 0.42, SEG_LO), wood, 0, 0.5, 0);
-        const legGeo = new THREE.BoxGeometry(0.05 * scale, 0.4, 0.05 * scale);
-        for (let i = 0; i < 4; i++) {
-            const a = i * Math.PI / 2 + Math.PI / 4;
-            const leg = addMesh(turret, legGeo, woodDark, Math.cos(a) * 0.2 * scale, 0.46, Math.sin(a) * 0.2 * scale);
-            leg.rotation.z = Math.cos(a) * 0.28;
-            leg.rotation.x = -Math.sin(a) * 0.28;
-        }
-
-        // Platform deck + rim
-        addMesh(turret, new THREE.CylinderGeometry(0.26 * scale, 0.26 * scale, 0.045, 8), wood, 0, 0.7, 0);
-        addMesh(turret, new THREE.TorusGeometry(0.25 * scale, 0.018 * scale, 6, 16),
-            woodDark, 0, 0.73, 0).rotation.x = Math.PI / 2;
-
-        // Ballista assembly (recoil node so the whole weapon kicks back)
-        const weapon = new THREE.Group();
-        weapon.position.y = 0.78;
-        turret.add(weapon);
-        parts.recoilNode = weapon;
-        parts.recoilAmount = 0.07;
-
-        // Stock
-        addMesh(weapon, new THREE.BoxGeometry(0.08 * scale, 0.07 * scale, 0.52 * scale), woodDark, 0, 0, -0.02);
-        // Yoke plates
-        addMesh(weapon, new THREE.BoxGeometry(0.03 * scale, 0.12 * scale, 0.2 * scale), iron, 0.055 * scale, -0.02, -0.1);
-        addMesh(weapon, new THREE.BoxGeometry(0.03 * scale, 0.12 * scale, 0.2 * scale), iron, -0.055 * scale, -0.02, -0.1);
-
-        const buildBowPair = (y: number, limbMat: THREE.Material, span: number): void => {
-            // Curved limbs — swept-back angled arms with tips
-            for (const side of [-1, 1]) {
-                const limb = addMesh(weapon, new THREE.BoxGeometry(span * scale, 0.03 * scale, 0.05 * scale), limbMat, side * span * 0.5 * scale, y, 0.12 * scale);
-                limb.rotation.y = side * 0.35;
-                const tip = addMesh(weapon, new THREE.ConeGeometry(0.02 * scale, 0.08 * scale, 4), iron,
-                    side * span * 0.92 * scale, y, 0.12 * scale - Math.abs(side) * span * 0.32 * scale);
-                tip.rotation.z = side * Math.PI / 2;
-            }
-            // String
-            const stringMesh = addMesh(weapon, new THREE.CylinderGeometry(0.006, 0.006, span * 1.9 * scale, 3),
-                mat({ color: 0xd9cfa8, roughness: 0.6 }), 0, y, 0.12 * scale - span * 0.3 * scale, true);
-            stringMesh.rotation.z = Math.PI / 2;
-        };
-
-        const limbMat = type === 'arrow_pierce' ? iron : mat({ color: accentColor, roughness: 0.55, metalness: 0.3 });
-        buildBowPair(0.02, limbMat, 0.3);
-        if (type === 'arrow_rapid') buildBowPair(0.09, limbMat, 0.26);
-        if (type === 'arrow_pierce') {
-            // Heavy reinforced receiver
-            addMesh(weapon, new THREE.BoxGeometry(0.14 * scale, 0.08 * scale, 0.3 * scale), iron, 0, -0.005, -0.08);
-        }
-
-        // Loaded bolt
-        let boltColor = 0xcccccc;
-        if (type === 'arrow_rapid') boltColor = 0xffffff;
-        if (type === 'arrow_pierce') boltColor = 0x8888ff;
-        const boltMat = mat({ color: boltColor, metalness: 0.5, roughness: 0.4, emissive: boltColor, emissiveIntensity: 0.12 });
-        const bolt = addMesh(weapon, new THREE.CylinderGeometry(0.012, 0.012, 0.4 * scale, 4), boltMat, 0, 0.045, 0.06, true);
-        bolt.rotation.x = Math.PI / 2;
-        const boltHead = addMesh(weapon, new THREE.ConeGeometry(0.035, 0.09, 4), boltMat, 0, 0.045, 0.28 * scale, true);
-        boltHead.rotation.x = Math.PI / 2;
-
-        // Quiver with arrows on the deck
-        const quiver = new THREE.Group();
-        quiver.position.set(0.19 * scale, 0.72, -0.14 * scale);
-        quiver.rotation.z = -0.18;
-        turret.add(quiver);
-        addMesh(quiver, new THREE.CylinderGeometry(0.05 * scale, 0.04 * scale, 0.16, SEG_LO), woodDark, 0, 0.06, 0);
-        for (let i = 0; i < 3; i++) {
-            const fletch = addMesh(quiver, new THREE.ConeGeometry(0.018, 0.05, 4),
-                mat({ color: [0xcc4444, 0x44aa66, 0xd9cfa8][i], roughness: 0.7 }),
-                (i - 1) * 0.025, 0.19 + (i % 2) * 0.02, 0, true);
-            fletch.rotation.x = Math.PI;
-        }
-    }
-
-    /** Cannon — riveted armored dome with recoiling barrel + ammo pile. */
-    private buildCannon(group: THREE.Group, turret: THREE.Group, parts: TowerParts, scale: number, accentColor: number): void {
-        const armor = mat({ color: accentColor, metalness: 0.65, roughness: 0.38 });
-        const armorDark = mat({ color: 0x2e3136, metalness: 0.8, roughness: 0.3 });
-        const rivetMat = mat({ color: 0x15171a, metalness: 0.9, roughness: 0.35 });
-
-        // Turret ring + dome
-        addMesh(turret, new THREE.CylinderGeometry(0.27 * scale, 0.29 * scale, 0.1, SEG_MID), armorDark, 0, 0.36, 0);
-        addMesh(turret, new THREE.SphereGeometry(0.26 * scale, SEG_MID, SEG_LO, 0, Math.PI * 2, 0, Math.PI / 2), armor, 0, 0.4, 0);
-
-        // Rivets around the dome skirt
-        const rivetGeo = new THREE.SphereGeometry(0.018 * scale, 5, 5);
-        for (let i = 0; i < 8; i++) {
-            const a = (i / 8) * Math.PI * 2;
-            addMesh(turret, rivetGeo, rivetMat, Math.cos(a) * 0.25 * scale, 0.42, Math.sin(a) * 0.25 * scale, true);
-        }
-
-        // Hatch on top
-        addMesh(turret, new THREE.CylinderGeometry(0.07 * scale, 0.08 * scale, 0.04, SEG_LO), armorDark, 0.08 * scale, 0.63, -0.06 * scale);
-
-        // Barrel assembly with recoil
-        const barrelGroup = new THREE.Group();
-        barrelGroup.position.set(0, 0.5, 0.05);
-        barrelGroup.rotation.x = -Math.PI / 12;
-        turret.add(barrelGroup);
-        parts.recoilNode = barrelGroup;
-        parts.recoilAmount = 0.12;
-
-        const barrel = addMesh(barrelGroup, new THREE.CylinderGeometry(0.075 * scale, 0.1 * scale, 0.62 * scale, SEG_MID), armorDark, 0, 0, 0.28 * scale);
-        barrel.rotation.x = Math.PI / 2;
-        // Muzzle brake
-        const brake = addMesh(barrelGroup, new THREE.CylinderGeometry(0.1 * scale, 0.1 * scale, 0.1 * scale, SEG_MID), armor, 0, 0, 0.56 * scale);
-        brake.rotation.x = Math.PI / 2;
-        // Bore (dark inner disc)
-        const bore = addMesh(barrelGroup, new THREE.CircleGeometry(0.06 * scale, SEG_LO),
-            new THREE.MeshBasicMaterial({ color: 0x000000 }), 0, 0, 0.612 * scale, true);
-        bore.rotation.y = 0;
-        // Recoil pistons under barrel
-        for (const side of [-1, 1]) {
-            const piston = addMesh(barrelGroup, new THREE.CylinderGeometry(0.02 * scale, 0.02 * scale, 0.3 * scale, 6), rivetMat, side * 0.09 * scale, -0.07 * scale, 0.1 * scale, true);
-            piston.rotation.x = Math.PI / 2;
-        }
-
-        // Cannonball pile on the base (static, outside turret)
-        const ballGeo = new THREE.SphereGeometry(0.055 * scale, SEG_LO, SEG_LO);
-        const px = -0.3 * scale, pz = 0.26 * scale;
-        addMesh(group, ballGeo, armorDark, px, 0.36, pz);
-        addMesh(group, ballGeo, armorDark, px + 0.09 * scale, 0.36, pz - 0.03 * scale);
-        addMesh(group, ballGeo, armorDark, px + 0.045 * scale, 0.44, pz - 0.015 * scale);
-    }
-
-    /** Ice — frost spire: crystal cluster + orbiting shards. */
-    private buildIceSpire(group: THREE.Group, turret: THREE.Group, parts: TowerParts, scale: number, accentColor: number): void {
-        const crystalMat = glassMat(accentColor);
-        const frost = mat({ color: 0xd9f2ff, roughness: 0.4, metalness: 0.05, emissive: 0x5599cc, emissiveIntensity: 0.12 });
-
-        // Frost-covered pedestal
-        addMesh(group, new THREE.CylinderGeometry(0.2 * scale, 0.26 * scale, 0.16, 6), frost, 0, 0.38, 0);
-
-        // Main crystal — tall stretched octahedron
-        const main = new THREE.Mesh(new THREE.OctahedronGeometry(0.22 * scale), crystalMat);
-        main.scale.set(0.8, 1.7, 0.8);
-        main.position.y = 0.85;
-        if (GRAPHICS.enableShadows) main.castShadow = true;
-        turret.add(main);
-        parts.spin!.push({ node: main, speed: 0.8, axis: 'y' });
-
-        // Glowing core inside
-        const core = new THREE.Mesh(
-            new THREE.OctahedronGeometry(0.09 * scale),
-            mat({ color: 0xffffff, emissive: 0x88ccff, emissiveIntensity: 1.0 })
-        );
-        core.scale.set(0.8, 1.7, 0.8);
-        main.add(core);
-        parts.pulseEmissive!.push({ mat: core.material as THREE.MeshStandardMaterial, base: 0.9, amp: 0.35, speed: 2.2, phase: 0 });
-
-        // Tilted side shards
-        const shardGeo = new THREE.OctahedronGeometry(0.09 * scale);
-        for (let i = 0; i < 4; i++) {
-            const a = (i / 4) * Math.PI * 2 + 0.5;
-            const shard = new THREE.Mesh(shardGeo, crystalMat);
-            shard.position.set(Math.cos(a) * 0.17 * scale, 0.52, Math.sin(a) * 0.17 * scale);
-            shard.scale.set(0.7, 1.5 + (i % 2) * 0.5, 0.7);
-            shard.rotation.set(Math.sin(a) * 0.45, a, Math.cos(a) * 0.45);
-            if (GRAPHICS.enableShadows) shard.castShadow = true;
-            turret.add(shard);
-        }
-
-        // Orbiting ice shards
-        if (!GRAPHICS.isMobile) {
-            const pivot = new THREE.Group();
-            pivot.position.y = 0.85;
-            turret.add(pivot);
-            for (let i = 0; i < 3; i++) {
-                const a = (i / 3) * Math.PI * 2;
-                const orbiter = new THREE.Mesh(new THREE.OctahedronGeometry(0.045 * scale), crystalMat);
-                orbiter.position.set(Math.cos(a) * 0.34 * scale, Math.sin(a * 2) * 0.08, Math.sin(a) * 0.34 * scale);
-                pivot.add(orbiter);
-            }
-            parts.orbit!.push({ pivot, speed: 1.6 });
-        }
-    }
-
-    /** Fire — obsidian brazier with layered living flame + rising embers. */
-    private buildFireBrazier(turret: THREE.Group, parts: TowerParts, scale: number): void {
-        const obsidian = mat({ color: 0x1c1416, roughness: 0.35, metalness: 0.25, flatShading: true });
-        const lava = mat({ color: 0xff4400, emissive: 0xff3300, emissiveIntensity: 0.85 });
-
-        // Chalice bowl
-        const bowlPts: THREE.Vector2[] = [];
-        for (let i = 0; i <= 6; i++) {
-            const t = i / 6;
-            bowlPts.push(new THREE.Vector2((0.1 + Math.pow(t, 1.6) * 0.18) * scale, t * 0.3));
-        }
-        addMesh(turret, new THREE.LatheGeometry(bowlPts, SEG_LO), obsidian, 0, 0.32, 0);
-
-        // Lava crack ring around the bowl lip
-        const lavaRing = addMesh(turret, new THREE.TorusGeometry(0.24 * scale, 0.02 * scale, 6, SEG_MID), lava, 0, 0.6, 0, true);
-        lavaRing.rotation.x = Math.PI / 2;
-        parts.pulseEmissive!.push({ mat: lavaRing.material as THREE.MeshStandardMaterial, base: 0.85, amp: 0.35, speed: 6, phase: 0 });
-
-        // Charred rim spikes
-        const spikeGeo = new THREE.ConeGeometry(0.03 * scale, 0.1 * scale, 4);
-        for (let i = 0; i < 5; i++) {
-            const a = (i / 5) * Math.PI * 2;
-            const spike = addMesh(turret, spikeGeo, obsidian, Math.cos(a) * 0.24 * scale, 0.65, Math.sin(a) * 0.24 * scale);
-            spike.rotation.set(Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35);
-        }
-
-        // Layered flame cones
-        const flameOuter = new THREE.Mesh(
-            new THREE.ConeGeometry(0.18 * scale, 0.55, SEG_LO),
-            mat({ color: 0xff3300, emissive: 0xff2200, emissiveIntensity: 0.6, transparent: true, opacity: 0.85 })
-        );
-        flameOuter.position.y = 0.9;
-        turret.add(flameOuter);
-        const flameMid = new THREE.Mesh(
-            new THREE.ConeGeometry(0.11 * scale, 0.42, SEG_LO),
-            mat({ color: 0xff8800, emissive: 0xff7700, emissiveIntensity: 0.9, transparent: true, opacity: 0.92 })
-        );
-        flameMid.position.y = 0.88;
-        turret.add(flameMid);
-        const flameCore = new THREE.Mesh(
-            new THREE.ConeGeometry(0.055 * scale, 0.28, SEG_LO),
-            mat({ color: 0xffdd66, emissive: 0xffee88, emissiveIntensity: 1.2 })
-        );
-        flameCore.position.y = 0.84;
-        turret.add(flameCore);
-
-        parts.spin!.push({ node: flameOuter, speed: 1.5, axis: 'y' });
-        parts.spin!.push({ node: flameMid, speed: -2.2, axis: 'y' });
-        parts.pulseScale!.push({ node: flameOuter, base: 1.0, amp: 0.08, speed: 8, phase: 0 });
-        parts.pulseScale!.push({ node: flameMid, base: 1.0, amp: 0.1, speed: 11, phase: 1.4 });
-        parts.bob!.push({ node: flameCore, baseY: 0.84, amp: 0.03, speed: 9, phase: 0.6 });
-
-        // Rising embers
-        if (!GRAPHICS.isMobile) {
-            const emberGeo = new THREE.SphereGeometry(0.02, 5, 5);
-            for (let i = 0; i < 4; i++) {
-                const ember = new THREE.Mesh(emberGeo, mat({
-                    color: 0xffaa33, emissive: 0xff9922, emissiveIntensity: 1.1, transparent: true, opacity: 0.9,
-                }));
-                const a = (i / 4) * Math.PI * 2;
-                ember.position.set(Math.cos(a) * 0.1 * scale, 0.9, Math.sin(a) * 0.1 * scale);
-                turret.add(ember);
-                parts.rise!.push({ node: ember, baseY: 0.85, height: 0.55, speed: 0.45 + i * 0.08, phase: i * 0.27 });
-            }
-        }
-    }
-
-    /** Lightning — proper tesla coil with winding, insulators and live plasma arcs. */
-    private buildTeslaCoil(turret: THREE.Group, parts: TowerParts, scale: number, accentColor: number): void {
-        const copper = mat({ color: 0xb0672d, metalness: 0.85, roughness: 0.3 });
-        const darkMetal = mat({ color: 0x23252e, metalness: 0.8, roughness: 0.35 });
-        const ceramic = mat({ color: 0xd8d4c8, roughness: 0.5 });
-
-        // Insulator stack base
-        addMesh(turret, new THREE.CylinderGeometry(0.16 * scale, 0.2 * scale, 0.08, SEG_LO), darkMetal, 0, 0.36, 0);
-        for (let i = 0; i < 3; i++) {
-            addMesh(turret, new THREE.CylinderGeometry((0.13 - i * 0.015) * scale, (0.14 - i * 0.015) * scale, 0.035, SEG_LO), ceramic, 0, 0.44 + i * 0.05, 0);
-        }
-
-        // Coil column with copper winding rings
-        addMesh(turret, new THREE.CylinderGeometry(0.07 * scale, 0.1 * scale, 0.42 * scale, SEG_LO), darkMetal, 0, 0.76, 0);
-        for (let r = 0; r < 6; r++) {
-            const ring = addMesh(turret, new THREE.TorusGeometry((0.085 + (5 - r) * 0.004) * scale, 0.014 * scale, 5, SEG_MID), copper, 0, 0.6 + r * 0.065, 0, true);
-            ring.rotation.x = Math.PI / 2;
-        }
-
-        // Toroid electrode + emitter sphere
-        const toroid = addMesh(turret, new THREE.TorusGeometry(0.13 * scale, 0.045 * scale, 8, SEG_HI),
-            mat({ color: 0xcfd6dd, metalness: 0.95, roughness: 0.15 }), 0, 1.02, 0);
-        toroid.rotation.x = Math.PI / 2;
-
-        const emitterMat = mat({ color: accentColor, emissive: 0xffee55, emissiveIntensity: 0.9 }) as THREE.MeshStandardMaterial;
-        const emitter = addMesh(turret, new THREE.SphereGeometry(0.07 * scale, SEG_MID, SEG_LO), emitterMat, 0, 1.02, 0, true);
-        parts.pulseEmissive!.push({ mat: emitterMat, base: 0.9, amp: 0.45, speed: 7, phase: 0 });
-        parts.bob!.push({ node: emitter, baseY: 1.02, amp: 0.02, speed: 5, phase: 0 });
-
-        // Wireframe energy cage
-        const cage = new THREE.Mesh(
-            new THREE.IcosahedronGeometry(0.17 * scale),
-            new THREE.MeshBasicMaterial({ color: 0xfff9a8, wireframe: true, transparent: true, opacity: 0.5 })
-        );
-        cage.position.y = 1.02;
-        turret.add(cage);
-        parts.spin!.push({ node: cage, speed: 2.0, axis: 'y' });
-
-        // Live plasma arcs
-        if (!GRAPHICS.isMobile) {
-            parts.arcs = [];
-            parts.arcOrigin = new THREE.Vector3(0, 1.02, 0);
-            const arcMat = new THREE.LineBasicMaterial({ color: 0xccf2ff, transparent: true, opacity: 0.85 });
-            for (let i = 0; i < 3; i++) {
-                const geo = new THREE.BufferGeometry();
-                geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(5 * 3), 3));
-                const arc = new THREE.Line(geo, arcMat);
-                arc.frustumCulled = false;
-                turret.add(arc);
-                parts.arcs.push(arc);
-            }
-        }
-    }
-
-    /** Poison — alchemist's still: cauldron, glass retort, copper piping, rising bubbles. */
-    private buildAlchemyStill(turret: THREE.Group, parts: TowerParts, scale: number): void {
-        const ironPot = mat({ color: 0x2c3130, metalness: 0.55, roughness: 0.5, flatShading: true });
-        const copper = mat({ color: 0x9c5a28, metalness: 0.8, roughness: 0.35 });
-        const toxinMat = mat({ color: 0x39d411, emissive: 0x2bb400, emissiveIntensity: 0.5, transparent: true, opacity: 0.9 }) as THREE.MeshStandardMaterial;
-
-        // Cauldron
-        const potPts: THREE.Vector2[] = [];
-        for (let i = 0; i <= 7; i++) {
-            const t = i / 7;
-            potPts.push(new THREE.Vector2(Math.sin(t * Math.PI * 0.82) * 0.24 * scale + 0.02, t * 0.3));
-        }
-        addMesh(turret, new THREE.LatheGeometry(potPts, SEG_MID), ironPot, 0, 0.32, 0);
-        // Rim
-        const rim = addMesh(turret, new THREE.TorusGeometry(0.185 * scale, 0.022 * scale, 6, SEG_MID), ironPot, 0, 0.62, 0);
-        rim.rotation.x = Math.PI / 2;
-        // Toxic liquid surface
-        const liquid = addMesh(turret, new THREE.CylinderGeometry(0.17 * scale, 0.17 * scale, 0.03, SEG_MID), toxinMat, 0, 0.6, 0, true);
-        parts.pulseEmissive!.push({ mat: toxinMat, base: 0.5, amp: 0.25, speed: 3, phase: 0 });
-        parts.pulseScale!.push({ node: liquid, base: 1.0, amp: 0.03, speed: 3.4, phase: 1 });
-
-        // Glass retort flask above, held by a copper stand
-        addMesh(turret, new THREE.CylinderGeometry(0.015 * scale, 0.015 * scale, 0.5, 5), copper, 0.16 * scale, 0.62, 0);
-        const retort = new THREE.Mesh(new THREE.SphereGeometry(0.11 * scale, SEG_MID, SEG_MID), glassMat(0xbfffb0));
-        retort.position.set(0, 0.95, 0);
-        turret.add(retort);
-        parts.bob!.push({ node: retort, baseY: 0.95, amp: 0.02, speed: 2.4, phase: 0.4 });
-        // Toxin swirling inside the retort
-        const swirl = new THREE.Mesh(new THREE.SphereGeometry(0.06 * scale, SEG_LO, SEG_LO), toxinMat);
-        retort.add(swirl);
-        parts.pulseScale!.push({ node: swirl, base: 1.0, amp: 0.12, speed: 4, phase: 2 });
-
-        // Copper pipe from retort down to cauldron
-        const pipe = addMesh(turret, new THREE.TorusGeometry(0.14 * scale, 0.018 * scale, 5, SEG_MID, Math.PI * 0.9), copper, 0.1 * scale, 0.8, 0);
-        pipe.rotation.z = -0.5;
-
-        // Bubbles rising from the cauldron
-        const bubbleCount = GRAPHICS.isMobile ? 2 : 4;
-        const bubbleGeo = new THREE.SphereGeometry(0.025, 6, 6);
-        for (let i = 0; i < bubbleCount; i++) {
-            const bubble = new THREE.Mesh(bubbleGeo, toxinMat);
-            const a = (i / bubbleCount) * Math.PI * 2;
-            bubble.position.set(Math.cos(a) * 0.08 * scale, 0.62, Math.sin(a) * 0.08 * scale);
-            turret.add(bubble);
-            parts.rise!.push({ node: bubble, baseY: 0.62, height: 0.4, speed: 0.35 + i * 0.09, phase: i * 0.31 });
-        }
-    }
-
-    /** Sniper — elevated railgun nest with charged rails and glowing optics. */
-    private buildRailgunNest(group: THREE.Group, turret: THREE.Group, parts: TowerParts, scale: number, accentColor: number): void {
-        const gunmetal = mat({ color: 0x2a2d3a, metalness: 0.8, roughness: 0.3 });
-        const alloy = mat({ color: accentColor, metalness: 0.7, roughness: 0.35 });
-        const railGlowMat = mat({ color: 0x7f9dff, emissive: 0x5f80ff, emissiveIntensity: 0.7 }) as THREE.MeshStandardMaterial;
-
-        // Tripod legs (static, on the base)
-        for (let i = 0; i < 3; i++) {
-            const a = i * Math.PI * 2 / 3;
-            const leg = addMesh(group, new THREE.CylinderGeometry(0.022 * scale, 0.028 * scale, 0.62 * scale, 5), gunmetal,
-                Math.cos(a) * 0.17, 0.58, Math.sin(a) * 0.17);
-            leg.rotation.x = -Math.sin(a) * 0.3;
-            leg.rotation.z = Math.cos(a) * 0.3;
-            // Foot pads
-            addMesh(group, new THREE.CylinderGeometry(0.04 * scale, 0.05 * scale, 0.03, 6), gunmetal,
-                Math.cos(a) * 0.26, 0.31, Math.sin(a) * 0.26);
-        }
-        // Gimbal hub
-        addMesh(group, new THREE.SphereGeometry(0.09 * scale, SEG_LO, SEG_LO), gunmetal, 0, 0.88, 0);
-
-        // Weapon body on the rotating turret with recoil
-        const weapon = new THREE.Group();
-        weapon.position.y = 0.9;
-        turret.add(weapon);
-        parts.recoilNode = weapon;
-        parts.recoilAmount = 0.14;
-
-        // Receiver
-        addMesh(weapon, new THREE.BoxGeometry(0.12 * scale, 0.14 * scale, 0.34 * scale), alloy, 0, 0.02, -0.05);
-        // Stock / counterweight
-        addMesh(weapon, new THREE.BoxGeometry(0.09 * scale, 0.1 * scale, 0.14 * scale), gunmetal, 0, 0, -0.28 * scale);
-
-        // Twin rails with glowing accelerator strip between them
-        const railGeo = new THREE.BoxGeometry(0.025 * scale, 0.05 * scale, 0.85 * scale);
-        addMesh(weapon, railGeo, gunmetal, 0.032 * scale, 0.02, 0.45 * scale);
-        addMesh(weapon, railGeo, gunmetal, -0.032 * scale, 0.02, 0.45 * scale);
-        addMesh(weapon, new THREE.BoxGeometry(0.02 * scale, 0.02 * scale, 0.8 * scale), railGlowMat, 0, 0.02, 0.44 * scale, true);
-        parts.pulseEmissive!.push({ mat: railGlowMat, base: 0.65, amp: 0.35, speed: 4.5, phase: 0 });
-        // Muzzle housing
-        addMesh(weapon, new THREE.BoxGeometry(0.09 * scale, 0.09 * scale, 0.07 * scale), alloy, 0, 0.02, 0.86 * scale);
-
-        // Scope with glowing lens
-        const scope = new THREE.Group();
-        scope.position.set(0, 0.13, -0.02);
-        weapon.add(scope);
-        const scopeBody = addMesh(scope, new THREE.CylinderGeometry(0.035 * scale, 0.035 * scale, 0.24 * scale, SEG_LO), gunmetal, 0, 0, 0);
-        scopeBody.rotation.x = Math.PI / 2;
-        const lensMat = mat({ color: 0xff4d4d, emissive: 0xff2222, emissiveIntensity: 0.9 }) as THREE.MeshStandardMaterial;
-        const lens = addMesh(scope, new THREE.CircleGeometry(0.028 * scale, SEG_LO), lensMat, 0, 0, 0.125 * scale, true);
-        lens.rotation.y = 0;
-        parts.pulseEmissive!.push({ mat: lensMat, base: 0.8, amp: 0.4, speed: 2.2, phase: 1 });
-        parts.bob!.push({ node: scope, baseY: 0.13, amp: 0.008, speed: 2, phase: 0 });
-
-        // Side capacitor cells
-        for (const side of [-1, 1]) {
-            const cellMat = mat({ color: 0x3648b8, emissive: 0x2233aa, emissiveIntensity: 0.35 }) as THREE.MeshStandardMaterial;
-            addMesh(weapon, new THREE.BoxGeometry(0.035 * scale, 0.08 * scale, 0.12 * scale), cellMat, side * 0.085 * scale, 0.01, -0.16 * scale, true);
-        }
-    }
+/**
+ * 上色。
+ *
+ * `clone(true)` 預設係**共用 material**——一改就成場所有塔一齊變色，所以改之前
+ * 要 clone 一份材質出嚟。代價係幾十份材質，換返成場塔分得清，抵。
+ */
+function 染色(root: THREE.Object3D, 主: THREE.Color, 副: THREE.Color): void {
+    root.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const 舊 = Array.isArray(m.material) ? m.material : [m.material];
+        const 新 = 舊.map((mm) => {
+            const mat = mm as THREE.MeshStandardMaterial;
+            const 主之 = 主色名.has(mat.name), 亮之 = 亮色名.has(mat.name);
+            if (!主之 && !亮之) return mat;
+            const c = mat.clone();
+            c.color.copy(主之 ? 主 : 副);
+            if (mat.name === 'purple') c.color.multiplyScalar(0.68);   // 深色嗰件留返深
+            return c;
+        });
+        m.material = Array.isArray(m.material) ? 新 : 新[0];
+    });
 }

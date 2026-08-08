@@ -4467,6 +4467,55 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-197 — Tower: the last of the hand-built geometry is gone
+
+Date: 2026-08-08. Status: accepted.
+
+`towerRenderer.ts` was 942 lines and `enemyRenderer.ts` was 629, and between them they contained
+every visible object in the game as cylinders, spheres and cones — one hand-written constructor per
+tower type, another per enemy type. Both are now built from the CC0 kits. The two files are **544 and
+360 lines**, and the bundle went *down* 798 → 760 kB despite gaining a loader.
+
+**Towers stack instead of being sculpted.** Kenney's tower kit is modular: `base → bottom → middle →
+top`, each segment exactly 0.500 high (measured, and `assets.mjs` holds that number). That is the
+same shape as the game's own three-level upgrade, so a level is a segment — no separate visual rule
+to keep in sync. Seven tower types against four weapon heads are separated by body shape (round vs
+square), roof variant, and the colours the game already used for each type, so the HUD, projectiles
+and effects still agree with the tower.
+
+Two things had to be got right rather than guessed:
+
+- **Weapon towers wear no roof.** The roofs are 0.93–1.18 tall and the weapons 0.19–0.63; mounting
+  one on the other buries the weapon inside the roof and you can no longer see what it is aiming at.
+  Open battlements with the weapon standing on them is how the kit's own sample towers are built.
+  Ice and poison have no matching head (the kit has four), so they get a roof and a spinning crystal
+  — which also gives them a silhouette that reads apart from the other five.
+- **Enemies stay instanced.** A wave can hold 455 enemies (`balance.mjs` guards that ceiling), so a
+  cloned `Object3D` each would be thousands of draw calls. Instead the GLB's sub-meshes are unpacked
+  into the *existing* `EnemyPartDef` list — geometry, material, and the sub-mesh's own transform
+  baked into the geometry once with `applyMatrix4` rather than multiplied every frame. The whole
+  instancing / animation / HP-bar machinery above it is untouched. Five creatures cover seven types;
+  `swarm` and `shield` are a small skeleton and a blue zombie, and that compromise is written down
+  rather than hidden.
+
+The gate (`tests/units.mjs`, 10 checks) asks the questions that would actually catch a regression:
+every type builds at all (`取同步` throws when a piece was never preloaded, so "it built" is a real
+assertion); each level is **taller** and has **more meshes** than the last; the identification colour
+is read **from the scene graph**, not from pixels. That last choice came from failing twice: a tower
+is a few dozen pixels on screen and a crop around it is nine-tenths grass, so both pixel versions
+read the grass colour back and reported all seven towers as green — evidence about the ruler, not
+about the game. Mutations: dropping the per-level stacking turns three checks red with heights
+`[1.039, 1.039, 1.039]` and identical mesh counts; swapping the enemy geometry for a box drops the
+triangle count to 12.
+
+One more ruler bug worth keeping: the first version of the instancing check read 85 `InstancedMesh`
+objects with **every count at 0**, because it spawned enemies and inspected the scene inside the same
+`page.evaluate` — `sync()` sets those counts inside the rAF loop, which had not run yet. It was
+measuring a scene that had never been drawn.
+
+Eight suites green: look 7/7, assets 8/8, tiles 6/6, gateway 6/6, units 10/10, smoke 5/5,
+balance 6/6, combat 8/8.
+
 ## ADR-196 — Tower: the road had no beginning and no end
 
 Date: 2026-08-08. Status: accepted.

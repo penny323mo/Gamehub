@@ -14,7 +14,7 @@ import { SceneManager } from './render/sceneManager';
 import { CameraController } from './render/camera';
 import { setupLighting } from './render/lighting';
 import { TowerRenderer } from './render/towerRenderer';
-import { EnemyRenderer } from './render/enemyRenderer';
+import { EnemyRenderer, 裝敵模型 } from './render/enemyRenderer';
 import { FxRenderer } from './render/fx';
 import { ProjectileRenderer } from './render/projectileRenderer';
 import { Picking } from './render/picking';
@@ -31,7 +31,7 @@ import {
 } from './core/storage';
 import { ACHIEVEMENTS, type Achievement } from './core/achievements';
 import { makeDraggable, resetUiLayout } from './ui/draggable';
-import { 量模型, 預載 } from './render/assets';
+import { 量模型, 預載, 塔件清單, 敵件清單 } from './render/assets';
 import { Gateway } from './render/gateway';
 
 // ─── State ───
@@ -66,7 +66,10 @@ const lightingRig = setupLighting(sm.scene);
 // （`取同步` 未預載會大聲掛，唔會靜靜哋少咗道門）。
 const gateway = new Gateway(sm.scene);
 const spawnWorld = cellToWorld(MAP.spawnCell[0], MAP.spawnCell[1]);
-const 地面好 = Promise.all([sm.buildGround(), 預載(Gateway.清單())]).then(() => { gateway.build(); });
+const 地面好 = Promise.all([
+    sm.buildGround(),
+    預載([...Gateway.清單(), ...塔件清單(), ...敵件清單()]),
+]).then(() => { gateway.build(); 裝敵模型(); });
 
 const towerRenderer = new TowerRenderer(sm.scene);
 const enemyRenderer = new EnemyRenderer(sm.scene);
@@ -1458,6 +1461,8 @@ function gameLoop(time: number): void {
     // 另開一個就變成量緊一件遊戲唔會行嘅嘢。
     量模型: 量模型,
     門狀態() { return gateway.狀態(); },
+    塔尺(id: number) { return towerRenderer.measure(id); },
+    塔同步() { towerRenderer.sync(state); towerRenderer.animate(0.6, state); },
     地圖: { spawn: cellToWorld(MAP.spawnCell[0], MAP.spawnCell[1]), goal: cellToWorld(MAP.goalCell[0], MAP.goalCell[1]) },
     開門() { gateway.開門(); },
     // 診斷用：呢三個係現成物件嘅引用，唔會令 bundle 大（試過 expose 成個

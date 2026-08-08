@@ -89,6 +89,22 @@ export function 取同步(rel: string): THREE.Group {
     return g.clone(true);
 }
 
+/** 一座塔要用到嘅所有件。開場前預載嘅清單由呢度出，唔好兩邊各寫一份。 */
+export const 塔件清單 = (): string[] => {
+    const 件: string[] = ['towers/towerRound_base.glb', 'towers/towerRound_crystals.glb'];
+    for (const 家 of ['towerRound', 'towerSquare']) {
+        for (const 節 of ['bottom', 'middle', 'top', 'roof']) {
+            for (const v of ['A', 'B', 'C']) 件.push(`towers/${家}_${節}${v}.glb`);
+        }
+    }
+    for (const w of ['ballista', 'blaster', 'cannon', 'catapult']) 件.push(`towers/weapon_${w}.glb`);
+    return 件;
+};
+
+/** 七種敵人用邊個模型。五隻生物對七種，所以有兩種靠大細同色分。 */
+export const 敵件清單 = (): string[] =>
+    ['skeleton', 'zombie', 'ghost', 'vampire', 'digger'].map((n) => `enemies/${n}.glb`);
+
 /**
  * 量一個模型：量度用嘅接口（`tests/assets.mjs`）行嘅就係呢條，
  * 同遊戲用嘅係同一個 loader、同一個 cache。
