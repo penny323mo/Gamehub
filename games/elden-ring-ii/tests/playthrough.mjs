@@ -48,7 +48,9 @@ const browser = await chromium.launch({
     executablePath: process.env.PW_CHROMIUM ?? '/opt/pw-browsers/chromium',
     args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
 });
-const page = await browser.newPage({ viewport: { width: 560, height: 340 } });
+// 320×190：軟件光柵化之下解析度就係幀率，而幀率就係遊戲時間（ADR-186 實測
+// 640×380 得 1.7 fps、320×190 4.2）。呢個 bot 一條嘢都唔關解析度事。
+const page = await browser.newPage({ viewport: { width: 320, height: 190 } });
 const errors = [];
 page.on('pageerror', e => errors.push(e.message.split('\n')[0]));
 
@@ -58,48 +60,106 @@ await page.getByText('OATHBOUND', { exact: false }).first().click();
 await page.getByText('ENTER THE VEIL').first().click();
 await page.waitForTimeout(4000);
 
-const 讀 = () => page.evaluate(() => {
-    const el = document.querySelector('[data-encounter]');
-    const 兵 = (el.dataset.minionPositions || '').split('|').filter(Boolean)
-        .map(s => s.split(',').map(Number));
-    const [px, pz] = el.dataset.playerPosition.split(',').map(Number);
-    return { 關: el.dataset.encounter, 剩: +el.dataset.enemiesRemaining,
-        狀態: el.dataset.gameStatus, px, pz, 兵 };
-});
+const 讀 = () => page.evaluate(() => window.__ER2.局面());
 
-// 近戰射程 4.4 米：入到射程就斬。第一版寫住喺 2.6 米碌開，即係一去到打得
-// 到嘅距離就碌走——八十九秒一隻都殺唔到。量到嘅係 bot 蠢，唔關遊戲事。
-const 射程 = 4.2;
+// 一個「識玩」嘅 bot。
+//
+// 上一版由頭到尾冇碌過，所以佢死喺第二波乜都證明唔到——量到嘅係 bot 蠢，唔係
+// 遊戲難。而「隻遊戲通唔通到關」係產品級嘅第一條問題，冇一個識玩嘅 bot 就答
+// 唔到。呢個政策簡單到一個新手都做得到：
+//   1. 有嘢**就快落到你身上**（雜兵出緊手、boss 前搖）→ 碌走。
+//   2. 入到射程 → 斬。
+//   3. 血少過三成 → 行去賜福回氣（`__ER2.graces()`）。
+//   4. 其餘時間 → 行埋去。
+// 佢冇任何真人冇嘅資訊：以上每一樣都喺畫面上面睇得到。
+const 射程 = 4.2, BOSS射程 = 3.6;
 const t0 = Date.now();
-let 上關 = '';
+const 秒 = () => ((Date.now() - t0) / 1000).toFixed(0);
+let 上關 = -1;
+const 賜福 = await page.evaluate(() => window.__ER2.graces());
+
+const 行 = async (dx, dz, ms, 衝 = false) => {
+    const keys = [];
+    if (dx < -0.6) keys.push('KeyA'); else if (dx > 0.6) keys.push('KeyD');
+    if (dz < -0.6) keys.push('KeyW'); else if (dz > 0.6) keys.push('KeyS');
+    if (!keys.length) { await page.waitForTimeout(ms); return; }
+    if (衝) keys.push('ShiftLeft');
+    for (const k of keys) await page.keyboard.down(k);
+    await page.waitForTimeout(ms);
+    for (const k of keys) await page.keyboard.up(k);
+};
+
 for (let i = 0; i < STEPS; i++) {
     const s = await 讀();
     if (s.關 !== 上關) {
         上關 = s.關;
-        console.log(`[${((Date.now() - t0) / 1000).toFixed(0)}s] ${s.關}　剩 ${s.剩}　`
-            + `位 ${s.px.toFixed(1)},${s.pz.toFixed(1)}`);
+        console.log(`[${秒()}s] ${s.關 === 3 ? 'boss' : `wave-${s.關 + 1}`}　血 ${s.血}　`
+            + `位 ${s.我[0].toFixed(1)},${s.我[1].toFixed(1)}`);
     }
-    if (s.狀態 !== 'playing') {
-        console.log(`[${((Date.now() - t0) / 1000).toFixed(0)}s] 結果 = ${s.狀態}`);
-        break;
-    }
-    const 近 = s.兵.map(m => Math.hypot(m[0] - s.px, m[1] - s.pz)).sort((a, b) => a - b)[0] ?? 999;
-    if (近 <= 射程) {
-        await page.keyboard.press('KeyF');
-        await page.waitForTimeout(500);
+    if (s.狀態 !== 'playing') { console.log(`[${秒()}s] 結果 = ${s.狀態}`); break; }
+
+    const 目標 = s.boss ?? s.兵.map((m) => ({ ...m, 血: null }))
+        .sort((a, b) => Math.hypot(a.x - s.我[0], a.z - s.我[1])
+                      - Math.hypot(b.x - s.我[0], b.z - s.我[1]))[0];
+    if (!目標) { await page.waitForTimeout(400); continue; }
+    const d = Math.hypot(目標.x - s.我[0], 目標.z - s.我[1]);
+
+    // 1. 有嘢就快落到身上——碌走。
+    const 威脅 = (s.boss && s.boss.快出手 && d < 7)
+        || s.兵.some((m) => m.快出手 && Math.hypot(m.x - s.我[0], m.z - s.我[1]) < 3);
+    if (威脅 && s.體 > 20) {
+        await 行(s.我[0] - 目標.x, s.我[1] - 目標.z, 120);
+        await page.keyboard.press('Space');
+        await page.waitForTimeout(320);
         continue;
     }
-    if (!s.兵.length) { await page.waitForTimeout(500); continue; }
-    const 心 = s.兵.reduce((a, m) => [a[0] + m[0] / s.兵.length, a[1] + m[1] / s.兵.length], [0, 0]);
-    const dx = 心[0] - s.px, dz = 心[1] - s.pz, keys = [];
-    if (dx < -0.8) keys.push('KeyA'); else if (dx > 0.8) keys.push('KeyD');
-    if (dz < -0.8) keys.push('KeyW'); else if (dz > 0.8) keys.push('KeyS');
-    for (const k of keys) await page.keyboard.down(k);
-    await page.waitForTimeout(1400);
-    for (const k of keys) await page.keyboard.up(k);
+    // 2a. 受咗傷就飲藥——但飲嘅時候定身，所以要**先有安全距離**。冇距離就
+    // 衝出去造一個出嚟（衝刺 6.82 對雜兵 3.6–4.4）。
+    if (s.血 < 55 && s.藥 > 0) {
+        const 最近 = Math.min(...[...s.兵, ...(s.boss ? [s.boss] : [])]
+            .map((m) => Math.hypot(m.x - s.我[0], m.z - s.我[1])), 999);
+        if (最近 > 7) {
+            await page.keyboard.press('KeyE');
+            await page.waitForTimeout(700);
+            continue;
+        }
+        if (s.體 > 25) {
+            const cx = (s.boss ? s.boss.x : s.兵.reduce((a, m) => a + m.x, 0) / (s.兵.length || 1));
+            const cz = (s.boss ? s.boss.z : s.兵.reduce((a, m) => a + m.z, 0) / (s.兵.length || 1));
+            await 行(s.我[0] - cx, s.我[1] - cz, 1200, true);
+            continue;
+        }
+    }
+    // 2b. **唔好企喺三個人中間。** 玩家衝刺 6.82 米／秒、雜兵 3.6–4.4，所以
+    // 拉扯係遊戲自己提供嘅工具。兩隻以上埋咗身就衝走，散開咗先逐隻打。
+    const 埋身 = s.兵.filter((m) => Math.hypot(m.x - s.我[0], m.z - s.我[1]) < 3.6).length;
+    if (!s.boss && 埋身 >= 2 && s.體 > 25) {
+        const cx = s.兵.reduce((a, m) => a + m.x, 0) / s.兵.length;
+        const cz = s.兵.reduce((a, m) => a + m.z, 0) / s.兵.length;
+        await 行(s.我[0] - cx, s.我[1] - cz, 1100, true);
+        continue;
+    }
+    // 3. 血少就去賜福（打緊 boss 就唔走，個場入面冇）。
+    if (s.血 < 30 && !s.boss && 賜福.length) {
+        const g = 賜福.slice().sort((a, b) => Math.hypot(a.x - s.我[0], a.z - s.我[1])
+                                            - Math.hypot(b.x - s.我[0], b.z - s.我[1]))[0];
+        const gd = Math.hypot(g.x - s.我[0], g.z - s.我[1]);
+        if (gd > 2.6) { await 行(g.x - s.我[0], g.z - s.我[1], 900); continue; }
+        await page.keyboard.press('KeyE');
+        await page.waitForTimeout(400);
+        continue;
+    }
+    // 2. 入到射程就斬。
+    if (d <= (s.boss ? BOSS射程 : 射程)) {
+        await page.keyboard.press('KeyF');
+        await page.waitForTimeout(420);
+        continue;
+    }
+    // 4. 行埋去。
+    await 行(目標.x - s.我[0], 目標.z - s.我[1], 900);
 }
 
-console.log('最後：', JSON.stringify(await 讀()).slice(0, 200));
+console.log('最後：', JSON.stringify(await 讀()).slice(0, 260));
 console.log('錯誤：', errors.length ? errors.slice(0, 3) : '冇');
 await browser.close();
 await new Promise(r => server.close(r));

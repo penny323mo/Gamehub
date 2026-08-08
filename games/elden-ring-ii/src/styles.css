@@ -972,6 +972,21 @@ kbd {
     height: 46px;
     font-size: 20px;
   }
+
+  /* 冇呢條規則嘅話，`position: absolute` 冇 offset 就會跌落容器左上角——即係
+     最貼近搖桿區嗰邊。實測 iPhone SE 打直 375×667 讀到 `touch-zone × ⚱3`
+     重疊咗 1×23 像素。擺喺鎖定掣左手邊，兩粒都喺個 150px 容器入面。 */
+  .touch-flask {
+    top: 0;
+    right: 72px;
+    width: 46px;
+    height: 46px;
+    font-size: 15px;
+  }
+
+  .touch-flask:disabled {
+    opacity: 0.4;
+  }
 }
 
 @media (max-height: 640px) and (orientation: landscape) {
@@ -1014,4 +1029,26 @@ kbd {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
   }
+}
+
+/* 藥瓶：血條下面三粒，同動作掣一粒。手機本來連互動掣都冇。 */
+.flask-row {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.flask {
+  color: rgba(211, 183, 117, 0.28);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.flask.on {
+  color: #f3ce72;
+}
+
+.touch-flask {
+  font-variant-numeric: tabular-nums;
 }

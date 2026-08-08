@@ -92,6 +92,7 @@ const CLASS_CONFIG: Record<
 type HudState = {
   hp: number;
   stamina: number;
+  flasks: number;
   bossHp: number;
   status: GameStatus;
   locked: boolean;
@@ -141,6 +142,7 @@ type MinionEnemy = {
 const INITIAL_HUD: HudState = {
   hp: 100,
   stamina: 100,
+  flasks: 3,
   bossHp: 100,
   status: "loading",
   locked: true,
@@ -1070,12 +1072,26 @@ export default function GameClient() {
     let queuedDodge = false;
     let queuedLock = false;
     let queuedInteract = false;
+    // 場內回復。
+    //
+    // 量度：出手 17 體力、0.66 秒，而**出手期間唔回氣**（28/秒）——持續節奏
+    // 大約一下／1.26 秒，即係 **11.9 dps**。第二波三隻雜兵每隻 13 傷害／約
+    // 1.6 秒 ＝ **24.4 dps**。就算逐隻打，殺一隻要 2.9 秒、捱 23 傷害：第一波
+    // 47 ＋ 第二波 70 ＝ **117 傷害，而你得 100 血**。即係**行唔完頭兩波**，
+    // 更加見唔到 boss——而個場入面**冇任何回復手段**：賜福得兩個固定點，打緊
+    // 交行唔返去（bot 四次全部死喺第二波，一次都冇成功返過賜福）。
+    //
+    // 呢個唔係「難」，係**個預算唔夠行完成條路**。賜福已經係篝火，欠嗰半就係
+    // 藥瓶：三支、每支回 55、隨處飲得，但飲嘅時候有一個定身窗口（＝要自己搵
+    // 安全位），賜福休息就斟滿。100 血變成 265 血嘅預算，而風險由你自己揀。
+    const FLASK_MAX = 3, FLASK_HEAL = 55, FLASK_DRINK = 0.95;
 
     const player = {
       hp: 100,
       stamina: 100,
+      flasks: FLASK_MAX,
       rotation: Math.PI,
-      state: "idle" as "idle" | "attack" | "dodge" | "dead",
+      state: "idle" as "idle" | "attack" | "dodge" | "drink" | "dead",
       stateUntil: 0,
       impactAt: 0,
       impactDone: false,
@@ -1838,6 +1854,7 @@ export default function GameClient() {
     const restart = () => {
       player.hp = 100;
       player.stamina = 100;
+      player.flasks = FLASK_MAX;
       player.state = "idle";
       player.stateUntil = 0;
       player.invincibleUntil = 0;
@@ -2197,6 +2214,24 @@ export default function GameClient() {
       // 兩條算完之後畫出嚟嘅解析度。唔夾就會逐幀重採樣。
       像素比: () => ({ dpr: window.devicePixelRatio,
         renderer: renderer.getPixelRatio(), composer: (composer as unknown as { _pixelRatio: number })._pixelRatio }),
+      // 一個 bot 睇得到嘅局面。入面每一樣玩家都喺畫面上面睇得到（血條、體力
+      // 條、boss 血條、敵人喺邊同佢舉唔舉緊手），所以呢個 seam 冇畀 bot 任何
+      // 一個真人冇嘅資訊——佢淨係慳返「由 DOM 度度像素」呢一步。
+      局面: () => ({
+        血: Math.round(player.hp), 體: Math.round(player.stamina), 藥: player.flasks,
+        我: [+playerRoot.position.x.toFixed(2), +playerRoot.position.z.toFixed(2)],
+        態: player.state,
+        關: encounterStage, 狀態: mount.dataset.gameStatus ?? "",
+        兵: minions.filter((m) => m.active && m.hp > 0).map((m) => ({
+          x: +m.root.position.x.toFixed(2), z: +m.root.position.z.toFixed(2),
+          態: m.state, 快出手: m.state === "attack" && !m.impactDone,
+        })),
+        boss: bossActive && boss.hp > 0
+          ? { x: +bossRoot.position.x.toFixed(2), z: +bossRoot.position.z.toFixed(2),
+              血: Math.round(boss.hp), 態: boss.state, 招: boss.move,
+              快出手: boss.state === "windup" && !boss.impactDone }
+          : null,
+      }),
       zoom: () => camZoom,
       zoomBy: (f: number) => { zoomBy(f); return camZoom; },
       // 由 A 追去 B，行一次真物理，唔畫任何嘢。
@@ -2440,6 +2475,12 @@ export default function GameClient() {
           走一步(player.dodgeDirection.x * 6.5 * delta, player.dodgeDirection.z * 6.5 * delta);
           player.rotation = Math.atan2(player.dodgeDirection.x, player.dodgeDirection.z);
           if (now >= player.stateUntil) player.state = "idle";
+        } else if (player.state === "drink") {
+          // 定身窗口：企定飲，唔郁唔出手。呢個就係代價。
+          playerSpeed = gaitStep({ heading: player.rotation, speed: playerSpeed },
+            null, 0, delta).speed;
+          currentPlayerAction = playAction(playerActions, "Idle_Weapon", currentPlayerAction);
+          if (now >= player.stateUntil) player.state = "idle";
         } else if (player.state === "attack") {
           const activeTargetRoot = targetRoot(attackTarget);
           if (activeTargetRoot) toBoss.copy(activeTargetRoot.position).sub(playerRoot.position);
@@ -2662,7 +2703,11 @@ export default function GameClient() {
           const 新速 = 步.speed;
           playerSpeed = 新速;
           player.rotation = 步.heading;
-          最高速 = Math.max(最高速, 新速);
+          // 擊退會**寫死** `playerSpeed`（＝擊退速度 4.2），而下一幀嘅減速斜坡
+          // 由嗰度開始收——即係「最高速」會讀到一個唔係你自己行出嚟嘅數。實測
+          // 搖桿半推嗰條 gate 讀到 3.5（預測 2.2）就係咁嚟。同 ADR-180 條加速尺
+          // 一模一樣個形：**畀人推唔係你嘅速度**。
+          if (now >= player.knockbackUntil + 0.6) 最高速 = Math.max(最高速, 新速);
           if (Math.hypot(步.dx, 步.dz) > 1e-6) {
             const 差 = Math.atan2(步.dx, 步.dz) - player.rotation;
             玩最快側滑 = Math.max(玩最快側滑,
@@ -2745,10 +2790,25 @@ export default function GameClient() {
         const near = nearestGrace(playerRoot.position);
         const distanceToGrace = near.distance;
         if (queuedInteract && distanceToGrace < 3.2) {
+          // 賜福：回滿血、回滿氣、斟滿藥瓶。
           player.hp = 100;
           player.stamina = 100;
+          player.flasks = FLASK_MAX;
           burst(near.grace.position, "#f3ce72");
           gameAudio.play("heal", near.grace.position.x, near.grace.position.z);
+        } else if (
+          queuedInteract && player.state === "idle" && player.flasks > 0
+          && player.hp < 100 && now >= player.knockbackUntil
+        ) {
+          // 藥瓶：隨處飲得，但**有一個定身窗口**——飲嘅時候唔出得手唔碌得，
+          // 所以「幾時飲」本身就係一個決定。同一粒掣：企喺賜福度就係休息，
+          // 唔喺就係飲藥（手機嗰邊唔使加第四粒掣，ADR-175 為咗掣位打過一場）。
+          player.flasks -= 1;
+          player.hp = clamp(player.hp + FLASK_HEAL, 0, 100);
+          player.state = "drink";
+          player.stateUntil = now + FLASK_DRINK;
+          burst(playerRoot.position, "#f3ce72");
+          gameAudio.play("heal", playerRoot.position.x, playerRoot.position.z);
         }
         queuedInteract = false;
 
@@ -3062,6 +3122,7 @@ export default function GameClient() {
             ...state,
             hp: Math.round(player.hp),
             stamina: Math.round(player.stamina),
+            flasks: player.flasks,
             bossHp: Math.round(boss.hp),
             hint,
             locked,
@@ -3401,6 +3462,11 @@ export default function GameClient() {
                   <i style={{ width: `${CLASS_CONFIG[selectedClass].focus}%` }} />
                 </div>
                 <div className="bar stamina"><i style={{ width: `${hud.stamina}%` }} /></div>
+                <div className="flask-row" aria-label={`Flasks remaining ${hud.flasks}`}>
+                  {Array.from({ length: 3 }, (_, i) => (
+                    <span key={i} className={i < hud.flasks ? 'flask on' : 'flask'}>⚱</span>
+                  ))}
+                </div>
               </div>
             </section>
           )}
@@ -3552,6 +3618,12 @@ export default function GameClient() {
           </div>
           <div className="touch-actions">
             <button className="touch-lock" onPointerDown={() => engineRef.current?.toggleLock()} aria-label="Toggle target lock">◎</button>
+            {/* 手機本來連互動掣都冇——即係賜福同藥瓶兩樣都用唔到。一粒掣兩個
+                用途，同鍵盤 E 一樣：企喺賜福就係休息，唔喺就係飲藥。 */}
+            <button className="touch-flask" onPointerDown={() => engineRef.current?.interact()}
+              aria-label="Drink flask or rest at grace" disabled={hud.flasks <= 0 && hud.hp >= 100}>
+              ⚱{hud.flasks}
+            </button>
             <button className="touch-dodge" onPointerDown={() => engineRef.current?.dodge()} aria-label="Dodge">DODGE</button>
             <button className="touch-attack" onPointerDown={() => engineRef.current?.attack()} aria-label="Attack">
               {selectedClass === "wizard" ? "✦" : selectedClass === "ranger" ? "➶" : "⚔"}

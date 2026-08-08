@@ -4467,6 +4467,50 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-187 — Elden Ring II: the run needed more health than the game gave you
+
+Date: 2026-08-06. Status: accepted.
+
+"Product-grade" starts with one question: can the game be finished? It could not, and the proof is
+arithmetic on the game's own constants rather than on how well a bot plays.
+
+An attack costs 17 stamina and takes 0.66 s, and **stamina does not regenerate while attacking**
+(28/s otherwise). Sustained cadence is therefore roughly one swing per 1.26 s — **11.9 dps**. Wave two
+is three minions at 13 damage every ~1.6 s: **24.4 dps** against you. Even fighting them strictly one
+at a time, a minion takes 2.9 s to kill and costs 23 health, so wave one runs 47 and wave two 70:
+**117 damage against a 100-point pool, before wave three and before the boss exists.**
+
+And there was **no way to recover mid-fight**. The two graces heal to full, but they are fixed points;
+the fight drifts away from them, and a bot that tried to walk back to one died on the way every single
+time. The game had the bonfire half of the soulslike frame and not the flask half.
+
+So: three flasks, 55 health each, drinkable anywhere — **with a 0.95 s lockout** during which you
+cannot attack or dodge, which is what makes *when* to drink a decision rather than free health. Graces
+refill them. The budget goes from 100 to 265, which covers the ~200 the run demands.
+
+Mobile had a worse version of the same problem: the touch layout has ◎ / DODGE / ⚔ and **no interact
+button at all**, so phone players could never even use a grace. One button, two meanings — the same as
+`E` on a keyboard: rest if you are standing at a grace, drink otherwise.
+
+**Being honest about what this does not prove.** The bot still cannot finish the game; it dies on wave
+two. But a bot dying proves things about the bot, and I had already caught myself tuning the bot rather
+than the game — teaching it to sprint-kite made it *worse*, because sprint drains the same stamina that
+attacking and dodging need. The claim here is narrow and arithmetic: the health budget now covers the
+route. Whether a person can clear it is not established.
+
+**Four gates went red that had nothing to do with flasks**, and the cause was ADR-186's speed-up. Those
+scripts are written in real seconds while the thing they drive runs on motion time; making the game run
+2.5× faster per real second meant the player absorbed 2.5× the punishment during an unchanged script and
+died before the measurement. The scripts are rescaled. One of the four was a genuine ruler bug: knockback
+**writes** `playerSpeed` (4.2), the next frame's ramp decelerates from there, and top speed recorded a
+number the player never produced — the mobile stick read 3.5 against a predicted 2.2. Being shoved is not
+your speed, which is the same hole ADR-180 closed in the acceleration ruler.
+
+Also recorded, measured but unchanged: **one stamina bar buys 5 swings, and a minion takes 3** — a wave
+of three costs two full bars of offence. The flask fixes the health budget; it does not touch that.
+
+Suite: 84 → **89** browser checks.
+
 ## ADR-186 — Elden Ring II: the suite got slow enough to start failing gates that were not broken
 
 Date: 2026-08-06. Status: accepted.

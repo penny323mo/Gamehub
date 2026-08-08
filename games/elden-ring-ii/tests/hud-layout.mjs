@@ -1077,7 +1077,11 @@ await page.goto('about:blank');
         });
     });
     check('動作掣唔可以跌入搖桿區（撳攻擊唔應該開咗搖桿）',
-        掣位 != null && 掣位.length === 3 && 掣位.every((b) => !b.喺搖桿區入面), 掣位);
+        掣位 != null && 掣位.length === 4 && 掣位.every((b) => !b.喺搖桿區入面), 掣位);
+    // 手機本來得 ◎／DODGE／⚔ **三粒**——即係連互動掣都冇，賜福同藥瓶兩樣都用
+    // 唔到。而家有第四粒（同鍵盤 E 一樣：企喺賜福就休息，唔喺就飲藥）。
+    check('手機有得飲藥／喺賜福休息（本來連互動掣都冇）',
+        掣位 != null && 掣位.some((b) => b.掣.includes('⚱')), 掣位);
     const st = await p3.evaluate(async () => {
         const out = [];
         for (const [x, y] of [[101, 293], [253, 234], [380, 332]]) {
@@ -1291,14 +1295,18 @@ await page.goto('about:blank');
     // 一秒三幀——1.3 秒嘅撳掣得四幀，根本未加速完，最高速讀到 4.3 對 4.4 就
     // 紅。條 gate 唔係量錯咗嘢，係**冇畀夠時間畀佢要量嗰件事發生**。
     // 向北係 34 米空地（出生點 z 12.3，霧門喺 −21.75）。
-    await p4.keyboard.down('KeyW'); await p4.waitForTimeout(6000); await p4.keyboard.up('KeyW');
-    await p4.waitForTimeout(800);
+    // 呢段腳本本來係喺 **1.7 fps** 嗰陣度身訂造嘅（6 秒直路先夠時間加速完）。
+    // ADR-186 之後同一版跑 **4.2 fps**，即係同一段真實秒數入面遊戲行多 2.5 倍
+    // ——玩家捱多咗 2.5 倍打，跑到最後一段先撳攻擊嗰陣已經死咗，`踏前實速`
+    // 讀到 0。**腳本嘅單位係真實秒，佢驅動嘅嘢行郁動時間**，改咗比例就要跟。
+    await p4.keyboard.down('KeyW'); await p4.waitForTimeout(2600); await p4.keyboard.up('KeyW');
+    await p4.waitForTimeout(400);
     for (let i = 0; i < 2; i += 1) {
-        await p4.keyboard.down('KeyW'); await p4.waitForTimeout(1300);
-        await p4.keyboard.up('KeyW'); await p4.keyboard.down('KeyS'); await p4.waitForTimeout(1300);
-        await p4.keyboard.up('KeyS'); await p4.waitForTimeout(700);
-        await p4.keyboard.down('KeyA'); await p4.waitForTimeout(900); await p4.keyboard.up('KeyA');
-        await p4.waitForTimeout(600);
+        await p4.keyboard.down('KeyW'); await p4.waitForTimeout(600);
+        await p4.keyboard.up('KeyW'); await p4.keyboard.down('KeyS'); await p4.waitForTimeout(600);
+        await p4.keyboard.up('KeyS'); await p4.waitForTimeout(300);
+        await p4.keyboard.down('KeyA'); await p4.waitForTimeout(420); await p4.keyboard.up('KeyA');
+        await p4.waitForTimeout(280);
     }
     // 出手都要量：企定同跑住各斬幾刀。
     for (let i = 0; i < 4; i += 1) { await p4.keyboard.press('KeyJ'); await p4.waitForTimeout(700); }
@@ -1468,7 +1476,12 @@ await page.goto('about:blank');
     // 重力：兩次抽樣之間 vy 跌咗幾多 ÷ 郁動秒。量嘅係**積分本身**，唔係讀個
     // 常數返嚟同自己比。
     let 重力 = null;
-    for (let i = 0; i < 6 && 重力 === null; i += 1) {
+    for (let i = 0; i < 10 && 重力 === null; i += 1) {
+        // 死咗就冇碎屑可以量（ADR-186 加速咗之後，同一段腳本玩家捱多咗打）。
+        if (await p7.evaluate(() => document.querySelector('[data-game-status]').dataset.gameStatus !== 'playing')) {
+            await p7.keyboard.press('KeyR');
+            await p7.waitForTimeout(2500);
+        }
         await p7.keyboard.press('KeyJ');
         await p7.waitForTimeout(250);
         const a1 = await p7.evaluate(() => ({ t: window.__ER2.clock().motion, f: window.__ER2.打擊() }));
@@ -1683,6 +1696,59 @@ for (const [名, 推幾次, 想要] of [['第二波', 1, 1], ['boss 場', 3, 3]]
     check('震完鏡頭收得返自己個位（震動唔可以寫入平滑狀態）',
         目標定住 && 收斂,
         鏡 && { 尾段: 尾, 收斂, 目標定住, allowed: 鏡.allowed序列.slice(-3) });
+}
+
+// ---------- 場內回復 ----------
+//
+// 算術：出手 17 體力、0.66 秒，而**出手期間唔回氣**（28/秒）——持續節奏大約
+// 一下／1.26 秒 ＝ **11.9 dps**；第二波三隻雜兵每隻 13 傷害／約 1.6 秒 ＝
+// **24.4 dps**。就算拉開逐隻打，殺一隻要 2.9 秒、捱 23 血：第一波 47 ＋ 第二
+// 波 70 ＝ **117 傷害，而你得 100 血**。即係**行唔完頭兩波**，更加見唔到 boss。
+// 而個場**冇任何回復手段**：賜福得兩個固定點，打緊交行唔返去（bot 四次全部
+// 死喺路上，一次都冇成功返過賜福）。
+//
+// 賜福已經係篝火，欠嗰半就係藥瓶。呢度守嘅係佢真係做到嗰三件事：回到血、
+// 有上限、而且**要畀代價**（飲嘅時候出唔到手）。
+{
+    const pC = await browser.newPage({ viewport: 快版 });
+    await pC.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
+    await pC.waitForTimeout(1500);
+    await 入場(pC);
+    // 企定捱打到跌穿一半血。
+    let 傷 = null;
+    for (let i = 0; i < 30 && (傷 === null || 傷.血 > 55); i += 1) {
+        await pC.waitForTimeout(1500);
+        傷 = await pC.evaluate(() => window.__ER2.局面());
+        if (傷.狀態 !== 'playing') break;
+    }
+    const 飲前 = 傷;
+    await pC.keyboard.press('KeyE');
+    await pC.waitForTimeout(600);
+    const 飲中 = await pC.evaluate(() => window.__ER2.局面());
+    // 飲緊嗰陣撳攻擊——唔應該出到手。
+    const 出手前 = await pC.evaluate(() => window.__ER2.瞄準().發招);
+    await pC.keyboard.press('KeyF');
+    await pC.waitForTimeout(250);
+    const 出手後 = await pC.evaluate(() => window.__ER2.瞄準().發招);
+    await pC.waitForTimeout(1500);
+    // 飲到冇為止。
+    for (let i = 0; i < 6; i += 1) { await pC.keyboard.press('KeyE'); await pC.waitForTimeout(1400); }
+    const 飲完 = await pC.evaluate(() => window.__ER2.局面());
+    await pC.close();
+
+    check('企定捱打真係會跌穿一半血（呢條係下面嗰啲嘅前提）',
+        飲前 != null && 飲前.血 <= 55 && 飲前.狀態 === 'playing',
+        飲前 && { 血: 飲前.血, 藥: 飲前.藥, 狀態: 飲前.狀態 });
+    check('飲藥回到血，而且用咗一支',
+        飲前 != null && 飲中 != null && 飲中.血 > 飲前.血 && 飲中.藥 === 飲前.藥 - 1,
+        { 飲前: 飲前 && [飲前.血, 飲前.藥], 飲後: 飲中 && [飲中.血, 飲中.藥] });
+    // 代價要係真嘅：飲嘅時候定身兼出唔到手。冇呢一下，藥瓶就係「白食」。
+    check('飲緊藥出唔到手（呢個定身窗口就係代價）',
+        飲中 != null && 飲中.態 === 'drink' && 出手後 === 出手前,
+        { 態: 飲中 && 飲中.態, 發招: [出手前, 出手後] });
+    check('藥瓶有數量上限（唔係無限回血）',
+        飲完 != null && 飲完.藥 === 0,
+        飲完 && { 剩低: 飲完.藥, 血: 飲完.血 });
 }
 
 check('由頭到尾零 browser error', errors.length === 0, errors.slice(0, 3));
