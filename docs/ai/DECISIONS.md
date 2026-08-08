@@ -4467,6 +4467,58 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-189 — Elden Ring II: you could not hit an enemy standing next to you
+
+Date: 2026-08-06. Status: accepted.
+
+Chasing completability, I logged every swing the bot threw — distance, angle, hit or miss. The pattern
+was backwards:
+
+    4.2 m 中   2.4 m 中   1.6 m 空   1.8 m 空   1.8 m 空
+
+**The near swings missed and the far ones landed.** The lunge is the cause: for the 0.27 s wind-up the
+attack writes `LUNGE_SPEED` into the player's speed, carrying them about 0.86 m forward, while the minion
+closes about the same. Starting inside ~1.8 m the player **travels past the target**, and the impact test
+requires `projected > -radius` — once they are behind you, you did not hit them. The player's real output
+was **0.4 dps against a designed 11.9**. The lunge now stops at contact: it still covers whatever distance
+the move specifies (ADR-176's rule stands), it just cannot pass through the thing it is aimed at. Same
+scenario, same bot: **30 damage → 128**.
+
+Logging the angle as well exposed a second, sharper edge. The wind-up allows `TURN_RATE_ATTACK × impactDelay`
+= **70° of turn**, and the misses were all beyond it — 148°, 156°, 153°, 180° — while everything inside 115°
+landed. The game was **auto-selecting a target you cannot physically face, and charging 17 stamina for the
+swing.**
+
+**I tried to fix that and made it much worse.** Refusing to auto-target anything outside the turnable cone
+produced a deadlock: facing away → no target → the attack's turn has nothing to turn toward → still facing
+away. Every swing logged 180°, and damage fell from 128 back to **17**. Reverted, with the reason recorded
+in the source: *turning slowly beats not turning* — a swing that whiffs but rotates you means the next one
+lands. The remaining angle misses are the player's own facing, which movement fixes at rate 9; a bot that
+steps toward its target before swinging goes from 2/5 to **7/7**.
+
+The gate does not depend on the bot playing well: stand until a minion is inside 1.9 m, swing three times,
+require damage. Before the fix that is exactly the case that produced nothing.
+
+**A third defect surfaced while gating the flask: the interact input was being eaten.** `queuedInteract`
+was cleared every frame unconditionally, while drinking additionally requires `now >= knockbackUntil` —
+so pressing `E` on a frame where you happen to be taking a hit silently did nothing. You only ever want a
+flask mid-fight, and mid-fight you are being hit; at three or four frames a second one frame is a quarter
+of a second of input. The gate read it plainly: pressed `E`, health 50 → 40, flasks 3 → 3. Interact is
+buffered for 0.45 s now, and the gate reads 50 → 100 with a flask spent.
+
+**And the same real-versus-motion-time confusion, for the third time this session.** The debris-gravity
+gate pressed attack and sampled 250 ms later — but impact lands 0.27 *motion* seconds after the swing,
+which at this frame rate is about 1.1 real seconds, so both samples fell before there was anything to
+measure and it read `null`. It waits for the burst to exist now. Three separate instruments this session
+have used real milliseconds to wait for something that runs on the motion clock.
+
+**Completability is still not demonstrated.** With the lunge fixed and a policy that faces before swinging,
+manages stamina, and drinks, the bot clears wave one at 90 health and dies in wave two having spent all
+three flasks and killed one of three. Better than any previous round, still not a clear. I have stopped
+short of tuning the policy further, because past this point the thing being measured is the policy.
+
+Suite: 90 → **91** browser checks.
+
 ## ADR-188 — Elden Ring II: the flask I added could never be drunk
 
 Date: 2026-08-06. Status: accepted.

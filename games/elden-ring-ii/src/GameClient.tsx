@@ -1071,7 +1071,15 @@ export default function GameClient() {
     let queuedAttack = false;
     let queuedDodge = false;
     let queuedLock = false;
-    let queuedInteract = false;
+    // 互動輸入要有一個緩衝窗口。
+    //
+    // 本來 `queuedInteract` 每幀無條件清零，而飲藥要求 `now >= knockbackUntil`
+    // ——即係你**啱好喺捱打嗰一幀撳 E，個輸入就靜靜哋冇咗**。打緊交先至要飲
+    // 藥，而打緊交就一定捱緊打：實測條 gate 讀到「撳咗 E，血 50 → 40、藥 3 →
+    // 3」。呢個環境一秒得三四幀，一幀就係四分一秒。
+    //
+    // 而家撳一下記住 0.45 秒，期間條件夾得到就做。
+    let 互動到 = -1;
     // 場內回復。
     //
     // 量度：出手 17 體力、0.66 秒，而**出手期間唔回氣**（28/秒）——持續節奏
@@ -1960,7 +1968,8 @@ export default function GameClient() {
         beginAudio();
       },
       interact: () => {
-        queuedInteract = true;
+        互動到 = motionClock + 0.45;
+        beginAudio();
       },
       restart,
       setMove: (x, y) => touchMove.set(x, y),
@@ -1975,7 +1984,7 @@ export default function GameClient() {
       if (event.code === "Space") queuedDodge = true;
       if (event.code === "KeyJ" || event.code === "KeyF") queuedAttack = true;
       if (event.code === "KeyQ") queuedLock = true;
-      if (event.code === "KeyE") queuedInteract = true;
+      if (event.code === "KeyE") 互動到 = motionClock + 0.45;
       if (event.code === "KeyR" && (player.state === "dead" || boss.state === "dead")) restart();
       beginAudio();
     };
@@ -2219,6 +2228,7 @@ export default function GameClient() {
       // 一個真人冇嘅資訊——佢淨係慳返「由 DOM 度度像素」呢一步。
       局面: () => ({
         血: Math.round(player.hp), 體: Math.round(player.stamina), 藥: player.flasks,
+        朝: +player.rotation.toFixed(3),
         我: [+playerRoot.position.x.toFixed(2), +playerRoot.position.z.toFixed(2)],
         態: player.state,
         關: encounterStage, 狀態: mount.dataset.gameStatus ?? "",
@@ -2421,6 +2431,10 @@ export default function GameClient() {
           player.stamina -= classConfig.attackCost;
           player.combo = (player.combo + 1) % 2;
           attackTarget = nearestEnemy(true);
+          // **試過又剷咗**：我試過「轉唔切就唔揀佢」——結果整咗個死鎖，背住
+          // 敵人就冇目標、冇目標就唔轉身、於是永遠背住，實測每一斬都係 180°、
+          // 打出傷害由 128 跌返 17。轉得慢好過唔轉：一刀掃空但個人轉咗過去，
+          // 下一刀就中。
           const selectedTargetRoot = targetRoot(attackTarget);
           發招 += 1;
           if (selectedTargetRoot) {
@@ -2506,7 +2520,24 @@ export default function GameClient() {
           if (classConfig.projectile === "none") {
             const 前搖 = Math.max(0.001, classConfig.impactDelay / classConfig.attackDuration);
             const 力 = attackProgress < 前搖 ? 1 - attackProgress / 前搖 : 0;
-            playerSpeed = LUNGE_SPEED * 力;
+            // 踏前唔可以衝過個目標。
+            //
+            // 實測每一斬：**4.2 米中、2.4 米中，但 1.6／1.8／1.8 米全部空**——
+            // 近距離斬空、遠距離先中，反轉咗。成因係前搖嗰 0.27 秒踏前推咗你
+            // 向前約 0.86 米，而隻雜兵同時埋身 0.86 米：**你衝過咗頭，佢跌咗
+            // 去你身後**，而 `findSweptAttackTarget` 要求 `projected > −radius`
+            // ——即係佢唔再喺你前面，就唔算數。玩家嘅實際輸出跌到 0.4–0.9 dps
+            // （設計上係 11.9）。
+            //
+            // 踏前距離仍然由招式決定（ADR-176），只係唔准衝穿接觸面。
+            const 撲向 = targetRoot(attackTarget);
+            let 踏速 = LUNGE_SPEED * 力;
+            if (撲向) {
+              const 貼 = playerRadius + (attackTarget === "boss" ? bossRadius : minionRadius);
+              const 仲有 = playerRoot.position.distanceTo(撲向.position) - 貼;
+              踏速 = Math.min(踏速, Math.max(0, 仲有 / Math.max(delta, 1e-4)));
+            }
+            playerSpeed = 踏速;
             走一步(Math.sin(player.rotation) * playerSpeed * delta,
                    Math.cos(player.rotation) * playerSpeed * delta);
             踏前幀 += 1; 踏前力 = Math.max(踏前力, 力);
@@ -2789,7 +2820,9 @@ export default function GameClient() {
 
         const near = nearestGrace(playerRoot.position);
         const distanceToGrace = near.distance;
-        if (queuedInteract && distanceToGrace < 3.2) {
+        const 想互動 = now <= 互動到;
+        if (想互動 && distanceToGrace < 3.2) {
+          互動到 = -1;
           // 賜福：回滿血、回滿氣、斟滿藥瓶。
           player.hp = 100;
           player.stamina = 100;
@@ -2797,9 +2830,10 @@ export default function GameClient() {
           burst(near.grace.position, "#f3ce72");
           gameAudio.play("heal", near.grace.position.x, near.grace.position.z);
         } else if (
-          queuedInteract && player.state === "idle" && player.flasks > 0
+          想互動 && player.state === "idle" && player.flasks > 0
           && player.hp < 100 && now >= player.knockbackUntil
         ) {
+          互動到 = -1;
           // 藥瓶：隨處飲得，但**有一個定身窗口**——飲嘅時候唔出得手唔碌得，
           // 所以「幾時飲」本身就係一個決定。同一粒掣：企喺賜福度就係休息，
           // 唔喺就係飲藥（手機嗰邊唔使加第四粒掣，ADR-175 為咗掣位打過一場）。
@@ -2810,7 +2844,6 @@ export default function GameClient() {
           burst(playerRoot.position, "#f3ce72");
           gameAudio.play("heal", playerRoot.position.x, playerRoot.position.z);
         }
-        queuedInteract = false;
 
         minions.forEach((minion) => {
           if (!minion.active || minion.hp <= 0) return;

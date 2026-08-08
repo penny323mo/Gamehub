@@ -1476,18 +1476,27 @@ await page.goto('about:blank');
     // 重力：兩次抽樣之間 vy 跌咗幾多 ÷ 郁動秒。量嘅係**積分本身**，唔係讀個
     // 常數返嚟同自己比。
     let 重力 = null;
-    for (let i = 0; i < 10 && 重力 === null; i += 1) {
+    for (let i = 0; i < 16 && 重力 === null; i += 1) {
         // 死咗就冇碎屑可以量（ADR-186 加速咗之後，同一段腳本玩家捱多咗打）。
         if (await p7.evaluate(() => document.querySelector('[data-game-status]').dataset.gameStatus !== 'playing')) {
             await p7.keyboard.press('KeyR');
             await p7.waitForTimeout(2500);
         }
+        // **等到真係有碎屑先量。** 呢度本來撳完 KeyJ 就固定等 250 毫秒——但落點
+        // 喺 0.27 **郁動**秒之後，即係一秒四幀之下大約 1.1 真實秒，兩次抽樣都
+        // 落喺落點之前，所以永遠讀到 `null`。同一個窿今個 session 已經撞到第
+        // 三次：**用真實毫秒去等一件行郁動時間嘅事**。
         await p7.keyboard.press('KeyJ');
-        await p7.waitForTimeout(250);
-        const a1 = await p7.evaluate(() => ({ t: window.__ER2.clock().motion, f: window.__ER2.打擊() }));
+        let a1 = null;
+        for (let k = 0; k < 12; k += 1) {
+            await p7.waitForTimeout(220);
+            a1 = await p7.evaluate(() => ({ t: window.__ER2.clock().motion, f: window.__ER2.打擊() }));
+            if (a1.f.命 > 0.3) break;
+        }
+        if (!a1 || a1.f.命 <= 0.3) continue;
         await p7.waitForTimeout(300);
         const a2 = await p7.evaluate(() => ({ t: window.__ER2.clock().motion, f: window.__ER2.打擊() }));
-        if (a1.f.命 > 0.25 && a2.f.命 > 0 && a2.f.命 < a1.f.命 && a2.t > a1.t) {
+        if (a2.f.命 > 0 && a2.f.命 < a1.f.命 && a2.t > a1.t) {
             重力 = (a1.f.粒[0].vy - a2.f.粒[0].vy) / (a2.t - a1.t);
         }
     }
@@ -1722,9 +1731,15 @@ for (const [名, 推幾次, 想要] of [['第二波', 1, 1], ['boss 場', 3, 3]]
         if (傷.狀態 !== 'playing') break;
     }
     const 飲前 = 傷;
+    // 輸入有 0.45 秒緩衝（打緊交撳 E 好可能啱好喺捱打嗰一幀），所以飲落去嘅
+    // 時機唔係固定嘅——**等佢真係入咗 `drink` 狀態先量**，唔好等一個死時間。
     await pC.keyboard.press('KeyE');
-    await pC.waitForTimeout(600);
-    const 飲中 = await pC.evaluate(() => window.__ER2.局面());
+    let 飲中 = null;
+    for (let i = 0; i < 10; i += 1) {
+        await pC.waitForTimeout(200);
+        飲中 = await pC.evaluate(() => window.__ER2.局面());
+        if (飲中.態 === 'drink') break;
+    }
     // 飲緊嗰陣撳攻擊——唔應該出到手。
     const 出手前 = await pC.evaluate(() => window.__ER2.瞄準().發招);
     await pC.keyboard.press('KeyF');
@@ -1776,6 +1791,42 @@ for (const [名, 推幾次, 想要] of [['第二波', 1, 1], ['boss 場', 3, 3]]
     check('每一波雜兵都慢過玩家行路（唔係就冇「行開啲」呢個動作）',
         速 != null && 差.every((d) => d >= 0.6),
         { 玩家: 速 && 速.玩家, 雜兵: 速 && 速.雜兵, 每秒賺: 差 });
+}
+
+// ---------- 貼身打唔打得中 ----------
+//
+// 逐下斬記錄嘅時候揾到：**4.2 米中、2.4 米中，但 1.6／1.8／1.8 米全部空**——
+// 近距離斬空、遠距離先中，反轉咗。成因係前搖嗰 0.27 秒踏前推咗你向前約
+// 0.86 米，而隻雜兵同時埋身 0.86 米：**你衝過咗頭，佢跌咗去你身後**，而落點
+// 判定要求佢喺你前面。玩家實際輸出跌到 **0.4 dps**（設計 11.9）。踏前而家唔
+// 准衝穿接觸面——同一段量度：**打出傷害 30 → 128**。
+//
+// 呢條 gate 唔靠 bot 打得好唔好：企到貼身、面向佢、斬一刀，要有傷害入帳。
+{
+    const pE = await browser.newPage({ viewport: 快版 });
+    await pE.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
+    await pE.waitForTimeout(1500);
+    await 入場(pE);
+    // 企定等佢哋埋身（雜兵會自己行埋嚟）。
+    let 局 = null;
+    for (let i = 0; i < 25; i += 1) {
+        await pE.waitForTimeout(1200);
+        局 = await pE.evaluate(() => window.__ER2.局面());
+        if (局.狀態 !== 'playing') break;
+        const d = Math.min(...局.兵.map((m) => Math.hypot(m.x - 局.我[0], m.z - 局.我[1])), 999);
+        if (d < 1.9) break;
+    }
+    const 貼身距 = 局 && 局.兵.length
+        ? +Math.min(...局.兵.map((m) => Math.hypot(m.x - 局.我[0], m.z - 局.我[1]))).toFixed(2)
+        : null;
+    // 斬三刀。中間唔郁——郁咗就唔係「貼身」呢個情況。
+    const 前 = (await pE.evaluate(() => window.__ER2.瞄準())).打出傷害;
+    for (let i = 0; i < 3; i += 1) { await pE.keyboard.press('KeyF'); await pE.waitForTimeout(900); }
+    const 後 = await pE.evaluate(() => window.__ER2.瞄準());
+    await pE.close();
+    check('貼身斬得中（踏前唔准衝過個目標）',
+        貼身距 !== null && 貼身距 < 2.0 && 後.打出傷害 > 前,
+        { 貼身距, 傷害: [前, 後.打出傷害], 落點: 後.落點 });
 }
 
 check('由頭到尾零 browser error', errors.length === 0, errors.slice(0, 3));
