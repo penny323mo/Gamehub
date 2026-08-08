@@ -4467,6 +4467,69 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-198 — Tower: raising enemy HP does not threaten a full build, and the measurements say why
+
+Date: 2026-08-08. Status: accepted.
+
+ADR-194 measured the defect and left it open: a build policy any beginner could execute reaches
+**wave 41 without losing one of 20 lives**, with a median deepest penetration of **0.03** — enemies
+die in the first three percent of the road. This round went after it, and the eight runs it took are
+worth more than the change they produced.
+
+The obvious lever is the HP curve. Enemy HP scaled as `1 + wave × 0.04`, so wave 40 enemies had
+2.6× base HP. I put a tunable on it (`window.__TD.設曲率`) so a value could be swept in the browser
+without a rebuild per point, and swept:
+
+| curve | lives at wave 41 | deepest penetration (max / median) |
+|---|---|---|
+| linear only (shipped) | 20/20 | 0.47 / 0.03 |
+| + 0.0006 w² | 20/20 | 0.50 / 0.07 |
+| + 0.0015 w² | 20/20 | 0.67 / 0.07 |
+| + 0.004 w² | 20/20 | 0.83 / 0.07 |
+| + 0.009 w² | **5/20** | 0.97 / 0.10 |
+| 0.16 w + 0.0016 w² | 20/20 | 0.87 / 0.07 |
+
+Two things fall out. First, **the 0.009 result is a cliff, not a curve** — every life was lost in
+wave 41 alone, waves 1–40 still untouched. Second, and more useful: at `0.16 w + 0.0016 w²` the
+enemies reach 87 % of the road and **still nobody gets through**. Nearly four times the HP moves the
+kill point down the road but does not change the outcome, because 56 towers along a 31-cell path is
+simply more gauntlet than any amount of HP survives.
+
+So the binding constraint was never the HP curve. It is that **the map allows 62 path-adjacent
+towers**, which is far more than any considered build, and the game hands out enough gold to fill
+them all by wave 26. The confirmation is one run: capping the bot at **20 towers** — an ordinary
+build — the new curve takes it to **3 of 20 lives by wave 41**. The curve bites. What does not bite
+is a player who simply keeps pressing build until the map is full.
+
+Shipped: `1 + w × 0.04 + 0.0016 × min(w, 45)²`. The cap matters. Uncapped, wave 99 would sit at
+**32×** base HP against waves already carrying 455 enemies — unfinishable. Capped, wave 40 goes
+2.60× → 5.16× (**1.98×** harder, the mid-game hollow this was aimed at) while wave 99 goes
+4.96× → 8.20× (1.65×), so the campaign keeps its shape.
+
+**Left open, deliberately.** A full 56-tower build still finishes wave 45 at 20/20. The lever for
+that is the map or the economy — fewer buildable cells, or gold that cannot fill them — not more HP,
+and this round's measurements are what rule the HP lever out. That is worth more than a number I
+could have guessed.
+
+The gate for the spawn flash cost four attempts and each failure was mine, not the game's:
+
+1. "Brightness must rise by 4" — written before any measurement. The crop is mostly grass; its mean
+   barely moves.
+2. "+1" — inside the jitter. And the confound is structural: **the doors swing open in the same
+   instant and expose darker ground**, so the frame can get *dimmer* while the flash is plainly
+   visible (measured −0.2, −0.1). Brightness sums two opposing effects and cannot separate them.
+3. Sampling one frame of a 0.55 s transient — the cyan ratio wandered 2.2–4.5. Take the peak of four.
+4. The baseline was contaminated: **the game was spawning its own enemies during the measurement**,
+   so "quiet" sometimes caught a real flash (cyan 0.58 % → 1.54 %). Clearing `spawnCounts` to stop it
+   made things worse — that completes the wave and starts the next one. The fix is to pause the game
+   and drive every spawn from the test.
+
+The final form measures the **expanding ground ring**, which exists only during the flash, in a crop
+wide enough to contain it — rather than the doorway, where a permanent glow I had added oscillates by
+about as much as the flash adds. Signal and noise were the same object.
+
+`gateway.mjs` 6/6, and the other seven suites unchanged.
+
 ## ADR-197 — Tower: the last of the hand-built geometry is gone
 
 Date: 2026-08-08. Status: accepted.

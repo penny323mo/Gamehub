@@ -29,6 +29,16 @@ export const isMobile = (): boolean => {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
 };
 
+/**
+ * 敵人血量曲線嘅二次項（見 `waveSystem.spawnEnemy`）。
+ * 呢個數係對住 `tests/playthrough.mjs` 掃出嚟嘅，唔係揀個靚數——
+ * 量度期間可以喺 `window.__TD.設曲率()` 度改，唔使 rebuild。
+ */
+export let HP_LINEAR = 0.04;
+export let HP_CURVE = 0.0016;
+export const HP_CURVE_CAP = 45;
+export const 設HP曲率 = (線性: number, 二次: number): void => { HP_LINEAR = 線性; HP_CURVE = 二次; };
+
 export const GRAPHICS = {
     isMobile: isMobile(),
     maxParticles: isMobile() ? 200 : 800,

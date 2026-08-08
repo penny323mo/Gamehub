@@ -1,6 +1,7 @@
 import type { GameState, Enemy, EnemyType, DamageType } from '../types';
 import { DIFFICULTIES } from '../types';
 import { WAVES, ENEMIES } from '../config';
+import { HP_CURVE, HP_LINEAR, HP_CURVE_CAP } from '../config';
 import { cellToWorld } from '../path';
 import { MAP } from '../config';
 import { bus } from './eventBus';
@@ -174,8 +175,22 @@ export function spawnEnemy(state: GameState, type: EnemyType): void {
     const spawn = cellToWorld(MAP.path[0][0], MAP.path[0][1]);
     const diffCfg = DIFFICULTIES[state.difficulty];
 
-    // Difficulty scaling: Linear 4% per wave + difficulty multiplier
-    const waveScale = 1 + (state.currentWave * 0.04);
+    // 難度曲線：線性 4%／波，**再加一條二次項**。
+    //
+    // 淨線性嗰陣（`1 + wave*0.04`）實測係：一個「貼路起塔、有錢升級、升唔到再起」
+    // 嘅政策打到第 41 波**一條命都冇跌**，每波最深滲透中位數得 0.03——即係怪
+    // 喺頭三個 percent 就死晒。唔係佢冇能力殺人（封住 6 座塔第 30 波就死），
+    // 係**你嘅防守長得快過佢哋嘅血**：塔第 26 波就起滿成張地圖。
+    //
+    // 二次項就係追返呢個差距：頭十波幾乎冇分別（wave 10 加 6%），中段開始追上
+    // （wave 40 加 61%），後段變成主導（wave 80 加 2.4×）。個常數係**掃出嚟嘅**，
+    // 唔係揀個靚數——見 ADR 同 `tests/playthrough.mjs`。
+    const w = state.currentWave;
+    // 二次項**封頂喺第 45 波**：純二次會令第 99 波去到 32×（連 455 隻敵人，
+    // 冇人打得完）；封頂之後第 99 波係 8.2× 對原本 4.96×，即係後段只重咗
+    // 六成幾，而第 40 波由 2.6× 升到 5.2×——追返嘅係中段嗰段真空。
+    const 封 = Math.min(w, HP_CURVE_CAP);
+    const waveScale = 1 + w * HP_LINEAR + HP_CURVE * 封 * 封;
     const mod = state.waveModifier ? MODIFIERS[state.waveModifier] : null;
     const hpMult = waveScale * diffCfg.enemyHpMult * (mod?.hpMult ?? 1);
     const spdMult = diffCfg.enemySpeedMult * (mod?.spdMult ?? 1);

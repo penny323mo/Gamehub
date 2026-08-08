@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createInitialState } from './core/gameState';
-import { LOGIC_DT, MAP, TOWERS, SCORING, WAVES, GRAPHICS, ENEMIES } from './core/config';
+import { LOGIC_DT, MAP, TOWERS, SCORING, WAVES, GRAPHICS, ENEMIES, 設HP曲率 } from './core/config';
 import { tickWave, startNextWave, MODIFIERS, templateIndex, spawnEnemy } from './core/systems/waveSystem';
 import { cellToWorld } from './core/path';
 import { tickEnemies } from './core/systems/enemySystem';
@@ -1461,6 +1461,7 @@ function gameLoop(time: number): void {
     // 另開一個就變成量緊一件遊戲唔會行嘅嘢。
     量模型: 量模型,
     門狀態() { return gateway.狀態(); },
+    設曲率(a: number, b: number) { 設HP曲率(a, b); },
     塔尺(id: number) { return towerRenderer.measure(id); },
     塔同步() { towerRenderer.sync(state); towerRenderer.animate(0.6, state); },
     地圖: { spawn: cellToWorld(MAP.spawnCell[0], MAP.spawnCell[1]), goal: cellToWorld(MAP.goalCell[0], MAP.goalCell[1]) },
