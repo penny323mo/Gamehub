@@ -76,16 +76,33 @@ const 射程 = 4.2, BOSS射程 = 3.6;
 const t0 = Date.now();
 const 秒 = () => ((Date.now() - t0) / 1000).toFixed(0);
 let 上關 = -1;
+// 拉唔拉得開？想飲藥試過幾多次、真係開到 7 米幾多次。
+let 想拉開 = 0, 拉開到 = 0, 飲咗 = 0;
 const 賜福 = await page.evaluate(() => window.__ER2.graces());
 
-const 行 = async (dx, dz, ms, 衝 = false) => {
+// 個 bot 落指令要用**遊戲時間**，唔係真實時間。
+//
+// 呢個環境一秒得三四幀而 `delta` 封喺 0.05，所以 1.2 真實秒 ＝ **0.2 秒遊戲
+// 時間**——一次「衝刺撤退」實際上只行到 0.7 米，跟住就重新諗過。實測：想拉開
+// 21 次、成功 **0** 次。而條真實嘅問題係「隻遊戲畀唔畀你拉開」，唔係「個 bot
+// 嘅 setTimeout 有幾長」。所以全部等待都改成等郁動秒。
+const 等郁 = async (秒) => {
+    const t0 = (await page.evaluate(() => window.__ER2.clock())).motion;
+    for (let i = 0; i < 60; i += 1) {
+        await page.waitForTimeout(160);
+        const t = (await page.evaluate(() => window.__ER2.clock())).motion;
+        if (t - t0 >= 秒) return;
+    }
+};
+
+const 行 = async (dx, dz, 郁秒, 衝 = false) => {
     const keys = [];
     if (dx < -0.6) keys.push('KeyA'); else if (dx > 0.6) keys.push('KeyD');
     if (dz < -0.6) keys.push('KeyW'); else if (dz > 0.6) keys.push('KeyS');
-    if (!keys.length) { await page.waitForTimeout(ms); return; }
+    if (!keys.length) { await 等郁(郁秒); return; }
     if (衝) keys.push('ShiftLeft');
     for (const k of keys) await page.keyboard.down(k);
-    await page.waitForTimeout(ms);
+    await 等郁(郁秒);
     for (const k of keys) await page.keyboard.up(k);
 };
 
@@ -101,16 +118,16 @@ for (let i = 0; i < STEPS; i++) {
     const 目標 = s.boss ?? s.兵.map((m) => ({ ...m, 血: null }))
         .sort((a, b) => Math.hypot(a.x - s.我[0], a.z - s.我[1])
                       - Math.hypot(b.x - s.我[0], b.z - s.我[1]))[0];
-    if (!目標) { await page.waitForTimeout(400); continue; }
+    if (!目標) { await 等郁(0.4); continue; }
     const d = Math.hypot(目標.x - s.我[0], 目標.z - s.我[1]);
 
     // 1. 有嘢就快落到身上——碌走。
     const 威脅 = (s.boss && s.boss.快出手 && d < 7)
         || s.兵.some((m) => m.快出手 && Math.hypot(m.x - s.我[0], m.z - s.我[1]) < 3);
     if (威脅 && s.體 > 20) {
-        await 行(s.我[0] - 目標.x, s.我[1] - 目標.z, 120);
+        await 等郁(0.05);
         await page.keyboard.press('Space');
-        await page.waitForTimeout(320);
+        await 等郁(0.5);
         continue;
     }
     // 2a. 受咗傷就飲藥——但飲嘅時候定身，所以要**先有安全距離**。冇距離就
@@ -119,14 +136,16 @@ for (let i = 0; i < STEPS; i++) {
         const 最近 = Math.min(...[...s.兵, ...(s.boss ? [s.boss] : [])]
             .map((m) => Math.hypot(m.x - s.我[0], m.z - s.我[1])), 999);
         if (最近 > 7) {
+            拉開到 += 1; 飲咗 += 1;
             await page.keyboard.press('KeyE');
-            await page.waitForTimeout(700);
+            await 等郁(1.1);
             continue;
         }
+        想拉開 += 1;
         if (s.體 > 25) {
             const cx = (s.boss ? s.boss.x : s.兵.reduce((a, m) => a + m.x, 0) / (s.兵.length || 1));
             const cz = (s.boss ? s.boss.z : s.兵.reduce((a, m) => a + m.z, 0) / (s.兵.length || 1));
-            await 行(s.我[0] - cx, s.我[1] - cz, 1200, true);
+            await 行(s.我[0] - cx, s.我[1] - cz, 1.6, true);
             continue;
         }
     }
@@ -136,7 +155,7 @@ for (let i = 0; i < STEPS; i++) {
     if (!s.boss && 埋身 >= 2 && s.體 > 25) {
         const cx = s.兵.reduce((a, m) => a + m.x, 0) / s.兵.length;
         const cz = s.兵.reduce((a, m) => a + m.z, 0) / s.兵.length;
-        await 行(s.我[0] - cx, s.我[1] - cz, 1100, true);
+        await 行(s.我[0] - cx, s.我[1] - cz, 1.2, true);
         continue;
     }
     // 3. 血少就去賜福（打緊 boss 就唔走，個場入面冇）。
@@ -144,21 +163,22 @@ for (let i = 0; i < STEPS; i++) {
         const g = 賜福.slice().sort((a, b) => Math.hypot(a.x - s.我[0], a.z - s.我[1])
                                             - Math.hypot(b.x - s.我[0], b.z - s.我[1]))[0];
         const gd = Math.hypot(g.x - s.我[0], g.z - s.我[1]);
-        if (gd > 2.6) { await 行(g.x - s.我[0], g.z - s.我[1], 900); continue; }
+        if (gd > 2.6) { await 行(g.x - s.我[0], g.z - s.我[1], 1.0); continue; }
         await page.keyboard.press('KeyE');
-        await page.waitForTimeout(400);
+        await 等郁(0.6);
         continue;
     }
     // 2. 入到射程就斬。
     if (d <= (s.boss ? BOSS射程 : 射程)) {
         await page.keyboard.press('KeyF');
-        await page.waitForTimeout(420);
+        await 等郁(0.75);
         continue;
     }
     // 4. 行埋去。
-    await 行(目標.x - s.我[0], 目標.z - s.我[1], 900);
+    await 行(目標.x - s.我[0], 目標.z - s.我[1], 0.9);
 }
 
+console.log(`拉開：想 ${想拉開} 次、開到 ${拉開到} 次、飲咗 ${飲咗} 支`);
 console.log('最後：', JSON.stringify(await 讀()).slice(0, 260));
 console.log('錯誤：', errors.length ? errors.slice(0, 3) : '冇');
 await browser.close();

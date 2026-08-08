@@ -1751,6 +1751,33 @@ for (const [名, 推幾次, 想要] of [['第二波', 1, 1], ['boss 場', 3, 3]]
         飲完 && { 剩低: 飲完.藥, 血: 飲完.血 });
 }
 
+// ---------- 行得開先至有得回復 ----------
+//
+// ADR-187 加咗藥瓶，但**實測 bot 兩局想拉開 21 次、成功 0 次、三支藥一支都飲
+// 唔到**——因為舊嘅雜兵速度係 `[3.6, 4.1, 4.4]` 對玩家 4.4：**第三波同你一模
+// 一樣快，仲快過 wizard 嘅 4.2**。行路每秒只賺 0.3 米，開 7 米要 23 秒。唯一
+// 拉得開嘅係衝刺，而衝刺食 13/秒**兼且封鎖 28/秒回氣**——拉開嘅工具食緊你拉開
+// 想回復嗰樣嘢。
+//
+// 條 gate 問返**遊戲自己兩個數之間嘅關係**，唔係我拍個門檻出嚟：每一波都要慢
+// 過玩家行路，快慢差要夠開到一個飲藥窗口。
+{
+    const pD = await browser.newPage({ viewport: 快版 });
+    await pD.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
+    await pD.waitForTimeout(1500);
+    await 入場(pD);
+    const 速 = await pD.evaluate(() => ({
+        雜兵: window.__ER2.敵動作().設計速,
+        玩家: window.__ER2.動作().設計速,
+    }));
+    await pD.close();
+    // 三波都要慢過玩家。差幅 ≥ 0.6 米／秒即係開 7 米最多十二秒——慢，但係做得到。
+    const 差 = 速 && 速.雜兵.map((v) => +(速.玩家 - v).toFixed(2));
+    check('每一波雜兵都慢過玩家行路（唔係就冇「行開啲」呢個動作）',
+        速 != null && 差.every((d) => d >= 0.6),
+        { 玩家: 速 && 速.玩家, 雜兵: 速 && 速.雜兵, 每秒賺: 差 });
+}
+
 check('由頭到尾零 browser error', errors.length === 0, errors.slice(0, 3));
 
 await browser.close();

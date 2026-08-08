@@ -4467,6 +4467,41 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-188 — Elden Ring II: the flask I added could never be drunk
+
+Date: 2026-08-06. Status: accepted.
+
+ADR-187 gave the player three flasks because the health budget did not cover the route. Then I measured
+whether they get used: across two bot runs, **21 attempts to break away, 0 successes, 0 flasks drunk.**
+The recovery existed and was unreachable.
+
+The cause is in two numbers that were never compared. The player walks at **4.4** (oathbound; the wizard
+is 4.2). Minions ran at **[3.6, 4.1, 4.4]** — **wave three matched the player exactly and outran the
+wizard**, and wave two came to 93 %. Walking away gains 0.3 m/s, so opening the 7 m a drink needs takes
+23 seconds of uninterrupted retreat. The only real disengage was the sprint, which drains 13/s **and
+suppresses the 28/s regeneration** — *the tool for breaking off spends the resource you are breaking off
+to recover.* Minions are 73/77/84 % of walking speed now, so retreating on foot gains 1.2/1.0/0.7 m/s.
+Measured after the change: walking from 1.8 m opened **5.9–6.6 m**, at a cost of about 20 health.
+
+The gate compares **the game's own two numbers** — `動作().設計速` against `敵動作().設計速` — rather
+than a threshold I picked. With the old values it reads a gain of 0.0 on wave three, which is the defect
+stated as arithmetic.
+
+**My instrument had the same defect the game did, and I had already written it up once.** The bot issued
+commands in real milliseconds — a 1.2-second sprint retreat. This environment runs three to four frames a
+second with `delta` clamped, so 1.2 real seconds is **0.2 seconds of game time**, and one retreat covered
+0.7 m before the bot re-decided. That is exactly the hole ADR-187 found in four suite gates: *scripts
+written in real seconds driving something that runs on motion time.* I found it again in my own bot, one
+round later, after fixing it elsewhere. The bot waits on motion seconds now.
+
+**What is still not established:** the bot does not finish the game. It reaches wave two and dies. The
+claims here are narrow and each is separately measured — the health budget covers the route (ADR-187),
+and a disengage window now exists (this one). Whether a person can chain them into a clear is unproven,
+and I am not going to keep improving the bot until it says yes, because at that point I would be
+measuring the bot.
+
+Suite: 89 → **90** browser checks.
+
 ## ADR-187 — Elden Ring II: the run needed more health than the game gave you
 
 Date: 2026-08-06. Status: accepted.
