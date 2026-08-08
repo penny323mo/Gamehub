@@ -5,19 +5,26 @@ export interface LightingRig {
     update(elapsedSec: number): void;
 }
 
+// 燈嘅強度係**量出嚟**嘅，唔係揀個靚數。
+//
+// 本來成塊地係 emissive 嘅程序方塊，自己會發光，所以幾暗嘅燈都睇得見。
+// 換咗 Kenney 嘅純 albedo 模型之後，全部光都要靠呢度畀。**但要講清楚**：
+// 換完之後成幅畫平均亮度得 3.8/255 嗰次，成因唔喺呢度，係啲 GLB 寫住
+// `metalness = 1`（見 `assets.ts` 嘅 `修材質`）。加大三倍燈只係去到 14.9。
+// 呢度啲數係修好材質之後先至量返出嚟嘅，`tests/look.mjs` 守住個結果。
 export function setupLighting(scene: THREE.Scene): LightingRig {
     const cx = MAP.origin.x + MAP.cols * MAP.cellSize / 2;
     const cz = MAP.origin.z + MAP.rows * MAP.cellSize / 2;
 
     scene.fog = new THREE.FogExp2(GRAPHICS.atmosphere.fogColor, GRAPHICS.atmosphere.fogDensity);
 
-    const hemi = new THREE.HemisphereLight(0xe0f5d0, 0x102417, 1.0);
+    const hemi = new THREE.HemisphereLight(0xe8fbe0, 0x2b4433, 1.35);
     scene.add(hemi);
 
-    const ambient = new THREE.AmbientLight(0x244333, 0.36);
+    const ambient = new THREE.AmbientLight(0x3d6650, 0.42);
     scene.add(ambient);
 
-    const dir = new THREE.DirectionalLight(0xfff1cc, 1.75);
+    const dir = new THREE.DirectionalLight(0xfff4d6, 2.0);
     dir.position.set(cx + 10, 16, cz - 7);
     dir.target.position.set(cx, 0, cz);
     dir.castShadow = GRAPHICS.enableShadows;
@@ -35,13 +42,13 @@ export function setupLighting(scene: THREE.Scene): LightingRig {
     scene.add(dir);
     scene.add(dir.target);
 
-    const fill = new THREE.DirectionalLight(0x92bdd0, 0.58);
+    const fill = new THREE.DirectionalLight(0xa8d4e6, 0.65);
     fill.position.set(cx - 13, 10, cz + 9);
     fill.target.position.set(cx, 0, cz);
     scene.add(fill);
     scene.add(fill.target);
 
-    const rim = new THREE.DirectionalLight(0x9ef3cf, 0.36);
+    const rim = new THREE.DirectionalLight(0xb6f7da, 0.40);
     rim.position.set(cx, 6, cz + 18);
     rim.target.position.set(cx, 0.4, cz);
     scene.add(rim);
@@ -75,9 +82,9 @@ export function setupLighting(scene: THREE.Scene): LightingRig {
             spawnLight.position.y = 1.55 + Math.sin(elapsedSec * 1.7) * 0.08;
             goalLight.position.y = 1.55 + Math.sin(elapsedSec * 1.35 + 0.8) * 0.08;
 
-            dir.intensity = 1.42 + Math.sin(elapsedSec * 0.35) * 0.05;
-            fill.intensity = 0.43 + Math.sin(elapsedSec * 0.27 + 1.5) * 0.03;
-            rim.intensity = 0.28 + Math.sin(elapsedSec * 0.41 + 0.3) * 0.02;
+            dir.intensity = 1.95 + Math.sin(elapsedSec * 0.35) * 0.08;
+            fill.intensity = 0.62 + Math.sin(elapsedSec * 0.27 + 1.5) * 0.04;
+            rim.intensity = 0.38 + Math.sin(elapsedSec * 0.41 + 0.3) * 0.03;
         },
     };
 }

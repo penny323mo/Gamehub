@@ -58,7 +58,10 @@ const sm = new SceneManager();
 const camCtrl = new CameraController();
 const camera = camCtrl.cam;
 const lightingRig = setupLighting(sm.scene);
-sm.buildGround();
+// 鋪地要等模型載完，而 dist 出 IIFE（為咗 file:// 行得，見 vite.config），
+// 冇頂層 await。所以呢度攞住個 promise，撳 START 之前 await 佢——開場前一定鋪好，
+// 而載模型嗰段時間本來就係玩家喺開始畫面度嘅時間。
+const 地面好 = sm.buildGround();
 
 const towerRenderer = new TowerRenderer(sm.scene);
 const enemyRenderer = new EnemyRenderer(sm.scene);
@@ -1014,7 +1017,8 @@ document.getElementById('panel-close-btn')!.addEventListener('click', () => {
 });
 
 // Start button
-document.getElementById('start-btn')!.addEventListener('click', () => {
+document.getElementById('start-btn')!.addEventListener('click', async () => {
+    await 地面好;
     startScreen.classList.add('hidden');
     resetRunLocals();
     state.endlessMode = persisted.prefs.endlessMode;
@@ -1405,6 +1409,7 @@ function gameLoop(time: number): void {
     }
     towerRenderer.animate(rawDt, state);
     enemyRenderer.sync(state, 0, camera);  // C — pass camera for billboard bars
+    fxRenderer.setCamera(camera);
     fxRenderer.sync(state, dt);
     projectileRenderer.sync(state, dt);
     syncFloatingTexts(rawDt);
@@ -1438,6 +1443,11 @@ function gameLoop(time: number): void {
     // 資產嗰把尺量嘅係遊戲自己用嗰個 loader，唔係測試度另開一個——
     // 另開一個就變成量緊一件遊戲唔會行嘅嘢。
     量模型: 量模型,
+    // 診斷用：呢三個係現成物件嘅引用，唔會令 bundle 大（試過 expose 成個
+    // THREE namespace，一下就 707 → 887 kB，嗰個唔可以）。
+    scene: sm.scene,
+    camera,
+    renderer,
     // 行 n 格邏輯。渲染唔關事——量嘅係邏輯。
     // dt 開得出嚟，係因為「一條規則跟唔跟 tick 率」本身就係要量嘅嘢。
     tick(n = 1, dt = LOGIC_DT) {

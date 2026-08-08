@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { MAP, GRAPHICS } from '../core/config';
 import { cellToWorld } from '../core/path';
+import { 取, 預載 } from './assets';
+import { pathTiles } from './tileset';
 
 const COLOR_BUILDABLE = 0x43774a;
 const COLOR_PATH = 0xb68856;
@@ -17,207 +19,71 @@ export class SceneManager {
         this.scene.background = new THREE.Color(0x123122);
     }
 
-    buildGround(): void {
+    /**
+     * 鋪地。
+     *
+     * 本來呢度係 240 個 `BoxGeometry`，路用色分：泥色係路、綠色係空地，跟住再
+     * 用一堆程序幾何砌出生門同終點堡壘。而家全部換成 Kenney 嗰套 CC0 磚——
+     * 磚本身啱啱好一格（量過：1.000 × 1.000，而 cellSize 就係 1），所以唔使縮放。
+     *
+     * 用邊塊磚、轉幾多度，由 `tileset.ts` 純函數答；佢揀嘅嘢有 `tests/tiles.mjs`
+     * 守住「格同格接得上」。呢度只負責擺。
+     */
+    async buildGround(): Promise<void> {
         const { cols, rows, cellSize, origin } = MAP;
-        const pathCells = new Set<string>(MAP.path.map(([c, r]) => `${c},${r}`));
-        const spawnKey = `${MAP.spawnCell[0]},${MAP.spawnCell[1]}`;
-        const goalKey = `${MAP.goalCell[0]},${MAP.goalCell[1]}`;
 
         this.buildSkyDome();
         this.buildTerrainUnderlay();
 
-        const geo = new THREE.BoxGeometry(cellSize * 0.96, 0.16, cellSize * 0.96);
+        const 鋪 = pathTiles(MAP.path);
+        await 預載([
+            'tiles/tile.glb',
+            ...new Set(鋪.map((t) => `tiles/${t.model}.glb`)),
+            'scenery/detail_tree.glb', 'scenery/detail_treeLarge.glb',
+            'scenery/detail_rocks.glb', 'scenery/detail_rocksLarge.glb',
+            'scenery/detail_crystal.glb', 'scenery/detail_crystalLarge.glb',
+        ]);
+
+        // 路格擺路磚，其餘擺草地磚。`groundMeshes` 仲要畀 picking 用嚟認格，
+        // 所以每格照樣要有一個帶 userData 嘅 mesh——擺一塊睇唔到嘅平面頂上去，
+        // 唔好靠 raycast 打中 GLB 入面隨便一個 sub-mesh（嗰啲冇 userData）。
+        const 路格 = new Map(鋪.map((t) => [`${t.col},${t.row}`, t]));
+        const pickGeo = new THREE.PlaneGeometry(cellSize, cellSize);
+        const pickMat = new THREE.MeshBasicMaterial({ visible: false });
 
         for (let c = 0; c < cols; c++) {
             for (let r = 0; r < rows; r++) {
-                const key = `${c},${r}`;
-                let color = COLOR_BUILDABLE;
-                let emissive = 0x000000;
-                let emissiveIntensity = 0;
-                let roughness = 0.9;
-                let metalness = 0.04;
-
-                if (key === spawnKey) {
-                    color = COLOR_SPAWN;
-                    emissive = 0x2f91c7;
-                    emissiveIntensity = 0.5;
-                    roughness = 0.45;
-                } else if (key === goalKey) {
-                    color = COLOR_GOAL;
-                    emissive = 0xa93d33;
-                    emissiveIntensity = 0.45;
-                    roughness = 0.45;
-                } else if (pathCells.has(key)) {
-                    color = COLOR_PATH;
-                    emissive = 0x5e4423;
-                    emissiveIntensity = 0.24;
-                    roughness = 0.68;
-                }
-
-                const material = GRAPHICS.isMobile
-                    ? new THREE.MeshLambertMaterial({ color, emissive })
-                    : new THREE.MeshStandardMaterial({
-                        color,
-                        emissive,
-                        emissiveIntensity,
-                        roughness,
-                        metalness,
-                    });
-
-                const mesh = new THREE.Mesh(geo, material);
                 const pos = cellToWorld(c, r);
-                mesh.position.set(pos.x, -0.08, pos.z);
-                mesh.receiveShadow = true;
-                mesh.userData = { col: c, row: r, type: 'ground' };
-                this.scene.add(mesh);
-                this.groundMeshes.push(mesh);
+                const t = 路格.get(`${c},${r}`);
+                const model = await 取(t ? `tiles/${t.model}.glb` : 'tiles/tile.glb');
+                model.position.set(pos.x, 0, pos.z);
+                model.rotation.y = t ? t.rotationY : 0;
+                this.scene.add(model);
+
+                const pick = new THREE.Mesh(pickGeo, pickMat);
+                pick.rotation.x = -Math.PI / 2;
+                pick.position.set(pos.x, 0.201, pos.z);
+                pick.userData = { col: c, row: r, type: 'ground' };
+                this.scene.add(pick);
+                this.groundMeshes.push(pick);
             }
         }
 
+        // 磚只有 0.2 厚，底下要有嘢托住，唔係側視就見到浮喺半空。
+        // 高度要放喺磚**底下**：底板 0.34 厚，中心擺 -0.18 即係頂面啱啱 -0.01，
+        // 唔會浸過磚面。擺錯咗（-0.02）個頂面就去到 0.15，成塊地變咗一浸平色。
         const boardGeo = new THREE.BoxGeometry(cols * cellSize + 0.9, 0.34, rows * cellSize + 0.9);
         const boardMat = GRAPHICS.isMobile
-            ? new THREE.MeshBasicMaterial({ color: 0x17311d })
-            : new THREE.MeshStandardMaterial({
-                color: 0x17311d,
-                roughness: 0.95,
-                metalness: 0.02,
-            });
+            ? new THREE.MeshBasicMaterial({ color: 0x4a7a3f })
+            : new THREE.MeshStandardMaterial({ color: 0x4a7a3f, roughness: 0.95, metalness: 0 });
         const board = new THREE.Mesh(boardGeo, boardMat);
-        board.position.set(
-            origin.x + cols * cellSize / 2,
-            -0.25,
-            origin.z + rows * cellSize / 2
-        );
+        board.position.set(origin.x + cols * cellSize / 2, -0.18, origin.z + rows * cellSize / 2);
         board.receiveShadow = true;
         this.scene.add(board);
 
         this.buildBoardFrame(board.position);
-        this.buildPathRibbon();
-        this.buildSpawnPortal();
-        this.buildGoalKeep();
-        this.buildScenery();
+        await this.buildScenery();
         this.buildDistantSilhouettes();
-    }
-
-    /** Ancient portal ruin at the enemy spawn cell — arch, swirling disc, braziers. */
-    private buildSpawnPortal(): void {
-        const pos = cellToWorld(MAP.spawnCell[0], MAP.spawnCell[1]);
-        const portal = new THREE.Group();
-        portal.position.set(pos.x, 0, pos.z);
-
-        // Face the arch across the path's first travel direction
-        const next = MAP.path[1] ?? MAP.path[0];
-        const nextPos = cellToWorld(next[0], next[1]);
-        portal.rotation.y = Math.atan2(nextPos.x - pos.x, nextPos.z - pos.z);
-
-        const stoneMat = GRAPHICS.isMobile
-            ? new THREE.MeshLambertMaterial({ color: 0x3d4a55 })
-            : new THREE.MeshStandardMaterial({ color: 0x3d4a55, roughness: 0.9, metalness: 0.08, flatShading: true });
-        const glowMat = GRAPHICS.isMobile
-            ? new THREE.MeshLambertMaterial({ color: 0x63c8ff, emissive: 0x2f91c7 })
-            : new THREE.MeshStandardMaterial({ color: 0x63c8ff, emissive: 0x2f91c7, emissiveIntensity: 1.1, roughness: 0.3 });
-
-        // Weathered pillars with capstones
-        for (const side of [-1, 1]) {
-            const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 1.0, 6), stoneMat);
-            pillar.position.set(side * 0.45, 0.5, 0);
-            pillar.rotation.z = side * 0.06;
-            if (GRAPHICS.enableShadows) pillar.castShadow = true;
-            portal.add(pillar);
-
-            const cap = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.12, 0.24), stoneMat);
-            cap.position.set(side * 0.42, 1.05, 0);
-            if (GRAPHICS.enableShadows) cap.castShadow = true;
-            portal.add(cap);
-        }
-
-        // Glowing arch ring
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.05, 8, GRAPHICS.isMobile ? 12 : 24), glowMat);
-        ring.position.y = 0.85;
-        portal.add(ring);
-
-        // Swirling portal disc
-        const disc = new THREE.Mesh(
-            new THREE.CircleGeometry(0.42, GRAPHICS.isMobile ? 12 : 24),
-            new THREE.MeshBasicMaterial({
-                color: 0x63c8ff,
-                transparent: true,
-                opacity: 0.4,
-                side: THREE.DoubleSide,
-                depthWrite: false,
-            })
-        );
-        disc.position.y = 0.85;
-        portal.add(disc);
-
-        // Rune stones scattered at the foot
-        const runeGeo = new THREE.OctahedronGeometry(0.07, 0);
-        for (let i = 0; i < 3; i++) {
-            const rune = new THREE.Mesh(runeGeo, glowMat);
-            const a = (i / 3) * Math.PI * 2 + 0.4;
-            rune.position.set(Math.cos(a) * 0.55, 0.07, Math.sin(a) * 0.4);
-            rune.rotation.set(Math.random(), Math.random() * Math.PI, Math.random());
-            portal.add(rune);
-        }
-
-        this.scene.add(portal);
-    }
-
-    /** Fortified keep with a floating heart crystal at the goal cell. */
-    private buildGoalKeep(): void {
-        const pos = cellToWorld(MAP.goalCell[0], MAP.goalCell[1]);
-        const keep = new THREE.Group();
-        keep.position.set(pos.x, 0, pos.z);
-
-        const wallMat = GRAPHICS.isMobile
-            ? new THREE.MeshLambertMaterial({ color: 0x8a7f70 })
-            : new THREE.MeshStandardMaterial({ color: 0x8a7f70, roughness: 0.85, metalness: 0.05, flatShading: true });
-        const roofMat = GRAPHICS.isMobile
-            ? new THREE.MeshLambertMaterial({ color: 0x91362e })
-            : new THREE.MeshStandardMaterial({ color: 0x91362e, roughness: 0.7, metalness: 0.08 });
-        const crystalMat = GRAPHICS.isMobile
-            ? new THREE.MeshLambertMaterial({ color: 0xff8866, emissive: 0xa93d33 })
-            : new THREE.MeshStandardMaterial({ color: 0xff8866, emissive: 0xff5c42, emissiveIntensity: 0.9, roughness: 0.25 });
-
-        // Corner watchtowers
-        for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
-            const turret = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.5, 6), wallMat);
-            turret.position.set(sx * 0.34, 0.25, sz * 0.34);
-            if (GRAPHICS.enableShadows) turret.castShadow = true;
-            keep.add(turret);
-
-            const roof = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.22, 6), roofMat);
-            roof.position.set(sx * 0.34, 0.6, sz * 0.34);
-            if (GRAPHICS.enableShadows) roof.castShadow = true;
-            keep.add(roof);
-        }
-
-        // Low crenellated walls between towers — leave the side the path enters from open
-        const prev = MAP.path[MAP.path.length - 2] ?? MAP.goalCell;
-        const prevPos = cellToWorld(prev[0], prev[1]);
-        const entryX = Math.sign(Math.round(prevPos.x - pos.x));
-        const entryZ = Math.sign(Math.round(prevPos.z - pos.z));
-        for (const [x, z, ry] of [[0, -0.34, 0], [0, 0.34, 0], [-0.34, 0, Math.PI / 2], [0.34, 0, Math.PI / 2]] as const) {
-            if (Math.sign(x) === entryX && Math.sign(z) === entryZ) continue;
-            const wall = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.22, 0.08), wallMat);
-            wall.position.set(x, 0.11, z);
-            wall.rotation.y = ry;
-            keep.add(wall);
-        }
-
-        // Floating heart crystal (what the enemies are after)
-        const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.16, 0), crystalMat);
-        crystal.scale.set(0.85, 1.4, 0.85);
-        crystal.position.y = 0.85;
-        if (GRAPHICS.enableShadows) crystal.castShadow = true;
-        keep.add(crystal);
-
-        // Pedestal under the crystal
-        const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 0.3, 6), wallMat);
-        pedestal.position.y = 0.15;
-        keep.add(pedestal);
-
-        this.scene.add(keep);
     }
 
     private buildSkyDome(): void {
@@ -281,9 +147,11 @@ export class SceneManager {
             const height = (waveA + waveB) * envelope - 0.58;
             positions.setY(i, height);
 
-            const shade = THREE.MathUtils.clamp(0.42 + envelope * 0.22 + height * 0.12, 0, 1);
-            const low = new THREE.Color(0x1b3320);
-            const high = new THREE.Color(0x4f7744);
+            const shade = THREE.MathUtils.clamp(0.5 + envelope * 0.26 + height * 0.12, 0, 1);
+            // 本來係 0x1b3320→0x4f7744。換咗真磚之後板面光好多，場外用返舊色
+            // 就變成一片黑，啲樹好似浮喺半空——所以底層地形要跟返上去。
+            const low = new THREE.Color(0x3c6b41);
+            const high = new THREE.Color(0x74a862);
             const color = low.lerp(high, shade);
             colors[i * 3] = color.r;
             colors[i * 3 + 1] = color.g;
@@ -309,64 +177,13 @@ export class SceneManager {
     private buildBoardFrame(boardPosition: THREE.Vector3): void {
         const frameGeo = new THREE.BoxGeometry(MAP.cols + 1.35, 0.2, MAP.rows + 1.35);
         const frameMat = GRAPHICS.isMobile
-            ? new THREE.MeshLambertMaterial({ color: 0x0d1b11 })
-            : new THREE.MeshStandardMaterial({ color: 0x0d1b11, roughness: 0.75, metalness: 0.18 });
+            ? new THREE.MeshLambertMaterial({ color: 0x2f4d33 })
+            : new THREE.MeshStandardMaterial({ color: 0x2f4d33, roughness: 0.8, metalness: 0 });
         const frame = new THREE.Mesh(frameGeo, frameMat);
         frame.position.copy(boardPosition);
         frame.position.y = -0.34;
         frame.receiveShadow = true;
         this.scene.add(frame);
-    }
-
-    private buildPathRibbon(): void {
-        const points = MAP.path.map(([c, r]) => {
-            const pos = cellToWorld(c, r);
-            return new THREE.Vector3(pos.x, 0.01, pos.z);
-        });
-
-        const shoulderMat = GRAPHICS.isMobile
-            ? new THREE.MeshLambertMaterial({ color: 0x59422a })
-            : new THREE.MeshStandardMaterial({ color: 0x59422a, roughness: 0.95, metalness: 0.02 });
-        const roadMat = GRAPHICS.isMobile
-            ? new THREE.MeshLambertMaterial({ color: 0xb78b56 })
-            : new THREE.MeshStandardMaterial({ color: 0xb78b56, roughness: 0.88, metalness: 0.02 });
-        const stripeMat = GRAPHICS.isMobile
-            ? new THREE.MeshLambertMaterial({ color: 0xe2c08a, emissive: 0x453318 })
-            : new THREE.MeshStandardMaterial({ color: 0xe2c08a, roughness: 0.7, metalness: 0.04, emissive: 0x453318, emissiveIntensity: 0.06 });
-
-        for (let i = 0; i < points.length - 1; i++) {
-            const from = points[i];
-            const to = points[i + 1];
-            const dx = to.x - from.x;
-            const dz = to.z - from.z;
-            const length = Math.sqrt(dx * dx + dz * dz) + 0.12;
-            const angle = Math.atan2(dx, dz);
-            const mid = new THREE.Vector3().addVectors(from, to).multiplyScalar(0.5);
-
-            this.addRoadSegment(mid, length, 0.86, 0.05, -0.005, angle, shoulderMat);
-            this.addRoadSegment(mid, length, 0.64, 0.04, 0.015, angle, roadMat);
-            this.addRoadSegment(mid, length * 0.88, 0.12, 0.02, 0.04, angle, stripeMat);
-        }
-
-        for (const point of points) {
-            const shoulderCap = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.43, 0.43, 0.05, 18),
-                shoulderMat
-            );
-            shoulderCap.position.copy(point);
-            shoulderCap.position.y = -0.005;
-            shoulderCap.receiveShadow = true;
-            this.scene.add(shoulderCap);
-
-            const roadCap = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.32, 0.32, 0.04, 18),
-                roadMat
-            );
-            roadCap.position.copy(point);
-            roadCap.position.y = 0.015;
-            roadCap.receiveShadow = true;
-            this.scene.add(roadCap);
-        }
     }
 
     private addRoadSegment(
@@ -386,63 +203,47 @@ export class SceneManager {
         this.scene.add(segment);
     }
 
-    private buildScenery(): void {
+    /**
+     * 場外圍嘅樹同石。
+     *
+     * 本來係圓柱＋圓錐＋十二面體砌嘅樹，而家用返 kit 嘅模型。擺位用**格座標
+     * 做種**嘅偽亂數，唔用 `Math.random()`——唔係嘅話每次入場成片樹林都唔同位，
+     * 而 restart 之後條路仲要重畫一次，畫面就會跳。
+     */
+    private async buildScenery(): Promise<void> {
         const { cols, rows, cellSize } = MAP;
-        const trunkGeo = new THREE.CylinderGeometry(0.05, 0.08, 0.36, 6);
-        const leavesGeo = new THREE.ConeGeometry(0.32, 0.9, 7);
-        const rockGeo = new THREE.DodecahedronGeometry(0.18, 0);
-
-        const trunkMat = new THREE.MeshLambertMaterial({ color: 0x473425 });
-        const leavesPalette = [0x274d27, 0x1e3e21, 0x365c34, 0x204427];
-        const rockPalette = [0x3f4b3b, 0x4b5646, 0x303c31];
+        const 種 = (c: number, r: number, k: number) => {
+            const n = Math.sin(c * 127.1 + r * 311.7 + k * 74.7) * 43758.5453;
+            return n - Math.floor(n);
+        };
+        const 樹 = ['scenery/detail_tree.glb', 'scenery/detail_treeLarge.glb'];
+        const 石 = ['scenery/detail_rocks.glb', 'scenery/detail_rocksLarge.glb'];
+        const 晶 = ['scenery/detail_crystal.glb', 'scenery/detail_crystalLarge.glb'];
 
         const borderSize = GRAPHICS.isMobile ? 5 : 9;
-        const treeDensity  = GRAPHICS.isMobile ? 0.18 : 0.34;
-        const rockDensity  = GRAPHICS.isMobile ? 0    : 0.12;
+        const treeDensity = GRAPHICS.isMobile ? 0.18 : 0.34;
+        const rockDensity = GRAPHICS.isMobile ? 0.06 : 0.14;
 
         for (let c = -borderSize; c < cols + borderSize; c++) {
             for (let r = -borderSize; r < rows + borderSize; r++) {
                 if (c >= -1 && c <= cols && r >= -1 && r <= rows) continue;
+                const 骰 = 種(c, r, 1);
+                let 揀: string | null = null;
+                if (骰 < treeDensity) 揀 = 樹[種(c, r, 2) < 0.62 ? 0 : 1];
+                else if (骰 < treeDensity + rockDensity) 揀 = 石[種(c, r, 3) < 0.6 ? 0 : 1];
+                else if (骰 < treeDensity + rockDensity + 0.02) 揀 = 晶[種(c, r, 4) < 0.7 ? 0 : 1];
+                if (!揀) continue;
 
                 const pos = cellToWorld(c, r);
-                const xOff = (Math.random() - 0.5) * cellSize * 0.9;
-                const zOff = (Math.random() - 0.5) * cellSize * 0.9;
-
-                if (Math.random() < treeDensity) {
-                    const scale = 0.75 + Math.random() * 0.8;
-                    const tree = new THREE.Group();
-                    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-                    const leaves = new THREE.Mesh(
-                        leavesGeo,
-                        new THREE.MeshLambertMaterial({ color: leavesPalette[(c + r + 16) % leavesPalette.length] })
-                    );
-                    trunk.position.y = 0.18 * scale;
-                    leaves.position.y = 0.75 * scale;
-                    trunk.scale.setScalar(scale);
-                    leaves.scale.setScalar(scale);
-                    tree.add(trunk);
-                    tree.add(leaves);
-                    tree.position.set(pos.x + xOff, 0, pos.z + zOff);
-                    tree.rotation.y = Math.random() * Math.PI * 2;
-                    tree.traverse((child) => {
-                        if (child instanceof THREE.Mesh && GRAPHICS.enableShadows) {
-                            child.castShadow = true;
-                            child.receiveShadow = true;
-                        }
-                    });
-                    this.scene.add(tree);
-                } else if (rockDensity > 0 && Math.random() < rockDensity) {
-                    const rock = new THREE.Mesh(
-                        rockGeo,
-                        new THREE.MeshLambertMaterial({ color: rockPalette[(c * 3 + r + 9) % rockPalette.length] })
-                    );
-                    rock.scale.setScalar(0.8 + Math.random() * 1.4);
-                    rock.position.set(pos.x + xOff, -0.15, pos.z + zOff);
-                    rock.rotation.set(Math.random(), Math.random() * Math.PI * 2, Math.random());
-                    rock.castShadow = GRAPHICS.enableShadows;
-                    rock.receiveShadow = true;
-                    this.scene.add(rock);
-                }
+                const o = await 取(揀);
+                o.position.set(
+                    pos.x + (種(c, r, 5) - 0.5) * cellSize * 0.8,
+                    0,
+                    pos.z + (種(c, r, 6) - 0.5) * cellSize * 0.8,
+                );
+                o.rotation.y = 種(c, r, 7) * Math.PI * 2;
+                o.scale.setScalar(0.8 + 種(c, r, 8) * 0.9);
+                this.scene.add(o);
             }
         }
     }

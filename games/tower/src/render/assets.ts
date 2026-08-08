@@ -19,6 +19,25 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 // `import.meta.url` 畀 Vite 改寫之後解出嚟係 bundle 檔名本身，接落去就變成
 // `index-BPBhRWuv.jstiles/tile.glb`——一個永遠 404、而且 build 之前試唔到嘅路徑。
 // `public/` 嘅嘢會原樣派落 dist 根，所以 dev 同 dist 兩邊 `models/` 都啱。
+/**
+ * **`metalness = 1` 呢個坑要喺呢度堵。**
+ *
+ * glTF 規格入面 `metallicFactor` 嘅預設值係 **1.0**，而 Kenney 呢批模型個
+ * exporter 根本冇寫呢個欄位——於是每一件都變成「全金屬」。PBR 入面全金屬
+ * **冇 diffuse**：佢嘅顏色全部嚟自反射環境。呢個場冇 environment map，
+ * 所以反射到嘅係零，成套模型渲染出嚟近乎黑色。
+ *
+ * 實測：換咗模型之後成幅畫平均亮度 **3.8 / 255**、99.9% 像素接近全黑；
+ * 我加大三倍燈只係去到 14.9——因為問題根本唔喺燈度。
+ *
+ * 呢批係扁平色嘅風格化模型，本來就唔係金屬，所以 metalness 拉返 0。
+ */
+function 修材質(mat: THREE.MeshStandardMaterial): void {
+    if (!mat || !('metalness' in mat)) return;
+    mat.metalness = 0;
+    mat.roughness = Math.min(mat.roughness ?? 1, 0.85);
+}
+
 const BASE = 'models/';
 const loader = new GLTFLoader();
 const 載緊 = new Map<string, Promise<THREE.Group>>();
@@ -34,6 +53,9 @@ export function 載模型(rel: string): Promise<THREE.Group> {
                 if (!m.isMesh) return;
                 m.castShadow = true;
                 m.receiveShadow = true;
+                for (const mat of (Array.isArray(m.material) ? m.material : [m.material])) {
+                    修材質(mat as THREE.MeshStandardMaterial);
+                }
             });
             return root;
         });

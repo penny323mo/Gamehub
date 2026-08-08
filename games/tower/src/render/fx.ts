@@ -36,6 +36,7 @@ const MOTE_HEIGHT = { min: 0.4, max: 4.5 };
 
 export class FxRenderer {
     private scene: THREE.Scene;
+    private projScaleY = 1.7;
 
     // ── Projectile trail system (Mesh references removed, just particle spawning left) ──
 
@@ -132,16 +133,25 @@ export class FxRenderer {
         this.moteGeo.setAttribute('aPhase', new THREE.BufferAttribute(this.motePhase, 1));
 
         const moteMat = new THREE.ShaderMaterial({
-            uniforms: { uTime: { value: 0 } },
+            // uPxPerUnit：一個世界單位喺畫面上有幾多 px。本來呢度寫死咗
+            // `3.5 * (300.0 / -mvPosition.z)`——**兩重錯**：個 300 係當鏡頭離幾百單位
+            // 遠先啱（呢個鏡頭得二十幾），而且個鏡頭根本係 **orthographic**，
+            // 除深度冇意思。結果每粒塵渲染成 **50 px 闊**嘅白光斑，加埋 additive
+            // 同 bloom 就變咗成塊畫面畀光斑蓋住。
+            uniforms: { uTime: { value: 0 }, uPxPerUnit: { value: 300 } },
             vertexShader: `
                 attribute float aPhase;
                 uniform float uTime;
+                uniform float uPxPerUnit;
                 varying float vAlpha;
                 void main() {
                     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
                     float twinkle = 0.55 + 0.45 * sin(uTime * 1.4 + aPhase * 2.0);
                     vAlpha = twinkle * 0.55;
-                    gl_PointSize = max(2.5, 3.5 * (300.0 / -mvPosition.z));
+                    // 一粒塵得 0.03 個世界單位大——同場景嘅比例掛鈎，唔係寫死 px。
+                    // 呢個鏡頭係 **orthographic**，畫面大細唔跟深度變，所以唔可以
+                    // 除 -mvPosition.z（原本嗰條式就係當咗透視鏡頭嚟寫）。
+                    gl_PointSize = clamp(0.03 * uPxPerUnit, 1.0, 5.0);
                     gl_Position = projectionMatrix * mvPosition;
                 }
             `,
@@ -181,7 +191,19 @@ export class FxRenderer {
             }
         }
         (this.moteGeo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
-        (this.motePoints.material as THREE.ShaderMaterial).uniforms.uTime.value = time;
+        const mat = this.motePoints.material as THREE.ShaderMaterial;
+        mat.uniforms.uTime.value = time;
+        // 一個世界單位喺畫面上幾多 px：視窗高 × 投影嘅 y 縮放 ÷ 2。
+        // 每幀更新，所以 resize 同 zoom 都跟得到。
+        mat.uniforms.uPxPerUnit.value = window.innerHeight * 0.5 * Math.abs(this.projScaleY);
+    }
+
+    /**
+     * Orthographic 鏡頭：一個世界單位＝ 視窗高 ÷ 視錐高。
+     * `projectionMatrix.elements[5]` 就係 2/(top−bottom)，所以直接乘半個視窗高。
+     */
+    setCamera(camera: THREE.Camera): void {
+        this.projScaleY = camera.projectionMatrix.elements[5];
     }
 
     sync(state: GameState, dt: number): void {
