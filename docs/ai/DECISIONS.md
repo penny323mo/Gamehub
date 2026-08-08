@@ -4467,6 +4467,50 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-191 — Elden Ring II: it can be finished
+
+Date: 2026-08-06. Status: accepted.
+
+    [3s]  wave 1   hp 100  stam 100  flasks 3
+    [8s]  wave 2   hp  80  stam  48  flasks 3
+    [20s] wave 3   hp  87  stam  70  flasks 1
+    [36s] boss     hp 100  stam  71  flasks 0
+    [82s] victory  hp   7  flasks 0        39 swings, 476 damage
+
+Three waves and the boss, end to end, in 82 seconds of game time, finishing on **7 health with no
+flasks left**. Whatever else is true of the balance, the last ten seconds of that run were not
+comfortable, which is roughly where a first clear wants to land.
+
+Getting there needed no further changes to the game — the fixes were already in: the lunge that
+overshot its target (ADR-189), regeneration through the recovery frames (ADR-190), the flask and the
+enemy speeds (ADR-187/188). What it needed was an instrument that could actually play.
+
+**The bot was the bottleneck, and the bottleneck was the round trip.** Every decision cost a
+`page.evaluate` — roughly 0.3–0.5 seconds of *game* time at this frame rate — so it swung once every
+2.2 s where the game allows 0.87, and spent the rest of its life walking and turning. Moving the policy
+**inside the page**, on a 90 ms interval dispatching synthetic key events, removed the round trip
+entirely: 4,600 decisions in a run instead of a few hundred.
+
+Two things then blocked it, both bot-side, and both worth recording because they look like game bugs
+until you name them:
+
+- **No pathfinding.** It walked straight at a boss sixty metres away through a corridor and pinned
+  itself on a wall for **200 seconds with the boss untouched at 100 hp**. A stuck-detector that strafes
+  when the distance stops falling was enough — the flood-fill gate had already proved the route exists.
+- **Dodge-lock.** At low health the policy dodges whenever something is winding up, and a boss winds up
+  constantly, so it froze into a **15 hp against 10 hp standoff for two hundred seconds** without ever
+  swinging. One rule — stop dodging once the boss is nearly dead — turned that standoff into the kill.
+
+Neither is a defect in the game, and it matters to say so: for several rounds I had been treating a bot
+that could not finish as evidence about the game. It was evidence about the bot. The arithmetic was the
+honest instrument throughout, and it said the run was survivable two ADRs ago.
+
+`tests/playthrough-full.mjs` runs the clear and `tests/first-clear.log` is the run above. It takes about
+a quarter of an hour of wall time here, so it stays out of `hud-layout.mjs`; the suite keeps the bounded
+invariants that this run depends on — the core exchange, point-blank hits, the flask, the disengage
+window.
+
+
 ## ADR-190 — Elden Ring II: stamina regenerated during nothing, and the core exchange lost
 
 Date: 2026-08-06. Status: accepted.
