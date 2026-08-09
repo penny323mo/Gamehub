@@ -1,7 +1,7 @@
 import type { GameState, Enemy, EnemyType, DamageType } from '../types';
 import { DIFFICULTIES } from '../types';
 import { WAVES, ENEMIES } from '../config';
-import { HP_CURVE, HP_LINEAR, HP_CURVE_CAP } from '../config';
+import { HP_CURVE, HP_LINEAR, HP_CURVE_CAP, GOLD_MULT } from '../config';
 import { cellToWorld } from '../path';
 import { MAP } from '../config';
 import { bus } from './eventBus';
@@ -64,7 +64,8 @@ export function tickWave(state: GameState, dt: number): void {
         state.prepTimer -= dt;
         if (state.prepTimer <= 0) {
             // A — Interest on held gold (1%, min 10g, max 150g)
-            const interest = Math.min(150, Math.max(10, Math.floor(state.gold * 0.01)));
+            // 利息係獎勵「唔洗錢」——喺一隻本來就錢多過嘢買嘅遊戲度，佢係反方向嘅。
+            const interest = Math.round(Math.min(150, Math.max(10, Math.floor(state.gold * 0.01))) * GOLD_MULT);
             state.gold += interest;
             state.stats.goldEarned += interest;
             state.floatingTexts.push({
@@ -137,6 +138,7 @@ export function tickWave(state: GameState, dt: number): void {
         else if (wave > 30) waveGoldBonus = 200;
         else if (wave > 10) waveGoldBonus = 150;
         else waveGoldBonus = 120; // 早期波次提升獎金
+        waveGoldBonus = Math.round(waveGoldBonus * GOLD_MULT);
         state.gold += waveGoldBonus;
         state.stats.goldEarned += waveGoldBonus;
         state.lastWaveClearGold = waveGoldBonus;
@@ -194,7 +196,7 @@ export function spawnEnemy(state: GameState, type: EnemyType): void {
     const mod = state.waveModifier ? MODIFIERS[state.waveModifier] : null;
     const hpMult = waveScale * diffCfg.enemyHpMult * (mod?.hpMult ?? 1);
     const spdMult = diffCfg.enemySpeedMult * (mod?.spdMult ?? 1);
-    const bountyMult = Math.pow(waveScale, 0.5) * diffCfg.goldMult * (mod?.bountyMult ?? 1);
+    const bountyMult = Math.pow(waveScale, 0.5) * diffCfg.goldMult * (mod?.bountyMult ?? 1) * GOLD_MULT;
     const armorBonus = mod?.armorBonus ?? 0;
 
     const enemy: Enemy = {

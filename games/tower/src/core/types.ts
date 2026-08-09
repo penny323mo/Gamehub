@@ -104,6 +104,8 @@ export interface MapConfig {
     path: number[][];
     spawnCell: number[];
     goalCell: number[];
+    buildCells?: number[][];   // 明確嘅建築平台；冇呢個欄位就當「唔係路就起得」
+
 }
 
 export interface ScoringConfig {

@@ -18,6 +18,7 @@ const 塔上限 = Number(process.argv[3] ?? 999);
 // 血量曲線嘅二次項：掃緊個數嗰陣由呢度餵入去，唔使每試一個值就 rebuild。
 const 線性 = process.argv[4] !== undefined ? Number(process.argv[4]) : null;
 const 曲率 = Number(process.argv[5] ?? 0);
+const 金倍 = process.argv[6] !== undefined ? Number(process.argv[6]) : null;
 const PW = path.join(ROOT, 'games', 'Racing Car', 'tests', 'node_modules', 'playwright', 'index.mjs');
 if (!fs.existsSync(PW)) { console.log('搵唔到 playwright'); process.exit(1); }
 const { chromium } = await import(pathToFileURL(PW).href);
@@ -43,6 +44,7 @@ await page.waitForFunction(() => !!window.__TD, null, { timeout: 30000 });
 await page.click('#start-btn');
 await page.waitForTimeout(1500);
 if (線性 !== null) await page.evaluate((v) => { window.__TD.設曲率(v[0], v[1]); }, [線性, 曲率]);
+if (金倍 !== null) await page.evaluate((v) => { window.__TD.設金倍(v); }, 金倍);
 // 條路同塔嘅設定由頁面攞，唔好喺呢度再寫一次。
 await page.evaluate(async () => {
   window.__TD.路 = (await (await fetch('../configs/map.json')).json()).path;

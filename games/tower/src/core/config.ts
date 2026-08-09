@@ -34,6 +34,14 @@ export const isMobile = (): boolean => {
  * 呢個數係對住 `tests/playthrough.mjs` 掃出嚟嘅，唔係揀個靚數——
  * 量度期間可以喺 `window.__TD.設曲率()` 度改，唔使 rebuild。
  */
+/**
+ * 收入倍率。**平台一封住塔數，錢就即刻多到冇意思**：實測 22 個平台之下，
+ * 一場 45 波收入 57235 而只洗得 14010（4.09 倍）。同 HP 曲線一樣，
+ * 呢個數係對住 `tests/playthrough.mjs` 掃出嚟嘅。
+ */
+export let GOLD_MULT = 0.5;
+export const 設金倍 = (v: number): void => { GOLD_MULT = v; };
+
 export let HP_LINEAR = 0.04;
 export let HP_CURVE = 0.0016;
 export const HP_CURVE_CAP = 45;

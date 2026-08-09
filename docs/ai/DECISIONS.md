@@ -4467,6 +4467,57 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-199 — Tower: "where do I put it" was never a question, because everywhere was an answer
+
+Date: 2026-08-08. Status: accepted.
+
+ADR-198 ruled out the HP curve as the lever and named the real one: the map allowed **62
+path-adjacent build cells**, and the measured knee was brutally narrow — **20 towers dies at wave 41,
+30 towers finishes wave 46 without losing a life**. Anything above thirty is invincible, and the map
+offered twice that. So the central decision of a tower defence — *this pile of gold, where does it
+go* — had no scarcity behind it and therefore was not a decision at all. You won by continuing to
+press build.
+
+`canBuild()` said "not path, not occupied". It now says "on a build pad", and the pads are generated
+by `scripts/gen-build-pads.mjs` from the path itself: **22 of them**, alternating sides so enemies
+take fire from both, and spread evenly across path indices **2–28** of 31. The first attempt used a
+fixed step and filled its quota by index 23 — the last third of the road had no pads at all, which
+would have handed the player a free run to the keep. Even distribution fixed it. A map with no
+`buildCells` still falls back to the old rule, so this cannot silently make a map unbuildable.
+
+The pads are visible: a wooden platform from the kit on each one. Without that the rule is invisible
+and the player learns it by clicking and getting nothing.
+
+Measured, on the same policy the earlier rounds used:
+
+| | before | after pads | after pads + gold |
+|---|---|---|---|
+| lives at wave 46 | 20/20 | 14/20 | **13/20** |
+| waves that cost a life | none | 41 | **6, 41** |
+| deepest penetration (max / median) | 0.67 / 0.07 | 0.97 / 0.10 | 0.97 / 0.10 |
+| income ÷ spend | 1.53× | 4.09× | 2.38× |
+
+The middle column is the trap: capping tower count fixes the defence but **doubles the money
+problem**, because the ceiling on what you can buy drops while income does not. Income was 57,235
+against 14,010 of possible spend. So the gold multiplier went on the same kind of swept knob as the
+HP curve — 0.55 and 0.4 measured, **0.5 shipped** — and the interest rule got a note it deserved:
+paying 1 % on held gold *rewards not spending*, in a game whose whole problem was that gold had
+nowhere to go.
+
+At 0.5 the first life is lost at **wave 6**, not wave 41. That is the early game finally having an
+opinion.
+
+**Left open and named.** Income is still 2.38× what the map can absorb. That is now structural: 22
+pads at roughly 640 gold each is a hard ceiling of about 14,000, and no multiplier fixes a ceiling —
+it needs a sink that scales, which is a mechanic, not a number. I am not inventing one at the end of
+a long session; the measurement is recorded so the next round starts from it rather than from a guess.
+
+`balance.mjs` grew five pad checks, including one that regenerates the pads from the script and
+compares — so changing the rule without regenerating turns it red. Mutation: cutting the pad list to
+8 turns three of them red (count, spread 2–11 instead of 2–28, and the regeneration mismatch).
+All eight suites green: balance 11/11, look 7/7, assets 8/8, tiles 6/6, gateway 6/6, units 10/10,
+smoke 5/5, combat 8/8.
+
 ## ADR-198 — Tower: raising enemy HP does not threaten a full build, and the measurements say why
 
 Date: 2026-08-08. Status: accepted.

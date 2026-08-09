@@ -81,6 +81,7 @@ export class SceneManager {
         board.receiveShadow = true;
         this.scene.add(board);
 
+        await this.buildPads();
         this.buildBoardFrame(board.position);
         await this.buildScenery();
         this.buildDistantSilhouettes();
@@ -210,6 +211,26 @@ export class SceneManager {
      * 做種**嘅偽亂數，唔用 `Math.random()`——唔係嘅話每次入場成片樹林都唔同位，
      * 而 restart 之後條路仲要重畫一次，畫面就會跳。
      */
+    /**
+     * 建築平台要睇得見。
+     *
+     * `buildCells` 決定咗邊幾格起得塔（見 `economySystem.canBuild`），但如果
+     * 畫面上冇任何提示，玩家就要靠試——撳落去冇反應，唔知係唔夠錢定係唔畀起。
+     * 用 kit 嘅木台，一格一個，一眼睇得出「呢度可以擺嘢」。
+     */
+    private async buildPads(): Promise<void> {
+        const pads = MAP.buildCells ?? [];
+        if (pads.length === 0) return;
+        await 預載(['scenery/woodStructure.glb']);
+        for (const [c, r] of pads) {
+            const pos = cellToWorld(c, r);
+            const o = await 取('scenery/woodStructure.glb');
+            o.position.set(pos.x, 0.2, pos.z);
+            o.scale.set(0.92, 0.55, 0.92);
+            this.scene.add(o);
+        }
+    }
+
     private async buildScenery(): Promise<void> {
         const { cols, rows, cellSize } = MAP;
         const 種 = (c: number, r: number, k: number) => {

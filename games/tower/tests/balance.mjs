@@ -99,6 +99,34 @@ check('買唔晒成張地圖之前，唔可以已經打完大半場（買得晒�
   買得晒喺第幾波 === null || 買得晒喺第幾波 >= waves.length * 0.75,
   { 貼路位: 貼路位.size, 一座最貴, 食得晒, 全場派: 派過, 買得晒喺第幾波, 總波數: waves.length });
 
+// ── 建築平台：位置要係一個決定 ──
+//
+// 本來嘅規則係「唔係路就起得」，張 20×12 地圖有 **62 個貼路位**，而實測嘅膝點
+// 好窄：**20 座塔第 41 波會死，30 座塔打到 46 波一條命都唔跌**。即係位置由頭到尾
+// 都唔係一個決定。而家係明確平台（`scripts/gen-build-pads.mjs` 生成），
+// 條規則由嗰個 script import——修同守用同一條。
+const { buildPads, padSpread, PAD_TARGET } = await import('../scripts/gen-build-pads.mjs');
+const pads = map.buildCells ?? [];
+check('地圖有明確嘅建築平台（唔係「唔係路就起得」）', pads.length > 0, { 平台: pads.length });
+// 落喺膝點下面：緊，但唔係冇得贏。
+check(`平台數落喺量到嘅膝點下面（20 座會死 / 30 座無敵）`,
+  pads.length >= 16 && pads.length <= 26, { 平台: pads.length, 目標: PAD_TARGET });
+// 平台唔可以全部擠喺一段路——擠埋一舊就變返「頭段火力網」，尾段冇人守。
+const 攤 = padSpread(map, pads);
+const 路長 = map.path.length;
+check('平台沿住成條路攤開（唔係擠晒喺一段）',
+  攤[0] <= 路長 * 0.15 && 攤[攤.length - 1] >= 路長 * 0.75,
+  { 最前: 攤[0], 最後: 攤[攤.length - 1], 路長 });
+// 每個平台都要真係貼得住條路，否則射程覆蓋唔到。
+const 離路 = pads.filter(([pc, pr]) => !map.path.some(([c, r]) => Math.abs(c - pc) <= 1 && Math.abs(r - pr) <= 1));
+check('冇一個平台離晒條路（起咗都打唔到嘢）', 離路.length === 0, { 離路: 離路.slice(0, 5) });
+// 生成規則同 map.json 入面嘅嘢要對得上——改咗規則但冇重新生成就會紅。
+const 應該 = buildPads(map, PAD_TARGET).map(([c, r]) => `${c},${r}`).sort();
+const 實際 = pads.map(([c, r]) => `${c},${r}`).sort();
+check('map.json 入面啲平台同生成規則對得上（改咗規則要重新生成）',
+  JSON.stringify(應該) === JSON.stringify(實際),
+  { 應該: 應該.length, 實際: 實際.length });
+
 console.log(`\ntower 平衡: ${pass}/${pass + fail} 通過`);
 if (failed.length) console.log('失敗:', failed.join('、'));
 if (fail) process.exit(1);
