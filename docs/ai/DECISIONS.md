@@ -4576,6 +4576,24 @@ Playwright 淨係裝喺 `games/tower/node_modules`（成個 repo 得嗰度有 pa
 resolve，唔得就直接指去 Tower 嗰份，兩條路都唔通先掟錯，
 **而且錯誤訊息會講返點裝**——一句「Cannot find package」對下一個人冇任何用。
 
+### 補一輪：橫屏（同一個 ADR 下面）
+
+第一版把尺淨係量直屏。**打機多數係打橫攞電話**，而橫屏係另一個方向緊
+——高度得 375，任何靠垂直排嘅版面喺嗰度先爆。加咗第二個姿勢之後，
+量嘅嘢由 12 個變 24 個組合，捉到兩樣：
+
+- **Empire Royale `#rank-badge` 189×36（淨係橫屏）**。佢喺 `ui.js` 度 set 咗
+  `tabIndex`／`role=button`／click handler，係真掂得到嘅嘢。直屏度個名同獎盃
+  分兩行所以夠高，橫屏排返一行就得 36。**同一個元素喺兩個姿勢有兩個高度，
+  淨係量一個姿勢係睇唔到嘅。**
+- **四個「跌出畫面底」嘅控制，驗完全部唔係 bug**：MOBA 三張選角卡、
+  Racing Car 嘅賽道掣，`scrollIntoView` 之後全部入到畫面，即係捲得到＝撳得到。
+
+第二點值得寫低，因為我差啲又犯同一個錯。「喺畫面外」唔等於「掂唔到」——
+ADR-202 就係讀咗 `#build-menu` 嘅 `overflow-x` 係 visible 就話「買唔到狙擊塔」，
+其實捲喺入面嘅 `.build-grid`。所以呢條 check **唔靠讀 computed style 去估，
+真係捲一次再睇**。天真版本會報四個假陽性，而我就會走去「修」四個本來冇壞嘅版面。
+
 ## ADR-205 — Tower: 輕微擴格，條路重畫，難度補返
 
 Date: 2026-08-09. Status: accepted.

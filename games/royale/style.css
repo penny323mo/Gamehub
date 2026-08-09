@@ -910,6 +910,10 @@ body {
 }
 
 #rank-badge {
+    /* 佢喺 ui.js 度 set 咗 tabIndex／role=button／click handler，係真掂得到嘅嘢。
+       直屏度個名同獎盃分兩行所以夠高，**橫屏度排返一行就得 36 高**——
+       同一個元素喺兩個姿勢有兩個高度，淨係量直屏係睇唔到嘅。 */
+    min-height: 44px;
     display: flex;
     align-items: center;
     gap: 8px;

@@ -24,12 +24,11 @@ Status: Tower 四輪改善已合埋 main；ADR-206 將同一把手機尺掃咗�
 
 **ADR-203（本輪）**
 
-- **撳咗 START 之後嘅靜默**：要落 1,860 KB（758 JS ＋ 1,086 GLB）。實測 Fast 3G
-  撳完等 **7.1 秒**、Slow 3G **23.7 秒**、冇限速都 3.5 秒，而**期間畫面一個 pixel 都冇變**。
-  加咗停用 ＋ 進度條（數字由 `載模型` 度計，唔喺 `預載` 度計，因為開場有兩條清單）。
-- **再撳一次會真係開多次波**：實測 `開波次數 = 2`（兩次 `startNextWave`、
-  音樂疊住播、第二次覆蓋 `state`）。加 `disabled` ＋ `啟動中` 兩重擋。
-- **`tests/load.mjs` 新增**（5 條，已入 `test:browser`），用 CDP 真節流，唔係 `sleep` 扮慢。
+- **撳咗 START 之後嘅靜默**：要落 1,860 KB。Fast 3G 撳完等 7.1 秒、
+  Slow 3G 23.7 秒，而期間畫面一個 pixel 都冇變。加咗停用 ＋ 進度條
+  （數字由 `載模型` 度計，因為開場有兩條清單）。
+- **再撳一次會真係開多次波**：實測 `開波次數 = 2`。加 `disabled` ＋ `啟動中` 兩重擋。
+  `tests/load.mjs` 新增（5 條，已入 `test:browser`），用 CDP 真節流唔係 `sleep` 扮慢。
 
 **ADR-204（本輪）— Penny 話「個地圖唔夠廣闊」**
 
@@ -76,6 +75,10 @@ Status: Tower 四輪改善已合埋 main；ADR-206 將同一把手機尺掃咗�
 - 改法一律 `min-height`／`min-width`。Royale 角掣 40→44 之後，
   `#help-btn` 嘅 `right: 58px` 同 `#cam-controls` 嘅 `top: 58px` 係手算嘅
   「40 ＋ 間距」，一齊加到 62。修完再掃仲有兩個先浮現（本來畀第一層擋住）。
+- **橫屏補一輪**：把尺加咗 667×375，變成 12 個介面 × 2 個姿勢。捉到
+  Royale `#rank-badge` 橫屏得 189×36（直屏分兩行所以夠高）。另外四個
+  「跌出畫面底」嘅控制驗完全部捲得返入嚟，唔係 bug——條 check 改成
+  **真係 `scrollIntoView` 一次再睇**，唔靠讀 overflow 去估。5/5。
 - Playwright 淨係裝喺 `games/tower/node_modules`，所以個 test 做咗 resolve fallback，
   搵唔到會叫你 `(cd games/tower && npm ci)`。
 
@@ -97,7 +100,7 @@ Status: Tower 四輪改善已合埋 main；ADR-206 將同一把手機尺掃咗�
 
 ## Known issues and cautions
 
-- 承上：Vite 758 kB 單 chunk warning；cap-30 探針第 87 波後剩 54,248 金未使。
+- 承上：Vite 758 kB 單 chunk warning。
 - **雲端容器要 `export PW_CHROMIUM=/opt/pw-browsers/chromium`**。
 - **`pgrep -f <字>` 喺呢個環境會撞到自己**（等緊嗰啲 shell 個 command line 都含住個字），
   寫 `until ! pgrep -f x` 會永遠唔完。

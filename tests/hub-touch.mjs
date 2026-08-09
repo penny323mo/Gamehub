@@ -40,7 +40,13 @@ const MIME = { '.html':'text/html', '.js':'text/javascript', '.mjs':'text/javasc
   '.m4a':'audio/mp4', '.mp3':'audio/mpeg', '.ogg':'audio/ogg', '.wav':'audio/wav', '.woff2':'font/woff2' };
 
 const MIN_TAP = 44;
-const 機 = { width: 375, height: 667 };          // iPhone SE，最細嘅真手機
+// **打機多數係打橫攞電話。** 直屏係啱嘅起點（最窄），但橫屏先係大多數人
+// 真正打嗰個姿勢，而且佢係另一個方向緊：高度得 375，任何靠垂直排嘅版面
+// 都喺呢度先至爆。同一把尺、兩個姿勢。
+const 機群 = [
+  ['直 375×667', { width: 375, height: 667 }],
+  ['橫 667×375', { width: 667, height: 375 }],
+];
 const 遊戲 = [
   ['Hub launcher', '/index.html'],
   ['Gomoku', '/games/gomoku/index.html'],
@@ -75,7 +81,9 @@ const browser = await chromium.launch({
 });
 
 const 量 = {};
-for (const [名, url] of 遊戲) {
+for (const [姿勢, 機] of 機群) {
+for (const [遊戲名, url] of 遊戲) {
+  const 名 = `${遊戲名}｜${姿勢}`;
   const ctx = await browser.newContext({ viewport: 機, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   const page = await ctx.newPage();
   const errors = [];
@@ -115,6 +123,30 @@ for (const [名, url] of 遊戲) {
         細數: 細.length,
         爆版: Math.round(document.documentElement.scrollWidth) > Math.round(window.innerWidth) + 1,
         闊: { scrollWidth: Math.round(document.documentElement.scrollWidth), innerWidth: window.innerWidth },
+        /*
+         * 橫屏獨有嘅危險：控制畀擠到畫面下面。
+         *
+         * **但「喺畫面外」唔等於「掂唔到」**——捲得到就照樣撳得到。
+         * ADR-202 就係喺呢個位讀錯過一次：見到 `#build-menu` 嘅 `overflow-x`
+         * 係 visible 就話「買唔到狙擊塔」，其實捲喺入面嘅 `.build-grid`。
+         * 所以呢度唔靠讀 computed style 去估，**真係捲一次**：
+         * 叫 `scrollIntoView`，再睇佢有冇入到畫面。入到＝冇事，
+         * 入唔到＝真係永遠撳唔到。
+         */
+        跌出畫面: (() => {
+          const 出界 = 控制.filter((el) => el.getBoundingClientRect().bottom > innerHeight + 1);
+          const 壞 = [];
+          for (const el of 出界) {
+            const 前 = Math.round(el.getBoundingClientRect().bottom);
+            el.scrollIntoView({ block: 'nearest' });
+            const r = el.getBoundingClientRect();
+            if (r.bottom > innerHeight + 1 || r.top < -1) {
+              壞.push({ id: 認(el), 捲前底: 前, 捲後底: Math.round(r.bottom), 畫面高: innerHeight });
+            }
+          }
+          window.scrollTo(0, 0);
+          return 壞.slice(0, 5);
+        })(),
       };
     }, { MIN_TAP });
   } catch (e) {
@@ -123,9 +155,10 @@ for (const [名, url] of 遊戲) {
   量[名].errors = errors.slice(0, 2);
   await ctx.close();
 }
+}
 
 const 載唔到 = Object.entries(量).filter(([, v]) => v.掛咗);
-check('十二隻遊戲喺手機度全部載得起', 載唔到.length === 0,
+check('十二隻遊戲喺兩個姿勢都載得起', 載唔到.length === 0,
   Object.fromEntries(載唔到.map(([k, v]) => [k, v.掛咗])));
 
 const 有錯 = Object.entries(量).filter(([, v]) => (v.errors ?? []).length > 0);
@@ -133,8 +166,13 @@ check('開場零 browser error', 有錯.length === 0,
   Object.fromEntries(有錯.map(([k, v]) => [k, v.errors])));
 
 const 爆版 = Object.entries(量).filter(([, v]) => v.爆版);
-check('冇一隻遊戲喺 375px 闊度打橫爆版', 爆版.length === 0,
+check('冇一隻遊戲打橫爆版', 爆版.length === 0,
   Object.fromEntries(爆版.map(([k, v]) => [k, v.闊])));
+
+const 跌出 = Object.entries(量).filter(([, v]) => (v.跌出畫面 ?? []).length > 0);
+check('冇控制係捲極都入唔到畫面（橫屏高度得 375，垂直版面喺呢度先爆）',
+  跌出.length === 0,
+  Object.fromEntries(跌出.map(([k, v]) => [k, v.跌出畫面])));
 
 const 有細掣 = Object.entries(量).filter(([, v]) => (v.細數 ?? 0) > 0);
 check(`每隻遊戲嘅控制都至少 ${MIN_TAP}×${MIN_TAP}`, 有細掣.length === 0,
@@ -142,7 +180,7 @@ check(`每隻遊戲嘅控制都至少 ${MIN_TAP}×${MIN_TAP}`, 有細掣.length 
 
 console.log('\n各遊戲一覽：');
 for (const [k, v] of Object.entries(量)) {
-  console.log(`  ${k.padEnd(16)} 控制 ${String(v.控制數 ?? '-').padStart(3)}　細掣 ${String(v.細數 ?? '-').padStart(3)}　爆版 ${v.爆版 ? 'YES' : 'no'}　error ${(v.errors ?? []).length}`);
+  console.log(`  ${k.padEnd(26)} 控制 ${String(v.控制數 ?? '-').padStart(3)}　細掣 ${String(v.細數 ?? '-').padStart(3)}　爆版 ${v.爆版 ? 'YES' : 'no'}　error ${(v.errors ?? []).length}`);
 }
 console.log(`\nhub 手機觸控: ${pass}/${pass + fail} 通過`);
 if (failed.length) console.log('失敗項目: ' + failed.join('、'));
