@@ -247,6 +247,25 @@ const enemySpdUi = document.getElementById('enemy-spd')!;
 const enemyArmorUi = document.getElementById('enemy-armor')!;
 const waveBanner = document.getElementById('wave-banner')!;
 const waveBannerText = document.getElementById('wave-banner-text')!;
+
+/*
+ * 橫額擺喺 HUD 下面——「下面」係量返嚟嘅，唔係寫死嘅。
+ *
+ * 原本 CSS 寫 `top: 88px`，即係假設 HUD 永遠 74px 高。實測 HUD 高度係四個數：
+ * 桌面 1280 闊 56px、iPhone SE 橫 110px、SE/12 直 164px（`flex-wrap` 摺行），
+ * 而且 Skip 掣一出現又會再摺多一行。88 呢個數只喺其中一種情況啱。
+ * 後果唔係「有少少疊」：pixel diff 量到收起橫額之後 gold/lives/wave 嗰三塊
+ * 分別變咗 40–57% 嘅 pixel（同一場景嘅雜訊底只有 5–16%），即係備戰嗰九秒
+ * ——你正正喺度揀緊買咩塔——你係睇唔到自己有幾多金。
+ *
+ * HUD 仲要係拖得郁嘅（makeDraggable），所以個錨唔可以淨係跟大細，要跟位置。
+ * 呢度每次擺橫額出嚟都量一次 HUD 嘅實際 bottom，備戰嗰陣逐格量，
+ * 拖完、摺完、轉屏都自動啱。
+ */
+const hudEl = document.getElementById('hud')!;
+function 錨定橫額(): void {
+    document.documentElement.style.setProperty('--hud-bottom', `${Math.round(hudEl.getBoundingClientRect().bottom)}px`);
+}
 const milestoneBanner = document.getElementById('milestone-banner')!;
 const milestoneBannerText = document.getElementById('milestone-banner-text')!;
 const bossCinematic = document.getElementById('boss-cinematic')!;
@@ -587,6 +606,7 @@ function showWaveBanner(text: string): void {
     waveBanner.classList.toggle('chapter-opening', !!opening);
     if (opening) waveBanner.style.setProperty('--chapter-accent', opening.accent);
     waveBannerText.textContent = opening?.text ?? text;
+    錨定橫額();
     waveBanner.classList.remove('hidden');
     // Force animation restart on re-show
     waveBannerText.style.animation = 'none';
@@ -1717,6 +1737,7 @@ function gameLoop(time: number): void {
         waveBanner.classList.toggle('chapter-opening', !!opening);
         if (opening) waveBanner.style.setProperty('--chapter-accent', opening.accent);
         waveBannerText.textContent = opening ? `${opening.text}\n${prepText}` : prepText;
+        錨定橫額();
         waveBanner.classList.remove('hidden');
     }
 

@@ -1,106 +1,74 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-09 (Asia/Macau)
-Prepared by: Codex (local); ADR-200 independently re-verified by Claude Code (cloud), ADR-201
+Prepared by: Claude Code (cloud) — ADR-202
 Integration branch: `main`
-Work branch: `main`
-Status: Tower three-region campaign redesign complete; ADR-200 gradient reproduced in a second container (ADR-201)
+Work branch: `claude/3d-tower-defense-game-rld6ts`
+Status: Tower 手機觸控＋HUD 可讀性一輪完成；順手大修咗一條一路靠彩數過嘅 gate
 
 ## Current objective
 
-Treat the redesigned Tower Defense campaign as the new baseline. Penny asked for the flat rectangle,
-odd gate/keep placement and overall game configuration to be rethought. That work is complete. The
-next agent should start from GitHub `main`, inspect this checkpoint and continue only from a new
-request or a real-device feel issue.
+繼續 refine Tower 到「99.99% product-ready」。呢一輪由「Codex 套件冇守到嘅範圍」入手，
+量咗手機人體工學同 HUD 可讀性，兩樣都補咗 gate。
 
 ## Completed
 
-- **ADR-201 (cloud) — ADR-200 嘅 capacity gradient 喺另一個容器重現到，一模一樣**：seed 198、cap 30 →
-  **通關 99 波、16/20 命、跌命喺第 90／95／99 波、最後消費 wave 87**。快套件喺呢邊都綠：map 11/11、
-  route 8/8、chapters 7/7、balance 10/10、tiles 7/7。
-- **同時更正咗我自己**：ADR-198／199 下結論「起滿塔嘅玩家永遠冇壓力」，係喺一個 **99 波**戰役度**只量咗
-  1–46 波**。呢個基準特登將壓力擺喺最後三分一——第 45 波乜都冇，到第 99 波跌咗三條命。**一個 45 波嘅
-  探針答唔到一條 99 波嘅問題。**
-- **建築平台嗰一輪（`d18b36e`）撤回，冇合埋**：佢喺舊 `map.json` 上面砌，而 ADR-200 已經用
-  `mapLayout.ts` 做唯一 buildability 權威，個交接亦寫明 *do not reshape the map merely to tune a bot*
-  ——我嗰個改動正正係咁。留喺 `backup/pads-old-map`；工作分枝個 tree 而家同 `main` 一模一樣。
-  同一個 commit 嘅 gold 倍率一併撤回：ADR-200 拆開 HP／賞金曲線之後，第 45 波收入對開支係 **1.02 倍**，
-  好過我嗰個 2.38。
-- **兩樣帶落去嘅觀察（唔係缺陷）**：①cap-30 探針**第 87 波之後冇嘢再買，剩 54248 金**（收入÷開支 1.39）
-  ——ADR-194 嗰個形，但由第 26 波推到第 87 波，係條尾唔係個窿。②**呢個雲端容器要
-  `PW_CHROMIUM=/opt/pw-browsers/chromium` 先跑得郁 Tower 套件**（ADR-200 畀咗 Tower 自己嘅 Playwright，
-  佢釘嗰個 browser 版本呢度冇裝；啲測試認呢個 env var，一行搞掂，但唔講就會浪費時間去查）。
-
-- Replaced the visible 20×12 slab with one connected 148-cell irregular valley (61.7% of the old
-  rectangle): void corners, forest/hill shell, build pads, a central river rift and one real bridge.
-- Divided the journey into Wildwood Gate, Sunken Crossing and Bastion Cliff. Instanced foundations
-  use three height tiers plus a keep mesa, so the battlefield reads as three places rather than one
-  diagonal board.
-- Added `core/mapLayout.ts` as the sole authority for cell existence, terrain, path and buildability.
-  Render, camera, picking, lighting and economy consume `LAYOUT`; 60 useful adjacent build cells remain.
-- Replanned the road as an asymmetric 31-cell/eight-turn route and added `core/route.ts`: enemies use
-  246 near-even samples, turn smoothly, emerge on the gate plane and still finish on the goal cell.
-- Corrected the spawn gate axes/half-door pivots and put both gateway and keep outside the endpoint
-  road cells. The keep is four-sided; its health bar clears the roof; the spawn flash no longer blows
-  out half the map.
-- Put tower roots, enemies, picking and rings on the real tile surface (`SURFACE_Y = 0.2`). Fixed
-  authored pivots, weapon forward direction, fixed ice/poison roofs and evolved three-storey silhouettes.
-- Added five acts in `core/chapters.ts` across waves 1–99. HUD, act-opening banner and atmosphere use
-  the same chapter data rather than independent labels.
-- Reworked late-game economy: HP and bounty curves are independent, all evolution paths retain two
-  paid levels, milestone offers use deterministic gameplay RNG, and spending can continue through wave 99.
-- Added a versioned 30-day prep-boundary Continue checkpoint. Help/background/WebGL loss pause safely;
-  foreground/context restore never auto-resumes; Restart clears build, floating UI and pause residue.
-- Fixed mobile pure-tap placement, multi-touch build safety and the 844×390 landscape build dock.
-- Batched static GLBs, shared projectile GPU resources, fixed projectile axis and smoothed enemy yaw.
-- Added local Playwright ownership and grouped `npm test`; Pages CI now audits/tests Tower before deploy.
-- Rebuilt tracked production output: `games/tower/dist/assets/index-Ch4DeV1Y.js`.
+- **掂得到嘅控制細過 44×44**：iPhone SE 375×667 度六個掣 36–37px 高
+  （pause 37×37、help 39×36、speed/sound/hub 46–47×36、skip 81×36），
+  全部由 `#hud>button` 只寫 `padding` 冇寫 `min-height` 嚟。加 `min-height/min-width: 44px`。
+  新 gate 跟住捉多一個我未量過嘅：SE 橫嘅淺身底座 `.build-btn` 48×**42**，一併修。
+- **建塔欄捲得到但睇唔出捲得到**：七個掣要 386px 而個格得 341px。捲**係**得嘅
+  （我第一版讀錯咗 `#build-menu` 嘅 `overflow-x` 就話買唔到狙擊塔，實情捲喺 `.build-grid`），
+  但捲軸收埋、最右嗰個貼邊切斷。加咗兩邊 `mask-image` 漸隱。
+- **備戰橫額壓住 gold／lives／wave**：`top: 88px` ＋ `translate(-50%,-50%)` 假設 HUD 74px 高；
+  實測 HUD 有四個高度（桌面 56、SE 橫 110、直屏 164）。幾何相交 73–100%，
+  pixel diff 訊號 40–57% 對雜訊底 5–16%。改成由 `main.ts` 量 HUD 實際 `bottom` 寫入
+  `--hud-bottom`，CSS `top: calc(var(--hud-bottom, 88px) + 10px)`；淺身畫面收細橫額字體。
+  改完五個尺寸幾何相交 0%。
+- **`tests/touch.mjs` 新增**（6 條），已入 `npm run test:browser`。
+- **修好 `tests/gateway.mjs` 嘅閃光 gate**：佢一路靠彩數過。swiftshader 之下影一張相成秒，
+  而 `閃` 衰減得 0.55 秒——舊版四張相冇一張影到閃光；同時「平時」個底自己喺度呼吸
+  （光幕 `sin(time*2.6)*0.015`，週期 2.42 秒），同一個 run 底色掃過 0.9–4.1pp，
+  而門檻寫 `青增 >= 0.45`。改咗做底色跨足一個週期攞峰值、閃光用可清嘅 timer 撳住影，
+  再加一條 check 驗「影嗰陣真係閃緊、量完真係收得返」。門檻由實測重定
+  （青增 ≥ 4；實測訊號 10.0／10.7）。**改動前個 build 同樣三跑兩過一敗**
+  ——唔係我整嘅，係本身就爛。同一輪仲揾到套件入面有寫死秒數等遊戲鐘嘅事：
+  swiftshader 之下 `rawDt` 封頂 0.1 秒，遊戲鐘慢過真實鐘幾倍，
+  所以呢一段全部改成 `waitForFunction` 等狀態。
 
 ## Verification
 
-- `npm test`: PASS after the final source change.
-  - core: map 11/11, route 8/8, chapters 7/7, gameplay RNG 5/5, tiles 7/7, balance 10/10.
-  - browser: smoke 5/5, assets 8/8, combat 13/13, units 14/14, gateway 10/10,
-    look 9/9, map-browser 7/7, flow 18/18; zero browser errors.
-  - render: projectile 5/5 and performance 20/20; projectile geometry growth stayed 0.
-- Real-browser map witness: exactly 148 ground/foundation instances, void taps blocked, river and bridge
-  rendered, both endpoints visible at 844×390, and a pure mobile tap builds in the intended cell.
-- Seed-198 99-wave policy probes with the same milestone choices:
-  - cap 20: LOST wave 90, 0/20 lives, spent 93,950; last spend wave 73.
-  - cap 30: WON all 99, 16/20 lives, spent 139,790; last spend wave 87.
-  - unrestricted: WON all 99, 20/20 lives, max penetration 0.73, spent 182,930; last spend wave 99.
-- Campaign-peak (229 enemies) draw calls: desktop 1,563; mobile 844×390 733. Software Chrome
-  frame times are comparative only, not physical-phone FPS evidence.
-- `npm audit --audit-level=high`, syntax checks, handoff check and `git diff --check` are finish gates.
+- `npm test`：PASS（`PW_CHROMIUM=/opt/pw-browsers/chromium`）。
+- `tests/touch.mjs` 6/6；mutation 驗過：改返 `top: 88px` 就報紅，
+  逐個叫出 `hud-gold` 60–72%、`hud-lives` 67–81%、`hud-wave` 74–95%；
+  拆走 `min-height` 就逐個叫出嗰六個細掣。
+- `tests/gateway.mjs` 連跑三次 11/11，青增 10.12／9.99／10.70（門檻 4）；
+  mutation 驗過：閃光貢獻全部歸零，青增跌到 0.30 報紅，
+  而「影相期間真係閃緊」照樣綠——即係紅嘅責任落喺遊戲，唔係落喺把尺。
 
 ## Changed files
 
-- `.github/workflows/deploy-pages.yml`
-- `games/tower/{configs,src,tests,package*.json,index.html,dist}/`
-- `docs/ai/{PROJECT_CONTEXT,DECISIONS,HANDOFF}.md`
+- `games/tower/src/ui/style.css`（`#hud>button` 最細尺寸、`.build-grid` 漸隱、
+  `#wave-banner` 錨、淺身橫額字體）
+- `games/tower/src/main.ts`（`錨定橫額()`，兩個擺橫額出嚟嘅位各叫一次）
+- `games/tower/tests/touch.mjs`（新）、`games/tower/tests/gateway.mjs`（閃光量法大修）
+- `games/tower/package.json`（`test:browser` 加 `touch.mjs`）
+- `games/tower/dist/`、`docs/ai/{DECISIONS,HANDOFF}.md`
 
 ## Known issues and cautions
 
-- Vite reports one 774.91 kB main-chunk warning. It is not a correctness failure, but future loading
-  work may split Three.js/game code without weakening the current asset and browser gates.
-- SwiftShader performance numbers are regression comparisons, not a claim of 60 FPS on Penny's phone.
-  Any reported physical-device framing, colour or feel issue should be reproduced on that viewport.
-- The playthrough harness is one deterministic greedy policy. Preserve the 20/30/unrestricted gradient,
-  but do not reshape the map merely to tune a bot.
-- Untracked Ashen Rail and Elden Ring II dist assets were outside this scope and deliberately preserved.
+- 承上一份：Vite 774.91 kB 單 chunk warning；cap-30 探針第 87 波之後剩 54,248 金未使。
+- 雲端容器要 `export PW_CHROMIUM=/opt/pw-browsers/chromium`。
+- **每個檢查點都要即刻 push**：呢個容器試過幾次自己 reset 返去舊 commit。
 
 ## Exact next action
 
-0. **雲端容器記住先 `export PW_CHROMIUM=/opt/pw-browsers/chromium`**，唔係 Tower 套件一開波就掛（ADR-201）。
-1. Run `./scripts/agent-context.sh --sync`, confirm `main`/`origin/main` contains this checkpoint, then
-   read ADR-199/200/201 and inspect the files named above; do not rescan the whole repo.
-2. Hard-reload the deployed Tower card if doing visual work. Start from a concrete Penny report or
-   physical-device observation; there is no known carry-over correctness blocker in this handoff.
-3. Keep one game/task per checkpoint and update this file with the next verified active state.
+1. `export PW_CHROMIUM=/opt/pw-browsers/chromium`，跑 `./scripts/agent-context.sh --sync`。
+2. 讀 ADR-202，由「Codex 套件冇守到嘅範圍」繼續搵：投射物同 FX 仲係手砌幾何、
+   swarm／shield 只係 skeleton／zombie 嘅縮放變色。
+3. 一個檢查點一件事，改完連 handoff 一齊 commit。
 
 ## Do not redo
 
-- Do not restore a rectangular mask, duplicate `LAYOUT`, or use the smooth movement route as build authority.
-- Do not move gate/keep back onto endpoint cells or decouple spawn positions from the shared route anchors.
-- Do not re-couple HP and bounty, visual and gameplay RNG, or save live mid-wave entities.
-- Do not replace batched terrain/instanced enemies/shared projectile resources with per-object allocation.
+- 承上一份全部；另加：唔好將 `#wave-banner` 改返寫死 `top`，
+  亦唔好將閃光 gate 改返「影幾張相攞最大值」——嗰個量法量唔到 0.55 秒嘅瞬態。

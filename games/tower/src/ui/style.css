@@ -94,6 +94,22 @@ body {
   font-weight: 600;
   color: var(--text-main);
   white-space: nowrap;
+  /*
+   * 手指掂得到嘅目標最細 44×44。
+   *
+   * 呢條規則本來淨係寫 `padding: 9px 14px`，出嚟嘅高度跟字大細行——實測喺
+   * iPhone SE（375×667）呢六個掣係 **36–37 px 高**：pause 37×37、help 39×36、
+   * speed/sound/hub 46–47×36、skip 81×36。Apple HIG 要 44pt、Material 要 48dp，
+   * 而最細嗰個 pause 正正係你喺壓力下最想撳嗰個。
+   *
+   * 用 min-width/min-height 而唔係加 padding：加 padding 會連桌面版一齊變肥，
+   * 而呢度真正嘅問題係「最細幾多」，唔係「有幾多留白」。
+   */
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #hud-gold {
@@ -259,9 +275,17 @@ body {
 /* ─── Wave Banner ─── */
 #wave-banner {
   position: fixed;
-  top: 88px;
+  /*
+   * `--hud-bottom` 係 main.ts 每次擺橫額出嚟嗰陣量返嚟嘅 HUD 實際底邊。
+   * 後備值 88px 淨係喺 JS 未跑到嗰一剎用。
+   *
+   * 順手改埋 `translate(-50%, -50%)` 做淨係打橫置中：原本連 Y 都拉一半，
+   * 即係 `top` 指嘅係橫額**中心**——所以 top:88 嘅橫額實際頂邊喺 28px 甚至 -1px，
+   * 即係爬到 HUD 上面去。而家 `top` 就係頂邊，睇條規則就知佢喺邊。
+   */
+  top: calc(var(--hud-bottom, 88px) + 10px);
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   z-index: 20;
   pointer-events: none;
   width: min(720px, calc(100vw - 40px));
@@ -1446,6 +1470,18 @@ input:focus-visible,
     scrollbar-width: none;
     width: 100%;
     padding: 6px 2px 2px;
+    /*
+     * 捲得到，但睇唔出捲得到。
+     *
+     * 喺 375 闊嘅直度手機，七個塔掣要 386px，個格得 341px——捲係正常嘅，
+     * 兩頭都去到（量過：捲到盡見到 Sniper，捲返轉頭見到 Arrow）。問題係
+     * **冇任何提示**：捲軸收埋咗（`scrollbar-width: none`），最右邊嗰個掣
+     * 貼邊切斷，睇落似係最後一個。玩家唔知有第七座塔。
+     *
+     * 兩邊漸隱：邊緣淡出就係「呢邊仲有嘢」嘅視覺提示，而且唔佔位。
+     */
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
   }
 
   .build-grid::-webkit-scrollbar {
@@ -1475,6 +1511,17 @@ input:focus-visible,
    viewport is short. The old desktop card consumed over half of a 390px-high
    game view and hid the redesigned map. */
 @media (max-height: 500px) {
+  /*
+   * 淺身畫面（iPhone SE 橫 667×375）用緊桌面嗰個 28px 字，三行章節開場一出
+   * 就 177px 高——喺得 375px 高嘅畫面度即係食走成半幅戰場。呢度唔係「疊住
+   * HUD」嘅問題（嗰個已經由 --hud-bottom 解決），係橫額本身太肥。
+   */
+  #wave-banner-text {
+    font-size: 15px;
+    padding: 7px 12px;
+    line-height: 1.25;
+  }
+
   #build-menu {
     left: 238px;
     right: 8px;
@@ -1498,6 +1545,8 @@ input:focus-visible,
     scrollbar-width: none;
     width: 100%;
     padding: 2px;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
   }
 
   .build-grid::-webkit-scrollbar {
@@ -1506,7 +1555,13 @@ input:focus-visible,
 
   .build-btn {
     flex: 0 0 auto;
+    /*
+     * 淺身底座壓縮咗 padding，出嚟嘅高度得 42px（量過，iPhone SE 橫 667×375）
+     * ——差兩格就低過 44 嘅最細掂得到尺寸。呢個底座嘅重點係「唔好食走半個
+     * 畫面」，唔係「掣要細」，所以只落 min-height，唔加返 padding。
+     */
     min-width: 48px;
+    min-height: 44px;
     gap: 0;
     padding: 3px 6px;
   }
