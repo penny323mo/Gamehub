@@ -4496,6 +4496,65 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-212 — MOBA: 你要等埋 576 KB 你喺揀人嗰陣一眼都見唔到嘅嘢
+
+Date: 2026-08-09. Status: accepted.
+
+ADR-211 之後最重嗰隻係 MOBA（2,529 KB、Fast 3G 等 16.0 秒）。入面 888 KB 係
+`anims.glb`——**純動畫，冇 mesh，所以 Draco 壓唔到佢**（Draco 係幾何編碼）。
+
+### 先量咗兩條路先揀
+
+1. **刪冇用嘅 clip**：23 個 clip 入面 22 個都用緊，得 `Spawn_Ground`（29 KB）
+   冇人叫。個檔本身早就揀過，冇得刪。
+2. **resample**：tolerance 0 → 888 KB（冇分別）、0.001 → 825 KB，而 0.001
+   已經開始改到動作。動畫本身係密嘅，唔係有水份。
+3. **meshopt**：888 → 637 KB（−28%），decoder 得 ~25 KB。量埋誤差：
+   旋轉最多 **0.83°**、位移 9.75e-4、縮放 2.42e-4。
+   （量誤差嗰陣自己撞咗兩次：先係攞量化過嘅 int16 直接同 float32 比，
+   報 3.28e+4；再係逐個數比四元數，報 2.0——其實係 **q 同 −q 係同一個旋轉**，
+   要按 channel 嘅 target path 分開、用角度比先啱。）
+
+meshopt 淨賺 226 KB（−9%），但係有損、要加 decoder、要改 build。
+
+### 但量嗰陣見到一個更大嘅槓桿
+
+`portraits.js` 淨係要 `unit('champ', …)` 同 `clip('Idle_Combat')`；
+`arena`（246 KB）、`weapons`（98 KB）、三隻小兵（232 KB）**全部只喺 `view.js`
+入面用**，即係開咗場之後先用得着。但以前一次過落晒——你要等埋 576 KB 你喺
+揀人嗰陣一眼都見唔到嘅嘢，先至畀你揀人。
+
+拆開之後（Fast 3G，390×844）：
+
+    揀人版出到    16.0s → **12.7s**
+    到嗰時落咗    2,529 KB → **1,946 KB**
+
+**呢個唔係壓縮，係重排時間軸**——一個 byte 都冇少，但你早咗 3.3 秒見到你
+要做嘅決定，而其餘 576 KB 喺你睇緊六張英雄卡嗰陣落。所以呢一輪冇做 meshopt：
+同樣嘅工夫，一個係無損早 3.3 秒，一個係有損慳 9%。
+
+### 撳「開打」而場未起好
+
+唔可以扮冇事開場。但**「撳咗冇反應」比「等耐咗」更難頂**（ADR-209 同一句），
+所以個掣照撳得：撳完寫住「準備戰場…」，落完自己入場。實測即刻撳嘅話
+2.3–3.1 秒入到場，零 error；慢慢揀嘅話撳完 2.8 秒入場，個掣一路寫住「開打」。
+
+### 兩個記錄
+
+1. **「擺喺 `renderPortraits` 之前定之後」實測係一樣**（13.0 vs 13.1 秒，
+   兩次都係 1,946 KB）。我本來寫咗一句「兩批同時搶頻寬，等於冇 defer 過」
+   ——係錯嘅：render 六個頭像嗰段係 CPU 密集、網絡閒住，第二批喺嗰段時間
+   度落，本來就搶唔到頻寬。**個註解要講返實測到嘅嘢，唔係我以為嘅機制。**
+2. **MOBA 有個版本標記契約**（每個攞落嚟嘅專案檔都要帶 `?v=`），我個新
+   `import` 冇帶，`browser.mjs` 即刻捉到。同一輪入面另一條「打直：玩家企喺
+   畫面下半」報過一次紅，再跑兩次都綠——**係嗰條 check 本身唔穩，唔係呢個
+   改動整出嚟**（冇當佢係我整壞咗，亦冇當佢冇事發生過）。
+
+### 驗證
+
+`moba sim` 262/262、`moba browser` 196/196、`cache-bust` PASS；
+`hub` 96/96、`hub-touch` 5/5、`hub-load` 3/3、`hub-wait` 1/1、`hub-cdn` 3/3。
+
 ## ADR-211 — Tower: 一千零八十七 KB 未壓過嘅模型，而隔籬兩隻遊戲一路壓緊
 
 Date: 2026-08-09. Status: accepted.

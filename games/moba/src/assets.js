@@ -12,7 +12,9 @@ import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { DRACOLoader } from '../vendor/DRACOLoader.js';
 import { clone as cloneSkinned } from '../vendor/SkeletonUtils.js';
-import { 建位元組進度 } from '../../shared/js/byte-progress.mjs';
+// 版本標記要跟 MOBA 嘅規矩（`tests/cache-bust.mjs` ＋ browser 測試會查）：
+// 每一個攞落嚟嘅專案檔都要帶標記，唔係嘅話換咗版本返轉頭嘅玩家攞到舊檔。
+import { 建位元組進度 } from '../../shared/js/byte-progress.mjs?v=assets-28';
 
 const BASE = new URL('../assets/models/', import.meta.url).href;
 
@@ -102,14 +104,7 @@ export class Assets {
     // 係 `Promise.all` 平行落嘅——頻寬分薄，冇一件會早早完成。實測 Fast 3G：
     // 撳完之後畫面連續 23.6 秒一個 pixel 都冇變，個 label 一直係開場嗰句
     // 「載入資產…」，一次都冇更新過。所以改成量位元組。
-    async load(onProgress = () => {}) {
-        const jobs = [
-            ['anims', 'anims.glb'],
-            ['arena', 'arena.glb'],
-            ['weapons', 'weapons.glb'],
-            ...Object.entries(CHAMPION_MODELS).map(([k, v]) => ['champ:' + k, v]),
-            ...Object.entries(MINION_MODELS).map(([k, v]) => ['minion:' + k, v]),
-        ];
+    async 落一批(jobs, onProgress) {
         const 進度 = 建位元組進度(jobs.length, onProgress);
         const results = await Promise.all(jobs.map(async ([key, file]) => {
             const url = bust(BASE + file);
@@ -118,7 +113,39 @@ export class Assets {
             return [key, gltf];
         }));
         進度.齊();
+        this.收(results);
+        return this;
+    }
 
+    /*
+     * 揀英雄嗰版**用唔著**戰場：`portraits.js` 淨係要 `unit('champ', …)` 同
+     * `clip('Idle_Combat')`，而 `arena` / `weapons` / 小兵 全部只喺 `view.js`
+     * 入面（即係開咗場之後）先用得着。
+     *
+     * 但以前一次過落晒——即係你要等埋 576 KB 你喺揀人嗰陣一眼都見唔到嘅嘢,
+     * 先至畀你揀人。Fast 3G 實測成個載入 16.0 秒。
+     *
+     * 拆開之後：必要嗰批（動畫庫 ＋ 六個英雄）落完就出揀人版，其餘嗰批
+     * 喺你睇緊英雄卡嗰陣喺背景落。**呢個唔係壓縮，係重排時間軸**——
+     * 一個 byte 都冇少，但你早咗見到你要做嘅決定。
+     */
+    async load(onProgress = () => {}) {
+        return this.落一批([
+            ['anims', 'anims.glb'],
+            ...Object.entries(CHAMPION_MODELS).map(([k, v]) => ['champ:' + k, v]),
+        ], onProgress);
+    }
+
+    /** 開場先用得着嗰批。揀人版出咗之後喺背景落。 */
+    async 載戰場(onProgress = () => {}) {
+        return this.落一批([
+            ['arena', 'arena.glb'],
+            ['weapons', 'weapons.glb'],
+            ...Object.entries(MINION_MODELS).map(([k, v]) => ['minion:' + k, v]),
+        ], onProgress);
+    }
+
+    收(results) {
         for (const [key, gltf] of results) {
             if (key === 'anims') {
                 for (const clip of gltf.animations) this.clips.set(clip.name, clip);
@@ -137,7 +164,6 @@ export class Assets {
             }
         }
         if (!this.clips.size) throw new Error('動畫庫載入失敗');
-        return this;
     }
 
     clip(name) {

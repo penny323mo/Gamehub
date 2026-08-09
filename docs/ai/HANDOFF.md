@@ -1,10 +1,10 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-09 (Asia/Macau)
-Prepared by: Claude Code (cloud) — ADR-202 至 211
+Prepared by: Claude Code (cloud) — ADR-202 至 212
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: ADR-206–211 五把跨遊戲尺（掂、載、鍵盤、第三方、等緊）掃齊十二個介面；Tower 開場 1,291 → 754 KB
+Status: 五把跨遊戲尺（掂、載、鍵盤、第三方、等緊）掃齊十二個介面；Tower 1,291→754 KB、MOBA 揀人版 16.0→12.7s
 
 ## Current objective
 
@@ -26,58 +26,50 @@ Status: ADR-206–211 五把跨遊戲尺（掂、載、鍵盤、第三方、等�
   HP 二次項 → **0.0026**。**`flow.mjs` 有三處寫死同一格**，一處係世界座標
   `11.5 / 5.5`，grep 格座標搵唔到。
 
-**ADR-206／207／208（跨遊戲三把尺，已合埋 main）**
+**ADR-206 至 209（四把跨遊戲尺，已合埋 main；詳情喺 DECISIONS）**
 
 - 206 `hub-touch` 5/5：375×667 直橫兩姿勢。載得起／零 error／唔爆版本來就過；
-  ≥44×44 **捉到八個介面共 24 個**（Royale 12；Tower 3 個開場難度掣——ADR-202
-  撳咗 START 先量，睇唔到開場）。Carousel 圓點 24×24 **冇當佢係 bug**。
-- 207 `hub-load`：量實際落幾多，唔係磁碟大細。Hub launcher 兩張大 12／20 倍嘅
-  logo → 160×160 ＋ `<picture>`，**904 → 51 KB**。
+  ≥44×44 **捉到八個介面共 24 個**。Carousel 圓點 24×24 **冇當佢係 bug**。
+- 207 `hub-load`：量實際落幾多，唔係磁碟大細。Hub launcher **904 → 51 KB**。
 - 208 `hub-keyboard` 3/3——**十二個介面本來就啱，一行遊戲碼都冇改**。三次報紅
-  全部係把尺錯：①`inert` modal 隔離本來就啱；②讀 focus style 讀咗 transition
-  第 0 格；③Tab 預算對住「我數到嘅控制」而唔係「成頁可 focus 總數」。
+  全部係把尺錯：`inert` 隔離本來啱／讀咗 transition 第 0 格／Tab 預算對錯對象。
+- 209 `hub-cdn` 3/3：六隻遊戲寫住 parser-blocking 嘅 jsdelivr Supabase SDK，
+  吊 8 秒＝**DCL 8.0–8.4s，一比一**。改成 `loadSupabaseSdk()` 用到先攞，
+  順手補返「SDK 攞唔到撳線上入口靜靜雞乜都唔做」→ `holdOnlineEntries()`。
+  記低：classic script 入面 `window.joinFixedRoom` 同頂層函數係同一個綁定，
+  擺完佔位 `window.x = x` 就自己指自己——**我親手整出嚟，把尺利咗先捉到**。
 
-**ADR-211（本輪）— 1,087 KB 未壓過嘅模型，而隔籬兩隻遊戲一路壓緊**
+**ADR-212（本輪）— 你要等埋 576 KB 你喺揀人嗰陣一眼都見唔到嘅嘢**
 
-- Tower 開場 1,291 KB 入面 1,087 KB 係**未壓過嘅 GLB**，而同 repo 嘅 MOBA／Royale
-  老早用緊 Draco——答案本身已經喺屋企，得一隻遊戲冇跟。
-- 78 個檔量三條路：原本 1,183／meshopt 762＋25＝787／**Draco 379＋246＝625 KB**。
-  meshopt decoder 細好多但只壓到 64%，Draco 壓到 32%——decoder 係一次性成本，
-  模型每次都要落。實際：**1,291 → 754 KB（−42%）**。`public/models/` 保持原樣
-  （Draco 有損）；壓縮喺 `scripts/postbuild.mjs` 做，idempotent，失敗大聲掟錯。
-  Decoder 同源派 `dist/draco/`，唔再種外部依賴。
-- **`hub-load` 一直冇 gzip**——Tower bundle 實際 202 KB 佢報 823 KB，差四倍
-  （同一日已經因為冇送 `Content-Length` 撞過一次）。修完全 hub 嘅數都真實咗。
-- 新 check：GLB 落多過 300 KB 嘅遊戲，有幾何嘅模型要壓過——**讀真正派出去嗰個
-  GLB 嘅 glTF header**，唔 grep build script。純動畫檔唔當漏網。突變報紅。
+- MOBA 2,529 KB 入面 888 KB 係 `anims.glb`——**純動畫冇 mesh，Draco 壓唔到**。
+  量咗三條路：刪冇用 clip（23 個用緊 22 個，冇得刪）／resample（888→825 KB
+  而且開始改到動作）／meshopt（888→637 KB，旋轉誤差 0.83°，淨賺 226 KB）。
+- 但量嗰陣見到更大槓桿：`arena` 246＋`weapons` 98＋三隻小兵 232 ＝ **576 KB
+  全部只喺開場後用**，而以前一次過落晒。拆開之後 **揀人版 16.0 → 12.7s、
+  到嗰時落 2,529 → 1,946 KB**。**唔係壓縮，係重排時間軸**——所以今輪冇做
+  meshopt：同樣工夫，一個無損早 3.3 秒，一個有損慳 9%。
+- 撳「開打」而場未起好唔扮冇事：個掣照撳得，寫住「準備戰場…」，落完自己入場
+  （即刻撳實測 2.3–3.1s 入場、零 error）。
+- 兩個記錄：①「擺喺 `renderPortraits` 之前定之後」實測一樣（13.0 vs 13.1s）
+  ——我本來寫咗「兩批搶頻寬」係錯嘅，render 頭像嗰段網絡本來就閒住。
+  **註解要講實測到嘅嘢，唔係我以為嘅機制。** ②MOBA 有版本標記契約，新 import
+  冇帶 `?v=`，`browser.mjs` 即刻捉到；同輪「打直」嗰條紅過一次、再跑兩次都綠
+  ——**係嗰條 check 唔穩，唔係呢個改動整出嚟**。
 
-**ADR-210（本輪）— 有字唔等於有交代**
+**ADR-210／211（已合埋 main）— 交代同重量**
 
-- 探路第一個結果推翻咗前提：**七隻遊戲入局後全部 ＋0 KB**——全部喺開場畫面就
-  落晒。真問題係「落緊嗰陣睇唔睇得出佢仲行緊」。Fast 3G 量「載入畫面期間最長
-  靜默」：Tower（ADR-203 修過）**0.0s**、MOBA **23.6s**、Royale **14.4s**。兩隻都
-  有字（「載入資產…」「載入模型中…」）但個字十幾廿秒唔郁，條 bar 一直 0%。
-- 根因係**進度嘅單位揀錯**：`Promise.all` 平行落十幾個 GLB 而進度用「幾多件
-  落完」計——平行落冇一件早完，所以 0 企到最後跳去 100。改成量位元組（新共用
-  `games/shared/js/byte-progress.mjs`）；冇 `Content-Length` 就報 `null`，
-  出 indeterminate 掃光 bar ＋ MB 數字，**唔報假嘅 0%**。新 `tests/hub-wait.mjs` 1/1。
-- 四個「把尺講緊自己」：①又量「見唔見到個掣」量到 0.08s；②量到 MOBA 靜默
-  75 秒，其實佢喺揀英雄度等緊你；③regex 撞唔到「開打」，又撞唔到 Racing Car
-  個 `top:1851` 嘅 `#start-btn`；④**test server 冇送 `Content-Length`**，
-  `e.total` 變 0，百分比卡死喺 0%。
-
-**ADR-209（已合埋 main）— 一個 CDN 慢，六隻本來全本地嘅遊戲乜都唔郁**
-
-- 六隻遊戲寫住 parser-blocking 嘅 jsdelivr Supabase SDK。吊 8 秒＝**DCL 由
-  0.04–0.49s 變 8.0–8.4s，一比一**，而 FCP 照樣 0.08s。改法搬自 Royale `net.js`
-  → `shared/js/online_utils.js` 嘅 `loadSupabaseSdk()`；順手補返「SDK 攞唔到撳
-  線上入口靜靜雞乜都唔做」→ `holdOnlineEntries()`。新 `tests/hub-cdn.mjs` 3/3。
-- 三個記錄：①量「見唔見到個掣」量到 0.08s；②classic script 入面
-  `window.joinFixedRoom` 同頂層函數係同一個綁定，擺完佔位 `window.x = x` 就自己
-  指自己（Snooker 名唔同／Xiangqi 係 module 所以冇事）——**我親手整出嚟，把尺由
-  「係唔係 function」收緊到「係唔係仲係佔位」先捉到**；③第 3 條 check 本來 8 秒
-  窗口，畀 SDK 自己嘅逾時 toast 頂咗，收窄到 1.5 秒。
-- Playwright 淨係裝喺 `games/tower/node_modules`，跨遊戲 test 做咗 resolve fallback。
+- 210：探路推翻前提——**七隻遊戲入局後全部 ＋0 KB**，全部開場畫面就落晒。
+  Fast 3G 量「載入畫面期間最長靜默」：Tower **0.0s**、MOBA **23.6s**、
+  Royale **14.4s**。兩隻都有字但個字十幾廿秒唔郁。根因係**進度單位揀錯**
+  （`Promise.all` 平行落而進度用「幾多件落完」計）→ 新共用
+  `games/shared/js/byte-progress.mjs` 量位元組；冇 `Content-Length` 就報 `null`,
+  出 indeterminate 掃光 bar ＋ MB 數字，**唔報假嘅 0%**。新 `tests/hub-wait.mjs`。
+- 211：Tower 1,087 KB **未壓過嘅 GLB**，而同 repo 嘅 MOBA／Royale 一路用緊 Draco。
+  量三條路（原本 1,183／meshopt 787／**Draco 625**）後揀 Draco，**開場 1,291 →
+  754 KB（−42%）**。`public/models/` 保持原樣，壓縮喺 `postbuild.mjs` 做。
+  順手發現 **`hub-load` 一直冇 gzip**（Tower bundle 202 KB 佢報 823 KB）,
+  同日已經因為冇送 `Content-Length` 撞過一次。新 check：GLB 落多過 300 KB 嘅
+  遊戲，有幾何嘅模型要壓過——**讀真正派出去嗰個 GLB 嘅 glTF header**。
 
 ## Changed files
 
@@ -87,6 +79,7 @@ Status: ADR-206–211 五把跨遊戲尺（掂、載、鍵盤、第三方、等�
 - 跨遊戲：`tests/hub-{touch,load,keyboard,cdn,wait}.mjs`（全新）、`launcher.js`（`<picture>`）
 - ADR-210：`games/shared/js/byte-progress.mjs`（新）、moba／royale `src/{assets,main}.js`＋`style.css`
 - ADR-211：tower `scripts/postbuild.mjs`＋`src/render/assets.ts`＋`package.json`＋`dist/`、`tests/hub-load.mjs`
+- ADR-212：moba `src/{assets,main}.js`（`load` 拆做必要／戰場兩批）
 - ADR-209：`games/shared/js/online_utils.js`（`loadSupabaseSdk`／`holdOnlineEntries`）、
   big2／doudizhu／gomoku／snooker(×3)／xiangqi-ai 嘅 `index.html` ＋ `online.js`
 
@@ -108,8 +101,9 @@ Status: ADR-206–211 五把跨遊戲尺（掂、載、鍵盤、第三方、等�
 ## Exact next action
 
 1. `export PW_CHROMIUM=/opt/pw-browsers/chromium`，跑 `./scripts/agent-context.sh --sync`。
-2. Tower 壓完之後，最重係 **MOBA 2,529 KB**，入面 888 KB 係 `anims.glb`
-   ——純動畫，Draco 壓唔到，要靠 resample／量化動畫軌先郁得到。
+2. 最重仍然係 **Empire Royale（1,915 KB、Fast 3G 等 20.3 秒）**——佢個開場選單
+   同 MOBA 一樣，載晒 buildings／siege（~384 KB）先出，而嗰啲入咗場先用得着。
+   MOBA 嗰個 meshopt 選項（−226 KB、旋轉誤差 0.83°）亦都仲喺枱面。
 3. 一個檢查點一件事，改完連 handoff 一齊 commit。
 
 ## Do not redo

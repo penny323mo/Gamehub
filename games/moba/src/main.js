@@ -23,7 +23,7 @@ const $ = (sel) => document.querySelector(sel);
 
 const state = {
     assets: null, sim: null, view: null, hud: null, input: null, bots: [], sfx: null,
-    acc: 0, last: 0, running: false, raf: 0,
+    acc: 0, last: 0, running: false, raf: 0, 戰場好: null,
     tickCount: 0,        // updateBots 用嚟逐格對調決策次序
 };
 
@@ -69,6 +69,21 @@ async function boot() {
     state.sfx.setMusic(settings.get('music'));
     $('#loading').classList.add('hidden');
     showSelect();
+
+    /*
+     * 戰場嗰批（arena／weapons／小兵，共 576 KB）喺揀人版一眼都見唔到,
+     * 所以擺到揀人版出咗之後先落。
+     *
+     * 擺喺 `renderPortraits` 之前定之後，實測係**一樣**（13.0 vs 13.1 秒,
+     * 兩次都係揀人版嗰陣落咗 1,946 KB）——因為 render 六個頭像嗰段係 CPU
+     * 密集、網絡係閒住嘅，第二批喺嗰段時間度落，本來就搶唔到頻寬。
+     * 擺喺呢度純粹係次序上清楚啲：「揀人版出咗」先至係一個真正嘅分界。
+     */
+    const 戰場 = state.assets.載戰場();
+    // 冇人 await 佢就會變成 unhandled rejection（喺瀏覽器度即係一個 error）。
+    // 呢句唔係吞咗個錯——`state.戰場好` 仲係 rejected，撳「開打」嗰陣照樣接到。
+    戰場.catch((err) => console.warn('[MOBA] 戰場資產載入失敗', err));
+    state.戰場好 = 戰場;
 }
 
 // ---------- 選英雄 ----------
@@ -102,10 +117,35 @@ function showSelect() {
     }
     cards.get(chosen).classList.add('on');
     $('#select').classList.remove('hidden');
-    armTap($('#pick-go'), () => {
+
+    /*
+     * 戰場資產可能仲落緊。撳「開打」而場都未起好係唔得嘅，但**「撳咗冇反應」
+     * 比「等耐咗」更難頂**（ADR-209 同一句）——所以個掣照撳得，撳完就交代
+     * 緊「仲差幾多」，落完自己入場。
+     */
+    const go = $('#pick-go');
+    const 原文 = go.textContent;
+    let 撳咗 = false;
+    const 入場 = () => {
         settings.set('champion', chosen);
         $('#select').classList.add('hidden');
+        go.textContent = 原文;
+        go.disabled = false;
         startMatch(chosen);
+    };
+    armTap(go, () => {
+        if (撳咗) return;              // 撳兩下唔可以開兩場
+        撳咗 = true;
+        if (!state.戰場好) return 入場();
+        go.disabled = true;
+        go.textContent = '準備戰場…';
+        state.戰場好.then(入場, (err) => {
+            撳咗 = false;
+            go.disabled = false;
+            go.textContent = 原文;
+            const p = $('#select .hint');
+            if (p) p.textContent = `戰場資產載入失敗（${err?.message ?? '網絡問題'}），請重新整理再試。`;
+        });
     });
 }
 
