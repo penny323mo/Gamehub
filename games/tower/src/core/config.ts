@@ -42,9 +42,15 @@ const devicePixelRatio = (): number => typeof window === 'undefined' ? 1 : windo
  * 敵人血量曲線嘅二次項（見 `waveSystem.spawnEnemy`）。
  * 呢個數係對住 `tests/playthrough.mjs` 掃出嚟嘅，唔係揀個靚數——
  * 量度期間可以喺 `window.__TD.設曲率()` 度改，唔使 rebuild。
+ *
+ * 0.0016 → 0.0026（ADR-205）：地圖由 20×12 擴到 24×14，條路 31→37 格、
+ * 貼路塔位 60→72。兩樣都令玩家打得舒服咗，實測 cap-30 由「贏但跌 4 條命」
+ * 變成「一條都唔跌」——ADR-200 特登擺喺最後三分一嘅壓力冇晒。
+ * 掃過 0.0022（冇分別）、0.0024（18/20）、0.0026（15/20），揀咗最貼近
+ * 原本 16/20 嗰個。**擴地圖唔補返呢個數，等於靜靜雞調低咗難度。**
  */
 export let HP_LINEAR = 0.04;
-export let HP_CURVE = 0.0016;
+export let HP_CURVE = 0.0026;
 export const HP_CURVE_CAP = 45;
 export const BOUNTY_LINEAR = 0.04;
 export const 設HP曲率 = (線性: number, 二次: number): void => { HP_LINEAR = 線性; HP_CURVE = 二次; };

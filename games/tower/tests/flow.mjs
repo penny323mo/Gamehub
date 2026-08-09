@@ -132,7 +132,7 @@ await page.waitForFunction(() => window.__TD.state.phase === 'prep', null, { tim
 const checkpointExpected = await page.evaluate(() => {
   const T = window.__TD;
   T.擂台(4321);
-  T.build('arrow', 11, 5);
+  T.build('arrow', 9, 4);
   T.state.currentWave = 7;
   T.state.phase = 'prep';
   T.state.lives = 7;
@@ -179,7 +179,7 @@ const continued = await page.evaluate(() => ({
 check('Continue restores wave/tower/economy/skills/buffs without mid-wave entities',
   continued.wave === 7 && continued.gold === checkpointExpected.gold && continued.lives === 7
     && continued.maxLives === 15 && continued.score === 987
-    && continued.towers.some(([type, col, row]) => type === 'arrow' && col === 11 && row === 5)
+    && continued.towers.some(([type, col, row]) => type === 'arrow' && col === 9 && row === 4)
     && continued.damageBuff === 1.25
     && continued.skill <= checkpointExpected.skill && continued.skill > checkpointExpected.skill - 1
     && continued.enemies === 0 && continued.projectiles === 0, continued);
@@ -305,7 +305,7 @@ const mobileTap = await mobile.evaluate(async ({ origin, cellSize }) => {
   T.state.gold = 9999;
   document.querySelector('.build-btn[data-tower="arrow"]').click();
   const V = T.camera.position.constructor;
-  const p = new V(origin.x + 11.5 * cellSize, 0.2, origin.z + 5.5 * cellSize).project(T.camera);
+  const p = new V(origin.x + 9.5 * cellSize, 0.2, origin.z + 4.5 * cellSize).project(T.camera);
   const canvas = document.querySelector('#game-canvas');
   const rect = canvas.getBoundingClientRect();
   const x = rect.left + (p.x * 0.5 + 0.5) * rect.width;
@@ -323,7 +323,7 @@ const mobileTap = await mobile.evaluate(async ({ origin, cellSize }) => {
 }, { origin: MAP_CONFIG.origin, cellSize: MAP_CONFIG.cellSize });
 check('mobile multi-touch is build-safe and a later pure tap still places exactly once',
   mobileTap.afterGesture === 0 && mobileTap.afterPureTap === 1
-    && mobileTap.cell?.[0] === 11 && mobileTap.cell?.[1] === 5, mobileTap);
+    && mobileTap.cell?.[0] === 9 && mobileTap.cell?.[1] === 4, mobileTap);
 
 check('flow audit produced no browser errors', errors.length === 0, errors.slice(0, 5));
 console.log(`\ntower flow browser: ${pass}/${pass + fail} passed`);

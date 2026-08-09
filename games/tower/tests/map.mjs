@@ -28,8 +28,11 @@ for (let i = 1; i < MAPCFG.path.length; i += 1) {
   const [a, b] = [MAPCFG.path[i - 1], MAPCFG.path[i]];
   if (Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) !== 1) badSteps.push([a, b]);
 }
-check('路線 31 格、每步四鄰、冇重複',
-  MAPCFG.path.length === 31 && badSteps.length === 0 && pathSet.size === MAPCFG.path.length,
+// 37 格：20×12 擴到 24×14 嗰陣連條路一齊重畫（ADR-205）。呢個數唔係
+// 「啱啱好等於 config 有幾多格」——咁樣寫等於冇守到嘢。佢係寫死嘅設計數，
+// 有人靜靜雞加減路格就要喺呢度報紅，逼佢連平衡一齊重掃。
+check('路線 37 格、每步四鄰、冇重複',
+  MAPCFG.path.length === 37 && badSteps.length === 0 && pathSet.size === MAPCFG.path.length,
   { 長: MAPCFG.path.length, 壞步: badSteps.slice(0, 3), unique: pathSet.size });
 check('入口同出口就係路線頭尾',
   JSON.stringify(MAPCFG.spawnCell) === JSON.stringify(MAPCFG.path[0])
@@ -41,9 +44,10 @@ const turns = MAPCFG.path.slice(1, -1).filter((p, i) => {
   return a[0] !== c[0] && a[1] !== c[1];
 }).length;
 const active = LAYOUT.cells;
-check('新路線保留 8 個彎，但段長唔再機械式重複', turns === 8, { turns });
+// 8 → 10 個彎：條路長咗 19%，彎數跟住加，唔係將原本嗰條拉直咗算數。
+check('新路線保留 10 個彎，但段長唔再機械式重複', turns === 10, { turns });
 check('可玩陸地明顯唔係長方形（少過全 grid 70%）',
-  active.length < MAPCFG.cols * MAPCFG.rows * 0.7 && active.length >= 130,
+  active.length < MAPCFG.cols * MAPCFG.rows * 0.7 && active.length >= 160,
   { active: active.length, full: MAPCFG.cols * MAPCFG.rows, pct: +(100 * active.length / (MAPCFG.cols * MAPCFG.rows)).toFixed(1) });
 check('每一格路都存在於不規則陸地',
   MAPCFG.path.every(([c, r]) => LAYOUT.cellAt(c, r).exists),

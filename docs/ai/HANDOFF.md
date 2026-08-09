@@ -1,7 +1,7 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-09 (Asia/Macau)
-Prepared by: Claude Code (cloud) — ADR-202、203、204
+Prepared by: Claude Code (cloud) — ADR-202 至 205
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
 Status: Tower 兩輪「喺一部真手機上面」嘅缺陷已修並補咗 gate；順手大修咗一條一路靠彩數過嘅 gate
@@ -51,6 +51,23 @@ Status: Tower 兩輪「喺一部真手機上面」嘅缺陷已修並補咗 gate�
 - 代價：桌面空場三角 141,362 → 384,294，手機 34,588 → 62,172；
   draw call 桌面 247→248、手機 125→126。兩邊都遠低過 budget。
 - `map-browser.mjs` 加一條：最遠嗰件擺設要超出 zoom 到盡望到嘅範圍（8/8）。
+
+**ADR-205（本輪）— 輕微擴格＋條路重畫＋難度補返**
+
+- 格 20×12 → **24×14**，origin (−10,−6) → (−12,−7)；陸地 148 → **178 格**；
+  條路 31 格 8 彎 → **37 格 10 彎**（raw 30→36、smooth 29.1→35.09）；
+  貼路塔位 60 → **72**；入口 [0,5]→[0,6]、出口 [19,4]→[23,5]；
+  三區 colRange → 0-7 / 8-15 / 16-23；河由 col 10 搬去 col 11、橋 [11,5]。
+- **擴完一定要重掃難度**：未補之前 cap-30 由「贏但跌 4 命」變成「20/20 一條唔跌」
+  ——ADR-200 擺喺最後三分一嘅壓力冇晒。掃 HP 二次項 0.0022（冇分別）／
+  0.0024（18/20）／**0.0026（15/20，最貼近原本 16/20）**，揀咗 0.0026。
+- 新梯度（seed 198）：cap 20 → LOST wave **80**（舊 90，低嗰級真係硬咗）；
+  cap 30 → WON **15/20**；無限制 → WON 20/20、66 塔、剩 **9,120** 金
+  （ADR-201 嗰個「剩 54,248 金冇得使」嘅尾巴，因為多咗塔位而大致收返）。
+- 五個 gate 跟住改：map 31/8 → 37/10、陸地下限 130→160、
+  148 → 178（map-browser／performance／projectile-renderer）、route controls 10→12。
+  **`flow.mjs` 仲有三處寫死同一格**，其中一處係世界座標 `11.5 / 5.5`
+  ——grep 格座標搵唔到佢。
 
 ## Changed files
 

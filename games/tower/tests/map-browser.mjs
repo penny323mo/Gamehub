@@ -47,8 +47,11 @@ const scene = await page.evaluate(() => {
     foundation: T.scene.getObjectByName('island-soil')?.count ?? -1,
   };
 });
-check('browser 真係只畫 148 格不規則陸地，唔係底下仲藏住 240 格矩形',
-  scene.grounds === 148 && scene.foundation === 148 && !scene.hasVoidCorner, scene);
+// 148 → 178：地圖由 20×12 擴到 24×14（ADR-205）。呢個數守嘅係
+// 「畫出嚟嘅格數同 LAYOUT 算出嚟嘅一模一樣」——即係冇喺底下偷偷鋪多咗
+// 一塊 336 格嘅矩形。
+check('browser 真係只畫 178 格不規則陸地，唔係底下仲藏住 336 格矩形',
+  scene.grounds === 178 && scene.foundation === 178 && !scene.hasVoidCorner, scene);
 check('河道同橋有實際 render 出嚟', scene.river === 4 && scene.bridge === 1, scene);
 
 /*
@@ -126,14 +129,14 @@ await page.evaluate(() => {
   window.__TD.state.gold = 9999;
   document.querySelector('.build-btn[data-tower="arrow"]').click();
 });
-const validPoint = await pureTap([11, 5]);
+const validPoint = await pureTap([9, 4]);
 await page.waitForTimeout(120);
 const afterValid = await page.evaluate(() => window.__TD.state.towers.map((t) => [t.col, t.row]));
 check('手機純 tap（冇 touchmove/mousemove）會即時計落點並起喺正確格',
-  afterValid.some(([c, r]) => c === 11 && r === 5), { point: validPoint, towers: afterValid });
+  afterValid.some(([c, r]) => c === 9 && r === 4), { point: validPoint, towers: afterValid });
 
 const beforeBlocked = afterValid.length;
-const riverPoint = await pureTap([10, 3]);
+const riverPoint = await pureTap([11, 4]);
 const voidPoint = await pureTap([5, 1]);
 await page.waitForTimeout(120);
 const afterBlocked = await page.evaluate(() => window.__TD.state.towers.map((t) => [t.col, t.row]));

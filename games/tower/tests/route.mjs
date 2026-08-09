@@ -29,7 +29,7 @@ const dist = (a, b) => Math.hypot(b.x - a.x, b.z - a.z);
 const totalLength = (points) => points.slice(1).reduce((sum, p, i) => sum + dist(points[i], p), 0);
 
 const controls = simplifyRoute(centres);
-check('31格路濃縮成入口、出口同8個真正轉角', controls.length === 10,
+check('37格路濃縮成入口、出口同10個真正轉角', controls.length === 12,
   { cells: centres.length, controls: controls.length });
 
 const first = route[0], firstCell = centres[0], last = route.at(-1), lastCell = centres.at(-1);

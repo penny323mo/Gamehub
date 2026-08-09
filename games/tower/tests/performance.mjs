@@ -84,7 +84,7 @@ try {
     await page.waitForFunction(() => {
       let ground = 0;
       window.__TD.scene.traverse((object) => { if (object.name?.startsWith('ground:')) ground += 1; });
-      return ground >= 148;
+      return ground >= 178;
     }, null, { timeout: 30_000 });
 
     await page.evaluate(() => {
