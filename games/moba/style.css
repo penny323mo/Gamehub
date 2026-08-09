@@ -60,6 +60,19 @@ html, body {
 #loading .sub { margin: 0; opacity: 0.62; letter-spacing: 0.12em; }
 .load-track { width: min(360px, 74vw); height: 6px; border-radius: 99px; background: #ffffff1c; overflow: hidden; }
 .load-track i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--blue), var(--gold)); transition: width 0.2s; }
+
+/* 唔知總數嗰陣嘅 bar：一條來回掃嘅光。
+   伺服器冇畀 Content-Length 就真係唔知落到幾多——**報一個假嘅 0% 比冇 bar
+   更差**，因為玩家會以為佢卡死咗。呢條掃緊嘅光講嘅係「仲有嘢喺度行」，
+   而唔係「行咗幾多」，配合旁邊逐秒郁嘅 MB 數字就夠交代。 */
+.load-track i.unknown { width: 38%; transition: none; animation: gh-load-sweep 1.1s ease-in-out infinite alternate; }
+@keyframes gh-load-sweep { from { margin-left: 0; } to { margin-left: 62%; } }
+@media (prefers-reduced-motion: reduce) {
+  /* 減少動態嘅人唔應該對住一條掃來掃去嘅嘢。改成慢慢明滅，一樣講到
+     「仲行緊」，但唔會有橫向移動。 */
+  .load-track i.unknown { animation: gh-load-pulse 1.6s ease-in-out infinite alternate; margin-left: 31%; }
+  @keyframes gh-load-pulse { from { opacity: 0.35; } to { opacity: 1; } }
+}
 #load-label { margin: 0; opacity: 0.6; font-size: 13px; }
 #load-retry {
     margin-top: 10px; padding: 12px 30px; font-size: 15px; letter-spacing: 0.1em;

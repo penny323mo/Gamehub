@@ -12,6 +12,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { DRACOLoader } from '../vendor/DRACOLoader.js';
 import { clone as cloneSkinned } from '../vendor/SkeletonUtils.js';
+import { 建位元組進度 } from '../../shared/js/byte-progress.mjs';
 
 const BASE = new URL('../assets/models/', import.meta.url).href;
 
@@ -48,16 +49,17 @@ function getLoader() {
     return loader;
 }
 
-const loadOnce = (url) => new Promise((res, rej) => getLoader().load(url, res, undefined, rej));
+const loadOnce = (url, 報) => new Promise((res, rej) =>
+    getLoader().load(url, res, 報 ? (e) => 報(e.loaded, e.total) : undefined, rej));
 
 // 手機網絡會斷斷續續，而呢度有十二個資產行 Promise.all——任何一個甩咗，
 // 成個載入就 reject，玩家見到「載入失敗」跟住乜都做唔到。實測甩一次就
 // 已經係咁。一次過性嘅失敗值得自己再試，唔應該要玩家自己撳重新整理。
-const loadGltf = async (url, attempts = 3) => {
+const loadGltf = async (url, attempts = 3, 報) => {
     let last;
     for (let i = 0; i < attempts; i++) {
         try {
-            return await loadOnce(url);
+            return await loadOnce(url, 報);
         } catch (err) {
             last = err;
             if (i < attempts - 1) await new Promise(r => setTimeout(r, 300 * (i + 1)));
@@ -94,7 +96,12 @@ export class Assets {
         this.weapons = null;
     }
 
-    // onProgress(done, total) 畀載入畫面用
+    // onProgress(分數, { 完咗, 件數 }) 畀載入畫面用。
+    //
+    // 以前係 onProgress(done, total)，即係「幾多件落完」。但下面十四個 job
+    // 係 `Promise.all` 平行落嘅——頻寬分薄，冇一件會早早完成。實測 Fast 3G：
+    // 撳完之後畫面連續 23.6 秒一個 pixel 都冇變，個 label 一直係開場嗰句
+    // 「載入資產…」，一次都冇更新過。所以改成量位元組。
     async load(onProgress = () => {}) {
         const jobs = [
             ['anims', 'anims.glb'],
@@ -103,12 +110,14 @@ export class Assets {
             ...Object.entries(CHAMPION_MODELS).map(([k, v]) => ['champ:' + k, v]),
             ...Object.entries(MINION_MODELS).map(([k, v]) => ['minion:' + k, v]),
         ];
-        let done = 0;
+        const 進度 = 建位元組進度(jobs.length, onProgress);
         const results = await Promise.all(jobs.map(async ([key, file]) => {
-            const gltf = await loadGltf(bust(BASE + file));
-            onProgress(++done, jobs.length);
+            const url = bust(BASE + file);
+            const gltf = await loadGltf(url, 3, (落咗, 全) => 進度.報(url, 落咗, 全));
+            進度.完(url);
             return [key, gltf];
         }));
+        進度.齊();
 
         for (const [key, gltf] of results) {
             if (key === 'anims') {

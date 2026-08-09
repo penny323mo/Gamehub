@@ -4496,6 +4496,62 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-210 — Hub: 有字唔等於有交代——進度嘅單位揀錯咗
+
+Date: 2026-08-09. Status: accepted.
+
+一輪「入到局要落幾多」嘅探路，第一個結果就推翻咗我個前提：
+**七隻遊戲入局後全部 ＋0 KB。** 唔存在「入到局先落」呢件事——每隻遊戲喺你
+仲喺開場畫面、未決定玩唔玩嗰陣，就已經落晒。所以真正嘅問題唔係「入局要
+落幾多」，係「落緊嗰陣你睇唔睇得出佢仲行緊」。
+
+### 量到咩
+
+Fast 3G、390×844，量「載入畫面出緊嗰陣，畫面最長靜咗幾耐」：
+
+| 遊戲 | 落 | 最長靜默 |
+|---|---|---|
+| Tower（ADR-203 修過） | 1,291 KB | **0.0s** |
+| 深淵之橋 MOBA | 2,527 KB | **23.6s** |
+| Empire Royale | 1,913 KB | **14.4s** |
+
+兩隻都**有字**——「載入資產…」「載入模型中…」——但個字十幾廿秒都唔郁,
+條 bar 一直 0%。**有字唔等於有交代。**
+
+### 根因：唔係冇寫進度，係進度嘅單位揀錯咗
+
+兩邊都係 `Promise.all` 平行落十幾個 GLB，而進度用「幾多件落完 / 總共幾多件」
+計。平行落嘅時候頻寬係分薄嘅——**冇一件會早早完成**，所以個數由 0 一路企到
+最後先跳去 100。改成量位元組（新 `games/shared/js/byte-progress.mjs`，兩隻共用）
+就逐格郁：MOBA 由「0/12 企 13 秒」變成 MB 數字逐秒行。
+
+### 唔知總數就唔好報一個數
+
+伺服器冇送 `Content-Length` 嘅話 `e.total` 係 0，總數真係唔知。呢種時候
+報 0% 就係退返去原本個病。所以 `建位元組進度` 喺呢種情況報 `null`，UI 出
+一條 indeterminate 嘅掃光 bar ＋ 逐秒郁嘅 MB 數字（`prefers-reduced-motion`
+之下改成明滅，唔會有橫向移動）。**一條假嘅 0% 比冇 bar 更差**——玩家會以為
+佢卡死咗。
+
+### 四個「把尺講緊自己」嘅記錄
+
+1. **量「見唔見到個開始掣」量到 0.08 秒**：啲掣係靜態 HTML，parser 一行到
+   就見到。（同 ADR-209 同一個錯，喺同一日再犯一次。）
+2. **量到 MOBA「靜默 75 秒」**：其實佢喺揀英雄畫面度等緊你。靜默只喺
+   「你仲等緊」嗰段先算數。**一條分唔開「卡住」同「等你」嘅 gate 係壞 gate。**
+3. **「撳得到」用 regex 撞**：MOBA 個掣寫「開打」（regex 冇），Racing Car 個
+   `#start-btn` 喺 `top: 1851`（844 高嘅畫面下面成千 px，要捲）。兩次都報
+   「從來冇」，兩次都係掃唔到。改成逐隻遊戲寫明 selector。
+4. **我個測試伺服器冇送 `Content-Length`**（`writeHead` 之後 Node 轉咗 chunked），
+   所以 `e.total` 係 0、百分比卡死喺 0%。GitHub Pages 一定會送。
+   **一把量唔到真實情況嘅尺，講嘅係佢自己**——我差啲就當咗係產品有病。
+
+### 把尺
+
+`tests/hub-wait.mjs`：載入畫面出緊嗰陣，畫面唔可以靜過 3 秒。門檻由實測定
+——修好之後三隻都係 0.0s，未修係 23.6／14.4s，3 秒喺中間離兩邊都好遠。
+突變（MOBA 退返「幾多件落完」）令佢報紅，而且叫得出係 MOBA、靜咗 10.7 秒。
+
 ## ADR-209 — Hub: 一個 CDN 慢，可以令到六隻本來全本地嘅遊戲乜都唔郁
 
 Date: 2026-08-09. Status: accepted.

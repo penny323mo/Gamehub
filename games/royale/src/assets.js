@@ -1,5 +1,6 @@
 // Quaternius CC0 模型載入器（https://quaternius.com）
 import * as THREE from 'three';
+import { 建位元組進度 } from '../../shared/js/byte-progress.mjs';
 import { GLTFLoader } from '../vendor/GLTFLoader.js';
 import { DRACOLoader } from '../vendor/DRACOLoader.js';
 import { clone as skeletonClone } from '../vendor/SkeletonUtils.js';
@@ -51,9 +52,16 @@ export async function loadAssets(onProgress) {
     draco.setDecoderPath('vendor/draco/');
     loader.setDRACOLoader(draco);
     const keys = Object.keys(FILES);
-    let done = 0;
+    // 進度以前係 `done / keys.length`，即係「幾多件落完」。但下面成十幾件係
+    // `Promise.all` 平行落——頻寬分薄，冇一件會早早完成。實測 Fast 3G：
+    // 開場之後畫面連續 14.4 秒一個 pixel 都冇變，個 label 一直係「載入模型中…」,
+    // 條 bar 一直 0%。所以改成量位元組。
+    const 進度 = 建位元組進度(keys.length, (分, 詳) => onProgress?.(分, 詳));
     await Promise.all(keys.map(async (key) => {
-        const gltf = await loader.loadAsync(`assets/models/${FILES[key]}`);
+        const url = `assets/models/${FILES[key]}`;
+        const gltf = await new Promise((res, rej) => loader.load(
+            url, res, (e) => 進度.報(url, e.loaded, e.total), rej));
+        進度.完(url);
         gltf.scene.traverse((o) => {
             if (o.isMesh) {
                 o.castShadow = true;
@@ -73,9 +81,8 @@ export async function loadAssets(onProgress) {
             rawHeight: rawSize.y || 1,
             rawLen: Math.max(rawSize.x, rawSize.y, rawSize.z) || 1,
         };
-        done++;
-        onProgress?.(done / keys.length);
     }));
+    進度.齊();
     return ASSETS;
 }
 

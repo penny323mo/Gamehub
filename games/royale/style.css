@@ -75,6 +75,21 @@ body {
     transition: width .2s;
 }
 
+/* 唔知總數嗰陣嘅 bar：一條來回掃嘅光。
+   伺服器冇畀 Content-Length 就真係唔知落到幾多——**報一個假嘅 0% 比冇 bar
+   更差**，因為玩家會以為佢卡死咗。呢條掃緊嘅光講嘅係「仲有嘢喺度行」，
+   而唔係「行咗幾多」，配合旁邊逐秒郁嘅 MB 數字就夠交代。 */
+#load-fill.unknown {
+    width: 38%;
+    transition: none;
+    animation: gh-load-sweep 1.1s ease-in-out infinite alternate;
+}
+@keyframes gh-load-sweep { from { margin-left: 0; } to { margin-left: 62%; } }
+@media (prefers-reduced-motion: reduce) {
+    #load-fill.unknown { animation: gh-load-pulse 1.6s ease-in-out infinite alternate; margin-left: 31%; }
+    @keyframes gh-load-pulse { from { opacity: .35; } to { opacity: 1; } }
+}
+
 /* 卡面 3D 圖 */
 .card img.art {
     width: 84%;

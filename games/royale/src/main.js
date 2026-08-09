@@ -1263,9 +1263,23 @@ function loop(now) {
 // ---------- 啟動 ----------
 async function init() {
     const loadFill = document.getElementById('load-fill');
+    const loadLabel = document.getElementById('loading-label');
     try {
-        await loadAssets((p) => {
-            if (loadFill) loadFill.style.width = `${Math.round(p * 100)}%`;
+        // 條 bar 加埋個百分比：**一條唔郁嘅 bar 同一句唔郁嘅字，玩家分唔清
+        // 「載緊」同「死咗」。** 而家兩樣都逐格行。
+        await loadAssets((p, 詳) => {
+            const MB = 詳?.落咗 ? `　${(詳.落咗 / 1048576).toFixed(1)} MB` : '';
+            if (p === null) {
+                // 冇 Content-Length 就唔知總數。唔好報假百分比——出一條唔知
+                // 幾耐嘅 bar，靠 MB 交代。
+                loadFill?.classList.add('unknown');
+                if (loadLabel) loadLabel.textContent = `⚔️ 帝國皇家戰 · 載入模型中…${MB}`;
+            } else {
+                loadFill?.classList.remove('unknown');
+                const pct = Math.round(p * 100);
+                if (loadFill) loadFill.style.width = `${pct}%`;
+                if (loadLabel) loadLabel.textContent = `⚔️ 帝國皇家戰 · 載入模型中… ${pct}%${MB}`;
+            }
         });
     } catch (err) {
         const label = document.querySelector('#loading .loading-label');

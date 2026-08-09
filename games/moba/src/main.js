@@ -33,9 +33,18 @@ async function boot() {
     const label = $('#load-label');
     state.assets = new Assets();
     try {
-        await state.assets.load((done, total) => {
-            bar.style.width = `${(done / total) * 100}%`;
-            label.textContent = `載入資產 ${done}/${total}`;
+        await state.assets.load((分, { 落咗, 完咗, 件數 }) => {
+            const MB = 落咗 ? `${(落咗 / 1048576).toFixed(1)} MB` : '';
+            if (分 === null) {
+                // 伺服器冇畀 Content-Length，總數真係唔知。唔好報一個假百分比
+                // ——出一條唔知幾耐嘅 bar，靠「落咗幾多 MB」交代。
+                bar.classList.add('unknown');
+                label.textContent = `載入資產…　${MB}`;
+            } else {
+                bar.classList.remove('unknown');
+                bar.style.width = `${Math.round(分 * 100)}%`;
+                label.textContent = `載入資產 ${Math.round(分 * 100)}%　${MB}　${完咗}/${件數}`;
+            }
         });
     } catch (err) {
         // 重試都仲係唔得先至到呢度。唔可以就咁死喺度——畀返一條路玩家自己

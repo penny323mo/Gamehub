@@ -1,10 +1,10 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-09 (Asia/Macau)
-Prepared by: Claude Code (cloud) — ADR-202 至 209
+Prepared by: Claude Code (cloud) — ADR-202 至 210
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: Tower 四輪已合埋 main；ADR-206–209 四把跨遊戲尺（掂、載、鍵盤、第三方）掃齊十二個介面
+Status: Tower 四輪已合埋 main；ADR-206–210 五把跨遊戲尺（掂、載、鍵盤、第三方、等緊）掃齊十二個介面
 
 ## Current objective
 
@@ -15,38 +15,17 @@ Status: Tower 四輪已合埋 main；ADR-206–209 四把跨遊戲尺（掂、�
 
 ## Completed
 
-**ADR-202（commit `c234210`，已合埋 main）**
+**ADR-202 至 205（Tower 四輪，已合埋 main；詳情喺 DECISIONS）**
 
-- 44×44 掂得到（六個掣本來 36–37px 高）、建塔欄兩邊漸隱、備戰橫額改由
-  `--hud-bottom` 錨住（幾何相交 73–100% → 0%）。
-- **修好 `tests/gateway.mjs` 嘅閃光 gate**：舊版四張相冇一張影到 0.55 秒嘅閃光，
-  個底自己又喺度呼吸（0.9–4.1pp）而門檻寫 0.45。重寫量法，門檻由實測定（4）。
-
-**ADR-203（本輪）**
-
-- **撳咗 START 之後嘅靜默**：要落 1,860 KB，Fast 3G 等 7.1 秒／Slow 3G 23.7 秒，
-  期間畫面一個 pixel 都冇變。加咗停用 ＋ 進度條（數字由 `載模型` 度計）。
-- **再撳一次會真係開多次波**：實測 `開波次數 = 2`。加 `disabled` ＋ `啟動中` 兩重擋。
-  `tests/load.mjs` 新增（5 條，已入 `test:browser`），用 CDP 真節流唔係 `sleep` 扮慢。
-
-**ADR-204（本輪）— Penny 話「個地圖唔夠廣闊」**
-
-- 唔係地細，係**個世界喺你最想望遠嗰陣斷咗**：佈景去到 X ±19／Z ±15，但鏡頭
-  zoom 得出到半對角 24.2——zoom 到盡見到 19→33 一條光板地帶加 18 枝圓錐。
-- 佈景範圍改由鏡頭推出嚟（密度跟距離跌）：1,115 → 3,775 件，伸到 X ±37／Z ±33；
-  遠山 18 個 Mesh → 三圈 66 個 instance，**draw call 由 18 變 1**。新 `envelopeRadius`
-  同 `underlayPadding` 拆開，唔係嘅話「鋪遠啲」會攤平島邊起伏。**一格可玩地都冇郁**。
-- 代價：桌面空場三角 141,362 → 384,294，手機 34,588 → 62,172；draw call ＋1。
-
-**ADR-205（本輪）— 輕微擴格＋條路重畫＋難度補返**
-
-- 格 20×12 → **24×14**、陸地 148 → **178 格**、條路 31 格 8 彎 → **37 格 10 彎**、
-  貼路塔位 60 → **72**；入口 [0,6]、出口 [23,5]、三區 0-7/8-15/16-23、河 col 11 橋 [11,5]。
-- **擴完一定要重掃難度**：未補之前 cap-30 由「跌 4 命」變成「20/20 一條唔跌」。
-  掃 HP 二次項 0.0022／0.0024／**0.0026**（15/20，最貼近原本 16/20），揀咗 0.0026。
-  新梯度（seed 198）：cap 20 → LOST wave 80；無限制 → 20/20、剩 9,120 金。
-- 五個 gate 跟住改。**`flow.mjs` 仲有三處寫死同一格**，其中一處係世界座標
-  `11.5 / 5.5`——grep 格座標搵唔到佢。
+- 202：44×44、建塔欄漸隱、橫額改由 `--hud-bottom` 錨住；順手修好 `gateway.mjs`
+  嘅閃光 gate（舊版四張相影唔到 0.55 秒嘅瞬態，而個底自己喺度呼吸）。
+- 203：撳完 START 之後 1,860 KB 嘅靜默 → 停用 ＋ 進度條；再撳一次會開多次波
+  （實測 `開波次數 = 2`）→ 兩重擋。新 `tests/load.mjs`，用 CDP 真節流。
+- 204：地圖唔係細，係**佈景喺你最想望遠嗰陣斷咗**。佈景範圍改由鏡頭推出嚟,
+  1,115 → 3,775 件；遠山 18 個 Mesh → 1 個 InstancedMesh。可玩地一格冇郁。
+- 205：格 20×12 → **24×14**、陸地 148 → 178、路 31 格 → **37 格 10 彎**、塔位 60 → 72。
+  擴完重掃難度，HP 二次項 → **0.0026**（cap-30 15/20，最貼近原本）。五個 gate 跟住改；
+  **`flow.mjs` 有三處寫死同一格**，一處係世界座標 `11.5 / 5.5`，grep 格座標搵唔到。
 
 **ADR-206（本輪）— 同一把手機尺掃成個 hub**
 
@@ -64,6 +43,23 @@ Status: Tower 四輪已合埋 main；ADR-206–209 四把跨遊戲尺（掂、�
   啱嘅（改成問「收唔收得到 focus」而唔係逐個機制認）；②讀 focus style 讀咗
   transition 第 0 格（同 ADR-202 閃光 gate 一樣嘅錯，等 260ms 就啱）；
   ③Tab 預算對住「我數到嘅控制」而唔係「成頁可 focus 總數」，係**掃唔夠**唔係掃唔到。
+
+**ADR-210（本輪）— 有字唔等於有交代**
+
+- 探路第一個結果推翻咗前提：**七隻遊戲入局後全部 ＋0 KB**——冇「入到局先落」
+  呢件事，全部喺開場畫面就落晒。真問題係「落緊嗰陣睇唔睇得出佢仲行緊」。
+- Fast 3G 量「載入畫面期間最長靜默」：Tower（ADR-203 修過）**0.0s**、
+  MOBA **23.6s**、Royale **14.4s**。兩隻都有字（「載入資產…」「載入模型中…」）
+  但個字十幾廿秒唔郁，條 bar 一直 0%。
+- 根因係**進度嘅單位揀錯**：`Promise.all` 平行落十幾個 GLB，而進度用「幾多件
+  落完」計——平行落冇一件早完，所以 0 企到最後跳去 100。改成量位元組
+  （新共用 `games/shared/js/byte-progress.mjs`）。冇 `Content-Length` 嗰陣報
+  `null`，出 indeterminate 掃光 bar ＋ MB 數字，**唔報假嘅 0%**。
+- 四個「把尺講緊自己」：①again 量「見唔見到個掣」量到 0.08s（同 ADR-209
+  同一日犯多次）；②量到 MOBA 靜默 75 秒，其實佢喺揀英雄度等緊你；
+  ③regex 撞唔到「開打」，又撞唔到 Racing Car 個 `top:1851` 嘅 `#start-btn`；
+  ④**我個 test server 冇送 `Content-Length`**，`e.total` 變 0，百分比卡死喺 0%。
+- 新 `tests/hub-wait.mjs` 1/1（靜默上限 3 秒）。突變令 MOBA 報紅（靜 10.7s）。
 
 **ADR-209（本輪）— 一個 CDN 慢，六隻本來全本地嘅遊戲乜都唔郁**
 
@@ -86,7 +82,9 @@ Status: Tower 四輪已合埋 main；ADR-206–209 四把跨遊戲尺（掂、�
 - Tower：`src/main.ts`（`錨定橫額()`／`等資產()`／`啟動中`／seam 加 `開波次數`）、
   `src/render/assets.ts`、`src/ui/style.css`、`index.html`、`tests/{touch,load}.mjs`（新）、
   `tests/gateway.mjs`（閃光量法大修）、`configs/map.json`、`src/core/config.ts`、`dist/`
-- 跨遊戲：`tests/hub-{touch,load,keyboard,cdn}.mjs`（全新）、`launcher.js`（`<picture>`）
+- 跨遊戲：`tests/hub-{touch,load,keyboard,cdn,wait}.mjs`（全新）、`launcher.js`（`<picture>`）
+- ADR-210：`games/shared/js/byte-progress.mjs`（新）、moba `src/{assets,main}.js`＋`style.css`、
+  royale `src/{assets,main}.js`＋`style.css`＋`index.html`
 - ADR-209：`games/shared/js/online_utils.js`（`loadSupabaseSdk`／`holdOnlineEntries`）、
   big2／doudizhu／gomoku／snooker(×3)／xiangqi-ai 嘅 `index.html` ＋ `online.js`
 
@@ -94,7 +92,7 @@ Status: Tower 四輪已合埋 main；ADR-206–209 四把跨遊戲尺（掂、�
 
 - `npm test`：PASS（要 `PW_CHROMIUM=/opt/pw-browsers/chromium`）。Tower：
   `touch` 6/6、`load` 5/5、`gateway` 連跑三次 11/11（青增 10.12／9.99／10.70，門檻 4）。
-- 跨遊戲：`hub` 96/96、`hub-touch` 5/5、`hub-load` 2/2、`hub-keyboard` 3/3、`hub-cdn` 3/3。
+- 跨遊戲：`hub` 96/96、`hub-touch` 5/5、`hub-load` 2/2、`hub-keyboard` 3/3、`hub-cdn` 3/3、`hub-wait` 1/1。
 - Mutation 驗過八次，每次都報紅而且叫得出係邊個（最新三次：擺返 parser-blocking
   script tag、拆走佔位 toast、拆走佔位自卸）。
 
@@ -108,8 +106,8 @@ Status: Tower 四輪已合埋 main；ADR-206–209 四把跨遊戲尺（掂、�
 ## Exact next action
 
 1. `export PW_CHROMIUM=/opt/pw-browsers/chromium`，跑 `./scripts/agent-context.sh --sync`。
-2. Tower 自己嘅 1,860 KB 未縮過（758 kB 單 chunk ＋ 1,086 KB GLB 兩邊都有位）；
-   `tests/load.mjs` 已經有位擺載入時間 gate。Xiangqi dist 亦有 594 kB 單 chunk。
+2. **重量本身仲未郁過**：MOBA 2,527 KB／Royale 1,913 KB／Tower 1,291 KB 全部
+   喺開場畫面就落晒。Tower 嗰 1,087 KB GLB 未壓過（MOBA／Royale 已用 Draco）。
 3. 一個檢查點一件事，改完連 handoff 一齊 commit。
 
 ## Do not redo
