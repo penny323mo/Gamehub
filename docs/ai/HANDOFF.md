@@ -65,19 +65,17 @@ Status: Tower 四輪改善已合埋 main；ADR-206 將同一把手機尺掃咗�
 - 新 `tests/hub-touch.mjs`：iPhone SE 375×667 逐個開場畫面問四句。
   十二個介面全部載得起、開場零 error、375px 唔爆版——**三條本來就過**；
   掂得到嘅控制 ≥44×44 **捉到八個介面共 24 個**。
-- 最嚴重 Empire Royale 12 個（四個角掣 40×40、五個分頁 58×35、模式／難度掣 41–43）；
-  Tower 自己仲有 3 個（開場難度掣 37 高）——**ADR-202 嗰把尺撳咗 START 之後先量，
-  睇唔到開場畫面**。一把尺嘅盲點要另一把尺喺唔同時機先捉到。
-- Hub 嘅 carousel 圓點 24×24 **冇當佢係 bug**：嗰度已寫明特登用 WCAG 2.5.8，
-  因為 320px 之下 44×4 塞唔落。個例外連理由一齊寫咗入把尺度，
-  **唔係將標準由 44 改細**。
-- 改法一律 `min-height`／`min-width`。Royale 角掣 40→44 之後，
-  `#help-btn` 嘅 `right: 58px` 同 `#cam-controls` 嘅 `top: 58px` 係手算嘅
-  「40 ＋ 間距」，一齊加到 62。修完再掃仲有兩個先浮現（本來畀第一層擋住）。
-- **橫屏補一輪**：把尺加咗 667×375，變成 12 個介面 × 2 個姿勢。捉到
-  Royale `#rank-badge` 橫屏得 189×36（直屏分兩行所以夠高）。另外四個
-  「跌出畫面底」嘅控制驗完全部捲得返入嚟，唔係 bug——條 check 改成
-  **真係 `scrollIntoView` 一次再睇**，唔靠讀 overflow 去估。5/5。
+- 最嚴重 Empire Royale 12 個；Tower 自己仲有 3 個（開場難度掣）——**ADR-202
+  嗰把尺撳咗 START 之後先量，睇唔到開場畫面**。Hub 嘅 carousel 圓點 24×24
+  **冇當佢係 bug**（有理由嘅例外連理由一齊寫入把尺，唔係改細標準）。
+  改法一律 `min-height`；Royale 角掣 40→44 之後有兩個手算嘅位置數要跟住加。
+- **橫屏補一輪**：12 個介面 × 2 個姿勢。捉到 Royale `#rank-badge` 橫屏 189×36；
+  四個「跌出畫面底」嘅驗完全部捲得返入嚟唔算 bug——條 check 改成真係捲一次。5/5。
+- **ADR-207 載入重量**：`tests/hub-load.mjs` 量瀏覽器實際落幾多（唔係磁碟大細
+  ——Snooker 磁碟 27 MB 但只落 123 KB）。Hub launcher 904 KB 入面 847 KB
+  係兩張大 12／20 倍嘅 logo；縮到 160×160 ＋ `<picture>` 之後 **904 → 68 KB**。
+  兩條 gate：開場 4 MB、圖唔可以大過**最大**顯示尺寸 3 倍（倍數要對住最大
+  嗰個 viewport 計，唔係最細嗰個）。2/2。
 - Playwright 淨係裝喺 `games/tower/node_modules`，所以個 test 做咗 resolve fallback，
   搵唔到會叫你 `(cd games/tower && npm ci)`。
 

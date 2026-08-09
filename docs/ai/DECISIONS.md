@@ -4496,6 +4496,63 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-207 — Hub: 每個玩家一入嚟就落 847K，去畫兩個 52×52 嘅 icon
+
+Date: 2026-08-09. Status: accepted.
+
+ADR-203 喺 Tower 度量過載入成本。同一把尺掃成個 hub。
+
+**量嘅係瀏覽器實際落咗幾多，唔係磁碟有幾大。** 磁碟上面 Snooker 27 MB、
+Royale 21 MB、Racing Car 20 MB，但 Snooker 實際只落 **123 KB**——
+嗰啲係冇 reference 到嘅資產同 vendored 源碼，落唔到玩家部電話度。
+**兩個數差成二百倍，用錯嗰個就會去優化一件根本冇人落嘅嘢。**
+
+實測（390×844，開場畫面直到網絡靜低為止）：
+
+| 遊戲 | 落幾多 | 大頭 |
+| --- | --- | --- |
+| 深淵之橋 MOBA | 3,426 KB | glb 1,997K |
+| Empire Royale | 2,682 KB | glb 1,344K ＋ js 1,286K |
+| Tower Defense | 1,864 KB | glb 1,087K |
+| Racing Car 3D | 1,556 KB | js 1,114K |
+| **Hub launcher** | **904 KB** | **png 847K** |
+| 其餘七個 | 76–596 KB | |
+
+冇一個誇張。但 **hub launcher 係每個玩家第一個掂到嘅頁**，而佢 904 KB
+入面 847 KB 係兩張圖：
+
+| 檔案 | 大細 | 原尺寸 | 手機顯示 | 倍 |
+| --- | --- | --- | --- | --- |
+| `xiangqi_logo.png` | 498 KB | 640×640 | 52×52 | 12.3× |
+| `doudizhu_logo.png` | 349 KB | 1024×1024 | 52×52 | 19.7× |
+
+縮到 160×160（桌面最大顯示 72 × DPR 2 = 144，留少少頭位）：
+WebP 10K、PNG 76K。用 `<picture>`——撐 WebP 落 10K，唔撐落返 PNG，
+**保住原本個 logo，唔會 fallback 去一個唔啱嘅 emoji**（原本 `onerror`
+係換做 🀄，對呢兩隻遊戲嚟講係錯嘅圖）。Hub launcher **904 KB → 68 KB**。
+
+冇 PIL／ImageMagick／sharp，用 Chromium 自己嘅 canvas 縮。
+
+### 兩條 gate，兩條都係量完先定
+
+- **開場畫面 4 MB 上限。** 我第一版寫 5 MB，十二個一個都捉唔到——
+  **一條分唔開任何嘢嘅線唔算 gate。**
+- **圖唔可以大過佢最大顯示尺寸嘅 3 倍。** 呢條先係真正捉到嘢嗰條：
+  904 KB 本身唔算誇張，**量「重量」係捉唔到佢嘅，量「倍數」先捉到**。
+
+倍數要對住「**最大**會顯示到幾大」計，唔係對住其中一個 viewport。
+我第一版淨係喺 390×844 度量，160 嘅 icon 喺手機顯示 52 就讀到 3.1 倍報紅
+——但同一張圖喺桌面顯示 72，DPR 2 之下要 144，160 係啱嘅。
+**對住最細嗰個 viewport 計倍數，等於叫人服務唔到大螢幕。**
+而家兩個 viewport 都量，每張圖取最大顯示尺寸。
+
+### Mutation 都做錯咗一次
+
+第一次我淨係換返大 PNG，gate 照綠——因為 `<picture>` 服務緊 WebP，
+大 PNG 根本冇落過。要連 `<source>` 一齊拆走，令個大圖真係被服務，
+先驗到（8.9× 同 14.2×，hub 打回 905 KB）。
+**拆嘅嘢要係「真係被用到嗰件」，唔係「睇落似嗰件」。**
+
 ## ADR-206 — Hub: 同一把尺掃十二個介面，二十四個掂唔到嘅掣
 
 Date: 2026-08-09. Status: accepted.
