@@ -39,7 +39,7 @@ import {
     saveRunCheckpoint,
     type RunCheckpoint,
 } from './ui/runCheckpoint';
-import { 量模型, 預載, 塔件清單, 敵件清單 } from './render/assets';
+import { 量模型, 預載, 塔件清單, 敵件清單, 載入進度 } from './render/assets';
 import { Gateway } from './render/gateway';
 
 // ─── State ───
@@ -1259,8 +1259,62 @@ function refreshContinueCard(): void {
     continueSummaryEl.textContent = `Wave ${availableCheckpoint.currentWave + 1} · ${difficulty} · ${availableCheckpoint.gold}g · ${availableCheckpoint.towers.length} towers`;
 }
 
+/*
+ * 撳咗 START 到真係打得，中間可以係一段好長嘅靜默。
+ *
+ * 實測（390×844 手機，`tests/load.mjs` 守住）：要落 1,860 KB（758 JS ＋ 1,086 GLB），
+ * Fast 3G 撳完等 **7.1 秒**、Slow 3G 等 **23.7 秒**，冇限速都仲有 3.5 秒——
+ * 而**期間畫面一個 pixel 都冇變**。個掣照樣寫「▶ START」、照樣 enabled、
+ * 照樣 `cursor: pointer`。玩家收到嘅唯一訊息係「撳咗冇反應」，跟住就會再撳。
+ *
+ * 兩件事一齊做：
+ *   • **交代**：即刻停用個掣、擺條進度出嚟，逐格更新到落齊為止。
+ *   • **擋重入**：`啟動中` 一個旗。冇佢嘅話，第二下撳會再行一次 `enterRun`,
+ *     即係再 `startNextWave`、再 `audioSystem.startMusic()`、再覆蓋一次 `state`。
+ *     喺一個要等 24 秒嘅畫面度，「再撳一次」係必然會發生嘅事，唔係邊緣情況。
+ */
+const loadStatusEl = document.getElementById('load-status')!;
+const loadFillEl = document.getElementById('load-fill')!;
+const loadTextEl = document.getElementById('load-text')!;
+let 啟動中 = false;
+
+function 顯示載入進度(): void {
+    const { 好, 叫 } = 載入進度();
+    const pct = 叫 > 0 ? Math.round((100 * 好) / 叫) : 0;
+    loadFillEl.style.width = `${pct}%`;
+    loadTextEl.textContent = `Loading assets… ${好}/${叫}`;
+}
+
+async function 等資產(): Promise<void> {
+    startBtn.disabled = true;
+    continueBtn.disabled = true;
+    loadStatusEl.classList.remove('hidden');
+    顯示載入進度();
+    const timer = window.setInterval(顯示載入進度, 120);
+    try {
+        await 地面好;
+    } finally {
+        clearInterval(timer);
+        loadStatusEl.classList.add('hidden');
+        startBtn.disabled = false;
+        continueBtn.disabled = false;
+    }
+}
+
+/*
+ * 開過幾多次波。**擺喺 seam 上面純粹係為咗量得到。**
+ *
+ * 「撳兩下 START 只可以開一次波」呢件事，喺遊戲狀態度睇唔出：第二次
+ * `enterRun` 會整個**全新**嘅 state 出嚟，佢一樣係 wave 0、一樣係 400 金，
+ * 舊嗰個就變咗孤兒。我第一版就係攞 `currentWave` 去驗，結果**拆走個防護
+ * 之後條 gate 一樣綠**——一條分唔開有冇 bug 嘅 gate，同冇 gate 一樣。
+ * 真正睇得出嘅後果係音樂疊住播，而嗰樣量唔到。所以加一個數。
+ */
+let 開波次數 = 0;
+
 async function enterRun(nextState: GameState, checkpoint: RunCheckpoint | null): Promise<void> {
-    await 地面好;
+    await 等資產();
+    開波次數 += 1;
     startScreen.classList.add('hidden');
     state = nextState;
     currentDifficulty = state.difficulty;
@@ -1280,18 +1334,30 @@ async function enterRun(nextState: GameState, checkpoint: RunCheckpoint | null):
 
 // Start a new defense, intentionally replacing any older checkpoint.
 startBtn.addEventListener('click', async () => {
-    clearRunCheckpoint();
-    const fresh = createInitialState(currentDifficulty);
-    fresh.speedMultiplier = persisted.prefs.speedMultiplier;
-    fresh.endlessMode = persisted.prefs.endlessMode;
-    await enterRun(fresh, null);
+    if (啟動中) return;
+    啟動中 = true;
+    try {
+        clearRunCheckpoint();
+        const fresh = createInitialState(currentDifficulty);
+        fresh.speedMultiplier = persisted.prefs.speedMultiplier;
+        fresh.endlessMode = persisted.prefs.endlessMode;
+        await enterRun(fresh, null);
+    } finally {
+        啟動中 = false;
+    }
 });
 
 continueBtn.addEventListener('click', async () => {
+    if (啟動中) return;
     const checkpoint = availableCheckpoint;
     if (!checkpoint) return;
-    const restored = restoreRunCheckpoint(checkpoint, persisted.prefs.speedMultiplier);
-    await enterRun(restored, checkpoint);
+    啟動中 = true;
+    try {
+        const restored = restoreRunCheckpoint(checkpoint, persisted.prefs.speedMultiplier);
+        await enterRun(restored, checkpoint);
+    } finally {
+        啟動中 = false;
+    }
 });
 
 // Difficulty Selector
@@ -1785,6 +1851,7 @@ function gameLoop(time: number): void {
     // 另開一個就變成量緊一件遊戲唔會行嘅嘢。
     量模型: 量模型,
     門狀態() { return gateway.狀態(); },
+    開波次數: () => 開波次數,
     設曲率(a: number, b: number) { 設HP曲率(a, b); },
     塔尺(id: number) { return towerRenderer.measure(id); },
     塔同步() { towerRenderer.sync(state); towerRenderer.animate(0.6, state); },

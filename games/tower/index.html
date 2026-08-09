@@ -306,6 +306,11 @@
         <button id="continue-btn" class="big-btn continue-btn">▶ Continue</button>
       </div>
       <button id="start-btn" class="big-btn">▶ START</button>
+      <!-- 撳咗 START 但資產未落齊嗰段時間嘅唯一交代。實測 Slow 3G 要等 23.7 秒。 -->
+      <div id="load-status" class="load-status hidden" role="status" aria-live="polite">
+        <div class="load-track"><div class="load-fill" id="load-fill"></div></div>
+        <div class="load-text" id="load-text">Loading…</div>
+      </div>
       <button class="big-btn secondary" onclick="window.location.href='../../../index.html'" style="margin-top:10px">🏠
         返回 Game Hub</button>
     </div>

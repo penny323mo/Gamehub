@@ -934,6 +934,52 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
+/*
+ * 撳咗 START 但資產未落齊嗰段時間。
+ *
+ * 呢隻 game 要落 1,860 KB（758 JS ＋ 1,086 GLB）先至打得。實測喺一部
+ * 390×844 嘅手機上面：Fast 3G 撳完等 **7.1 秒**、Slow 3G 等 **23.7 秒**，
+ * 而**期間畫面一個 pixel 都冇變**——個掣照樣寫住「▶ START」、照樣
+ * `cursor: pointer`、照樣 enabled。玩家唯一收到嘅訊息係「撳咗冇反應」。
+ * 就算完全冇限速都仲有 3.5 秒。
+ *
+ * 所以呢一橛唔係美化，係補返一句交代：撳咗、收到、仲爭幾多。
+ */
+.big-btn:disabled {
+  cursor: progress;
+  opacity: 0.72;
+  transform: none;
+  box-shadow: none;
+}
+
+.load-status {
+  width: min(280px, 80vw);
+  margin: 10px auto 0;
+}
+
+.load-track {
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.load-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--action), var(--action-strong));
+  transition: width 0.25s ease-out;
+}
+
+.load-text {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+
 /* ─── End Screen ─── */
 #end-screen {
   position: fixed;

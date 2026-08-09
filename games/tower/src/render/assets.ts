@@ -42,11 +42,29 @@ const BASE = 'models/';
 const loader = new GLTFLoader();
 const 載緊 = new Map<string, Promise<THREE.Group>>();
 
+/*
+ * 載入進度計喺**呢度**，唔喺 `預載` 度。
+ *
+ * 開場前要載嘅嘢由兩條清單嚟：`main.ts` 嗰條（門、塔件、敵件）同
+ * `sceneManager.buildGround()` 入面嗰條（地磚、地貌、佈景）。喺 `預載` 度計就要
+ * 兩邊各計一份再夾埋——即係同一件事寫兩次。`載模型` 係兩邊都一定經過嘅窄門，
+ * 而且佢本身已經用 `載緊` 去重，所以喺呢度計唔會重複數同一個檔。
+ *
+ * 「總數」係**已經叫過嘅數**，唔係預先知嘅數。開場兩條清單幾乎同時發出，
+ * 所以佢一開波就穩定咗；但寫明係「叫過幾多」而唔係「一共有幾多」，
+ * 因為後者我根本冇喺一個地方知道。
+ */
+let 叫過 = 0;
+let 載好 = 0;
+export const 載入進度 = (): { 好: number; 叫: number } => ({ 好: 載好, 叫: 叫過 });
+
 /** 載一個 GLB（同一條 path 只會載一次）。返回嘅嘢**唔好直接改**，要 clone。 */
 export function 載模型(rel: string): Promise<THREE.Group> {
     let p = 載緊.get(rel);
     if (!p) {
+        叫過 += 1;
         p = loader.loadAsync(`${BASE}${rel}`).then((g) => {
+            載好 += 1;
             const root = g.scene;
             root.traverse((o) => {
                 const m = o as THREE.Mesh;

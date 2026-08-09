@@ -9,7 +9,7 @@
         "build": "tsc && vite build && node scripts/postbuild.mjs",
         "preview": "vite preview",
         "test:core": "node tests/map.mjs && node tests/route.mjs && node tests/chapters.mjs && node tests/gameplay-rng.mjs && node tests/tiles.mjs && node tests/balance.mjs",
-        "test:browser": "node tests/smoke.mjs && node tests/assets.mjs && node tests/combat.mjs && node tests/units.mjs && node tests/gateway.mjs && node tests/look.mjs && node tests/map-browser.mjs && node tests/touch.mjs && node tests/flow.mjs",
+        "test:browser": "node tests/smoke.mjs && node tests/assets.mjs && node tests/combat.mjs && node tests/units.mjs && node tests/gateway.mjs && node tests/look.mjs && node tests/map-browser.mjs && node tests/touch.mjs && node tests/load.mjs && node tests/flow.mjs",
         "test:render": "node tests/projectile-renderer.mjs && node tests/performance.mjs",
         "test": "npm run build && npm run test:core && npm run test:browser && npm run test:render",
         "test:full": "npm test && node tests/playthrough.mjs 99 999 0.04 0.0016 198"
