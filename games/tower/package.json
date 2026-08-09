@@ -7,13 +7,19 @@
         "dev": "vite",
         "dev:viewer": "vite --open viewer.html",
         "build": "tsc && vite build && node scripts/postbuild.mjs",
-        "preview": "vite preview"
+        "preview": "vite preview",
+        "test:core": "node tests/map.mjs && node tests/route.mjs && node tests/chapters.mjs && node tests/gameplay-rng.mjs && node tests/tiles.mjs && node tests/balance.mjs",
+        "test:browser": "node tests/smoke.mjs && node tests/assets.mjs && node tests/combat.mjs && node tests/units.mjs && node tests/gateway.mjs && node tests/look.mjs && node tests/map-browser.mjs && node tests/flow.mjs",
+        "test:render": "node tests/projectile-renderer.mjs && node tests/performance.mjs",
+        "test": "npm run build && npm run test:core && npm run test:browser && npm run test:render",
+        "test:full": "npm test && node tests/playthrough.mjs 99 999 0.04 0.0016 198"
     },
     "dependencies": {
         "three": "^0.170.0"
     },
     "devDependencies": {
         "@types/three": "^0.170.0",
+        "playwright": "^1.62.1",
         "typescript": "^5.7.0",
         "vite": "^6.0.0"
     }

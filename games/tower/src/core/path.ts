@@ -1,5 +1,6 @@
 import type { Vec2 } from './types';
 import { MAP } from './config';
+import { buildSmoothRoute } from './route';
 
 /** Convert grid cell [col, row] to world position (center of cell) */
 export function cellToWorld(col: number, row: number): Vec2 {
@@ -16,9 +17,13 @@ export function worldToCell(wx: number, wz: number): { col: number; row: number 
     return { col, row };
 }
 
-/** Build world-space path from map config */
+/**
+ * Build the continuous world-space travel spine from the authoritative road
+ * cells. Towers still use the grid for placement; enemies follow this rounded,
+ * evenly sampled line so an irregular map does not feel like a square maze.
+ */
 export function buildPathWorld(): Vec2[] {
-    return MAP.path.map(([c, r]) => cellToWorld(c, r));
+    return buildSmoothRoute(MAP.path.map(([c, r]) => cellToWorld(c, r)));
 }
 
 /** Distance between two world points (2D XZ plane) */

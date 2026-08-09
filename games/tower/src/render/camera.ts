@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { MAP } from '../core/config';
+import { cellToWorld } from '../core/path';
+import { LAYOUT } from '../core/mapLayout';
 
 /* ── Constants ─────────────────────────────── */
 const DEFAULT_FRUSTUM = 10;
@@ -38,8 +39,10 @@ export class CameraController {
             0.1, 100
         );
 
-        this.cx = MAP.origin.x + MAP.cols * MAP.cellSize / 2;
-        this.cz = MAP.origin.z + MAP.rows * MAP.cellSize / 2;
+        const min = cellToWorld(LAYOUT.bounds.minCol, LAYOUT.bounds.minRow);
+        const max = cellToWorld(LAYOUT.bounds.maxCol, LAYOUT.bounds.maxRow);
+        this.cx = (min.x + max.x) / 2;
+        this.cz = (min.z + max.z) / 2;
         this.applyTransform();
     }
 

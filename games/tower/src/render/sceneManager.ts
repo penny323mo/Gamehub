@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { MAP, GRAPHICS } from '../core/config';
+import { MAP, GRAPHICS, SURFACE_Y } from '../core/config';
 import { cellToWorld } from '../core/path';
+import { LAYOUT } from '../core/mapLayout';
 import { 取, 預載 } from './assets';
 import { pathTiles } from './tileset';
 
@@ -9,6 +10,12 @@ const COLOR_PATH = 0xb68856;
 const COLOR_GRID_LINE = 0x31573a;
 const COLOR_SPAWN = 0x63c8ff;
 const COLOR_GOAL = 0xff6e56;
+
+interface ModelPlacement {
+    position: THREE.Vector3;
+    rotationY: number;
+    scale: number;
+}
 
 export class SceneManager {
     scene: THREE.Scene;
@@ -30,15 +37,17 @@ export class SceneManager {
      * 守住「格同格接得上」。呢度只負責擺。
      */
     async buildGround(): Promise<void> {
-        const { cols, rows, cellSize, origin } = MAP;
+        const { cellSize } = MAP;
 
         this.buildSkyDome();
         this.buildTerrainUnderlay();
 
-        const 鋪 = pathTiles(MAP.path);
+        const 鋪 = pathTiles(MAP.path, MAP.pathTileOverrides);
+        const 地貌模型 = LAYOUT.cells.flatMap((cell) => cell.terrain ? [`tiles/${cell.terrain.model}.glb`] : []);
         await 預載([
             'tiles/tile.glb',
             ...new Set(鋪.map((t) => `tiles/${t.model}.glb`)),
+            ...new Set(地貌模型),
             'scenery/detail_tree.glb', 'scenery/detail_treeLarge.glb',
             'scenery/detail_rocks.glb', 'scenery/detail_rocksLarge.glb',
             'scenery/detail_crystal.glb', 'scenery/detail_crystalLarge.glb',
@@ -50,39 +59,43 @@ export class SceneManager {
         const 路格 = new Map(鋪.map((t) => [`${t.col},${t.row}`, t]));
         const pickGeo = new THREE.PlaneGeometry(cellSize, cellSize);
         const pickMat = new THREE.MeshBasicMaterial({ visible: false });
+        const groundBatches = new Map<string, ModelPlacement[]>();
 
-        for (let c = 0; c < cols; c++) {
-            for (let r = 0; r < rows; r++) {
-                const pos = cellToWorld(c, r);
-                const t = 路格.get(`${c},${r}`);
-                const model = await 取(t ? `tiles/${t.model}.glb` : 'tiles/tile.glb');
-                model.position.set(pos.x, 0, pos.z);
-                model.rotation.y = t ? t.rotationY : 0;
-                this.scene.add(model);
+        this.buildIslandFoundation();
+        for (const cell of LAYOUT.cells) {
+            const { col: c, row: r } = cell;
+            const pos = cellToWorld(c, r);
+            const t = 路格.get(`${c},${r}`);
+            const terrain = cell.terrain;
+            const modelName = t?.model ?? terrain?.model ?? 'tile';
+            const rotK = t?.rotK ?? terrain?.rotK ?? 0;
+            // Bridge asset is 0.3 high while every gameplay surface is 0.2. Lower
+            // it by 0.1 so its deck meets the road and enemies do not sink into it.
+            const rel = `tiles/${modelName}.glb`;
+            const batch = groundBatches.get(rel) ?? [];
+            batch.push({
+                position: new THREE.Vector3(pos.x, modelName === 'tile_riverBridge' ? -0.1 : 0, pos.z),
+                rotationY: (rotK * Math.PI) / 2,
+                scale: 1,
+            });
+            groundBatches.set(rel, batch);
 
-                const pick = new THREE.Mesh(pickGeo, pickMat);
-                pick.rotation.x = -Math.PI / 2;
-                pick.position.set(pos.x, 0.201, pos.z);
-                pick.userData = { col: c, row: r, type: 'ground' };
-                this.scene.add(pick);
-                this.groundMeshes.push(pick);
-            }
+            // Keep one cheap semantic marker per cell for browser diagnostics. The GLB
+            // meshes themselves are instanced below; rendering 148 full clones cost
+            // hundreds of draw calls even though all geometry/materials were shared.
+            const marker = new THREE.Group();
+            marker.name = `ground:${c},${r}:${modelName}`;
+            marker.position.set(pos.x, 0, pos.z);
+            this.scene.add(marker);
+
+            const pick = new THREE.Mesh(pickGeo, pickMat);
+            pick.rotation.x = -Math.PI / 2;
+            pick.position.set(pos.x, SURFACE_Y + 0.001, pos.z);
+            pick.userData = { col: c, row: r, type: 'ground' };
+            this.scene.add(pick);
+            this.groundMeshes.push(pick);
         }
-
-        // 磚只有 0.2 厚，底下要有嘢托住，唔係側視就見到浮喺半空。
-        // 高度要放喺磚**底下**：底板 0.34 厚，中心擺 -0.18 即係頂面啱啱 -0.01，
-        // 唔會浸過磚面。擺錯咗（-0.02）個頂面就去到 0.15，成塊地變咗一浸平色。
-        const boardGeo = new THREE.BoxGeometry(cols * cellSize + 0.9, 0.34, rows * cellSize + 0.9);
-        const boardMat = GRAPHICS.isMobile
-            ? new THREE.MeshBasicMaterial({ color: 0x4a7a3f })
-            : new THREE.MeshStandardMaterial({ color: 0x4a7a3f, roughness: 0.95, metalness: 0 });
-        const board = new THREE.Mesh(boardGeo, boardMat);
-        board.position.set(origin.x + cols * cellSize / 2, -0.18, origin.z + rows * cellSize / 2);
-        board.receiveShadow = true;
-        this.scene.add(board);
-
-        await this.buildPads();
-        this.buildBoardFrame(board.position);
+        await this.addInstancedModelBatches(groundBatches, 'ground-batch');
         await this.buildScenery();
         this.buildDistantSilhouettes();
     }
@@ -123,6 +136,19 @@ export class SceneManager {
     }
 
     private buildTerrainUnderlay(): void {
+        // A very large basin sits below the sculpted terrain. Orthographic rays near
+        // the lower corners can hit far beyond the detailed mesh; without this safety
+        // floor the renderer exposes hard black triangles at the viewport edges.
+        const basinGeo = new THREE.PlaneGeometry(240, 240);
+        basinGeo.rotateX(-Math.PI / 2);
+        const basinMat = GRAPHICS.isMobile
+            ? new THREE.MeshLambertMaterial({ color: 0x315d38 })
+            : new THREE.MeshStandardMaterial({ color: 0x173b24, roughness: 1, metalness: 0 });
+        const basin = new THREE.Mesh(basinGeo, basinMat);
+        basin.position.y = -1.05;
+        basin.receiveShadow = true;
+        this.scene.add(basin);
+
         const width = MAP.cols + GRAPHICS.terrain.underlayPadding * 2;
         const depth = MAP.rows + GRAPHICS.terrain.underlayPadding * 2;
         const segments = GRAPHICS.terrain.underlaySegments;
@@ -138,14 +164,7 @@ export class SceneManager {
             const x = positions.getX(i) + centerX;
             const z = positions.getZ(i) + centerZ;
 
-            const boardDx = Math.max(0, Math.abs(x - centerX) - MAP.cols * 0.52);
-            const boardDz = Math.max(0, Math.abs(z - centerZ) - MAP.rows * 0.52);
-            const edgeDistance = Math.sqrt(boardDx * boardDx + boardDz * boardDz);
-            const envelope = THREE.MathUtils.smoothstep(edgeDistance, 0.25, GRAPHICS.terrain.underlayPadding);
-
-            const waveA = Math.sin(x * 0.22) * Math.cos(z * 0.18) * 0.16;
-            const waveB = Math.sin((x + z) * 0.11) * 0.12;
-            const height = (waveA + waveB) * envelope - 0.58;
+            const { height, envelope } = this.terrainSample(x, z);
             positions.setY(i, height);
 
             const shade = THREE.MathUtils.clamp(0.5 + envelope * 0.26 + height * 0.12, 0, 1);
@@ -175,33 +194,132 @@ export class SceneManager {
         this.scene.add(terrain);
     }
 
-    private buildBoardFrame(boardPosition: THREE.Vector3): void {
-        const frameGeo = new THREE.BoxGeometry(MAP.cols + 1.35, 0.2, MAP.rows + 1.35);
-        const frameMat = GRAPHICS.isMobile
-            ? new THREE.MeshLambertMaterial({ color: 0x2f4d33 })
-            : new THREE.MeshStandardMaterial({ color: 0x2f4d33, roughness: 0.8, metalness: 0 });
-        const frame = new THREE.Mesh(frameGeo, frameMat);
-        frame.position.copy(boardPosition);
-        frame.position.y = -0.34;
-        frame.receiveShadow = true;
-        this.scene.add(frame);
+    /** Height field falls away from the irregular land, not from a rectangular AABB. */
+    private terrainSample(x: number, z: number): { height: number; envelope: number } {
+        let nearest = Infinity;
+        for (const cell of LAYOUT.cells) {
+            const p = cellToWorld(cell.col, cell.row);
+            nearest = Math.min(nearest, Math.hypot(x - p.x, z - p.z));
+        }
+        const envelope = THREE.MathUtils.smoothstep(nearest, 0.55, GRAPHICS.terrain.underlayPadding);
+        const waveA = Math.sin(x * 0.22) * Math.cos(z * 0.18) * 0.16;
+        const waveB = Math.sin((x + z) * 0.11) * 0.12;
+        return { height: (waveA + waveB) * envelope - 0.58, envelope };
     }
 
-    private addRoadSegment(
-        mid: THREE.Vector3,
-        length: number,
-        width: number,
-        height: number,
-        y: number,
-        angle: number,
-        material: THREE.Material
-    ): void {
-        const segment = new THREE.Mesh(new THREE.BoxGeometry(width, height, length), material);
-        segment.position.copy(mid);
-        segment.position.y = y;
-        segment.rotation.y = angle;
-        segment.receiveShadow = true;
-        this.scene.add(segment);
+    /** Three terrain zones follow the active cells while leaving gameplay tile heights unchanged. */
+    private buildIslandFoundation(): void {
+        const count = LAYOUT.cells.length;
+        const upperGeo = new THREE.BoxGeometry(MAP.cellSize * 1.02, 0.34, MAP.cellSize * 1.02);
+        const cliffGeo = new THREE.BoxGeometry(MAP.cellSize, 1, MAP.cellSize);
+        const upperMat = GRAPHICS.isMobile
+            ? new THREE.MeshLambertMaterial({ color: 0x4c7743 })
+            : new THREE.MeshStandardMaterial({ color: 0x4c7743, roughness: 0.95, metalness: 0 });
+        const upper = new THREE.InstancedMesh(upperGeo, upperMat, count);
+        upper.name = 'island-soil';
+        const dummy = new THREE.Object3D();
+        LAYOUT.cells.forEach((cell, i) => {
+            const pos = cellToWorld(cell.col, cell.row);
+            dummy.position.set(pos.x, -0.17, pos.z);
+            dummy.updateMatrix();
+            upper.setMatrixAt(i, dummy.matrix);
+        });
+        upper.instanceMatrix.needsUpdate = true;
+        upper.receiveShadow = true;
+        this.scene.add(upper);
+
+        for (const region of LAYOUT.regions) {
+            const height = 0.26 + region.foundationTier * 0.18;
+            const color = new THREE.Color(region.accent).lerp(new THREE.Color(0x17271f), 0.72).getHex();
+            const edgeCells = LAYOUT.cells.filter((cell) => cell.region?.id === region.id
+                && this.isIslandEdge(cell.col, cell.row));
+            const material = GRAPHICS.isMobile
+                ? new THREE.MeshLambertMaterial({ color })
+                : new THREE.MeshStandardMaterial({ color, roughness: 0.94, metalness: 0 });
+            const cliff = new THREE.InstancedMesh(cliffGeo, material, edgeCells.length);
+            cliff.name = `island-cliff:${region.id}`;
+            cliff.userData.foundationTier = region.foundationTier;
+            edgeCells.forEach((cell, index) => {
+                const pos = cellToWorld(cell.col, cell.row);
+                // Deterministic edge erosion breaks the old ruler-straight slab silhouette.
+                const hash = Math.abs(Math.imul(cell.col + 19, 73856093) ^ Math.imul(cell.row + 31, 19349663));
+                const footprint = 0.94 + (hash % 9) * 0.012;
+                dummy.position.set(pos.x, -0.17 - height / 2, pos.z);
+                dummy.scale.set(footprint, height, footprint);
+                dummy.updateMatrix();
+                cliff.setMatrixAt(index, dummy.matrix);
+            });
+            cliff.instanceMatrix.needsUpdate = true;
+            cliff.receiveShadow = true;
+            this.scene.add(cliff);
+        }
+
+        this.buildRiverRift();
+        this.buildKeepMesa();
+    }
+
+    private isIslandEdge(col: number, row: number): boolean {
+        return !LAYOUT.cellAt(col - 1, row).exists || !LAYOUT.cellAt(col + 1, row).exists
+            || !LAYOUT.cellAt(col, row - 1).exists || !LAYOUT.cellAt(col, row + 1).exists;
+    }
+
+    /** Low water and rock shoulders continue the configured river through the split island. */
+    private buildRiverRift(): void {
+        const riverCells = LAYOUT.cells.filter((cell) => cell.terrain?.model.startsWith('tile_river'));
+        const bridge = MAP.pathTileOverrides?.find((tile) => tile.model === 'tile_riverBridge');
+        const riverCol = bridge?.cell[0] ?? riverCells[0]?.col;
+        if (riverCol === undefined) return;
+        const riverRows = [
+            ...riverCells.map((cell) => cell.row),
+            ...(bridge ? [bridge.cell[1]] : []),
+        ];
+        const minRow = Math.min(...riverRows);
+        const maxRow = Math.max(...riverRows);
+        const start = cellToWorld(riverCol, minRow);
+        const end = cellToWorld(riverCol, maxRow);
+        const water = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.72, end.z - start.z + MAP.cellSize + 3),
+            GRAPHICS.isMobile
+                ? new THREE.MeshLambertMaterial({
+                    color: 0x50b5b1, emissive: 0x153d3d, emissiveIntensity: 0.35,
+                    transparent: true, opacity: 0.82, depthWrite: false,
+                })
+                : new THREE.MeshStandardMaterial({
+                    color: 0x31989b, emissive: 0x12565a, emissiveIntensity: 0.62,
+                    roughness: 0.2, metalness: 0.04, transparent: true, opacity: 0.88, depthWrite: false,
+                }),
+        );
+        water.name = 'river-rift:water';
+        water.rotation.x = -Math.PI / 2;
+        water.position.set(start.x, -0.27, (start.z + end.z) / 2);
+        this.scene.add(water);
+    }
+
+    /** A tapered third stratum makes the keep read as a separate defensible mesa. */
+    private buildKeepMesa(): void {
+        const keepRegion = [...LAYOUT.regions].sort((a, b) => b.foundationTier - a.foundationTier)[0];
+        if (!keepRegion) return;
+        const keepCells = LAYOUT.cells.filter((cell) => cell.region?.id === keepRegion.id
+            && this.isIslandEdge(cell.col, cell.row));
+        const geometry = new THREE.BoxGeometry(MAP.cellSize * 0.84, 0.42, MAP.cellSize * 0.84);
+        const material = GRAPHICS.isMobile
+            ? new THREE.MeshLambertMaterial({ color: 0x1d2924 })
+            : new THREE.MeshStandardMaterial({ color: 0x1d2924, roughness: 0.98, metalness: 0 });
+        const mesa = new THREE.InstancedMesh(geometry, material, keepCells.length);
+        mesa.name = 'keep-mesa:lower-stratum';
+        const dummy = new THREE.Object3D();
+        keepCells.forEach((cell, index) => {
+            const pos = cellToWorld(cell.col, cell.row);
+            const cliffHeight = 0.26 + keepRegion.foundationTier * 0.18;
+            dummy.position.set(pos.x, -0.17 - cliffHeight - 0.13, pos.z);
+            dummy.rotation.set(0, 0, 0);
+            dummy.scale.set(1, 1, 1);
+            dummy.updateMatrix();
+            mesa.setMatrixAt(index, dummy.matrix);
+        });
+        mesa.instanceMatrix.needsUpdate = true;
+        mesa.receiveShadow = true;
+        this.scene.add(mesa);
     }
 
     /**
@@ -211,26 +329,6 @@ export class SceneManager {
      * 做種**嘅偽亂數，唔用 `Math.random()`——唔係嘅話每次入場成片樹林都唔同位，
      * 而 restart 之後條路仲要重畫一次，畫面就會跳。
      */
-    /**
-     * 建築平台要睇得見。
-     *
-     * `buildCells` 決定咗邊幾格起得塔（見 `economySystem.canBuild`），但如果
-     * 畫面上冇任何提示，玩家就要靠試——撳落去冇反應，唔知係唔夠錢定係唔畀起。
-     * 用 kit 嘅木台，一格一個，一眼睇得出「呢度可以擺嘢」。
-     */
-    private async buildPads(): Promise<void> {
-        const pads = MAP.buildCells ?? [];
-        if (pads.length === 0) return;
-        await 預載(['scenery/woodStructure.glb']);
-        for (const [c, r] of pads) {
-            const pos = cellToWorld(c, r);
-            const o = await 取('scenery/woodStructure.glb');
-            o.position.set(pos.x, 0.2, pos.z);
-            o.scale.set(0.92, 0.55, 0.92);
-            this.scene.add(o);
-        }
-    }
-
     private async buildScenery(): Promise<void> {
         const { cols, rows, cellSize } = MAP;
         const 種 = (c: number, r: number, k: number) => {
@@ -244,10 +342,17 @@ export class SceneManager {
         const borderSize = GRAPHICS.isMobile ? 5 : 9;
         const treeDensity = GRAPHICS.isMobile ? 0.18 : 0.34;
         const rockDensity = GRAPHICS.isMobile ? 0.06 : 0.14;
+        const batches = new Map<string, ModelPlacement[]>();
 
         for (let c = -borderSize; c < cols + borderSize; c++) {
             for (let r = -borderSize; r < rows + borderSize; r++) {
-                if (c >= -1 && c <= cols && r >= -1 && r <= rows) continue;
+                let 近陸地 = false;
+                for (let dc = -1; dc <= 1 && !近陸地; dc += 1) {
+                    for (let dr = -1; dr <= 1; dr += 1) {
+                        if (LAYOUT.cellAt(c + dc, r + dr).exists) { 近陸地 = true; break; }
+                    }
+                }
+                if (近陸地) continue;
                 const 骰 = 種(c, r, 1);
                 let 揀: string | null = null;
                 if (骰 < treeDensity) 揀 = 樹[種(c, r, 2) < 0.62 ? 0 : 1];
@@ -256,40 +361,111 @@ export class SceneManager {
                 if (!揀) continue;
 
                 const pos = cellToWorld(c, r);
-                const o = await 取(揀);
-                o.position.set(
-                    pos.x + (種(c, r, 5) - 0.5) * cellSize * 0.8,
-                    0,
-                    pos.z + (種(c, r, 6) - 0.5) * cellSize * 0.8,
-                );
-                o.rotation.y = 種(c, r, 7) * Math.PI * 2;
-                o.scale.setScalar(0.8 + 種(c, r, 8) * 0.9);
-                this.scene.add(o);
+                const x = pos.x + (種(c, r, 5) - 0.5) * cellSize * 0.8;
+                const z = pos.z + (種(c, r, 6) - 0.5) * cellSize * 0.8;
+                const batch = batches.get(揀) ?? [];
+                batch.push({
+                    position: new THREE.Vector3(x, this.terrainSample(x, z).height, z),
+                    rotationY: 種(c, r, 7) * Math.PI * 2,
+                    scale: 0.8 + 種(c, r, 8) * 0.9,
+                });
+                batches.set(揀, batch);
             }
+        }
+
+        // Reuse the same CC0 rock cluster already present in the scenery instead of a
+        // row of procedural spheres: four staggered shoulders frame each river mouth.
+        const riverCells = LAYOUT.cells.filter((cell) => cell.terrain?.model.startsWith('tile_river'));
+        const bridge = MAP.pathTileOverrides?.find((tile) => tile.model === 'tile_riverBridge');
+        if (riverCells.length > 0 || bridge) {
+            const riverCol = bridge?.cell[0] ?? riverCells[0].col;
+            const rows = [...riverCells.map((cell) => cell.row), ...(bridge ? [bridge.cell[1]] : [])];
+            const minRow = Math.min(...rows);
+            const maxRow = Math.max(...rows);
+            const bank = batches.get('scenery/detail_rocks.glb') ?? [];
+            for (const row of [minRow - 1, minRow, maxRow, maxRow + 1]) {
+                const p = cellToWorld(riverCol, row);
+                for (const side of [-1, 1]) {
+                    const hash = Math.abs(row * 17 + side * 13);
+                    bank.push({
+                        position: new THREE.Vector3(
+                            p.x + side * (0.48 + (hash % 3) * 0.08),
+                            -0.22,
+                            p.z + ((hash % 5) - 2) * 0.08,
+                        ),
+                        rotationY: hash * 0.83,
+                        scale: 0.62 + (hash % 4) * 0.08,
+                    });
+                }
+            }
+            batches.set('scenery/detail_rocks.glb', bank);
+            const marker = new THREE.Group();
+            marker.name = 'river-rift:shoulders';
+            this.scene.add(marker);
+        }
+        await this.addInstancedModelBatches(batches, 'scenery-batch');
+    }
+
+    /** Batch static GLB sub-meshes by model while preserving every source transform/material. */
+    private async addInstancedModelBatches(batches: Map<string, ModelPlacement[]>, prefix: string): Promise<void> {
+        for (const [rel, placements] of batches) {
+            if (placements.length === 0) continue;
+            const template = await 取(rel);
+            template.updateWorldMatrix(true, true);
+            let meshIndex = 0;
+            template.traverse((object) => {
+                const source = object as THREE.Mesh;
+                if (!source.isMesh) return;
+                const instances = new THREE.InstancedMesh(source.geometry, source.material, placements.length);
+                instances.name = `${prefix}:${rel}:${meshIndex++}`;
+                const placementMatrix = new THREE.Matrix4();
+                const composed = new THREE.Matrix4();
+                const quaternion = new THREE.Quaternion();
+                const scale = new THREE.Vector3();
+                placements.forEach((placement, index) => {
+                    quaternion.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, placement.rotationY);
+                    scale.setScalar(placement.scale);
+                    placementMatrix.compose(placement.position, quaternion, scale);
+                    composed.multiplyMatrices(placementMatrix, source.matrixWorld);
+                    instances.setMatrixAt(index, composed);
+                });
+                instances.instanceMatrix.needsUpdate = true;
+                instances.castShadow = source.castShadow;
+                instances.receiveShadow = source.receiveShadow;
+                instances.renderOrder = source.renderOrder;
+                this.scene.add(instances);
+            });
         }
     }
 
     private buildDistantSilhouettes(): void {
-        const ridgeGeo = new THREE.ConeGeometry(2.8, 6.5, 4);
+        const ridgeGeo = new THREE.ConeGeometry(2.6, 5.2, 5);
         const ridgeMat = GRAPHICS.isMobile
-            ? new THREE.MeshLambertMaterial({ color: 0x102318 })
-            : new THREE.MeshStandardMaterial({ color: 0x102318, roughness: 0.95, metalness: 0.01 });
+            ? new THREE.MeshLambertMaterial({ color: 0x315d3b })
+            : new THREE.MeshStandardMaterial({
+                color: 0x294f35, emissive: 0x0b1d12, emissiveIntensity: 0.28,
+                roughness: 0.95, metalness: 0.01,
+            });
         const radiusX = MAP.cols * 0.75;
         const radiusZ = MAP.rows * 0.95;
         const centerX = MAP.origin.x + MAP.cols * MAP.cellSize / 2;
         const centerZ = MAP.origin.z + MAP.rows * MAP.cellSize / 2;
         const count = GRAPHICS.isMobile ? 8 : 18;
+        const 種 = (i: number, k: number): number => {
+            const n = Math.sin(i * 127.1 + k * 311.7) * 43758.5453;
+            return n - Math.floor(n);
+        };
 
         for (let i = 0; i < count; i++) {
             const t = (i / count) * Math.PI * 2;
             const ridge = new THREE.Mesh(ridgeGeo, ridgeMat);
             ridge.position.set(
-                centerX + Math.cos(t) * (radiusX + 10 + Math.random() * 5),
-                1.8 + Math.random() * 0.9,
-                centerZ + Math.sin(t) * (radiusZ + 10 + Math.random() * 5)
+                centerX + Math.cos(t) * (radiusX + 18 + 種(i, 1) * 6),
+                1.15 + 種(i, 2) * 0.65,
+                centerZ + Math.sin(t) * (radiusZ + 18 + 種(i, 3) * 6)
             );
-            ridge.scale.setScalar(0.8 + Math.random() * 1.2);
-            ridge.rotation.y = Math.random() * Math.PI * 2;
+            ridge.scale.setScalar(0.72 + 種(i, 4) * 0.72);
+            ridge.rotation.y = 種(i, 5) * Math.PI * 2;
             ridge.castShadow = false;
             ridge.receiveShadow = true;
             this.scene.add(ridge);

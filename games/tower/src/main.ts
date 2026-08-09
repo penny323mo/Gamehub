@@ -1,14 +1,15 @@
 import * as THREE from 'three';
 import { createInitialState } from './core/gameState';
-import { LOGIC_DT, MAP, TOWERS, SCORING, WAVES, GRAPHICS, ENEMIES, 設HP曲率, 設金倍 } from './core/config';
+import { LOGIC_DT, MAP, TOWERS, SCORING, WAVES, GRAPHICS, ENEMIES, 設HP曲率 } from './core/config';
 import { tickWave, startNextWave, MODIFIERS, templateIndex, spawnEnemy } from './core/systems/waveSystem';
-import { cellToWorld } from './core/path';
+import { buildPathWorld, cellToWorld } from './core/path';
+import { CAMPAIGN_CHAPTERS, chapterForWave, chapterProgress, isChapterOpening } from './core/chapters';
+import { milestoneOffer, milestonePlan } from './core/gameplayRandom';
 import { tickEnemies } from './core/systems/enemySystem';
 import { tickTowers } from './core/systems/towerSystem';
-import { tickCombat } from './core/systems/combatSystem';
+import { applyHit, tickCombat } from './core/systems/combatSystem';
 import { buildTower, canBuild, upgradeTower, sellTower, getSellValue, canUpgrade, evolveTower } from './core/systems/economySystem';
 import type { GameState, TowerType, Tower, TargetingMode, Difficulty, Enemy, Projectile } from './core/types';
-import { killEnemy } from './core/systems/killSystem';
 import { bus } from './core/systems/eventBus';
 import { SceneManager } from './render/sceneManager';
 import { CameraController } from './render/camera';
@@ -31,6 +32,13 @@ import {
 } from './core/storage';
 import { ACHIEVEMENTS, type Achievement } from './core/achievements';
 import { makeDraggable, resetUiLayout } from './ui/draggable';
+import {
+    clearRunCheckpoint,
+    loadRunCheckpoint,
+    restoreRunCheckpoint,
+    saveRunCheckpoint,
+    type RunCheckpoint,
+} from './ui/runCheckpoint';
 import { 量模型, 預載, 塔件清單, 敵件清單 } from './render/assets';
 import { Gateway } from './render/gateway';
 
@@ -40,6 +48,7 @@ let state: GameState;
 let selectedTowerType: TowerType | null = null;
 let inspectedTower: Tower | null = null;
 let currentDifficulty: Difficulty = persisted.prefs.difficulty;
+let availableCheckpoint: RunCheckpoint | null = loadRunCheckpoint();
 
 // ─── Renderer setup ───
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -65,7 +74,8 @@ const lightingRig = setupLighting(sm.scene);
 // 出生門同終點城堡都要模型，所以同鋪地一齊喺開場前預載好
 // （`取同步` 未預載會大聲掛，唔會靜靜哋少咗道門）。
 const gateway = new Gateway(sm.scene);
-const spawnWorld = cellToWorld(MAP.spawnCell[0], MAP.spawnCell[1]);
+const spawnWorld = buildPathWorld()[0];
+const goalWorld = cellToWorld(MAP.goalCell[0], MAP.goalCell[1]);
 const 地面好 = Promise.all([
     sm.buildGround(),
     預載([...Gateway.清單(), ...塔件清單(), ...敵件清單()]),
@@ -82,13 +92,7 @@ if (GRAPHICS.enablePostProcessing) {
     postProcessor = new PostProcessor(renderer, sm.scene, camera);
 }
 
-// ─── Day/Night atmosphere anchors (by wave) ───
-const ATMOSPHERE_ANCHORS: { wave: number; tint: [number, number, number]; fog: number }[] = [
-    { wave: 1,  tint: [1.06, 1.00, 0.93], fog: 0x1b2d22 }, // dawn
-    { wave: 30, tint: [0.98, 1.02, 0.98], fog: 0x102417 }, // noon
-    { wave: 60, tint: [1.08, 0.94, 0.82], fog: 0x1c1510 }, // dusk
-    { wave: 90, tint: [0.84, 0.90, 1.12], fog: 0x0c1020 }, // night
-];
+// ─── Campaign atmosphere — the same five chapters drive HUD and world tint ───
 let lastAtmosphereWave = -1;
 const fogColorTmp = new THREE.Color();
 function applyAtmosphere(wave: number): void {
@@ -96,18 +100,13 @@ function applyAtmosphere(wave: number): void {
     lastAtmosphereWave = wave;
 
     const w = Math.max(1, wave + 1); // 0-based → 1-based
-    // Find anchor pair
-    let lo = ATMOSPHERE_ANCHORS[0];
-    let hi = ATMOSPHERE_ANCHORS[ATMOSPHERE_ANCHORS.length - 1];
-    for (let i = 0; i < ATMOSPHERE_ANCHORS.length - 1; i++) {
-        if (w >= ATMOSPHERE_ANCHORS[i].wave && w <= ATMOSPHERE_ANCHORS[i + 1].wave) {
-            lo = ATMOSPHERE_ANCHORS[i];
-            hi = ATMOSPHERE_ANCHORS[i + 1];
-            break;
-        }
-    }
-    const t = hi.wave === lo.wave ? 0 : (w - lo.wave) / (hi.wave - lo.wave);
-    const k = Math.max(0, Math.min(1, t));
+    const lo = chapterForWave(w);
+    const chapterIndex = CAMPAIGN_CHAPTERS.findIndex((chapter) => chapter.id === lo.id);
+    const hi = CAMPAIGN_CHAPTERS[Math.min(chapterIndex + 1, CAMPAIGN_CHAPTERS.length - 1)];
+    // Spend the latter half of an act travelling towards the next palette. The
+    // next chapter therefore arrives without an abrupt day/night colour snap.
+    const progress = chapterProgress(w);
+    const k = THREE.MathUtils.smoothstep(progress, 0.45, 1);
     const r = lo.tint[0] + (hi.tint[0] - lo.tint[0]) * k;
     const g = lo.tint[1] + (hi.tint[1] - lo.tint[1]) * k;
     const b = lo.tint[2] + (hi.tint[2] - lo.tint[2]) * k;
@@ -124,6 +123,11 @@ function applyAtmosphere(wave: number): void {
 state = createInitialState(currentDifficulty);
 state.speedMultiplier = persisted.prefs.speedMultiplier;
 
+function captureSafeCheckpoint(): void {
+    if (!saveRunCheckpoint(state)) return;
+    availableCheckpoint = loadRunCheckpoint();
+}
+
 // ─── EventBus Listeners ───
 bus.on('streakBonus', e => showStreakBanner(e.streak));
 bus.on('milestone', e => {
@@ -139,6 +143,7 @@ bus.on('towerBuilt', e => {
 
     towerRenderer.sync(state);
     updateHUD();
+    captureSafeCheckpoint();
 });
 bus.on('towerUpgraded', e => {
     towerRenderer.removeTower(e.towerId);
@@ -147,6 +152,7 @@ bus.on('towerUpgraded', e => {
     if (inspectedTower && inspectedTower.id === e.towerId) {
         showTowerPanel(inspectedTower);
     }
+    captureSafeCheckpoint();
 });
 bus.on('towerSold', e => {
     fxRenderer.addSellEffect(e.worldX, e.worldZ);
@@ -166,6 +172,13 @@ bus.on('towerSold', e => {
     if (inspectedTower && inspectedTower.id === e.towerId) {
         hideTowerPanel();
     }
+    captureSafeCheckpoint();
+});
+bus.on('waveCleared', () => {
+    // waveCleared is emitted immediately before the system advances into the
+    // next prep phase. Wait for that clean boundary; never persist enemies or
+    // projectiles midway through a path segment.
+    queueMicrotask(captureSafeCheckpoint);
 });
 bus.on('enemyKilled', e => {
     const killedEnemy = state.enemies.find(enemy => enemy.id === e.enemyId);
@@ -198,6 +211,11 @@ bus.on('bossSpawned', () => {
     showBossCinematic();
     audioSystem.playBossRoar();
 });
+bus.on('enemyReachedGoal', () => {
+    camCtrl.shake(0.32);
+    fxRenderer.addDeathEffect(goalWorld.x, goalWorld.z, 0xff5c4a);
+    updateHUD();
+});
 bus.on('streakBonus', ev => {
     if (ev.streak >= 10) audioSystem.playMegaStingerHit();
     else audioSystem.playStreakStinger();
@@ -212,6 +230,8 @@ const livesEl = document.getElementById('lives-val')!;
 const waveEl = document.getElementById('wave-val')!;
 const killsEl = document.getElementById('kills-val')!;
 const hudWaveEl = document.getElementById('hud-wave')!;
+const chapterActEl = document.getElementById('chapter-act')!;
+const chapterNameEl = document.getElementById('chapter-name')!;
 const waveRemainEl = document.getElementById('wave-remain')!;
 const waveProgressFillEl = document.getElementById('wave-progress-fill') as HTMLDivElement;
 const skipPrepBtn = document.getElementById('skip-prep-btn') as HTMLButtonElement;
@@ -294,7 +314,9 @@ const helpBtn = document.getElementById('help-btn')!;
 const helpOverlay = document.getElementById('help-overlay')!;
 const helpCloseBtn = document.getElementById('help-close-btn')!;
 const startScreen = document.getElementById('start-screen')!;
+const startBtn = document.getElementById('start-btn') as HTMLButtonElement;
 const endScreen = document.getElementById('end-screen')!;
+const restartBtn = document.getElementById('restart-btn') as HTMLButtonElement;
 const endTitle = document.getElementById('end-title')!;
 const endScore = document.getElementById('end-score')!;
 const endRank = document.getElementById('end-rank')!;
@@ -302,6 +324,151 @@ const towerPanel = document.getElementById('tower-panel')!;
 const cancelBuildBtn = document.getElementById('cancel-build-btn')!;
 const buildBtns = document.querySelectorAll('.build-btn[data-tower]');
 const streakBanner = document.getElementById('streak-banner')!;
+const pauseOverlay = document.getElementById('pause-overlay')!;
+const pauseReasonEl = document.getElementById('pause-reason')!;
+const resumeBtn = document.getElementById('resume-btn') as HTMLButtonElement;
+const graphicsRecovery = document.getElementById('graphics-recovery')!;
+const graphicsReloadBtn = document.getElementById('graphics-reload-btn') as HTMLButtonElement;
+const graphicsHomeBtn = document.getElementById('graphics-home-btn') as HTMLButtonElement;
+const continueRunEl = document.getElementById('continue-run')!;
+const continueSummaryEl = document.getElementById('continue-summary')!;
+const continueBtn = document.getElementById('continue-btn') as HTMLButtonElement;
+
+const MODAL_IDS = [
+    'graphics-recovery',
+    'buff-modal',
+    'achievements-modal',
+    'help-overlay',
+    'pause-overlay',
+    'end-screen',
+    'start-screen',
+];
+const modalOpeners = new Map<HTMLElement, HTMLElement | null>();
+
+function visibleModal(): HTMLElement | null {
+    for (const id of MODAL_IDS) {
+        const modal = document.getElementById(id);
+        if (modal && !modal.classList.contains('hidden')) return modal;
+    }
+    return null;
+}
+
+function focusableWithin(modal: HTMLElement): HTMLElement[] {
+    return Array.from(modal.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+    )).filter((element) => !element.closest('.hidden') && getComputedStyle(element).display !== 'none');
+}
+
+function syncModalIsolation(focusTarget?: HTMLElement | null): void {
+    const modal = visibleModal();
+    for (const child of Array.from(document.body.children)) {
+        if (!(child instanceof HTMLElement) || child.tagName === 'SCRIPT') continue;
+        child.inert = !!modal && child !== modal;
+    }
+    for (const id of MODAL_IDS) {
+        const element = document.getElementById(id);
+        if (element) element.setAttribute('aria-hidden', String(element !== modal));
+    }
+    if (!modal) return;
+    const target = focusTarget && modal.contains(focusTarget)
+        ? focusTarget
+        : focusableWithin(modal)[0];
+    target?.focus({ preventScroll: true });
+}
+
+function openModal(modal: HTMLElement, opener: HTMLElement | null, focusTarget?: HTMLElement | null): void {
+    modalOpeners.set(modal, opener);
+    modal.classList.remove('hidden');
+    syncModalIsolation(focusTarget);
+}
+
+function closeModal(modal: HTMLElement, restoreFocus = true): void {
+    const opener = modalOpeners.get(modal) ?? null;
+    modalOpeners.delete(modal);
+    modal.classList.add('hidden');
+    syncModalIsolation();
+    if (restoreFocus && opener && !opener.inert && opener.offsetParent !== null) {
+        opener.focus({ preventScroll: true });
+    }
+}
+
+type PauseReason = 'manual' | 'background' | 'help' | 'buff' | 'graphics';
+const pauseReasons = new Set<PauseReason>();
+
+function syncPauseUi(focusResume = false): void {
+    const active = state.phase === 'prep' || state.phase === 'wave';
+    state.paused = active && pauseReasons.size > 0;
+    pauseBtn.textContent = state.paused ? '▶' : '⏸';
+    pauseBtn.classList.toggle('active', state.paused);
+    pauseBtn.setAttribute('aria-label', state.paused ? 'Resume defense' : 'Pause defense');
+    pauseBtn.title = state.paused ? 'Resume defense' : 'Pause defense';
+
+    const showPauseOverlay = state.paused
+        && (pauseReasons.has('manual') || pauseReasons.has('background'))
+        && !pauseReasons.has('help')
+        && !pauseReasons.has('buff')
+        && !pauseReasons.has('graphics');
+    pauseReasonEl.textContent = pauseReasons.has('background')
+        ? 'Defense paused because this tab moved to the background. Resume when you are ready.'
+        : 'Defense paused. Your current wave is safe.';
+    pauseOverlay.classList.toggle('hidden', !showPauseOverlay);
+    syncModalIsolation(showPauseOverlay && focusResume ? resumeBtn : undefined);
+}
+
+function pauseFor(reason: PauseReason, focusResume = false): void {
+    pauseReasons.add(reason);
+    syncPauseUi(focusResume);
+}
+
+function resumeDefense(): void {
+    pauseReasons.delete('manual');
+    pauseReasons.delete('background');
+    syncPauseUi();
+    if (!visibleModal()) pauseBtn.focus({ preventScroll: true });
+}
+
+function handleModalKeydown(event: KeyboardEvent): boolean {
+    const modal = visibleModal();
+    if (!modal) return false;
+
+    if (event.key === 'Tab') {
+        const focusable = focusableWithin(modal);
+        if (!focusable.length) {
+            event.preventDefault();
+            return true;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (!modal.contains(document.activeElement)) {
+            event.preventDefault();
+            first.focus();
+        } else if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
+        return true;
+    }
+
+    if (event.key === 'Escape') {
+        if (modal === helpOverlay) closeHelp();
+        else if (modal.id === 'achievements-modal') closeAchievements();
+        else if (modal === pauseOverlay) resumeDefense();
+        event.preventDefault();
+        return true;
+    }
+
+    if (modal === pauseOverlay && event.key.toLowerCase() === 'p') {
+        resumeDefense();
+        event.preventDefault();
+        return true;
+    }
+
+    // Keep gameplay hotkeys (especially P/Q/W/E/1-7) behind every modal.
+    return true;
+}
 
 const tooltip = document.getElementById('tower-tooltip')!;
 const tooltipName = tooltip.querySelector('.tooltip-name')!;
@@ -327,6 +494,13 @@ function updateHUD(): void {
         waveEl.textContent = `${Math.min(state.currentWave + 1, TOTAL_WAVES)}/${TOTAL_WAVES}`;
     }
     killsEl.textContent = String(state.totalKills);
+    const displayWave = Math.max(1, state.currentWave + 1);
+    const chapter = chapterForWave(displayWave);
+    const chapterIndex = CAMPAIGN_CHAPTERS.findIndex((candidate) => candidate.id === chapter.id);
+    chapterActEl.textContent = `ACT ${['I', 'II', 'III', 'IV', 'V'][chapterIndex] ?? chapterIndex + 1}`;
+    chapterNameEl.textContent = chapter.title;
+    hudWaveEl.style.setProperty('--chapter-accent', `#${chapter.accent.toString(16).padStart(6, '0')}`);
+    hudWaveEl.title = `${chapter.subtitle} — ${chapter.tacticalFocus}`;
 
     // Wave progress bar
     const aliveInWave = state.enemies.filter(e => e.alive).length;
@@ -397,8 +571,22 @@ function updateHUD(): void {
 
 // ─── Wave Banner ───
 let bannerTimeout: number | null = null;
+function chapterOpeningLabel(wave: number): { text: string; accent: string } | null {
+    if (!isChapterOpening(wave)) return null;
+    const chapter = chapterForWave(wave);
+    const chapterIndex = CAMPAIGN_CHAPTERS.findIndex((candidate) => candidate.id === chapter.id);
+    return {
+        text: `ACT ${['I', 'II', 'III', 'IV', 'V'][chapterIndex] ?? chapterIndex + 1} · ${chapter.title}\n${chapter.subtitle}`,
+        accent: `#${chapter.accent.toString(16).padStart(6, '0')}`,
+    };
+}
+
 function showWaveBanner(text: string): void {
-    waveBannerText.textContent = text;
+    const wave = Math.max(1, state.currentWave + 1);
+    const opening = chapterOpeningLabel(wave);
+    waveBanner.classList.toggle('chapter-opening', !!opening);
+    if (opening) waveBanner.style.setProperty('--chapter-accent', opening.accent);
+    waveBannerText.textContent = opening?.text ?? text;
     waveBanner.classList.remove('hidden');
     // Force animation restart on re-show
     waveBannerText.style.animation = 'none';
@@ -562,30 +750,34 @@ const BUFF_POOL: BuffCard[] = [
         emoji: '🏦',
         name: 'War Chest',
         desc: 'Instant +300 gold',
-        apply: () => { state.gold += 300; },
+        apply: () => {
+            state.gold += 300;
+            state.stats.goldEarned += 300;
+        },
     },
 ];
 const buffModal = document.getElementById('buff-modal')!;
 const buffCardsEl = document.getElementById('buff-cards')!;
 const buffWaveEl = document.getElementById('buff-wave')!;
 
-function pickThreeBuffs(): BuffCard[] {
-    const pool = BUFF_POOL.slice();
-    const chosen: BuffCard[] = [];
-    while (chosen.length < 3 && pool.length) {
-        const i = Math.floor(Math.random() * pool.length);
-        chosen.push(pool.splice(i, 1)[0]);
-    }
-    return chosen;
+function pickThreeBuffs(wave: number): BuffCard[] {
+    // Milestone choices are gameplay state. A camera shake or particle emitted
+    // on a slower phone must never change which three cards the player sees.
+    // Assault milestones offer damage/range; the mid-campaign recovery stop
+    // offers range/fortify. A third economy/survival card rotates each time.
+    const plan = milestonePlan(wave);
+    const core = plan.coreIds.map((id) => BUFF_POOL.find((card) => card.id === id)!).filter(Boolean);
+    const wildcards = plan.wildcardIds.map((id) => BUFF_POOL.find((card) => card.id === id)!).filter(Boolean);
+    return milestoneOffer(core, wildcards, wave);
 }
 
 function openBuffModal(wave: number): void {
     if (state.buffChoicePending) return;
     state.buffChoicePending = true;
-    state.paused = true;
+    pauseFor('buff');
     buffWaveEl.textContent = String(wave);
 
-    const cards = pickThreeBuffs();
+    const cards = pickThreeBuffs(wave);
     buffCardsEl.innerHTML = '';
     for (const c of cards) {
         const el = document.createElement('button');
@@ -609,13 +801,15 @@ function openBuffModal(wave: number): void {
         });
         buffCardsEl.appendChild(el);
     }
-    buffModal.classList.remove('hidden');
+    openModal(buffModal, null, buffCardsEl.querySelector<HTMLElement>('button'));
 }
 
 function closeBuffModal(): void {
-    buffModal.classList.add('hidden');
+    closeModal(buffModal, false);
     state.buffChoicePending = false;
-    state.paused = false;
+    pauseReasons.delete('buff');
+    syncPauseUi();
+    saveRunCheckpoint(state);
 }
 
 // ─── Floating Texts (K) ───
@@ -745,6 +939,11 @@ function hideTowerPanel(): void {
 const endBestBadge = document.getElementById('end-best-badge')!;
 function showEndScreen(): void {
     const won = state.phase === 'won';
+    clearRunCheckpoint();
+    availableCheckpoint = null;
+    refreshContinueCard();
+    pauseReasons.clear();
+    syncPauseUi();
     endTitle.textContent = won ? '🎉 Victory!' : '💀 Defeat';
     endTitle.style.color = won ? '#ffd700' : '#ff5555';
     endScore.textContent = `Score: ${state.score}`;
@@ -788,7 +987,7 @@ function showEndScreen(): void {
     document.getElementById('stat-gold')!.textContent = state.stats.goldEarned.toString();
     document.getElementById('stat-dmg')!.textContent = Math.round(state.stats.totalDamageDealt).toString();
 
-    endScreen.classList.remove('hidden');
+    openModal(endScreen, null, restartBtn);
 }
 
 // ─── Event Handlers ───
@@ -882,13 +1081,18 @@ soundBtn.addEventListener('click', () => {
 pauseBtn.addEventListener('click', togglePause);
 
 function togglePause(): void {
-    state.paused = !state.paused;
-    pauseBtn.textContent = state.paused ? '▶' : '⏸';
-    pauseBtn.classList.toggle('active', state.paused);
+    if (state.phase !== 'wave' && state.phase !== 'prep') return;
+    if (pauseReasons.has('manual') || pauseReasons.has('background')) {
+        resumeDefense();
+    } else {
+        pauseFor('manual', true);
+    }
 }
 
 // Keyboard Shortcuts
 window.addEventListener('keydown', (e) => {
+    if (handleModalKeydown(e)) return;
+
     // Ignore if game is inactive
     if (state.phase === 'idle' || state.phase === 'won' || state.phase === 'lost') return;
 
@@ -900,9 +1104,6 @@ window.addEventListener('keydown', (e) => {
         return;
     }
     
-    // Ignore input if in help overlay
-    if (!helpOverlay.classList.contains('hidden')) return;
-
     // 1-7: Fast select tower to build
     if (key >= '1' && key <= '7') {
         const idx = Number(key) - 1;
@@ -949,18 +1150,14 @@ function useSkill(idx: number) {
     if (state.phase !== 'wave' && state.phase !== 'prep') return;
     const skill = state.skills[idx];
     if (!skill || skill.remaining > 0) return;
+    const hasLiveTarget = state.enemies.some((enemy) => enemy.alive && !enemy.reached);
+    if ((idx === 0 || idx === 1) && !hasLiveTarget) return;
+    if (idx === 2 && state.lives >= state.maxLives) return;
 
     if (idx === 0) {
         // Airstrike
         for (const enemy of state.enemies) {
-            if (enemy.alive) {
-                enemy.hp -= 200;
-                if (enemy.hp <= 0) {
-                    killEnemy(state, enemy);
-                } else {
-                    state.floatingTexts.push({ id: state.nextId++, worldX: enemy.worldX, worldZ: enemy.worldZ, value: '-200', color: '#ff4444', life: 1, maxLife: 1 });
-                }
-            }
+            if (enemy.alive && !enemy.reached) applyHit(state, enemy, 200, 'ability');
         }
     } else if (idx === 1) {
         // Freeze
@@ -976,6 +1173,7 @@ function useSkill(idx: number) {
     }
 
     skill.remaining = skill.cooldown;
+    bus.emit({ type: 'skillUsed', skill: skill.name });
     updateSkillsHUD();
 }
 
@@ -1000,6 +1198,7 @@ skipPrepBtn.addEventListener('click', () => {
     if (state.phase !== 'prep') return;
     // Give Gold bonus for skipping prep
     state.gold += 50;
+    state.stats.goldEarned += 50;
     state.floatingTexts.push({
         id: state.nextId++,
         worldX: 0,
@@ -1029,16 +1228,50 @@ document.getElementById('panel-close-btn')!.addEventListener('click', () => {
     hideTowerPanel();
 });
 
-// Start button
-document.getElementById('start-btn')!.addEventListener('click', async () => {
+function refreshContinueCard(): void {
+    continueRunEl.classList.toggle('hidden', !availableCheckpoint);
+    if (!availableCheckpoint) {
+        continueSummaryEl.textContent = '';
+        return;
+    }
+    const difficulty = availableCheckpoint.difficulty[0].toUpperCase()
+        + availableCheckpoint.difficulty.slice(1);
+    continueSummaryEl.textContent = `Wave ${availableCheckpoint.currentWave + 1} · ${difficulty} · ${availableCheckpoint.gold}g · ${availableCheckpoint.towers.length} towers`;
+}
+
+async function enterRun(nextState: GameState, checkpoint: RunCheckpoint | null): Promise<void> {
     await 地面好;
     startScreen.classList.add('hidden');
+    state = nextState;
+    currentDifficulty = state.difficulty;
     resetRunLocals();
-    state.endlessMode = persisted.prefs.endlessMode;
     audioSystem.init();
     audioSystem.startMusic();
     startNextWave(state);
-    showWaveBanner(`Wave 1`);
+    if (checkpoint) state.waveModifier = checkpoint.waveModifier;
+    towerRenderer.sync(state);
+    updateHUD();
+    updateSkillsHUD();
+    saveRunCheckpoint(state);
+    availableCheckpoint = loadRunCheckpoint();
+    showWaveBanner(`Wave ${state.currentWave + 1}`);
+    syncModalIsolation();
+}
+
+// Start a new defense, intentionally replacing any older checkpoint.
+startBtn.addEventListener('click', async () => {
+    clearRunCheckpoint();
+    const fresh = createInitialState(currentDifficulty);
+    fresh.speedMultiplier = persisted.prefs.speedMultiplier;
+    fresh.endlessMode = persisted.prefs.endlessMode;
+    await enterRun(fresh, null);
+});
+
+continueBtn.addEventListener('click', async () => {
+    const checkpoint = availableCheckpoint;
+    if (!checkpoint) return;
+    const restored = restoreRunCheckpoint(checkpoint, persisted.prefs.speedMultiplier);
+    await enterRun(restored, checkpoint);
 });
 
 // Difficulty Selector
@@ -1089,6 +1322,7 @@ endlessCheckbox.addEventListener('change', () => {
     }
     endlessCheckbox.checked = persisted.prefs.endlessMode;
     refreshHighScoreDisplay();
+    refreshContinueCard();
 })();
 
 // ─── E17: Achievements Viewer ───
@@ -1115,14 +1349,15 @@ function renderAchievementGrid(): void {
 }
 document.getElementById('achievements-btn')!.addEventListener('click', () => {
     renderAchievementGrid();
-    achModal.classList.remove('hidden');
+    openModal(achModal, document.getElementById('achievements-btn'), document.getElementById('ach-close-btn'));
 });
-document.getElementById('ach-close-btn')!.addEventListener('click', () => {
-    achModal.classList.add('hidden');
-});
+function closeAchievements(): void {
+    closeModal(achModal);
+}
+document.getElementById('ach-close-btn')!.addEventListener('click', closeAchievements);
 achModal.addEventListener('click', (e) => {
     if ((e.target as HTMLElement).classList.contains('ach-backdrop')) {
-        achModal.classList.add('hidden');
+        closeAchievements();
     }
 });
 
@@ -1176,18 +1411,24 @@ document.getElementById('reset-layout-btn')!.addEventListener('click', () => {
 
 // Help overlay
 helpBtn.addEventListener('click', () => {
-    helpOverlay.classList.remove('hidden');
+    if (!helpOverlay.classList.contains('hidden')) return;
+    openModal(helpOverlay, helpBtn, helpCloseBtn);
+    pauseFor('help');
 });
-helpCloseBtn.addEventListener('click', () => {
-    helpOverlay.classList.add('hidden');
-});
+function closeHelp(): void {
+    const shouldRestoreHelpFocus = !pauseReasons.has('background') && !pauseReasons.has('manual');
+    pauseReasons.delete('help');
+    closeModal(helpOverlay, shouldRestoreHelpFocus);
+    syncPauseUi(pauseReasons.has('background') || pauseReasons.has('manual'));
+}
+helpCloseBtn.addEventListener('click', closeHelp);
 helpOverlay.addEventListener('click', (e) => {
-    if (e.target === helpOverlay) helpOverlay.classList.add('hidden');
+    if (e.target === helpOverlay) closeHelp();
 });
 
 // Restart
-document.getElementById('restart-btn')!.addEventListener('click', () => {
-    endScreen.classList.add('hidden');
+restartBtn.addEventListener('click', () => {
+    closeModal(endScreen, false);
     state = createInitialState(currentDifficulty);
     state.speedMultiplier = persisted.prefs.speedMultiplier;
     state.endlessMode = persisted.prefs.endlessMode;
@@ -1197,7 +1438,10 @@ document.getElementById('restart-btn')!.addEventListener('click', () => {
     updateSkillsHUD();
     hideTowerPanel();
     startNextWave(state);
+    saveRunCheckpoint(state);
+    availableCheckpoint = loadRunCheckpoint();
     showWaveBanner('Wave 1');
+    syncModalIsolation();
 });
 
 // Home
@@ -1205,11 +1449,14 @@ document.getElementById('home-btn')!.addEventListener('click', () => {
     window.location.href = '../../../index.html';
 });
 
-// Canvas click (place tower or inspect) — guard against two-finger gestures
-canvas.addEventListener('click', () => {
+// Canvas click (place tower or inspect) — guard against two-finger gestures.
+// A mobile tap does not necessarily emit touchmove, so resolve the tapped cell
+// from this click instead of reusing a stale hover from an earlier gesture.
+canvas.addEventListener('click', (e) => {
     if (camCtrl.twoFingerActive) return;
     if (state.phase === 'idle' || state.phase === 'won' || state.phase === 'lost') return;
 
+    picking.updateMouse(e, camera);
     const col = picking.hoveredCol;
     const row = picking.hoveredRow;
     if (col < 0 || row < 0) return;
@@ -1272,6 +1519,38 @@ window.addEventListener('resize', () => {
     }
 });
 
+function pauseForInterruption(): void {
+    if (state.phase !== 'prep' && state.phase !== 'wave') return;
+    captureSafeCheckpoint();
+    pauseFor('background', true);
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) pauseForInterruption();
+    // Foregrounding is intentionally not an auto-resume. A long 99-wave run
+    // should only move again after the player explicitly confirms readiness.
+});
+window.addEventListener('blur', pauseForInterruption);
+
+canvas.addEventListener('webglcontextlost', (event) => {
+    event.preventDefault();
+    captureSafeCheckpoint();
+    pauseFor('graphics');
+    openModal(graphicsRecovery, null, graphicsReloadBtn);
+});
+canvas.addEventListener('webglcontextrestored', () => {
+    closeModal(graphicsRecovery, false);
+    pauseReasons.delete('graphics');
+    pauseReasons.add('manual');
+    syncPauseUi(true);
+});
+graphicsReloadBtn.addEventListener('click', () => window.location.reload());
+graphicsHomeBtn.addEventListener('click', () => { window.location.href = '../../../index.html'; });
+resumeBtn.addEventListener('click', resumeDefense);
+
+// The visible opening screen is modal from the first keyboard interaction.
+syncModalIsolation(startBtn);
+
 // ─── Game Loop ───
 let lastTime = 0;
 let accumulator = 0;
@@ -1287,7 +1566,25 @@ function resetRunLocals(): void {
     lastPreviewWave = -2;
     lastModifierShown = '__init__';
     lastMusicPhase = null;
+    pauseReasons.clear();
+    state.paused = false;
+    selectedTowerType = null;
+    buildBtns.forEach((button) => button.classList.remove('selected'));
+    cancelBuildBtn.style.display = 'none';
+    picking.hideGhost();
+    hideTowerPanel();
+    enemyPanelUi.classList.add('hidden');
+    tooltip.classList.add('hidden');
+    for (const element of activeFloatEls.values()) element.remove();
+    activeFloatEls.clear();
+    floatingTextLayer.replaceChildren();
+    document.getElementById('achievement-toasts')?.replaceChildren();
+    helpOverlay.classList.add('hidden');
+    achModal.classList.add('hidden');
     buffModal.classList.add('hidden');
+    pauseOverlay.classList.add('hidden');
+    graphicsRecovery.classList.add('hidden');
+    modalOpeners.clear();
     if (bannerTimeout) { clearTimeout(bannerTimeout); bannerTimeout = null; }
     if (streakBannerTimeout) { clearTimeout(streakBannerTimeout); streakBannerTimeout = null; }
     if (milestoneTimeout) { clearTimeout(milestoneTimeout); milestoneTimeout = null; }
@@ -1296,6 +1593,7 @@ function resetRunLocals(): void {
     streakBanner.classList.add('hidden');
     milestoneBanner.classList.add('hidden');
     bossCinematic.classList.add('hidden');
+    syncPauseUi();
 }
 
 type ProjectileSnapshot = Pick<Projectile, 'id' | 'targetX' | 'targetZ' | 'towerType'>;
@@ -1413,7 +1711,12 @@ function gameLoop(time: number): void {
         const enemyPreview = waveGroup?.groups?.map((g: { type: string; count: number }) =>
             `${ENEMY_EMOJI[g.type] ?? '?'}×${g.count}`
         ).join(' ') ?? '';
-        waveBannerText.textContent = `Wave ${state.currentWave + 1} — ${totalEnemies} enemies | ${enemyPreview} | Next in ${secs}s`;
+        const waveNumber = state.currentWave + 1;
+        const prepText = `Wave ${waveNumber} — ${totalEnemies} enemies | ${enemyPreview} | Next in ${secs}s`;
+        const opening = chapterOpeningLabel(waveNumber);
+        waveBanner.classList.toggle('chapter-opening', !!opening);
+        if (opening) waveBanner.style.setProperty('--chapter-accent', opening.accent);
+        waveBannerText.textContent = opening ? `${opening.text}\n${prepText}` : prepText;
         waveBanner.classList.remove('hidden');
     }
 
@@ -1462,7 +1765,6 @@ function gameLoop(time: number): void {
     量模型: 量模型,
     門狀態() { return gateway.狀態(); },
     設曲率(a: number, b: number) { 設HP曲率(a, b); },
-    設金倍(v: number) { 設金倍(v); },
     塔尺(id: number) { return towerRenderer.measure(id); },
     塔同步() { towerRenderer.sync(state); towerRenderer.animate(0.6, state); },
     地圖: { spawn: cellToWorld(MAP.spawnCell[0], MAP.spawnCell[1]), goal: cellToWorld(MAP.goalCell[0], MAP.goalCell[1]) },
@@ -1500,6 +1802,11 @@ function gameLoop(time: number): void {
     },
     upgrade(towerId: number) { return upgradeTower(state, towerId); },
     進化(towerId: number, targetType: string) { return evolveTower(state, towerId, targetType); },
+    用技能(index: number) {
+        const before = state.skills[index]?.remaining ?? -1;
+        useSkill(index);
+        return { before, remaining: state.skills[index]?.remaining ?? -1 };
+    },
     // 出一隻敵人，之後可以擺喺任何一格路上面（唔郁就量得準）。
     spawn(type: string, pathIndex = 0) {
         spawnEnemy(state, type as Parameters<typeof spawnEnemy>[1]);
@@ -1507,8 +1814,20 @@ function gameLoop(time: number): void {
         if (pathIndex > 0) {
             const [c, r] = MAP.path[Math.min(pathIndex, MAP.path.length - 1)];
             const w = cellToWorld(c, r);
-            e.pathIndex = pathIndex; e.pathProgress = 0;
-            e.worldX = w.x; e.worldZ = w.z; e.prevWorldX = w.x; e.prevWorldZ = w.z;
+            let nearestSample = 0;
+            let nearestDistance = Number.POSITIVE_INFINITY;
+            for (let i = 0; i < state.pathWorld.length; i++) {
+                const dx = state.pathWorld[i].x - w.x;
+                const dz = state.pathWorld[i].z - w.z;
+                const distance = dx * dx + dz * dz;
+                if (distance < nearestDistance) {
+                    nearestDistance = distance;
+                    nearestSample = i;
+                }
+            }
+            const sample = state.pathWorld[nearestSample];
+            e.pathIndex = nearestSample; e.pathProgress = 0;
+            e.worldX = sample.x; e.worldZ = sample.z; e.prevWorldX = sample.x; e.prevWorldZ = sample.z;
         }
         return { id: e.id, hp: e.hp, maxHp: e.maxHp, armor: e.armor, shield: e.shield, x: e.worldX, z: e.worldZ };
     },

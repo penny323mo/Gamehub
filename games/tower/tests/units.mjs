@@ -17,12 +17,12 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { chromium } from 'playwright';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
-const PW = path.join(ROOT, 'games', 'Racing Car', 'tests', 'node_modules', 'playwright', 'index.mjs');
-if (!fs.existsSync(PW)) { console.log('搵唔到 playwright'); process.exit(1); }
-const { chromium } = await import(pathToFileURL(PW).href);
+const STATIC_ROOT = process.env.TOWER_STATIC_ROOT ? path.resolve(process.env.TOWER_STATIC_ROOT) : ROOT;
+const MAPCFG = JSON.parse(fs.readFileSync(path.join(HERE, '../configs/map.json'), 'utf8'));
 const MIME = { '.html':'text/html', '.js':'text/javascript', '.css':'text/css', '.json':'application/json',
   '.glb':'model/gltf-binary', '.png':'image/png', '.svg':'image/svg+xml', '.m4a':'audio/mp4' };
 
@@ -31,22 +31,29 @@ const check = (name, ok, detail) => {
   if (ok) { pass++; console.log(`PASS  ${name}`, detail === undefined ? '' : JSON.stringify(detail)); }
   else { fail++; failed.push(name); console.log(`FAIL  ${name}`, JSON.stringify(detail)); }
 };
-const server = http.createServer((req, res) => {
+let server = null;
+let url = process.env.TOWER_URL;
+if (!url) server = http.createServer((req, res) => {
   const u = decodeURIComponent(req.url.split('?')[0]);
-  const f = path.join(ROOT, u);
-  if (!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end('404'); }
+  const f = path.join(STATIC_ROOT, u);
+  if (!f.startsWith(STATIC_ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end('404'); }
   res.writeHead(200, { 'content-type': MIME[path.extname(f)] ?? 'application/octet-stream' });
   fs.createReadStream(f).pipe(res);
 });
-const port = await new Promise((r) => server.listen(0, () => r(server.address().port)));
+if (server) {
+  const port = await new Promise((r) => server.listen(0, () => r(server.address().port)));
+  url = process.env.TOWER_STATIC_ROOT
+    ? `http://127.0.0.1:${port}/index.html`
+    : `http://127.0.0.1:${port}/games/tower/dist/index.html`;
+}
 const browser = await chromium.launch({
-  executablePath: process.env.PW_CHROMIUM ?? '/opt/pw-browsers/chromium',
+  ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}),
   args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
 });
 const page = await browser.newPage({ viewport: { width: 1100, height: 700 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message.split('\n')[0].slice(0, 160)));
-await page.goto(`http://localhost:${port}/games/tower/dist/index.html`, { waitUntil: 'load' });
+await page.goto(url, { waitUntil: 'load' });
 await page.waitForFunction(() => !!window.__TD, null, { timeout: 30000 });
 await page.click('#start-btn');
 await page.waitForTimeout(9000);
@@ -55,9 +62,9 @@ const 塔種 = ['arrow', 'cannon', 'ice', 'fire', 'lightning', 'poison', 'sniper
 const 敵種 = ['grunt', 'tank', 'runner', 'swarm', 'shield', 'healer', 'boss'];
 
 // ── 塔：逐級量 ──
-const 塔 = await page.evaluate(async ({ 塔種 }) => {
+const 塔 = await page.evaluate(async ({ 塔種, 路 }) => {
   const T = window.__TD, S = () => T.state;
-  T.路 = (await (await fetch('../configs/map.json')).json()).path;
+  T.路 = 路;
   const 出 = {}; const 掛咗 = [];
   for (let i = 0; i < 塔種.length; i += 1) {
     S().gold = 999999;
@@ -76,10 +83,22 @@ const 塔 = await page.evaluate(async ({ 塔種 }) => {
       級.push(T.塔尺(tw.id));
       if (lv < 2) T.upgrade(tw.id);
     }
-    出[塔種[i]] = { 級 };
+    出[塔種[i]] = { id: tw.id, 級 };
   }
-  return { 出, 掛咗 };
-}, { 塔種 });
+  // Evolution resets logical level to 0. Measure the same max-level Arrow before
+  // and after evolving to make sure its building does not visually collapse.
+  const arrow = S().towers.find((t) => t.id === 出.arrow?.id);
+  const 進化 = { ok: false, before: 出.arrow?.級?.[2] ?? null, after: null, logicalLevel: null, type: null };
+  if (arrow) {
+    進化.ok = T.進化(arrow.id, 'arrow_rapid');
+    T.塔同步();
+    const evolved = S().towers.find((t) => t.id === arrow.id);
+    進化.after = T.塔尺(arrow.id);
+    進化.logicalLevel = evolved?.level ?? null;
+    進化.type = evolved?.type ?? null;
+  }
+  return { 出, 掛咗, 進化 };
+}, { 塔種, 路: MAPCFG.path });
 
 check('七種塔都起得成，而且冇一件模型係未預載就攞（會掟 error）',
   塔.掛咗.length === 0 && 塔種.every((t) => 塔.出[t] && !塔.出[t].起唔到),
@@ -105,6 +124,30 @@ check('由一級升到三級總共高咗接近兩節（2 × 0.5）',
 const 件數 = 塔種.map((t) => ({ 塔: t, 件: 塔.出[t]?.級?.map((x) => x?.件) }));
 check('升級係加多一件模型，唔係將原本嗰件拉長',
   件數.every((x) => x.件 && x.件[2] > x.件[0]), 件數);
+
+// 模型要留喺自己嗰格。原件塔底啱啱 1×1，四邊貼死；冰／毒屋頂更加去到
+// 1.41×1.41，視覺上跨入隔籬條路。邏輯位置可以係格中心，但 render footprint
+// 要留一圈草邊，玩家先一眼睇得出佢起喺邊格。
+const 佔格 = 塔種.flatMap((t) => (塔.出[t]?.級 ?? []).map((x, level) => ({
+  塔: t, 級: level + 1, 佔格: x?.佔格,
+})));
+check('每座塔嘅視覺 footprint 留喺自己一格之內（唔踩入隔籬路面）',
+  佔格.every((x) => x.佔格 && x.佔格[0] <= 0.92 && x.佔格[1] <= 0.92),
+  佔格.filter((x) => !x.佔格 || x.佔格[0] > 0.92 || x.佔格[1] > 0.92));
+
+const 地面 = 塔種.flatMap((t) => (塔.出[t]?.級 ?? []).map((x, level) => ({ 塔: t, 級: level + 1, 底: x?.底 })));
+check('每座塔都企喺 0.2 高嘅地磚面，唔再埋入地底',
+  地面.every((x) => Math.abs((x.底 ?? -99) - 0.2) <= 0.015),
+  地面.filter((x) => Math.abs((x.底 ?? -99) - 0.2) > 0.015));
+
+check('進化後邏輯 level 可以重置，但三層塔身唔會縮返一層',
+  塔.進化.ok && 塔.進化.logicalLevel === 0 && 塔.進化.type === 'arrow_rapid'
+    && 塔.進化.after?.高 >= 塔.進化.before?.高 - 0.25,
+  塔.進化);
+
+check('冰塔同毒塔個屋頂係固定嘅，唔會成座跟目標打轉',
+  ['ice', 'poison'].every((t) => (塔.出[t]?.級 ?? []).every((x) => x?.轉塔 === false)),
+  Object.fromEntries(['ice', 'poison'].map((t) => [t, 塔.出[t]?.級?.map((x) => x?.轉塔)])));
 
 // 分唔分得開：讀場景圖入面真正落咗嘅識別色
 const 色 = Object.fromEntries(塔種.map((t) => [t, 塔.出[t]?.級?.[2]?.色 ?? []]));
@@ -168,5 +211,5 @@ check('量度期間零 browser error', errors.length === 0, errors.slice(0, 3));
 console.log(`\ntower 塔同敵人: ${pass}/${pass + fail} 通過`);
 if (failed.length) console.log('失敗項目: ' + failed.join('、'));
 await browser.close();
-server.close();
+if (server) server.close();
 process.exit(fail ? 1 : 0);

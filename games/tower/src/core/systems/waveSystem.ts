@@ -1,9 +1,6 @@
 import type { GameState, Enemy, EnemyType, DamageType } from '../types';
 import { DIFFICULTIES } from '../types';
-import { WAVES, ENEMIES } from '../config';
-import { HP_CURVE, HP_LINEAR, HP_CURVE_CAP, GOLD_MULT } from '../config';
-import { cellToWorld } from '../path';
-import { MAP } from '../config';
+import { WAVES, ENEMIES, SCORING, enemyHpScale, enemyBountyScale } from '../config';
 import { bus } from './eventBus';
 
 export interface ModifierEffect {
@@ -30,7 +27,10 @@ function rollModifier(waveNumber1Based: number): string | null {
     // Every 5 waves, except on milestone waves (25/50/75/99 keep their own flavor)
     if (waveNumber1Based % 5 !== 0) return null;
     if (waveNumber1Based === 25 || waveNumber1Based === 50 || waveNumber1Based === 75 || waveNumber1Based === 99) return null;
-    return MODIFIER_KEYS[Math.floor(Math.random() * MODIFIER_KEYS.length)];
+    // Gameplay RNG 唔可以同 camera shake／FX 共用 Math.random：真機 FPS 唔同會
+    // 消耗唔同數量嘅 visual random，繼而靜靜改咗下一波規則。用波數輪轉仍然有
+    // BLITZ／ARMORED／FRENZY 節奏，而且任何 renderer timing 下都係同一場遊戲。
+    return MODIFIER_KEYS[(Math.floor(waveNumber1Based / 5) - 1) % MODIFIER_KEYS.length];
 }
 
 /** G24 — Map absolute wave index to a template index, wrapping in endless mode. */
@@ -64,8 +64,7 @@ export function tickWave(state: GameState, dt: number): void {
         state.prepTimer -= dt;
         if (state.prepTimer <= 0) {
             // A — Interest on held gold (1%, min 10g, max 150g)
-            // 利息係獎勵「唔洗錢」——喺一隻本來就錢多過嘢買嘅遊戲度，佢係反方向嘅。
-            const interest = Math.round(Math.min(150, Math.max(10, Math.floor(state.gold * 0.01))) * GOLD_MULT);
+            const interest = Math.min(150, Math.max(10, Math.floor(state.gold * 0.01)));
             state.gold += interest;
             state.stats.goldEarned += interest;
             state.floatingTexts.push({
@@ -125,9 +124,9 @@ export function tickWave(state: GameState, dt: number): void {
 
     if (allSpawned && allDead) {
         // Score this wave
-        state.score += state.currentWave < WAVES.waves.length ? 100 : 0;
+        state.score += state.currentWave < WAVES.waves.length ? SCORING.waveScore : 0;
         if (state.waveLivesLostThisWave === 0) {
-            state.score += 150; // perfectWaveBonus
+            state.score += SCORING.perfectWaveBonus;
             state.perfectWaves++;
         }
 
@@ -138,7 +137,6 @@ export function tickWave(state: GameState, dt: number): void {
         else if (wave > 30) waveGoldBonus = 200;
         else if (wave > 10) waveGoldBonus = 150;
         else waveGoldBonus = 120; // 早期波次提升獎金
-        waveGoldBonus = Math.round(waveGoldBonus * GOLD_MULT);
         state.gold += waveGoldBonus;
         state.stats.goldEarned += waveGoldBonus;
         state.lastWaveClearGold = waveGoldBonus;
@@ -163,7 +161,7 @@ export function tickWave(state: GameState, dt: number): void {
         state.projectiles = state.projectiles.filter(p => p.alive);
 
         if (state.currentWave >= WAVES.waves.length && !state.endlessMode) {
-            state.score += state.lives * 25; // lifeBonus
+            state.score += state.lives * SCORING.lifeBonus;
             state.phase = 'won';
             bus.emit({ type: 'gameOver', won: true, score: state.score });
         } else {
@@ -174,7 +172,9 @@ export function tickWave(state: GameState, dt: number): void {
 
 export function spawnEnemy(state: GameState, type: EnemyType): void {
     const cfg = ENEMIES[type];
-    const spawn = cellToWorld(MAP.path[0][0], MAP.path[0][1]);
+    // The continuous route begins outside the gateway. Spawning on MAP.path[0]
+    // made units pop into existence after the gate instead of walking through it.
+    const spawn = state.pathWorld[0];
     const diffCfg = DIFFICULTIES[state.difficulty];
 
     // 難度曲線：線性 4%／波，**再加一條二次項**。
@@ -188,15 +188,18 @@ export function spawnEnemy(state: GameState, type: EnemyType): void {
     // （wave 40 加 61%），後段變成主導（wave 80 加 2.4×）。個常數係**掃出嚟嘅**，
     // 唔係揀個靚數——見 ADR 同 `tests/playthrough.mjs`。
     const w = state.currentWave;
-    // 二次項**封頂喺第 45 波**：純二次會令第 99 波去到 32×（連 455 隻敵人，
-    // 冇人打得完）；封頂之後第 99 波係 8.2× 對原本 4.96×，即係後段只重咗
-    // 六成幾，而第 40 波由 2.6× 升到 5.2×——追返嘅係中段嗰段真空。
-    const 封 = Math.min(w, HP_CURVE_CAP);
-    const waveScale = 1 + w * HP_LINEAR + HP_CURVE * 封 * 封;
+    // 二次項**封頂喺第 45 波**：純二次會令第 99 波去到 32×（就算 boss 尖峰
+    // 收平咗，一波仍有過百隻敵人，冇人打得完）；封頂之後第 99 波係 8.2×
+    // 對原本 4.96×，即係後段只重咗六成幾，而第 40 波由 2.6× 升到
+    // 5.2×——追返嘅係中段嗰段真空。
+    const hpWaveScale = enemyHpScale(w);
+    // 賞金保留原本線性節奏，唔跟 HP 二次曲線。否則「加血」同時會令
+    // 玩家賺快咗，個測試就分唔開難度同經濟兩個槓桿。
+    const bountyWaveScale = enemyBountyScale(w);
     const mod = state.waveModifier ? MODIFIERS[state.waveModifier] : null;
-    const hpMult = waveScale * diffCfg.enemyHpMult * (mod?.hpMult ?? 1);
+    const hpMult = hpWaveScale * diffCfg.enemyHpMult * (mod?.hpMult ?? 1);
     const spdMult = diffCfg.enemySpeedMult * (mod?.spdMult ?? 1);
-    const bountyMult = Math.pow(waveScale, 0.5) * diffCfg.goldMult * (mod?.bountyMult ?? 1) * GOLD_MULT;
+    const bountyMult = Math.pow(bountyWaveScale, 0.5) * diffCfg.goldMult * (mod?.bountyMult ?? 1);
     const armorBonus = mod?.armorBonus ?? 0;
 
     const enemy: Enemy = {

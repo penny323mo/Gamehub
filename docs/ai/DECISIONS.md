@@ -4467,56 +4467,104 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
-## ADR-199 — Tower: "where do I put it" was never a question, because everywhere was an answer
+## ADR-199 — Tower: the map is a valley cell graph, not a rectangular board
 
-Date: 2026-08-08. Status: accepted.
+Date: 2026-08-09. Status: accepted.
 
-ADR-198 ruled out the HP curve as the lever and named the real one: the map allowed **62
-path-adjacent build cells**, and the measured knee was brutally narrow — **20 towers dies at wave 41,
-30 towers finishes wave 46 without losing a life**. Anything above thirty is invincible, and the map
-offered twice that. So the central decision of a tower defence — *this pile of gold, where does it
-go* — had no scarcity behind it and therefore was not a decision at all. You won by continuing to
-press build.
+The Tower board was visually and structurally one 20 × 12 slab even though gameplay only cared about
+the 31-cell road. The replacement keeps the stable coordinate system, route length and eight turns,
+but defines an asymmetric valley in `core/mapLayout.ts`: each cell has one authoritative
+`exists` / `buildable` / `terrain` / `pathIndex` record. Scene construction, economy, picking,
+camera and lighting consume that interface. Do not recreate private rectangular masks in those
+consumers.
 
-`canBuild()` said "not path, not occupied". It now says "on a build pad", and the pads are generated
-by `scripts/gen-build-pads.mjs` from the path itself: **22 of them**, alternating sides so enemies
-take fire from both, and spread evenly across path indices **2–28** of 31. The first attempt used a
-fixed step and filled its quota by index 23 — the last third of the road had no pads at all, which
-would have handed the player a free run to the keep. Even distribution fixed it. A map with no
-`buildCells` still falls back to the old rule, so this cannot silently make a map unbuildable.
+The emerald-rift layout has **148 active cells instead of 240**, one connected land mass, a blocked
+outer terrain shell, one river crossed by a real bridge, and **60 eight-neighbour build positions**
+next to the route. Those numbers deliberately preserve the previous route length and almost all of
+its 62 adjacent positions while changing the silhouette and rhythm; future visual themes may replace
+terrain models without quietly changing build rules.
 
-The pads are visible: a wooden platform from the kit on each one. Without that the rule is invisible
-and the player learns it by clicking and getting nothing.
+Geometry and gameplay share `SURFACE_Y = 0.2`. Towers, enemies, range rings, the picking plane and
+projectile origins use it, because the GLB tiles are 0.2 high. Endpoint buildings are anchored just
+outside the first and last path cells; Kenney wall and tower pieces have off-centre authored pivots,
+so modular placement centres their actual bounds before rotation or stacking. Weapon assets point
+along local -Z while aiming uses +Z, so the model receives a one-time π yaw rather than changing the
+aiming maths.
 
-Measured, on the same policy the earlier rounds used:
+The contract is measured rather than inferred: `map.mjs` guards land connectivity and capacity,
+`map-browser.mjs` guards true rendered cell count, blocked river/void taps and mobile framing,
+`units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
+doors, outside anchors, roof clearance and non-white spawn flash.
 
-| | before | after pads | after pads + gold |
-|---|---|---|---|
-| lives at wave 46 | 20/20 | 14/20 | **13/20** |
-| waves that cost a life | none | 41 | **6, 41** |
-| deepest penetration (max / median) | 0.67 / 0.07 | 0.97 / 0.10 | 0.97 / 0.10 |
-| income ÷ spend | 1.53× | 4.09× | 2.38× |
+## ADR-201 — Tower: verifying ADR-200's capacity gradient, and correcting a conclusion I measured too short
 
-The middle column is the trap: capping tower count fixes the defence but **doubles the money
-problem**, because the ceiling on what you can buy drops while income does not. Income was 57,235
-against 14,010 of possible spend. So the gold multiplier went on the same kind of swept knob as the
-HP curve — 0.55 and 0.4 measured, **0.5 shipped** — and the interest rule got a note it deserved:
-paying 1 % on held gold *rewards not spending*, in a game whose whole problem was that gold had
-nowhere to go.
+Date: 2026-08-09. Status: accepted.
 
-At 0.5 the first life is lost at **wave 6**, not wave 41. That is the early game finally having an
-opinion.
+ADR-200 (Codex) landed a full battlefield redesign while this agent was mid-round on the old map.
+Two things needed settling before anything else: whether ADR-200's claims reproduce independently,
+and what happens to the round I had built on the superseded map.
 
-**Left open and named.** Income is still 2.38× what the map can absorb. That is now structural: 22
-pads at roughly 640 gold each is a hard ceiling of about 14,000, and no multiplier fixes a ceiling —
-it needs a sink that scales, which is a mechanic, not a number. I am not inventing one at the end of
-a long session; the measurement is recorded so the next round starts from it rather than from a guess.
+**The capacity gradient reproduces exactly.** Re-run in a different container, seed 198, cap 30:
+**won all 99 waves with 16/20 lives, lives lost at waves 90, 95 and 99, last spend at wave 87** —
+identical to the witness recorded in ADR-200. The fast suites also pass here: map 11/11, route 8/8,
+chapters 7/7, balance 10/10, tiles 7/7.
 
-`balance.mjs` grew five pad checks, including one that regenerates the pads from the script and
-compares — so changing the rule without regenerating turns it red. Mutation: cutting the pad list to
-8 turns three of them red (count, spread 2–11 instead of 2–28, and the regeneration mismatch).
-All eight suites green: balance 11/11, look 7/7, assets 8/8, tiles 6/6, gateway 6/6, units 10/10,
-smoke 5/5, combat 8/8.
+**And that corrects me.** ADR-198 and ADR-199 concluded "a full build is never threatened", measured
+over waves 1–46 of a **99-wave** campaign. On this baseline the pressure is deliberately placed in
+the last third: nothing at wave 45, three lives gone by wave 99. The conclusion was not wrong about
+what it saw; it was drawn from a window that ended before the campaign's climax began. A 45-wave
+probe cannot answer a 99-wave question, and I should have noticed that the wave table kept going.
+
+**The build-pad round is withdrawn, not merged.** `d18b36e` cut the map to 22 explicit build pads
+because 62 adjacent cells made placement a non-decision at the measured knee. ADR-200 replaced the
+map with `mapLayout.ts` as the single buildability authority, and its handoff states the rule
+plainly: *do not reshape the map merely to tune a bot*. That commit did exactly that, on a map that
+no longer exists. It stays on the work branch's history and on `backup/pads-old-map`; the branch tree
+is now identical to `main`. The gold multiplier from the same commit is also withdrawn — ADR-200's
+independent HP and bounty curves bring income-over-spend to **1.02×** at wave 45, against the 2.38×
+my multiplier reached.
+
+Two things carry forward as observations rather than defects:
+
+- On the cap-30 probe, **spending stops at wave 87 and 54,248 gold is left unspent** (income ÷ spend
+  1.39×). That is the ADR-194 shape — the sink runs dry — but at wave 87 instead of wave 26, so it
+  is now a tail, not a hole. Worth a number, not a redesign.
+- **This cloud container cannot run the Tower suites without `PW_CHROMIUM=/opt/pw-browsers/chromium`.**
+  ADR-200 gave Tower its own Playwright, which pins a browser build that is not installed here; the
+  tests honour the env var, so the fix is one line, but the next cloud agent will hit it on its first
+  command and should not spend time diagnosing it.
+
+## ADR-200 — Tower: one battlefield has three regions, five acts and one safe campaign lifecycle
+
+Date: 2026-08-09. Status: accepted.
+
+The 99-wave campaign stays on one continuous battlefield, but it is no longer one undifferentiated
+strip. `map.json` defines three ordered regions — Wildwood Gate, Sunken Crossing and Bastion Cliff —
+and `chapters.ts` defines five 20/20/20/20/19-wave acts. The same chapter data drives HUD copy,
+opening banners, atmosphere colours and tactical labels; do not create separate visual and gameplay
+chapter tables. Region foundations use three vertical tiers, a central river rift and a keep mesa so
+the silhouette reads as a journey without changing the authoritative build grid.
+
+Enemy movement follows a 246-sample smooth route generated from the 31 grid cells. The route begins
+on the spawn-gate plane, remains within 0.42 cells of the road, limits each sample turn to 26.9° and
+finishes on the existing goal cell. Build range and adjacency continue to use the grid; do not use
+the smoothed samples as a second map authority. Endpoint buildings are positioned from the same
+route anchors so enemies cannot pop in on the wrong side of a decorative gate.
+
+Campaign randomness is split from visual `Math.random`: wave modifiers and milestone card offers
+use deterministic gameplay sampling. The accepted milestone rhythm is offence at waves 25 and 75,
+with range/fortify recovery at wave 50. Enemy HP curvature and bounty scaling are independent.
+Evolved towers retain two paid post-evolution levels. Seed-198 witnesses define the intended capacity
+gradient: 20 towers lose at wave 90, 30 towers finish with 16/20 lives, and an unrestricted build
+finishes with 20/20 while still spending at wave 99. Treat those runs as comparative policy probes,
+not a claim that every player build must reproduce them.
+
+Resume data is a versioned, 30-day local checkpoint written only during preparation, never with live
+enemies or projectiles. Help, backgrounding and WebGL context loss pause explicitly; returning to the
+foreground or restoring WebGL never silently resumes. Restart clears selection, floating UI and
+pause residue. Static terrain is batched, projectile geometry/materials are shared, and the renderer
+tests guard zero projectile-geometry growth plus draw-call budgets at the real 229-enemy campaign
+peak. These lifecycle and resource rules are part of the campaign design, not optional polish.
 
 ## ADR-198 — Tower: raising enemy HP does not threaten a full build, and the measurements say why
 

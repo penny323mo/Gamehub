@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { MAP, GRAPHICS } from '../core/config';
-import { cellToWorld } from '../core/path';
+import { MAP, GRAPHICS, SURFACE_Y } from '../core/config';
+import { buildPathWorld, cellToWorld } from '../core/path';
 import { 取同步 } from './assets';
 
 // 條路兩頭嘅嘢：**入口一對門，出口一座城堡**。
@@ -42,6 +42,9 @@ export class Gateway {
     private 血條位 = new THREE.Vector3();
     private 上次命 = -1;
     private 旗: THREE.Object3D[] = [];
+    private 入口組: THREE.Group | null = null;
+    private 城堡組: THREE.Group | null = null;
+    private 城堡頂 = 0;
     private time = 0;
 
     constructor(scene: THREE.Scene) {
@@ -70,7 +73,7 @@ export class Gateway {
         const [c, r] = MAP.spawnCell;
         const pos = cellToWorld(c, r);
         const 組 = new THREE.Group();
-        組.position.set(pos.x, 0, pos.z);
+        組.name = 'spawn-gate';
         // 門要**打橫攔住條路**：條路由呢格去下一格嗰個方向，就係穿過道門嘅方向。
         //
         // `wallDoorwaySquareWide` 嘅**薄身係 X 軸**（量過：0.1 × 1.0 × 1.0），
@@ -78,42 +81,55 @@ export class Gateway {
         // 仲要**加多 90°**，先至係「牆攔住條路、門口對正你行嘅方向」。
         // 唔加嗰陣道門係打側企喺路邊，而個光幕會埋咗入塊牆入面——
         // 實測就係咁：`閃` 讀到 0.82，但門口嗰笪像素**一點都冇光咗**。
-        const 下 = MAP.path[1] ?? MAP.path[0];
-        const 下pos = cellToWorld(下[0], 下[1]);
-        組.rotation.y = Math.atan2(下pos.x - pos.x, 下pos.z - pos.z) + Math.PI / 2;
-        組.scale.setScalar(1.25);
+        const route = buildPathWorld();
+        const 入口位 = route[0] ?? pos;
+        const 下pos = route[1] ?? cellToWorld(MAP.path[1]?.[0] ?? c, MAP.path[1]?.[1] ?? r);
+        // 門係場外建築，門口先對住第一格；擺正喺第一格中心會成座壓住路面。
+        組.position.set(入口位.x, SURFACE_Y, 入口位.z);
+        // 模型牆身法線係 local +X；將 +X 對住條路方向。
+        組.rotation.y = Math.atan2(下pos.x - 入口位.x, 下pos.z - 入口位.z) - Math.PI / 2;
+        // 舊比例開門時足足闊 3.53 格、高 4.14 格，搶晒成個畫面。
+        組.scale.setScalar(0.85);
         this.scene.add(組);
+        this.入口組 = 組;
 
         // 門框（牆上開一個闊方口）——薄身，所以打橫擺喺格中間。
         const 框 = 取同步('structures/wallDoorwaySquareWide.glb');
         框.scale.setScalar(1.45);
+        中心XZ(框);
         染(框, 0xd8dde3, 0x9aa4ae);
         組.add(框);
 
         // 兩條柱夾住，令道門睇落係一件建築唔係一片牆。
         for (const s of [-1, 1]) {
             const 柱 = 取同步('structures/pillarStone.glb');
-            柱.position.set(s * 0.72, 0, 0);
             柱.scale.set(1.35, 1.75, 1.35);
+            中心XZ(柱);
+            // wall 模型薄軸係 X、闊軸係 Z，所以左右係 Z，唔係 X。
+            柱.position.z += s * 0.72;
             染(柱, 0xe2e6ea, 0xa6b0b9);
             組.add(柱);
 
             const 燈 = 取同步('structures/lantern.glb');
-            燈.position.set(s * 0.72, 1.72, 0);
             燈.scale.setScalar(0.9);
+            中心XZ(燈);
+            燈.position.y = 1.72;
+            燈.position.z += s * 0.72;
             組.add(燈);
         }
 
         // 兩塊門板：各自掛喺自己嗰條邊，繞邊轉——所以要用一個 pivot。
         for (const s of [-1, 1] as const) {
             const 樞 = new THREE.Group();
-            樞.position.set(s * 0.66, 0, 0);
+            樞.position.set(0, 0, s * 0.66);
             組.add(樞);
 
             const 板 = 取同步('structures/wallDoor.glb');
-            // 模型原點喺自己中間，推返去令外邊貼住個樞。
-            板.position.set(-s * 0.34, 0, 0);
-            板.scale.set(1.3, 1.45, 1.3);
+            // 原件係一整扇 1 格闊嘅門；兩塊各收成半扇，再由門鉸推向中線。
+            // 舊版兩塊都係 1.3 格闊兼疊埋一齊，開門時先會橫跨三格幾。
+            板.scale.set(1.3, 1.45, 0.65);
+            中心XZ(板);
+            板.position.z -= s * 0.33;
             染(板, 0xc98a4b, 0x8d5c2e);
             樞.add(板);
 
@@ -155,13 +171,13 @@ export class Gateway {
         // 一枝向上射嘅光柱：俯視角度下，平躺喺地嘅環好易畀建築遮住，
         // 而一枝企起身嘅柱點都望得到。
         const 柱光 = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.34, 0.5, 3.2, 18, 1, true),
+            new THREE.CylinderGeometry(0.26, 0.4, 2.4, 18, 1, true),
             new THREE.MeshBasicMaterial({
                 color: 0xb7f4ff, transparent: true, opacity: 0,
                 side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending,
             }),
         );
-        柱光.position.set(0, 1.6, 0);
+        柱光.position.set(0, 1.2, 0);
         組.add(柱光);
         this.光柱 = 柱光;
     }
@@ -171,24 +187,34 @@ export class Gateway {
         const [c, r] = MAP.goalCell;
         const pos = cellToWorld(c, r);
         const 組 = new THREE.Group();
-        組.position.set(pos.x, 0, pos.z);
+        組.name = 'goal-keep';
         // 面向條路入嚟嘅方向
         const 前 = MAP.path[MAP.path.length - 2] ?? MAP.path[MAP.path.length - 1];
         const 前pos = cellToWorld(前[0], 前[1]);
+        const 城堡位 = endpointOutside(pos, 前pos, 0.38);
+        // 同入口一樣，主體企出場外，入口先接住最後一格。舊版中心壓正尾格，
+        // 2.7×2.7 格嘅 footprint 令敵人似穿牆入去。
+        組.position.set(城堡位.x, SURFACE_Y, 城堡位.z);
         組.rotation.y = Math.atan2(前pos.x - pos.x, 前pos.z - pos.z);
-        組.scale.setScalar(1.35);
+        組.scale.setScalar(1.0);
         this.scene.add(組);
+        this.城堡組 = 組;
 
-        // 一圈矮牆，正面留個門口（怪就係要衝入呢度）。
-        const 牆位: [number, number, number][] = [
-            [-0.5, 0, Math.PI / 2], [0.5, 0, Math.PI / 2],
-            [0, 0.5, 0], [0, -0.5, 0],
+        // 一圈矮牆，正面（local +Z，面向條路）用拱門。牆模型薄軸係 X：
+        // 左右牆唔轉，前後牆先轉 90°。舊版啱啱調轉，四件砌成 L 形。
+        const 牆位: [string, number, number, number][] = [
+            ['structures/wall.glb', -0.5, 0, 0],
+            ['structures/wall.glb', 0.5, 0, 0],
+            ['structures/wall.glb', 0, -0.5, Math.PI / 2],
+            ['structures/wallArch.glb', 0, 0.5, Math.PI / 2],
         ];
-        for (const [dx, dz, ry] of 牆位) {
-            const w = 取同步(dz > 0 ? 'structures/wallWindowRound.glb' : 'structures/wall.glb');
-            w.position.set(dx, 0, dz);
-            w.rotation.y = ry;
+        for (const [rel, dx, dz, ry] of 牆位) {
+            const w = 取同步(rel);
             w.scale.setScalar(1.0);
+            w.rotation.y = ry;
+            中心XZ(w);
+            w.position.x += dx;
+            w.position.z += dz;
             染(w, 0xdde2e7, 0x9fa9b2);
             組.add(w);
         }
@@ -197,25 +223,35 @@ export class Gateway {
         const 樓 = new THREE.Group();
         樓.position.y = 1.0;
         組.add(樓);
-        for (const [dx, dz, ry] of 牆位) {
+        const 樓牆: [number, number, number][] = [
+            [-0.31, 0, 0], [0.31, 0, 0],
+            [0, -0.31, Math.PI / 2], [0, 0.31, Math.PI / 2],
+        ];
+        for (const [dx, dz, ry] of 樓牆) {
             const w = 取同步('structures/wall.glb');
-            w.position.set(dx * 0.62, 0, dz * 0.62);
-            w.rotation.y = ry;
             w.scale.set(0.64, 0.8, 0.64);
+            w.rotation.y = ry;
+            中心XZ(w);
+            w.position.x += dx;
+            w.position.z += dz;
             染(w, 0xe8ecef, 0xacb5bd);
             樓.add(w);
         }
         const 頂 = 取同步('structures/roofHighPoint.glb');
-        頂.position.y = 0.8;
         頂.scale.setScalar(0.78);
+        中心XZ(頂);
+        頂.position.y = 0.8;
         染頂(頂, 0xe0503f, 0xff7b66);
         樓.add(頂);
 
         // 兩支旗，會慢慢飄——望落唔會死實實。
         for (const s of [-1, 1]) {
             const f = 取同步('structures/bannerGreen.glb');
-            f.position.set(s * 0.62, 1.05, -0.42);
             f.scale.setScalar(0.9);
+            中心XZ(f);
+            f.position.x += s * 0.62;
+            f.position.y = 1.05;
+            f.position.z -= 0.42;
             組.add(f);
             this.旗.push(f);
         }
@@ -226,7 +262,10 @@ export class Gateway {
         // 轉咗 Y，抄鏡頭 quaternion 落一個轉咗向嘅 parent 入面，出嚟嘅世界朝向
         // 係「parent 轉向 × 鏡頭轉向」——即係永遠都唔會正對鏡頭。第一版就係咁，
         // 條 bar 側到剩返一條線。
-        const 條位 = new THREE.Vector3(pos.x, 2.7, pos.z);
+        組.updateWorldMatrix(true, true);
+        const 城堡頂 = new THREE.Box3().setFromObject(組).max.y;
+        this.城堡頂 = 城堡頂;
+        const 條位 = new THREE.Vector3(城堡位.x, 城堡頂 + 0.22, 城堡位.z);
         const 底 = new THREE.Mesh(
             new THREE.PlaneGeometry(this.血條長 + 0.14, 0.3),
             new THREE.MeshBasicMaterial({ color: 0x140b0b, transparent: true, opacity: 0.85, depthTest: false, depthWrite: false }),
@@ -269,23 +308,24 @@ export class Gateway {
 
         // 閃光衰減
         this.閃 = Math.max(0, this.閃 - dt / 0.55);
-        if (this.閃燈) this.閃燈.intensity = this.閃 * this.閃 * 60;
+        // 舊值 60 配 6.2× 光環，連續出怪時會變成一大團純白，門本身完全睇唔到。
+        if (this.閃燈) this.閃燈.intensity = this.閃 * this.閃 * 4.5;
         if (this.光環) {
             const t = 1 - this.閃;                      // 0 → 1
-            const s2 = 0.8 + t * 5.4;
+            const s2 = 0.75 + t * 3.2;
             this.光環.scale.set(s2, s2, 1);
-            (this.光環.material as THREE.MeshBasicMaterial).opacity = this.閃;
+            (this.光環.material as THREE.MeshBasicMaterial).opacity = this.閃 * 0.3;
         }
         if (this.光柱) {
             const m = this.光柱.material as THREE.MeshBasicMaterial;
-            m.opacity = this.閃 * 0.55;
+            m.opacity = this.閃 * 0.12;
             const w = 0.7 + (1 - this.閃) * 0.8;
             this.光柱.scale.set(w, 1, w);
             this.光柱.visible = this.閃 > 0.01;
         }
         if (this.光幕) {
             const m = this.光幕.material as THREE.MeshBasicMaterial;
-            m.opacity = 0.2 + this.閃 * 0.75 + Math.sin(this.time * 2.6) * 0.06;
+            m.opacity = 0.07 + this.閃 * 0.26 + Math.sin(this.time * 2.6) * 0.015;
         }
 
         // 旗飄
@@ -312,18 +352,46 @@ export class Gateway {
         }
     }
 
-    /** 量度用：道門而家開幾多、閃緊幾多。 */
-    狀態(): { 開度: number; 閃: number; 門角: number[]; 血條闊: number } {
+    /** 量度用：開關狀態同建築定位，讓測試守住兩邊唔再壓住路面。 */
+    狀態(): {
+        開度: number; 閃: number; 門角: number[]; 血條闊: number;
+        入口位: [number, number]; 城堡位: [number, number]; 門樞位: [number, number][];
+        城堡頂: number; 血條Y: number;
+    } {
+        const 入 = this.入口組?.position;
+        const 城 = this.城堡組?.position;
         return {
             開度: +this.開度.toFixed(3),
             閃: +this.閃.toFixed(3),
             門角: this.門扇.map((d) => +d.node.rotation.y.toFixed(3)),
             血條闊: +(this.血條?.scale.x ?? -1).toFixed(3),
+            入口位: [+( 入?.x ?? 0).toFixed(3), +(入?.z ?? 0).toFixed(3)],
+            城堡位: [+( 城?.x ?? 0).toFixed(3), +(城?.z ?? 0).toFixed(3)],
+            門樞位: this.門扇.map((d) => [+d.node.position.x.toFixed(3), +d.node.position.z.toFixed(3)]),
+            城堡頂: +this.城堡頂.toFixed(3),
+            血條Y: +(this.血條位.y ?? 0).toFixed(3),
         };
     }
 }
 
 const easeOut = (t: number): number => 1 - (1 - t) * (1 - t);
+
+/** 將端點建築沿住「遠離條路」方向推到場外，支援日後換一條唔係橫向嘅路。 */
+function endpointOutside(endpoint: { x: number; z: number }, neighbour: { x: number; z: number }, distance: number): { x: number; z: number } {
+    const dx = endpoint.x - neighbour.x;
+    const dz = endpoint.z - neighbour.z;
+    const len = Math.hypot(dx, dz) || 1;
+    return { x: endpoint.x + (dx / len) * distance, z: endpoint.z + (dz / len) * distance };
+}
+
+/** Kenney 呢批牆件原點貼住一邊；擺位前先將幾何中心搬返模型原點。 */
+function 中心XZ(root: THREE.Object3D): void {
+    root.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(root);
+    const center = box.getCenter(new THREE.Vector3());
+    root.position.x -= center.x;
+    root.position.z -= center.z;
+}
 
 /** 石同木換色——同 towerRenderer 一樣，clone 過先改，唔好改到共用嗰份。 */
 function 染(root: THREE.Object3D, 石: number, 深: number): void {

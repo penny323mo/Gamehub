@@ -14,7 +14,8 @@
 // 跑法：node games/tower/tests/balance.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { totalHp, isBoss, floorFor, FLOOR_FRAC, FLOOR_WINDOW } from '../scripts/fix-wave-curve.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -63,6 +64,27 @@ const 隻數 = waves.map((w) => w.groups.reduce((s, g) => s + g.count, 0));
 check('冇一個波多過 500 隻敵人（再多就係幀率問題唔係難度問題）',
   Math.max(...隻數) <= 500, { 最多: Math.max(...隻數), 喺: 隻數.indexOf(Math.max(...隻數)) + 1 });
 
+// Boss 應該係波峰，唔係牆。原表由 wave 60 開始每逢 boss 就將 raw durability
+// 一次推高 7–8 倍，普通波完全無壓力、boss 波一次清空 20 命。容許三倍波峰已經
+// 留咗好闊嘅 boss 節奏，但唔容許一關等於之前成段路嘅總和。
+const 耐久 = waves.map((w) => w.groups.reduce((s, g) => {
+  const e = enemies[g.type];
+  return s + g.count * (e.hp + (e.shield ?? 0));
+}, 0));
+const boss尖峰 = [];
+for (let i = 0; i < waves.length; i += 1) {
+  if (!isBoss(waves[i])) continue;
+  const 近五普通 = [];
+  for (let j = Math.max(0, i - 5); j < i; j += 1) {
+    if (!isBoss(waves[j])) 近五普通.push(耐久[j]);
+  }
+  const 波峰 = Math.max(...近五普通);
+  const 倍數 = 耐久[i] / 波峰;
+  if (倍數 > 3) boss尖峰.push({ 波: i + 1, 耐久: 耐久[i], 近五普通波峰: 波峰, 倍數: +倍數.toFixed(2) });
+}
+check('boss 係可讀嘅波峰，唔係突然高過最近普通波三倍嘅血牆',
+  boss尖峰.length === 0, boss尖峰);
+
 // ── 張地圖食唔食得晒你賺嘅錢 ──
 // TD 嘅決定係「呢舊錢買乜」。買得晒之後就再冇決定——`tests/playthrough.mjs`
 // 量到：一個「貼路起塔、有錢就升級、升唔到就進化、再唔係就多起一座」嘅政策，
@@ -71,20 +93,27 @@ check('冇一個波多過 500 隻敵人（再多就係幀率問題唔係難度�
 // 呢條 gate 由設定計，唔使開瀏覽器：張地圖食得幾多，同遊戲派幾多。
 const towers = JSON.parse(fs.readFileSync(path.join(CFG, 'towers.json'), 'utf8'));
 const map = JSON.parse(fs.readFileSync(path.join(CFG, 'map.json'), 'utf8'));
-const 路格 = new Set(map.path.map(([c, r]) => `${c},${r}`));
+const layoutOut = path.join(HERE, '..', 'node_modules/.cache/map-layout-balance.mjs');
+execFileSync(path.join(HERE, '..', 'node_modules/.bin/esbuild'), [
+  path.join(HERE, '..', 'src/core/mapLayout.ts'), '--bundle', '--format=esm', '--platform=node', `--outfile=${layoutOut}`,
+]);
+const { LAYOUT } = await import(`${pathToFileURL(layoutOut).href}?t=${Date.now()}`);
 // 起得塔而且貼得住條路嘅位——唔貼路嘅位打唔到嘢，計落去只會呃自己。
 const 貼路位 = new Set();
 for (const [pc, pr] of map.path) {
   for (let dc = -1; dc <= 1; dc += 1) for (let dr = -1; dr <= 1; dr += 1) {
     const c = pc + dc, r = pr + dr, k = `${c},${r}`;
-    if (c < 0 || c >= map.cols || r < 0 || r >= map.rows) continue;
-    if (!路格.has(k)) 貼路位.add(k);
+    if (LAYOUT.cellAt(c, r).buildable) 貼路位.add(k);
   }
 }
-const 一座最貴 = Math.max(...Object.values(towers).map((t) => {
-  const 升 = t.levels.reduce((s, l) => s + l.buildCost + l.upgradeCost, 0);
-  const 進 = t.evolutions?.length ? Math.max(...t.evolutions.map((e) => e.cost)) : 0;
-  return 升 + 進;
+const 基礎塔 = Object.values(towers).filter((t) => t.levels[0].buildCost > 0);
+const 一座最貴 = Math.max(...基礎塔.map((t) => {
+  const 基礎升滿 = t.levels.reduce((s, l) => s + l.buildCost + l.upgradeCost, 0);
+  const 進化路 = (t.evolutions ?? []).map((e) => {
+    const 後段升級 = (towers[e.type]?.levels ?? []).slice(1).reduce((s, l) => s + l.upgradeCost, 0);
+    return e.cost + 後段升級;
+  });
+  return 基礎升滿 + (進化路.length ? Math.max(...進化路) : 0);
 }));
 const 食得晒 = 貼路位.size * 一座最貴;
 // 派幾多：敵人賞金 ＋ 每波過關獎 ＋ 每 25 波里程碑（利息同難度倍率仲會加多，
@@ -99,33 +128,54 @@ check('買唔晒成張地圖之前，唔可以已經打完大半場（買得晒�
   買得晒喺第幾波 === null || 買得晒喺第幾波 >= waves.length * 0.75,
   { 貼路位: 貼路位.size, 一座最貴, 食得晒, 全場派: 派過, 買得晒喺第幾波, 總波數: waves.length });
 
-// ── 建築平台：位置要係一個決定 ──
-//
-// 本來嘅規則係「唔係路就起得」，張 20×12 地圖有 **62 個貼路位**，而實測嘅膝點
-// 好窄：**20 座塔第 41 波會死，30 座塔打到 46 波一條命都唔跌**。即係位置由頭到尾
-// 都唔係一個決定。而家係明確平台（`scripts/gen-build-pads.mjs` 生成），
-// 條規則由嗰個 script import——修同守用同一條。
-const { buildPads, padSpread, PAD_TARGET } = await import('../scripts/gen-build-pads.mjs');
-const pads = map.buildCells ?? [];
-check('地圖有明確嘅建築平台（唔係「唔係路就起得」）', pads.length > 0, { 平台: pads.length });
-// 落喺膝點下面：緊，但唔係冇得贏。
-check(`平台數落喺量到嘅膝點下面（20 座會死 / 30 座無敵）`,
-  pads.length >= 16 && pads.length <= 26, { 平台: pads.length, 目標: PAD_TARGET });
-// 平台唔可以全部擠喺一段路——擠埋一舊就變返「頭段火力網」，尾段冇人守。
-const 攤 = padSpread(map, pads);
-const 路長 = map.path.length;
-check('平台沿住成條路攤開（唔係擠晒喺一段）',
-  攤[0] <= 路長 * 0.15 && 攤[攤.length - 1] >= 路長 * 0.75,
-  { 最前: 攤[0], 最後: 攤[攤.length - 1], 路長 });
-// 每個平台都要真係貼得住條路，否則射程覆蓋唔到。
-const 離路 = pads.filter(([pc, pr]) => !map.path.some(([c, r]) => Math.abs(c - pc) <= 1 && Math.abs(r - pr) <= 1));
-check('冇一個平台離晒條路（起咗都打唔到嘢）', 離路.length === 0, { 離路: 離路.slice(0, 5) });
-// 生成規則同 map.json 入面嘅嘢要對得上——改咗規則但冇重新生成就會紅。
-const 應該 = buildPads(map, PAD_TARGET).map(([c, r]) => `${c},${r}`).sort();
-const 實際 = pads.map(([c, r]) => `${c},${r}`).sort();
-check('map.json 入面啲平台同生成規則對得上（改咗規則要重新生成）',
-  JSON.stringify(應該) === JSON.stringify(實際),
-  { 應該: 應該.length, 實際: 實際.length });
+// 原況每座塔一進化就永久 MAX；真 run 喺 wave 40 已經 54 座全進化，之後金只會堆。
+// 沿用現成 Upgrade seam，要求每條進化路徑仲有兩個有價層級，玩家先可以一路揀
+// 邊座塔值得再投資，而唔係加一個畫面外嘅假 sink。
+const 進化目標 = [...new Set(Object.values(towers).flatMap((t) => (t.evolutions ?? []).map((e) => e.type)))];
+const 冇後段升級 = 進化目標.filter((type) => {
+  const levels = towers[type]?.levels ?? [];
+  return levels.length < 3 || levels.slice(1).some((l) => !(l.upgradeCost > 0));
+});
+check('每條進化路徑之後仍有兩次有價升級（99 波一路有投資決定）',
+  冇後段升級.length === 0, { 冇後段升級 });
+
+// ── Runtime 規則都要由 public system seam 量，唔靠 source text grep ──
+const waveOut = path.join(HERE, '..', 'node_modules/.cache/wave-system-balance.mjs');
+execFileSync(path.join(HERE, '..', 'node_modules/.bin/esbuild'), [
+  path.join(HERE, '..', 'src/core/systems/waveSystem.ts'), '--bundle', '--format=esm', '--platform=node', `--outfile=${waveOut}`,
+]);
+const { startNextWave, tickWave } = await import(`${pathToFileURL(waveOut).href}?t=${Date.now()}`);
+const 空狀態 = (currentWave = 0) => ({
+  currentWave, endlessMode: false, phase: 'idle', prepTimer: 0, waveLivesLostThisWave: 0,
+  waveModifier: null, spawnTimers: [], spawnCounts: [], waveEnemiesSpawned: 0, waveEnemiesTotal: 0,
+  score: 0, perfectWaves: 0, gold: 0, stats: { goldEarned: 0 }, floatingTexts: [],
+  enemies: [], projectiles: [], lives: 20, killStreak: 0, killStreakTimer: 0,
+  lastWaveClearGold: 0, milestoneReached: 0,
+});
+
+// 全域 Math.random 亦畀 camera／FX 消耗；modifier 若直接抽佢，真機 FPS 就會改 gameplay。
+const 原random = Math.random;
+const modifierA = 空狀態(4), modifierB = 空狀態(4);
+Math.random = () => 0;
+startNextWave(modifierA);
+Math.random = () => 0.999999;
+startNextWave(modifierB);
+Math.random = 原random;
+check('同一波嘅 modifier 唔受 render／FX 消耗全域 Math.random 影響',
+  modifierA.waveModifier === modifierB.waveModifier,
+  { wave: 5, random0: modifierA.waveModifier, random1: modifierB.waveModifier });
+
+// scoring.json 係玩家見到嗰份 contract；waveSystem 唔可以另寫一套 hardcode。
+const scoring = JSON.parse(fs.readFileSync(path.join(CFG, 'scoring.json'), 'utf8'));
+const scoreState = 空狀態(0);
+startNextWave(scoreState);
+scoreState.phase = 'wave';
+scoreState.spawnCounts = scoreState.spawnCounts.map(() => Number.MAX_SAFE_INTEGER);
+scoreState.waveEnemiesSpawned = scoreState.waveEnemiesTotal;
+tickWave(scoreState, 0.05);
+check('完美過關分數跟 scoring.json 單一來源',
+  scoreState.score === scoring.waveScore + scoring.perfectWaveBonus,
+  { 量到: scoreState.score, 設定: scoring.waveScore + scoring.perfectWaveBonus });
 
 console.log(`\ntower 平衡: ${pass}/${pass + fail} 通過`);
 if (failed.length) console.log('失敗:', failed.join('、'));

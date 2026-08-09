@@ -113,6 +113,28 @@
                 "aoeRadius": 2.52,
                 "dot": null,
                 "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 1600,
+                "damage": 180,
+                "cooldownSec": 1.1,
+                "range": 4.75,
+                "slow": null,
+                "aoeRadius": 2.7,
+                "dot": null,
+                "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 3200,
+                "damage": 220,
+                "cooldownSec": 1.0,
+                "range": 5.0,
+                "slow": null,
+                "aoeRadius": 3.0,
+                "dot": null,
+                "chain": null
             }
         ],
         "evolutions": []
@@ -186,6 +208,34 @@
                 "slow": {
                     "pct": 0.65,
                     "durationSec": 4.0
+                },
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 1200,
+                "damage": 40,
+                "cooldownSec": 0.6,
+                "range": 4.75,
+                "slow": {
+                    "pct": 0.68,
+                    "durationSec": 4.25
+                },
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 2400,
+                "damage": 48,
+                "cooldownSec": 0.56,
+                "range": 5.0,
+                "slow": {
+                    "pct": 0.72,
+                    "durationSec": 4.5
                 },
                 "aoeRadius": 0,
                 "dot": null,
@@ -267,6 +317,34 @@
                     "durationSec": 3.5
                 },
                 "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 1400,
+                "damage": 58,
+                "cooldownSec": 0.6,
+                "range": 4.75,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": {
+                    "dps": 58,
+                    "durationSec": 3.75
+                },
+                "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 2800,
+                "damage": 70,
+                "cooldownSec": 0.56,
+                "range": 5.0,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": {
+                    "dps": 70,
+                    "durationSec": 4.0
+                },
+                "chain": null
             }
         ],
         "evolutions": []
@@ -343,6 +421,34 @@
                 "chain": {
                     "targets": 5,
                     "rangeFalloff": 3.0
+                }
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 1500,
+                "damage": 72,
+                "cooldownSec": 0.6,
+                "range": 5.25,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": {
+                    "targets": 6,
+                    "rangeFalloff": 3.2
+                }
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 3000,
+                "damage": 86,
+                "cooldownSec": 0.56,
+                "range": 5.5,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": {
+                    "targets": 7,
+                    "rangeFalloff": 3.4
                 }
             }
         ],
@@ -421,6 +527,34 @@
                     "durationSec": 5.0
                 },
                 "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 1400,
+                "damage": 26,
+                "cooldownSec": 0.75,
+                "range": 4.75,
+                "slow": null,
+                "aoeRadius": 4.25,
+                "dot": {
+                    "dps": 44,
+                    "durationSec": 5.25
+                },
+                "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 2800,
+                "damage": 32,
+                "cooldownSec": 0.7,
+                "range": 5.0,
+                "slow": null,
+                "aoeRadius": 4.5,
+                "dot": {
+                    "dps": 54,
+                    "durationSec": 5.5
+                },
+                "chain": null
             }
         ],
         "evolutions": []
@@ -486,6 +620,28 @@
                 "aoeRadius": 0,
                 "dot": null,
                 "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 1800,
+                "damage": 510,
+                "cooldownSec": 1.36,
+                "range": 10.0,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 3600,
+                "damage": 620,
+                "cooldownSec": 1.28,
+                "range": 10.5,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": null
             }
         ],
         "evolutions": []
@@ -500,6 +656,28 @@
                 "damage": 35,
                 "cooldownSec": 0.15,
                 "range": 4.5,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 1200,
+                "damage": 42,
+                "cooldownSec": 0.14,
+                "range": 4.75,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": null
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 2400,
+                "damage": 50,
+                "cooldownSec": 0.13,
+                "range": 5.0,
                 "slow": null,
                 "aoeRadius": 0,
                 "dot": null,
@@ -523,6 +701,34 @@
                 "chain": {
                     "targets": 4,
                     "rangeFalloff": 3.0
+                }
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 1200,
+                "damage": 108,
+                "cooldownSec": 0.47,
+                "range": 5.75,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": {
+                    "targets": 5,
+                    "rangeFalloff": 3.2
+                }
+            },
+            {
+                "buildCost": 0,
+                "upgradeCost": 2400,
+                "damage": 130,
+                "cooldownSec": 0.44,
+                "range": 6.0,
+                "slow": null,
+                "aoeRadius": 0,
+                "dot": null,
+                "chain": {
+                    "targets": 6,
+                    "rangeFalloff": 3.4
                 }
             }
         ]

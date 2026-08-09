@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { GameState, TowerType } from '../core/types';
 import { GRAPHICS } from '../core/config';
+import { cellToWorld } from '../core/path';
+import { LAYOUT } from '../core/mapLayout';
 
 // 進化型冇自己一格就會攞到 undefined，所以查嘅時候拆返基礎型（見 proj色）。
 const PROJ_COLORS: Record<TowerType, number> = {
@@ -31,7 +33,17 @@ interface Particle {
 const MAX_PARTICLES = GRAPHICS.maxParticles;
 const MAX_PROJECTILES = 100;
 const MOTE_COUNT = GRAPHICS.isMobile ? 35 : 80;
-const MOTE_AREA = { minX: -6, maxX: 16, minZ: -6, maxZ: 16 };
+const MOTE_PADDING = 2;
+const MOTE_MIN = cellToWorld(LAYOUT.bounds.minCol, LAYOUT.bounds.minRow);
+const MOTE_MAX = cellToWorld(LAYOUT.bounds.maxCol, LAYOUT.bounds.maxRow);
+// Resolve once at module load: motes cover both endpoint buildings and the irregular
+// island, without spending every particle/frame walking the map bounds.
+const MOTE_AREA = {
+    minX: MOTE_MIN.x - MOTE_PADDING,
+    maxX: MOTE_MAX.x + MOTE_PADDING,
+    minZ: MOTE_MIN.z - MOTE_PADDING,
+    maxZ: MOTE_MAX.z + MOTE_PADDING,
+};
 const MOTE_HEIGHT = { min: 0.4, max: 4.5 };
 
 export class FxRenderer {
@@ -171,6 +183,8 @@ export class FxRenderer {
         });
 
         this.motePoints = new THREE.Points(this.moteGeo, moteMat);
+        this.motePoints.name = 'ambient-motes';
+        this.motePoints.userData.area = { ...MOTE_AREA };
         this.motePoints.frustumCulled = false;
         this.scene.add(this.motePoints);
     }
@@ -235,7 +249,7 @@ export class FxRenderer {
                 continue;
             }
             // Physics
-            p.position.add(p.velocity.clone().multiplyScalar(dt));
+            p.position.addScaledVector(p.velocity, dt);
             p.velocity.y -= 2.5 * dt; // gravity
             p.velocity.multiplyScalar(0.97); // drag
 

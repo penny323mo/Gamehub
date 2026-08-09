@@ -2,35 +2,17 @@ import type { GameState, Tower, TowerType } from '../types';
 import { cellKey } from '../types';
 import { TOWERS, SELL_REFUND_PCT } from '../config';
 import { cellToWorld } from '../path';
-import { MAP } from '../config';
+import { LAYOUT } from '../mapLayout';
 import { rebuildOccupied } from '../gameState';
 import { bus } from './eventBus';
 
-/**
- * 起唔起得塔。
- *
- * 本來嘅規則係「唔係路、又未有塔」——於是張 20×12 地圖有 **62 個貼路位**，
- * 而實測膝點係 **20 座會死、30 座無敵**。即係「擺喺邊」由頭到尾都唔係一個
- * 決定：你淨係要一路撳起塔就贏。而「呢舊錢擺喺邊」正正係塔防嘅核心決定。
- *
- * 而家改成**明確平台**（`map.json` 嘅 `buildCells`，由
- * `scripts/gen-build-pads.mjs` 生成，`tests/balance.mjs` 由嗰度 import 條規則守）。
- * 冇 `buildCells` 嘅地圖照舊行返舊規則，唔會靜靜哋變成一格都起唔到。
- */
-const 平台 = new Set((MAP.buildCells ?? []).map(([c, r]) => cellKey(c, r)));
-
+/** Check if a cell is valid for building */
 export function canBuild(state: GameState, col: number, row: number): boolean {
-    if (col < 0 || col >= MAP.cols || row < 0 || row >= MAP.rows) return false;
+    if (!LAYOUT.cellAt(col, row).buildable) return false;
     const key = cellKey(col, row);
     if (state.pathCells.has(key)) return false;
     if (state.occupiedCells.has(key)) return false;
-    if (平台.size > 0 && !平台.has(key)) return false;
     return true;
-}
-
-/** 呢一格係咪建築平台（renderer 用嚟畫個台出嚟）。 */
-export function isBuildPad(col: number, row: number): boolean {
-    return 平台.size === 0 || 平台.has(cellKey(col, row));
 }
 
 /** Build a tower */
