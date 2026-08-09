@@ -201,7 +201,7 @@ export class SceneManager {
             const p = cellToWorld(cell.col, cell.row);
             nearest = Math.min(nearest, Math.hypot(x - p.x, z - p.z));
         }
-        const envelope = THREE.MathUtils.smoothstep(nearest, 0.55, GRAPHICS.terrain.underlayPadding);
+        const envelope = THREE.MathUtils.smoothstep(nearest, 0.55, GRAPHICS.terrain.envelopeRadius);
         const waveA = Math.sin(x * 0.22) * Math.cos(z * 0.18) * 0.16;
         const waveB = Math.sin((x + z) * 0.11) * 0.12;
         return { height: (waveA + waveB) * envelope - 0.58, envelope };
@@ -339,9 +339,27 @@ export class SceneManager {
         const 石 = ['scenery/detail_rocks.glb', 'scenery/detail_rocksLarge.glb'];
         const 晶 = ['scenery/detail_crystal.glb', 'scenery/detail_crystalLarge.glb'];
 
-        const borderSize = GRAPHICS.isMobile ? 5 : 9;
-        const treeDensity = GRAPHICS.isMobile ? 0.18 : 0.34;
-        const rockDensity = GRAPHICS.isMobile ? 0.06 : 0.14;
+        /*
+         * **個世界要去到鏡頭望得到嗰度為止，唔係去到一個寫死嘅格數為止。**
+         *
+         * 原本 `borderSize` 係 9（手機 5），即係佈景去到 X ±19、Z ±15 就冇晒。
+         * 但個鏡頭 zoom 得出到 `MAX_FRUSTUM = 22`，即係默認嘅 2.2 倍——
+         * 實測嗰陣望到嘅係：**由 19 到 33 一條十四單位闊、乜都冇嘅光板地帶**，
+         * 再遠處得返 18 枝孤零零嘅圓錐。
+         *
+         * 即係話：**你一問「廣闊」，個世界就啱啱喺嗰度斷咗。** 望落唔覺大，
+         * 唔係因為地方細，係因為望得最遠嗰陣先至見到冇嘢。
+         *
+         * 所以個範圍由 `CAMERA_REACH` 推出嚟（鏡頭 zoom 到盡、加埋斜視拉長）。
+         * 密度跟距離跌：近處照舊，遠處疏——遠景要嘅係輪廓同層次，唔係數量，
+         * 而 instance 數要有得封頂。
+         */
+        const CAMERA_REACH = GRAPHICS.isMobile ? 16 : 27;    // 由地圖邊緣再向外幾多格
+        const borderSize = CAMERA_REACH;
+        const 近密 = GRAPHICS.isMobile ? 0.18 : 0.34;         // 貼住島嗰圈
+        const 遠密 = GRAPHICS.isMobile ? 0.05 : 0.09;         // 最外圈
+        const 近石 = GRAPHICS.isMobile ? 0.06 : 0.14;
+        const 內圈 = GRAPHICS.isMobile ? 5 : 9;               // 原本嗰個範圍，密度維持原狀
         const batches = new Map<string, ModelPlacement[]>();
 
         for (let c = -borderSize; c < cols + borderSize; c++) {
@@ -353,6 +371,11 @@ export class SceneManager {
                     }
                 }
                 if (近陸地) continue;
+                // 離島幾遠（用格數算，唔使開方都夠準）
+                const 出界 = Math.max(0, -c, c - (cols - 1), -r, r - (rows - 1));
+                const t = Math.min(1, Math.max(0, (出界 - 內圈) / Math.max(1, borderSize - 內圈)));
+                const treeDensity = 近密 + (遠密 - 近密) * t;
+                const rockDensity = 近石 * (1 - t * 0.72);
                 const 骰 = 種(c, r, 1);
                 let 揀: string | null = null;
                 if (骰 < treeDensity) 揀 = 樹[種(c, r, 2) < 0.62 ? 0 : 1];
@@ -450,25 +473,48 @@ export class SceneManager {
         const radiusZ = MAP.rows * 0.95;
         const centerX = MAP.origin.x + MAP.cols * MAP.cellSize / 2;
         const centerZ = MAP.origin.z + MAP.rows * MAP.cellSize / 2;
-        const count = GRAPHICS.isMobile ? 8 : 18;
         const 種 = (i: number, k: number): number => {
             const n = Math.sin(i * 127.1 + k * 311.7) * 43758.5453;
             return n - Math.floor(n);
         };
 
-        for (let i = 0; i < count; i++) {
-            const t = (i / count) * Math.PI * 2;
-            const ridge = new THREE.Mesh(ridgeGeo, ridgeMat);
-            ridge.position.set(
-                centerX + Math.cos(t) * (radiusX + 18 + 種(i, 1) * 6),
-                1.15 + 種(i, 2) * 0.65,
-                centerZ + Math.sin(t) * (radiusZ + 18 + 種(i, 3) * 6)
-            );
-            ridge.scale.setScalar(0.72 + 種(i, 4) * 0.72);
-            ridge.rotation.y = 種(i, 5) * Math.PI * 2;
-            ridge.castShadow = false;
-            ridge.receiveShadow = true;
-            this.scene.add(ridge);
+        /*
+         * 遠山由**一圈 18 枝**變成**三圈**，而且由 18 個 Mesh 併成一個 InstancedMesh。
+         *
+         * 兩個理由：
+         *  • 一圈孤零零嘅圓錐冇景深。真係望落遠嘅係一重疊一重——近嘅高、清、企得密，
+         *    遠嘅矮、淡、疏。三圈唔同半徑同大細就係咁嚟。
+         *  • 原本 18 枝係 18 個 draw call。併成 instanced 之後係 **1 個**，
+         *    即係加咗兩倍山數，draw call 反而少咗 17 個。**加嘢唔一定要加成本。**
+         */
+        const 圈 = GRAPHICS.isMobile
+            ? [{ 遠: 12, 數: 10, 大: 0.8 }, { 遠: 20, 數: 12, 大: 1.15 }]
+            : [{ 遠: 14, 數: 18, 大: 0.85 }, { 遠: 24, 數: 22, 大: 1.25 }, { 遠: 34, 數: 26, 大: 1.75 }];
+        const total = 圈.reduce((s, r) => s + r.數, 0);
+        const ridges = new THREE.InstancedMesh(ridgeGeo, ridgeMat, total);
+        ridges.name = 'distant-ridges';
+        ridges.castShadow = false;
+        ridges.receiveShadow = true;
+        const dummy = new THREE.Object3D();
+        let i = 0;
+        for (const [ring, { 遠, 數, 大 }] of 圈.entries()) {
+            for (let k = 0; k < 數; k += 1) {
+                const s = ring * 97 + k;
+                // 每圈起角唔同，唔係嘅話三圈會排成一條直線
+                const t = ((k + 種(s, 9) * 0.6) / 數) * Math.PI * 2 + ring * 0.7;
+                dummy.position.set(
+                    centerX + Math.cos(t) * (radiusX + 遠 + 種(s, 1) * 7),
+                    1.15 + 種(s, 2) * 0.65 + ring * 0.5,
+                    centerZ + Math.sin(t) * (radiusZ + 遠 + 種(s, 3) * 7),
+                );
+                dummy.scale.setScalar((0.72 + 種(s, 4) * 0.72) * 大);
+                dummy.rotation.set(0, 種(s, 5) * Math.PI * 2, 0);
+                dummy.updateMatrix();
+                ridges.setMatrixAt(i, dummy.matrix);
+                i += 1;
+            }
         }
+        ridges.instanceMatrix.needsUpdate = true;
+        this.scene.add(ridges);
     }
 }

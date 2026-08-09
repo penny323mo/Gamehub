@@ -51,6 +51,61 @@ check('browser 真係只畫 148 格不規則陸地，唔係底下仲藏住 240 �
   scene.grounds === 148 && scene.foundation === 148 && !scene.hasVoidCorner, scene);
 check('河道同橋有實際 render 出嚟', scene.river === 4 && scene.bridge === 1, scene);
 
+/*
+ * ── 個世界要去到鏡頭望得到嗰度為止 ──
+ *
+ * Penny 講「個地圖唔夠廣闊」。量落去，唔係地細，係**個世界喺你最想望遠嗰陣斷咗**：
+ * 佈景本來去到 X ±19、Z ±15 就冇，而鏡頭 zoom 得出到默認嘅 2.2 倍。
+ * 一 zoom 到盡，望到嘅係由 19 到 33 一條十四單位闊、乜都冇嘅光板地帶，
+ * 再遠處得返 18 枝孤零零嘅圓錐。
+ *
+ * 所以呢條唔量「有幾多樹」——量嘅係**最遠嗰件擺設有冇超出鏡頭望到嘅範圍**。
+ * 呢個數先係同「廣闊」直接對應嗰個，而且將來有人收窄佈景範圍、
+ * 或者放寬 zoom 上限，兩邊任何一邊郁都會報紅。
+ *
+ * 量 instance 一定要拆 `instanceMatrix`：InstancedMesh 自己個 `position`
+ * 永遠喺原點，攞佢嚟量會量到成個世界縮埋喺 (0,0)——我第一版就係咁量錯咗。
+ */
+const 廣 = await page.evaluate(() => {
+  const T = window.__TD;
+  const c = T.camera;
+  let 佈景最遠 = 0, 山最遠 = 0, 佈景數 = 0, 山數 = 0;
+  T.scene.traverse((o) => {
+    if (!o.isInstancedMesh) return;
+    const 係佈景 = o.name?.startsWith('scenery-batch');
+    const 係山 = o.name === 'distant-ridges';
+    if (!係佈景 && !係山) return;
+    const m = o.instanceMatrix.array;
+    for (let i = 0; i < o.count; i += 1) {
+      const d = Math.hypot(m[i * 16 + 12], m[i * 16 + 14]);
+      if (係佈景) { 佈景最遠 = Math.max(佈景最遠, d); 佈景數 += 1; }
+      else { 山最遠 = Math.max(山最遠, d); 山數 += 1; }
+    }
+  });
+  // zoom 到盡，睇吓鏡頭覆蓋到幾遠（正交 frustum 半對角）
+  const 原 = { l: c.left, r: c.right, t: c.top, b: c.bottom };
+  for (let i = 0; i < 400; i += 1) T.camera.userData;      // no-op，保持同步
+  return { 佈景最遠: +佈景最遠.toFixed(1), 山最遠: +山最遠.toFixed(1), 佈景數, 山數, 原 };
+});
+// 鏡頭 zoom 到盡（MAX_FRUSTUM = 22）嗰陣，垂直半高 22、水平半闊 22×aspect。
+// 望到最遠嘅角落大約係呢個半對角，再加返鏡頭離目標嘅斜距。
+const 望到 = await page.evaluate(() => {
+  const el = document.getElementById('game-canvas');
+  el.dispatchEvent(new WheelEvent('wheel', { deltaY: 4000, bubbles: true }));
+  return new Promise((r) => setTimeout(() => {
+    const c = window.__TD.camera;
+    r(Math.hypot((c.right - c.left) / 2, (c.top - c.bottom) / 2));
+  }, 300));
+});
+// 只守**伸得夠遠**，唔守件數。
+// 我第一版加咗 `佈景數 > 2000`，喺呢個 390×844 嘅 viewport 度即刻報紅——
+// 手機本來就特登擺少啲（930 件），2000 係我照桌面嗰個 3,775 度出嚟嘅數。
+// 而且件數根本唔係要守嘅嘢：有人調密度就會無辜報紅，但個世界一樣咁闊。
+// 件數照樣印出嚟做參考，唔入判斷。
+check('鏡頭 zoom 到盡都仲有世界睇——佈景同遠山都超出視野範圍',
+  廣.佈景最遠 >= 望到 && 廣.山最遠 >= 望到,
+  { ...廣, 鏡頭望到: +望到.toFixed(1) });
+
 const world = ([c, r]) => ({
   x: MAPCFG.origin.x + (c + 0.5) * MAPCFG.cellSize,
   z: MAPCFG.origin.z + (r + 0.5) * MAPCFG.cellSize,

@@ -1,7 +1,7 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-09 (Asia/Macau)
-Prepared by: Claude Code (cloud) — ADR-202、ADR-203
+Prepared by: Claude Code (cloud) — ADR-202、203、204
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
 Status: Tower 兩輪「喺一部真手機上面」嘅缺陷已修並補咗 gate；順手大修咗一條一路靠彩數過嘅 gate
@@ -37,6 +37,20 @@ Status: Tower 兩輪「喺一部真手機上面」嘅缺陷已修並補咗 gate�
 - **再撳一次會真係開多次波**：實測 `開波次數 = 2`（兩次 `startNextWave`、
   音樂疊住播、第二次覆蓋 `state`）。加 `disabled` ＋ `啟動中` 兩重擋。
 - **`tests/load.mjs` 新增**（5 條，已入 `test:browser`），用 CDP 真節流，唔係 `sleep` 扮慢。
+
+**ADR-204（本輪）— Penny 話「個地圖唔夠廣闊」**
+
+- 量落去唔係地細，係**個世界喺你最想望遠嗰陣斷咗**：佈景本來去到 X ±19／Z ±15，
+  而鏡頭 zoom 得出到 2.2 倍（望到半對角 24.2）。一 zoom 到盡，見到嘅係
+  19→33 一條光板地帶，加 18 枝孤零零嘅圓錐。
+- 佈景範圍改由鏡頭推出嚟（密度跟距離跌）：1,115 件 → 3,775 件，伸到 X ±37／Z ±33。
+  遠山一圈 18 個 Mesh → 三圈 66 個 instance，**draw call 由 18 變 1**。
+- `underlayPadding` 同高度包絡線拆做兩個數（新 `envelopeRadius`），
+  唔係嘅話「鋪遠啲」會靜靜雞攤平島邊嘅起伏。
+- **一格可玩地都冇郁**：`LAYOUT`、148 格、路線、經濟、波表全部原封不動。
+- 代價：桌面空場三角 141,362 → 384,294，手機 34,588 → 62,172；
+  draw call 桌面 247→248、手機 125→126。兩邊都遠低過 budget。
+- `map-browser.mjs` 加一條：最遠嗰件擺設要超出 zoom 到盡望到嘅範圍（8/8）。
 
 ## Changed files
 

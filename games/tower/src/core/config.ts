@@ -73,8 +73,15 @@ export const GRAPHICS = {
     terrain: {
         // Rotated orthographic views expose the plane corners; keep enough terrain
         // beyond the irregular island that the sky never cuts black wedges into view.
-        underlayPadding: isMobile() ? 20 : 28,
-        underlaySegments: isMobile() ? 36 : 72,
+        // 塊地形要鋪到幾遠。遠山搬遠咗（三圈，最遠一圈半徑約 49），
+        // 唔鋪到嗰度啲山就會企喺下面塊深色盆地上面，好似擺喺個碟度。
+        underlayPadding: isMobile() ? 34 : 52,
+        // **高度包絡線唔跟住上面個數行。**
+        // `terrainSample` 本來攞 `underlayPadding` 做 smoothstep 嘅上限，
+        // 即係塊地鋪大咗，島邊嗰浸起伏就會攤平——一個純粹「鋪遠啲」嘅改動
+        // 會靜靜雞改埋島邊嘅樣。所以分開兩個數：呢個保持原值。
+        envelopeRadius: isMobile() ? 20 : 28,
+        underlaySegments: isMobile() ? 48 : 96,
     },
     atmosphere: {
         fogColor: 0x102417,
