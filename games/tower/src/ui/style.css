@@ -113,6 +113,31 @@ body {
   padding: 7px 12px 8px !important;
 }
 
+#hud-wave .chapter-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 190px;
+  color: var(--chapter-accent, #7ee787);
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+#hud-wave #chapter-act {
+  flex: 0 0 auto;
+  padding-right: 7px;
+  border-right: 1px solid color-mix(in srgb, var(--chapter-accent, #7ee787) 45%, transparent);
+}
+
+#hud-wave #chapter-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 #hud-wave .wave-top {
   display: flex;
   justify-content: space-between;
@@ -260,6 +285,14 @@ body {
   backdrop-filter: blur(12px);
   box-shadow: var(--shadow-lg);
   animation: bannerPulse 0.6s ease-out;
+}
+
+#wave-banner.chapter-opening #wave-banner-text {
+  white-space: pre-line;
+  text-align: center;
+  line-height: 1.35;
+  color: #effff2;
+  border-color: color-mix(in srgb, var(--chapter-accent, #7ee787) 55%, transparent);
 }
 
 @keyframes bannerPulse {
@@ -1271,6 +1304,13 @@ body {
   display: none !important;
 }
 
+button:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid #9be8ff;
+  outline-offset: 3px;
+}
+
 /* ─── Tower Tooltip ─── */
 #tower-tooltip {
   position: fixed;
@@ -1427,6 +1467,75 @@ body {
   .skill-btn {
     width: 48px;
     height: 48px;
+  }
+}
+
+/* Phones are usually played in landscape. Width alone no longer identifies a
+   phone there, so keep the controls as a shallow bottom dock whenever the
+   viewport is short. The old desktop card consumed over half of a 390px-high
+   game view and hid the redesigned map. */
+@media (max-height: 500px) {
+  #build-menu {
+    left: 238px;
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    transform: none;
+    max-width: none;
+    padding: 4px 8px;
+    gap: 2px;
+  }
+
+  .build-title,
+  .build-subtitle {
+    display: none;
+  }
+
+  .build-grid {
+    flex-wrap: nowrap;
+    justify-content: center;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    width: 100%;
+    padding: 2px;
+  }
+
+  .build-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .build-btn {
+    flex: 0 0 auto;
+    min-width: 48px;
+    gap: 0;
+    padding: 3px 6px;
+  }
+
+  .build-icon {
+    font-size: 15px;
+    line-height: 1.1;
+  }
+
+  .build-name,
+  .build-cost {
+    font-size: 8px;
+    line-height: 1.1;
+  }
+
+  #skill-bar {
+    left: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    gap: 6px;
+    padding: 6px 8px;
+  }
+
+  .skill-btn {
+    width: 48px;
+    height: 48px;
+  }
+
+  #tower-panel {
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -2004,6 +2113,106 @@ body {
 
 @media (max-width: 600px) {
   #achievements-modal .ach-grid { grid-template-columns: 1fr; }
+}
+
+/* ─── Long-run resume + explicit pause/recovery ─── */
+.continue-run {
+  width: min(380px, 100%);
+  margin: 14px auto 4px;
+  padding: 12px 16px;
+  border: 1px solid rgba(126, 245, 195, 0.34);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(69, 176, 126, 0.16), rgba(77, 164, 215, 0.1));
+}
+
+.continue-label {
+  color: #9be8bf;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.continue-summary {
+  margin: 5px 0 8px;
+  color: rgba(247, 251, 247, 0.8);
+  font-size: 13px;
+}
+
+.continue-btn {
+  margin: 2px;
+  padding: 11px 28px;
+  font-size: 16px;
+  background: linear-gradient(135deg, #268f63, #2e99d0);
+}
+
+#pause-overlay,
+#graphics-recovery {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(3, 8, 6, 0.78);
+  backdrop-filter: blur(12px);
+}
+
+#graphics-recovery {
+  z-index: 260;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(151, 69, 46, 0.24), transparent 42%),
+    rgba(3, 8, 6, 0.94);
+}
+
+.pause-dialog,
+.recovery-dialog {
+  width: min(460px, calc(100vw - 40px));
+  padding: 30px 28px;
+  border: 1px solid var(--panel-stroke);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 58%),
+    rgba(8, 19, 15, 0.96);
+  box-shadow: var(--shadow-lg);
+  color: #f7fbf7;
+  text-align: center;
+}
+
+.recovery-dialog {
+  border-color: rgba(255, 154, 105, 0.4);
+}
+
+.pause-kicker {
+  color: #9ed4ad;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.pause-dialog h2,
+.recovery-dialog h2 {
+  margin: 8px 0;
+  font-family: var(--font-display);
+  font-size: clamp(26px, 7vw, 38px);
+}
+
+.pause-dialog p,
+.recovery-dialog p {
+  margin: 0 auto 16px;
+  max-width: 38ch;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 /* Lifetime stats row on start screen */

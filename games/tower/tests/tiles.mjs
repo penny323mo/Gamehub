@@ -37,8 +37,10 @@ const check = (name, ok, detail) => {
 };
 
 // ── 由 GLB 量返每塊磚嘅開口 ──
-const ROAD = new Set(['dirtDark']);
 const 量開口 = (file) => {
+    // Normal road tiles mark their surface as dirtDark. The river bridge is a
+    // wooden deck, so its real traversal edges must be measured from wood.
+    const ROAD = new Set(path.basename(file) === 'tile_riverBridge.glb' ? ['wood'] : ['dirtDark']);
     const d = fs.readFileSync(file);
     const jl = d.readUInt32LE(12);
     const j = JSON.parse(d.subarray(20, 20 + jl).toString('utf8'));
@@ -90,7 +92,7 @@ const 漏咗 = Object.entries(量到).filter(([k, v]) => v.length > 0 && !(k in 
 check('冇一塊有路口嘅磚係表度漏咗', 漏咗.length === 0, 漏咗.slice(0, 6));
 
 // ── 成條路接唔接得上 ──
-const 鋪 = pathTiles(MAPCFG.path);
+const 鋪 = pathTiles(MAPCFG.path, MAPCFG.pathTileOverrides ?? []);
 check(`每一格路都揀到磚（共 ${MAPCFG.path.length} 格）`,
     鋪.length === MAPCFG.path.length && 鋪.every((t) => t.model !== 'tile'),
     鋪.filter((t) => t.model === 'tile').slice(0, 5));
@@ -122,6 +124,9 @@ check('起點用出生磚、終點用終點磚',
 const 彎 = 鋪.filter((t) => t.model === 'tile_cornerRound').length;
 const 直 = 鋪.filter((t) => t.model === 'tile_straight').length;
 check('彎位用彎磚、直位用直磚（兩種都有出現）', 彎 >= 3 && 直 >= 3, { 彎, 直, 總: 鋪.length });
+check('中央河道用真橋接住道路，唔係一塊普通路磚扮跨河',
+    鋪.filter((t) => t.model === 'tile_riverBridge').length === 1,
+    鋪.filter((t) => t.model === 'tile_riverBridge'));
 
 console.log(`\ntower 路磚: ${pass}/${pass + fail} 通過`);
 if (failed.length) console.log('失敗項目: ' + failed.join('、'));

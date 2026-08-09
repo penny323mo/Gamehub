@@ -14,12 +14,12 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { chromium } from 'playwright';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
-const PW = path.join(ROOT, 'games', 'Racing Car', 'tests', 'node_modules', 'playwright', 'index.mjs');
-if (!fs.existsSync(PW)) { console.log('搵唔到 playwright'); process.exit(1); }
-const { chromium } = await import(pathToFileURL(PW).href);
+const STATIC_ROOT = process.env.TOWER_STATIC_ROOT ? path.resolve(process.env.TOWER_STATIC_ROOT) : ROOT;
+const MAPCFG = JSON.parse(fs.readFileSync(path.join(HERE, '../configs/map.json'), 'utf8'));
 const MIME = { '.html':'text/html', '.js':'text/javascript', '.css':'text/css', '.json':'application/json',
   '.glb':'model/gltf-binary', '.png':'image/png', '.svg':'image/svg+xml', '.m4a':'audio/mp4' };
 
@@ -28,22 +28,29 @@ const check = (name, ok, detail) => {
   if (ok) { pass++; console.log(`PASS  ${name}`, detail === undefined ? '' : JSON.stringify(detail)); }
   else { fail++; failed.push(name); console.log(`FAIL  ${name}`, JSON.stringify(detail)); }
 };
-const server = http.createServer((req, res) => {
+let server = null;
+let url = process.env.TOWER_URL;
+if (!url) server = http.createServer((req, res) => {
   const u = decodeURIComponent(req.url.split('?')[0]);
-  const f = path.join(ROOT, u);
-  if (!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end('404'); }
+  const f = path.join(STATIC_ROOT, u);
+  if (!f.startsWith(STATIC_ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end('404'); }
   res.writeHead(200, { 'content-type': MIME[path.extname(f)] ?? 'application/octet-stream' });
   fs.createReadStream(f).pipe(res);
 });
-const port = await new Promise((r) => server.listen(0, () => r(server.address().port)));
+if (server) {
+  const port = await new Promise((r) => server.listen(0, () => r(server.address().port)));
+  url = process.env.TOWER_STATIC_ROOT
+    ? `http://127.0.0.1:${port}/index.html`
+    : `http://127.0.0.1:${port}/games/tower/dist/index.html`;
+}
 const browser = await chromium.launch({
-  executablePath: process.env.PW_CHROMIUM ?? '/opt/pw-browsers/chromium',
+  ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}),
   args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
 });
 const page = await browser.newPage({ viewport: { width: 1100, height: 700 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message.split('\n')[0].slice(0, 150)));
-await page.goto(`http://localhost:${port}/games/tower/dist/index.html`, { waitUntil: 'load' });
+await page.goto(url, { waitUntil: 'load' });
 await page.waitForFunction(() => !!window.__TD, null, { timeout: 30000 });
 await page.click('#start-btn');
 await page.waitForTimeout(9000);
@@ -65,14 +72,40 @@ check('出一隻怪，道門就揈開（行返 enemySpawned 事件嗰條路）',
 check('兩塊門板向相反方向揈（唔係兩塊一齊向同一邊）',
   開.門角[0] * 開.門角[1] < 0, { 門角: 開.門角 });
 
+// 門柱同門樞要喺路嘅左右（local Z），而兩邊建築主體要向場外移。
+// 這些定位斷言比 screenshot 更穩定，並直接阻止「沿路前後排」再回歸。
+const 地圖 = MAPCFG;
+const world = ([c, r]) => [地圖.origin.x + c * 地圖.cellSize + 地圖.cellSize / 2,
+  地圖.origin.z + r * 地圖.cellSize + 地圖.cellSize / 2];
+const spawn = world(地圖.spawnCell), spawnNext = world(地圖.path[1]);
+const goal = world(地圖.goalCell), goalPrev = world(地圖.path[地圖.path.length - 2]);
+const outsideDot = (anchor, endpoint, neighbour) =>
+  (anchor[0] - endpoint[0]) * (endpoint[0] - neighbour[0])
+  + (anchor[1] - endpoint[1]) * (endpoint[1] - neighbour[1]);
+check('出怪門同城堡主體喺路線端點外側，唔再壓住首尾路格',
+  outsideDot(開.入口位, spawn, spawnNext) > 0.25 && outsideDot(開.城堡位, goal, goalPrev) > 0.25,
+  { spawn, 入口: 開.入口位, goal, 城堡: 開.城堡位 });
+const routeStart = await page.evaluate(() => {
+  const p = window.__TD.state.pathWorld[0]; return [p.x, p.z];
+});
+check('出怪門 anchor 同敵人 smooth route 第一點完全一致，唔會各自抄 entry offset',
+  Math.hypot(開.入口位[0] - routeStart[0], 開.入口位[1] - routeStart[1]) <= 0.015,
+  { 入口: 開.入口位, routeStart });
+check('兩個門樞係橫向左右分開，唔係順住條路前後重疊',
+  開.門樞位.length === 2 && 開.門樞位.every((p) => Math.abs(p[0]) < 0.01)
+    && 開.門樞位[0][1] * 開.門樞位[1][1] < 0,
+  { 門樞位: 開.門樞位 });
+check('城堡血條真係高過屋頂，唔再穿過建築',
+  開.血條Y >= 開.城堡頂 + 0.18, { 城堡頂: 開.城堡頂, 血條Y: 開.血條Y });
+
 // ── 3. 閃光要真係喺畫面上見到 ──
 // 量門口嗰笪像素：閃緊 vs 閃完。量個變數只證明個變數郁咗。
 const 框 = await page.evaluate(() => {
   const T = window.__TD;
   const c = T.camera;
   const V = Object.getPrototypeOf(c.position).constructor;
-  const m = T.地圖;
-  const p = new V(m.spawn.x, 0.7, m.spawn.z);
+  const m = T.門狀態();
+  const p = new V(m.入口位[0], 0.9, m.入口位[1]);
   p.project(c);
   return {
     x: Math.round((p.x * 0.5 + 0.5) * window.innerWidth),
@@ -95,12 +128,13 @@ const 亮 = async () => {
     const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
     const g = cv.getContext('2d'); g.drawImage(img, 0, 0);
     const d = g.getImageData(0, 0, cv.width, cv.height).data;
-    let s = 0, n = 0, 青 = 0;
+    let s = 0, n = 0, 青 = 0, 爆白 = 0;
     for (let i = 0; i < d.length; i += 4) {
       s += (d[i] + d[i + 1] + d[i + 2]) / 3; n += 1;
       if (d[i + 2] > 110 && d[i + 2] > d[i] + 22) 青 += 1;   // 偏青藍＝閃光
+      if (d[i] > 242 && d[i + 1] > 242 && d[i + 2] > 242) 爆白 += 1;
     }
-    return { 亮: +(s / n).toFixed(1), 青: +(100 * 青 / n).toFixed(2) };
+    return { 亮: +(s / n).toFixed(1), 青: +(100 * 青 / n).toFixed(2), 爆白: +(100 * 爆白 / n).toFixed(2) };
   }, 相.toString('base64'));
 };
 // **先停低遊戲自己出怪。** 唔停嘅話個「平時」基準會隨機撞正真嘅出怪閃光
@@ -124,22 +158,15 @@ for (let i = 0; i < 4; i += 1) {
   const 一格 = await 亮();
   if (一格.青 > 閃住.青) 閃住 = 一格;
 }
-// 條線係**由兩個狀態嘅實測數定嘅**，唔係拍腦袋：
-//   道門轉錯咗 90°（光幕埋咗入牆）嗰陣：青 0.63% → 0.85%（1.35×），亮度 53.3 → 48.5（**跌** 4.8，
-//     因為門揈開之後露出後面暗位，反而暗咗）；
-//   轉啱＋加大效果之後：青 0.65% → 2.92%（**4.5×**），亮度 48.7 → 51.5（升 2.8）。
-// 所以「青色像素至少翻倍」同「亮度唔可以跌」兩條夾埋，就分得清有冇閃。
-// 我最初寫「亮度要 +4」——嗰個係未有任何數之前拍出嚟嘅，而個 crop 大部分係草同石，
-// 平均亮度本來就郁得慢；真正嘅判別訊號係嗰笪青色。
-//
-// 跟住我改成「+1」，一樣中伏，而今次個原因值得記住：**道門喺同一刻揈開，
-// 露出後面暗位，同閃光互相抵消**——所以就算閃光好清楚，平均亮度都可以微跌
-// （實測 −0.2、−0.1）。即係「亮度」呢個量喺呢度**根本唔係判別訊號**，
-// 佢量緊兩件相反嘅嘢加埋。剷咗，淨低青色佔比：壞嗰陣 1.35×，好嗰陣（攞峰值）
-// 穩定喺 3.5 以上。
+// 三條線係用壞／好版本量返嚟：軸向錯嗰版青色只 +0.22pp 而亮度反跌；
+// 修正軸向但過曝嗰版雖然訊號大，畫面會出現大片純白；收斂後穩定係
+// 青色約 +0.9pp、亮度 +1.8、純白 0%。所以同時守可見增量同過曝上限。
 const 青倍 = 閃住.青 / Math.max(0.01, 平時.青);
+const 青增 = 閃住.青 - 平時.青;
+const 亮增 = 閃住.亮 - 平時.亮;
 check('出怪嗰下門口真係光咗（量像素，唔係量個變數）',
-  青倍 >= 2.5, { 平時, 閃住, 青倍: +青倍.toFixed(2) });
+  青增 >= 0.45 && 亮增 >= 0.5 && 閃住.爆白 <= 0.25,
+  { 平時, 閃住, 青倍: +青倍.toFixed(2), 青增: +青增.toFixed(2), 亮增: +亮增.toFixed(2) });
 
 // ── 2. 開完會閂返 ──
 await page.waitForTimeout(1600);
@@ -166,5 +193,5 @@ check('量度期間零 browser error', errors.length === 0, errors.slice(0, 3));
 console.log(`\ntower 門同城堡: ${pass}/${pass + fail} 通過`);
 if (failed.length) console.log('失敗項目: ' + failed.join('、'));
 await browser.close();
-server.close();
+if (server) server.close();
 process.exit(fail ? 1 : 0);

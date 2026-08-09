@@ -29,8 +29,23 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: |
+            games/tower/package-lock.json
             games/ashen-rail/package-lock.json
             games/elden-ring-ii/package-lock.json
+
+      - name: Install Tower Defense dependencies
+        working-directory: games/tower
+        run: npm ci
+
+      - name: Install Tower Defense browser
+        working-directory: games/tower
+        run: npx playwright install --with-deps chromium
+
+      - name: Audit, test, and build Tower Defense
+        working-directory: games/tower
+        run: |
+          npm audit --audit-level=high
+          npm test
 
       - name: Install Ashen Rail dependencies
         working-directory: games/ashen-rail

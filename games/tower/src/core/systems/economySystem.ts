@@ -2,13 +2,13 @@ import type { GameState, Tower, TowerType } from '../types';
 import { cellKey } from '../types';
 import { TOWERS, SELL_REFUND_PCT } from '../config';
 import { cellToWorld } from '../path';
-import { MAP } from '../config';
+import { LAYOUT } from '../mapLayout';
 import { rebuildOccupied } from '../gameState';
 import { bus } from './eventBus';
 
 /** Check if a cell is valid for building */
 export function canBuild(state: GameState, col: number, row: number): boolean {
-    if (col < 0 || col >= MAP.cols || row < 0 || row >= MAP.rows) return false;
+    if (!LAYOUT.cellAt(col, row).buildable) return false;
     const key = cellKey(col, row);
     if (state.pathCells.has(key)) return false;
     if (state.occupiedCells.has(key)) return false;

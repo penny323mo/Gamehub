@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { MAP, GRAPHICS } from '../core/config';
+import { cellToWorld } from '../core/path';
+import { LAYOUT } from '../core/mapLayout';
 
 export interface LightingRig {
     update(elapsedSec: number): void;
@@ -13,8 +15,10 @@ export interface LightingRig {
 // `metalness = 1`（見 `assets.ts` 嘅 `修材質`）。加大三倍燈只係去到 14.9。
 // 呢度啲數係修好材質之後先至量返出嚟嘅，`tests/look.mjs` 守住個結果。
 export function setupLighting(scene: THREE.Scene): LightingRig {
-    const cx = MAP.origin.x + MAP.cols * MAP.cellSize / 2;
-    const cz = MAP.origin.z + MAP.rows * MAP.cellSize / 2;
+    const min = cellToWorld(LAYOUT.bounds.minCol, LAYOUT.bounds.minRow);
+    const max = cellToWorld(LAYOUT.bounds.maxCol, LAYOUT.bounds.maxRow);
+    const cx = (min.x + max.x) / 2;
+    const cz = (min.z + max.z) / 2;
 
     scene.fog = new THREE.FogExp2(GRAPHICS.atmosphere.fogColor, GRAPHICS.atmosphere.fogDensity);
 

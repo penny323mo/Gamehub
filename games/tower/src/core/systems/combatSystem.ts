@@ -130,7 +130,7 @@ export function tickCombat(state: GameState, dt: number): void {
 }
 
 /** Apply damage with shield + counter system */
-function applyHit(state: GameState, enemy: Enemy, baseDmg: number, damageType: DamageType, killerTowerId?: number): void {
+export function applyHit(state: GameState, enemy: Enemy, baseDmg: number, damageType: DamageType, killerTowerId?: number): void {
     const cfg = ENEMIES[enemy.type];
     let dmg = baseDmg;
 

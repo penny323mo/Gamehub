@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { MAP } from '../core/config';
+import { MAP, SURFACE_Y } from '../core/config';
 import { cellToWorld } from '../core/path';
+import { LAYOUT } from '../core/mapLayout';
 import type { TowerType } from '../core/types';
 
 const GHOST_COLORS: Record<string, number> = {
@@ -11,7 +12,9 @@ const GHOST_COLORS: Record<string, number> = {
 export class Picking {
     private raycaster = new THREE.Raycaster();
     private mouse = new THREE.Vector2();
-    private groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    // Raycast against the visible tile top. Projecting to Y=0 selects a cell
+    // behind the cursor at the default tilted camera angle.
+    private groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -SURFACE_Y);
     private ghostMesh: THREE.Mesh | null = null;
     private rangeRing: THREE.Mesh | null = null;
     private scene: THREE.Scene;
@@ -40,19 +43,22 @@ export class Picking {
 
         this.raycaster.setFromCamera(this.mouse, camera);
         const intersection = new THREE.Vector3();
-        this.raycaster.ray.intersectPlane(this.groundPlane, intersection);
+        const hit = this.raycaster.ray.intersectPlane(this.groundPlane, intersection);
+        if (!hit) {
+            this.hoveredCol = -1;
+            this.hoveredRow = -1;
+            return;
+        }
 
-        if (intersection) {
-            const col = Math.floor((intersection.x - MAP.origin.x) / MAP.cellSize);
-            const row = Math.floor((intersection.z - MAP.origin.z) / MAP.cellSize);
+        const col = Math.floor((intersection.x - MAP.origin.x) / MAP.cellSize);
+        const row = Math.floor((intersection.z - MAP.origin.z) / MAP.cellSize);
 
-            if (col >= 0 && col < MAP.cols && row >= 0 && row < MAP.rows) {
-                this.hoveredCol = col;
-                this.hoveredRow = row;
-            } else {
-                this.hoveredCol = -1;
-                this.hoveredRow = -1;
-            }
+        if (LAYOUT.cellAt(col, row).exists) {
+            this.hoveredCol = col;
+            this.hoveredRow = row;
+        } else {
+            this.hoveredCol = -1;
+            this.hoveredRow = -1;
         }
     }
 
@@ -69,7 +75,7 @@ export class Picking {
         }
 
         const pos = cellToWorld(col, row);
-        this.ghostMesh.position.set(pos.x, 0.25, pos.z);
+        this.ghostMesh.position.set(pos.x, SURFACE_Y + 0.25, pos.z);
         this.ghostMesh.visible = true;
         (this.ghostMesh.material as THREE.MeshBasicMaterial).color.setHex(
             valid ? GHOST_COLORS.valid : GHOST_COLORS.invalid
@@ -91,7 +97,7 @@ export class Picking {
                 this.scene.add(this.rangeRing);
             }
             this.rangeRing.scale.set(range, range, 1);
-            this.rangeRing.position.set(pos.x, 0.02, pos.z);
+            this.rangeRing.position.set(pos.x, SURFACE_Y + 0.003, pos.z);
             this.rangeRing.visible = true;
             (this.rangeRing.material as THREE.MeshBasicMaterial).color.setHex(
                 valid ? 0x44ff88 : 0xff6644

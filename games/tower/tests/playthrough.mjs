@@ -5,11 +5,12 @@
 // 一個第一次玩嘅人都做得到：貼住條路起塔、有錢就升級、升唔到就再起一座。
 // 如果連呢個政策都推得到尾而且一條命都唔跌，咁「難度」呢兩個字就係空嘅。
 //
-// 跑法：node games/tower/tests/playthrough.mjs [最多波數]
+// 跑法：node games/tower/tests/playthrough.mjs [最多波數] [塔上限] [HP線性] [HP曲率] [seed]
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { chromium } from 'playwright';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
 const 最多波 = Number(process.argv[2] ?? 40);
@@ -18,30 +19,62 @@ const 塔上限 = Number(process.argv[3] ?? 999);
 // 血量曲線嘅二次項：掃緊個數嗰陣由呢度餵入去，唔使每試一個值就 rebuild。
 const 線性 = process.argv[4] !== undefined ? Number(process.argv[4]) : null;
 const 曲率 = Number(process.argv[5] ?? 0);
-const PW = path.join(ROOT, 'games', 'Racing Car', 'tests', 'node_modules', 'playwright', 'index.mjs');
-if (!fs.existsSync(PW)) { console.log('搵唔到 playwright'); process.exit(1); }
-const { chromium } = await import(pathToFileURL(PW).href);
+// Milestone card offers 同部分 gameplay-adjacent UI 仍會抽 Math.random；固定 seed
+// 先至可以用兩次 run 比較同一條曲線。
+// 第五個參數可以換 seed 重跑，輸出亦會記低，失敗先有得原樣重現。
+const 種子 = Number(process.argv[6] ?? 198);
+if (!Number.isInteger(種子) || 種子 < 0 || 種子 > 0xffffffff) {
+  console.log(`seed 要係 0 至 4294967295 嘅整數，收到：${process.argv[6]}`);
+  process.exit(1);
+}
+console.log(`Math.random seed: ${種子}`);
 const MIME = { '.html':'text/html', '.js':'text/javascript', '.css':'text/css', '.json':'application/json',
   '.png':'image/png', '.svg':'image/svg+xml', '.glb':'model/gltf-binary', '.m4a':'audio/mp4', '.woff2':'font/woff2' };
-const server = http.createServer((req, res) => {
+const 外部網址 = process.env.TOWER_URL;
+const server = 外部網址 ? null : http.createServer((req, res) => {
   const u = decodeURIComponent(req.url.split('?')[0]);
   const f = path.join(ROOT, u);
   if (!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end('404'); }
   res.writeHead(200, { 'content-type': MIME[path.extname(f)] ?? 'application/octet-stream' });
   fs.createReadStream(f).pipe(res);
 });
-const port = await new Promise(r => server.listen(0, () => r(server.address().port)));
+const port = server ? await new Promise(r => server.listen(0, () => r(server.address().port))) : null;
 const browser = await chromium.launch({
-  executablePath: process.env.PW_CHROMIUM ?? '/opt/pw-browsers/chromium',
+  ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}),
   args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
 });
 const page = await browser.newPage({ viewport: { width: 640, height: 400 } });
+// 頁面一載入就接管 Math.random；正式跑支尺嗰個同步 task 會再由同一粒 seed
+// 重設一次，renderer 喺載入期間抽過幾多次都唔會改變 gameplay 嘅亂數序列。
+await page.addInitScript((seed) => {
+  globalThis.__towerResetRandom = () => {
+    let state = seed >>> 0;
+    Math.random = () => {
+      state = (state + 0x6D2B79F5) | 0;
+      let value = state;
+      value = Math.imul(value ^ (value >>> 15), value | 1);
+      value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+      return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+    };
+  };
+  globalThis.__towerResetRandom();
+}, 種子);
 const errors = [];
 page.on('pageerror', e => errors.push(e.message.split('\n')[0].slice(0, 140)));
-await page.goto(`http://localhost:${port}/games/tower/dist/index.html`, { waitUntil: 'load' });
-await page.waitForFunction(() => !!window.__TD, null, { timeout: 30000 });
-await page.click('#start-btn');
-await page.waitForTimeout(1500);
+await page.goto(外部網址 ?? `http://localhost:${port}/games/tower/dist/index.html`, { waitUntil: 'load' });
+// START handler 要等模型 promise；固定 sleep 喺 SwiftShader／並行長測下會未開局就
+// 繼續，最後假報「wave 1、0 塔」成功。一定要見到真 phase 轉走 idle；dev server
+// 若啱啱 HMR reload，重新撳一次而唔係量個全新 idle page。
+for (let attempt = 1; attempt <= 3; attempt += 1) {
+  await page.waitForFunction(() => !!window.__TD, null, { timeout: 30000 });
+  await page.click('#start-btn');
+  try {
+    await page.waitForFunction(() => !!window.__TD && window.__TD.state.phase !== 'idle', null, { timeout: 20000 });
+    break;
+  } catch (error) {
+    if (attempt === 3) throw error;
+  }
+}
 if (線性 !== null) await page.evaluate((v) => { window.__TD.設曲率(v[0], v[1]); }, [線性, 曲率]);
 // 條路同塔嘅設定由頁面攞，唔好喺呢度再寫一次。
 await page.evaluate(async () => {
@@ -50,9 +83,26 @@ await page.evaluate(async () => {
 });
 
 const 結果 = await page.evaluate(({ 最多波, 塔上限 }) => {
+  // 同一個 JS task 入面重設再跑完整個模擬，rAF 冇機會插入嚟消耗亂數。
+  globalThis.__towerResetRandom();
   const T = window.__TD, S = () => T.state;
+  const 開局金 = S().gold;
   const 記 = [];
   const 建過 = new Set();
+  let 最後消費波 = 0;
+  const Buff記 = [];
+  // Milestone 真玩家一定要揀先可以繼續。政策固定「戰力行先」，但只可以喺
+  // 畫面真係派出嚟嗰三張卡入面揀；直接 click 現有 card，唔喺測試抄 apply 公式。
+  const 揀Buff = () => {
+    if (!S().buffChoicePending) return;
+    const 優先 = ['Overcharge', 'Long Sight', 'Fortify', 'Gold Rush', 'War Chest'];
+    const cards = [...document.querySelectorAll('#buff-cards .buff-card')];
+    const card = 優先.map((name) => cards.find((el) => el.querySelector('.card-name')?.textContent === name)).find(Boolean);
+    if (!card) throw new Error('milestone 開咗但搵唔到 buff card');
+    const name = card.querySelector('.card-name')?.textContent ?? '?';
+    Buff記.push({ 波: S().currentWave, 揀: name });
+    card.click();
+  };
   const 起一座 = (type) => {
     for (let pi = 3; pi < T.路.length - 2; pi += 1) {
       const [pc, pr] = T.路[pi];
@@ -72,32 +122,39 @@ const 結果 = await page.evaluate(({ 最多波, 塔上限 }) => {
     for (let 守 = 0; 守 < 500; 守 += 1) {
       let 郁過 = false;
       for (const t of S().towers.filter(t => t.level < 3).sort((a, b) => a.level - b.level)) {
-        if (T.upgrade(t.id)) { 郁過 = true; break; }
+        if (T.upgrade(t.id)) { 最後消費波 = S().currentWave + 1; 郁過 = true; break; }
       }
       if (郁過) continue;
       for (const t of S().towers) {
         if (進化過.has(t.id)) continue;
         const evo = T.塔設定[t.type]?.evolutions ?? [];
         if (!evo.length) { 進化過.add(t.id); continue; }
-        if (T.進化(t.id, evo[0].type)) { 進化過.add(t.id); 郁過 = true; break; }
+        if (T.進化(t.id, evo[0].type)) { 最後消費波 = S().currentWave + 1; 進化過.add(t.id); 郁過 = true; break; }
       }
       if (郁過) continue;
       if (S().towers.length >= 塔上限) return;
       if (!起一座(S().towers.length % 4 === 3 ? 'sniper' : 'arrow')) return;
+      最後消費波 = S().currentWave + 1;
     }
   };
   // 「呢一波夠唔夠驚險」量法：**成波敵人最深行到條路嘅第幾成**。
   // 打得晒唔代表打得辛苦——如果每一波都喺頭三成就清乾淨，即係防守多咗幾倍，
   // 而條命數永遠唔郁就係咁嚟嘅。呢個數睇得出「差幾遠先至輸」。
-  const 路長 = T.路.length - 1;
+  // 敵人沿 state.pathWorld 行；新圓滑 route 會將 31 格展開成等距 samples，
+  // 所以滲透分母一定要用真 movement path，唔可以再用起塔用嘅 raw map cells。
+  const 路長 = S().pathWorld.length - 1;
   let 上次波 = -1, 守 = 0, 今波最深 = 0;
   while (S().phase !== 'lost' && S().phase !== 'won' && S().currentWave < 最多波 && 守 < 600000) {
     if (S().phase === 'prep') 花錢();
     for (let i = 0; i < 20; i += 1) {
+      const 波前 = S().currentWave;
       T.tick(1);
+      揀Buff();
       for (const e of S().enemies) {
         if (e.alive && !e.reached) 今波最深 = Math.max(今波最深, e.pathIndex / 路長);
       }
+      // 就算呢一格令個波完／輸咗，都要將跌命記返落啱啱嗰個波。
+      if (記.length && 上次波 === 波前) 記[記.length - 1].命 = Math.min(記[記.length - 1].命, S().lives);
     }
     守 += 20;
     if (S().currentWave !== 上次波) {
@@ -112,7 +169,10 @@ const 結果 = await page.evaluate(({ 最多波, 塔上限 }) => {
     終: S().phase, 到波: S().currentWave + 1, 命: S().lives, 開局命: 20,
     塔: S().towers.length, 剩金: S().gold, 最高剩金: Math.max(...記.map(r => r.金)),
     進化咗: S().towers.filter(t => t.type.includes('_')).length,
-    收入: S().stats.goldEarned, 洗咗: S().stats.goldSpent,
+    最後消費波,
+    收入: S().stats.goldEarned, 實收: S().gold + S().stats.goldSpent - 開局金,
+    收入漏報: S().gold + S().stats.goldSpent - 開局金 - S().stats.goldEarned,
+    洗咗: S().stats.goldSpent, Buff記,
     跌過命嘅波: 記.filter((r, i) => i > 0 && r.命 < 記[i - 1].命).map(r => r.波),
     記,
   };
@@ -121,7 +181,10 @@ const 結果 = await page.evaluate(({ 最多波, 塔上限 }) => {
 console.log(`終局: ${結果.終}　到波: ${結果.到波}　命: ${結果.命}/${結果.開局命}　塔: ${結果.塔}（進化咗 ${結果.進化咗}）　剩金: ${結果.剩金}`);
 console.log(`跌過命嘅波: ${結果.跌過命嘅波.length ? 結果.跌過命嘅波.join('、') : '一個都冇'}`);
 console.log(`最高剩金: ${結果.最高剩金}（洗到洗唔郁之後仲有咁多，即係買唔到嘢）`);
+console.log(`最後消費: wave ${結果.最後消費波}（之後再冇 build／upgrade／evolve 決定）`);
 console.log(`成場收入: ${結果.收入}　洗咗: ${結果.洗咗}　→ 收入係開支嘅 ${(結果.收入 / Math.max(1, 結果.洗咗)).toFixed(2)} 倍`);
+console.log(`實際金流收入: ${結果.實收}　stats 漏報: ${結果.收入漏報}`);
+console.log(`Milestone buffs: ${結果.Buff記.length ? 結果.Buff記.map(b => `wave ${b.波} ${b.揀}`).join('、') : '未到 milestone'}`);
 const 深 = 結果.記.map(r => r.最深);
 console.log(`成場最深滲透: ${Math.max(...深).toFixed(2)}（1.00 就係走到終點）　中位數 ${深.slice().sort((a, b) => a - b)[深.length >> 1].toFixed(2)}`);
 for (const r of 結果.記.filter((_, i) => i % 5 === 0 || i === 結果.記.length - 1)) {
@@ -129,4 +192,4 @@ for (const r of 結果.記.filter((_, i) => i % 5 === 0 || i === 結果.記.leng
 }
 if (errors.length) console.log('browser error: ' + errors.slice(0, 3).join(' | '));
 await browser.close();
-server.close();
+server?.close();

@@ -490,59 +490,29 @@
                     "intervalSec": 3
                 },
                 {
+                    "type": "tank",
+                    "count": 10,
+                    "intervalSec": 1.2
+                },
+                {
+                    "type": "tank",
+                    "count": 10,
+                    "intervalSec": 1.2
+                },
+                {
+                    "type": "shield",
+                    "count": 8,
+                    "intervalSec": 1.1
+                },
+                {
+                    "type": "shield",
+                    "count": 7,
+                    "intervalSec": 1.1
+                },
+                {
                     "type": "healer",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
+                    "count": 15,
+                    "intervalSec": 1.4
                 }
             ]
         },
@@ -675,89 +645,29 @@
                     "intervalSec": 3
                 },
                 {
-                    "type": "healer",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
+                    "type": "tank",
+                    "count": 9,
+                    "intervalSec": 1.2
                 },
                 {
                     "type": "tank",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 8,
-                    "intervalSec": 1.5
+                    "count": 9,
+                    "intervalSec": 1.2
                 },
                 {
                     "type": "shield",
                     "count": 8,
-                    "intervalSec": 1.5
+                    "intervalSec": 1.1
                 },
                 {
                     "type": "shield",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
                     "count": 7,
-                    "intervalSec": 1.5
+                    "intervalSec": 1.1
+                },
+                {
+                    "type": "healer",
+                    "count": 12,
+                    "intervalSec": 1.4
                 }
             ]
         },
@@ -935,124 +845,29 @@
                     "intervalSec": 3
                 },
                 {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 3,
-                    "intervalSec": 1.5
+                    "type": "tank",
+                    "count": 13,
+                    "intervalSec": 1.2
                 },
                 {
                     "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
+                    "count": 12,
+                    "intervalSec": 1.2
                 },
                 {
                     "type": "shield",
-                    "count": 8,
-                    "intervalSec": 1.5
+                    "count": 9,
+                    "intervalSec": 1.1
                 },
                 {
                     "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
+                    "count": 9,
+                    "intervalSec": 1.1
                 },
                 {
                     "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 6,
-                    "intervalSec": 1.5
+                    "count": 13,
+                    "intervalSec": 1.4
                 }
             ]
         },
@@ -1221,178 +1036,28 @@
                 },
                 {
                     "type": "tank",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
+                    "count": 12,
+                    "intervalSec": 1.2
                 },
                 {
                     "type": "tank",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 4,
-                    "intervalSec": 1.5
+                    "count": 12,
+                    "intervalSec": 1.2
                 },
                 {
                     "type": "shield",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
+                    "count": 9,
+                    "intervalSec": 1.1
                 },
                 {
                     "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
+                    "count": 9,
+                    "intervalSec": 1.1
                 },
                 {
                     "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
+                    "count": 12,
+                    "intervalSec": 1.4
                 }
             ]
         },
@@ -1580,214 +1245,34 @@
                     "intervalSec": 3
                 },
                 {
-                    "type": "shield",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
+                    "type": "tank",
+                    "count": 18,
+                    "intervalSec": 1.2
                 },
                 {
                     "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
+                    "count": 17,
+                    "intervalSec": 1.2
                 },
                 {
                     "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 4,
-                    "intervalSec": 1.5
+                    "count": 14,
+                    "intervalSec": 1.1
                 },
                 {
                     "type": "shield",
-                    "count": 3,
-                    "intervalSec": 1.5
+                    "count": 14,
+                    "intervalSec": 1.1
                 },
                 {
                     "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 3,
-                    "intervalSec": 1.5
+                    "count": 13,
+                    "intervalSec": 1.4
                 },
                 {
                     "type": "healer",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 6,
-                    "intervalSec": 1.5
+                    "count": 13,
+                    "intervalSec": 1.4
                 }
             ]
         },
@@ -2000,264 +1485,34 @@
                     "intervalSec": 3
                 },
                 {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
+                    "type": "tank",
+                    "count": 20,
+                    "intervalSec": 1.2
                 },
                 {
                     "type": "tank",
-                    "count": 4,
-                    "intervalSec": 1.5
+                    "count": 20,
+                    "intervalSec": 1.2
                 },
                 {
                     "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 5,
-                    "intervalSec": 1.5
+                    "count": 18,
+                    "intervalSec": 1.1
                 },
                 {
                     "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
+                    "count": 17,
+                    "intervalSec": 1.1
                 },
                 {
                     "type": "healer",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
+                    "count": 25,
+                    "intervalSec": 1.4
                 },
                 {
                     "type": "healer",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
+                    "count": 25,
+                    "intervalSec": 1.4
                 }
             ]
         },
@@ -2490,344 +1745,34 @@
                     "intervalSec": 3
                 },
                 {
-                    "type": "healer",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
+                    "type": "tank",
+                    "count": 19,
+                    "intervalSec": 1.2
                 },
                 {
                     "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
+                    "count": 19,
+                    "intervalSec": 1.2
                 },
                 {
                     "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
+                    "count": 16,
+                    "intervalSec": 1.1
+                },
+                {
+                    "type": "shield",
+                    "count": 16,
+                    "intervalSec": 1.1
                 },
                 {
                     "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 8,
-                    "intervalSec": 1.5
+                    "count": 20,
+                    "intervalSec": 1.4
                 },
                 {
                     "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
+                    "count": 20,
+                    "intervalSec": 1.4
                 }
             ]
         },
@@ -3051,404 +1996,34 @@
                     "intervalSec": 3
                 },
                 {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
+                    "type": "tank",
+                    "count": 25,
+                    "intervalSec": 1.2
                 },
                 {
                     "type": "tank",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
+                    "count": 25,
+                    "intervalSec": 1.2
                 },
                 {
                     "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 7,
-                    "intervalSec": 1.5
+                    "count": 23,
+                    "intervalSec": 1.1
                 },
                 {
                     "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 4,
-                    "intervalSec": 1.5
+                    "count": 22,
+                    "intervalSec": 1.1
                 },
                 {
                     "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
+                    "count": 28,
+                    "intervalSec": 1.4
                 },
                 {
                     "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 5,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 7,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "shield",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 3,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 4,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "tank",
-                    "count": 8,
-                    "intervalSec": 1.5
-                },
-                {
-                    "type": "healer",
-                    "count": 6,
-                    "intervalSec": 1.5
+                    "count": 27,
+                    "intervalSec": 1.4
                 }
             ]
         }

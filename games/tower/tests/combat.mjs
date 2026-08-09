@@ -12,15 +12,14 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { chromium } from 'playwright';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
-const PW = path.join(ROOT, 'games', 'Racing Car', 'tests', 'node_modules', 'playwright', 'index.mjs');
-if (!fs.existsSync(PW)) { console.log('搵唔到 playwright'); process.exit(1); }
-if (!fs.existsSync(path.join(HERE, '..', 'dist', 'index.html'))) {
+const 外部網址 = process.env.TOWER_URL;
+if (!外部網址 && !fs.existsSync(path.join(HERE, '..', 'dist', 'index.html'))) {
     console.log('搵唔到 dist：喺 games/tower 行 npm ci && npm run build 先'); process.exit(1);
 }
-const { chromium } = await import(pathToFileURL(PW).href);
 const MIME = { '.html':'text/html', '.js':'text/javascript', '.mjs':'text/javascript', '.css':'text/css',
   '.json':'application/json', '.png':'image/png', '.jpg':'image/jpeg', '.webp':'image/webp',
   '.svg':'image/svg+xml', '.glb':'model/gltf-binary', '.woff2':'font/woff2', '.m4a':'audio/mp4', '.mp3':'audio/mpeg' };
@@ -29,22 +28,22 @@ const check = (name, ok, detail) => {
   if (ok) { pass++; console.log(`PASS  ${name}`, detail === undefined ? '' : JSON.stringify(detail)); }
   else { fail++; failed.push(name); console.log(`FAIL  ${name}`, JSON.stringify(detail)); }
 };
-const server = http.createServer((req, res) => {
+const server = 外部網址 ? null : http.createServer((req, res) => {
   const u = decodeURIComponent(req.url.split('?')[0]);
   const f = path.join(ROOT, u);
   if (!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end('404'); }
   res.writeHead(200, { 'content-type': MIME[path.extname(f)] ?? 'application/octet-stream' });
   fs.createReadStream(f).pipe(res);
 });
-const port = await new Promise(r => server.listen(0, () => r(server.address().port)));
+const port = server ? await new Promise(r => server.listen(0, () => r(server.address().port))) : null;
 const browser = await chromium.launch({
-  executablePath: process.env.PW_CHROMIUM ?? '/opt/pw-browsers/chromium',
+  ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}),
   args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
 });
 const page = await browser.newPage({ viewport: { width: 640, height: 400 } });
 const errors = [];
 page.on('pageerror', e => errors.push(e.message.split('\n')[0].slice(0, 140)));
-await page.goto(`http://localhost:${port}/games/tower/dist/index.html`, { waitUntil: 'load' });
+await page.goto(外部網址 ?? `http://localhost:${port}/games/tower/dist/index.html`, { waitUntil: 'load' });
 await page.waitForFunction(() => !!window.__TD, null, { timeout: 30000 });
 
 // 頁面入面嘅共用夾具：搵一格路、搵一格喺佢隔籬起得塔嘅位、擺低一隻唔郁嘅敵人。
@@ -225,10 +224,66 @@ const 兩種 = await page.evaluate(() => {
 check('火同毒係兩件事，可以同時燒（刷新只係同類型之間嘅事）',
   兩種.條數 === 2 && 兩種.類型.join(',') === 'fire,poison', 兩種);
 
+// ── 6. HP 曲率唔可以暗中推高賞金 ──
+// 呢度用真 spawn 比較同一波、同一種敵人；只郁 HP 二次項。舊版用同一條
+// waveScale 計 HP 同 bounty，所以加血亦會補貼玩家，令平衡實驗一次郁兩個槓桿。
+const 曲線分家 = await page.evaluate(() => {
+  const T = window.__TD;
+  const 量 = (曲率) => {
+    T.設曲率(0.04, 曲率);
+    T.擂台();
+    T.state.currentWave = 40;
+    T.state.waveModifier = null;
+    const spawned = T.spawn('grunt', 6);
+    const enemy = T.state.enemies.find(e => e.id === spawned.id);
+    return { maxHp: enemy.maxHp, bounty: enemy.bounty };
+  };
+  const 冇曲率 = 量(0);
+  const 有曲率 = 量(0.0016);
+  T.設曲率(0.04, 0.0016);
+  return { 波: 41, 冇曲率, 有曲率 };
+});
+check('HP 二次曲率令同一波敵人血量增加',
+  曲線分家.有曲率.maxHp > 曲線分家.冇曲率.maxHp, 曲線分家);
+check('HP 二次曲率唔會令同一波敵人賞金增加',
+  曲線分家.有曲率.bounty === 曲線分家.冇曲率.bounty, 曲線分家);
+
+// ── 7. Airstrike 係真傷害入口，唔可以穿盾或漏統計 ──
+const 空襲 = await page.evaluate(() => {
+  const T = window.__TD;
+  T.擂台();
+  T.state.currentWave = 0;
+  T.state.skills[0].remaining = 0;
+  const spawned = T.spawn('shield', 6);
+  const enemy = T.state.enemies.find((candidate) => candidate.id === spawned.id);
+  const before = { hp: enemy.hp, shield: enemy.shield, damage: T.state.stats.totalDamageDealt };
+  const skill = T.用技能(0);
+  return {
+    before,
+    after: { hp: enemy.hp, shield: enemy.shield, damage: T.state.stats.totalDamageDealt },
+    skill,
+  };
+});
+check('Airstrike 先打盾再打血，唔會繞過 Shield 規則',
+  空襲.before.shield > 0 && 空襲.after.shield === 0
+    && 空襲.after.hp < 空襲.before.hp, 空襲);
+check('Airstrike 有效使用先進 cooldown，而且傷害入總統計',
+  空襲.skill.before === 0 && 空襲.skill.remaining > 0
+    && 空襲.after.damage > 空襲.before.damage, 空襲);
+
+const 空技 = await page.evaluate(() => {
+  const T = window.__TD;
+  T.擂台();
+  T.state.enemies = [];
+  T.state.skills[0].remaining = 0;
+  return T.用技能(0);
+});
+check('場上冇有效敵人，Airstrike 唔會白白進 cooldown', 空技.remaining === 0, 空技);
+
 check('量度期間零 browser error', errors.length === 0, errors.slice(0, 3));
 
 console.log(`\ntower 戰鬥: ${pass}/${pass + fail} 通過`);
 if (fail) console.log('失敗項目: ' + failed.join('、'));
 await browser.close();
-server.close();
+server?.close();
 process.exit(fail ? 1 : 0);

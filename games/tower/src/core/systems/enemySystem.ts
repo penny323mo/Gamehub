@@ -2,6 +2,7 @@ import type { GameState, Enemy, DamageType } from '../types';
 import { ENEMIES } from '../config';
 import { dist } from '../path';
 import { killEnemy } from './killSystem';
+import { bus } from './eventBus';
 
 // 一條 DoT 就算畀甲食晒都仲有咁多每秒（唔係每格）。
 export const DOT_MIN_DPS = 1;
@@ -120,6 +121,7 @@ export function tickEnemies(state: GameState, dt: number): void {
             enemy.alive = false;
             state.lives--;
             state.waveLivesLostThisWave++;
+            bus.emit({ type: 'enemyReachedGoal', enemyId: enemy.id, livesRemaining: Math.max(0, state.lives) });
 
             if (state.lives <= 0) {
                 state.lives = 0;

@@ -2,7 +2,7 @@
 
 export type TowerType = 'arrow' | 'cannon' | 'ice' | 'fire' | 'lightning' | 'poison' | 'sniper' | string;
 export type EnemyType = 'grunt' | 'tank' | 'runner' | 'swarm' | 'shield' | 'healer' | 'boss';
-export type DamageType = 'physical' | 'fire' | 'ice' | 'lightning' | 'poison' | 'sniper';
+export type DamageType = 'physical' | 'fire' | 'ice' | 'lightning' | 'poison' | 'sniper' | 'ability';
 export type TargetingMode = 'first' | 'last' | 'strongest' | 'weakest';
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
@@ -96,6 +96,17 @@ export interface WavesConfig {
     waves: WaveConfig[];
 }
 
+export interface MapRegionConfig {
+    id: 'wildwood-gate' | 'sunken-crossing' | 'bastion-cliff' | string;
+    name: string;
+    subtitle: string;
+    /** Inclusive world-grid column range owned by this battlefield zone. */
+    colRange: [number, number];
+    /** Visual foundation depth: entrance shelf, gorge or raised citadel mesa. */
+    foundationTier: 1 | 2 | 3;
+    accent: string;
+}
+
 export interface MapConfig {
     cols: number;
     rows: number;
@@ -104,6 +115,27 @@ export interface MapConfig {
     path: number[][];
     spawnCell: number[];
     goalCell: number[];
+    cells?: string;
+    theme?: string;
+    /** Chebyshev distance from the path that still belongs to the visible island. */
+    landRadius?: number;
+    /** Distance from the path where tower placement is allowed. */
+    buildRadius?: number;
+    /** Inclusive [firstCol,lastCol] span for each row; omitted means a full rectangle. */
+    playableRows?: number[][];
+    /** Spatial journey across the map; separate from time-based campaign chapters. */
+    regions?: MapRegionConfig[];
+    terrainTiles?: Array<{
+        cell: number[];
+        model: string;
+        rotK?: number;
+        buildable?: boolean;
+    }>;
+    pathTileOverrides?: Array<{
+        cell: number[];
+        model: string;
+        rotK: number;
+    }>;
 }
 
 export interface ScoringConfig {

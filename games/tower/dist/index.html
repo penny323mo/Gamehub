@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Tower Defense</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b1f16'/%3E%3Cpath d='M22 52V26l10-8 10 8v26z' fill='%234ade80'/%3E%3Cpath d='M20 26h24v5H20z' fill='%2386efac'/%3E%3Crect x='29' y='34' width='6' height='9' fill='%230b1f16'/%3E%3C/svg%3E">
-  <script defer src="./assets/index-TJtPXLf-.js"></script>
+  <script defer src="./assets/index-Ch4DeV1Y.js"></script>
 </head>
 
 <body>
@@ -18,6 +18,7 @@
         <div id="hud-gold">💰 <span id="gold-val">400</span></div>
         <div id="hud-lives">❤️ <span id="lives-val">20</span></div>
         <div id="hud-wave">
+          <div class="chapter-line"><span id="chapter-act">ACT I</span><span id="chapter-name">Verdant Border</span></div>
           <div class="wave-top">
             <span class="wave-label">Wave <span id="wave-val">0</span>/99</span>
             <span class="wave-remain" id="wave-remain">—</span>
@@ -26,11 +27,11 @@
         </div>
         <div id="hud-kills">🗡️ <span id="kills-val">0</span></div>
         <button id="skip-prep-btn" class="hidden">⏩ Skip</button>
-        <button id="pause-btn" style="margin-left:auto">⏸</button>
-        <button id="speed-btn">1×</button>
-        <button id="sound-btn">🔊</button>
-        <button id="help-btn">?</button>
-        <button id="hub-btn" title="返回 Game Hub" onclick="window.location.href='../../../index.html'">🏠</button>
+        <button id="pause-btn" style="margin-left:auto" aria-label="Pause defense" title="Pause defense">⏸</button>
+        <button id="speed-btn" aria-label="Game speed" title="Game speed">1×</button>
+        <button id="sound-btn" aria-label="Mute sound" title="Mute sound">🔊</button>
+        <button id="help-btn" aria-label="Open shortcuts and help" title="Shortcuts and help">?</button>
+        <button id="hub-btn" aria-label="Return to Game Hub" title="返回 Game Hub" onclick="window.location.href='../../../index.html'">🏠</button>
     </div>
 
     <!-- Enemy Panel -->
@@ -60,7 +61,7 @@
 
   <!-- Skill Bar -->
   <div id="skill-bar">
-    <button class="skill-btn" data-skill="0" title="Airstrike (Q) — All enemies take 200 AOE damage">
+    <button class="skill-btn" data-skill="0" title="Airstrike (Q) — Deal 200 neutral damage to all enemies; shields and armor still apply">
       <span class="skill-emoji">✈️</span>
       <span class="skill-cd hidden"></span>
       <span class="skill-key">Q</span>
@@ -88,15 +89,15 @@
   </div>
 
   <!-- Achievements Panel -->
-  <div id="achievements-modal" class="hidden">
+  <div id="achievements-modal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="ach-title" aria-hidden="true">
     <div class="ach-backdrop"></div>
     <div class="ach-dialog">
       <div class="ach-head">
         <div>
           <div class="ach-kick">Progress</div>
-          <div class="ach-ttl">Achievements <span id="ach-count">0/0</span></div>
+          <div class="ach-ttl" id="ach-title">Achievements <span id="ach-count">0/0</span></div>
         </div>
-        <button id="ach-close-btn">✕</button>
+        <button id="ach-close-btn" aria-label="Close achievements">✕</button>
       </div>
       <div class="ach-grid" id="ach-grid"></div>
       <button id="ach-reset-btn" class="reset-btn">⟲ Reset Progress</button>
@@ -104,12 +105,12 @@
   </div>
 
   <!-- Milestone Buff Choice Modal -->
-  <div id="buff-modal" class="hidden">
+  <div id="buff-modal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="buff-title" aria-describedby="buff-description" aria-hidden="true">
     <div class="buff-backdrop"></div>
     <div class="buff-dialog">
       <div class="buff-kicker">Milestone Reward</div>
-      <div class="buff-title">Choose a Boon</div>
-      <div class="buff-sub">Wave <span id="buff-wave">25</span> cleared — pick one</div>
+      <div class="buff-title" id="buff-title">Choose a Boon</div>
+      <div class="buff-sub" id="buff-description">Wave <span id="buff-wave">25</span> cleared — pick one</div>
       <div class="buff-cards" id="buff-cards"></div>
     </div>
   </div>
@@ -141,9 +142,9 @@
   </div>
 
   <!-- Help Overlay -->
-  <div id="help-overlay" class="hidden">
+  <div id="help-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="help-title" aria-hidden="true">
     <div id="help-content">
-      <div class="help-title">⌨️ Shortcuts</div>
+      <div class="help-title" id="help-title">⌨️ Shortcuts</div>
       <div class="help-row"><span class="help-key">P</span><span class="help-desc">Pause / Resume</span></div>
       <div class="help-row"><span class="help-key">1× 2× 4×</span><span class="help-desc">Change game speed</span></div>
       <div class="help-row"><span class="help-key">⏩ Skip</span><span class="help-desc">Skip prep (+50g bonus)</span>
@@ -249,7 +250,7 @@
   </div>
 
   <!-- Start Screen -->
-  <div id="start-screen">
+  <div id="start-screen" role="dialog" aria-modal="true" aria-labelledby="start-title" aria-hidden="false">
     <div class="start-aurora"></div>
     <div class="start-embers">
       <span class="ember e1"></span>
@@ -265,10 +266,11 @@
     </div>
     <div class="start-content">
       <div class="intro-kicker">Frontier Bastion Protocol</div>
-      <h1 class="game-title">⚔️ Tower Defense</h1>
-      <p class="game-subtitle">Defend your base through 99 waves!</p>
+      <h1 class="game-title" id="start-title">⚔️ Tower Defense</h1>
+      <p class="game-subtitle">Cross one living battlefield through five acts and 99 waves.</p>
       <div class="start-chip-row">
         <div class="start-chip"><strong>99</strong><span>Waves</span></div>
+        <div class="start-chip"><strong>5</strong><span>Acts</span></div>
         <div class="start-chip"><strong>7</strong><span>Towers</span></div>
         <div class="start-chip"><strong>QWE</strong><span>Skills</span></div>
       </div>
@@ -298,6 +300,11 @@
         <span class="endless-sub">No end after Wave 99 — waves loop with growing stats</span>
       </label>
       <button id="achievements-btn" class="link-btn">🏆 Achievements</button>
+      <div id="continue-run" class="continue-run hidden">
+        <div class="continue-label">Saved Defense</div>
+        <div id="continue-summary" class="continue-summary"></div>
+        <button id="continue-btn" class="big-btn continue-btn">▶ Continue</button>
+      </div>
       <button id="start-btn" class="big-btn">▶ START</button>
       <button class="big-btn secondary" onclick="window.location.href='../../../index.html'" style="margin-top:10px">🏠
         返回 Game Hub</button>
@@ -305,7 +312,7 @@
   </div>
 
   <!-- End Screen -->
-  <div id="end-screen" class="hidden">
+  <div id="end-screen" class="hidden" role="dialog" aria-modal="true" aria-labelledby="end-title" aria-hidden="true">
     <div class="end-content">
       <div class="end-kicker">Defense Report</div>
       <h1 id="end-title">Victory!</h1>
@@ -324,6 +331,29 @@
       <div class="end-actions">
         <button id="restart-btn" class="big-btn">🔄 Restart</button>
         <button id="home-btn" class="big-btn secondary">🏠 Home</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Explicit pause route: backgrounded tabs never silently resume. -->
+  <div id="pause-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="pause-title" aria-describedby="pause-reason" aria-hidden="true">
+    <div class="pause-dialog">
+      <div class="pause-kicker">Defense on hold</div>
+      <h2 id="pause-title">Paused</h2>
+      <p id="pause-reason">Defense paused.</p>
+      <button id="resume-btn" class="big-btn">▶ Resume</button>
+    </div>
+  </div>
+
+  <!-- WebGL can be evicted on mobile; never leave the player on a frozen canvas. -->
+  <div id="graphics-recovery" class="hidden" role="alertdialog" aria-modal="true" aria-labelledby="graphics-title" aria-describedby="graphics-message" aria-hidden="true">
+    <div class="recovery-dialog">
+      <div class="pause-kicker">Graphics interrupted</div>
+      <h2 id="graphics-title">Battlefield display was lost</h2>
+      <p id="graphics-message">Your last completed-wave checkpoint is safe. Reload to restore the battlefield.</p>
+      <div class="recovery-actions">
+        <button id="graphics-reload-btn" class="big-btn">↻ Reload</button>
+        <button id="graphics-home-btn" class="big-btn secondary">🏠 Game Hub</button>
       </div>
     </div>
   </div>

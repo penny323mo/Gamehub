@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { GameState, Tower } from '../core/types';
-import { GRAPHICS } from '../core/config';
+import { GRAPHICS, SURFACE_Y, towerVisualLevel } from '../core/config';
 import { cellToWorld } from '../core/path';
 import { 取同步 } from './assets';
 
@@ -46,6 +46,10 @@ const ACCENT_COLORS: Record<string, number> = {
 const SEG_HI = GRAPHICS.isMobile ? 8 : 16;
 const SEG_MID = GRAPHICS.isMobile ? 6 : 12;
 const SEG_LO = GRAPHICS.isMobile ? 5 : 8;
+
+// 邏輯座標仍然係格中心；淨係收窄模型 footprint。Kenney 塔底原本啱啱 1×1，
+// 放入 1×1 格就四邊貼死，冰／毒屋頂更去到 1.41 格，視覺上似起咗落條路。
+const TOWER_VISUAL_SCALE_XZ = 0.85;
 
 interface MatOpts {
     color: number;
@@ -380,7 +384,7 @@ export class TowerRenderer {
         userData.pulse.scale.setScalar(pulseScale);
         userData.pulse.position.y = 0.002;
         this.rangeRing.scale.set(range, range, 1);
-        this.rangeRing.position.set(tower.worldX, 0.03, tower.worldZ);
+        this.rangeRing.position.set(tower.worldX, SURFACE_Y + 0.003, tower.worldZ);
         this.rangeRing.visible = true;
     }
 
@@ -396,7 +400,7 @@ export class TowerRenderer {
      * （試過兩版都係讀返草色）。真正要問嘅係 `染色()` 有冇落到色，
      * 而嗰個喺場景圖度讀得到，唔受燈同背景影響。
      */
-    measure(id: number): { 高: number; 件: number; 色: string[] } | null {
+    measure(id: number): { 高: number; 底: number; 頂: number; 佔格: [number, number]; 件: number; 色: string[]; 轉塔: boolean } | null {
         const g = this.meshes.get(id);
         if (!g) return null;
         const box = new THREE.Box3().setFromObject(g);
@@ -411,7 +415,15 @@ export class TowerRenderer {
                 if (mat?.color && 主色名.has(mat.name)) 色.add('#' + mat.color.getHexString());
             }
         });
-        return { 高: +(box.max.y - box.min.y).toFixed(3), 件, 色: [...色].sort() };
+        return {
+            高: +(box.max.y - box.min.y).toFixed(3),
+            底: +box.min.y.toFixed(3),
+            頂: +box.max.y.toFixed(3),
+            佔格: [+(box.max.x - box.min.x).toFixed(3), +(box.max.z - box.min.z).toFixed(3)],
+            件,
+            色: [...色].sort(),
+            轉塔: !!(g.userData as TowerParts).turretGroup,
+        };
     }
 
     // ─── 起塔：疊件，唔再砌幾何 ────────────────────────────────────────────
@@ -428,7 +440,15 @@ export class TowerRenderer {
     private createTowerMesh(tower: Tower): THREE.Group {
         const group = new THREE.Group();
         const pos = cellToWorld(tower.col, tower.row);
-        group.position.set(pos.x, 0, pos.z);
+        group.position.set(pos.x, SURFACE_Y, pos.z);
+        group.name = `tower:${tower.id}:${tower.type}`;
+
+        // group 留返 1:1 畀 build pop／攻擊 bump；模型自己收窄 XZ。咁動畫唔會
+        // 每幀覆蓋個比例，而且射程、瞄準同邏輯 world position 完全唔變。
+        const visual = new THREE.Group();
+        visual.name = 'tower-visual';
+        visual.scale.set(TOWER_VISUAL_SCALE_XZ, 1, TOWER_VISUAL_SCALE_XZ);
+        group.add(visual);
 
         const parts = group.userData as TowerParts;
         parts.buildProgress = 0;
@@ -439,34 +459,43 @@ export class TowerRenderer {
         const 主 = new THREE.Color(TOWER_COLORS[tower.type] ?? TOWER_COLORS.arrow);
         const 亮 = new THREE.Color(ACCENT_COLORS[tower.type] ?? ACCENT_COLORS.arrow);
 
-        // 底座永遠有；跟住每一級疊多一節。level 由 0 起計。
+        // 底座永遠有；跟住每一級疊多一節。進化型 gameplay level 會重置為 0，
+        // 但建築唔應該突然由三層塌返一層，所以視覺保留完整三級塔身。
         const 節 = ['bottom', 'middle', 'top'] as const;
         const 疊 = ['towers/towerRound_base.glb'];
-        for (let i = 0; i <= Math.min(tower.level, 2); i += 1) {
+        for (let i = 0; i <= towerVisualLevel(tower.type, tower.level); i += 1) {
             疊.push(`towers/${型.家}_${節[i]}${型.款}.glb`);
         }
 
         let y = 0;
         for (const rel of 疊) {
             const piece = 取同步(rel);
+            // Some modular floors have an off-centre authored pivot. Normalise each
+            // floor before stacking or the whole tower leans into the next cell.
+            中心XZ(piece);
             piece.position.y = y;
             染色(piece, 主, 亮);
-            group.add(piece);
+            visual.add(piece);
             y += rel.includes('_base') ? 0.21 : 0.5;
         }
 
         // 頂上嘅嘢會轉去瞄準，所以要自己一個 group（animate() 靠呢個）。
         const turret = new THREE.Group();
         turret.position.y = y;
-        group.add(turret);
-        parts.turretGroup = turret;
+        visual.add(turret);
 
         if (型.武器) {
+            turret.name = 'aiming-turret';
+            parts.turretGroup = turret;
             // **有武器嘅塔唔戴屋頂。** 呢啲屋頂高 0.93–1.18（量過），而武器得
             // 0.19–0.63 高——擺埋一齊武器就成件埋咗入屋頂入面，睇唔到佢瞄邊度。
             // 塔頂本來就係開嘅雉堞，武器企喺上面先至係 kit 原本嘅用法。
             const w = 取同步(`towers/weapon_${型.武器}.glb`);
+            w.name = 'weapon-model';
             w.scale.setScalar(型.武器大細 ?? 1);
+            // Kenney weapons point along local -Z, while our aiming maths defines +Z
+            // as forward. Rotate the asset once so the muzzle and recoil face correctly.
+            w.rotation.y = Math.PI;
             染色(w, 亮, 主);
             const recoil = new THREE.Group();   // 後座力推嘅係武器，唔係成座塔
             recoil.add(w);
@@ -474,17 +503,23 @@ export class TowerRenderer {
             parts.recoilNode = recoil;
             parts.recoilAmount = 0.09;
         } else {
+            turret.name = 'fixed-crown';
             // 冰同毒冇合適嘅武器頭（kit 得四個），改用屋頂＋水晶——順便令佢哋
             // 個剪影同其餘五種一眼分得開。
             const roof = 取同步(`towers/${型.家}_roof${型.款}.glb`);
+            // Footprint was only oversized because the whole square roof used to aim
+            // and turn 45 degrees. Keep XZ natural, only shorten its excessive height.
+            roof.scale.set(1, 0.58, 1);
+            中心XZ(roof);
             染色(roof, 主, 亮);
             turret.add(roof);
 
             // 水晶要企喺屋頂頂——高度由 bounding box 量，唔好逐個型號寫死。
             const 頂高 = new THREE.Box3().setFromObject(roof).max.y;
             const c = 取同步('towers/towerRound_crystals.glb');
-            c.position.y = 頂高 + 0.16;
-            c.scale.setScalar(0.55);
+            c.position.y = 頂高 + 0.06;
+            c.scale.setScalar(0.35);
+            中心XZ(c);
             染色(c, 亮, 亮);
             turret.add(c);
             parts.spin = [{ node: c, axis: 'y', speed: 0.7 }];
@@ -519,6 +554,14 @@ const TOWER_LOOK: Record<string, { 家: 'towerRound' | 'towerSquare'; 款: 'A' |
 // 木同水晶食亮色。
 const 主色名 = new Set(['red', 'purple']);
 const 亮色名 = new Set(['wood', 'crystal']);
+
+/** Kenney modular pieces do not all share a centred pivot; normalise before stacking. */
+function 中心XZ(root: THREE.Object3D): void {
+    root.updateWorldMatrix(true, true);
+    const center = new THREE.Box3().setFromObject(root).getCenter(new THREE.Vector3());
+    root.position.x -= center.x;
+    root.position.z -= center.z;
+}
 
 /**
  * 上色。

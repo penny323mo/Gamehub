@@ -8,15 +8,13 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { chromium } from 'playwright';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '../../..');
-const PW = path.join(ROOT, 'games', 'Racing Car', 'tests', 'node_modules', 'playwright', 'index.mjs');
-if (!fs.existsSync(PW)) { console.log('搵唔到 playwright'); process.exit(1); }
 if (!fs.existsSync(path.join(HERE, '..', 'dist', 'index.html'))) {
     console.log('搵唔到 dist：喺 games/tower 行 npm ci && npm run build 先'); process.exit(1);
 }
-const { chromium } = await import(pathToFileURL(PW).href);
 const MIME = { '.html':'text/html', '.js':'text/javascript', '.mjs':'text/javascript', '.css':'text/css',
   '.json':'application/json', '.png':'image/png', '.jpg':'image/jpeg', '.webp':'image/webp',
   '.svg':'image/svg+xml', '.glb':'model/gltf-binary', '.woff2':'font/woff2', '.m4a':'audio/mp4', '.mp3':'audio/mpeg' };
@@ -34,7 +32,7 @@ const server = http.createServer((req, res) => {
 });
 const port = await new Promise(r => server.listen(0, () => r(server.address().port)));
 const browser = await chromium.launch({
-  executablePath: process.env.PW_CHROMIUM ?? '/opt/pw-browsers/chromium',
+  ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}),
   args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
 });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });

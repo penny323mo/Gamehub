@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { GameState, EnemyType, Enemy } from '../core/types';
-import { GRAPHICS } from '../core/config';
+import { GRAPHICS, SURFACE_Y } from '../core/config';
 import { 取同步 } from './assets';
 
 /**
@@ -134,6 +134,14 @@ export function 裝敵模型(): void {
 const MAX_PER_TYPE = 100;
 const HP_BAR_WIDTH = 0.5;
 const POOL_SIZE = 100;
+const MAX_TURN_RATE = Math.PI * 3.5;
+
+/** Advance through the shortest signed arc, never snapping across +/-PI. */
+export function dampEnemyYaw(current: number, target: number, maxStep: number): number {
+    const delta = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+    if (Math.abs(delta) <= maxStep) return target;
+    return current + Math.sign(delta) * maxStep;
+}
 
 // Shared unit-scale geometries — use mesh.scale.x to resize width
 const GEO_BAR    = new THREE.PlaneGeometry(1, 0.06);
@@ -146,6 +154,7 @@ export class EnemyRenderer {
     private instancedMeshGroups = new Map<EnemyType, THREE.InstancedMesh[]>();
     private dummy = new THREE.Object3D();
     private animOut: AnimResult = { ox: 0, oy: 0, oz: 0, rx: 0, ry: 0, rz: 0, s: 1 };
+    private lastSyncTime = performance.now() * 0.001;
 
     // Shared materials (created once, reused every frame)
     private readonly mHpBg      = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide, depthWrite: false });
@@ -227,6 +236,8 @@ export class EnemyRenderer {
         }
 
         const time = performance.now() * 0.001;
+        const frameDt = Math.min(1 / 15, Math.max(0, time - this.lastSyncTime));
+        this.lastSyncTime = time;
         const out = this.animOut;
 
         // Update instanced meshes (enemy bodies)
@@ -240,14 +251,16 @@ export class EnemyRenderer {
             const parts = ENEMY_PARTS[type];
             for (let i = 0; i < enemies.length; i++) {
                 const e = enemies[i];
+                const displayEnemy = e as Enemy & { displayRot?: number };
                 const dx = e.worldX - e.prevWorldX;
                 const dz = e.worldZ - e.prevWorldZ;
-                let moveRot = 0;
+                let moveRot = displayEnemy.displayRot ?? 0;
                 if (Math.abs(dx) > 0.001 || Math.abs(dz) > 0.001) {
-                    moveRot = Math.atan2(dx, dz);
-                    (e as any).displayRot = moveRot;
-                } else if ((e as any).displayRot !== undefined) {
-                    moveRot = (e as any).displayRot;
+                    const targetRot = Math.atan2(dx, dz);
+                    moveRot = displayEnemy.displayRot === undefined
+                        ? targetRot
+                        : dampEnemyYaw(displayEnemy.displayRot, targetRot, MAX_TURN_RATE * frameDt);
+                    displayEnemy.displayRot = moveRot;
                 }
                 const phase = e.id * 0.7;
                 for (let p = 0; p < parts.length; p++) {
@@ -258,7 +271,7 @@ export class EnemyRenderer {
                     out.s = 1;
                     if (part.anim) part.anim(out, time, phase);
 
-                    this.dummy.position.set(e.worldX + out.ox, out.oy, e.worldZ + out.oz);
+                    this.dummy.position.set(e.worldX + out.ox, SURFACE_Y + out.oy, e.worldZ + out.oz);
                     this.dummy.position.add(part.offset);
                     this.dummy.rotation.set(out.rx, moveRot + out.ry, out.rz);
                     if (part.rotation) {
@@ -294,7 +307,7 @@ export class EnemyRenderer {
             // Background bar — full width, centred on enemy
             const bg = this.poolHpBg[i];
             bg.scale.set(HP_BAR_WIDTH, 1, 1);
-            bg.position.set(e.worldX, barY, e.worldZ);
+            bg.position.set(e.worldX, SURFACE_Y + barY, e.worldZ);
             bg.visible = true;
             if (camera) bg.lookAt(camera.position); else bg.rotation.x = -Math.PI / 4;
 
@@ -304,7 +317,7 @@ export class EnemyRenderer {
                 (fill as THREE.Mesh).material = hpRatio > 0.5 ? this.mHpGreen
                     : hpRatio > 0.25 ? this.mHpYellow : this.mHpRed;
                 fill.scale.set(hpW, 1, 1);
-                fill.position.set(e.worldX - (HP_BAR_WIDTH - hpW) / 2, barY, e.worldZ);
+                fill.position.set(e.worldX - (HP_BAR_WIDTH - hpW) / 2, SURFACE_Y + barY, e.worldZ);
                 fill.visible = true;
                 if (camera) fill.lookAt(camera.position); else fill.rotation.x = -Math.PI / 4;
             } else {
@@ -317,7 +330,7 @@ export class EnemyRenderer {
                 const sRatio = e.shield / e.maxShield;
                 const sW = HP_BAR_WIDTH * sRatio;
                 shield.scale.set(sW, 1, 1);
-                shield.position.set(e.worldX - (HP_BAR_WIDTH - sW) / 2, barY + 0.07, e.worldZ);
+                shield.position.set(e.worldX - (HP_BAR_WIDTH - sW) / 2, SURFACE_Y + barY + 0.07, e.worldZ);
                 shield.visible = true;
                 if (camera) shield.lookAt(camera.position); else shield.rotation.x = -Math.PI / 4;
             } else {
@@ -328,7 +341,7 @@ export class EnemyRenderer {
             if (!GRAPHICS.isMobile && i < this.poolShadow.length) {
                 const shadow = this.poolShadow[i];
                 shadow.scale.setScalar(ENEMY_META[e.type].shadowScale);
-                shadow.position.set(e.worldX, 0.01, e.worldZ);
+                shadow.position.set(e.worldX, SURFACE_Y + 0.003, e.worldZ);
                 shadow.visible = true;
 
                 const halo = this.poolHalo[i];
@@ -338,7 +351,7 @@ export class EnemyRenderer {
                         : e.shield > 0 ? this.mHaloShield
                         : e.slow ? this.mHaloSlow
                         : this.mHaloDot;
-                    halo.position.set(e.worldX, 0.045, e.worldZ);
+                    halo.position.set(e.worldX, SURFACE_Y + 0.006, e.worldZ);
                     halo.visible = true;
                 } else {
                     halo.visible = false;

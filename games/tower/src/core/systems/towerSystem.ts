@@ -1,5 +1,5 @@
 import type { GameState, Projectile } from '../types';
-import { TOWERS, PROJECTILE_SPEED } from '../config';
+import { TOWERS, PROJECTILE_SPEED, SURFACE_Y, towerVisualLevel } from '../config';
 import { bus } from './eventBus';
 
 /** Tower targeting and firing */
@@ -51,6 +51,9 @@ export function tickTowers(state: GameState, dt: number): void {
         if (tower.cooldownRemaining > 0) continue;
 
         if (bestEnemy) {
+            // Fire from the visible tower head, not a fixed point halfway through an
+            // upgraded/evolved tower. This is render-only trajectory height.
+            const projectileStartY = SURFACE_Y + 0.8 + towerVisualLevel(tower.type, tower.level) * 0.5;
             let arcHeight = 0;
             let speed = PROJECTILE_SPEED;
             if (tower.type === 'cannon' || tower.type === 'poison') {
@@ -76,13 +79,13 @@ export function tickTowers(state: GameState, dt: number): void {
                 dot: cfg.dot,
                 chain: cfg.chain,
                 x: tower.worldX,
-                y: 0.8,
+                y: projectileStartY,
                 z: tower.worldZ,
                 startX: tower.worldX,
-                startY: 0.8,
+                startY: projectileStartY,
                 startZ: tower.worldZ,
                 targetX: bestEnemy.worldX,
-                targetY: 0.3,
+                targetY: SURFACE_Y + 0.35,
                 targetZ: bestEnemy.worldZ,
                 speed,
                 progress: 0,

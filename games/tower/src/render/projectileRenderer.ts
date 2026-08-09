@@ -4,6 +4,13 @@ import type { GameState, TowerType } from '../core/types';
 export class ProjectileRenderer {
     private scene: THREE.Scene;
     private projMeshes: Map<number, THREE.Object3D> = new Map();
+    /**
+     * Geometry and material ownership lives here for the renderer lifetime.
+     * `Object3D.clone(true)` gives every projectile its own transforms while Mesh.clone
+     * deliberately keeps geometry/material references shared, so repeated volleys do
+     * not upload an ever-growing set of identical GPU resources.
+     */
+    private projectileTemplates: Map<TowerType, THREE.Object3D> = new Map();
 
     constructor(scene: THREE.Scene) {
         this.scene = scene;
@@ -71,7 +78,20 @@ export class ProjectileRenderer {
     }
 
     private createProjectileMesh(type: TowerType): THREE.Object3D {
+        let template = this.projectileTemplates.get(type);
+        if (!template) {
+            template = this.createProjectileTemplate(type);
+            this.projectileTemplates.set(type, template);
+        }
+        const instance = template.clone(true);
+        const glow = instance.getObjectByName('projectile-glow');
+        if (glow) instance.userData.glow = glow;
+        return instance;
+    }
+
+    private createProjectileTemplate(type: TowerType): THREE.Object3D {
         const group = new THREE.Group();
+        group.name = `projectile:${type}`;
         // 進化型嘅名一律係「基礎型_乜乜」，所以拆一次就得——本來呢度逐個
         // arrow 進化型列出嚟，加多六個進化型嗰陣就會靜靜哋畫唔到子彈。
         const normalizedType = type.includes('_') ? type.split('_')[0] : type;
@@ -80,10 +100,8 @@ export class ProjectileRenderer {
             case 'arrow': {
                 // Wooden shaft
                 const shaftGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.6, 6);
-                shaftGeo.rotateX(Math.PI / 2); // default look is along Z-axis (lookAt faces +Z usually, wait no, lookAt faces -Z or +Z? THREE looks along -Z)
-                // In ThreeJS, lookAt makes the local +Z face the target.
-                // Wait, lookAt actually makes the object face the target with its local -Z axis! "Rotates the object to face a point in world space. This method does not support objects having non-uniformly-scaled parent(s). Please note that the local -Z axis points towards the target."
-                // So if it looks along -Z, our arrow should point along -Z.
+                // Rotate the cylinder's original Y long axis once onto local Z; the old
+                // duplicate rotation totalled PI and left the shaft standing in local Y.
                 shaftGeo.rotateX(Math.PI / 2);
 
                 const shaftMat = new THREE.MeshLambertMaterial({ color: 0x8b5a2b });
@@ -115,8 +133,8 @@ export class ProjectileRenderer {
                         })
                     );
                     glow.position.z = 0.08;
+                    glow.name = 'projectile-glow';
                     group.add(glow);
-                    group.userData.glow = glow;
                 }
                 break;
             }
@@ -139,8 +157,8 @@ export class ProjectileRenderer {
                 const glowMat = new THREE.MeshBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.6 });
                 const glowGeo = new THREE.SphereGeometry(0.25, 8, 8);
                 const glow = new THREE.Mesh(glowGeo, glowMat);
+                glow.name = 'projectile-glow';
                 group.add(glow);
-                group.userData.glow = glow;
                 break;
             }
             case 'poison': {
@@ -164,8 +182,8 @@ export class ProjectileRenderer {
                     new THREE.SphereGeometry(0.18, 8, 8),
                     new THREE.MeshBasicMaterial({ color: 0xbef3ff, transparent: true, opacity: 0.16 })
                 );
+                halo.name = 'projectile-glow';
                 group.add(halo);
-                group.userData.glow = halo;
                 break;
             }
             case 'sniper': {
@@ -182,8 +200,8 @@ export class ProjectileRenderer {
                 );
                 tracer.rotateX(Math.PI / 2);
                 tracer.position.z = 0.08;
+                tracer.name = 'projectile-glow';
                 group.add(tracer);
-                group.userData.glow = tracer;
                 break;
             }
             case 'lightning': {
@@ -199,8 +217,8 @@ export class ProjectileRenderer {
                     new THREE.MeshBasicMaterial({ color: 0xfff5a5, transparent: true, opacity: 0.18 })
                 );
                 halo.rotateX(Math.PI / 2);
+                halo.name = 'projectile-glow';
                 group.add(halo);
-                group.userData.glow = halo;
                 break;
             }
         }

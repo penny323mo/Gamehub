@@ -49,6 +49,8 @@ export const TILE_OPENINGS: Readonly<Record<string, readonly Dir[]>> = {
     tile_endSpawn: [0],
     tile_crossing: [0, 1, 2, 3],
     tile_split: [0, 1, 3],
+    // Bridge deck runs along local X; the river itself runs along local Z.
+    tile_riverBridge: [1, 3],
 };
 
 const rot = (dirs: readonly Dir[], k: number): Dir[] =>
@@ -58,6 +60,7 @@ const same = (a: readonly Dir[], b: readonly Dir[]): boolean =>
     a.length === b.length && a.every((v, i) => v === b[i]);
 
 export type TilePick = { model: string; rotK: number; rotationY: number };
+export type PathTileOverride = { cell: readonly number[]; model: string; rotK: number };
 
 /**
  * 想要邊幾個開口，就搵一塊轉得到嘅磚。
@@ -85,8 +88,12 @@ export function pickTile(want: readonly Dir[], prefer: readonly string[]): TileP
  * 呢個就係 `tile_endSpawn`（出生）同 `tile_end`（終點）擺得啱嘅原因，
  * 而唔係硬塞一塊直路落去然後靠一堆特效遮住。
  */
-export function pathTiles(path: readonly (readonly number[])[]): (TilePick & { col: number; row: number })[] {
+export function pathTiles(
+    path: readonly (readonly number[])[],
+    overrides: readonly PathTileOverride[] = [],
+): (TilePick & { col: number; row: number })[] {
     const 出: (TilePick & { col: number; row: number })[] = [];
+    const overrideByCell = new Map(overrides.map((o) => [`${o.cell[0]},${o.cell[1]}`, o]));
     for (let i = 0; i < path.length; i += 1) {
         const want: Dir[] = [];
         if (i > 0) { const d = dirOf(path[i], path[i - 1]); if (d !== null) want.push(d); }
@@ -96,7 +103,10 @@ export function pathTiles(path: readonly (readonly number[])[]): (TilePick & { c
             : i === path.length - 1
                 ? ['tile_end']
                 : ['tile_straight', 'tile_cornerRound'];
-        const pick = pickTile(want, prefer);
+        const override = overrideByCell.get(`${path[i][0]},${path[i][1]}`);
+        const pick = override
+            ? { model: override.model, rotK: override.rotK, rotationY: (override.rotK * Math.PI) / 2 }
+            : pickTile(want, prefer);
         出.push({ ...(pick ?? { model: 'tile', rotK: 0, rotationY: 0 }), col: path[i][0], row: path[i][1] });
     }
     return 出;

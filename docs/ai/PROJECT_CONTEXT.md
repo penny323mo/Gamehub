@@ -12,8 +12,9 @@ collection: a new or heavily revised game should remain self-contained unless a
 shared subsystem genuinely belongs in `games/shared/`.
 
 Production is deployed from `main` by `.github/workflows/deploy-pages.yml` to
-GitHub Pages. The workflow stages the repository as a static site and builds
-Ashen Rail and Elden Ring II during deployment.
+GitHub Pages. The workflow audits and tests Tower Defense (including rebuilding
+its tracked `dist/`), then builds Ashen Rail and Elden Ring II before staging the
+repository as a static site.
 
 ## High-level map
 
@@ -49,6 +50,12 @@ Ashen Rail and Elden Ring II during deployment.
 - Tower, Snake, and Xiangqi hub links currently target committed `dist/` output.
   Source-only changes to those games are incomplete until the required dist output
   is regenerated and verified.
+- Tower's battlefield rules come from `games/tower/src/core/mapLayout.ts`. Render,
+  camera, picking, and economy code consume its `LAYOUT` cell metadata instead of
+  deriving separate rectangular masks. `route.ts` smooths the authoritative grid
+  path for movement without changing build adjacency. `chapters.ts` is the shared
+  five-act presentation/tactical timeline. The shared playable surface is
+  `SURFACE_Y = 0.2`; resumable runs are saved only at safe prep boundaries.
 - Royale carries local vendor modules and Draco assets so production must not
   assume a package-manager build step for that game. See ADR-007 to ADR-012 for
   the Royale rules an editor must not break; the load-bearing ones are: AI gets no
@@ -137,11 +144,24 @@ Confirm the rebuilt tracked `dist/index.html` works through the hub.
 From `games/tower/`:
 
 ```sh
-npm run build
+npm ci
+npm audit --audit-level=high
+npm test
 ```
 
-Confirm the rebuilt tracked `dist/index.html` and relevant gameplay path in a
-browser.
+`npm test` rebuilds tracked `dist/`, then runs core, real-browser flow/gameplay,
+renderer-resource, desktop and 844×390 mobile gates. For a slower deterministic
+balance witness, run:
+
+```sh
+node tests/playthrough.mjs 99 20 0.04 0.0016 198
+node tests/playthrough.mjs 99 30 0.04 0.0016 198
+node tests/playthrough.mjs 99 999 0.04 0.0016 198
+```
+
+The harness reports how far a simple spend-and-build policy gets rather than
+acting as a binary regression gate. Visual or control changes still need a real
+rendered inspection at the affected viewport.
 
 ### Xiangqi AI
 

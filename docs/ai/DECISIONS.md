@@ -4467,6 +4467,67 @@ this symptom, fixed from cause rather than from measurement here.
 If it still shimmers, the thing I need is which surface: ground, walls, sky, or the shadows moving
 across them.
 
+## ADR-199 — Tower: the map is a valley cell graph, not a rectangular board
+
+Date: 2026-08-09. Status: accepted.
+
+The Tower board was visually and structurally one 20 × 12 slab even though gameplay only cared about
+the 31-cell road. The replacement keeps the stable coordinate system, route length and eight turns,
+but defines an asymmetric valley in `core/mapLayout.ts`: each cell has one authoritative
+`exists` / `buildable` / `terrain` / `pathIndex` record. Scene construction, economy, picking,
+camera and lighting consume that interface. Do not recreate private rectangular masks in those
+consumers.
+
+The emerald-rift layout has **148 active cells instead of 240**, one connected land mass, a blocked
+outer terrain shell, one river crossed by a real bridge, and **60 eight-neighbour build positions**
+next to the route. Those numbers deliberately preserve the previous route length and almost all of
+its 62 adjacent positions while changing the silhouette and rhythm; future visual themes may replace
+terrain models without quietly changing build rules.
+
+Geometry and gameplay share `SURFACE_Y = 0.2`. Towers, enemies, range rings, the picking plane and
+projectile origins use it, because the GLB tiles are 0.2 high. Endpoint buildings are anchored just
+outside the first and last path cells; Kenney wall and tower pieces have off-centre authored pivots,
+so modular placement centres their actual bounds before rotation or stacking. Weapon assets point
+along local -Z while aiming uses +Z, so the model receives a one-time π yaw rather than changing the
+aiming maths.
+
+The contract is measured rather than inferred: `map.mjs` guards land connectivity and capacity,
+`map-browser.mjs` guards true rendered cell count, blocked river/void taps and mobile framing,
+`units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
+doors, outside anchors, roof clearance and non-white spawn flash.
+
+## ADR-200 — Tower: one battlefield has three regions, five acts and one safe campaign lifecycle
+
+Date: 2026-08-09. Status: accepted.
+
+The 99-wave campaign stays on one continuous battlefield, but it is no longer one undifferentiated
+strip. `map.json` defines three ordered regions — Wildwood Gate, Sunken Crossing and Bastion Cliff —
+and `chapters.ts` defines five 20/20/20/20/19-wave acts. The same chapter data drives HUD copy,
+opening banners, atmosphere colours and tactical labels; do not create separate visual and gameplay
+chapter tables. Region foundations use three vertical tiers, a central river rift and a keep mesa so
+the silhouette reads as a journey without changing the authoritative build grid.
+
+Enemy movement follows a 246-sample smooth route generated from the 31 grid cells. The route begins
+on the spawn-gate plane, remains within 0.42 cells of the road, limits each sample turn to 26.9° and
+finishes on the existing goal cell. Build range and adjacency continue to use the grid; do not use
+the smoothed samples as a second map authority. Endpoint buildings are positioned from the same
+route anchors so enemies cannot pop in on the wrong side of a decorative gate.
+
+Campaign randomness is split from visual `Math.random`: wave modifiers and milestone card offers
+use deterministic gameplay sampling. The accepted milestone rhythm is offence at waves 25 and 75,
+with range/fortify recovery at wave 50. Enemy HP curvature and bounty scaling are independent.
+Evolved towers retain two paid post-evolution levels. Seed-198 witnesses define the intended capacity
+gradient: 20 towers lose at wave 90, 30 towers finish with 16/20 lives, and an unrestricted build
+finishes with 20/20 while still spending at wave 99. Treat those runs as comparative policy probes,
+not a claim that every player build must reproduce them.
+
+Resume data is a versioned, 30-day local checkpoint written only during preparation, never with live
+enemies or projectiles. Help, backgrounding and WebGL context loss pause explicitly; returning to the
+foreground or restoring WebGL never silently resumes. Restart clears selection, floating UI and
+pause residue. Static terrain is batched, projectile geometry/materials are shared, and the renderer
+tests guard zero projectile-geometry growth plus draw-call budgets at the real 229-enemy campaign
+peak. These lifecycle and resource rules are part of the campaign design, not optional polish.
+
 ## ADR-198 — Tower: raising enemy HP does not threaten a full build, and the measurements say why
 
 Date: 2026-08-08. Status: accepted.

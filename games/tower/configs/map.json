@@ -1,144 +1,59 @@
 {
-    "cols": 20,
-    "rows": 12,
-    "cellSize": 1,
-    "origin": {
-        "x": -10,
-        "z": -6
+  "cols": 20,
+  "rows": 12,
+  "cellSize": 1,
+  "origin": { "x": -10, "z": -6 },
+  "cells": "buildable",
+  "theme": "emerald-rift",
+  "landRadius": 2,
+  "buildRadius": 1,
+  "regions": [
+    {
+      "id": "wildwood-gate",
+      "name": "Wildwood Gate",
+      "subtitle": "Forest approach and opening kill-zone",
+      "colRange": [0, 6],
+      "foundationTier": 1,
+      "accent": "#74d47c"
     },
-    "cells": "buildable",
-    "path": [
-        [
-            0,
-            5
-        ],
-        [
-            1,
-            5
-        ],
-        [
-            2,
-            5
-        ],
-        [
-            3,
-            5
-        ],
-        [
-            3,
-            6
-        ],
-        [
-            3,
-            7
-        ],
-        [
-            4,
-            7
-        ],
-        [
-            5,
-            7
-        ],
-        [
-            6,
-            7
-        ],
-        [
-            7,
-            7
-        ],
-        [
-            7,
-            6
-        ],
-        [
-            7,
-            5
-        ],
-        [
-            7,
-            4
-        ],
-        [
-            8,
-            4
-        ],
-        [
-            9,
-            4
-        ],
-        [
-            10,
-            4
-        ],
-        [
-            11,
-            4
-        ],
-        [
-            11,
-            5
-        ],
-        [
-            11,
-            6
-        ],
-        [
-            11,
-            7
-        ],
-        [
-            12,
-            7
-        ],
-        [
-            13,
-            7
-        ],
-        [
-            14,
-            7
-        ],
-        [
-            15,
-            7
-        ],
-        [
-            15,
-            6
-        ],
-        [
-            15,
-            5
-        ],
-        [
-            15,
-            4
-        ],
-        [
-            16,
-            4
-        ],
-        [
-            17,
-            4
-        ],
-        [
-            18,
-            4
-        ],
-        [
-            19,
-            4
-        ]
-    ],
-    "spawnCell": [
-        0,
-        5
-    ],
-    "goalCell": [
-        19,
-        4
-    ]
+    {
+      "id": "sunken-crossing",
+      "name": "Sunken Crossing",
+      "subtitle": "Low gorge, crystal river and bridgeheads",
+      "colRange": [7, 12],
+      "foundationTier": 2,
+      "accent": "#65d9ff"
+    },
+    {
+      "id": "bastion-cliff",
+      "name": "Bastion Cliff",
+      "subtitle": "Raised siege terrace below the citadel",
+      "colRange": [13, 19],
+      "foundationTier": 3,
+      "accent": "#ffbd69"
+    }
+  ],
+  "path": [
+    [0, 5], [1, 5], [2, 5], [3, 5], [4, 5],
+    [4, 6], [4, 7], [4, 8], [5, 8], [6, 8], [7, 8], [8, 8],
+    [8, 7], [8, 6], [8, 5], [8, 4], [9, 4], [10, 4], [11, 4], [12, 4], [13, 4],
+    [13, 5], [13, 6], [14, 6], [15, 6], [16, 6],
+    [16, 5], [16, 4], [17, 4], [18, 4], [19, 4]
+  ],
+  "spawnCell": [0, 5],
+  "goalCell": [19, 4],
+  "pathTileOverrides": [
+    { "cell": [10, 4], "model": "tile_riverBridge", "rotK": 0 }
+  ],
+  "terrainTiles": [
+    { "cell": [10, 2], "model": "tile_riverStraight", "rotK": 0, "buildable": false },
+    { "cell": [10, 3], "model": "tile_riverStraight", "rotK": 0, "buildable": false },
+    { "cell": [10, 5], "model": "tile_riverStraight", "rotK": 0, "buildable": false },
+    { "cell": [10, 6], "model": "tile_riverStraight", "rotK": 0, "buildable": false },
+
+    { "cell": [3, 4], "model": "tile_dirt", "rotK": 0, "buildable": true },
+    { "cell": [6, 7], "model": "tile_dirt", "rotK": 1, "buildable": true },
+    { "cell": [11, 5], "model": "tile_dirt", "rotK": 2, "buildable": true },
+    { "cell": [15, 5], "model": "tile_dirt", "rotK": 3, "buildable": true }
+  ]
 }
