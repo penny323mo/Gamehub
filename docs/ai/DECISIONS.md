@@ -4496,6 +4496,55 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-208 — Hub: 鍵盤契約——十二個介面本來就啱，三次紅都係我把尺錯
+
+Date: 2026-08-09. Status: accepted.
+
+之前三把尺（hub-touch、hub-load、Tower 自己嗰套）全部係量「用手指掂」。
+但唔係人人用手指：用鍵盤嘅人、用開關掃描器嘅人、部電話插住實體鍵盤嘅人，
+佢哋淨係得 Tab 同 Enter。`tests/hub-keyboard.mjs` 問兩句——每個控制 Tab
+去唔去得到、focus 去到嗰陣睇唔睇得到。
+
+**結果：十二個介面全部本來就啱，一行遊戲碼都冇改。** 呢一輪嘅交付品係
+把尺本身，同埋三個「量錯」嘅記錄。三次報紅全部係我把尺嘅問題，
+每次都要驗到底先知——**如果就咁信咗，我就會去「修」三樣本來冇壞嘅嘢。**
+
+### 第一次紅：Tower 21 個控制得 6 個 Tab 到
+
+睇落好嚴重。實情係 Tower 開場畫面係 modal，`syncModalIsolation` 將 modal
+以外嘅嘢全部設成 `inert`——**你未開波之前本來就唔應該 Tab 到 pause 掣**。
+嗰 15 個係特登唔畀掂嘅。
+
+改法唔係逐個機制去認（inert／aria-hidden／disabled／tabindex=-1…），
+而係問一條唔關機制事嘅問題：**佢究竟收唔收得到 focus？**
+收得到就一定要 Tab 去到；收唔到就係特登擋住，唔關 Tab 事。
+
+### 第二次紅：兩個「focus 冇提示」
+
+`.nav-btn:focus-visible` 明明寫住換 background。點解量到冇變？
+因為佢寫住 `transition: background 0.2s`，而我禁完 Tab **即刻**讀 computed
+style——讀到嘅係動畫第 0 格，即係仲未變色；跟住 blur 再讀，又係差唔多。
+兩邊一樣，於是報「冇提示」。
+
+**同閃光 gate（ADR-202）一模一樣嘅錯：喺一個過渡緊嘅嘢上面攞 t=0 嗰一格。**
+等 260ms 先讀，兩個紅一齊冇咗。
+
+### 第三次紅：Racing Car 18 個控制得 17 個
+
+呢個最陰：`hub-btn` 收得到 focus、喺 DOM 度又排得幾前，但 Tab 掃唔到。
+實情係**掃唔夠**，唔係掃唔到——我嘅預算係「我數到嘅控制數 × 2 ＋ 8」，
+但「我認為見得到嘅控制」同「成頁真係有幾多嘢 focus 得到」係兩個數：
+我數到 18，實際遠遠唔止（六個賽道掣、八個顏色格、一堆開關），
+禁足 26 下都未繞返轉頭。
+
+**「掃唔到」同「掃唔夠」喺報告度長得一模一樣。** 預算改成對住成頁嘅
+可 focus 總數計，即刻 18/18。
+
+### 順帶：把尺唔可以慢到冇人跑
+
+每禁一下 Tab 等兩次 260ms，十二隻遊戲要成八分鐘。改成同一個 id 只驗一次
+（`驗過` set），快返幾倍。**一把慢到冇人肯跑嘅 gate，同冇 gate 分別唔大。**
+
 ## ADR-207 — Hub: 每個玩家一入嚟就落 847K，去畫兩個 52×52 嘅 icon
 
 Date: 2026-08-09. Status: accepted.

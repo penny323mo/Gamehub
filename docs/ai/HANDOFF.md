@@ -1,10 +1,10 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-09 (Asia/Macau)
-Prepared by: Claude Code (cloud) — ADR-202 至 206
+Prepared by: Claude Code (cloud) — ADR-202 至 208
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: Tower 四輪改善已合埋 main；ADR-206 將同一把手機尺掃咗成個 hub 十二個介面
+Status: Tower 四輪已合埋 main；ADR-206/207/208 三把跨遊戲尺（掂、載、鍵盤）掃齊十二個介面
 
 ## Current objective
 
@@ -32,16 +32,12 @@ Status: Tower 四輪改善已合埋 main；ADR-206 將同一把手機尺掃咗�
 
 **ADR-204（本輪）— Penny 話「個地圖唔夠廣闊」**
 
-- 量落去唔係地細，係**個世界喺你最想望遠嗰陣斷咗**：佈景本來去到 X ±19／Z ±15，
-  而鏡頭 zoom 得出到 2.2 倍（望到半對角 24.2）。一 zoom 到盡，見到嘅係
-  19→33 一條光板地帶，加 18 枝孤零零嘅圓錐。
-- 佈景範圍改由鏡頭推出嚟（密度跟距離跌）：1,115 件 → 3,775 件，伸到 X ±37／Z ±33。
-  遠山一圈 18 個 Mesh → 三圈 66 個 instance，**draw call 由 18 變 1**。
-- `underlayPadding` 同高度包絡線拆做兩個數（新 `envelopeRadius`），
-  唔係嘅話「鋪遠啲」會靜靜雞攤平島邊嘅起伏。
-- **一格可玩地都冇郁**：`LAYOUT`、148 格、路線、經濟、波表全部原封不動。
-- 代價：桌面空場三角 141,362 → 384,294，手機 34,588 → 62,172；
-  draw call 桌面 247→248、手機 125→126。兩邊都遠低過 budget。
+- 唔係地細，係**個世界喺你最想望遠嗰陣斷咗**：佈景去到 X ±19／Z ±15，但鏡頭
+  zoom 得出到半對角 24.2——zoom 到盡見到 19→33 一條光板地帶加 18 枝圓錐。
+- 佈景範圍改由鏡頭推出嚟（密度跟距離跌）：1,115 → 3,775 件，伸到 X ±37／Z ±33；
+  遠山 18 個 Mesh → 三圈 66 個 instance，**draw call 由 18 變 1**。新 `envelopeRadius`
+  同 `underlayPadding` 拆開，唔係嘅話「鋪遠啲」會攤平島邊起伏。**一格可玩地都冇郁**。
+- 代價：桌面空場三角 141,362 → 384,294，手機 34,588 → 62,172；draw call ＋1。
 
 **ADR-205（本輪）— 輕微擴格＋條路重畫＋難度補返**
 
@@ -71,11 +67,15 @@ Status: Tower 四輪改善已合埋 main；ADR-206 將同一把手機尺掃咗�
   改法一律 `min-height`；Royale 角掣 40→44 之後有兩個手算嘅位置數要跟住加。
 - **橫屏補一輪**：12 個介面 × 2 個姿勢。捉到 Royale `#rank-badge` 橫屏 189×36；
   四個「跌出畫面底」嘅驗完全部捲得返入嚟唔算 bug——條 check 改成真係捲一次。5/5。
-- **ADR-207 載入重量**：`tests/hub-load.mjs` 量瀏覽器實際落幾多（唔係磁碟大細
-  ——Snooker 磁碟 27 MB 但只落 123 KB）。Hub launcher 904 KB 入面 847 KB
-  係兩張大 12／20 倍嘅 logo；縮到 160×160 ＋ `<picture>` 之後 **904 → 68 KB**。
-  兩條 gate：開場 4 MB、圖唔可以大過**最大**顯示尺寸 3 倍（倍數要對住最大
-  嗰個 viewport 計，唔係最細嗰個）。2/2。
+- **ADR-207 載入重量**：`tests/hub-load.mjs` 量實際落幾多（唔係磁碟大細——
+  Snooker 磁碟 27 MB 但只落 123 KB）。Hub launcher 847 KB 係兩張大 12／20 倍
+  嘅 logo；縮到 160×160 ＋ `<picture>` 之後 **904 → 68 KB**。兩條 gate：
+  開場 4 MB、圖唔可以大過**最大**顯示尺寸 3 倍。2/2。
+- **ADR-208 鍵盤契約**：`tests/hub-keyboard.mjs` 3/3——**十二個介面本來就啱，
+  一行遊戲碼都冇改**。三次報紅全部係把尺錯：①Tower 嘅 `inert` modal 隔離係
+  啱嘅（改成問「收唔收得到 focus」而唔係逐個機制認）；②讀 focus style 讀咗
+  transition 第 0 格（同 ADR-202 閃光 gate 一樣嘅錯，等 260ms 就啱）；
+  ③Tab 預算對住「我數到嘅控制」而唔係「成頁可 focus 總數」，係**掃唔夠**唔係掃唔到。
 - Playwright 淨係裝喺 `games/tower/node_modules`，所以個 test 做咗 resolve fallback，
   搵唔到會叫你 `(cd games/tower && npm ci)`。
 
