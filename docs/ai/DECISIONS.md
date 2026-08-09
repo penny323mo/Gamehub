@@ -4496,6 +4496,41 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-214 — Hub: 捉到漏網之後，要改嘅係網
+
+Date: 2026-08-09. Status: accepted.
+
+呢一輪我同另一個 agent 撞咗同一件事（MOBA 拆資產），佢先推咗（ADR-212，
+量到 12.7 秒，比我量到嘅 13.6 秒好）。我剷咗自己嗰個重複嘅 commit，
+由 `origin/main` 重新開始。剩返嘅係佢冇做、而我查到嘅兩件事。
+
+### 一、漏網補咗一個位，冇補張網
+
+ADR-210 加咗 `games/shared/js/byte-progress.mjs`，MOBA 嘅 `browser.mjs`
+即刻報紅（「冇版本標記」）。修法係喺 `assets.js` 手動寫咗個 `?v=assets-28`。
+
+但 `scripts/moba-bump-cache.mjs` 開頭第一段註解就寫住佢存在嘅理由：
+「三十幾個位手改一定漏」。**手動補一次，即係下次 bump 一樣會漏。**
+個 regex 由「同層 `./x.js`」擴到埋「共用層 `../../shared/js/x.mjs`」之後，
+bump 一次 42 個位（連共用層）一齊改。
+
+### 二、改咗碼但冇 bump token
+
+`247f1cd` 改咗 `games/moba/src/{assets,main}.js`，但 token 一直留喺
+`assets-28`。`?v=` 唔變，返轉頭嘅玩家個瀏覽器就照用 cache 入面嗰份——
+**個拆分根本到唔到佢哋度**。呢個正正係 ADR-111／ADR-108 講嗰個病。
+bump 去 `assets-29` 之後先算真係出到街。
+
+### 三、把尺捉到「冇標記」，捉唔到「標記落後」
+
+突變測試（用返舊嘅 bump regex bump 去 `assets-30`）揭到：`byte-progress.mjs`
+留喺 `assets-29` 而其餘去咗 `assets-30`，而 `cache-bust.mjs` **照樣報 PASS**。
+
+因為佢條 regex 都係淨係睇同層 `./x.js`——共用層嗰個 import 喺佢眼中唔存在。
+`browser.mjs` 嗰條「每個請求都要有標記」捉到「冇標記」，但捉唔到「標記落後」。
+**兩種壞法喺報告度長得唔同，要分開守。** 兩條 regex 一齊擴，突變即刻報紅
+而且叫得出係邊個 import、落後咗幾多。
+
 ## ADR-213 — Empire Royale: 查完決定唔改，同埋一個我證偽咗嘅假設
 
 Date: 2026-08-09. Status: accepted（結論係「唔改」）。

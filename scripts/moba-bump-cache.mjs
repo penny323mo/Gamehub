@@ -49,8 +49,12 @@ for (const name of fs.readdirSync(srcDir)) {
     if (!name.endsWith('.js')) continue;
     const file = path.join(srcDir, name);
     const before = fs.readFileSync(file, 'utf8');
+    // 同層 `./x.js` **同埋** 共用層 `../../shared/js/x.mjs`。
+    // 後者一開始漏咗：`byte-progress.mjs` 加咗之後 `tests/cache-bust.mjs` 報紅,
+    // 當時手動補咗一個 `?v=` 落去就算——**但呢個腳本存在嘅理由就係「三十幾個
+    // 位手改一定漏」，手動補一次即係下次一樣會漏。捉到漏網要改嘅係網。**
     const after = before.replace(
-        /(from\s+'\.\/[A-Za-z0-9_-]+\.js)(\?v=[a-z0-9-]+)?'/g,
+        /(from\s+'(?:\.\/|\.\.\/\.\.\/shared\/js\/)[A-Za-z0-9_-]+\.m?js)(\?v=[a-z0-9-]+)?'/g,
         (m, head) => { spots++; return `${head}?v=${token}'`; });
     if (after !== before) { fs.writeFileSync(file, after); files++; }
 }

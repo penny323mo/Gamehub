@@ -46,7 +46,12 @@ const offenders = [];
 for (const name of fs.readdirSync(srcDir)) {
     if (!name.endsWith('.js')) continue;
     const text = fs.readFileSync(path.join(srcDir, name), 'utf8');
-    for (const m of text.matchAll(/from\s+'(\.\/[A-Za-z0-9_-]+\.js)(\?v=([a-z0-9-]+))?'/g)) {
+    // 同層 `./x.js` **同埋** 共用層 `../../shared/js/x.mjs`。
+    // 呢條 regex 本來淨係睇同層——即係共用層嗰個 import 喺呢把尺眼中唔存在。
+    // 後果係：bump 腳本漏咗佢，佢個 token 落後咗一版，而呢度照樣報綠。
+    // （`browser.mjs` 嗰條「每個請求都要有標記」捉到「冇標記」，但捉唔到
+    // 「標記落後」——**兩種壞法喺報告度長得唔同，要分開守。**）
+    for (const m of text.matchAll(/from\s+'((?:\.\/|\.\.\/\.\.\/shared\/js\/)[A-Za-z0-9_-]+\.m?js)(\?v=([a-z0-9-]+))?'/g)) {
         if (m[3] !== token) offenders.push(`${name}: ${m[1]}${m[2] ?? ''}`);
     }
 }
