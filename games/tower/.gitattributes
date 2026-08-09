@@ -1,0 +1,4 @@
+# Vite output embeds upstream GLSL with intentional trailing whitespace.
+# Treat generated bundles as binary so whitespace gates inspect authored source,
+# while the committed file stays byte-for-byte reproducible by `npm run build`.
+dist/assets/*.js -text -diff
