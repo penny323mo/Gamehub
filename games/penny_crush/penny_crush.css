@@ -82,6 +82,10 @@ body {
 }
 
 .pill-btn {
+    /* 手指目標最細 44×44（Apple HIG 44pt／Material 48dp）。實測喺 iPhone SE
+       375×667 度呢個掣得 42px 高——高度跟住字大細行，冇落過下限。
+       用 min-height 而唔係加 padding：真正嘅問題係「最細幾多」，唔係「有幾多留白」。 */
+    min-height: 44px;
     padding: 12px 30px;
     border-radius: 8px;
     border: 1px solid var(--glass-border);

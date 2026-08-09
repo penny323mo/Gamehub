@@ -172,8 +172,11 @@ body {
 #hub-btn {
     position: absolute;
     top: max(8px, env(safe-area-inset-top));
-    width: 40px;
-    height: 40px;
+    /* 手指目標最細 44×44。實測呢四個係 40×40。
+       改咗之後下面 `#help-btn` 同 `#cam-controls` 嗰兩個位置數要一齊郁：
+       佢哋本來係「40 ＋ 8 間距」同「40 ＋ 18」手算出嚟嘅，唔跟住加就會迫埋一齊。 */
+    width: 44px;
+    height: 44px;
     border-radius: 10px;
     border: 2px solid rgba(255, 255, 255, .3);
     background: rgba(20, 30, 15, .65);
@@ -187,7 +190,7 @@ body {
 }
 
 #help-btn {
-    right: 58px;
+    right: 62px;   /* 44 掣 ＋ 10 邊距 ＋ 8 間距 */
 }
 
 #quit-btn {
@@ -202,7 +205,7 @@ body {
 #cam-controls {
     position: absolute;
     right: 10px;
-    top: 58px;
+    top: 62px;   /* 跟住上面嗰行由 40 變 44 */
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -640,6 +643,7 @@ body {
 
 .diff-btn {
     flex: 1;
+    min-height: 44px;   /* 實測 96×43，爭一格 */
     padding: 10px 6px;
     font-size: 15px;
     font-weight: 700;
@@ -1202,6 +1206,10 @@ body {
 
 .start-tab {
     flex: 1;
+    /* 五個分頁擠喺 375px 度，實測每個 58×35——闊度夠，矮咗九格。
+       落 min-height 唔落 padding：430px 以下嗰條 media query 會再收 padding，
+       落 padding 嘅話嗰度就會再矮返。 */
+    min-height: 44px;
     padding: 9px 4px;
     font-size: 12.5px;
     font-weight: 700;
@@ -1239,6 +1247,7 @@ body {
 
 .mode-btn {
     flex: 1;
+    min-height: 44px;   /* 實測 96×41 */
     padding: 10px 4px;
     font-size: 12.5px;
     font-weight: 700;
