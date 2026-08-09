@@ -4496,6 +4496,68 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-211 — Tower: 一千零八十七 KB 未壓過嘅模型，而隔籬兩隻遊戲一路壓緊
+
+Date: 2026-08-09. Status: accepted.
+
+ADR-210 令三隻重型 3D 遊戲載入嗰陣有咗交代，但**重量本身一直未郁過**：
+MOBA 2,527 KB、Royale 1,913 KB、Tower 1,291 KB，全部喺開場畫面就落晒。
+
+其中 Tower 嗰 1,291 KB 入面 **1,087 KB 係未壓過嘅 GLB**——而同一個 repo 入面
+MOBA 同 Empire Royale 老早就用緊 Draco（`draco_decoder.wasm` 喺佢哋嘅請求
+清單度一直望得到）。即係呢個 repo 自己已經有答案，只係有一隻遊戲冇跟。
+
+### 揀邊種壓縮：量咗三條路先揀
+
+78 個檔逐個壓，量埋 decoder 成本：
+
+| | 模型 | decoder | 合共 |
+|---|---|---|---|
+| 原本 | 1,183 KB | — | 1,183 KB |
+| meshopt | 762 KB | ~25 KB | 787 KB |
+| **Draco** | **379 KB** | 246 KB | **625 KB** |
+
+meshopt 個 decoder 細好多（25 KB vs 246 KB），但佢喺呢批模型上面只壓到
+64%，Draco 壓到 32%。decoder 係一次性成本而且跨次訪問 cache 得住，
+模型係每次都要落——所以揀 Draco。
+
+實際落到嘅數（gzip 照 GitHub Pages 嘅規矩模擬）：**1,291 → 754 KB，−42%**。
+其中 GLB 由 1,087 → 348 KB。
+
+### 源檔唔壓
+
+Draco 係有損（位置量化到 14 bit）。`public/models/` 保持原樣，壓縮淨係喺
+`scripts/postbuild.mjs` 對住 build 出嚟嗰份做，而且做成 idempotent
+（已經有 `KHR_draco_mesh_compression` 就跳過）。壓失敗**大聲掟錯**，
+唔可以靜靜雞派一個冇壓嘅檔出去——嗰樣會變成「有時得有時唔得」嘅 bug。
+
+Decoder 同源派（`dist/draco/`）。ADR-209 啱啱先為咗一個 parser-blocking 嘅
+CDN script 掃過成個 hub，唔會喺呢度自己再種一個外部依賴。
+
+### 兩把尺跟住修
+
+1. **`hub-load` 一直冇 gzip。** GitHub Pages 會 gzip 文字資產，而個 test
+   server 冇——Tower 個 bundle 實際落 202 KB，佢報 823 KB，差成四倍。
+   同一日已經喺 ADR-210 度因為冇送 `Content-Length` 撞過一次；
+   **一把量唔到真實情況嘅尺，講嘅係佢自己。** 修完全 hub 嘅數都真實咗
+   （Big Two 111 → 32 KB、Dou Dizhu 120 → 36 KB）。
+
+2. **新一條 check 令呢件事守得住**：GLB 落多過 300 KB 嘅遊戲，啲有幾何嘅
+   模型要壓過。唔靠 grep build script（改咗名就守唔到），而係**讀真正派
+   出去嗰個 GLB 嘅 glTF header**睇有冇聲明 `KHR_draco_mesh_compression`
+   或者 `EXT_meshopt_compression`。純動畫檔（冇 mesh）唔當佢係漏網——
+   MOBA 嗰 888 KB `anims.glb` 冇幾何，壓縮擴充對佢冇意義。
+   300 KB 呢條線由實測定：未壓之前 Tower 1,087／MOBA 1,997／Royale 1,343,
+   而 Racing Car 216——300 喺兩堆之間，離兩邊都遠。
+
+   突變（將五個敵人模型換返未壓嘅源檔）令佢報紅，而且叫得出係邊五個檔。
+
+### 驗證
+
+Tower 全套三個 suite 過晒（core／browser 5/5 + 6/6 + …／render 20/20）——
+包括 `units.mjs` 嘅高度／footprint／輪廓同 `look.mjs`，即係 Draco 嘅量化
+冇整走任何一個幾何 gate。
+
 ## ADR-210 — Hub: 有字唔等於有交代——進度嘅單位揀錯咗
 
 Date: 2026-08-09. Status: accepted.

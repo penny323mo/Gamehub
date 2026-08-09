@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 
 // 資產嘅單一入口。
 //
@@ -40,6 +41,23 @@ function 修材質(mat: THREE.MeshStandardMaterial): void {
 
 const BASE = 'models/';
 const loader = new GLTFLoader();
+
+/*
+ * Draco：`dist/models/**.glb` 喺 build 嗰陣壓過（`scripts/postbuild.mjs`）。
+ *
+ * 開場本來要落 1,291 KB，其中 1,087 KB 係未壓過嘅 GLB——而同一個 repo 入面
+ * MOBA 同 Empire Royale 老早就用緊 Draco。78 個檔實測 1,183 → 378 KB。
+ *
+ * Decoder 同源派（`dist/draco/`），唔靠外部 CDN——ADR-209 啱啱先為咗一個
+ * parser-blocking 嘅 CDN script 掃過成個 hub，唔會喺呢度自己再種一個。
+ *
+ * `dev` 模式派嘅係 `public/models/`（冇壓過）。GLTFLoader 只會喺個檔真係
+ * 用咗 `KHR_draco_mesh_compression` 先至叫 decoder，所以兩邊都行得。
+ */
+const draco = new DRACOLoader();
+draco.setDecoderPath('draco/');
+draco.setDecoderConfig({ type: 'wasm' });
+loader.setDRACOLoader(draco);
 const 載緊 = new Map<string, Promise<THREE.Group>>();
 
 /*
