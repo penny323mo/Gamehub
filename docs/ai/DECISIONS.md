@@ -4496,6 +4496,78 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-209 — Hub: 一個 CDN 慢，可以令到六隻本來全本地嘅遊戲乜都唔郁
+
+Date: 2026-08-09. Status: accepted.
+
+一輪「玩落去有冇嘢爆」嘅探路（十二個介面，開場→撳開場掣→亂撳亂禁一輪），
+撞到六隻遊戲喺 HTML 度寫住同一句：
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+冇 defer 冇 async——即係**塞住 parser**：呢句未行完，跟住嗰啲本地遊戲碼一行
+都行唔到。
+
+### 量咗先講
+
+第一版把尺量錯：攞「見唔見到個開場掣」做憑據，量到 0.08 秒。個數啱，但答緊
+另一條問題——啲掣係靜態 HTML，parser 一行到就見到，同 CDN 通唔通完全冇關。
+要量嘅係「隻遊戲自己嘅碼幾時先行得到」，即係 DOMContentLoaded。
+
+第三方 origin 吊 8 秒（模擬 CDN 唔通但唔即刻死，即真實網絡最常見嗰種）：
+
+| 遊戲 | 即刻失敗 DCL | 吊 8 秒 | 差 |
+|---|---|---|---|
+| Gomoku / Big Two / Dou Dizhu / Snooker | 0.04–0.11s | 8.03s | **+7.9~8.0s** |
+| Xiangqi AI | 0.49s | 8.38s | **+7.9s** |
+| Empire Royale（本來就 lazy） | 0.42s | 0.37s | −0.05s |
+| Tower（冇第三方，對照） | 0.31s | 0.26s | −0.05s |
+
+**吊幾多秒就遲幾多秒，一比一。** 而 FCP 照樣 0.08 秒——即係畫面畫咗一半就唔郁，
+睇落好似 ready 咗但撳乜都冇反應。個 SDK 淨係「真人對戰」用得着；單機／人機
+玩家一世唔會用到佢，但一樣要等。
+
+### 改法：抄返自己屋企已經行緊嘅寫法
+
+Empire Royale 老早冇呢個病——`royale/src/net.js` 揀咗玩家真係撳落去先攞 SDK，
+連理由都寫咗喺註解度。呢一輪做嘅係將同一個做法搬上 `shared/js/online_utils.js`
+（`loadSupabaseSdk()`），六個 HTML 度嗰句 parser-blocking script 全部拆走，
+五個 `online.js` 嘅 init 改成「冇 SDK 就攞完再入返嚟」。
+
+### 順手補返一個本來就有嘅窿
+
+由「開頁就攞」改成「用到先攞」，中間有段時間 SDK 未到。但呢個窿其實本來就有：
+SDK 攞唔到嗰陣，`joinFixedRoom` 見到冇 client 就**靜靜雞 return**——撳落去乜都
+唔會發生，連錯都唔報。以前撞唔到，係因為成版嘢都未郁，玩家根本撳唔到。
+所以加咗 `holdOnlineEntries()`：攞緊 SDK 嗰段時間擺個佔位守住入口，撳到就話
+「連線服務載入中…」，SDK 到咗幫你叫返真嗰個，到唔到就照實話你知。
+
+### 三個「量錯／守唔到」嘅記錄
+
+1. **「已經有真嘢就唔踩」係反轉咗嘅。** 呢啲 `online.js` 係 classic script，
+   `async function joinFixedRoom() {}` 一 parse 就已經係 `window.joinFixedRoom`
+   ——「已經有真嘢」永遠成立，個佔位一世擺唔落去。改成照踩、記住原本嗰個。
+
+2. **同一句碼喺三種載入方式下面行為唔同。** classic script 入面
+   `window.joinFixedRoom` 同頂層函數綁定係同一樣嘢，所以擺完佔位之後
+   `window.joinFixedRoom = joinFixedRoom;` 係將佔位指返自己，真嘢永遠掛唔返，
+   之後每一撳都多彈一句「載入中…」。Snooker 冇事（全域名同函數名唔同），
+   Xiangqi 冇事（module）。改成 SDK 一到就自己卸下個佔位。
+   **呢個病係我親手整出嚟嘅，而且係把尺利咗之後先捉到**——第一版條 check
+   問「係唔係 function」，而佔位自己都係 function，扮得過骨。
+
+3. **一條分唔開「即刻有交代」同「等足八秒先有交代」嘅 gate 係壞 gate。**
+   第 3 條 check 本來畀 8 秒窗口，突變測試（拆走佔位嘅 toast）照樣報綠——因為
+   `loadSupabaseSdk` 自己 8 秒逾時嗰句「載入失敗」啱啱好頂咗上嚟。收窄到
+   1.5 秒之後，突變即刻報紅，而且五隻遊戲一齊報。
+
+### 把尺
+
+`tests/hub-cdn.mjs`，三條：DCL 之差 ≤ 1 秒（實測噪音 ±0.11，個病 +7.9，
+1 秒喺兩者中間離得好遠）；SDK 到得返真入口要掛返上去（用 `__holdingForSdk`
+記號分，唔係淨係問 typeof）；SDK 未到撳落去 1.5 秒內要有交代。3/3。
+三個突變分別令三條 check 報紅，而且報得出係邊隻遊戲。
+
 ## ADR-208 — Hub: 鍵盤契約——十二個介面本來就啱，三次紅都係我把尺錯
 
 Date: 2026-08-09. Status: accepted.

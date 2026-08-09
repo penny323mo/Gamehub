@@ -198,7 +198,9 @@
     </details>
   </footer>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Supabase SDK 由 online_utils.js 嘅 loadSupabaseSdk() 用到先攞。
+       以前喺呢度寫死一句 parser-blocking 嘅 cdn.jsdelivr.net script tag，
+       CDN 一慢就連單機玩家都開唔到場（實測吊 8 秒＝DCL 遲 8 秒）。 -->
   <script src="../shared/js/online_utils.js" defer></script>
   <script src="./src/online.js" defer></script>
   <script src="./src/cards.js" defer></script>

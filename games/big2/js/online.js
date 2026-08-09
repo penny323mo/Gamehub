@@ -36,6 +36,20 @@ function initOnlineMode() {
     }
     console.log('[Online] ClientId:', OnlineState.clientId);
 
+    // Supabase SDK 唔再喺 HTML 度用一句 parser-blocking `<script>` 攞——
+    // 嗰句會拖住成隻遊戲嘅開場（實測 CDN 吊 8 秒＝DCL 遲 8 秒）。而個 SDK
+    // 淨係真人對戰用得着。呢度用到先攞，攞緊嗰陣先擺佔位守住入口。
+    if (!window.supabase && window.loadSupabaseSdk) {
+        const 就緒 = window.loadSupabaseSdk();
+        window.holdOnlineEntries(
+            ['joinFixedRoom', 'exitFixedRoom', 'toggleReady'],
+            就緒.then(() => initOnlineMode()),
+        );
+        就緒.catch((e) => console.warn('[Online] SDK 載入失敗，單機模式照玩:', e.message));
+        return;
+    }
+
+
     // Only create client once; on re-entry reuse the existing instance
     if (OnlineState.sbClient) {
         console.log('[Online] Supabase already initialized, reusing client');

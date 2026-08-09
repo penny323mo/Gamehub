@@ -25,8 +25,8 @@
       transition: height .2s ease;
     }
   </style>
-  <script type="module" src="./assets/index-BLMvVTeh.js?v=1786280279088"></script>
-  <link rel="stylesheet" href="./assets/index-DUN_aPLt.css?v=1786280279088">
+  <script type="module" src="./assets/index-B3LDLzK6.js?v=1786286464439"></script>
+  <link rel="stylesheet" href="./assets/index-DUN_aPLt.css?v=1786286464439">
 </head>
 
 <body>
@@ -184,9 +184,10 @@
       </div> <!-- End of game-container -->
     </main>
   </div>
-  <!-- Supabase SDK -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="../../shared/js/online_utils.js?v=1786280279088"></script>
+  <!-- Supabase SDK 由 online_utils.js 嘅 loadSupabaseSdk() 用到先攞。
+       以前喺呢度寫死一句 parser-blocking 嘅 cdn.jsdelivr.net script tag，
+       CDN 一慢就連單機玩家都開唔到場（實測吊 8 秒＝DCL 遲 8 秒）。 -->
+  <script src="../../shared/js/online_utils.js?v=1786286464439"></script>
 </body>
 
 </html>

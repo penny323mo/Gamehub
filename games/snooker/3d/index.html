@@ -138,7 +138,9 @@
 
   <script src="./assets/three/three.min.js?v=20260207b"></script>
   <script src="./assets/three/OrbitControls.legacy.js?v=20260207b"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <!-- Supabase SDK 由 online_utils.js 嘅 loadSupabaseSdk() 用到先攞。
+       以前喺呢度寫死一句 parser-blocking 嘅 cdn.jsdelivr.net script tag，
+       CDN 一慢就連單機玩家都開唔到場（實測吊 8 秒＝DCL 遲 8 秒）。 -->
   <script src="../../shared/js/online_utils.js"></script>
   <script src="../online.js?v=20260316a"></script>
   <script src="./main.js?v=20260207b"></script>
