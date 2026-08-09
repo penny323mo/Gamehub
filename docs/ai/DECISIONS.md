@@ -4496,6 +4496,65 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-215 — Hub: 儲存唔到，唔應該連遊戲都開唔到
+
+Date: 2026-08-09. Status: accepted.
+
+Payload 呢條線榨完之後轉去一個從來冇人量過嘅範圍：**儲存**。
+
+三種真實情況會令 `localStorage` 唔用得——Safari 無痕（`getItem` 用得但
+`setItem` 掟 QuotaExceededError）、封咗 cookie／第三方 storage（連
+`window.localStorage` 呢個 getter 都掟 SecurityError）、儲存空間滿。
+呢個 repo 有三十幾處 `setItem`，散落六個 codebase，冇一個介面驗過。
+
+### 量到咩
+
+把兩個 storage 都換成會掟嘢嘅版本，十二個介面逐個開：
+
+| 遊戲 | 見得到嘅控制（正常 → 封存） | 新增 error |
+|---|---|---|
+| **Racing Car 3D** | **51 → 0** | SecurityError |
+| **Neon Snake** | **1 → 0** | SecurityError |
+| Gomoku／Snooker／Empire Royale／Xiangqi AI | 冇少 | 各一個 SecurityError |
+| 其餘六個 | 冇事 | — |
+
+即係無痕模式／封咗 cookie／空間滿嘅玩家，**有兩隻遊戲係開都開唔到**。
+
+### 修法：改枱面，唔係改每一次落枱
+
+逐個 `setItem` 包 try 係改三十幾次，而且下次加新碼一樣會漏。所以做咗一個
+`games/shared/js/safe-storage.js`，喺**任何遊戲碼之前**行一次：摸得到又寫得到
+就乜都唔郁；摸唔到或者寫唔到就換一個記憶體版落去。讀嗰邊做 read-through
+（記憶體冇就問真嗰個）——無痕模式下舊存檔仲讀得返，唔應該因為寫唔到就連讀
+都放棄。記憶體版留唔到嘢過下一次開頁，但本來都留唔到，**分別係「玩得到」
+同「開唔到」**。
+
+### 加落去嗰陣撞到三個「特例規則」
+
+1. **xiangqi 個 `vite.config.js` 寫死咗 `online_utils.js` 一個檔名**去做
+   `../shared/` → `../../shared/` 嘅路徑上移。加第二個共用檔就靜靜雞唔改寫、
+   dist 度 404——而 dev 度係好嘅，所以**喺自己部機試唔到**。改成通用 regex。
+   （我中途估過係註解入面有個字面 `<head>` 搞亂 parser，改咗照樣唔得——
+   **估錯咗就要驗，唔好當咗係答案。**）
+
+2. **snake 個 `postbuild.mjs` 改「第一個有 src 嘅 script」**。我加咗
+   `safe-storage.js` 落 `<head>` 之後，「第一個」變咗佢：真正嗰個 module tag
+   冇轉成 defer，而佢自己條 assert **照樣報 OK**——因為佢淨係問「有冇一個
+   defer script」，而我啱啱整咗一個出嚟。改成指名搵 `type="module"`，
+   再加多兩條「係咪嗰個」嘅 assert。**一條問「有冇」而唔問「係咪嗰個」嘅
+   守衛，喺呢種時候會幫倒忙。**
+
+3. 順帶：snake 個 postbuild 亦都加咗同一條通用路徑上移規則。
+
+### 把尺
+
+`tests/hub-storage.mjs`，兩條：封住 storage 之後（a）見得到嘅控制唔可以少過
+正常嗰陣、（b）唔可以多咗 browser error。兩條都同「同一版正常嗰陣」比，
+唔用寫死嘅數——一隻遊戲改咗版面唔應該令呢把尺報紅。2/2。
+
+突變（拆走 Racing Car 嗰個 script tag）兩條一齊報紅，而且叫得出係邊隻、
+由 51 個控制跌到 0。
+
 ## ADR-214 — Hub: 捉到漏網之後，要改嘅係網
 
 Date: 2026-08-09. Status: accepted.

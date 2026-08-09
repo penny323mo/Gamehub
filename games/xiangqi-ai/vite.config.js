@@ -11,9 +11,13 @@ function stripCrossorigin() {
       return html
         .replace(/ crossorigin/g, '')
         // Source index sits at games/xiangqi-ai/, but the built page sits one
-        // level deeper at dist/. Keep the shared online helper valid in both.
-        .replace('src="../shared/js/online_utils.js"',
-          'src="../../shared/js/online_utils.js"');
+        // level deeper at dist/. Shift every shared-layer script up one level so
+        // both dev and dist resolve.
+        //
+        // 本來呢度寫死咗 `online_utils.js` 一個名。加 `safe-storage.js` 嗰陣就
+        // 靜靜雞唔改寫、dist 度 404——而 dev 度係好嘅，所以喺自己部機試唔到。
+        // **一條淨係識一個名嘅規則，等於下一個檔一定漏。**
+        .replace(/src="\.\.\/shared\/js\//g, 'src="../../shared/js/');
     }
   };
 }

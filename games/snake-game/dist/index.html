@@ -11,17 +11,20 @@
          網絡差就係一段睇唔到字嘅時間，冇外網就直接跌返做系統字。
          授權同出處見 assets/fonts/README.md。 */
       @font-face { font-family: 'Orbitron'; font-style: normal; font-weight: 400 900;
-        font-display: swap; src: url('../../../assets/fonts/orbitron-latin.woff2') format('woff2'); }
+        font-display: swap; src: url('./assets/orbitron-latin-Du7j2Vp2.woff2') format('woff2'); }
       @font-face { font-family: 'Rajdhani'; font-style: normal; font-weight: 400;
-        font-display: swap; src: url('../../../assets/fonts/rajdhani-400-latin.woff2') format('woff2'); }
+        font-display: swap; src: url('./assets/rajdhani-400-latin-CurJOxDW.woff2') format('woff2'); }
       @font-face { font-family: 'Rajdhani'; font-style: normal; font-weight: 600;
-        font-display: swap; src: url('../../../assets/fonts/rajdhani-600-latin.woff2') format('woff2'); }
+        font-display: swap; src: url('./assets/rajdhani-600-latin-CXCVEoA9.woff2') format('woff2'); }
       @font-face { font-family: 'Rajdhani'; font-style: normal; font-weight: 700;
-        font-display: swap; src: url('../../../assets/fonts/rajdhani-700-latin.woff2') format('woff2'); }
+        font-display: swap; src: url('./assets/rajdhani-700-latin-BPDUZo87.woff2') format('woff2'); }
     </style>
-    <script defer src="./assets/index-DlhnfZ3g.js"></script>
-    <link rel="stylesheet" href="./assets/index-Hu_TXR-7.css">
-  </head>
+      <!-- 儲存唔到嗰陣唔好連遊戲都開唔到（無痕／封 cookie／空間滿）。
+         要喺任何遊戲碼之前行——實測封住 storage 之後呢版本來會掟錯。 -->
+    <script src="../../shared/js/safe-storage.js"></script>
+  <script defer src="./assets/index-DlhnfZ3g.js"></script>
+  <link rel="stylesheet" href="./assets/index-Hu_TXR-7.css">
+</head>
   <body>
     <div id="root"></div>
   </body>

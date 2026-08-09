@@ -186,6 +186,10 @@
   <!-- Supabase SDK 由 online_utils.js 嘅 loadSupabaseSdk() 用到先攞。
        以前喺呢度寫死一句 parser-blocking 嘅 cdn.jsdelivr.net script tag，
        CDN 一慢就連單機玩家都開唔到場（實測吊 8 秒＝DCL 遲 8 秒）。 -->
+  <!-- 儲存唔到嗰陣唔好連遊戲都開唔到（無痕／封 cookie／空間滿）。
+       classic script 行喺 module 之前，所以擺喺呢度已經夠早。
+       唔好擺入 head：註解／位置一亂，Vite 就唔會幫呢條 path 改寫，dist 度會 404。 -->
+  <script src="../shared/js/safe-storage.js"></script>
   <script src="../shared/js/online_utils.js"></script>
   <script type="module" src="./js/app.js"></script>
   <script type="module" src="./js/online.js"></script>

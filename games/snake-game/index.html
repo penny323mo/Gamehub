@@ -19,7 +19,10 @@
       @font-face { font-family: 'Rajdhani'; font-style: normal; font-weight: 700;
         font-display: swap; src: url('../../assets/fonts/rajdhani-700-latin.woff2') format('woff2'); }
     </style>
-  </head>
+      <!-- 儲存唔到嗰陣唔好連遊戲都開唔到（無痕／封 cookie／空間滿）。
+         要喺任何遊戲碼之前行——實測封住 storage 之後呢版本來會掟錯。 -->
+    <script src="../shared/js/safe-storage.js"></script>
+</head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
