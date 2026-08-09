@@ -4496,6 +4496,66 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-213 — Empire Royale: 查完決定唔改，同埋一個我證偽咗嘅假設
+
+Date: 2026-08-09. Status: accepted（結論係「唔改」）。
+
+ADR-212 之後最重嗰隻係 Empire Royale（1,915 KB）。呢一輪查咗佢，**結論係唔改**。
+記低係因為下一個人唔應該由零再查一次。
+
+### 先搞清楚啲時間去咗邊
+
+`hub-wait` 報「等咗 20.3 秒」。我第一個念頭係「1,915 KB 喺 Fast 3G 只需 9.2 秒,
+即係有十一秒係 CPU（Draco 解碼＋`buildArena`＋`generateCardThumbs`）」——
+如果照住呢個念頭去做，就會去優化一個唔存在嘅樽頸。
+
+實測（分開量「最後一個 byte」同「見到選單」）：
+
+| | 落 | 最後一個 byte | 見到選單 | 落完之後 |
+|---|---|---|---|---|
+| Fast 3G | 1,915 KB | 14.5s | 14.5s | **0.0s** |
+| 冇節流 | 1,914 KB | 3.8s | 3.8s | **0.0s** |
+
+**佢係徹頭徹尾嘅下載瓶頸**，落完之後嘅 CPU 近乎零。
+
+（量嘅時候第一版寫錯咗個「幾時算完」：Royale 係 `.remove()` 個載入畫面，
+唔係加 `.hidden`，所以我條 `waitForFunction` 等足 180 秒逾時。）
+
+### 三條減磅嘅路，逐條量咗
+
+1. **簡化幾何。** 啲 Meshy 生成模型過度細分得好緊要——`main_base` 83,895 個
+   三角、`side_tower` 82,071、`cavalry` 47,346，而手機上面一隻兵得四十幾 px 高。
+   但 `simplify --ratio 0.5 --error 0.002` ＋ 重新 Draco 之後：**1,379 → 1,204 KB,
+   得 13%**；ratio 0.3 都只係 1,173 KB。三角好多唔代表 byte 好多——Draco 嘅
+   熵編碼本來就食咗大部分冗餘。**用睇得出嘅畫質換 13%，唔抵。**
+   （過度細分係真嘅 GPU／解碼成本，但唔係呢度嘅 payload 成本。）
+
+2. **貼圖。** 34 個 GLB 加埋，貼圖合共 **0 KB**——全部係幾何同骨骼動畫。
+   冇嘢好縮。
+
+3. **延後（ADR-212 對 MOBA 用嗰招）。** 但 Royale 開場就 `buildArena(scene)`
+   同 `generateCardThumbs()`，即係場景件同兵種模型喺選單度本來就要用。
+   真正「入咗場先用」嗰批得：攻城車 42＋投石車 42＋箭 13＋石 11＋出兵標記 17
+   ＋塔廢墟 17 ＝ **142 KB，佔 7%**。要拆散 `buildArena` 換 7%，唔抵。
+
+**所以唔改。** 佢已經有逐格行嘅進度條同 MB 數字（ADR-210），而 14.5 秒喺
+Fast 3G 落 1.9 MB 係一個誠實嘅數。
+
+### 一個我證偽咗嘅假設
+
+查嘅途中我以為捉到把尺嘅病：`hub-wait` 每 0.7 秒影一張 JPEG，我推論影相拖慢
+咗個頁，所以佢報 20.3 秒而真數係 14.5 秒。我照住改咗把尺——加咗一個唔影相嘅
+A pass 專門量時間。
+
+**但實測推翻咗個假設**：MOBA 兩個 pass 量到 **12.7 vs 12.6 秒**，完全冇分別。
+而我加嗰個 A pass 自己仲整壞咗兩個讀數（Tower 個 `#start-btn` 一開波仲未存在,
+被當成「唔等緊」→ 量到 0.4 秒；Royale 用 `new Function` 每 200ms 重新 parse
+→ 量到 41 秒，比佢想量嗰樣嘢仲慢）。
+
+所以個改動剷咗，`hub-wait` 維持原樣。Royale 20.3 vs 14.5 嘅差距**仲係未解釋**
+——同一日唔同次跑本來就有波動（今日跑到 17.7 同 20.0），我冇證據話係影相
+造成。**一個未證實嘅機制唔可以寫入把尺**；寧願留低「未解釋」呢三個字。
+
 ## ADR-212 — MOBA: 你要等埋 576 KB 你喺揀人嗰陣一眼都見唔到嘅嘢
 
 Date: 2026-08-09. Status: accepted.
