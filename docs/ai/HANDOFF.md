@@ -1,10 +1,10 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-09 (Asia/Macau)
-Prepared by: Claude Code (cloud) — ADR-202 至 205
+Prepared by: Claude Code (cloud) — ADR-202 至 206
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: Tower 兩輪「喺一部真手機上面」嘅缺陷已修並補咗 gate；順手大修咗一條一路靠彩數過嘅 gate
+Status: Tower 四輪改善已合埋 main；ADR-206 將同一把手機尺掃咗成個 hub 十二個介面
 
 ## Current objective
 
@@ -17,15 +17,8 @@ Status: Tower 兩輪「喺一部真手機上面」嘅缺陷已修並補咗 gate�
 
 **ADR-202（commit `c234210`，已合埋 main）**
 
-- **六個掂唔到嘅掣**：iPhone SE 375×667 度 pause 淨係 37×37，help／speed／sound／
-  hub／skip 都係 36 高——`#hud>button` 只寫 `padding`。加 `min-height/min-width: 44px`；
-  新 gate 跟住捉多一個我未量過嘅：SE 橫嘅淺身底座 `.build-btn` 48×**42**。
-- **建塔欄捲得到但睇唔出捲得到**：386px 塞入 341px。捲**係**得嘅（我第一版讀錯咗
-  `#build-menu` 嘅 `overflow-x` 就話買唔到狙擊塔，實情捲喺 `.build-grid`），
-  加咗兩邊 `mask-image` 漸隱。
-- **備戰橫額壓住 gold／lives／wave**：`top: 88px` 假設 HUD 74px 高，實測有四個高度。
-  幾何相交 73–100%，pixel diff 訊號 40–57% 對雜訊底 5–16%。改成量 HUD 實際 `bottom`
-  寫入 `--hud-bottom`。改完五個尺寸相交 0%。
+- 44×44 掂得到（六個掣本來 36–37px 高）、建塔欄兩邊漸隱、備戰橫額改由
+  `--hud-bottom` 錨住，唔再壓住 gold／lives／wave（幾何相交 73–100% → 0%）。
 - **修好 `tests/gateway.mjs` 嘅閃光 gate**：舊版四張相冇一張影到 0.55 秒嘅閃光，
   而個底自己喺度呼吸（掃過 0.9–4.1pp），門檻卻寫 0.45。重寫量法，門檻由實測定（4）。
 
@@ -68,6 +61,23 @@ Status: Tower 兩輪「喺一部真手機上面」嘅缺陷已修並補咗 gate�
   148 → 178（map-browser／performance／projectile-renderer）、route controls 10→12。
   **`flow.mjs` 仲有三處寫死同一格**，其中一處係世界座標 `11.5 / 5.5`
   ——grep 格座標搵唔到佢。
+
+**ADR-206（本輪）— 同一把手機尺掃成個 hub**
+
+- 新 `tests/hub-touch.mjs`：iPhone SE 375×667 逐個開場畫面問四句。
+  十二個介面全部載得起、開場零 error、375px 唔爆版——**三條本來就過**；
+  掂得到嘅控制 ≥44×44 **捉到八個介面共 24 個**。
+- 最嚴重 Empire Royale 12 個（四個角掣 40×40、五個分頁 58×35、模式／難度掣 41–43）；
+  Tower 自己仲有 3 個（開場難度掣 37 高）——**ADR-202 嗰把尺撳咗 START 之後先量，
+  睇唔到開場畫面**。一把尺嘅盲點要另一把尺喺唔同時機先捉到。
+- Hub 嘅 carousel 圓點 24×24 **冇當佢係 bug**：嗰度已寫明特登用 WCAG 2.5.8，
+  因為 320px 之下 44×4 塞唔落。個例外連理由一齊寫咗入把尺度，
+  **唔係將標準由 44 改細**。
+- 改法一律 `min-height`／`min-width`。Royale 角掣 40→44 之後，
+  `#help-btn` 嘅 `right: 58px` 同 `#cam-controls` 嘅 `top: 58px` 係手算嘅
+  「40 ＋ 間距」，一齊加到 62。修完再掃仲有兩個先浮現（本來畀第一層擋住）。
+- Playwright 淨係裝喺 `games/tower/node_modules`，所以個 test 做咗 resolve fallback，
+  搵唔到會叫你 `(cd games/tower && npm ci)`。
 
 ## Changed files
 

@@ -4496,6 +4496,86 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-206 — Hub: 同一把尺掃十二個介面，二十四個掂唔到嘅掣
+
+Date: 2026-08-09. Status: accepted.
+
+ADR-202 喺 Tower 度砌咗把「真手機人體工學」嘅尺，捉到六個低過 44×44 嘅掣。
+嗰把尺淨係量咗**一隻**遊戲。呢個 hub 有十二個介面，其餘十一個從來冇量過。
+呢一輪就係將同一把尺掃過所有嘢。
+
+### 四條問題，三條本來就乾淨
+
+`tests/hub-touch.mjs` 喺 iPhone SE 375×667 度逐個開場畫面問四句：
+
+| | 結果 |
+| --- | --- |
+| 十二個介面全部載得起 | **本來就過** |
+| 開場零 browser error | **本來就過** |
+| 375px 之下唔打橫爆版 | **本來就過** |
+| 掂得到嘅控制 ≥ 44×44 | **八個介面、二十四個掣唔過** |
+
+**三條乾淨嘅一樣有價值**：佢哋而家係守住嘅契約，唔係「我估冇事」。
+
+### 捉到啲乜
+
+| 介面 | 細掣 | 最嚴重 |
+| --- | --- | --- |
+| Empire Royale | **12** | hub／mute／help／quit 四個 40×40、五個分頁 58×**35**、模式掣 96×41、難度掣 96×43 |
+| Hub launcher | 4 | carousel 圓點 24×24（**見下——唔係 bug**） |
+| Tower Defense | 3 | 開場難度掣 81×**37** |
+| Big Two／Dou Dizhu | 各 1 | `.btn--nav` 163×**39** |
+| Penny Crush | 1 | `.pill-btn` 186×**42** |
+| Racing Car 3D | 1 | `#hub-btn` **42×42** |
+| Xiangqi AI | 1 | 返回掣 200×**43** |
+
+**Tower 嗰三個要特別講**：佢哋係開場畫面嘅難度掣。ADR-202 嗰把尺係
+**撳咗 START 之後先量**，嗰陣開場畫面已經收起——所以由頭到尾睇唔到。
+一把尺嘅盲點唔會自己講出嚟，要另一把尺喺唔同時機量先捉到。
+
+### 有理由嘅例外唔可以當 bug
+
+Hub 嗰四粒 carousel 圓點，`style.css` 已經寫得好清楚：特登用 WCAG 2.5.8 嘅
+**24×24** 而唔係 44，因為喺 320px 闊之下四粒各佔 44 已經 176，加埋兩個箭咀
+88 就塞唔落——條線唔係唔想守，係幾何上守唔到；佢用間距保證每粒點嘅 24px
+方框唔會互搶，箭咀就照守 44。
+
+**一條會將深思熟慮嘅決定叫做 bug 嘅 gate，係壞 gate。** 但處理方法唔係將
+標準由 44 改細——咁樣連真係壞嗰啲都會一齊放過。做法係**逐個寫明例外，
+連理由一齊寫入把尺度**：
+
+```js
+const 例外 = [{ 揀: '.carousel-dot', 最細: 24, 因: 'WCAG 2.5.8；320px 度 44×4 塞唔落' }];
+```
+
+下次有人見到呢粒點細過 44，會喺尺度讀到點解，而唔係再嘈一次。
+
+### 改法
+
+一律落 `min-height`／`min-width`，唔加 padding——**真正嘅問題係「最細幾多」，
+唔係「有幾多留白」**；加 padding 會連桌面版一齊變肥。
+
+一個要記住嘅連鎖：Royale 四個角掣由 40 加到 44 之後，`#help-btn` 嘅
+`right: 58px` 同 `#cam-controls` 嘅 `top: 58px` **係手算出嚟嘅「40 ＋ 間距」**，
+唔跟住加就會迫埋一齊。兩個都加到 62。**改一個尺寸嗰陣，要搵返邊啲數
+係由佢推出嚟嘅。**
+
+修完再掃，仲有兩個先浮現（Royale 難度掣 96×43、象棋返回掣 200×43）——
+**佢哋本來畀第一層擋住咗**。所以修完一定要再量一次，唔可以修完就當完。
+
+### 驗證
+
+`tests/hub-touch.mjs` 4/4，二十四個細掣清零。Mutation 驗過：
+將 Royale 兩個修正還原，gate 即刻報紅，逐個叫出 `hub-btn` 40×40
+同五個 `start-tab` 58×35。Tower 自己套件照樣全綠。
+
+### 一個環境上嘅坑
+
+Playwright 淨係裝喺 `games/tower/node_modules`（成個 repo 得嗰度有 package.json）。
+呢個 test 係跨遊戲嘅，唔應該搬入 Tower 度住，所以做咗 fallback：先試普通
+resolve，唔得就直接指去 Tower 嗰份，兩條路都唔通先掟錯，
+**而且錯誤訊息會講返點裝**——一句「Cannot find package」對下一個人冇任何用。
+
 ## ADR-205 — Tower: 輕微擴格，條路重畫，難度補返
 
 Date: 2026-08-09. Status: accepted.
