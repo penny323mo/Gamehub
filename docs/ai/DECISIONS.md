@@ -4544,7 +4544,17 @@ Payload 呢條線榨完之後轉去一個從來冇人量過嘅範圍：**儲存*
    再加多兩條「係咪嗰個」嘅 assert。**一條問「有冇」而唔問「係咪嗰個」嘅
    守衛，喺呢種時候會幫倒忙。**
 
-3. 順帶：snake 個 postbuild 亦都加咗同一條通用路徑上移規則。
+3. **snake 個 dist 本來就同 `npm run build` 出唔到嚟嘅一樣。** 我 rebuild 完先
+   見到：committed 嗰份 `<style>` 入面引住 `../../../assets/fonts/*.woff2`
+   （全 hub 共用、玩家喺 hub 度已經 cache 咗），但 Vite 會處理 `<style>` 入面嘅
+   `url()`，抄成 `./assets/<名>-<hash>.woff2`——**同一批字型要再落多 57 KB**,
+   repo 入面又多一份重複。即係嗰份 artifact 唔可重現，**下一個人 build 一次
+   就會靜靜雞倒退**。喺 postbuild 度改返指共用路徑、順手刪走抄出嚟嗰四個檔,
+   再加一條 assert 守住。
+
+   （條 assert 第一次寫錯：`/\.\/assets\/…\.woff2/` 喺一個已經修好嘅檔上面照樣
+   報紅——因為 `../../../assets/` 本身就含住 `./assets/` 呢一串字。加返個引號
+   錨先分得開。**一條喺「已經啱」嘅輸入上面報紅嘅 assert，同冇 assert 一樣壞。**）
 
 ### 把尺
 

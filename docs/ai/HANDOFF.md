@@ -36,11 +36,13 @@ Status: 七把跨遊戲尺（掂、載、鍵盤、第三方、等緊、儲存）
   而係新 `games/shared/js/safe-storage.js`：喺任何遊戲碼之前行，摸得到又寫得到
   就唔郁，否則換記憶體版（讀嗰邊 read-through，無痕下舊存檔仲讀得返）。
   **要改嘅係枱面，唔係每一次落枱。**
-- 加落去撞到兩個「淨係識一個名／淨係問有冇」嘅規則，兩個都係我踩到先現形：
-  ①xiangqi `vite.config.js` 寫死咗 `online_utils.js` 一個名做路徑上移 → 第二個
-  共用檔靜靜雞 404（而 dev 度係好嘅，自己部機試唔到）；②snake `postbuild.mjs`
-  改「第一個有 src 嘅 script」→ 我加咗個 tag 之後佢改錯對象，而**佢自己條 assert
-  照樣報 OK**（佢淨係問「有冇 defer script」）。兩個都改成指名／通用規則。
+- 加落去撞到三個都係我踩到先現形嘅嘢：①xiangqi `vite.config.js` 寫死咗
+  `online_utils.js` 一個名做路徑上移 → 第二個共用檔靜靜雞 404（dev 度好嘅,
+  自己部機試唔到）；②snake `postbuild.mjs` 改「第一個有 src 嘅 script」→ 我加咗
+  tag 之後佢改錯對象，而**佢自己條 assert 照樣報 OK**（佢淨係問「有冇 defer
+  script」）；③**snake 個 dist 本來就 rebuild 唔返出嚟**——Vite 會把 `<style>` 入面
+  嘅全 hub 共用字型抄成私有 hash 檔（多落 57 KB、repo 又多一份），committed 嗰份
+  用緊共用路徑。三個都改成指名／通用規則，並加 assert 守住。
 - 新 `tests/hub-storage.mjs` 2/2（同「正常嗰陣」比，唔用寫死嘅數）。突變（拆走
   Racing Car 個 tag）兩條一齊報紅，叫得出 51 → 0。
 
