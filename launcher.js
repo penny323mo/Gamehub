@@ -13,7 +13,8 @@ const games = [
         id: 'xiangqi',
         title: '中國象棋',
         subtitle: '中國象棋！挑戰進階 AI',
-        icon: 'assets/xiangqi_logo.png?v=assets-28',
+        icon: 'assets/xiangqi_logo.png?v=assets-29',
+        iconWebp: 'assets/xiangqi_logo.webp?v=assets-29',
         isImage: true,
         category: '棋類',
         link: 'games/xiangqi-ai/dist/index.html',
@@ -32,7 +33,8 @@ const games = [
         id: 'doudizhu',
         title: '鬥地主',
         subtitle: '鬥地主！對戰 2 個 AI',
-        icon: 'assets/doudizhu_logo.png?v=assets-28',
+        icon: 'assets/doudizhu_logo.png?v=assets-29',
+        iconWebp: 'assets/doudizhu_logo.webp?v=assets-29',
         isImage: true,
         category: '卡牌',
         link: 'games/doudizhu/index.html',
@@ -147,7 +149,16 @@ function renderCarousel() {
             const iconHtml = game.id === 'gomoku'
                 ? '<span class="gomoku-stones"><i class="gomoku-stone black"></i><i class="gomoku-stone white"></i></span>'
                 : game.isImage
-                    ? `<img src="${game.icon}" alt="" class="card-icon-img" onerror="this.style.display='none';this.parentElement.textContent='🀄';">`
+                    /*
+                     * 兩個卡片 logo 本來係 640×640（498K）同 1024×1024（349K），
+                     * 但喺手機度只顯示 52×52——即係大咗 12 倍同 20 倍，
+                     * 而**每個玩家一入 hub 就要落嗮呢 847K 去畫兩個 icon**。
+                     * 縮到 160×160（桌面最大 72 × DPR 2 = 144，留少少頭位）之後
+                     * WebP 得 10K、PNG 76K。用 <picture>：撐 WebP 就落 10K，
+                     * 唔撐就落返 PNG——保住原本個 logo，唔會 fallback 去一個
+                     * 唔啱嘅 emoji。
+                     */
+                    ? `<picture><source srcset="${game.iconWebp}" type="image/webp"><img src="${game.icon}" alt="" class="card-icon-img" onerror="this.style.display='none';this.parentElement.textContent='🀄';"></picture>`
                     : game.icon;
             return `
                 <a class="game-hub-card ${game.playable ? '' : 'disabled'}"
