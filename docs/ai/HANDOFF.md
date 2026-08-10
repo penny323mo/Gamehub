@@ -1,10 +1,10 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-09 (Asia/Macau)
-Prepared by: Claude Code (cloud) — ADR-202 至 220
+Prepared by: Claude Code (cloud) — ADR-202 至 221
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: 九把跨遊戲尺；聲量完（Royale 靜音修咗），流暢度呢個容器量唔到但搵到一個覆蓋缺口
+Status: 九把跨遊戲尺；Royale 補返 draw-call 預算（實測尖峰 532／上限 650／下限 50）
 
 ## Current objective
 
@@ -25,30 +25,35 @@ Status: 九把跨遊戲尺；聲量完（Royale 靜音修咗），流暢度呢�
   記低：classic script 入面 `window.joinFixedRoom` 同頂層函數係同一個綁定，擺完
   佔位 `window.x = x` 就自己指自己——**把尺利咗先捉到**。
 
-**ADR-220（本輪）— 流暢度量唔到，但量到一個覆蓋缺口**
+**ADR-221（本輪）— Royale 補返 draw-call 預算，同一個曾經永遠報綠嘅數**
 
-- **幀時間量法失效喺佢最有用嗰個 case**：唔量 FPS（swiftshader 同真機冇關），改量
-  p95/中位（抖唔抖）。Snake 1.00／Tower 1.17／Racing Car 1.20／MOBA 1.29／
-  **Royale 1.56——但 Royale 八秒得 13 幀**，13 個樣本嘅「p95」即係第 12 個值,
-  唔係分位數。而佢正正係最重、最想量嗰隻。**所以唔寫呢條 gate。**
-- **Draw call 取樣時機錯**：量到 Tower／Royale 都係 `calls 1、三角 1`。three.js 每次
-  `render()` 開頭 `info.reset()`，我喺自己 rAF callback 讀＝讀緊「reset 咗但遊戲未
-  render」。MOBA 讀到真數（93／尖峰 165）係因為佢個 loop 一開頭就排下一個 rAF,
-  排喺我前面。**同一個取樣點，喺三種 loop 結構下面有三個意思。**
-- **真嘅發現：Empire Royale 冇 draw-call 預算。** Tower 有（空場 450／峰值 1100）、
-  MOBA 有（尖峰 < 600），Royale 一條都冇，而佢係三隻最重嗰隻（同一個軟件光柵器
-  中位 533ms vs Tower 100ms）。**呢輪唔補**——補得啱要接落佢自己個 loop。
-  下一個人入手位：`royale/src/main.js` 個 `loop()` 入面 `renderScene()` 之後讀
-  `renderer.info.render.calls`，再照 Tower 嗰條寫法立一個由實測定嘅 budget。
+- ADR-220 留低嘅入手位做咗。**個數本來係假嘅**：修好取樣時機之後仲係 `1`，真因
+  係 `EffectComposer` 最後一 pass 係全屏 quad，佢自己行多次 `render()` 又 reset
+  一次 `info`。修法：`renderScene()` 熄 `info.autoReset`、自己一幀 reset 一次、
+  render 完即刻記低（`window.__royaleDrawn`）。
+- 真數（教學略過後量 45 秒）：手機 中位 **509**／尖峰 **532**（嗰刻場上得 9 個單位、
+  867K 三角）；桌面 中位 517／尖峰 526。即係嗰五百個 call 幾乎全部係**戰場本身**
+  （Tower 空場 126、MOBA 一場波 94）。
+- **兩條線，唔係一條**：上限 650（1.22 倍，掉咗批次一定過）＋**下限 50**——因為個數
+  曾經係 1，而淨守上限嘅 gate 喺嗰陣**永遠報綠**（1 ≤ 650）。突變示範：拆走
+  `autoReset=false` → 得下限報紅；多畫一次場景（中位 988）→ 得上限報紅。
+  **一個讀到假數嘅 gate 比冇 gate 更差。** 新 `royale/tests/perf.mjs` 3/3，已入 run-all。
 
-**ADR-219（已合埋 main）— 聲：一條本來就啱，一條漏咗一隻**
+**ADR-220（已合埋 main）— 流暢度呢個容器量唔到**
 
-- **autoplay 本來就啱**：五隻有聲嘅遊戲開場一個 `AudioContext` 都冇 new，第一下
-  手勢先 new 而且即刻 `running`。（Snooker／Xiangqi 冇 new 過＝冇遊戲聲。）
-- **Royale 個靜音一個字都冇存**（`let muted = false`），每次入嚟都要重新撳；同 repo
-  嘅 Racing Car 記得住。改法跟 `main.js` 個 `GFX_KEY`：自己一個 localStorage key,
-  個掣嘅字都要跟返。新 `tests/hub-audio.mjs` 3/3。
-- **一個對照救返一個假綠**：第一版喺開場畫面撳 `#mute-btn`（佢喺局內 HUD），撳唔到
+- 幀時間量法（p95/中位）**喺佢最有用嗰個 case 上面失效**：Royale 八秒得 13 幀，
+  13 個樣本嘅「p95」即係第 12 個值，唔係分位數。而佢正正係最重嗰隻。所以唔寫。
+  （Snake 1.00／Tower 1.17／Racing Car 1.20／MOBA 1.29／Royale 1.56，最後一個唔可信。）
+- 順帶記低：**同一個外部取樣點，喺三種 loop 結構下面有三個唔同意思**——由外面
+  隔住 rAF 讀 `info.render.calls`，Tower／Royale 讀到 1，MOBA 讀到真數，純粹因為
+  佢個 loop 排下一個 rAF 排喺量度者前面。呢種數要接落個 loop 度先讀得準。
+
+**ADR-219（已合埋 main）— 聲**
+
+- **autoplay 本來就啱**：五隻有聲嘅遊戲開場一個 `AudioContext` 都冇 new，第一下手勢
+  先 new 而且即刻 `running`。**Royale 個靜音一個字都冇存**（`let muted = false`）
+  → 自己一個 localStorage key，個掣嘅字都要跟返。新 `tests/hub-audio.mjs` 3/3。
+- **一個對照救返一個假綠**：第一版喺開場畫面撳 `#mute-btn`（佢喺局內 HUD）撳唔到
   → 「撳完」同「reload 後」一樣 → 報綠。加咗「撳之前先證明個掣真係撳到」。
 
 **ADR-210 至 218（已合埋 main；詳情全部喺 DECISIONS）**
@@ -85,13 +90,14 @@ Status: 九把跨遊戲尺；聲量完（Royale 靜音修咗），流暢度呢�
 - ADR-217：moba／royale `src/main.js`（`看住切走()`）、snake `Game.tsx`＋`dist/`、
   `tests/hub-away.mjs`（新）
 - ADR-219：royale `src/sfx.js`＋`src/main.js`、`tests/hub-audio.mjs`（新）
+- ADR-221：royale `src/main.js`（`renderScene` 記 draw call）、`tests/perf.mjs`（新）＋`run-all.mjs`
 
 ## Verification
 
 - `npm test`：PASS（要 `PW_CHROMIUM=/opt/pw-browsers/chromium`）。
 - 跨遊戲：`hub` 96/96、`hub-touch` 5/5、`hub-load` 3/3、`hub-keyboard` 3/3、`hub-cdn` 3/3、
-  `hub-wait` 1/1、`hub-storage` 2/2、`hub-away` 3/3、**`hub-audio` 3/3**。Tower 三個
-  suite 全過；`moba/browser.mjs` 196/196、royale 全套 111/111。Mutation 驗過十五次。
+  `hub-wait` 1/1、`hub-storage` 2/2、`hub-away` 3/3、`hub-audio` 3/3。Tower 三個 suite
+  全過；`moba` 196/196、**royale 九個檔全過（新增 `perf.mjs`）**。Mutation 驗過十七次。
 
 ## Known issues and cautions
 
@@ -103,8 +109,8 @@ Status: 九把跨遊戲尺；聲量完（Royale 靜音修咗），流暢度呢�
 ## Exact next action
 
 1. `export PW_CHROMIUM=/opt/pw-browsers/chromium`，跑 `./scripts/agent-context.sh --sync`。
-2. **接手位**：Royale draw-call budget（ADR-220 寫咗入手點）；進度記憶（要逐隻寫
-   driver）；MOBA 鏡頭偶發。
+2. **接手位**：進度記憶（要逐隻寫 driver，generic 掃法證實掃唔夠）；MOBA 鏡頭偶發
+   （五跑兩紅，未查到根因）。
 3. 一個檢查點一件事，改完連 handoff 一齊 commit。
 
 ## Do not redo

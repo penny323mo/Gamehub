@@ -7,7 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const TESTS = ['leak.mjs', 'gauntlet.mjs', 'combat.mjs', 'pvp-guest.mjs', 'match.mjs', 'features.mjs', 'rts.mjs', 'session.mjs'];
+const TESTS = ['leak.mjs', 'perf.mjs', 'gauntlet.mjs', 'combat.mjs', 'pvp-guest.mjs', 'match.mjs', 'features.mjs', 'rts.mjs', 'session.mjs'];
 
 const run = (file) => new Promise(resolve => {
     console.log(`\n===== ${file} =====`);

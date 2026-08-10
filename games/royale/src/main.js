@@ -151,9 +151,28 @@ function setupComposer() {
 }
 
 // 統一 render 入口：有 composer 行後製，冇就直接畫
+/*
+ * 量度用嘅接口：呢一幀畫咗幾多個 draw call。
+ *
+ * 點解要喺呢度寫落一個變數，而唔係喺測試度直接讀 `renderer.info`：
+ * three.js 每次 `render()` 開頭會 `info.reset()`，即係「讀到咩」完全取決於
+ * 你喺邊一刻讀。實測由外面隔住 `requestAnimationFrame` 讀，Tower 同 Royale
+ * 都讀到 `calls 1`（＝reset 咗但仲未 render 嗰一刻），而 MOBA 讀到真數
+ * ——純粹因為佢個 loop 排下一個 rAF 排喺量度者前面。**同一個取樣點喺唔同
+ * loop 結構下面有唔同意思**，所以呢種數要由 render 完嗰一刻自己記低。
+ * Tower（`performance.mjs`）同 MOBA（`browser.mjs`）兩邊都係咁做。
+ */
+let 上一幀畫咗 = { calls: 0, triangles: 0 };
 function renderScene() {
+    // `autoReset` 要熄：開住嘅話 `info` 喺**每一個 pass** 開頭都 reset 一次，
+    // 而後製最後嗰 pass 係一塊全屏 quad——render 完讀到嘅就係「1 個 call、
+    // 1 個三角」，即係嗰塊 quad，唔係成個場景。實測就係咁讀到 1/1。
+    renderer.info.autoReset = false;
+    renderer.info.reset();
     if (composer) composer.render();
     else renderer.render(scene, camera);
+    const r = renderer.info.render;
+    上一幀畫咗 = { calls: r.calls, triangles: r.triangles };
 }
 
 const camera = new THREE.PerspectiveCamera(52, 1, 0.5, 200);
@@ -1347,6 +1366,7 @@ async function init() {
     });
     window.__rts = rts; // 畀自動化測試用
     window.__royaleRenderer = renderer; // 畀滲漏測試量度 GPU 資源
+    window.__royaleDrawn = () => 上一幀畫咗; // 畀 draw-call 預算測試（render 完先記低）
     window.__royaleCamera = camera; // 畀鏡頭平移測試用
     window.__royaleComposer = () => composer; // 畀視覺測試確認後製狀態
     window.__royaleShake = () => ({ peak: shakePeak, amp: shakeAmp }); // 畀打擊感測試觀察

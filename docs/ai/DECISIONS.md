@@ -4496,6 +4496,57 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-221 — Empire Royale: 補返 draw-call 預算，同埋一個曾經永遠報綠嘅數
+
+Date: 2026-08-10. Status: accepted.
+
+ADR-220 留低嘅入手位：Royale 係三隻 3D 遊戲入面最重嗰隻（同一個軟件光柵器
+中位幀時間 533ms，Tower 100ms、MOBA 233ms），但 Tower 同 MOBA 都有 draw-call
+預算，**佢一條都冇**。呢一輪補返。
+
+### 個數本來係假嘅
+
+ADR-220 度量到 Royale `calls 1、三角 1`——當時當咗係取樣時機錯。修咗時機
+（render 完先讀）之後，**仲係 1**。真因係 `EffectComposer`：
+
+- three.js 每次 `renderer.render()` 開頭會 `info.reset()`；
+- composer 最後一個 pass 係一塊全屏 quad，佢自己都行一次 `render()`；
+- 所以 `composer.render()` 返嚟之後讀到嘅，係**嗰塊 quad**（1 個 call、1 個三角），
+  唔係成個場景。
+
+修法：`renderScene()` 入面熄 `renderer.info.autoReset`、自己一幀 `reset()` 一次、
+render 完即刻記低（`window.__royaleDrawn`）。呢個數要由 render 完嗰一刻自己記,
+唔可以由外面隔住 `requestAnimationFrame` 讀——實測同一個外部取樣點，喺 Tower／
+MOBA／Royale 三種 loop 結構下面有三個唔同意思。
+
+### 真數
+
+`__royaleDrawn()`，教學略過之後量 45 秒：
+
+| | calls 中位 | p95 | 尖峰 | 嗰刻單位 | 三角 |
+|---|---|---|---|---|---|
+| 手機 844×390 | 509 | 519 | **532** | 9 | 867K |
+| 桌面 1280×800 | 517 | 525 | 526 | 7 | 773K |
+
+場上得七至九個單位就已經五百幾個 call——即係嗰五百個幾乎全部係**戰場本身**。
+（Tower 空場 126、MOBA 一場波 94。）
+
+### 兩條線，唔係一條
+
+上限 **650**（實測尖峰 532，約 1.22 倍）：戰場係靜態嘅，多一兩件裝飾唔會過線，
+但掉咗批次（一堆共用 geometry 變成逐件畫）就一定過。
+
+下限 **50**：因為呢個數**曾經係 1，而一條淨係守上限嘅 gate 喺嗰個情況下會
+永遠報綠**（1 ≤ 650）。突變測試示範咗呢件事：拆走 `autoReset = false` 之後,
+上限嗰條照樣 PASS，得下限嗰條報紅。**一個讀到假數嘅 gate 比冇 gate 更差**,
+因為佢會畀你一個「守住咗」嘅錯覺。
+
+### 驗證
+
+`games/royale/tests/perf.mjs` 3/3，已入 `run-all.mjs`。兩個突變各自打中一條：
+①拆走 `autoReset = false` → 中位變 1 → **下限**報紅（上限唔會）；
+②多畫一次成個場景 → 中位 988／尖峰 1014 → **上限**報紅（下限唔會）。
+
 ## ADR-220 — Hub: 流暢度量唔到，但量到一個覆蓋缺口
 
 Date: 2026-08-10. Status: accepted（結論係「量唔到，但搵到要補嘅位」）。
