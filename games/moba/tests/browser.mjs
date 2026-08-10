@@ -446,6 +446,15 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
         const 暖機後x = p.x;
         p.orderX = null; p.orderZ = null; p.orderTarget = null;
         p.stunUntil = 0; p.rootUntil = 0; p.recallUntil = 0; p.cd = 0;
+        // `respawnAt` 都要清。上面第三點講嘅「重生同揮劍撞喺同一幀，
+        // `revive()` 抹走個鎖」，兩層一齊暖機**唔夠**擋晒——如果暖機啱啱
+        // 喺重生窗口裏面收工，`p.alive = true` 只係喺 sim 層扮咗佢生返,
+        // `respawnAt` 仲喺未來，`#syncUnits` 落一格照樣 `revive()`。
+        // 實測紅過一次，個報告寫住 `重生: 0.13`、`swinging: false`、
+        // `clip: "Idle_Combat"`，而 `事件序` 入面 `attack*` 係喺度嘅
+        // ——即係手出咗，係 rig 畀重生抹走。清埋佢，個 fixture 先至真係
+        // 擺返一個「生勾勾企喺線上」嘅狀態。**改嘅係 fixture，唔係條斷言。**
+        p.respawnAt = 0;
         p.x = -6; p.z = 0; p.alive = true; p.hp = p.maxHp;
         const 起點 = p.x;
         const foe = s.entities.find(e => e.alive && e.team !== p.team && e.kind === 'minion')

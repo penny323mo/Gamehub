@@ -4496,6 +4496,63 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-216 — MOBA: 兩條偶發 gate，一條查到底修咗，一條查到證據但唔亂修
+
+Date: 2026-08-09. Status: accepted.
+
+呢一輪本來想接住 ADR-212 繼續搞 MOBA 嘅重量，但一開頭就發現**嗰件事已經
+喺 `main` 度做咗**（`247f1cd`，量到 12.7 秒，連 `落一批`／`載戰場` 嘅名都一樣）。
+我手上兩個 commit 係重複品，剷咗，由 `origin/main` 重新開始——同 ADR-214
+入面另一邊做嘅嘢一樣。**兩個 agent 撞同一件事嘅時候，後推嗰個唔應該堆上去。**
+
+跑咗五次 `moba/tests/browser.mjs`（每次 ~12 分鐘）之後，見到嘅唔係重量問題，
+係**條 suite 自己有兩處偶發**。196 條 check 入面兩條會間歇性報紅，而佢哋報紅
+嘅時候完全似真病。
+
+### 一、`普攻會真係揮動作` ——查到底，修咗 fixture
+
+紅嗰次個報告：`swinging: false`、`clip: "Idle_Combat"`，但 `事件序` 入面
+`attack*` 係喺度嘅——**手出咗，係 rig 冇播**。
+
+第一個診斷係錯嘅：我見到 `事件序` 開頭係 `["damage","hit*","attack*",…]`，
+就當咗係「同一格畀人打中，受擊動作蓋咗揮擊」。但睇 `rig.js` 就知唔通——
+受擊都係行 `once()`，而 `once()` 一定會 set `lockUntil`，即係 `busy` 會係 **true**。
+`busy: false` ＋ `clip: Idle_Combat` 即係**乜一次性動作都冇播過**。
+
+真正嘅線索喺同一份報告度：**`重生: 0.13`**——量嗰陣玩家仲喺重生窗口裏面。
+
+而條 test 自己嘅註解老早就寫咗呢個機制：「玩家喺暖機期間死過又重生……
+`#consumeEvents` 先播攻擊，`#syncUnits` 跟住 `revive()` 抹走個鎖」。佢當時
+嘅補鑊係「兩層一齊暖機」——但**淨係咁唔夠**：如果暖機啱啱喺重生窗口裏面收工，
+`p.alive = true` 只係喺 sim 層扮咗佢生返，`respawnAt` 仲喺未來，落一格
+`#syncUnits` 照樣 `revive()`。
+
+改法：fixture 度清埋 `p.respawnAt = 0`（本來已經清咗 `stunUntil` /
+`rootUntil` / `recallUntil` / `cd`，就係漏咗呢個）。**改嘅係 fixture，
+唔係條斷言**——條 gate 一個字都冇放寬。改完 `重生` 由 `0.13`（未來）變
+`-84.4`（過去），揮擊 check 過。
+
+中途我試過另一個改法：將 `busy` 由「讀一格」改成「喺一個窗口入面取樣」。
+跑完發現 `第幾格揮: 0` 全部——即係個窗口一次都冇用過，而條 gate 照樣紅咗
+另一處。**一個修唔到你嗰個病、又永遠唔會執行嘅改動，唔應該留低。** 剷咗。
+
+### 二、`玩家企喺畫面下半但唔會跌出畫外` ——查到證據，但唔亂修
+
+五次跑入面紅咗兩次，而且兩次嘅數完全唔同方向：
+
+| | 玩家x | 鏡頭焦點 | 玩家由頂計 | 夾界 |
+|---|---|---|---|---|
+| 紅（一） | −6.1 | −14.8 | **32.1** | 58 |
+| 紅（二） | −5.7 | −50.x | **−28.6** | 58 |
+
+第二次個焦點離玩家成 44 個單位，而 `收斂咗: true`（用咗 11 幀）。即係鏡頭
+「收斂」到一個唔喺玩家度嘅位。
+
+**唔喺呢一輪修**，理由有兩個：一，紅嘅其中一次，我當時手上嗰個改動係
+**證實冇執行過**嘅（`第幾格揮: 0`），所以佢同我無關，係本來就偶發；
+二，我冇重現到，而喺一個重現唔到嘅情況下改鏡頭邏輯，就係今日已經犯過一次
+嘅嘢。留低數同機制描述，畀下一個人由呢度開始，好過我估一個。
+
 ## ADR-215 — Hub: 儲存唔到，唔應該連遊戲都開唔到
 
 Date: 2026-08-09. Status: accepted.
