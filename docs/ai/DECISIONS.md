@@ -4496,6 +4496,67 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-236 — Big Two 補返 Continue，同埋一條「每加一隻遊戲就要改一次」嘅 check
+
+Date: 2026-08-10. Status: accepted.
+
+棋類兩隻做完（ADR-234/235），輪到牌類。牌類同棋類唔同：**唔可以淨係存個盤**。
+
+存乜：四家手牌（**包括電腦嗰三家**——唔存嘅話續返之後電腦會攞新牌，即係
+你面前嗰局變咗另一局）、輪到邊個、檯面嗰手同邊個出、邊個 pass 咗、要唔要
+含方塊三。
+
+`table.eval` **唔存**：佢係 `evalHand()` 計出嚟嘅。存住就有兩份真相，而且改咗
+`evalHand` 之後，舊存檔會靜靜雞用返舊規則。續返嗰陣重新計。
+
+存喺三個位：人出完牌／人 pass 完／電腦一輪行完輪返你（`step()` 見到 `idx === 0`
+就停嗰刻——嗰個正正係一個穩定嘅局面）。收場清、撳「對戰電腦」開新局清。
+
+### 個 driver：十三張牌疊住，撳唔到
+
+第一版撳手牌第一張——timeout。牌係 `<button>` 冇錯，但十三張互相疊住，
+第一張嘅中心點畀隔籬張遮住，Playwright 等佢「收得到 pointer event」等到死。
+
+解法唔係 `force: true`（嗰樣等於承認自己撳唔中但照撳），而係**用返遊戲自己個
+「提示」掣**：佢會揀一手合法牌落 `ui.selected`，跟住撳「出牌」。提示揀唔到
+就撳 pass——一樣係一個真嘅玩家動作。
+
+**唔喺測試度抄一次大老二規則**（開局要含方塊三、之後要壓得住檯面嗰手）——
+抄一次就係自己驗自己。
+
+### 條 check 本身要改：欄名唔可以逐隻遊戲改
+
+`hub-progress` 第三條 check（ADR-234 加嘅）本來逐隻遊戲讀自己嘅欄名：
+Gomoku 報 `盤上幾多隻`／`棋同空差幾多`，Xiangqi 報 `盤對得上`／`同開局差幾多`,
+Big Two 報 `局面對得上`／`手牌張數`。
+
+加到第三隻就撞線：Big Two 冇 `盤上幾多隻`，而條 check 寫住 `v.續到.盤上幾多隻 > 0`
+——`undefined > 0` 係 false，**明明啱嘅都報紅**。
+
+**一條要跟住遊戲改名嘅 check，每加一隻遊戲就要改一次，遲早有一次改漏。**
+所以統一咗形狀，四樣嘢逐隻都要報：
+
+- `畫面`——真係切到局中；
+- `對得上`——**遊戲自己嘅狀態等於存檔**（唔係「存檔仲喺度」）；
+- `量`——局面真係有嘢（盤上幾多隻／四家合共幾多張）；
+- `畫面證據`——**畫得出嚟**（2D canvas 比像素／WebGL 影相比／牌類數 DOM 上真係
+  畫咗幾多張）。
+
+三隻遊戲三種畫面證據，但同一個欄名——條 check 唔使識邊隻係邊隻。
+
+突變（`續局()` 唔倒返四家手牌）報紅，而且四樣入面三樣一齊倒
+（`對得上: false`、`量: 0`、`畫面證據: 0`）。
+
+### 驗證
+
+`hub-progress` **3/3**（九隻）、`hub-tabs` 4/4、`hub-touch` 5/5、`hub-keyboard` 3/3、
+`hub-read` 3/3、`hub-cdn` 3/3、`hub` 96/96。
+
+### 仲爭
+
+Dou Dizhu。佢同 Big Two 同族但多一層：**叫地主階段**同**地主嗰三張底牌**,
+存檔要分得清「叫緊」同「打緊」。做法照抄呢度，但個 state 要自己睇過。
+
 ## ADR-235 — Xiangqi 都補返 Continue：一個 3D 盤要換兩次證據先量得到
 
 Date: 2026-08-10. Status: accepted.

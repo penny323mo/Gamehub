@@ -1,10 +1,10 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-10 (Asia/Macau)
-Prepared by: Claude Code (cloud) — ADR-202 至 235
+Prepared by: Claude Code (cloud) — ADR-202 至 236
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: 十六把跨遊戲尺全綠；Gomoku ＋ Xiangqi 補返 Continue，`hub-progress` 八隻 3/3
+Status: 十六把跨遊戲尺全綠；Gomoku／Xiangqi／Big Two 補返 Continue，`hub-progress` 九隻 3/3
 
 ## Current objective
 
@@ -14,45 +14,45 @@ Status: 十六把跨遊戲尺全綠；Gomoku ＋ Xiangqi 補返 Continue，`hub-
 
 ## Completed
 
-**ADR-235（本輪）— Xiangqi 都補返 Continue：一個 3D 盤要換兩次證據先量得到**
+**ADR-236（本輪）— Big Two 補返 Continue ＋ 一條「每加一隻就要改一次」嘅 check**
 
-- 照抄 ADR-234：`xiangqi_ai_run_v1`，每行一步就存，收場／開新局清，覆蓋式。**`history`
-  唔存**——悔棋唔跨 session，存半份會扮到你悔得返，撳落去先發現冇。
-- **兩個坑都係「用平面思維去度一個 3D 嘢」**：①撳唔到棋（`(c+0.5)/9` 算螢幕座標，但
-  個盤要經相機投影）→ **反用遊戲自己嗰個 `Render.hitTest()`**，撒 80×80 格網砌返
-  「格 → 螢幕點」表；②量唔到畫面（WebGL 冇 `preserveDrawingBuffer`，`getImageData` 全零）
-  → 改用影相，**但第二版揀錯對照**（撳之前仲喺選單，`#board` 隱藏住就 timeout）→
-  第三版揀啱：**續返嘅局面 vs 開局盤**。driver 行邊步棋**寫死**紅炮平中，唔用
-  `generateLegalMoves()[0]`——**driver 唔應該跟住引擎嘅實作漂移**。
-- 證據兩條腿：`盤對得上`（遊戲自己個 board 逐格等於存檔，**唔可以讀返 storage 當證據**）
-  ＋`同開局差幾多`（影相）。突變兩條腿一齊報紅。
-- **仲爭 Big Two／Dou Dizhu**：牌類局面同棋類唔同（隱藏手牌、叫牌階段、AI 手上嗰疊），
-  **唔可以照抄**，要逐隻諗清楚存乜。
+- 牌類唔可以淨係存個盤：要存**四家手牌**（連電腦嗰三家——唔存嘅話續返之後
+  電腦會攞新牌，你面前嗰局變咗另一局）、輪到邊個、檯面嗰手同邊個出、邊個 pass、
+  要唔要含方塊三。**`table.eval` 唔存**（`evalHand()` 計得返；存住就兩份真相,
+  改咗規則之後舊存檔會靜靜雞用返舊嗰套）。
+- driver：十三張牌互相疊住，撳第一張嘅中心點畀隔籬張遮住 → timeout。解法唔係
+  `force: true`（等於承認撳唔中都照撳），而係**用返遊戲自己個「提示」掣**揀一手
+  合法牌再出，揀唔到就 pass。**唔喺測試度抄一次大老二規則**——抄一次就係自己驗自己。
+- **條 check 本身要改**：第三條本來逐隻遊戲讀自己嘅欄名，加到第三隻就撞線——Big Two
+  冇 `盤上幾多隻`，`undefined > 0` 係 false，**明明啱嘅都報紅**。**一條要跟住遊戲改名嘅
+  check，每加一隻遊戲就要改一次，遲早有一次改漏。** 統一成四樣：`畫面`／`對得上`
+  （遊戲狀態＝存檔）／`量`／`畫面證據`（2D 比像素・WebGL 影相・牌類數 DOM）。
+- 突變（唔倒返四家手牌）四樣入面三樣一齊倒。**仲爭 Dou Dizhu**（同族但多一層叫地主
+  階段 ＋ 底牌，存檔要分得清「叫緊」同「打緊」）。
 
-**ADR-234（已合埋 main）— 落咗三十手一 refresh 就冇晒：Gomoku 補返 Continue**
+**ADR-234／235（已合埋 main）— 打到一半走咗：Gomoku ＋ Xiangqi 補返 Continue**
 
 - 「打完記唔記得成績」同「打到一半走咗算唔算數」係兩條問題。實測四隻人機落幾手再
   refresh：**全部返咗選單、冇存過、冇提示**（手機切走 app 個 tab 畀回收，一樣——**唔係
-  「你自己揀走」**）。Tower 早就有 Continue。**答案：漏咗。** Gomoku：每落一手就存、
+  「你自己揀走」**）。Tower 早就有 Continue。**答案：漏咗。** 兩隻都係每落一手就存、
   讀返逐格驗、Continue **唔會靜靜雞幫你續**、續返輪到 AI 就要叫佢行。
-- `hub-progress` 加第三條：**「留得住」唔等於「返得到」**。條 check 量咗兩個版——第一版
-  數成塊 canvas 嘅非背景像素，突變照樣過（嗰 300 個係**格線**）；改成拎「有棋格」同
-  「空格」比色差。**錯要向紅嗰邊錯。** 順帶剷咗 `continueGame` 入面多餘嘅逐格重畫
-  （`createBoardUI` 已經整幅畫返，嗰個 loop 畫足 226 次同一幅嘢）。
+- `hub-progress` 加第三條：**「留得住」唔等於「返得到」**。量咗幾個版先啱——Gomoku 數
+  成塊 canvas 嘅非背景像素，突變照樣過（嗰 300 個係**格線**）；Xiangqi 個盤係 3D,
+  `getImageData` 全零（WebGL 冇 `preserveDrawingBuffer`），改影相之後**又揀錯對照**
+  （撳之前仲喺選單）→ 最後揀「續返嘅局面 vs 開局盤」。**錯要向紅嗰邊錯。**
+- 記低：3D 盤要**反用遊戲自己嘅 `Render.hitTest()`** 反查「格 → 螢幕點」；
+  **driver 唔應該跟住引擎嘅實作漂移**（行邊步棋寫死，唔用 `generateLegalMoves()[0]`）。
 
-**ADR-233（已合埋 main）— 一個 origin 十三隻遊戲：key 冇撞，但捉到一隻乜都唔記得**
-
-- 運行時掃**七隻一個 key 都冇寫**（掃唔夠）→ 補靜態掃：每隻都有自己前綴，**零撞**。
-  **兩層一齊做先得出結論。** 真正捉到嘅：**Penny Crush 冇掂過 storage 但佢有分數** →
-  加咗最高分（破紀錄即寫，用 `改存檔()`）。**個 driver 第一版係擲毫**（隨機撳兩格等
-  消）→ 改成由格陣計出一步真係消得到嘅棋再撳真兩格。
-
-**ADR-232（已合埋 main）— 兩個 tab：打咗兩局淨係記低一局**
+**ADR-232／233（已合埋 main）— 兩個 tab；一個 origin 十三隻遊戲**
 
 - 兩個 tab 各打完一局：Snake `gamesPlayed` 0 → 1 → **1**、Royale `trophies` 0 → 30 → **30**
-  → 新 `shared/js/merge-save.mjs` 嘅 `改存檔()`：寫嗰陣先讀返。**兩次都修錯位**：Royale
-  真兇係 `markTutorialSeen()`、Snake 真兇係 `login()`。**每一個由記憶體快照出發嘅寫入
-  都會蓋。估唔到就 dump。** Tower／MOBA／Racing Car 特登唔掃（設計上就係最後一次）。
+  → 新 `shared/js/merge-save.mjs` 嘅 `改存檔()`：寫嗰陣先讀返。**兩次都修錯位**（Royale
+  真兇係 `markTutorialSeen()`、Snake 真兇係 `login()`）——**每一個由記憶體快照出發嘅寫入
+  都會蓋。估唔到就 dump。** Tower／MOBA／Racing Car 特登唔掃。
+- storage key：運行時掃**七隻一個都冇寫**（掃唔夠）→ 補靜態掃，每隻都有自己前綴，
+  **零撞**。**兩層一齊做先得出結論。** 順帶捉到 **Penny Crush 冇掂過 storage 但佢有分數**
+  → 加咗最高分。**個 driver 第一版係擲毫**（隨機撳兩格等消）→ 改成由格陣計出一步真係
+  消得到嘅棋再撳真兩格。
 
 **ADR-227 至 230（已合埋 main）— 洩漏：GPU 守咗 DOM 冇**
 
@@ -107,8 +107,8 @@ Status: 十六把跨遊戲尺全綠；Gomoku ＋ Xiangqi 補返 Continue，`hub-
 ## Exact next action
 
 1. `export PW_CHROMIUM=/opt/pw-browsers/chromium`，跑 `./scripts/agent-context.sh --sync`。
-2. **接手位**：Big Two／Dou Dizhu 補返「打到一半走咗仲喺度」。棋類兩隻做咗（ADR-234/235），
-   但**牌類唔可以照抄**：隱藏手牌、叫牌階段、AI 手上嗰疊都要一齊存，逐隻要諗清楚存乜先。
+2. **接手位**：Dou Dizhu 補返「打到一半走咗仲喺度」——同 Big Two 同族（做法抄 ADR-236）
+   但多一層**叫地主階段 ＋ 三張底牌**，存檔要分得清「叫緊」同「打緊」。
    另：`hub-read` 報咗但冇守；ADR-224 冇遊戲收到 restored。
 3. 一個檢查點一件事，改完連 handoff 一齊 commit。
 

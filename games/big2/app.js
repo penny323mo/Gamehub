@@ -300,6 +300,110 @@
     gameOver: false,
   };
 
+
+  /* ----------------------------------------------------------------
+   * 打到一半走咗，返嚟仲喺度（同 ADR-234/235 棋類兩隻同一個做法）
+   * ----------------------------------------------------------------
+   *
+   * 實測：對戰電腦打緊嗰陣 refresh，**直接返咗選單，成局冇晒**，亦冇任何提示。
+   * 手機切走 app 之後個 tab 畀系統回收，效果一樣——**唔係你自己揀走**。
+   *
+   * 牌類同棋類唔同：唔可以淨係存個「盤」。要存嘅係成個局面——四家手牌
+   * （包括電腦嗰三家，唔係嘅話續返之後電腦會變咗攞新牌）、輪到邊個、
+   * 檯面嗰手、邊個出、邊個 pass 咗、要唔要含方塊三。
+   *
+   * `table.eval` **唔存**：佢係 `evalHand()` 計出嚟嘅，存住就會有兩份真相
+   * （而且改咗 `evalHand` 之後舊存檔會靜靜雞用返舊規則）。續返嗰陣重新計。
+   *
+   * 覆蓋式（同 Tower checkpoint、Gomoku、Xiangqi 一樣，喺 ADR-232 個
+   * 「特登 last-write-wins」名單）。
+   */
+  const 局存KEY = 'big2_ai_run_v1';
+
+  function 存局() {
+    try {
+      if (window.gameMode === 'online' || state.gameOver) return;
+      if (!Array.isArray(state.players) || state.players.length !== 4) return;
+      if (state.players.every(p => !p.hand || p.hand.length === 0)) return;
+      localStorage.setItem(局存KEY, JSON.stringify({
+        v: 1,
+        players: state.players.map(p => ({ name: p.name, isHuman: !!p.isHuman, hand: p.hand })),
+        currentPlayer: state.currentPlayer,
+        table: state.table ? { cards: state.table.cards, by: state.table.by } : null,
+        lastPlayPlayer: state.lastPlayPlayer,
+        passed: state.passed,
+        mustInclude3D: state.mustInclude3D,
+        時: Date.now(),
+      }));
+    } catch (e) { /* 記唔住就算 */ }
+  }
+
+  function 清局() {
+    try { localStorage.removeItem(局存KEY); } catch (e) { /* 同上 */ }
+  }
+
+  /** **壞存檔要當冇。** 四家、每家手牌係合法牌、輪到嘅人喺 0..3、未打完。 */
+  function 讀局() {
+    try {
+      const raw = localStorage.getItem(局存KEY);
+      if (!raw) return null;
+      const j = JSON.parse(raw);
+      if (!j || j.v !== 1 || !Array.isArray(j.players) || j.players.length !== 4) return null;
+      const 合法牌 = (c) => c && Number.isInteger(c.r) && c.r >= 0 && c.r < 13
+        && typeof c.s === 'string' && SUIT_BY_KEY[c.s];
+      let 總張 = 0;
+      for (const p of j.players) {
+        if (!Array.isArray(p.hand)) return null;
+        for (const c of p.hand) { if (!合法牌(c)) return null; }
+        總張 += p.hand.length;
+      }
+      if (總張 === 0) return null;                 // 打完晒＝冇嘢好續
+      if (!Number.isInteger(j.currentPlayer) || j.currentPlayer < 0 || j.currentPlayer > 3) return null;
+      if (j.table && !Array.isArray(j.table.cards)) return null;
+      if (j.table) { for (const c of j.table.cards) if (!合法牌(c)) return null; }
+      if (!Array.isArray(j.passed) || j.passed.length !== 4) return null;
+      return j;
+    } catch (e) { return null; }
+  }
+
+  function 續局() {
+    const j = 讀局();
+    if (!j) return null;
+    state.players = j.players.map(p => ({ name: p.name, isHuman: p.isHuman, hand: p.hand }));
+    state.currentPlayer = j.currentPlayer;
+    // eval 重新計，唔由存檔攞——單一真相喺 `evalHand()` 度
+    state.table = j.table ? { cards: j.table.cards, eval: evalHand(j.table.cards), by: j.table.by } : null;
+    state.lastPlayPlayer = j.lastPlayPlayer;
+    state.passed = j.passed.slice();
+    state.seat = [0, 1, 2, 3].map(() => ({ cards: null, pass: false }));
+    state.mustInclude3D = !!j.mustInclude3D;
+    state.gameOver = false;
+    return j;
+  }
+
+  window.__big2Run = {
+    有得繼續: () => 讀局() !== null,
+    清局,
+    現局: () => ({
+      手牌數: state.players.map(p => p.hand.length),
+      輪到: state.currentPlayer,
+      檯面: state.table ? state.table.cards.length : 0,
+    }),
+    續: () => {
+      if (!續局()) return false;
+      const startScreen = document.getElementById('startScreen');
+      if (startScreen) startScreen.classList.add('startScreen--hidden');
+      if (startGameBtn) startGameBtn.style.display = 'none';
+      if (restartBtn2) restartBtn2.style.display = '';
+      ui.selected.clear();
+      clearSuggest();
+      render();
+      // 存嗰陣可能啱啱輪到電腦——唔叫佢行，個局就會永遠等你出一手唔到你出嘅牌
+      if (state.currentPlayer !== 0) queueCpuTurns();
+      return true;
+    },
+  };
+
   function makeDeck() {
     const deck = [];
     for (let r = 0; r < 13; r++) {
@@ -878,6 +982,7 @@
     clearSuggest();
     applyPlay(0, cards);
     render();
+    存局();
     queueCpuTurns();
   }
 
@@ -908,6 +1013,7 @@
     clearSuggest();
     applyPass(0);
     render();
+    存局();
     queueCpuTurns();
   }
 
@@ -1116,7 +1222,7 @@
   function queueCpuTurns() {
     // Execute CPU turns with small delays for readability.
     const step = () => {
-      if (state.gameOver) { render(); return; }
+      if (state.gameOver) { render(); 清局(); return; }
 
       const idx = state.currentPlayer;
       const isCpuTurn = !state.players[idx].isHuman;
@@ -1128,7 +1234,7 @@
         if (!window.isOnlineHost()) { render(); return; } // Wait for host to dispatch CPU action
       } else {
         // Local Mode: Wait if it's Player 0 
-        if (idx === 0) { render(); return; }
+        if (idx === 0) { render(); 存局(); return; }   // 輪返你＝一個穩定嘅局面，存低
       }
 
       const move = cpuChoosePlay(idx);
@@ -1317,8 +1423,26 @@
   // Wire up new landing page buttons
   const btnLocalAi = document.getElementById('btn-local-ai');
   const btnOnline = document.getElementById('btn-online');
-  if (btnLocalAi) btnLocalAi.addEventListener('click', () => window.setMode('local'));
+  if (btnLocalAi) btnLocalAi.addEventListener('click', () => { 清局(); window.setMode('local'); });
   if (btnOnline) btnOnline.addEventListener('click', () => window.setMode('online-lobby'));
+
+  /*
+   * 「繼續上一局」——**唔會靜靜雞幫你續**（同 Tower／Gomoku／Xiangqi 一樣）。
+   * 撳「對戰電腦」＝開新局，所以嗰條路會清走舊存檔。
+   */
+  const btnContinue = document.getElementById('btn-continue');
+  function 更新繼續掣() {
+    if (!btnContinue) return;
+    btnContinue.classList.toggle('hidden', !window.__big2Run.有得繼續());
+  }
+  window.更新繼續掣 = 更新繼續掣;
+  if (btnContinue) btnContinue.addEventListener('click', () => {
+    // 借返 `setMode('local')` 做版面切換，唔好喺呢度再抄一次 DOM toggle
+    // ——抄多一份就會有兩份各自漂移嘅真相。
+    window.setMode('local');
+    if (!window.__big2Run.續()) { window.setMode('landing'); 更新繼續掣(); }  // 存檔壞咗就唔好扮續到
+  });
+  更新繼續掣();
 
   // Host helper
   window.isOnlineHost = function () {

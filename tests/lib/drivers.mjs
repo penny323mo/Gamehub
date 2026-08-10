@@ -251,32 +251,29 @@ export const 遊戲 = [
       await p.waitForTimeout(2000);
     },
     /*
-     * 兩樣都唔可以讀返 storage——讀返 storage 就變成「存檔仲喺度」嘅同義詞,
-     * 而條 check 想問嘅係「局真係開返咗未」。
-     *   · `盤上幾多隻` 由遊戲自己個 `board` 攞（reload 之後係空嘅，
-     *     撳完 Continue 先會有嘢）;
-     *   · `畫咗嘢` 抽 canvas 像素——狀態返咗嚟但畫唔返出嚟一樣係壞。
+     * 四樣嘢，四樣都唔可以讀返 storage 當「開返咗」嘅證據——讀返 storage 淨係
+     * 證明「存檔仲喺度」。統一形狀（`畫面/對得上/量/畫面證據`）令下一隻遊戲
+     * 接上嚟嘅時候，唔使再改條 check。
      */
     續驗: () => {
       const g = window.__gomoku;
       const b = g?.board ?? [];
+      let 存 = null;
+      try { 存 = JSON.parse(localStorage.getItem('gomoku_ai_run_v1') || 'null'); } catch (e) { /* 壞就 null */ }
       const cv = document.getElementById('gomoku-board');
       /*
-       * **「畫面有嘢」唔等於「啲棋畫返咗」。** 第一版數成塊 canvas 有幾多
-       * 非背景像素——量到 301，但突變（唔畫返啲棋）照樣量到 300：嗰 300 個
-       * 係**格線**，畫盤嗰陣一定有。一條分唔開「格線」同「棋子」嘅 check
-       * 係壞 check。
-       *
+       * **「畫面有嘢」唔等於「啲棋畫返咗」。** 第一版數成塊 canvas 有幾多非背景
+       * 像素——量到 301，但突變（唔畫返啲棋）照樣量到 300：嗰 300 個係**格線**。
        * 改成拎「有棋嗰格」同「空格」比：同一條公式算兩個中心點
        * （`drawBoard` 用 `cellSize = w / 15`，中心喺 `(i + 0.5) * cellSize`）。
-       * 公式算錯嘅話兩邊都錯，條 check 會報紅——**錯要向紅嗰邊錯**。
+       * 公式算錯嘅話兩邊都錯 → 報紅。**錯要向紅嗰邊錯。**
        */
       let 有棋格 = null, 空格 = null;
       for (let r = 0; r < b.length; r++) for (let c = 0; c < b.length; c++) {
         if (b[r][c] && !有棋格) 有棋格 = [r, c];
         else if (!b[r][c] && !空格) 空格 = [r, c];
       }
-      let 棋色 = null, 空色 = null;
+      let 差 = 0;
       try {
         const ctx = cv.getContext('2d');
         const cell = cv.width / b.length;
@@ -284,17 +281,18 @@ export const 遊戲 = [
           const d = ctx.getImageData(Math.round((c + 0.5) * cell), Math.round((r + 0.5) * cell), 1, 1).data;
           return [d[0], d[1], d[2]];
         };
-        if (有棋格) 棋色 = 抽(有棋格);
-        if (空格) 空色 = 抽(空格);
-      } catch (e) { /* 抽唔到就留 null，下面會報紅 */ }
-      const 差 = (棋色 && 空色)
-        ? Math.abs(棋色[0] - 空色[0]) + Math.abs(棋色[1] - 空色[1]) + Math.abs(棋色[2] - 空色[2])
-        : 0;
+        if (有棋格 && 空格) {
+          const x = 抽(有棋格), y = 抽(空格);
+          差 = Math.abs(x[0] - y[0]) + Math.abs(x[1] - y[1]) + Math.abs(x[2] - y[2]);
+        }
+      } catch (e) { /* 抽唔到就留 0 → 報紅 */ }
       return {
         畫面: !document.getElementById('game-board-area')?.classList.contains('hidden'),
-        盤上幾多隻: b.flat().filter(Boolean).length,
-        有棋格, 空格, 棋色, 空色,
-        棋同空差幾多: 差,
+        對得上: !!存 && b.length === 存.board.length
+          && b.every((row, r) => row.every((v, c) => v === 存.board[r][c]))
+          && g?.currentPlayer === 存.currentPlayer,
+        量: b.flat().filter(Boolean).length,
+        畫面證據: 差,
       };
     },
   },
@@ -379,9 +377,9 @@ export const 遊戲 = [
         const 現 = R?.現盤?.() ?? [];
         return {
           畫面: !document.getElementById('game-container')?.classList.contains('hidden'),
-          盤上幾多隻: 現.filter(Boolean).length,
+          量: 現.filter(Boolean).length,
           // **唔可以讀返 storage 當證據**——問嘅係「遊戲自己個盤等唔等於存檔個盤」
-          盤對得上: !!存 && 現.length === 存.board.length
+          對得上: !!存 && 現.length === 存.board.length
             && 現.every((v, i) => v === 存.board[i]) && R?.現輪到?.() === 存.turn,
         };
       });
@@ -395,8 +393,69 @@ export const 遊戲 = [
         const n = Math.min(續住.length, 開局.length);
         for (let i = 0; i < n; i += 13) if (續住[i] !== 開局[i]) 差++;
       }
-      await p.evaluate((v) => { window.__續驗 = v; }, { ...狀態, 同開局差幾多: 差 });
+      await p.evaluate((v) => { window.__續驗 = v; }, { ...狀態, 畫面證據: 差 });
     },
     續驗: () => window.__續驗 ?? { 攞唔到: true },
+  },
+  {
+    名: 'Big Two', url: '/games/big2/index.html',
+    玩: async (p) => {
+      await p.click('#btn-local-ai', { timeout: 60000 });
+      await p.click('#startGameBtn', { timeout: 60000 });
+      await p.waitForTimeout(2500);
+      /*
+       * 出一手牌。**唔靠亂撳**——十三張牌互相疊住，撳第一張嘅中心點畀隔籬
+       * 張遮住，Playwright 等到 timeout（第一版就係咁）。
+       *
+       * 用返遊戲自己個「提示」掣：佢會揀一手合法牌落 `ui.selected`。
+       * 用佢自己嘅邏輯，唔使我喺測試度判斷邊張出得（大老二開局要含方塊三,
+       * 之後仲要壓得住檯面嗰手——抄一次規則就係自己驗自己）。
+       * 提示揀唔到就 pass，一樣係一個真嘅玩家動作。
+       */
+      await p.waitForFunction(() => (window.__big2Run?.現局?.().輪到) === 0, null, { timeout: 60000 });
+      await p.click('#suggestBtn', { timeout: 30000 }).catch(() => {});
+      await p.waitForTimeout(500);
+      const 出到 = await p.evaluate(() => !document.getElementById('playBtn')?.disabled);
+      await p.click(出到 ? '#playBtn' : '#passBtn', { timeout: 30000 });
+      await p.waitForFunction(() => {
+        try { return JSON.parse(localStorage.getItem('big2_ai_run_v1') || 'null') !== null; }
+        catch { return false; }
+      }, null, { timeout: 60000 });
+      await p.waitForTimeout(1500);
+    },
+    到咗: () => {
+      try { return JSON.parse(localStorage.getItem('big2_ai_run_v1') || 'null') !== null; }
+      catch { return false; }
+    },
+    憑據: () => {
+      try {
+        const j = JSON.parse(localStorage.getItem('big2_ai_run_v1') || 'null');
+        if (!j) return null;
+        return { 四家手牌: j.players.map((x) => x.hand.length), 輪到: j.currentPlayer,
+                 檯面: j.table ? j.table.cards.length : 0 };
+      } catch { return null; }
+    },
+    續: async (p) => {
+      await p.waitForSelector('#btn-continue:not(.hidden)', { timeout: 30000 });
+      await p.click('#btn-continue');
+      await p.waitForTimeout(2500);
+    },
+    續驗: () => {
+      let 存 = null;
+      try { 存 = JSON.parse(localStorage.getItem('big2_ai_run_v1') || 'null'); } catch (e) { /* 壞就 null */ }
+      const 現 = window.__big2Run?.現局?.();
+      // **唔可以讀返 storage 當證據**：問嘅係遊戲自己個局面等唔等於存檔。
+      const 對得上 = !!存 && !!現
+        && JSON.stringify(現.手牌數) === JSON.stringify(存.players.map((x) => x.hand.length))
+        && 現.輪到 === 存.currentPlayer;
+      const 手牌張數 = document.querySelectorAll('#hand > *').length;
+      return {
+        畫面: !document.getElementById('game-container')?.classList.contains('hidden'),
+        對得上,
+        量: (現?.手牌數 ?? []).reduce((a, b) => a + b, 0),
+        // 牌類冇「盤」可以影相比——畫面證據就係你自己手上真係有牌畫咗出嚟
+        畫面證據: 手牌張數,
+      };
+    },
   },
 ];
