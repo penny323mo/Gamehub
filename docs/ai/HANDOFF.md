@@ -94,22 +94,22 @@ Status: 十四把跨遊戲尺全綠；洩漏線由 Royale 一隻擴到九隻（`
 
 ## Verification
 
-- `npm test`：PASS（要 `PW_CHROMIUM=/opt/pw-browsers/chromium`）。**十三把跨遊戲尺全綠**：
+- `npm test`：PASS（要 `PW_CHROMIUM=/opt/pw-browsers/chromium`）。**十四把跨遊戲尺全綠**：
   `hub` 96/96、`hub-touch` 5/5、`hub-load` 3/3、`hub-keyboard` 3/3、`hub-cdn` 3/3、`hub-wait` 1/1、
   `hub-storage` 2/2、`hub-away` 3/3、`hub-audio` 3/3、`hub-progress` 2/2、`hub-context` 3/3、
-  `hub-home` 3/3、`hub-read` 3/3、**`hub-leak` 4/4**。Tower 三個 suite、`moba` 196/196、royale `leak` 7/7。
-  Mutation 驗過廿六次，次次叫得出係邊個。
+  `hub-home` 3/3、`hub-read` 3/3、**`hub-leak` 4/4**；Tower 三 suite、`moba` 196/196、royale `leak` 7/7。Mutation 驗過廿六次。`touch/load/keyboard/cdn/wait` 五把喺 synced tree 重跑過。
 
 ## Known issues and cautions
 
-- **要 `export PW_CHROMIUM=…/chromium`**；**`pgrep -f` 會撞到自己**；**做 mutation 要先 `cp`**。`moba` 條 `玩家企喺畫面下半…` 曾經五跑兩紅（ADR-222 封咗佢指住嗰個機制，加咗兩個數）。
+- **要 `export PW_CHROMIUM=…/chromium`**；**`pgrep -f` 會撞到自己**；**做 mutation 要先 `cp`**。`moba` 條 `玩家企喺畫面下半…` 曾經五跑兩紅（ADR-222 封咗佢指住嗰個機制）。**開工前一定要 `--sync`**：呢一輪我冇 sync 就做，MOBA 拆批同 Codex ADR-213 撞晒單，成輪報廢。
 
 ## Exact next action
 
 1. `export PW_CHROMIUM=/opt/pw-browsers/chromium`，跑 `./scripts/agent-context.sh --sync`。
-2. **接手位**：`hub-read` 報咗但冇守（Hub 14 段、MOBA 16 段字細過 12px，設計決定）；
-   洩漏線冚齊。仲未有人量過嘅：**同一部機開兩個 tab**（Snooker 有 tab-claim 邏輯，
-   其餘冇）。ADR-224：呢個容器**冇一隻遊戲收到 `webglcontextrestored`**，要真機先寫得到。
+2. **接手位：兩個 tab。** 粗掃十二個介面（同開兩版各撳開場）零 error、身分冇撞，但嗰把
+   尺量緊「未有進度可以撞」嗰一刻，**未算量過**。真嘢係累積型存檔（Snake `gamesPlayed`／
+   Royale `trophies`）各打一局會唔會少咗一局——重用 `hub-progress.mjs` 嘅 driver（Snake
+   第二個 tab **唔會再問名**）。另：`hub-read` 報咗但冇守；ADR-224 冇遊戲收到 restored。
 3. 一個檢查點一件事，改完連 handoff 一齊 commit。
 
 ## Do not redo
