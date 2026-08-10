@@ -7,6 +7,9 @@
     <title>Penny Crush</title>
     <link rel="stylesheet" href="penny_crush.css">
     <link rel="stylesheet" href="responsive.css">
+    <!-- 儲存唔到嗰陣唔好連遊戲都開唔到（無痕／封 cookie／空間滿）。
+         要喺任何遊戲碼之前行。 -->
+    <script src="../shared/js/safe-storage.js"></script>
 </head>
 
 <body>
@@ -14,7 +17,7 @@
         <main class="switch-card penny-container">
             <header class="penny-header">
                 <h1>Penny Crush</h1>
-                <div class="score-board">Score: <span id="pc-score">0</span></div>
+                <div class="score-board">Score: <span id="pc-score">0</span><span class="best-score">Best: <span id="pc-best">0</span></span></div>
             </header>
 
             <div id="pc-menu">
@@ -67,6 +70,13 @@
             </div>
         </main>
     </div>
+    <!-- 共用嘅「寫之前先讀返存檔」原語（ADR-232）。用 module shim 掛上 window,
+         因為 penny_crush.js 係 classic script。module 係 deferred，但呢度只會喺
+         玩家真係得分嗰陣先用到，所以遲少少冇問題（用嗰度有 guard）。 -->
+    <script type="module">
+      import { 改存檔 } from '../shared/js/merge-save.mjs';
+      window.改存檔 = 改存檔;
+    </script>
     <script src="penny_crush.js"></script>
 </body>
 

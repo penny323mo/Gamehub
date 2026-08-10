@@ -164,4 +164,53 @@ export const 遊戲 = [
       } catch { return null; }
     },
   },
+  {
+    名: 'Penny Crush', url: '/games/penny_crush/index.html',
+    玩: async (p) => {
+      // 揀個板大細入場，跟住撳到有分為止。**冇「遊戲結束」呢一刻**——
+      // 玩家係直接閂 tab 走人嘅，所以「值得記」嗰一刻就係「第一次得分」。
+      await p.getByText(/6\s*×\s*6|6x6/i).first().click({ timeout: 60000 })
+        .catch(async () => { await p.locator('#pc-menu button').first().click({ timeout: 60000 }); });
+      await p.waitForSelector('#pc-grid', { timeout: 60000 });
+      /*
+       * **唔可以靠亂撳。** 第一版隨機撳兩格等消——撳唔中就成條 gate 報紅,
+       * 而報紅嘅係把尺唔係隻遊戲（突變測試嗰次個對照都一齊紅，就係咁）。
+       * 一條靠彩數過嘅 gate 同冇 gate 分別唔大。
+       *
+       * 所以用遊戲自己個格陣計出一步真係消得到嘅棋：`PennyCrush.grid` 同
+       * `findMatches()` 都係佢自己嘅嘢，我哋淨係借嚟搵座標，之後照樣**撳
+       * 真嗰兩格**——唔係喺測試度直接叫 `swapTiles()`（嗰樣等於自己驗自己）。
+       */
+      const 一步 = await p.evaluate(() => {
+        const G = window.__pennyCrush;
+        const n = G.gridSize;
+        const 試 = (r1, c1, r2, c2) => {
+          const t = G.grid[r1][c1]; G.grid[r1][c1] = G.grid[r2][c2]; G.grid[r2][c2] = t;
+          const 有 = G.findMatches().length > 0;
+          const u = G.grid[r1][c1]; G.grid[r1][c1] = G.grid[r2][c2]; G.grid[r2][c2] = u;
+          return 有;
+        };
+        for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+          if (c + 1 < n && 試(r, c, r, c + 1)) return [r * n + c, r * n + c + 1];
+          if (r + 1 < n && 試(r, c, r + 1, c)) return [r * n + c, (r + 1) * n + c];
+        }
+        return null;
+      });
+      if (!一步) throw new Error('搵唔到一步消得到嘅棋（`ensurePlayable` 應該保證有）');
+      const 格 = p.locator('#pc-grid > *');
+      await 格.nth(一步[0]).click({ timeout: 30000 });
+      await 格.nth(一步[1]).click({ timeout: 30000 });
+      await p.waitForFunction(() => Number(document.getElementById('pc-score').textContent || 0) > 0,
+        null, { timeout: 60000 });
+      await p.waitForTimeout(1500);
+    },
+    到咗: () => Number(document.getElementById('pc-score')?.textContent || 0) > 0,
+    憑據: () => {
+      try {
+        const j = JSON.parse(localStorage.getItem('penny-crush-best-v1') || '{}');
+        const 最高 = Math.max(0, ...Object.values(j).map(Number));
+        return 最高 > 0 ? { 最高分: 最高, 板: Object.keys(j) } : null;
+      } catch { return null; }
+    },
+  },
 ];

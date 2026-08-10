@@ -712,3 +712,10 @@ body {
         font-size: 0.85rem;
     }
 }
+
+/* 最高分：擺喺分數隔籬，細一級、暗一級——佢係參考，唔係你而家嘅分數。 */
+.best-score {
+    margin-left: 14px;
+    font-size: 0.82em;
+    opacity: 0.72;
+}

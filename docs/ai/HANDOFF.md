@@ -1,10 +1,10 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-10 (Asia/Macau)
-Prepared by: Claude Code (cloud) — ADR-202 至 232
+Prepared by: Claude Code (cloud) — ADR-202 至 233
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: 十五把跨遊戲尺全綠；新 `hub-tabs` 捉到兩隻遊戲「打咗兩局淨係記低一局」
+Status: 十五把跨遊戲尺全綠；storage key 十三隻零撞，但捉到 Penny Crush 乜都唔記得
 
 ## Current objective
 
@@ -14,45 +14,47 @@ Status: 十五把跨遊戲尺全綠；新 `hub-tabs` 捉到兩隻遊戲「打咗
 
 ## Completed
 
-**ADR-232（本輪）— 兩個 tab：打咗兩局淨係記低一局**
+**ADR-233（本輪）— 一個 origin 十三隻遊戲：key 冇撞，但捉到一隻乜都唔記得**
 
-- 上一輪粗掃「零 error、身分冇撞」**唔算數**——嗰把尺量緊「未有進度可以撞」嗰一刻。
-- 兩個 tab 同時開住各打完一局：Snake `gamesPlayed` 0 → 1 → **1**、Royale `trophies`
-  0 → 30 → **30**。**兩局變一局**——`localStorage` 成個 origin 共用，而兩隻都係
-  「開場讀一次入記憶體，收場寫返成份出去」。
-- 新 `games/shared/js/merge-save.mjs` 一個原語 `改存檔()`：寫嗰陣先讀返 storage。
-- **兩次都修錯位**：①Royale 淨係改 `recordMatch` 一樣紅——真兇係第二個 tab 一入場叫
-  `markTutorialSeen()`，個 `persist()` 已經蓋咗。②Snake 淨係改 `saveUserData` 一樣紅
-  ——dump 咗 storage 先見到真兇係 **`login()`**（第二個 tab 掛載時 storage 仲空，
-  `prev` 係 `{}`，一登入就抹晒）。**唔係得「睇落似會出事」嗰個寫入會蓋，係每一個由
-  記憶體快照出發嘅都會蓋。估唔到就 dump，唔好對住碼再估一次。**
-- Tower／MOBA／Racing Car **特登唔掃**（checkpoint／上次揀邊個／最快幽靈，last-write-wins
-  係設計）——例外連理由一齊寫入把尺。`tests/hub-tabs.mjs` 4/4（兩條對照 ＋ 正題 ＋ 零
-  error）；driver 抽咗去 `tests/lib/drivers.mjs` 同 `hub-progress` 共用。突變報紅。
+- 運行時掃：**七隻一個 key 都冇寫**——掃唔夠。補靜態掃（連 `const X='lit'` 一齊解）：
+  每隻都有自己前綴，**零撞**。**兩層一齊做先得出結論**，缺邊層都會漏。
+- 真正捉到嘅：**Penny Crush 完全冇掂過 storage**，但佢有分數；而呢個 hub 每一隻有分數
+  嘅遊戲都記得（Snake／Racing Car／Royale／Tower）——**答案已經喺屋企，得一隻冇跟**
+  （同 ADR-211 同形狀）。加咗逐個板大細分開記嘅最高分：**破紀錄嗰刻就寫**（呢隻遊戲冇
+  「遊戲結束」，玩家直接閂 tab），用 ADR-232 個 `改存檔()` 所以兩個 tab 唔會互食
+  （而且係 `max`）；順手補 `safe-storage`。
+- **個 driver 第一版係擲毫**：靠隨機撳兩格等消，突變嗰次連對照都紅。改成用格陣計出
+  一步真係消得到嘅棋，再**照樣撳真嗰兩格**（唔叫 `swapTiles()`，嗰樣等於自己驗自己）。
+  要開 seam：`const PennyCrush` 喺 classic script 係 script scope **唔會上 `window`**。
 
-**ADR-227 至 230（已合埋 main）— 洩漏：GPU 守咗 DOM 冇；一隻守咗其餘八隻冇**
+**ADR-232（已合埋 main）— 兩個 tab：打咗兩局淨係記低一局**
 
-- GPU 三個數連開五局完全平（`royale/tests/leak.mjs` 一直守住，**我量咗一樣已經有人
-  守嘅嘢**）。佢冇守嘅係 **DOM**：一局爬一個 jsdelivr `<script>`——重試唔拆走上一個,
-  **網絡差＝重試多＝爬得快**。新 `tests/hub-leak.mjs` 由一隻擴到九隻。
-- 四個「把尺講緊自己」：大廳 id／全域名唔同令兩隻報「完全平」（**「先證明循環真係
-  行過」條 check 第一次跑就捉到**）；`.gh-toast` 顯示緊唔算洩漏；**撳掣同撳 Enter 唔同**；
-  **唔好拎兩個唔同狀態嘅數嚟比**。230：MOBA 收場係 `location.reload()`，**結構上唔可能
-  跨局積 DOM**——**「未冚到」同「冚唔到」係兩件事**。
+- 兩個 tab 各打完一局：Snake `gamesPlayed` 0 → 1 → **1**、Royale `trophies` 0 → 30 → **30**
+  （兩隻都係「開場讀一次入記憶體，收場寫返成份出去」）→ 新 `shared/js/merge-save.mjs`
+  嘅 `改存檔()`：寫嗰陣先讀返。Tower／MOBA／Racing Car 特登唔掃（設計上就係最後一次）。
+- **兩次都修錯位**：Royale 真兇係第二個 tab 叫 `markTutorialSeen()`；Snake 真兇係
+  `login()`（掛載時 storage 仲空）。**每一個由記憶體快照出發嘅寫入都會蓋。估唔到就 dump。**
+
+**ADR-227 至 230（已合埋 main）— 洩漏：GPU 守咗 DOM 冇**
+
+- GPU 三個數連開五局完全平（**我量咗一樣已經有人守嘅嘢**）。冇守嘅係 **DOM**：一局
+  爬一個 jsdelivr `<script>`（重試唔拆走上一個，**網絡差＝重試多＝爬得快**）。
+  新 `tests/hub-leak.mjs` 由一隻擴到九隻。四個尺錯：大廳 id／全域名唔同令兩隻報「完全
+  平」、顯示緊嘅 toast 唔算洩漏、**撳掣同撳 Enter 唔同**、**唔好拎兩個唔同狀態嘅數嚟比**。
+  230：MOBA 收場係 `location.reload()`，**結構上唔可能跨局積 DOM**——**「未冚到」同
+  「冚唔到」係兩件事**。
 
 **ADR-226（已合埋 main）— 睇唔睇得清：五個主要行動掣跌穿 WCAG AA**
 
-- **把尺量咗四個版先啱**（gradient 令九個介面全跳過再報「零問題」＝**量咗零樣嘢嘅綠**；
-  框內眾數做底令細框報假紅；純 emoji 假紅；**喺 layout 入面唔等於畫得出嚟**）。
-  **每版都要親眼影低先信。** 真嘢：Big Two／Dou Dizhu「線上對戰」**2.39 → 5.61**、
-  MOBA「開打」**4.90／6.45**、Xiangqi **4.98**。字體大細**只報唔守**。`hub-read` 3/3。
+- **把尺量咗四個版先啱**（gradient 令九個介面全跳過＝**量咗零樣嘢嘅綠**；框內眾數做底
+  令細框假紅；純 emoji 假紅；**喺 layout 入面唔等於畫得出嚟**）。**每版都要親眼影低先信。**
+  真嘢：Big Two／Dou Dizhu **2.39 → 5.61**、MOBA **4.90／6.45**、Xiangqi **4.98**。
 
 **ADR-224／225（已合埋 main）— GL context 掉咗／返得返去**
 
-- 224：交代方面**得 Xiangqi AI 乜都冇**；五個「尺講緊自己」，一個係**我幫咗佢還原**
-  （自己叫 `restoreContext()`，拆走 Tower 成個 handler 都報綠）。225：守咗**入去**十三條路，
-  **冇人守過出返嚟**，**得 MOBA 一條都冇**；四個尺錯（掃唔到 `onclick`、**撳第一個唔等於
-  撳啱**、撞中副標題、timeout 掃唔到分階段介面）。兩條 gate 各 3/3。
+- 224 交代方面**得 Xiangqi AI 乜都冇**（一個尺錯係**我幫咗佢還原**：自己叫
+  `restoreContext()`，拆走 Tower 成個 handler 都報綠）。225 守咗**入去**十三條路，
+  **冇人守過出返嚟**，**得 MOBA 一條都冇**。兩條 gate 各 3/3。
 
 **ADR-202 至 209（已合埋 main；詳情全部喺 DECISIONS）**
 
@@ -64,12 +66,10 @@ Status: 十五把跨遊戲尺全綠；新 `hub-tabs` 捉到兩隻遊戲「打咗
 
 **ADR-219 至 223（已合埋 main）— 聲／流暢度／draw-call／鏡頭偶發／進度記憶**
 
-- 219：**Royale 個靜音一個字都冇存**；**一個對照救返一個假綠**。220：幀時間量法**喺佢最
-  有用嗰個 case 失效**——**同一個外部取樣點喺三種 loop 結構下面有三個意思**。221：Royale
-  draw call **個數本來係假嘅**（composer 尾 pass 係全屏 quad → 讀到 1）；**上限 650 ＋ 下限
-  50**。222：鏡頭偶發**重現唔到**——**交付品係「下次唔使由零估」**。223：generic 掃法係
-  **掃唔夠**；坑：**教學遮罩開住嗰陣 Royale 嘅模擬係凍結嘅**、`ghostRecorder.commit()`
-  **等於自己驗自己**。
+- 219 **Royale 個靜音一個字都冇存**（**一個對照救返一個假綠**）；220 幀時間量法**喺佢
+  最有用嗰個 case 失效**；221 Royale draw call **個數本來係假嘅**（尾 pass 係全屏 quad →
+  讀到 1），**上限 650 ＋ 下限 50**；222 鏡頭偶發**重現唔到**，**交付品係「下次唔使由零
+  估」**；223 generic 掃法**掃唔夠**（坑：教學遮罩開住嗰陣 Royale 模擬係凍結嘅）。
 
 **ADR-210 至 218（已合埋 main；詳情全部喺 DECISIONS）**
 
@@ -98,7 +98,7 @@ Status: 十五把跨遊戲尺全綠；新 `hub-tabs` 捉到兩隻遊戲「打咗
 - `npm test`：PASS（要 `PW_CHROMIUM=/opt/pw-browsers/chromium`）。**十四把跨遊戲尺全綠**：
   `hub` 96/96、`hub-touch` 5/5、`hub-load` 3/3、`hub-keyboard` 3/3、`hub-cdn` 3/3、`hub-wait` 1/1、
   `hub-storage` 2/2、`hub-away` 3/3、`hub-audio` 3/3、`hub-progress` 2/2、`hub-context` 3/3、
-  `hub-home` 3/3、`hub-read` 3/3、`hub-leak` 4/4、**`hub-tabs` 4/4**；Tower 三 suite、`moba` 196/196、royale `leak` 7/7。Mutation 驗過廿六次。`touch/load/keyboard/cdn/wait` 五把喺 synced tree 重跑過。
+  `hub-home` 3/3、`hub-read` 3/3、`hub-leak` 4/4、`hub-tabs` 4/4；`hub-progress` 而家六隻（加咗 Penny Crush）；Tower 三 suite、`moba` 196/196、royale `leak` 7/7。Mutation 驗過廿六次。`touch/load/keyboard/cdn/wait` 五把喺 synced tree 重跑過。
 
 ## Known issues and cautions
 
@@ -107,9 +107,9 @@ Status: 十五把跨遊戲尺全綠；新 `hub-tabs` 捉到兩隻遊戲「打咗
 ## Exact next action
 
 1. `export PW_CHROMIUM=/opt/pw-browsers/chromium`，跑 `./scripts/agent-context.sh --sync`。
-2. **接手位**：兩個 tab 條線做完（ADR-232）。仲未量過嘅：**同一個 tab 開兩隻遊戲嘅
-   storage 互撞**（key 前綴撞唔撞）；`hub-read` 報咗但冇守；ADR-224 呢個容器冇遊戲
-   收到 `webglcontextrestored`，要真機先寫得到。
+2. **接手位**：storage 條線做完（key 零撞，ADR-233）。未量過：**四隻牌／棋類打完一局
+   乜都唔記得**——係咪同 Penny Crush 一樣算漏咗，定係「一局過」本身就係設計？先答呢條
+   先值得做。另：`hub-read` 報咗但冇守；ADR-224 呢個容器冇遊戲收到 restored。
 3. 一個檢查點一件事，改完連 handoff 一齊 commit。
 
 ## Do not redo

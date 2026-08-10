@@ -4496,6 +4496,67 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-233 — 十三隻遊戲一個 origin：key 冇撞，但捉到一隻乜都唔記得嘅
+
+Date: 2026-08-10. Status: accepted.
+
+上一輪寫低嘅接手位：**同一個 origin 開兩隻遊戲，storage key 撞唔撞。**
+GitHub Pages 上面成個 hub 係一個 origin，`localStorage` 係逐 origin 分嘅,
+唔係逐個資料夾——十三隻遊戲全部擠喺同一個 namespace。
+
+### 量法要兩層，因為第一層掃唔夠
+
+**運行時**（逐隻開、行 driver、dump key）：`Tower Defense` `Neon Snake`
+`Empire Royale` `MOBA` `Racing Car` 五隻寫低咗 key，冇一個撞。但**其餘七隻
+一個 key 都冇寫**——即係我未去到佢哋會存嘢嗰一刻，**掃唔夠**。
+
+**靜態**（掃源碼，連 `const X = 'lit'` 一齊解）：每隻遊戲都有自己前綴
+（`gomoku_` `big2_` `doudizhu_` `snooker_` `tower-defense-` `snake-game-`
+`royale-` `moba-` `racer-` `xiangqi_`），**零撞**。共用層唯一嗰個 key 係
+`safe-storage.js` 嘅 `__gh_probe__`——寫完即刻刪。
+
+**結論：冇嘢要修。** 但兩層一齊做先得出呢個結論；淨靠運行時嗰層會漏七隻，
+淨靠靜態嗰層會漏計算出嚟嘅 key。
+
+### 真正捉到嘅嘢：Penny Crush 乜都唔記得
+
+掃嘅時候見到 **Penny Crush 同 Hub launcher 完全冇掂過 storage**。Hub 冇嘢好記
+係啱嘅；但 Penny Crush 有分數。
+
+而呢個 hub 入面**每一隻有分數嘅遊戲都記得你嘅成績**——Snake 記統計同分數榜、
+Racing Car 記最快圈、Royale 記獎盃、Tower 記波與波之間嘅進度。得 Penny Crush
+一隻一 refresh 就由零開始。**答案本身已經喺屋企，得一隻遊戲冇跟**（同 ADR-211
+Draco 一模一樣嘅形狀）。
+
+加咗逐個板大細分開記嘅最高分（`penny-crush-best-v1`）：
+
+- **喺 `updateScore` 破紀錄嗰刻就寫**，唔等收場——呢隻遊戲根本冇「遊戲結束」,
+  玩家係直接閂 tab 走人嘅。只喺真係破紀錄先寫，唔會每次得分都寫盤。
+- 用返 ADR-232 個 `改存檔()`（寫之前先讀返存檔），所以兩個 tab 開住都唔會
+  互相食。而且係 `max` 唔係覆蓋，高嗰個一定留得住。
+- 順手補返 `safe-storage.js`（無痕模式下唔好連遊戲都開唔到）。
+
+### 個 driver 第一版係擲毫
+
+`hub-progress.mjs` 加咗 Penny Crush。第一版 driver 靠**隨機撳兩格等消**
+——突變測試嗰次連對照（`到咗`）都一齊紅，即係嗰次根本冇撳中。**一條靠彩數
+過嘅 gate 同冇 gate 分別唔大**（同 ADR-232 個 seed、ADR-222 個鏡頭係同一種）。
+
+改成用遊戲自己個格陣計出一步真係消得到嘅棋，之後**照樣撳真嗰兩格**
+——唔係喺測試度叫 `swapTiles()`，嗰樣等於自己驗自己。
+
+要咁做就要開個 seam：`const PennyCrush = …` 喺 classic script 入面係 script
+scope，**唔會上 `window`**（`var` 同函數聲明先會）。加咗 `window.__pennyCrush`,
+同 Tower `__TD`／Racing Car `__racer`／Royale `__royale` 一致。
+
+改完之後突變分得清：對照過，淨係「留唔留得住」報紅，而且叫得出 Penny Crush。
+
+### 驗證
+
+`hub-progress` 2/2（六隻）、`hub-tabs` 4/4、`hub-read` 3/3（新加嗰段 Best 字
+量到 6 段、對比零問題）、`hub-touch` 5/5、`hub-keyboard` 3/3、`hub-storage` 2/2、
+`hub` 96/96。
+
 ## ADR-232 — 兩個 tab：打咗兩局淨係記低一局
 
 Date: 2026-08-10. Status: accepted.

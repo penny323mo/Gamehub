@@ -40,6 +40,7 @@ const PennyCrush = {
         this.activeToolMode = null;
 
         this.updateScore(0);
+        this.畫最高分();
         this.updateShuffleBtn();
         this.updateToolButtons();
 
@@ -75,6 +76,52 @@ const PennyCrush = {
         document.getElementById('pc-menu').classList.remove('hidden');
     },
 
+    /*
+     * 最高分。
+     *
+     * 呢個 hub 入面每一隻有分數嘅遊戲都記得你嘅成績——Snake 記統計同分數榜、
+     * Racing Car 記最快圈、Royale 記獎盃、Tower 記波與波之間嘅進度。
+     * **得 Penny Crush 一隻乜都唔記**：一 refresh 就由零開始，分數冇咗都唔知。
+     * 答案本身已經喺屋企，得一隻遊戲冇跟（同 ADR-211 同一個形狀）。
+     *
+     * 逐個板大細分開記——6×6 嘅最高分同 8×8 唔可以拎嚟比。
+     */
+    最高分KEY: 'penny-crush-best-v1',
+
+    讀最高分: function () {
+        try {
+            var j = JSON.parse(localStorage.getItem(this.最高分KEY) || '{}');
+            return Number(j[this.gridSize] || 0);
+        } catch (e) { return 0; }
+    },
+
+    /*
+     * 寫嗰陣先讀返存檔（`改存檔`，ADR-232）——兩個 tab 開住同一隻遊戲嗰陣,
+     * 信記憶體嗰份就會食咗另一個 tab 嘅成績。呢度用 max 而唔係覆蓋，
+     * 所以就算兩個 tab 一先一後寫，高嗰個都留得住。
+     *
+     * `改存檔` 由 module shim 掛上 `window`（見 index.html），module 係 deferred,
+     * 所以要 guard——攞唔到就退返最簡單嘅寫法，唔好因為記唔到分而玩唔到。
+     */
+    寫最高分: function (分) {
+        var K = this.最高分KEY, size = this.gridSize;
+        var 改 = function (現時) {
+            var m = (現時 && typeof 現時 === 'object') ? 現時 : {};
+            m[size] = Math.max(Number(m[size] || 0), 分);
+            return m;
+        };
+        try {
+            if (typeof window.改存檔 === 'function') { window.改存檔(K, 改, {}); return; }
+            var raw = localStorage.getItem(K);
+            localStorage.setItem(K, JSON.stringify(改(raw ? JSON.parse(raw) : {})));
+        } catch (e) { /* 記唔住就算，唔好因為咁玩唔到 */ }
+    },
+
+    畫最高分: function () {
+        var el = document.getElementById('pc-best');
+        if (el) el.textContent = this.讀最高分();
+    },
+
     updateScore: function (add) {
         // If resetting, just set score
         if (add === 0 && this.score === 0) {
@@ -83,6 +130,12 @@ const PennyCrush = {
             this.score += add;
         }
         document.getElementById('pc-score').textContent = this.score;
+        // 打破紀錄就即刻寫低——冇「遊戲結束」呢一刻，玩家係直接閂 tab 走人嘅,
+        // 所以唔可以等到收場先存。只喺真係破紀錄嗰陣寫，唔會每次得分都寫盤。
+        if (this.score > this.讀最高分()) {
+            this.寫最高分(this.score);
+            this.畫最高分();
+        }
     },
 
     generateGrid: function () {
@@ -739,3 +792,13 @@ const PennyCrush = {
 function goToLauncher() {
     window.location.href = "../../index.html";
 }
+
+/*
+ * 畀瀏覽器測試查狀態嘅 seam（同 Tower 嘅 `__TD`、Racing Car 嘅 `__racer`、
+ * Royale 嘅 `__royale` 一樣）。
+ *
+ * `const PennyCrush = …` 喺 classic script 入面係 script scope，**唔會上
+ * `window`**（`var` 同函數聲明先會）——所以要明寫一句。冇呢句，測試就要
+ * 靠亂撳去等消，而一條靠彩數過嘅 gate 同冇 gate 分別唔大。
+ */
+window.__pennyCrush = PennyCrush;
