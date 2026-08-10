@@ -4496,6 +4496,53 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-223 — Hub: 進度記憶——逐隻寫 driver，同埋一個見得到嘅覆蓋缺口
+
+Date: 2026-08-10. Status: accepted.
+
+handoff 剩低最後一個接手位：十二個介面得 Tower 有 checkpoint gate，其餘冇人量過。
+
+### 先講點解上次量錯
+
+上一次用 generic 掃法（開場撳幾下再睇 `localStorage`），掃到九隻「玩完一個字都
+冇寫低」，差啲當咗係九個病。查落 Neon Snake 其實有成套 profile／高分系統，
+淨係喺 game over 先寫——**掃唔夠，唔係佢冇記**。
+
+所以呢次逐隻寫 driver，而且每隻都要**先證明去到「有嘢值得記」嗰一刻**。
+呢個對照唔係裝飾：冇佢嘅話，一隻根本未開始玩嘅遊戲會扮到「冇嘢好記」，
+而條 check 會綠得好安詳。（同 ADR-217「隱藏之前個鐘要真係喺度行」、
+ADR-219「撳之前先證明個掣真係撳到」係同一種嘢——今個 session 第三次用。）
+
+### 量到咩
+
+| | 到咗「值得記」嗰刻 | 留低咗 |
+|---|---|---|
+| Tower Defense | 開咗波 | `tower-defense-run-v1` checkpoint（440 bytes） |
+| Neon Snake | 死咗（見到「重新開始」） | `snake-game-users`：`gamesPlayed 1`、一筆分數 |
+| 深淵之橋 MOBA | 入咗場 | `moba-settings`：`champion: ironward` |
+
+三隻 reload 之後全部仲喺度——即係真係留低咗，唔係得個記憶體副本。
+
+MOBA 唔存戰績（一場對 AI 嘅波打完就完），但佢記得你揀邊個英雄，即係下次入嚟
+唔使由頭揀過。**唔同遊戲「值得留低」嘅嘢唔同**，所以憑據逐隻寫，唔用一條
+「有冇寫過 localStorage」通殺。
+
+### 覆蓋範圍：三隻，唔係五隻——而且寫喺把尺入面
+
+**Empire Royale 同 Racing Car 3D 冇入呢條 gate。** 唔係因為佢哋冇記，而係佢哋
+「值得記」嗰一刻我喺一個測試入面夠唔到：Royale 要一場波**打完**先
+`recordMatch()`（一場幾分鐘），Racing Car 要**跑完一圈**先有最佳圈速。
+實測玩 8／12 秒之後兩隻都係「乜都冇留低」——**嗰個係我夠唔到，唔係一個發現**。
+
+呢兩句寫喺 `tests/hub-progress.mjs` 個檔頭。一個靜靜雞跳過兩隻遊戲嘅 gate，
+同一個講明自己守唔到邊度嘅 gate，係兩件事。
+
+### 把尺
+
+`tests/hub-progress.mjs` 2/2。突變（拆走 Snake 四處 `saveScore`）令第二條報紅,
+而且叫得出係 Neon Snake、「玩完（冇）／返嚟（冇）」——第一條（到咗「值得記」
+嗰刻）照樣綠，即係兩條 check 各自守住唔同嘅嘢。
+
 ## ADR-222 — MOBA: 重現唔到嗰個鏡頭偶發，封死佢指住嗰個機制
 
 Date: 2026-08-10. Status: accepted。
