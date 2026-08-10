@@ -4520,28 +4520,48 @@ ADR-219「撳之前先證明個掣真係撳到」係同一種嘢——今個 ses
 | Tower Defense | 開咗波 | `tower-defense-run-v1` checkpoint（440 bytes） |
 | Neon Snake | 死咗（見到「重新開始」） | `snake-game-users`：`gamesPlayed 1`、一筆分數 |
 | 深淵之橋 MOBA | 入咗場 | `moba-settings`：`champion: ironward` |
+| Empire Royale | 一場波打完 | `royale-save-v1`：`trophies 0 → 30` |
 
-三隻 reload 之後全部仲喺度——即係真係留低咗，唔係得個記憶體副本。
+四隻 reload 之後全部仲喺度——即係真係留低咗，唔係得個記憶體副本。
 
 MOBA 唔存戰績（一場對 AI 嘅波打完就完），但佢記得你揀邊個英雄，即係下次入嚟
 唔使由頭揀過。**唔同遊戲「值得留低」嘅嘢唔同**，所以憑據逐隻寫，唔用一條
 「有冇寫過 localStorage」通殺。
 
-### 覆蓋範圍：三隻，唔係五隻——而且寫喺把尺入面
+### Empire Royale：兩條行唔通嘅路，同一條行得通嘅
 
-**Empire Royale 同 Racing Car 3D 冇入呢條 gate。** 唔係因為佢哋冇記，而係佢哋
-「值得記」嗰一刻我喺一個測試入面夠唔到：Royale 要一場波**打完**先
-`recordMatch()`（一場幾分鐘），Racing Car 要**跑完一圈**先有最佳圈速。
-實測玩 8／12 秒之後兩隻都係「乜都冇留低」——**嗰個係我夠唔到，唔係一個發現**。
+第一版夠唔到 Royale 收場。試過兩條路，兩條都行唔通，寫低省得下一個再試：
 
-呢兩句寫喺 `tests/hub-progress.mjs` 個檔頭。一個靜靜雞跳過兩隻遊戲嘅 gate，
+1. **淨係快進**：`g.update(1/60)` 行足 300 秒模擬——冇人出牌就拖到 `overtime`
+   僵住，`phase` 永遠唔係 `ended`。
+2. **直接寫 `king.hp = 0`**：唔會收場。`#kill` 淨係喺 `#damage` 入面叫,
+   唔經傷害路徑就唔會觸發。
+
+行得通嗰條係 repo 自己就有嘅——`royale/tests/match.mjs` 老早寫咗：塞張火球落手、
+畀夠水、敵方王塔剩一滴血、`playCard` 落佢個位。**答案又係喺屋企**（同 ADR-209
+嘅 lazy SDK、ADR-211 嘅 Draco 一樣）。
+
+仲有一個坑：教學遮罩開住嗰陣**模擬係凍結嘅**（`if (!ui?.tutorialOpen)`），
+所以個火球永遠唔會爆。要用返 harness 嗰招，入場之前 `markTutorialSeen()`。
+
+打完一場之後：`royale-save-v1` 由 `trophies: 0` 變 `30`，reload 之後仲喺。
+
+### 覆蓋範圍：四隻，唔係五隻——而且寫喺把尺入面
+
+**Racing Car 3D 冇入呢條 gate。** 唔係因為佢冇記——佢有，`racer-ghost:<track>`
+存住最佳圈速同幽靈軌跡——而係佢「值得記」嗰一刻要**跑完一圈**，一個測試揸唔到
+一圈，而 `window.__racer` 冇一條「當我跑完咗」嘅路。實測玩 12 秒之後係「乜都
+冇留低」——**嗰個係我夠唔到，唔係一個發現**。
+
+呢句寫喺 `tests/hub-progress.mjs` 個檔頭。一個靜靜雞跳過一隻遊戲嘅 gate，
 同一個講明自己守唔到邊度嘅 gate，係兩件事。
 
 ### 把尺
 
-`tests/hub-progress.mjs` 2/2。突變（拆走 Snake 四處 `saveScore`）令第二條報紅,
-而且叫得出係 Neon Snake、「玩完（冇）／返嚟（冇）」——第一條（到咗「值得記」
-嗰刻）照樣綠，即係兩條 check 各自守住唔同嘅嘢。
+`tests/hub-progress.mjs` 2/2（Tower／Snake／MOBA／Royale 四隻）。兩個突變各自
+打中第二條，而第一條（到咗「值得記」嗰刻）照樣綠——即係兩條 check 各自守住
+唔同嘅嘢：拆走 Snake 四處 `saveScore` → 叫得出 Neon Snake；拆走 Royale 收場
+嗰句 `recordMatch` → 叫得出 Empire Royale。
 
 ## ADR-222 — MOBA: 重現唔到嗰個鏡頭偶發，封死佢指住嗰個機制
 

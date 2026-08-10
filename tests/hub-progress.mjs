@@ -9,12 +9,11 @@
 // （開咗波／死咗／入咗場），先至去睇有冇留低。冇呢個對照，一隻根本未開始
 // 玩嘅遊戲會扮到「冇嘢好記」，而條 check 會綠得好安詳。
 //
-// ── 覆蓋範圍：三隻，唔係五隻 ─────────────────────────────────
-// **Empire Royale 同 Racing Car 3D 冇喺呢度**，唔係因為佢哋冇記，而係因為
-// 佢哋「值得記」嗰一刻我喺一個測試入面夠唔到：
-//   · Royale 喺一場波**打完**先 `recordMatch()`（一場幾分鐘）；
-//   · Racing Car 要**跑完一圈**先有最佳圈速。
-// 實測玩 8／12 秒之後兩隻都係「乜都冇留低」——嗰個係我夠唔到，唔係一個發現。
+// ── 覆蓋範圍：四隻，唔係五隻 ─────────────────────────────────
+// **Racing Car 3D 冇喺呢度**，唔係因為佢冇記（佢有：`racer-ghost:<track>` 存住
+// 最佳圈速同幽靈軌跡），而係因為佢「值得記」嗰一刻要**跑完一圈**——一個測試
+// 揸唔到一圈，而 `window.__racer` 冇一條「當我跑完咗」嘅路。
+// 實測玩 12 秒之後係「乜都冇留低」——**嗰個係我夠唔到，唔係一個發現**。
 // 寫喺度係為咗個缺口見得到，唔係靜靜雞跳過。
 import http from 'node:http';
 import fs from 'node:fs';
@@ -128,6 +127,47 @@ const 遊戲 = [
       if (!raw) return null;
       try { const j = JSON.parse(raw); return j.champion ? { champion: j.champion } : null; }
       catch { return null; }
+    },
+  },
+  {
+    名: 'Empire Royale', url: '/games/royale/index.html',
+    玩: async (p) => {
+      // 教學遮罩開住嗰陣模擬係**凍結**嘅（`if (!ui?.tutorialOpen)`）——唔標記睇過
+      // 就算擺咗張火球落去都永遠唔會爆，`phase` 永遠唔會變 `ended`。
+      await p.waitForSelector('#loading', { state: 'detached', timeout: 120000 });
+      await p.evaluate(async () => { const st = await import('./src/storage.js'); st.markTutorialSeen(); });
+      await p.getByText(/⚔️ 對戰/).first().click({ timeout: 60000 });
+      await p.waitForTimeout(600);
+      await p.click('#start-btn', { timeout: 60000 });
+      await p.waitForFunction(() => window.__royale?.game, null, { timeout: 180000 });
+      await p.waitForTimeout(1500);
+      /*
+       * 用返 repo 自己 `royale/tests/match.mjs` 嗰條收場食譜。
+       *
+       * 兩條行唔通嘅路都試過，寫低省得下一個再試：
+       *   · 淨係快進（`g.update(1/60)` 行足 300 秒模擬）→ 冇人出牌就拖到
+       *     `overtime` 僵住，`phase` 永遠唔係 `ended`；
+       *   · 直接寫 `king.hp = 0` → 唔會收場，因為 `#kill` 淨係喺 `#damage`
+       *     入面叫，唔經傷害就唔會觸發。
+       */
+      await p.evaluate(() => {
+        const g = window.__royale.game;
+        g.players[0].hand[0] = 'fireball';
+        g.players[0].elixir = 12;
+        g.towers[1].king.hp = 1;
+        g.playCard(0, 0, g.towers[1].king.x, g.towers[1].king.z);
+      });
+      await p.waitForFunction(() => window.__royale.game.phase === 'ended', null, { timeout: 60000 });
+      await p.waitForTimeout(3500);   // 等結算入存檔
+    },
+    到咗: () => window.__royale?.game?.phase === 'ended',
+    憑據: () => {
+      const raw = localStorage.getItem('royale-save-v1');
+      if (!raw) return null;
+      try {
+        const j = JSON.parse(raw);
+        return (j.trophies ?? 0) > 0 ? { trophies: j.trophies } : null;
+      } catch { return null; }
     },
   },
 ];

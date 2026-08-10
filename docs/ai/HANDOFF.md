@@ -4,7 +4,7 @@ Updated: 2026-08-09 (Asia/Macau)
 Prepared by: Claude Code (cloud) — ADR-202 至 223
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: 十把跨遊戲尺；本輪補返「進度記憶」（三隻，另外兩隻夠唔到嗰一刻，寫咗喺把尺入面）
+Status: 十把跨遊戲尺；「進度記憶」覆蓋四隻（淨低 Racing Car 要跑完一圈，寫咗喺把尺入面）
 
 ## Current objective
 
@@ -27,17 +27,18 @@ Status: 十把跨遊戲尺；本輪補返「進度記憶」（三隻，另外兩
 
 **ADR-223（本輪）— 進度記憶：逐隻寫 driver，缺口寫喺把尺入面**
 
-- 上次 generic 掃法掃到九隻「玩完乜都冇寫低」，其實 Snake 有成套 profile 系統淨係
-  game over 先寫——**掃唔夠**。今次逐隻寫 driver，每隻都要**先證明去到「有嘢值得
-  記」嗰一刻**（同 ADR-217／219 兩個對照同一種嘢，第三次用）。
-- 量到：Tower 開咗波 → `tower-defense-run-v1`（440 B）；Snake 死咗 → `snake-game-users`
-  （`gamesPlayed 1`）；MOBA 入咗場 → `moba-settings` 記住你揀邊個英雄。三隻 reload
-  之後全部仲喺度。**唔同遊戲「值得留低」嘅嘢唔同**，所以憑據逐隻寫。
-- **覆蓋得三隻，而且寫咗喺把尺個檔頭**：Royale 要一場波打完先 `recordMatch()`、
-  Racing Car 要跑完一圈——玩 8／12 秒之後兩隻都「乜都冇留低」，**嗰個係我夠唔到，
-  唔係一個發現**。靜靜雞跳過兩隻遊戲，同講明自己守唔到邊度，係兩件事。
-  新 `tests/hub-progress.mjs` 2/2；突變（拆走 Snake 四處 `saveScore`）令第二條報紅
-  而第一條照樣綠。
+- 上次 generic 掃法掃到九隻「玩完乜都冇寫低」，其實 Snake 淨係 game over 先寫
+  ——**掃唔夠**。今次逐隻寫 driver，每隻都要**先證明去到「有嘢值得記」嗰一刻**。
+- 量到（四隻 reload 之後全部仲喺）：Tower 開咗波 → checkpoint 440 B；Snake 死咗 →
+  `gamesPlayed 1`；MOBA 入咗場 → 記住你揀邊個英雄；Royale 打完一場 → `trophies 0 → 30`。
+  **唔同遊戲「值得留低」嘅嘢唔同**，所以憑據逐隻寫。
+- Royale 試過兩條行唔通嘅路（快進 300 秒 → overtime 僵住；直接寫 `king.hp = 0` →
+  `#kill` 淨係喺 `#damage` 入面叫）。行得通嗰條又係**喺屋企**：`match.mjs` 老早寫咗
+  「火球 ＋ 王塔剩一滴血」。仲有個坑：**教學遮罩開住嗰陣模擬係凍結嘅**。
+- **淨低 Racing Car，寫咗喺把尺個檔頭**：佢有記（`racer-ghost:<track>` 存最佳圈速），
+  但「值得記」嗰一刻要**跑完一圈**，測試揸唔到。**嗰個係我夠唔到，唔係一個發現。**
+  `tests/hub-progress.mjs` 2/2；兩個突變（Snake `saveScore`／Royale `recordMatch`）
+  各自令第二條報紅而第一條照樣綠。
 
 **ADR-222（已合埋 main）— MOBA 鏡頭偶發：重現唔到，封死佢指住嗰個機制**
 
@@ -109,8 +110,7 @@ Status: 十把跨遊戲尺；本輪補返「進度記憶」（三隻，另外兩
 ## Exact next action
 
 1. `export PW_CHROMIUM=/opt/pw-browsers/chromium`，跑 `./scripts/agent-context.sh --sync`。
-2. **接手位**：`hub-progress` 補 Royale（一場波打完）同 Racing Car（跑完一圈）——
-   兩隻嘅 driver 都要行到收場，唔係八秒十二秒。
+2. **接手位**：`hub-progress` 補 Racing Car（餵一段樣本落 `ghostRecorder.commit`）。
 3. 一個檢查點一件事，改完連 handoff 一齊 commit。
 
 ## Do not redo
