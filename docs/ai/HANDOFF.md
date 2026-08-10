@@ -1,10 +1,10 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-09 (Asia/Macau)
-Prepared by: Claude Code (cloud) — ADR-202 至 216
+Prepared by: Claude Code (cloud) — ADR-202 至 217
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: 七把跨遊戲尺掃齊十二個介面；本輪查 MOBA suite 兩處偶發，一處修咗 fixture，一處留低證據
+Status: 八把跨遊戲尺；本輪捉到「切走咗場波照打」——MOBA ＋8.6s／Royale −7.5s，兩隻都修咗
 
 ## Current objective
 
@@ -25,52 +25,51 @@ Status: 七把跨遊戲尺掃齊十二個介面；本輪查 MOBA suite 兩處偶
   一比一**）。記低：classic script 入面 `window.joinFixedRoom` 同頂層函數係同一個
   綁定，擺完佔位 `window.x = x` 就自己指自己——**把尺利咗先捉到**。
 
-**ADR-216（本輪）— 兩條偶發 gate，一條查到底修咗，一條唔亂修**
+**ADR-217（本輪）— 你切走咗，四隻遊戲照打**
 
-- 開頭發現 ADR-212 嗰件事**已經喺 main**（`247f1cd`，連函數名都一樣），手上兩個
-  commit 係重複品，剷咗由 `origin/main` 重新開始。跑咗五次 `browser.mjs`，
-  見到 196 條入面有兩條間歇性報紅。
-- **`普攻會真係揮動作`**：`swinging:false`＋`clip:Idle_Combat` 但 `事件序` 有
-  `attack*`——手出咗，rig 冇播。第一個診斷（畀人打中蓋咗）**係錯**：受擊都行
-  `once()`，一定 set `lockUntil`。真線索係 **`重生: 0.13`**——量嗰陣玩家仲喺重生
-  窗口。條 test 註解本來就寫咗呢個機制，但 fixture 清咗 `stunUntil`／`rootUntil`／
-  `recallUntil`／`cd` 而**冇清 `respawnAt`**。加返一句，`重生` 由 0.13 變 −84.4。
-  **改嘅係 fixture，唔係斷言。**（中途試過改成窗口取樣，跑完見 `第幾格揮: 0`
-  全部——個窗口一次都冇用過，剷咗。）
-- **`玩家企喺畫面下半但唔會跌出畫外`**：五跑紅兩次，方向相反（`玩家由頂計` 32.1 對
-  −28.6，夾界 58）；第二次 `鏡頭焦點` 離玩家 44 個單位而 `收斂咗:true`。**唔喺呢輪修**
-  ——紅嗰兩次其中一次我手上嘅改動證實冇執行過；重現唔到就改鏡頭邏輯係今日犯過嘅錯。
+- 先量錯咗方向：掃十二個介面嘅 localStorage 見到九隻「玩完一個字都冇寫低」，差啲
+  當咗九個病。查 Neon Snake 先知佢有成套 profile 系統，淨係 game over 先寫——
+  **掃唔夠，唔係佢冇記**（今個 session 第三次踩）。
+- 轉去量得準嗰條：一 grep 就知**成個 repo 得 Tower 同 Racing Car 有
+  `visibilitychange` handler**。隱藏六秒實測：MOBA **＋8.6 秒**、Royale **−7.5 秒**。
+  MOBA 一場十六分鐘，你去覆個訊息返嚟就送咗一血。
+- 量法三個位企唔穩：①**`bringToFront` 喺 headless 唔會令個頁隱藏**（量到
+  `document.hidden === false`）→ 改用 Tower `flow.mjs` 嗰個 override＋dispatch；
+  ②**「隱藏期間畫面有冇郁」分唔開停冇停**（Tower 真停咗但暫停畫面自己呼吸）→
+  逐隻寫明讀邊個 seam；③第一個數要**隱藏之後**先讀，否則影相嗰兩秒計落個差度。
+- 改法跟 Tower：停低、講明點解、**返嚟唔會偷偷續**（撳一下先續，順手重設 `last`
+  ——唔係嘅話第一格 dt 係「停咗幾耐」）。同兩邊自己 `onContextLost` 一個形狀。
+- **Neon Snake 寫過但剷咗**：量到隱藏前後 tick 都係 36，我一度當咗成功，直到突變
+  （拆走 handler）**照樣 36 → 36**——條蛇喺窗口之前已經死咗，個數由頭到尾冇行過。
+  **唔係個改法錯，係我驗唔到。** 下次：seam 做法行得通，難喺要條蛇六秒內唔死
+  （「經典模式無限生命」）。Snooker 同樣未量。
+- 新 `tests/hub-away.mjs` 2/2。突變（拆走兩個 `看住切走()`）報紅，叫得出邊隻。
 
-**ADR-215（上一輪）— 儲存唔到，唔應該連遊戲都開唔到**
+**ADR-216（已合埋 main）— 兩條偶發 gate，一條修咗，一條唔亂修**
 
-- 把 `localStorage`／`sessionStorage` 換成會掟嘢嘅版本（＝封咗 cookie 嗰種），
-  十二個介面逐個開：**Racing Car 3D 控制 51 → 0、Neon Snake 1 → 0——開都開唔到**；
-  Gomoku／Snooker／Royale／Xiangqi 各掟一個錯。
-- 修法唔係逐個 `setItem` 包 try（三十幾處、散落六個 codebase），而係新
-  `games/shared/js/safe-storage.js`：喺任何遊戲碼之前行，摸得到又寫得到就唔郁，
-  否則換記憶體版（read-through）。**要改嘅係枱面，唔係每一次落枱。**
-- 加落去撞到三個踩到先現形嘅嘢：①xiangqi `vite.config.js` 寫死咗一個共用檔名做
-  路徑上移 → 第二個共用檔靜靜雞 404；②snake `postbuild.mjs` 改「第一個有 src 嘅
-  script」，我加咗 tag 之後佢改錯對象，而**佢自己條 assert 照樣報 OK**；
-  ③**snake 個 dist 本來就 rebuild 唔返出嚟**（Vite 把共用字型抄成私有 hash 檔）。
-  三個都改成指名／通用規則，並加 assert 守住。
-- 新 `tests/hub-storage.mjs` 2/2（同「正常嗰陣」比，唔用寫死嘅數）；突變（拆走
-  Racing Car 個 tag）兩條一齊報紅，叫得出 51 → 0。
+- `普攻會真係揮動作`：第一個診斷（畀人打中蓋咗）**錯**——受擊都行 `once()` 一定
+  set `lockUntil`。真線索係 **`重生: 0.13`**：fixture 清咗 `stunUntil` 等而**冇清
+  `respawnAt`**，暖機喺重生窗口收工就畀 `revive()` 抹走個鎖。**改 fixture，唔改斷言。**
+- `玩家企喺畫面下半但唔會跌出畫外`：五跑紅兩次、方向相反（32.1 對 −28.6，夾界
+  58），`鏡頭焦點` 曾離玩家 44 個單位而 `收斂咗:true`。**未查到根因，唔亂改。**
 
-**ADR-214（已合埋 main）— 捉到漏網之後，要改嘅係網**
+**ADR-214／215（已合埋 main；詳情喺 DECISIONS）**
 
-- 撞咗同一件事（MOBA 拆資產），剷咗自己嗰個重複 commit，只補返冇做嘅兩件：
-  ①`byte-progress.mjs` 個版本標記係**手動補**嘅，而 `moba-bump-cache.mjs` 個 regex
-  冚唔到共用層——手補一次下次一樣會漏。改咗 regex，一次 42 個位齊。
-  ②`247f1cd` 改咗源碼但冇 bump token，返轉頭嘅玩家照食 cache。bump 去 `assets-29`。
-- 突變揭多一樣：舊 regex 之下 `byte-progress` 卡喺舊 token 而 `cache-bust.mjs`
-  **照樣報 PASS**——捉到「冇標記」捉唔到「標記落後」。**兩種壞法要分開守。**
+- 215 **儲存唔到唔應該連遊戲都開唔到**：封住 storage 之後 **Racing Car 控制
+  51 → 0、Neon Snake 1 → 0——開都開唔到**。修法唔係逐個 `setItem` 包 try，而係
+  新 `shared/js/safe-storage.js` 喺任何遊戲碼之前換走個枱面（read-through）。
+  **要改嘅係枱面，唔係每一次落枱。** 加落去撞到三個踩到先現形嘅嘢：xiangqi
+  `vite.config.js` 寫死共用檔名、snake `postbuild.mjs` 改錯對象而**自己條 assert
+  照樣報 OK**、snake `dist` 本來就 rebuild 唔返出嚟。新 `tests/hub-storage.mjs` 2/2。
+- 214 **捉到漏網之後要改嘅係網**：版本標記手動補過一次，而 bump 腳本個 regex 冚唔到
+  共用層 → 改 regex（一次 42 個位）＋bump。突變揭到 `cache-bust.mjs` 捉到「冇標記」
+  但捉唔到「標記落後」——**兩種壞法要分開守**。
 
 **ADR-210 至 213（已合埋 main；詳情喺 DECISIONS）**
 
-- 210 **有字唔等於有交代**：Fast 3G 最長靜默 Tower 0.0s／MOBA **23.6s**／Royale
-  **14.4s**。根因係**進度單位揀錯**（平行落而計「幾多件落完」）→ 新 `byte-progress.mjs`
-  量位元組；冇 `Content-Length` 就報 `null` ＋ indeterminate bar，**唔報假嘅 0%**。
+- 210 **有字唔等於有交代**：Fast 3G 最長靜默 MOBA **23.6s**／Royale **14.4s**。
+  根因係**進度單位揀錯**（平行落而計「幾多件落完」）→ `byte-progress.mjs` 量位元組;
+  冇 `Content-Length` 就報 `null` ＋ indeterminate bar，**唔報假嘅 0%**。
 - 211 Tower 1,087 KB **未壓過嘅 GLB** → Draco，**開場 1,291 → 754 KB（−42%）**。順手
   發現 **`hub-load` 一直冇 gzip**。新 check：GLB > 300 KB 就要壓過，**讀真正派出去
   嗰個 GLB 嘅 glTF header**。新 `tests/hub-wait.mjs`。
@@ -88,6 +87,7 @@ Status: 七把跨遊戲尺掃齊十二個介面；本輪查 MOBA suite 兩處偶
 - ADR-215：六個 `index.html` 加 guard、xiangqi `vite.config.js`、snake `postbuild.mjs`、兩個 `dist/`
 - ADR-209 波及：big2／doudizhu／gomoku／snooker(×3)／xiangqi-ai 嘅 `index.html`＋`online.js`
 - ADR-216：`games/moba/tests/browser.mjs`（fixture 清埋 `respawnAt`）
+- ADR-217：moba／royale `src/main.js`（`看住切走()`）、`tests/hub-away.mjs`（新）
 
 ## Verification
 
@@ -108,8 +108,8 @@ Status: 七把跨遊戲尺掃齊十二個介面；本輪查 MOBA suite 兩處偶
 ## Exact next action
 
 1. `export PW_CHROMIUM=/opt/pw-browsers/chromium`，跑 `./scripts/agent-context.sh --sync`。
-2. **仲未量過嘅**：玩落去嘅流暢度（jank）、音效、「返嚟之後仲記唔記得你玩到邊」
-   （Tower 有 checkpoint，其餘十一個未查）。MOBA 個鏡頭偶發亦值得查。
+2. **仲未量過嘅**：玩落去嘅流暢度（jank）、音效、進度記憶（要逐隻寫 driver,
+   generic 掃法證實咗掃唔夠）。Snake／Snooker 嘅切走保護未做；MOBA 鏡頭偶發未查。
 3. 一個檢查點一件事，改完連 handoff 一齊 commit。
 
 ## Do not redo

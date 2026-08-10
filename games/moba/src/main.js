@@ -195,6 +195,7 @@ function startMatch(playerChamp) {
     $('#hud').classList.remove('hidden');
 
     watchViewport();
+    看住切走();
     onResize();
     state.last = performance.now();
     state.acc = 0;
@@ -221,6 +222,46 @@ function pickQuality() {
 function onResize() {
     state.view?.resize();
     for (const d of [60, 220, 500]) setTimeout(() => state.view?.resize(), d);
+}
+
+/*
+ * 切走咗就停低。
+ *
+ * 實測：override `document.hidden` 再派 `visibilitychange`（同 Tower
+ * `tests/flow.mjs` 一樣嘅量法），隱藏六秒之後 `__sim.time` 由 2.8 行到 9.8
+ * ——**你切去另一個 tab，場波照打**。一場波跑十六分鐘，你去覆個訊息返嚟
+ * 就發現自己啱啱送咗一血。
+ *
+ * Tower（ADR-190 嗰批）老早就定咗做法：停低、講明點解、而且**返嚟唔會偷偷
+ * 續**。呢度跟同一套。冇偷偷續係因為你返嚟嗰一刻手指仲未擺返個位——一返嚟
+ * 就即刻恢復，等於幫你按咗「繼續」但你未準備好。
+ *
+ * `last` 要重設，唔係嘅話第一格個 dt 會係「停咗幾耐」，即刻追一大步。
+ * （呢個坑喺上面 `onContextRestored` 已經踩過一次，同一個處理。）
+ */
+function 看住切走() {
+    let 因為切走停咗 = false;
+    const 繼續 = () => {
+        if (!因為切走停咗) return;
+        因為切走停咗 = false;
+        state.last = performance.now();
+        state.acc = 0;
+        state.running = true;
+        state.hud?.flash('繼續');
+    };
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            if (!state.running) return;      // 本來就停咗（掉 context 等）就唔好搞佢
+            state.running = false;
+            因為切走停咗 = true;
+        } else if (因為切走停咗) {
+            state.hud?.flash('你切走咗，已經幫你暫停 — 撳一下繼續');
+        }
+    });
+    // 返嚟之後撳／掂／禁任何一下先至真係續。
+    for (const ev of ['pointerdown', 'keydown', 'touchstart']) {
+        window.addEventListener(ev, 繼續, { passive: true });
+    }
 }
 
 function watchViewport() {

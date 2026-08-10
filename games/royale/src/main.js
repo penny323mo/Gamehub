@@ -1197,6 +1197,43 @@ let last = performance.now();
 let acc = 0;
 const STEP = 1 / 60;
 
+/*
+ * 切走咗就停低。
+ *
+ * 實測（override `document.hidden` 再派 `visibilitychange`，同 Tower
+ * `tests/flow.mjs` 一樣嘅量法）：成個 repo 得 Tower 同 Racing Car 有呢個
+ * handler，Royale／MOBA／Snake／Snooker 一個都冇——**你切去另一個 tab，
+ * 場波照打**。Clash 一場幾分鐘，你去覆個訊息返嚟就已經畀人拆咗塔。
+ *
+ * Tower 老早定咗做法：停低、講明點解、而且**返嚟唔會偷偷續**（你返嚟嗰一刻
+ * 手指仲未擺返個位，即刻恢復等於幫你按咗「繼續」）。呢度跟同一套。
+ *
+ * `last` 要喺續嗰陣重設：唔係嘅話第一格個 dt 係「停咗幾耐」。（個 loop 本來
+ * 就夾 0.25 秒，但夾完一樣係一大步；重設先至真係接返。）
+ */
+let 因為切走停咗 = false;
+function 看住切走() {
+    const 繼續 = () => {
+        if (!因為切走停咗) return;
+        因為切走停咗 = false;
+        last = performance.now();
+        running = true;
+        ui?.banner('繼續', 900);
+    };
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            if (!running) return;          // 本來就停咗就唔好搞佢
+            running = false;
+            因為切走停咗 = true;
+        } else if (因為切走停咗) {
+            ui?.banner('你切走咗，已經幫你暫停 — 撳一下繼續', 2600);
+        }
+    });
+    for (const ev of ['pointerdown', 'keydown', 'touchstart']) {
+        window.addEventListener(ev, 繼續, { passive: true });
+    }
+}
+
 function loop(now) {
     requestAnimationFrame(loop);
     let dt = (now - last) / 1000;
@@ -1310,6 +1347,7 @@ async function init() {
     ui.showStart();
     checkReconnect(); // 上一場 PvP 打到一半 refresh 咗？有得救就彈「重連」bar
     document.getElementById('loading')?.remove();
+    看住切走();
     requestAnimationFrame(loop);
 }
 init();

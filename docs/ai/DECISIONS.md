@@ -4496,6 +4496,80 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-217 — Hub: 你切走咗，四隻遊戲照打
+
+Date: 2026-08-10. Status: accepted.
+
+轉去 handoff 度寫低但未量過嘅一條：**「返嚟之後仲記唔記得你」**。
+
+第一輪探路量錯咗方向：我掃十二個介面嘅 localStorage，見到九隻「玩完一個字都
+冇寫低」，差啲當咗係九個病。查 Neon Snake 先發現佢有成套 profile／高分系統,
+淨係喺 game over 先寫——**係我把尺掃唔夠，唔係佢冇記**。掃唔到同掃唔夠喺報告
+度長得一模一樣，呢個已經係今個 session 第三次踩。
+
+轉去一條量得準嘅：**你切去另一個 tab，隻遊戲有冇繼續打？**
+
+### 一 grep 就知答案
+
+成個 repo 得 **Tower 同 Racing Car** 有 `visibilitychange` handler。
+MOBA、Empire Royale、Neon Snake、Snooker 一個都冇。
+
+實測（隱藏六秒）：
+
+| | 場鐘 | 隱藏期間 |
+|---|---|---|
+| Tower（對照，已守） | gold＋wave＋敵人數 | **0** |
+| 深淵之橋 MOBA | `__sim.time` 2.8 → 11.4 | **＋8.6 秒** |
+| Empire Royale | `__royale.game.time` 176.5 → 169.0 | **−7.5 秒**（倒數） |
+
+MOBA 一場十六分鐘。你去覆個訊息返嚟，已經送咗一血。
+
+### 量法有兩個位企唔穩，都要修
+
+1. **`bringToFront` 喺 headless 之下唔會令個頁隱藏。** 第一版量到
+   `document.hidden === false`——即係成個量度冇量過任何嘢。改用 override
+   `document.hidden`／`visibilityState` 再派 `visibilitychange`，同 Tower 自己條
+   gate（`tests/flow.mjs` 嘅 `setVisibility`）一模一樣。而且要試嘅本來就係隻遊戲
+   對呢個事件嘅反應，唔係瀏覽器對背景 tab 嘅節流——嗰個係瀏覽器嘅事。
+
+2. **「隱藏期間畫面有冇郁」分唔開停冇停。** Tower 真係停咗，但佢個暫停畫面自己
+   會呼吸，照樣報「有郁」。所以逐隻遊戲寫明個鐘讀邊個 seam，**冇 seam 就唔好
+   扮量到**（條 gate 讀唔到鐘會報紅，唔會報綠）。
+
+仲有一個位：讀第一個數要**喺隱藏之後**先讀。讀完先隱藏嘅話，中間影相／evaluate
+嗰一兩秒都會計落個差度，一個真係識停嘅遊戲都會報「行咗 1.7 秒」。
+
+### 改法：跟 Tower 定落嗰套
+
+停低、講明點解、而且**返嚟唔會偷偷續**——你返嚟嗰一刻手指仲未擺返個位，即刻
+恢復等於幫你按咗「繼續」但你未準備好。MOBA 同 Royale 兩邊都係：
+
+- 隱藏 → 把本來行緊嘅迴圈停低（`state.running` / `running`），記住「係我停嘅」。
+- 返嚟 → 出一句「你切走咗，已經幫你暫停 — 撳一下繼續」。
+- 真係撳／掂／禁任何一下 → 重設 `last`（唔係嘅話第一格個 dt 係「停咗幾耐」，
+  即刻追一大步）先至續。
+
+呢兩個位都唔係新發明：MOBA 自己 `onContextLost`／`onContextRestored` 已經係同一
+個形狀，連 `last` 要重設嘅理由都寫咗喺註解度。
+
+### Neon Snake：寫過，剷咗
+
+Snake 都冇 handler，而佢個 `isPaused` 旗現成，改動係十二行。但**驗唔到**：
+把尺量到「隱藏前後 tick 都係 36」，我一度當咗係成功——直到突變測試（拆走
+handler）**照樣量到 36 → 36**，先知係條蛇喺量度窗口之前已經死咗，即係個數由頭到
+尾冇行過。一個喺「修咗」同「拆咗」兩種情況下讀數一樣嘅量度，證明唔到任何嘢。
+
+所以 Snake 嗰個改動剷咗，連個 tick seam 一齊剷。**唔係因為個改法錯，係因為我
+驗唔到。** 下次要驗嘅人：seam 嘅做法（喺 `gameTick` 度數）行得通，難嗰忽係要令
+條蛇喺六秒窗口入面唔好死——「經典模式無限生命」嗰個模式應該係入手位。
+Snooker 3D 同樣冇 handler，未量。
+
+### 把尺
+
+`tests/hub-away.mjs` 2/2：①三個場鐘都讀得到而且個頁真係隱藏得到（量唔到報紅）;
+②切走期間場鐘唔可以行（容許 0.5，實測停咗係實實在在嘅 0，未修係 8.6／7.5）。
+突變（拆走兩個 `看住切走()`）令佢報紅，而且叫得出係邊隻同行咗幾多。
+
 ## ADR-216 — MOBA: 兩條偶發 gate，一條查到底修咗，一條查到證據但唔亂修
 
 Date: 2026-08-09. Status: accepted.
