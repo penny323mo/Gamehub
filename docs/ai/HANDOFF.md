@@ -4,7 +4,7 @@ Updated: 2026-08-09 (Asia/Macau)
 Prepared by: Claude Code (cloud) — ADR-202 至 223
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: 十把跨遊戲尺；「進度記憶」覆蓋四隻（淨低 Racing Car 要跑完一圈，寫咗喺把尺入面）
+Status: 十把跨遊戲尺全綠；「進度記憶」五隻全部覆蓋（每隻「值得記」嗰一刻都唔同）
 
 ## Current objective
 
@@ -25,20 +25,22 @@ Status: 十把跨遊戲尺；「進度記憶」覆蓋四隻（淨低 Racing Car 
   入面 `window.joinFixedRoom` 同頂層函數係同一個綁定，擺完佔位 `window.x = x`
   就自己指自己——**把尺利咗先捉到**。
 
-**ADR-223（本輪）— 進度記憶：逐隻寫 driver，缺口寫喺把尺入面**
+**ADR-223（本輪）— 進度記憶：逐隻寫 driver，五隻全部覆蓋**
 
-- 上次 generic 掃法掃到九隻「玩完乜都冇寫低」，其實 Snake 淨係 game over 先寫
-  ——**掃唔夠**。今次逐隻寫 driver，每隻都要**先證明去到「有嘢值得記」嗰一刻**。
-- 量到（四隻 reload 之後全部仲喺）：Tower 開咗波 → checkpoint 440 B；Snake 死咗 →
-  `gamesPlayed 1`；MOBA 入咗場 → 記住你揀邊個英雄；Royale 打完一場 → `trophies 0 → 30`。
-  **唔同遊戲「值得留低」嘅嘢唔同**，所以憑據逐隻寫。
-- Royale 試過兩條行唔通嘅路（快進 300 秒 → overtime 僵住；直接寫 `king.hp = 0` →
-  `#kill` 淨係喺 `#damage` 入面叫）。行得通嗰條又係**喺屋企**：`match.mjs` 老早寫咗
-  「火球 ＋ 王塔剩一滴血」。仲有個坑：**教學遮罩開住嗰陣模擬係凍結嘅**。
-- **淨低 Racing Car，寫咗喺把尺個檔頭**：佢有記（`racer-ghost:<track>` 存最佳圈速），
-  但「值得記」嗰一刻要**跑完一圈**，測試揸唔到。**嗰個係我夠唔到，唔係一個發現。**
-  `tests/hub-progress.mjs` 2/2；兩個突變（Snake `saveScore`／Royale `recordMatch`）
-  各自令第二條報紅而第一條照樣綠。
+- 上次 generic 掃法掃到九隻「玩完乜都冇寫低」，其實 Snake 淨係 game over 先寫——
+  **掃唔夠**。今次逐隻寫 driver，每隻都要**先證明去到「有嘢值得記」嗰一刻**。
+- 量到（五隻 reload 之後全部仲喺）：Tower checkpoint 440 B；Snake `gamesPlayed 1`；
+  MOBA 記住揀邊個英雄；Royale `trophies 0 → 30`；Racing Car 幽靈軌跡（圈速 42.5、
+  12 個樣本）。**唔同遊戲「值得留低」嘅嘢唔同**，憑據逐隻寫。
+- Royale 兩條行唔通嘅路（快進 300 秒 → overtime 僵住；寫 `king.hp = 0` → `#kill` 淨係
+  喺 `#damage` 入面叫）。行得通嗰條又係**喺屋企**：`match.mjs` 老早寫咗「火球 ＋ 王塔
+  剩一滴血」。仲有個坑：**教學遮罩開住嗰陣模擬係凍結嘅**。
+- Racing Car：跑完一圈先存幽靈，測試揸唔到。最順手係直接叫 `ghostRecorder.commit()`
+  ——**唔好，嗰樣等於自己驗自己**。改成**推一個圈速入 `race.lapTimes`**，跟住
+  `commit → saveGhost → ghostPlayer.load` 全部係遊戲自己行。
+- **五隻都喺度，但冇一條通用路徑**：開咗波／死咗／入咗場／一場波打完／跑完一圈。
+  `tests/hub-progress.mjs` 2/2；三個突變（Snake `saveScore`／Royale `recordMatch`／
+  Racing Car `saveGhost`）各自令第二條報紅而第一條照樣綠。
 
 **ADR-222（已合埋 main）— MOBA 鏡頭偶發：重現唔到，封死佢指住嗰個機制**
 
@@ -46,8 +48,7 @@ Status: 十把跨遊戲尺；「進度記憶」覆蓋四隻（淨低 Racing Car 
   指住一個封得死嘅機制：framing 繼承住上一段留低嘅場面（隔籬一隻滿血敵人），玩家
   死咗就重生返泉水，鏡頭喺半路——啱好解釋到「焦點離玩家 44 個單位」。**呢段量嘅
   係構圖**，所以每一幀撐住玩家生存；45–88 條線一個字都冇改。
-- 報告加咗 `途中死過`／`焦點離玩家`：**重現唔到嘅偶發，最實際嘅交付品係「下次唔使
-  再由零估」**。冇改鏡頭邏輯。
+- 報告加咗 `途中死過`／`焦點離玩家`：**重現唔到嘅偶發，最實際嘅交付品係「下次唔使再由零估」**。冇改鏡頭邏輯。
 
 **ADR-221（已合埋 main）— Royale 補返 draw-call 預算**
 
@@ -63,8 +64,7 @@ Status: 十把跨遊戲尺；「進度記憶」覆蓋四隻（淨低 Racing Car 
 - 219：**autoplay 本來就啱**（五隻有聲嘅遊戲第一下手勢先 new context 而且即刻
   `running`）；**Royale 個靜音一個字都冇存** → 自己一個 localStorage key。
   **一個對照救返一個假綠**：撳唔到嘅掣令「撳完」同「reload 後」一樣 → 報綠。
-- 220：幀時間量法（p95/中位）**喺佢最有用嗰個 case 失效**（Royale 八秒得 13 幀）。
-  順帶：**同一個外部取樣點喺三種 loop 結構下面有三個意思**。
+- 220：幀時間量法（p95/中位）**喺佢最有用嗰個 case 失效**（Royale 八秒得 13 幀）。順帶：**同一個外部取樣點喺三種 loop 結構下面有三個意思**。
 
 **ADR-210 至 218（已合埋 main；詳情全部喺 DECISIONS）**
 
@@ -98,19 +98,19 @@ Status: 十把跨遊戲尺；「進度記憶」覆蓋四隻（淨低 Racing Car 
 - `npm test`：PASS（要 `PW_CHROMIUM=/opt/pw-browsers/chromium`）。
 - 跨遊戲十把尺全綠：`hub` 96/96、`hub-touch` 5/5、`hub-load` 3/3、`hub-keyboard` 3/3、
   `hub-cdn` 3/3、`hub-wait` 1/1、`hub-storage` 2/2、`hub-away` 3/3、`hub-audio` 3/3、
-  `hub-progress` 2/2。Tower 三個 suite、`moba` 196/196、royale 九個檔全過。
-  Mutation 驗過十八次，次次叫得出係邊個。
+  `hub-progress` 2/2（五隻）。Tower 三個 suite、`moba` 196/196、royale 九個檔全過。
+  Mutation 驗過二十次，次次叫得出係邊個。
 
 ## Known issues and cautions
 
 - **要 `export PW_CHROMIUM=…/chromium`**；**`pgrep -f` 會撞到自己**；**做 mutation 要先 `cp`**。
-- `moba` 條 `玩家企喺畫面下半…` 曾經五跑兩紅；ADR-222 封咗報告指住嗰個機制（重現
-  唔到），加咗 `途中死過`／`焦點離玩家` 兩個數，再紅一眼睇得出。
+- `moba` 條 `玩家企喺畫面下半…` 曾經五跑兩紅；ADR-222 封咗報告指住嗰個機制（重現唔到），加咗 `途中死過`／`焦點離玩家` 兩個數，再紅一眼睇得出。
 
 ## Exact next action
 
 1. `export PW_CHROMIUM=/opt/pw-browsers/chromium`，跑 `./scripts/agent-context.sh --sync`。
-2. **接手位**：`hub-progress` 補 Racing Car（餵一段樣本落 `ghostRecorder.commit`）。
+2. **接手位**：十把尺已經掃齊十二個介面；下一條線要自己揀（DECISIONS 度「量咗但
+   唔改」嗰幾條 ADR-213／218／220 係現成入口）。
 3. 一個檢查點一件事，改完連 handoff 一齊 commit。
 
 ## Do not redo

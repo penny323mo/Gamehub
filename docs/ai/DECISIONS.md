@@ -4496,7 +4496,7 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
-## ADR-223 — Hub: 進度記憶——逐隻寫 driver，同埋一個見得到嘅覆蓋缺口
+## ADR-223 — Hub: 進度記憶——逐隻寫 driver，五隻全部覆蓋
 
 Date: 2026-08-10. Status: accepted.
 
@@ -4521,8 +4521,9 @@ ADR-219「撳之前先證明個掣真係撳到」係同一種嘢——今個 ses
 | Neon Snake | 死咗（見到「重新開始」） | `snake-game-users`：`gamesPlayed 1`、一筆分數 |
 | 深淵之橋 MOBA | 入咗場 | `moba-settings`：`champion: ironward` |
 | Empire Royale | 一場波打完 | `royale-save-v1`：`trophies 0 → 30` |
+| Racing Car 3D | 跑完一圈 | `racer-ghost-v1:turbo`：圈速 42.5、12 個樣本 |
 
-四隻 reload 之後全部仲喺度——即係真係留低咗，唔係得個記憶體副本。
+五隻 reload 之後全部仲喺度——即係真係留低咗，唔係得個記憶體副本。
 
 MOBA 唔存戰績（一場對 AI 嘅波打完就完），但佢記得你揀邊個英雄，即係下次入嚟
 唔使由頭揀過。**唔同遊戲「值得留低」嘅嘢唔同**，所以憑據逐隻寫，唔用一條
@@ -4546,22 +4547,35 @@ MOBA 唔存戰績（一場對 AI 嘅波打完就完），但佢記得你揀邊�
 
 打完一場之後：`royale-save-v1` 由 `trophies: 0` 變 `30`，reload 之後仲喺。
 
-### 覆蓋範圍：四隻，唔係五隻——而且寫喺把尺入面
+### Racing Car：唔好喺測試度抄一次
 
-**Racing Car 3D 冇入呢條 gate。** 唔係因為佢冇記——佢有，`racer-ghost:<track>`
-存住最佳圈速同幽靈軌跡——而係佢「值得記」嗰一刻要**跑完一圈**，一個測試揸唔到
-一圈，而 `window.__racer` 冇一條「當我跑完咗」嘅路。實測玩 12 秒之後係「乜都
-冇留低」——**嗰個係我夠唔到，唔係一個發現**。
+佢有記——`racer-ghost-v1:<track>` 存住最佳圈速同幽靈軌跡——但「值得記」嗰一刻要
+**跑完一圈**，而一個測試揸唔到一圈。
 
-呢句寫喺 `tests/hub-progress.mjs` 個檔頭。一個靜靜雞跳過一隻遊戲嘅 gate，
-同一個講明自己守唔到邊度嘅 gate，係兩件事。
+最順手嘅做法係喺測試度直接叫 `ghostRecorder.commit()`。**唔好**——嗰樣等於自己
+驗自己：真正會唔會 commit 係由 `updateGhost()` 睇住 `race.lapTimes.length` 有冇
+變嚟決定嘅，跳過佢就冇量過嗰段。
+
+所以改成**推一個圈速入 `race.lapTimes`**，跟住嗰幾步（`commit` → `saveGhost` →
+`ghostPlayer.load`）全部係遊戲自己行。量到嘅仍然係真嗰條路。
+
+（要先揸夠一陣：`commit` 見到樣本少過 12 個會直接放棄，所以條 driver 等到
+`ghostRecorder.samples.length >= 48` 先推。）
+
+實測：`racer-ghost-v1:turbo`，圈速 42.5、12 個樣本，reload 之後仲喺。
+
+### 五隻都喺度，但冇一條通用路徑
+
+開咗波（Tower）／死咗（Snake）／入咗場（MOBA）／一場波打完（Royale）／跑完一圈
+（Racing Car）——**「值得記」嗰一刻逐隻都唔同**，所以 driver 同憑據都逐隻寫。
+一條「有冇寫過 localStorage」嘅通用 check 喺呢度冇意義。
 
 ### 把尺
 
-`tests/hub-progress.mjs` 2/2（Tower／Snake／MOBA／Royale 四隻）。兩個突變各自
-打中第二條，而第一條（到咗「值得記」嗰刻）照樣綠——即係兩條 check 各自守住
-唔同嘅嘢：拆走 Snake 四處 `saveScore` → 叫得出 Neon Snake；拆走 Royale 收場
-嗰句 `recordMatch` → 叫得出 Empire Royale。
+`tests/hub-progress.mjs` 2/2（五隻）。三個突變各自打中第二條，而第一條（到咗
+「值得記」嗰刻）照樣綠——即係兩條 check 各自守住唔同嘅嘢：拆走 Snake 四處
+`saveScore` → 叫得出 Neon Snake；拆走 Royale 收場嗰句 `recordMatch` → 叫得出
+Empire Royale；拆走 `saveGhost` → 叫得出 Racing Car 3D。
 
 ## ADR-222 — MOBA: 重現唔到嗰個鏡頭偶發，封死佢指住嗰個機制
 

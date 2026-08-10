@@ -9,12 +9,14 @@
 // （開咗波／死咗／入咗場），先至去睇有冇留低。冇呢個對照，一隻根本未開始
 // 玩嘅遊戲會扮到「冇嘢好記」，而條 check 會綠得好安詳。
 //
-// ── 覆蓋範圍：四隻，唔係五隻 ─────────────────────────────────
-// **Racing Car 3D 冇喺呢度**，唔係因為佢冇記（佢有：`racer-ghost:<track>` 存住
-// 最佳圈速同幽靈軌跡），而係因為佢「值得記」嗰一刻要**跑完一圈**——一個測試
-// 揸唔到一圈，而 `window.__racer` 冇一條「當我跑完咗」嘅路。
-// 實測玩 12 秒之後係「乜都冇留低」——**嗰個係我夠唔到，唔係一個發現**。
-// 寫喺度係為咗個缺口見得到，唔係靜靜雞跳過。
+// ── 五隻都喺度，但每隻「值得記」嗰一刻都唔同 ─────────────────
+// 開咗波（Tower）／死咗（Snake）／入咗場（MOBA）／一場波打完（Royale）／
+// 跑完一圈（Racing Car）。**冇一條通用路徑**，所以 driver 同憑據都逐隻寫。
+//
+// 兩隻要「造」返嗰一刻，但兩隻都係**推遊戲自己條路**，唔係喺測試度抄一次：
+//   · Royale：塞張火球 ＋ 敵方王塔剩一滴血 ＋ `playCard`（`match.mjs` 老早有）;
+//   · Racing Car：推一個圈速入 `race.lapTimes`，跟住 `updateGhost()` 自己會
+//     `commit` → `saveGhost`。直接喺測試度叫 `commit()` 就變成自己驗自己。
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -167,6 +169,36 @@ const 遊戲 = [
       try {
         const j = JSON.parse(raw);
         return (j.trophies ?? 0) > 0 ? { trophies: j.trophies } : null;
+      } catch { return null; }
+    },
+  },
+  {
+    名: 'Racing Car 3D', url: '/games/Racing Car/index.html',
+    玩: async (p) => {
+      await p.locator('#start-btn').scrollIntoViewIfNeeded({ timeout: 30000 });
+      await p.click('#start-btn', { timeout: 60000 });
+      await p.waitForFunction(() => window.__racer?.race, null, { timeout: 120000 });
+      // 揸一陣，畀 `ghostRecorder` 儲夠樣本（少過 12 個 `commit` 會直接放棄）
+      await p.waitForFunction(() => (window.__racer?.ghostRecorder?.samples?.length ?? 0) >= 48,
+        null, { timeout: 60000 });
+      /*
+       * 跑完一圈先會存幽靈，而一個測試揸唔到一圈。
+       *
+       * 但唔使喺測試度直接叫 `ghostRecorder.commit()`——嗰樣等於自己驗自己。
+       * `updateGhost()` 係睇住 `race.lapTimes.length` 有冇變嚟決定 commit 嘅,
+       * 所以**推一個圈速入去**就得：跟住嗰一步係遊戲自己行嘅（`commit` →
+       * `saveGhost` → `ghostPlayer.load`），我哋量嘅仍然係真嗰條路。
+       */
+      await p.evaluate(() => { window.__racer.race.lapTimes.push(42.5); });
+      await p.waitForTimeout(1500);
+    },
+    到咗: () => (window.__racer?.race?.lapTimes?.length ?? 0) > 0,
+    憑據: () => {
+      const k = Object.keys(localStorage).find((x) => x.startsWith('racer-ghost-v1:'));
+      if (!k) return null;
+      try {
+        const j = JSON.parse(localStorage.getItem(k));
+        return (j?.s ?? []).length >= 12 ? { key: k, 圈速: j.t, 樣本數: j.s.length / 4 } : null;
       } catch { return null; }
     },
   },
