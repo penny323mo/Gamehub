@@ -4496,6 +4496,59 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-237 — Dou Dizhu 補返 Continue：存檔要分得清「叫緊」同「打緊」
+
+Date: 2026-08-10. Status: accepted.
+
+「打到一半走咗仲喺度」呢條線嘅最後一隻。鬥地主同大老二同族，但**多一層**：
+叫地主階段。所以個存檔唔可以淨係「一疊牌 ＋ 輪到邊個」——要分得清你係
+**叫緊**定**打緊**。
+
+`phase` 存住，兩個階段各自嘅嘢都要存：
+
+- **叫緊**：`bid`（邊個開始、輪到邊個、邊個叫咗、搶咗幾多次、邊個 pass 咗）;
+- **打緊**：`landlord`、`bottom`（三張底牌，畫面要出）、`lastPlay`、`passes`。
+
+三家手牌全部存（連兩個電腦）——唔存嘅話續返之後電腦會攞新牌，你面前嗰局
+就變咗另一局。
+
+`lastPlay.eval` **唔存**（`evalHand()` 計得返；存住就兩份真相，改咗規則之後
+舊存檔會靜靜雞用返舊嗰套）。`state.ui` 都唔存：入面個 `selected` 係 `Set`,
+JSON 化唔到，而且「揀緊邊幾張」本來就唔應該跨 session。
+
+### 存喺邊：叫牌階段冇「輪返你」嗰個停點
+
+大老二／棋類都有一個乾淨嘅停點——電腦一輪行完，輪返你嗰刻。鬥地主嘅
+**叫牌階段冇**：三家輪流叫，中間可能連續兩個 CPU，而且叫完可能即刻入局。
+所以叫牌階段係**每一步都存**（`advanceBid()` 尾）。一手牌都未出過，payload 細,
+寫得起。打牌階段就照舊：人出完／人 pass 完／電腦一輪行完輪返你。
+
+### 個 driver：叫緊本身就係一個值得記嘅局面
+
+driver 冇試打到出牌先量。**叫緊你已經睇咗手牌、已經做緊決定**——嗰個就係
+一個值得記嘅局面。而且存檔嘅重點正正係「叫緊」同「打緊」分得清,
+量叫牌階段就係量嗰個分別。
+
+叫／搶／唔叫三個掣邊個撳得就撳邊個——**三個都係真嘅玩家動作**，唔使喺測試
+度揀「最合理」嗰個（嗰樣等於喺測試度抄一次策略）。
+
+### 驗證
+
+`hub-progress` **3/3（十隻）**、`hub-tabs` 4/4、`hub-touch` 5/5、`hub-keyboard` 3/3、
+`hub-read` 3/3、`hub-cdn` 3/3、`hub` 96/96。
+
+突變（`續局()` 唔倒返三家手牌）報紅，四樣證據入面三樣一齊倒
+（`對得上: false`、`量: 0`、`畫面證據: 0`）。
+
+### 呢條線做完
+
+「打到一半走咗仲喺度」由 Tower 一隻擴到**五隻**：Tower（本來就有）、
+Gomoku、Xiangqi、Big Two、Dou Dizhu。`hub-progress` 三條 check 守十隻遊戲。
+
+其餘幾隻唔使：Snake／Racing Car／Royale／MOBA／Penny Crush 存嘅係**累積成績**
+（分數榜／最快圈／獎盃／揀邊個英雄／最高分），佢哋冇「一局打到一半」呢個
+概念，或者一局短到唔值得存。Snooker 3D 冇單機局面可以存。
+
 ## ADR-236 — Big Two 補返 Continue，同埋一條「每加一隻遊戲就要改一次」嘅 check
 
 Date: 2026-08-10. Status: accepted.

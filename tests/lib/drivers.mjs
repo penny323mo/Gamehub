@@ -458,4 +458,68 @@ export const 遊戲 = [
       };
     },
   },
+  {
+    名: 'Dou Dizhu', url: '/games/doudizhu/index.html',
+    玩: async (p) => {
+      await p.click('#btn-local-ai', { timeout: 60000 });
+      await p.click('#startGameBtn', { timeout: 60000 });
+      /*
+       * 鬥地主開場係**叫地主階段**——同大老二唔同，第一件事唔係出牌。
+       * 呢度唔試打到出牌：**叫緊本身就係一個值得記嘅局面**（你已經睇咗手牌、
+       * 已經做緊決定），而且存檔要分得清「叫緊」同「打緊」，量叫牌階段
+       * 正正係量嗰個分別。
+       */
+      await p.waitForFunction(() => (window.__ddzRun?.現局?.().phase) === 'bid', null, { timeout: 60000 });
+      await p.waitForFunction(() => (window.__ddzRun?.現局?.().輪到) === 0, null, { timeout: 60000 });
+      // 叫地主／唔叫都得——兩個都係真嘅玩家動作。撳得到嗰個就撳。
+      const 掣 = ['#bidCallBtn', '#bidRobBtn', '#bidPassBtn'];
+      let 撳咗 = false;
+      for (const sel of 掣) {
+        const n = await p.locator(sel).count();
+        if (n && await p.locator(sel).isEnabled().catch(() => false)) {
+          await p.click(sel, { timeout: 20000 });
+          撳咗 = true;
+          break;
+        }
+      }
+      if (!撳咗) throw new Error('搵唔到叫地主嘅掣');
+      await p.waitForFunction(() => {
+        try { return JSON.parse(localStorage.getItem('doudizhu_ai_run_v1') || 'null') !== null; }
+        catch { return false; }
+      }, null, { timeout: 60000 });
+      await p.waitForTimeout(2000);
+    },
+    到咗: () => {
+      const g = window.__ddzRun?.現局?.();
+      return !!g && (g.phase === 'bid' || g.phase === 'play')
+        && g.手牌數.reduce((a, b) => a + b, 0) > 0;
+    },
+    憑據: () => {
+      try {
+        const j = JSON.parse(localStorage.getItem('doudizhu_ai_run_v1') || 'null');
+        if (!j) return null;
+        return { 階段: j.phase, 三家手牌: j.players.map((x) => x.hand.length),
+                 輪到: j.current, 地主: j.landlord };
+      } catch { return null; }
+    },
+    續: async (p) => {
+      await p.waitForSelector('#btn-continue:not(.hidden)', { timeout: 30000 });
+      await p.click('#btn-continue');
+      await p.waitForTimeout(2500);
+    },
+    續驗: () => {
+      let 存 = null;
+      try { 存 = JSON.parse(localStorage.getItem('doudizhu_ai_run_v1') || 'null'); } catch (e) { /* 壞就 null */ }
+      const 現 = window.__ddzRun?.現局?.();
+      const 手牌張數 = document.querySelectorAll('#handRow > *, #hand > *, .hand > *').length;
+      return {
+        畫面: !document.getElementById('doudizhu-game')?.classList.contains('hidden'),
+        // **唔可以讀返 storage 當證據**：問嘅係遊戲自己個局面等唔等於存檔。
+        對得上: !!存 && !!現 && 現.phase === 存.phase && 現.輪到 === 存.current
+          && JSON.stringify(現.手牌數) === JSON.stringify(存.players.map((x) => x.hand.length)),
+        量: (現?.手牌數 ?? []).reduce((a, b) => a + b, 0),
+        畫面證據: 手牌張數,
+      };
+    },
+  },
 ];

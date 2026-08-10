@@ -69,6 +69,7 @@
     }
 
     function deal(){
+      清局();   // 開新局＝放棄上一局
       resetForNewRound();
 
       const deck = shuffle(makeDeck());
@@ -147,6 +148,9 @@
       if (state.bid.cursor === start && state.bid.calledBy !== null){
         applyLandlord(state.bid.calledBy);
       }
+      // 叫牌階段冇「輪返你」嗰個單一停點（三家輪流，中間可能連續兩個 CPU）,
+      // 所以每一步都存。一手牌都未出過，個 payload 細，寫得起。
+      存局();
     }
 
     function getSelectedCards(){
@@ -171,6 +175,7 @@
 
       if (state.players[playerIndex].hand.length === 0){
         state.phase = 'over';
+        清局();   // 收咗場就唔好留住一局已經完咗嘅扮「未打完」
         state.current = playerIndex;
         const role = state.players[playerIndex].role === 'landlord' ? '地主勝' : '農民勝';
         pushLog(`完局：${state.players[playerIndex].name} 勝出（${role}）`);
@@ -178,6 +183,7 @@
       }
 
       state.current = (state.current + 1) % 3;
+      存局();
     }
 
     function applyPass(playerIndex){
@@ -197,6 +203,98 @@
       }
 
       state.current = (state.current + 1) % 3;
+      存局();
+    }
+
+
+    /* --------------------------------------------------------------
+     * 打到一半走咗，返嚟仲喺度（ADR-234/235/236 同一條線）
+     * --------------------------------------------------------------
+     *
+     * 鬥地主同大老二同族，但**多一層**：叫地主階段。所以個存檔要分得清
+     * 你係「叫緊」定「打緊」——`phase` 存住，兩個階段各自嘅嘢都要存：
+     *
+     *   · 叫緊：`bid`（邊個開始、輪到邊個、邊個叫咗、搶咗幾多次、邊個 pass）;
+     *   · 打緊：`landlord`、`bottom`（三張底牌，畫面要出）、`lastPlay`、`passes`。
+     *
+     * 三家手牌全部要存（連兩個電腦），唔係嘅話續返之後電腦會攞新牌
+     * ——你面前嗰局就變咗另一局。
+     *
+     * `lastPlay.eval` **唔存**：`evalHand()` 計得返。存住就兩份真相，改咗規則
+     * 之後舊存檔會靜靜雞用返舊嗰套。`state.ui` 都唔存（`Set` 唔 JSON 化得,
+     * 而且揀緊邊幾張本來就唔應該跨 session）。
+     *
+     * 覆蓋式（同 Tower checkpoint、Gomoku、Xiangqi、Big Two 一樣，喺 ADR-232
+     * 個「特登 last-write-wins」名單）。
+     */
+    const 局存KEY = 'doudizhu_ai_run_v1';
+
+    function 存局(){
+      try {
+        if (window.gameMode === 'online') return;
+        if (state.phase !== 'bid' && state.phase !== 'play') return;
+        if (state.players.every(p => !p.hand || p.hand.length === 0)) return;
+        localStorage.setItem(局存KEY, JSON.stringify({
+          v: 1,
+          phase: state.phase,
+          players: state.players.map(p => ({ name: p.name, isHuman: !!p.isHuman, role: p.role, hand: p.hand })),
+          bottom: state.bottom,
+          current: state.current,
+          landlord: state.landlord,
+          lastPlay: state.lastPlay ? { by: state.lastPlay.by, cards: state.lastPlay.cards } : null,
+          passes: state.passes,
+          bid: state.bid,
+          時: Date.now(),
+        }));
+      } catch (e) { /* 記唔住就算 */ }
+    }
+
+    function 清局(){
+      try { localStorage.removeItem(局存KEY); } catch (e) { /* 同上 */ }
+    }
+
+    /** **壞存檔要當冇。** 三家、手牌合法、階段合法、輪到嘅人喺 0..2、未打完。 */
+    function 讀局(){
+      try {
+        const raw = localStorage.getItem(局存KEY);
+        if (!raw) return null;
+        const j = JSON.parse(raw);
+        if (!j || j.v !== 1) return null;
+        if (j.phase !== 'bid' && j.phase !== 'play') return null;
+        if (!Array.isArray(j.players) || j.players.length !== 3) return null;
+        const 合法牌 = (c) => c && typeof c === 'object' && (c.id !== undefined || c.r !== undefined || c.rank !== undefined);
+        let 總張 = 0;
+        for (const p of j.players) {
+          if (!Array.isArray(p.hand)) return null;
+          for (const c of p.hand) if (!合法牌(c)) return null;
+          總張 += p.hand.length;
+        }
+        if (總張 === 0) return null;
+        if (!Number.isInteger(j.current) || j.current < 0 || j.current > 2) return null;
+        if (!Array.isArray(j.passes) || j.passes.length !== 3) return null;
+        if (j.phase === 'play' && !Number.isInteger(j.landlord)) return null;   // 打緊一定有地主
+        if (j.lastPlay && !Array.isArray(j.lastPlay.cards)) return null;
+        return j;
+      } catch (e) { return null; }
+    }
+
+    function 續局(){
+      const j = 讀局();
+      if (!j) return null;
+      state.phase = j.phase;
+      state.players = j.players.map(p => ({ name: p.name, isHuman: p.isHuman, role: p.role, hand: p.hand }));
+      state.bottom = j.bottom || [];
+      state.current = j.current;
+      state.landlord = j.landlord;
+      // eval 重新計，唔由存檔攞——單一真相喺 `evalHand()` 度
+      state.lastPlay = j.lastPlay ? { by: j.lastPlay.by, cards: j.lastPlay.cards, eval: evalHand(j.lastPlay.cards) } : null;
+      state.passes = j.passes.slice();
+      if (j.bid) state.bid = j.bid;
+      state.ui.selected.clear();
+      state.ui.hintList = [];
+      state.ui.hintIndex = 0;
+      clearMovesCache();
+      return j;
     }
 
     function cpuStep(){
@@ -208,7 +306,7 @@
         if (currentId) return; // Wait for real player
         if (!window.isOnlineHost()) return; // Only host drives CPU
       } else {
-        if (state.current === 0) return;
+        if (state.current === 0) { 存局(); return; }   // 輪返你＝一個穩定嘅局面，存低
       }
 
       const idx = state.current;
@@ -306,6 +404,27 @@
             else if (state.phase === 'play') setTimeout(() => { cpuStep(); }, 1500);
          }
       }
+    };
+
+    window.__ddzRun = {
+      有得繼續: () => 讀局() !== null,
+      清局, 存局,
+      現局: () => ({
+        phase: state.phase,
+        手牌數: state.players.map(p => p.hand.length),
+        輪到: state.current,
+        地主: state.landlord,
+      }),
+      續: () => {
+        if (!續局()) return false;
+        if (window.DDZ.render) window.DDZ.render(window.__ddz);
+        // 存嗰陣可能啱啱輪到電腦——唔叫佢行，個局就會永遠等你出一手唔到你出嘅牌
+        if (state.current !== 0) {
+          if (state.phase === 'bid') setTimeout(() => window.__ddz.actions.cpuBidStep?.(), 600);
+          else setTimeout(() => cpuStep(), 600);
+        }
+        return true;
+      },
     };
 
     return {

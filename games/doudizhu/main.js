@@ -24,6 +24,7 @@
 
     if (mode === 'landing') {
       document.getElementById('landing-page')?.classList.remove('hidden');
+      window.更新繼續掣?.();   // 由局中返選單唔算放棄，個掣要即刻出返
       document.getElementById('topbarActions')?.classList.add('topbar__actions--hidden');
       document.getElementById('exitGameBtn')?.classList.add('hidden');
     } else if (mode === 'online-lobby') {
@@ -44,6 +45,23 @@
     }
   };
 
+  /*
+   * 「繼續上一局」——**唔會靜靜雞幫你續**（同 Tower／Gomoku／Xiangqi／Big Two 一樣）。
+   * 撳「開始遊戲」＝重新發牌（`deal()` 自己會清走舊存檔），所以呢度唔使再清。
+   */
+  const btnContinue = document.getElementById('btn-continue');
+  function 更新繼續掣(){
+    if (!btnContinue) return;
+    btnContinue.classList.toggle('hidden', !(window.__ddzRun?.有得繼續?.() === true));
+  }
+  window.更新繼續掣 = 更新繼續掣;
+  btnContinue?.addEventListener('click', () => {
+    // 借返 `setGameMode('local')` 做版面切換，唔好喺呢度再抄一次 DOM toggle
+    window.setGameMode('local');
+    if (!window.__ddzRun?.續?.()) { window.setGameMode('landing'); 更新繼續掣(); }
+  });
+
   // Initially show landing
   window.setGameMode('landing');
+  更新繼續掣();
 })();
