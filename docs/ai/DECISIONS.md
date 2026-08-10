@@ -4496,6 +4496,52 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-227 — Royale: 一把只守一種資源嘅洩漏閘，會漏走另一種資源嘅洩漏
+
+Date: 2026-08-10. Status: accepted.
+
+新問題：**玩多幾局會唔會愈嚟愈重？** `renderer.info` 係精確整數（GPU 上面仲有
+幾多 geometry／texture／shader program），唔似幀時間咁受呢個容器影響（ADR-220）。
+
+### GPU 嗰邊本來就守住咗——係我重複咗
+
+量落去 geometries／textures／programs 連開五局**完全平**。查返先發現
+`games/royale/tests/leak.mjs`（ADR-008）一直守住呢兩個數，六個回合。
+**我量咗一樣已經有人守嘅嘢。** 應該做嘅唔係另開一把尺，係搵佢冇守嗰面。
+
+### 佢冇守嘅係 DOM
+
+同一個量法之下，DOM 節點數**一局爬一個**：513 → 532 → 533 → 534 → 535…
+爬緊嘅係 `<script>`（4 → 10）。逐個睇 src，全部係
+`cdn.jsdelivr.net/npm/@supabase/supabase-js@2`。
+
+根因：`loadSdk()` 攞唔到會 `sdkLoadPromise = null` 畀下次再試，
+**但上一次嗰個 `<script>` 冇拆走**。即係**網絡差＝重試多＝爬得快**
+——最需要佢慳嘅時候佢最漏。
+
+同一個 pattern 喺 `games/shared/js/online_utils.js` 嘅 `loadSupabaseSdk()`
+（ADR-209 我自己寫嗰個）一模一樣，而佢係六隻遊戲共用。兩邊一齊修：
+三條路（載到／載唔到／逾時）都拆走個 element。載成功都照拆——script 行完
+`window.supabase` 已經定義咗，拆走個 element 唔會收返佢。
+
+### 條 gate 擺錯位，會扮成一條守緊嘢嘅 gate
+
+第一版我將 DOM check 加落現有嗰個 loop 度——**突變測試照樣報綠**。
+因為嗰個 loop 喺 `page.evaluate` 入面直接叫 `startMatch`，唔會經過選單，
+所以連線層根本冇行過。**一條唔行玩家條路嘅 gate，守唔到玩家撞到嘅嘢。**
+
+改成開多一個乾淨實例，行返「選單 → 開戰 → 投降 → 返選單 → 再開戰」。
+兩個坑：
+
+1. 入咗局之後 `#start-btn` 個祖先會加 `.hidden`，唔返選單就撳唔到下一次
+   ——嗰個係狀態問題，唔係洩漏，但佢扮成一個 timeout 令你以為 gate 壞咗。
+2. 投降流程中途嗰幾個掣過唔到 Playwright 嘅 actionability 檢查，
+   所以用**原生 DOM click**。呢度要嘅唔係「模擬一個真手指」，
+   係「行完呢條狀態轉換」——分得清兩者先寫得出一條唔會無故逾時嘅 gate。
+
+修完：`[513, 531, 531, 531]`。突變（拆走修正）令佢報 `[513, 532, 533, 534]`，
+一局一局爬，叫得出係邊條。`leak.mjs` 由 6/6 變 7/7。
+
 ## ADR-226 — Hub: 睇唔睇得清——五個主要行動掣，白字擺喺中亮度彩色上面
 
 Date: 2026-08-10. Status: accepted.

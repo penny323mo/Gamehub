@@ -139,14 +139,27 @@
         if (window.supabase) return Promise.resolve();
         if (sdkPromise) return sdkPromise;
         sdkPromise = new Promise(function (resolve, reject) {
-            var t = setTimeout(function () {
-                sdkPromise = null;   // 畀下次再試
-                reject(new Error('連線服務逾時'));
-            }, SDK_TIMEOUT);
             var s = document.createElement('script');
             s.src = SDK_URL;
-            s.onload = function () { clearTimeout(t); resolve(); };
-            s.onerror = function () { clearTimeout(t); sdkPromise = null; reject(new Error('連線服務載入失敗')); };
+            /*
+             * 三條路（載到／載唔到／逾時）都要拆走個 `<script>`。
+             *
+             * 攞唔到嗰陣我哋會 `sdkPromise = null` 畀下次再試——但**上一次嗰個
+             * element 一直留喺 `<head>`**。實測 Royale 連開四局，`<head>` 度就有
+             * 三個攞唔到嘅 supabase script（GPU 資源零增長，淨係 DOM 一局爬一個）。
+             * 網絡差＝重試多＝爬得快，即係**最需要佢慳嘅時候佢最漏**。
+             *
+             * 載成功都照拆：script 行完 `window.supabase` 已經定義咗，
+             * 拆走個 element 唔會收返佢。
+             */
+            var 拆 = function () { if (s.parentNode) s.parentNode.removeChild(s); };
+            var t = setTimeout(function () {
+                sdkPromise = null;   // 畀下次再試
+                拆();
+                reject(new Error('連線服務逾時'));
+            }, SDK_TIMEOUT);
+            s.onload = function () { clearTimeout(t); 拆(); resolve(); };
+            s.onerror = function () { clearTimeout(t); 拆(); sdkPromise = null; reject(new Error('連線服務載入失敗')); };
             document.head.appendChild(s);
         });
         return sdkPromise;

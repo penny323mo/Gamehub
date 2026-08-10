@@ -28,14 +28,19 @@ function loadSdk() {
     if (window.supabase) return Promise.resolve();
     if (sdkLoadPromise) return sdkLoadPromise;
     sdkLoadPromise = new Promise((resolve, reject) => {
-        const t = setTimeout(() => {
-            sdkLoadPromise = null;
-            reject(new Error('連線服務逾時，請檢查網絡'));
-        }, SDK_LOAD_TIMEOUT);
         const s = document.createElement('script');
         s.src = SDK_URL;
-        s.onload = () => { clearTimeout(t); resolve(); };
-        s.onerror = () => { clearTimeout(t); sdkLoadPromise = null; reject(new Error('連線服務載入失敗')); };
+        const t = setTimeout(() => {
+            sdkLoadPromise = null;
+            if (s.parentNode) s.parentNode.removeChild(s);
+            reject(new Error('連線服務逾時，請檢查網絡'));
+        }, SDK_LOAD_TIMEOUT);
+        // 三條路都要拆走個 element：攞唔到會 `sdkLoadPromise = null` 畀下次再試,
+        // 但上一次嗰個 `<script>` 唔拆就會一局一局咁積喺 `<head>`
+        // （實測連開四局積咗三個）。載成功都照拆——`window.supabase` 已經定義咗。
+        const 拆 = () => { if (s.parentNode) s.parentNode.removeChild(s); };
+        s.onload = () => { clearTimeout(t); 拆(); resolve(); };
+        s.onerror = () => { clearTimeout(t); 拆(); sdkLoadPromise = null; reject(new Error('連線服務載入失敗')); };
         document.head.appendChild(s);
     });
     return sdkLoadPromise;
