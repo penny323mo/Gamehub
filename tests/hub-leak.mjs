@@ -106,6 +106,29 @@ const 遊戲 = [
    * 撞埋去），所以呢個循環平過其餘幾隻嘅一局。
    * 開場要先入名（form submit）——`fill()` ＋ 撳掣入唔到，要真係打字再 Enter。
    */
+  /*
+   * MOBA 冇「一局又一局」呢個循環可以量——佢收場個「再嚟一場」係
+   * `location.reload()`（`main.js` 個 `finish()`），即係每次重賽都係全新一版,
+   * DOM 由零開始，**結構上唔可能跨局積嘢**。
+   *
+   * 佢真正值得守嘅係局中嗰啲面板。今日 `toggleShop()` 淨係 toggle class,
+   * 所以呢條 gate 而家一定平——**但佢守住嘅係「將來唔好改成每次開都重建」**。
+   * 入局要等成十幾秒（Fast 3G 之外都要載 2.5 MB），所以只入一次，之後嗰五圈好平。
+   */
+  { 名: '深淵之橋 MOBA', url: '/games/moba/index.html',
+    開場: async (p) => {
+      await p.waitForSelector('#pick-grid .pick-card', { timeout: 240000 });
+      await p.click('#pick-grid .pick-card');
+      await p.click('#pick-go', { timeout: 60000 });
+      await p.waitForFunction(() => window.__mobaReady === true, null, { timeout: 180000 });
+      await p.waitForTimeout(3000);
+    },
+    入: (p) => p.evaluate(() => window.__hud?.toggleShop(true)),
+    出: (p) => p.evaluate(() => window.__hud?.toggleShop(false)),
+    入證: () => !!document.querySelector('.moba-shop:not(.hidden)'),
+    出證: () => !!document.querySelector('.moba-shop.hidden'),
+    入咗睇: 'body', 出咗睇: 'body' },
+
   // 跑八圈唔係八局：重開之後撳得太早嗰啲圈唔會死，嗰啲圈唔取樣。
   // 八圈實測穩定攞到四個樣本以上。
   { 名: 'Neon Snake', url: '/games/snake-game/dist/index.html', 圈: 8,

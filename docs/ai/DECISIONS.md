@@ -4496,6 +4496,48 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-230 — MOBA: 佢冇一局又一局嘅循環，因為收場個掣係 location.reload()
+
+Date: 2026-08-10. Status: accepted.
+
+ADR-229 收尾寫住「淨返 MOBA 未入洩漏線，佢要打完一場波先有一個完整循環」。
+查落去，個前提本身係錯嘅。
+
+### 佢根本冇跨局循環
+
+`main.js` 個 `finish()` 最後一句：
+
+    box.querySelector('button').onclick = () => location.reload();
+
+「再嚟一場」係**重新載入成版**。即係每一場都由一個全新 document 開始,
+**結構上唔可能跨局積 DOM**。用「打完一場再打一場」去量 MOBA 嘅洩漏，
+量到嘅係「載入一版新嘢」，唔係「積咗嘢」。
+
+**「未冚到」同「冚唔到」係兩件事**，而我上一輪寫成前者。
+
+### 佢真正值得守嘅係局中嗰啲面板
+
+MOBA 局中嘅 UI 全部係 class toggle：`toggleShop()` 只係 `classList.toggle`,
+`#buildShop()` 由頭到尾只喺 `#build()` 叫過一次。所以呢條 gate **今日一定平**
+——但佢守住嘅係將來：一個「順手改成每次開商店都重新 render 一次道具表」嘅改動,
+就會由呢度報出嚟。**一條而家一定綠嘅 gate 唔等於冇用**，只要佢守住嘅嘢係真嘅
+而且會壞。
+
+入局要等十幾秒（2.5 MB），所以只入一次，之後五圈開／閂商店好平。
+
+### 突變
+
+令 `toggleShop()` 每次開都留低一個節點 → `[286,287,288,289,290]`，
+一圈爬一個，叫得出係 MOBA。
+
+### 九隻全入線
+
+`tests/hub-leak.mjs` 而家冚：Gomoku／Snooker／Xiangqi／Big Two／Dou Dizhu
+（入線上大廳 → 返選單）、Tower（說明面板）、Racing Car（日夜切換）、
+Snake（撞牆死 → Enter 重開）、MOBA（開／閂商店），加上 Royale 自己嗰把
+`leak.mjs`（GPU ＋ DOM，選單→開戰→投降→返選單）——十隻遊戲入面九隻有
+in-page 循環守住，Royale 嗰隻另外守。
+
 ## ADR-229 — Hub: 洩漏線由六隻擴到八隻，同埋「唔好拎兩個唔同狀態嘅數嚟比」
 
 Date: 2026-08-10. Status: accepted.
