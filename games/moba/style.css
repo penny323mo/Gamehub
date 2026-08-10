@@ -115,6 +115,27 @@ html, body {
     border-radius: 99px; border: none; cursor: pointer; font-family: inherit;
     background: linear-gradient(120deg, var(--blue), #7f6bff); color: #fff; font-weight: 700;
 }
+/* 返 hub：**次要**動作，所以唔可以同「開打」爭注意力（唔用實色底、唔用大字），
+   但一樣要掂得到——44×44 係 `tests/hub-touch.mjs` 守住嘅線。
+
+   選人版嗰個要**離開文檔流**（角落定位，同 Royale／Racing Car／Tower 一樣）。
+   第一版擺咗喺流入面，佔咗直向空間，`tests/browser.mjs` 即刻報紅：
+   SE 直屏同橫屏都「見唔到一張完整嘅英雄卡」。**個格網本來就爭緊每一個像素**,
+   加一行喺流入面就係搶佢嘅。收場版嗰個照留喺流入面——嗰版夠位。 */
+.moba-hub {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 11px 18px; min-height: 44px; min-width: 44px;
+    border-radius: 99px; border: 1px solid #ffffff33;
+    color: #ffffffb8; text-decoration: none; font-size: 14px; font-weight: 600;
+    touch-action: manipulation;
+}
+.moba-hub:hover, .moba-hub:focus-visible { color: #fff; border-color: #ffffff66; }
+#select .moba-hub {
+    position: absolute; left: 12px; top: 12px;
+    padding: 11px 14px; font-size: 13px;
+}
+#result .moba-hub { margin-top: 10px; }
+
 #select .hint { font-size: 12px; opacity: 0.5; text-align: center; line-height: 1.7; margin: 2px 0 0; }
 #result h2 { font-size: clamp(34px, 8vw, 64px); margin: 0; letter-spacing: 0.2em; }
 #result h2.win { color: var(--gold); }

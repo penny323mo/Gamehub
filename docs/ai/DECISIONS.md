@@ -4496,6 +4496,54 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-225 — Hub: 守住入去嗰十三條路，冇人守過出返嚟嗰條
+
+Date: 2026-08-10. Status: accepted.
+
+`tests/hub.mjs` 一直守住 launcher **入去**嗰十三條路（每個入口都指住一個存在
+嘅檔）。**冇人守過出返嚟嗰條。** 一隻入到去出唔返嘅遊戲係一個陷阱——喺手機
+加咗上主畫面之後，連瀏覽器嘅返回掣都未必見得到。
+
+### 量到
+
+十一個介面入面**十個本來就有**一條返 hub 嘅路，而且撳落去真係去到。
+**得深淵之橋 MOBA 一條都冇**——成個 `games/moba/` 入面 `index.html` 三個字
+一次都冇出現過（連 `src/` 都冇）。開咗佢就淨係得瀏覽器 Back 出得返。
+
+已經喺揀英雄版同收場版各加一條。樣式係**次要動作**（描邊、唔搶「開打」嘅
+注意力），但一樣守住 44×44——`tests/hub-touch.mjs` 嗰條線。
+
+**加完即刻畀 MOBA 自己把尺捉到一個回歸**：第一版擺咗喺文檔流入面，
+`tests/browser.mjs` 報「SE 直屏／橫屏都見唔到一張完整嘅英雄卡」——個格網本來
+就爭緊每一個像素，加一行喺流入面就係搶佢嘅。改成角落絕對定位（同 Royale／
+Racing Car／Tower 一樣）之後 196/196。收場版嗰個照留喺流入面，嗰版夠位。
+
+### 四個「把尺講緊自己」
+
+呢一輪把尺錯咗四次，每一次都會令我去「修」一樣冇壞嘅嘢：
+
+1. **淨係掃屬性掃唔到。** Gomoku 同 Xiangqi 個掣寫 `onclick="goToLauncher()"`,
+   「返回遊戲大廳」係**文字**。第一版淨係掃 href／onclick／id／class，
+   於是報咗五隻「冇路返」——四隻係掃唔到，得一隻係真。
+2. **撳第一個唔等於撳啱。** Tower 開場有兩個 🏠：HUD 嗰個 `#hub-btn` 喺開場
+   modal 後面（撳唔到，而且本來就唔應該撳到），開場版嗰個「🏠 返回 Game Hub」
+   喺 `top: 926`，要捲先見到。第一版撳咗第一個，報 Tower「去唔到」。
+   契約係「**有一條行得通嘅路**」，所以改成逐個試。
+3. **`getByText` 撞中咗個副標題。** Snake 入名版個副標題寫住「輸入你既名稱
+   開始遊戲」，`getByText(/開始遊戲/).first()` 揀咗個 `<p>`——撳落去乜都冇,
+   成版嘢冇郁過，於是條 gate 話「Snake 冇路返」。改用
+   `getByRole('button', { name: /開始遊戲/ })`。
+4. **一個 timeout 掃唔到分階段嘅介面。** Snake 個返回掣喺入名版之後，
+   開頁 3.5 秒根本未行到。所以呢把尺要**逐隻遊戲寫明幾時去搵**
+   （同 `hub-cdn.mjs` 嘅 `踢` 一樣）。
+
+### 把尺
+
+`tests/hub-home.mjs` 3/3：①行得到嗰一版（量唔到就報紅）②有一條見得到嘅路
+③撳落去真係去到（**唔可以淨係睇個 `href` 寫成點**——一條指住唔存在檔案嘅鏈,
+睇落一樣好地地）。兩個突變分別打中第 2、3 條：拆走 MOBA 兩條路 → 報
+「冇路返」；改成 `index-唔存在.html` → 報「死鏈」。
+
 ## ADR-224 — Hub: GL context 掉咗——五隻識講，一隻淨係黑咗
 
 Date: 2026-08-10. Status: accepted.
