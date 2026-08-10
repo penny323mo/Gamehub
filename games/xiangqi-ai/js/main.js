@@ -337,6 +337,7 @@ function afterMoveFlow() {
         window.notifyOnlineGameOver(null, 'stalemate');
       }
     }
+    清局();   // 收咗場就唔好留住一局已經完咗嘅棋扮「未打完」
     redraw();
     moveLock = false;
     return;
@@ -351,6 +352,7 @@ function afterMoveFlow() {
   }
 
   redraw();
+  存局();   // 行完即刻存——玩家可能行完就切走 app
 
   if (turn === BLACK && !gameOver && window.isVsAI === true && window.mode !== 'online') {
     startAI();
@@ -662,6 +664,7 @@ window.resetGame = resetGameParams;
 
 function resetGameParams() {
   cancelPendingAI();
+  清局();   // 開新局＝放棄上一局
 
   board = initBoard();
   turn = RED;
@@ -810,4 +813,88 @@ window.updateStatusUI = (currentPlayerColor) => {
   } else {
     setStatus('等待對局...', '');
   }
+};
+
+/* ------------------------------------------------------------------
+ * 打到一半走咗，返嚟仲喺度（同 ADR-234 Gomoku 同一個做法）
+ * ------------------------------------------------------------------
+ *
+ * 實測：單機模式行幾步之後 refresh，**直接返咗選單，成盤棋冇晒**——存低咗
+ * 嘅嘢得一個 `xiangqi_clientId`（線上身分），同局棋冇關。手機切走 app 之後
+ * 個 tab 畀系統回收，效果一樣：**唔係你自己揀走**。
+ *
+ * 存乜：成個盤（`Int8Array` 攤做普通 array）、輪到邊個、難度、第幾手。
+ * 引擎冇跨局狀態，所以呢幾樣就夠砌返個局面。
+ *
+ * 覆蓋式（唔用 `改存檔()`）：呢個係「呢部機呢一局」嘅進度，後面嗰個就係最新
+ * ——同 Tower checkpoint、Gomoku 一樣，喺 ADR-232 個「特登 last-write-wins」名單。
+ */
+const 局存KEY = 'xiangqi_ai_run_v1';
+
+function 存局() {
+  try {
+    if (gameOver || window.mode === 'online') return;
+    localStorage.setItem(局存KEY, JSON.stringify({
+      v: 1, board: Array.from(board), turn, difficulty, moveNumber, 時: Date.now(),
+    }));
+  } catch (e) { /* 記唔住就算，唔好因為咁玩唔到 */ }
+}
+
+function 清局() {
+  try { localStorage.removeItem(局存KEY); } catch (e) { /* 同上 */ }
+}
+
+/**
+ * **壞存檔要當冇。** 逐項驗：長度啱、每格係 -128..127 嘅整數、輪到嘅人合法、
+ * 而且**唔可以係開局盤**（開局盤即係「未行過」，冇嘢好續）。
+ */
+function 讀局() {
+  try {
+    const raw = localStorage.getItem(局存KEY);
+    if (!raw) return null;
+    const j = JSON.parse(raw);
+    if (!j || j.v !== 1 || !Array.isArray(j.board)) return null;
+    const 開局 = initBoard();
+    if (j.board.length !== 開局.length) return null;
+    let 同開局 = true;
+    for (const v of j.board) if (!Number.isInteger(v) || v < -128 || v > 127) return null;
+    for (let i = 0; i < 開局.length; i++) if (j.board[i] !== 開局[i]) { 同開局 = false; break; }
+    if (同開局 && j.turn === RED) return null;
+    if (j.turn !== RED && j.turn !== BLACK) return null;
+    return j;
+  } catch (e) { return null; }
+}
+
+function 續局() {
+  const j = 讀局();
+  if (!j) return null;
+  cancelPendingAI();
+  board = Int8Array.from(j.board);
+  turn = j.turn;
+  selectedIdx = -1;
+  legalFromSel = [];
+  gameOver = false;
+  moveLock = false;
+  history = [];                 // 悔棋唔跨 session：冇存返 history 就唔好扮有
+  moveNumber = j.moveNumber || 1;
+  if (j.difficulty) {
+    difficulty = j.difficulty;
+    if (diffEl) diffEl.value = j.difficulty;
+  }
+  Render.setSelected(-1, []);
+  Render.setLastMove(null);
+  Render.clearGhost();
+  Render.setCheck(inCheck(board, turn) ? turn : 0);
+  if (movelogEl) movelogEl.innerHTML = '';
+  redraw();
+  updateTurnStatus();
+  // 存嗰陣可能啱啱輪到 AI——唔叫佢行，個盤就會永遠等你行一步唔到你行嘅棋
+  if (turn === BLACK && window.isVsAI === true && window.mode !== 'online') startAI();
+  return j;
+}
+
+window.__xiangqiRun = {
+  有得繼續: () => 讀局() !== null, 續局, 清局, 存局,
+  // 畀測試分得清「storage 有嘢」同「局真係開返咗」——後者要睇遊戲自己個盤
+  現盤: () => Array.from(board), 現輪到: () => turn,
 };

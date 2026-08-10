@@ -44,6 +44,9 @@
           <button id="xiangqi-online-btn" class="pill-btn mode-btn"
             style="width:200px; padding:15px; font-size:1.1rem; background:linear-gradient(135deg, #14471a, #256b29);"
             onclick="selectMode('online')">ONLINE 對戰</button>
+            <!-- 上一局未完先出（同 Tower／Gomoku 個 Continue 一樣） -->
+            <button id="xiangqi-continue-btn" class="pill-btn mode-btn hidden"
+              onclick="continueGame()">繼續上一局</button>
           <button id="xiangqi-back-btn" class="pill-btn secondary" style="width:200px; padding:10px; margin-top:10px;"
             onclick="goToLauncher()">返回遊戲大廳</button>
         </div>

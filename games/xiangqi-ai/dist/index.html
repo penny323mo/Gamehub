@@ -25,8 +25,8 @@
       transition: height .2s ease;
     }
   </style>
-  <script type="module" src="./assets/index-CaXcSFVM.js?v=1786362773198"></script>
-  <link rel="stylesheet" href="./assets/index-DUN_aPLt.css?v=1786362773198">
+  <script type="module" src="./assets/index-A8gFzTOS.js?v=1786399808380"></script>
+  <link rel="stylesheet" href="./assets/index-DUN_aPLt.css?v=1786399808380">
 </head>
 
 <body>
@@ -45,6 +45,9 @@
           <button id="xiangqi-online-btn" class="pill-btn mode-btn"
             style="width:200px; padding:15px; font-size:1.1rem; background:linear-gradient(135deg, #14471a, #256b29);"
             onclick="selectMode('online')">ONLINE 對戰</button>
+            <!-- 上一局未完先出（同 Tower／Gomoku 個 Continue 一樣） -->
+            <button id="xiangqi-continue-btn" class="pill-btn mode-btn hidden"
+              onclick="continueGame()">繼續上一局</button>
           <button id="xiangqi-back-btn" class="pill-btn secondary" style="width:200px; padding:10px; margin-top:10px;"
             onclick="goToLauncher()">返回遊戲大廳</button>
         </div>
@@ -190,8 +193,8 @@
   <!-- 儲存唔到嗰陣唔好連遊戲都開唔到（無痕／封 cookie／空間滿）。
        classic script 行喺 module 之前，所以擺喺呢度已經夠早。
        唔好擺入 head：註解／位置一亂，Vite 就唔會幫呢條 path 改寫，dist 度會 404。 -->
-  <script src="../../shared/js/safe-storage.js?v=1786362773198"></script>
-  <script src="../../shared/js/online_utils.js?v=1786362773198"></script>
+  <script src="../../shared/js/safe-storage.js?v=1786399808380"></script>
+  <script src="../../shared/js/online_utils.js?v=1786399808380"></script>
 </body>
 
 </html>

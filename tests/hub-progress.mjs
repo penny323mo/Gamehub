@@ -114,7 +114,12 @@ check('玩完之後成果要留得住（reload 返嚟仲喺度）', 冇留低.le
 
 // 有 Continue 嘅遊戲：撳落去要真係開返局（狀態同畫面都要）
 const 續唔返 = Object.entries(量).filter(([, v]) => '續到' in v
-  && !(v.續到 && v.續到.畫面 === true && v.續到.盤上幾多隻 > 0 && v.續到.棋同空差幾多 > 30));
+  && !(v.續到 && v.續到.畫面 === true && v.續到.盤上幾多隻 > 0
+    // 兩種遊戲兩種畫面證據：2D canvas 讀得到像素（棋格 vs 空格色差）；
+    // WebGL 讀唔到，改由 Playwright 影相比較（撳之前／之後唔可以一模一樣）。
+    && (v.續到.棋同空差幾多 === undefined || v.續到.棋同空差幾多 > 30)
+    && (v.續到.同開局差幾多 === undefined || v.續到.同開局差幾多 > 0)
+    && (v.續到.盤對得上 === undefined || v.續到.盤對得上 === true)));
 check('有 Continue 嘅，撳落去要真係開返上一局（唔係得個存檔）', 續唔返.length === 0,
   續唔返.length ? Object.fromEntries(續唔返) : Object.fromEntries(
     Object.entries(量).filter(([, v]) => '續到' in v).map(([k, v]) => [k, v.續到])));

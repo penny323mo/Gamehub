@@ -1,10 +1,10 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-10 (Asia/Macau)
-Prepared by: Claude Code (cloud) — ADR-202 至 234
+Prepared by: Claude Code (cloud) — ADR-202 至 235
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: 十五把跨遊戲尺全綠；Gomoku 補返 Continue，`hub-progress` 由兩條變三條
+Status: 十六把跨遊戲尺全綠；Gomoku ＋ Xiangqi 補返 Continue，`hub-progress` 八隻 3/3
 
 ## Current objective
 
@@ -14,30 +14,38 @@ Status: 十五把跨遊戲尺全綠；Gomoku 補返 Continue，`hub-progress` �
 
 ## Completed
 
-**ADR-234（本輪）— 落咗三十手一 refresh 就冇晒：Gomoku 補返 Continue**
+**ADR-235（本輪）— Xiangqi 都補返 Continue：一個 3D 盤要換兩次證據先量得到**
 
-- 先答上一輪嗰條：「打完記唔記得成績」同「打到一半走咗算唔算數」係兩條問題。
-  實測四隻（Gomoku／Big Two／Dou Dizhu／Xiangqi）人機落幾手再 refresh：**全部返咗
-  選單、冇存過、冇任何提示**。手機上面切走 app 個 tab 畀系統回收，效果一樣
-  ——**唔係「你自己揀走」**。Tower 早就有 checkpoint ＋ Continue。**答案：漏咗。**
-- 做咗 Gomoku（狀態最深、最簡單）：`gomoku_ai_run_v1`，**每落一手就存**；覆蓋式
-  （同 Tower checkpoint 一樣喺 ADR-232 個「特登 last-write-wins」名單）；讀返逐格驗
-  （壞存檔要當冇）；「繼續上一局」掣**唔會靜靜雞幫你續**；續返之後如果輪到 AI
-  要叫佢行，否則個盤永遠等你落一隻唔到你落嘅棋。
-- `hub-progress` 加第三條：**「留得住」唔等於「返得到」**。條 check 量咗兩個版：
-  第一版數成塊 canvas 嘅非背景像素——突變照樣過，因為嗰 300 個係**格線**。
-  改成拎「有棋格」同「空格」比色差。**錯要向紅嗰邊錯。**
-- 順帶：第一次嘅突變**根本冇突變到**——`createBoardUI` 已經由 `board` 整幅畫返,
-  我喺 `continueGame` 逐格叫 `placeStoneUI` 係多餘（畫足 226 次同一幅嘢），剷咗。
-- Big Two／Dou Dizhu／Xiangqi 同形狀，量度寫咗喺 ADR-234，逐隻要自己一輪。
+- 照抄 ADR-234：`xiangqi_ai_run_v1`，每行一步就存，收場／開新局清，覆蓋式。**`history`
+  唔存**——悔棋唔跨 session，存半份會扮到你悔得返，撳落去先發現冇。
+- **兩個坑都係「用平面思維去度一個 3D 嘢」**：①撳唔到棋（`(c+0.5)/9` 算螢幕座標，但
+  個盤要經相機投影）→ **反用遊戲自己嗰個 `Render.hitTest()`**，撒 80×80 格網砌返
+  「格 → 螢幕點」表；②量唔到畫面（WebGL 冇 `preserveDrawingBuffer`，`getImageData` 全零）
+  → 改用影相，**但第二版揀錯對照**（撳之前仲喺選單，`#board` 隱藏住就 timeout）→
+  第三版揀啱：**續返嘅局面 vs 開局盤**。driver 行邊步棋**寫死**紅炮平中，唔用
+  `generateLegalMoves()[0]`——**driver 唔應該跟住引擎嘅實作漂移**。
+- 證據兩條腿：`盤對得上`（遊戲自己個 board 逐格等於存檔，**唔可以讀返 storage 當證據**）
+  ＋`同開局差幾多`（影相）。突變兩條腿一齊報紅。
+- **仲爭 Big Two／Dou Dizhu**：牌類局面同棋類唔同（隱藏手牌、叫牌階段、AI 手上嗰疊），
+  **唔可以照抄**，要逐隻諗清楚存乜。
+
+**ADR-234（已合埋 main）— 落咗三十手一 refresh 就冇晒：Gomoku 補返 Continue**
+
+- 「打完記唔記得成績」同「打到一半走咗算唔算數」係兩條問題。實測四隻人機落幾手再
+  refresh：**全部返咗選單、冇存過、冇提示**（手機切走 app 個 tab 畀回收，一樣——**唔係
+  「你自己揀走」**）。Tower 早就有 Continue。**答案：漏咗。** Gomoku：每落一手就存、
+  讀返逐格驗、Continue **唔會靜靜雞幫你續**、續返輪到 AI 就要叫佢行。
+- `hub-progress` 加第三條：**「留得住」唔等於「返得到」**。條 check 量咗兩個版——第一版
+  數成塊 canvas 嘅非背景像素，突變照樣過（嗰 300 個係**格線**）；改成拎「有棋格」同
+  「空格」比色差。**錯要向紅嗰邊錯。** 順帶剷咗 `continueGame` 入面多餘嘅逐格重畫
+  （`createBoardUI` 已經整幅畫返，嗰個 loop 畫足 226 次同一幅嘢）。
 
 **ADR-233（已合埋 main）— 一個 origin 十三隻遊戲：key 冇撞，但捉到一隻乜都唔記得**
 
 - 運行時掃**七隻一個 key 都冇寫**（掃唔夠）→ 補靜態掃：每隻都有自己前綴，**零撞**。
-  **兩層一齊做先得出結論。** 真正捉到嘅：**Penny Crush 冇掂過 storage 但佢有分數**
-  ——加咗逐個板大細分開記嘅最高分，破紀錄嗰刻就寫，用 `改存檔()` 所以兩個 tab 唔互食。
-- **個 driver 第一版係擲毫**（隨機撳兩格等消）→ 改成由格陣計出一步真係消得到嘅棋,
-  再照樣撳真嗰兩格。要開 seam：`const PennyCrush` 喺 classic script **唔會上 `window`**。
+  **兩層一齊做先得出結論。** 真正捉到嘅：**Penny Crush 冇掂過 storage 但佢有分數** →
+  加咗最高分（破紀錄即寫，用 `改存檔()`）。**個 driver 第一版係擲毫**（隨機撳兩格等
+  消）→ 改成由格陣計出一步真係消得到嘅棋再撳真兩格。
 
 **ADR-232（已合埋 main）— 兩個 tab：打咗兩局淨係記低一局**
 
@@ -78,20 +86,19 @@ Status: 十五把跨遊戲尺全綠；Gomoku 補返 Continue，`hub-progress` �
 
 - **跨遊戲把尺（全新）**：`tests/hub-{touch,load,keyboard,cdn,wait,storage,away,audio,progress,context,home,read,leak,tabs}.mjs`＋`tests/lib/drivers.mjs`（共用 driver）
 - **shared（新）**：`byte-progress.mjs`、`safe-storage.js`、`merge-save.mjs`；`online_utils.js` 加 lazy SDK
-- 本輪：`games/gomoku/js/{core,app,input,ai,renderer}.js`＋`index.html`（Continue）
+- 本輪：`gomoku/js/*`、`xiangqi-ai/js/{main,app}.js`＋兩個 `index.html`（Continue 掣）＋`dist/`
 - **Tower**：`src/{main.ts,render/assets.ts,ui/style.css,core/config.ts}`、`configs/map.json`、
   `scripts/postbuild.mjs`（Draco）、`tests/{touch,load}.mjs`、`dist/`／**MOBA**：`src/{assets,main}.js`
-  ＋`style.css`＋`index.html`、`tests/browser.mjs`、bump 腳本
-- **Royale**：`src/{assets,main,sfx,net}.js`、`tests/{perf,leak}.mjs`＋`run-all.mjs`
+  ＋`style.css`＋`index.html`、`tests/browser.mjs`、bump 腳本／**Royale**：`src/{assets,main,sfx,net,storage}.js`、`tests/{perf,leak}.mjs`＋`run-all.mjs`
 - **Snake**：`Game.tsx`＋`dist/`；六個 `index.html` 加 storage guard；ADR-209/226 波及五隻卡牌／棋類
-  ／**Xiangqi**：`js/render.js`＋`index.html`（GL context 訊息、ONLINE 掣對比）＋`dist/`
+  ／**Xiangqi** 另有 `js/render.js`（GL context 訊息、ONLINE 掣對比）；**Penny Crush**：`penny_crush.{js,css}`＋`index.html`
 
 ## Verification
 
-- `npm test`：PASS（要 `PW_CHROMIUM=/opt/pw-browsers/chromium`）。**十四把跨遊戲尺全綠**：
+- `npm test`：PASS（要 `PW_CHROMIUM=/opt/pw-browsers/chromium`）。**十六把跨遊戲尺全綠**：
   `hub` 96/96、`hub-touch` 5/5、`hub-load` 3/3、`hub-keyboard` 3/3、`hub-cdn` 3/3、`hub-wait` 1/1、
-  `hub-storage` 2/2、`hub-away` 3/3、`hub-audio` 3/3、`hub-progress` 2/2、`hub-context` 3/3、
-  `hub-home` 3/3、`hub-read` 3/3、`hub-leak` 4/4、`hub-tabs` 4/4；`hub-progress` **3/3**、七隻；Tower 三 suite、`moba` 196/196、royale `leak` 7/7。Mutation 驗過廿六次。`touch/load/keyboard/cdn/wait` 五把喺 synced tree 重跑過。
+  `hub-storage` 2/2、`hub-away` 3/3、`hub-audio` 3/3、**`hub-progress` 3/3（八隻）**、`hub-context` 3/3、
+  `hub-home` 3/3、`hub-read` 3/3、`hub-leak` 4/4、`hub-tabs` 4/4；Tower 三 suite、`moba` 196/196、royale `leak` 7/7。Mutation 驗過三十次，次次叫得出係邊個。
 
 ## Known issues and cautions
 
@@ -100,14 +107,14 @@ Status: 十五把跨遊戲尺全綠；Gomoku 補返 Continue，`hub-progress` �
 ## Exact next action
 
 1. `export PW_CHROMIUM=/opt/pw-browsers/chromium`，跑 `./scripts/agent-context.sh --sync`。
-2. **接手位**：Big Two／Dou Dizhu／Xiangqi 補返「打到一半走咗仲喺度」——同 Gomoku
-   同形狀，做法照抄 ADR-234（存邊啲／幾時存／點驗／Continue 點出），但每隻嘅局面狀態
-   唔同，逐隻要自己一輪。另：`hub-read` 報咗但冇守；ADR-224 冇遊戲收到 restored。
+2. **接手位**：Big Two／Dou Dizhu 補返「打到一半走咗仲喺度」。棋類兩隻做咗（ADR-234/235），
+   但**牌類唔可以照抄**：隱藏手牌、叫牌階段、AI 手上嗰疊都要一齊存，逐隻要諗清楚存乜先。
+   另：`hub-read` 報咗但冇守；ADR-224 冇遊戲收到 restored。
 3. 一個檢查點一件事，改完連 handoff 一齊 commit。
 
 ## Do not redo
 
 - 承上一份全部；另加：`#wave-banner` 唔好寫死 `top`；閃光 gate 唔好改返「影幾張相攞最大值」;
-  `enterRun` 唔好直接 `await 地面好`；**Supabase SDK 唔好擺返落 HTML 做 parser-blocking**;
-  **test server 要 gzip ＋ 送 `Content-Length`**；**驗 context 掉咗唔好自己叫 `restoreContext()`**;
-  **洩漏 gate 唔好淨係數全部節點**（顯示緊嘅 toast 唔係洩漏）。
+  `enterRun` 唔好直接 `await 地面好`；**Supabase SDK 唔好擺返落 HTML 做 parser-blocking**；**test
+  server 要 gzip ＋ 送 `Content-Length`**；**驗 context 掉咗唔好自己叫 `restoreContext()`**；**洩漏
+  gate 唔好淨係數全部節點**（顯示緊嘅 toast 唔係洩漏）；**driver 唔好跟引擎內部次序**。

@@ -11,6 +11,7 @@ function initApp() {
     window.selectMode = selectMode;
     window.backToLanding = backToLanding;
     window.showView = showView;
+    window.continueGame = continueGame;
     window.goToLauncher = () => window.location.href = "../../../index.html";
 
     const diffSelect = document.getElementById('difficulty');
@@ -29,6 +30,11 @@ function initApp() {
 
     // 預設顯示 Landing 頁面
     showView('landing');
+    // `main.js` 係另一個 module，載入次序唔保證——所以除咗即刻試一次，
+    // 仲要喺下一個 tick 再試。冇呢句嘅話個掣有時會唔出（而且係間唔中先唔出,
+    // 即係最難查嗰種）。
+    更新繼續掣();
+    setTimeout(更新繼續掣, 0);
 
     // 嘗試恢復線上對戰 session
     if (window.initOnlineMode) {
@@ -53,6 +59,24 @@ function selectMode(selectedMode) {
             document.getElementById('online-room').classList.remove('hidden');
         }
     }
+}
+
+/**
+ * 上一局未完就出個「繼續上一局」——**唔會靜靜雞幫你續**（同 Tower／Gomoku 一樣）。
+ * 續唔續係玩家嘅決定；撳「單機 AI 對戰」就係開新局，嗰條路會清走舊存檔。
+ */
+function 更新繼續掣() {
+    const btn = document.getElementById('xiangqi-continue-btn');
+    if (!btn) return;
+    btn.classList.toggle('hidden', !(window.__xiangqiRun?.有得繼續?.() === true));
+}
+window.更新繼續掣 = 更新繼續掣;
+
+function continueGame() {
+    if (!window.__xiangqiRun?.續局?.()) { 更新繼續掣(); return; }  // 存檔壞咗就唔好扮續到
+    window.setMode?.('ai');
+    window.setIsVsAI?.(true);
+    showView('ai-game');
 }
 
 function showView(viewName) {
@@ -97,6 +121,7 @@ function backToLanding() {
         window.exitFixedRoom();
     }
     showView('landing');
+    更新繼續掣();
 }
 
 // 覆寫 default console warnings for Three.js

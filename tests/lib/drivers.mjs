@@ -298,4 +298,105 @@ export const 遊戲 = [
       };
     },
   },
+  {
+    名: 'Xiangqi AI', url: '/games/xiangqi-ai/dist/index.html',
+    玩: async (p) => {
+      await p.getByText(/單機/).first().click({ timeout: 60000 });
+      await p.waitForSelector('#board', { timeout: 60000 });
+      await p.waitForTimeout(1500);
+      /*
+       * 唔可以亂撳（同 ADR-233 Penny Crush 一樣嘅教訓）。用引擎自己嗰條
+       * `generateLegalMoves` 攞一步合法棋，換算返格座標，之後**撳真嗰兩格**
+       * ——唔係喺測試度叫 `doMove()`，嗰樣等於自己驗自己。
+       */
+      /*
+       * 個盤係 three.js 3D，螢幕座標要經相機投影——用平面公式一定算錯
+       * （第一版就係咁：撳咗兩下，乜都冇發生）。但 `Render.hitTest(px, py)`
+       * 正正係佢自己嘅「螢幕點 → 格」映射，**掃一次就反得返出嚟**：喺 canvas
+       * 上面撒一格網，逐點問佢係邊格，砌返一張「格 → 螢幕點」嘅表。
+       * 用返遊戲自己嗰條路，唔使我估幾何。
+       *
+       * 行邊步：紅炮平中（7,1 → 7,4）。**寫死一步驗證過嘅開局棋**，唔用
+       * `generateLegalMoves()[0]`——嗰個嘅次序係引擎嘅內部決定，今日啱唔代表
+       * 聽日啱，而 driver 唔應該跟住引擎嘅實作漂移。呢步棋喺初始盤上面
+       * 路徑一定通（row 7 只有兩隻炮，c=1 同 c=7）。
+       */
+      const 兩點 = await p.evaluate(async () => {
+        const t = await import('/games/xiangqi-ai/js/engine/types.js');
+        const cv = document.getElementById('board');
+        const r = cv.getBoundingClientRect();
+        const 表 = new Map();
+        const N = 80;
+        for (let iy = 0; iy < N; iy++) for (let ix = 0; ix < N; ix++) {
+          const x = r.left + (ix + 0.5) * r.width / N;
+          const y = r.top + (iy + 0.5) * r.height / N;
+          const i = window.Render.hitTest(x, y);
+          if (i >= 0 && !表.has(i)) 表.set(i, [x, y]);
+        }
+        return { from: 表.get(t.idx(7, 1)) ?? null, to: 表.get(t.idx(7, 4)) ?? null, 掃到: 表.size };
+      });
+      if (!兩點.from || !兩點.to) throw new Error(`掃唔到棋格（掃到 ${兩點.掃到} 格）`);
+      await p.mouse.click(兩點.from[0], 兩點.from[1]);
+      await p.waitForTimeout(700);
+      await p.mouse.click(兩點.to[0], 兩點.to[1]);
+      await p.waitForFunction(() => {
+        try { return JSON.parse(localStorage.getItem('xiangqi_ai_run_v1') || 'null') !== null; }
+        catch { return false; }
+      }, null, { timeout: 60000 });
+      await p.waitForTimeout(1500);
+    },
+    到咗: () => {
+      try { return JSON.parse(localStorage.getItem('xiangqi_ai_run_v1') || 'null') !== null; }
+      catch { return false; }
+    },
+    憑據: () => {
+      try {
+        const j = JSON.parse(localStorage.getItem('xiangqi_ai_run_v1') || 'null');
+        if (!j) return null;
+        return { 盤上幾多隻: j.board.filter(Boolean).length, 輪到: j.turn, 第幾手: j.moveNumber };
+      } catch { return null; }
+    },
+    續: async (p) => {
+      /*
+       * 3D canvas 用 `getImageData` 讀唔到（WebGL 預設冇 `preserveDrawingBuffer`,
+       * 讀返嚟全零——第一版就係咁，兩個取樣點色差 0）。Playwright 影相影得到。
+       *
+       * 但「撳之前 vs 撳之後」唔係一個有用嘅對照：撳之前仲喺選單，`#board`
+       * 根本隱藏住（第二版就係咁 timeout），而且就算影到，選單同棋盤梗係唔同。
+       *
+       * 有用嘅對照係：**續返嘅局面 vs 開局盤**。撳完 Continue 影一張，再撳
+       * 「重新開始」影多張——兩張一樣就代表佢根本冇畫返你嗰局。
+       */
+      await p.waitForSelector('#xiangqi-continue-btn:not(.hidden)', { timeout: 30000 });
+      await p.click('#xiangqi-continue-btn');
+      await p.waitForTimeout(2500);
+
+      // 先攞狀態證據（下面重新開始會清走存檔）
+      const 狀態 = await p.evaluate(() => {
+        const R = window.__xiangqiRun;
+        let 存 = null;
+        try { 存 = JSON.parse(localStorage.getItem('xiangqi_ai_run_v1') || 'null'); } catch (e) { /* 壞就 null */ }
+        const 現 = R?.現盤?.() ?? [];
+        return {
+          畫面: !document.getElementById('game-container')?.classList.contains('hidden'),
+          盤上幾多隻: 現.filter(Boolean).length,
+          // **唔可以讀返 storage 當證據**——問嘅係「遊戲自己個盤等唔等於存檔個盤」
+          盤對得上: !!存 && 現.length === 存.board.length
+            && 現.every((v, i) => v === 存.board[i]) && R?.現輪到?.() === 存.turn,
+        };
+      });
+
+      const 續住 = await p.locator('#board').screenshot();
+      await p.click('#btn-restart', { timeout: 30000 });
+      await p.waitForTimeout(2000);
+      const 開局 = await p.locator('#board').screenshot();
+      let 差 = Math.abs(續住.length - 開局.length);
+      if (差 === 0) {
+        const n = Math.min(續住.length, 開局.length);
+        for (let i = 0; i < n; i += 13) if (續住[i] !== 開局[i]) 差++;
+      }
+      await p.evaluate((v) => { window.__續驗 = v; }, { ...狀態, 同開局差幾多: 差 });
+    },
+    續驗: () => window.__續驗 ?? { 攞唔到: true },
+  },
 ];

@@ -4496,6 +4496,63 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-235 — Xiangqi 都補返 Continue：一個 3D 盤要換兩次證據先量得到
+
+Date: 2026-08-10. Status: accepted.
+
+ADR-234 幫 Gomoku 補咗「打到一半走咗仲喺度」，同一輪量到 Xiangqi 一樣冇。
+呢一輪照抄嗰個做法搬過去。
+
+存乜：成個盤（`Int8Array` 攤做 array）、輪到邊個、難度、第幾手。引擎冇跨局
+狀態，呢幾樣就砌返到個局面。每行一步就存；收場清；開新局清。覆蓋式
+（同 Tower checkpoint、Gomoku 一樣，喺 ADR-232 個「特登 last-write-wins」名單）。
+
+`history` **唔存**——悔棋唔跨 session。存半份會扮到你悔得返，撳落去先發現冇。
+唔如老實出返個空嘅。
+
+### 兩個坑，兩個都係「用平面思維去度一個 3D 嘢」
+
+1. **撳唔到棋。** 第一版用 `(c + 0.5) / 9` 咁計螢幕座標——但個盤係 three.js，
+   要經相機投影。撳咗兩下乜都冇發生。
+   解法唔係自己補返條投影公式，而係**反用遊戲自己嗰個 `Render.hitTest(px, py)`**
+   （螢幕點 → 格）：喺 canvas 上面撒 80×80 格網，逐點問佢係邊格，砌返一張
+   「格 → 螢幕點」嘅表。用返佢自己條路，唔使我估幾何。
+
+   順帶：driver 行邊步棋**寫死**紅炮平中（7,1 → 7,4），唔用
+   `generateLegalMoves()[0]`——嗰個次序係引擎嘅內部決定，今日啱唔代表聽日啱,
+   **driver 唔應該跟住引擎嘅實作漂移**。
+
+2. **量唔到畫面。** WebGL canvas 預設冇 `preserveDrawingBuffer`，`getImageData`
+   讀返嚟全零——所以「棋格 vs 空格」嘅色差係 0，同「冇畫」分唔開。
+   第二版改用 Playwright 影相（佢影得到 WebGL），但揀錯咗對照：「撳 Continue
+   之前 vs 之後」——撳之前仲喺選單，`#board` 隱藏住，直接 timeout；就算影到,
+   選單同棋盤梗係唔同，一樣係冇用嘅對照。
+   第三版揀啱：**續返嘅局面 vs 開局盤**。撳完 Continue 影一張，再撳「重新開始」
+   影多張，兩張一樣就代表佢根本冇畫返你嗰局。
+
+### 證據要兩條腿
+
+`續驗` 而家報兩樣：
+
+- **盤對得上**：遊戲自己個 `board`（由新 seam `window.__xiangqiRun.現盤()` 攞）
+  逐格等於存檔個 board，而且輪到嘅人都一樣。**唔可以讀返 storage 當證據**
+  ——嗰樣淨係證明「存檔仲喺度」。
+- **同開局差幾多**：影相比較，證明真係畫咗出嚟。
+
+突變（`續局()` 唔倒返個盤）**兩條腿一齊報紅**：`盤對得上: false`、
+`同開局差幾多: 0`。兩個獨立證據指住同一件事，唔係一條靠彩數。
+
+### 驗證
+
+`hub-progress` **3/3**（八隻）、`hub-tabs` 4/4、`hub-touch` 5/5、`hub-keyboard` 3/3、
+`hub-read` 3/3、`hub-cdn` 3/3、`hub` 96/96。
+
+### 仲爭
+
+Big Two／Dou Dizhu。兩隻都係牌類，局面狀態同棋類唔同（手牌係隱藏資訊、
+叫地主／出牌階段、AI 手上嗰疊都要一齊存）——**唔可以照抄呢兩隻嘅做法**,
+要逐隻自己諗清楚存乜。量度同形狀寫喺 ADR-234。
+
 ## ADR-234 — 落咗三十手，一 refresh 就冇晒：Gomoku 補返 Continue
 
 Date: 2026-08-10. Status: accepted.
