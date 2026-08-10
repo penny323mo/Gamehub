@@ -4496,6 +4496,69 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-224 — Hub: GL context 掉咗——五隻識講，一隻淨係黑咗
+
+Date: 2026-08-10. Status: accepted.
+
+手機切走去覆個 message、或者記憶體緊張，瀏覽器會**收返個 GL context**。呢個
+唔係罕見情況，係 3D 網頁遊戲喺手機上面嘅日常。Tower 老早有 gate
+（`tower/tests/flow.mjs`），其餘五隻 3D 遊戲冇人量過。
+
+### 契約
+
+掉咗之後，**唔可以又冇畫面又冇交代**。兩條出路都收貨：畫面自己返到嚟，
+或者有嘢話玩家知（暫停／降畫質／叫你重新整理）。
+
+### 量到
+
+六隻**全部都有叫 `preventDefault()`**——冇呢句瀏覽器根本唔會還原，所以呢個
+係最低要求，而六隻都做咗。至於「有冇同你講嘢」：
+
+    Tower Defense   「Graphics interrupted」
+    Racing Car 3D   「⏸ 已暫停」「手機暫停咗 3D 畫面，正在恢復…」
+    Snooker 3D      「3D 畫面失去連線，請重新整理頁面」
+    Empire Royale   「⚙️ 已自動調低畫質保持流暢（顯示記憶體不足）」
+    深淵之橋 MOBA     HUD flash
+    **Xiangqi AI     乜都冇**
+
+而 Xiangqi 係**按需渲染**（唔郁就唔重畫），所以掉咗之後個 canvas 真係變空白
+——實測 canvas 截圖 8,212 → 1,612 byte（0.20 倍）。即係你望住一塊乜都冇嘅
+棋盤，而冇一隻字話你知發生咗咩事。
+
+改法：`render.js` 度加返 `webglcontextlost` 訊息（同 restore 之後清返、
+`resize()` ＋ 重畫一次）。訊息條由渲染層自己起，唔喺 `index.html` 度預留位
+——嗰樣會變成「兩個地方都要記得改」。
+
+### 五個「把尺講緊自己」
+
+呢一輪把尺錯咗五次，每一次都會令我去修一樣冇壞嘅嘢，或者放過一樣真嘅：
+
+1. **「畫緊」對按需渲染冇意義。** Snooker 同 Xiangqi 唔郁就唔重畫，所以佢哋
+   喺**出事之前**已經量到「冇畫緊」。一把喺故障之前已經讀到「壞」嘅尺，
+   證明唔到故障之後有嘢壞。改成**叫佢重畫**（搖一搖視窗）先量。
+2. **全頁文字比對捉唔到「有冇交代」。** 個遊戲鐘一路行，文字本來就會變
+   ——捉到嘅係 `0:15`、`0:03.70`、`▶`。改成出事前影兩次文字集，
+   **兩次之間自己會變嗰啲就係噪音**，之後一律唔當佢係「同你講嘢」
+   （同 ADR-202 嗰條閃光 gate 一模一樣嘅做法）。
+3. **我幫咗佢還原。** 第一版掉完之後自己叫 `ext.restoreContext()`。突變
+   （將 Tower 成個 `webglcontextlost` handler 拆走）照樣報綠——因為
+   **係我把尺幫佢做咗佢本來要做嗰件事**。改成唔叫，淨係觀察佢有冇
+   `preventDefault()` 同會唔會自己返。
+4. **`e.children.length === 0` 讀漏咗有子元素嘅訊息。** Snooker 句
+   「3D 畫面失去連線」入面有個 `<span>`，於是條 gate 話佢「冇交代」——
+   而佢明明有。改成讀**自己嗰啲文字節點**。
+5. **讀遲咗。** 交代喺搖視窗之後先讀，而搖視窗會令 renderer 重新 init、
+   順手抹走個訊息。Royale 同 Snooker 兩句都係咁樣走甩咗。改成掉完即刻讀。
+
+順帶一提：呢個容器**冇一隻遊戲收到 `webglcontextrestored`**。即係「畫唔畫得
+返」喺呢度根本量唔到——之前嗰個「畫返」其實分緊「canvas 清唔清空」，唔係
+「有冇復原」。所以條 gate 唔靠佢，靠「攔住 ＋ 有交代」。
+
+### 把尺
+
+`tests/hub-context.mjs` 3/3。突變（拆走 Xiangqi 新加嗰句）報紅，而且叫得出
+係邊隻同埋個 canvas 得返 0.28 倍。
+
 ## ADR-223 — Hub: 進度記憶——逐隻寫 driver，五隻全部覆蓋
 
 Date: 2026-08-10. Status: accepted.

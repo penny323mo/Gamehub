@@ -162,11 +162,57 @@ function renderFrame() {
   else renderer.render(scene, camera);
 }
 
+
+/*
+ * 畫面訊息條：貼喺個 canvas 上面。
+ * 自己起，唔喺 `index.html` 度預先擺一個——呢個訊息係渲染層自己嘅事,
+ * 擺喺 HTML 度就變成「兩個地方都要記得改」。
+ */
+let 訊息條 = null;
+function 顯示畫面訊息(字) {
+  if (!字) { 訊息條?.remove(); 訊息條 = null; return; }
+  if (!訊息條) {
+    訊息條 = document.createElement('div');
+    訊息條.id = 'gl-notice';
+    訊息條.setAttribute('role', 'status');
+    訊息條.style.cssText = 'position:fixed;left:50%;top:16px;transform:translateX(-50%);'
+      + 'z-index:9999;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600;'
+      + 'color:#fff;background:rgba(20,22,28,.92);border:1px solid rgba(255,255,255,.18);'
+      + 'box-shadow:0 4px 16px rgba(0,0,0,.45);max-width:86vw;text-align:center;';
+    document.body.appendChild(訊息條);
+  }
+  訊息條.textContent = 字;
+}
+
 /* ── Init ── */
 function init(cvs) {
   canvas = cvs;
 
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+
+  /*
+   * GL context 掉咗要同玩家講。
+   *
+   * 手機切走去覆個 message、或者記憶體緊張，瀏覽器就會收返個 context。
+   * 呢隻棋係**按需渲染**（唔郁就唔重畫），所以掉咗之後個 canvas 會變空白
+   * 而且唔會自己再畫——實測 canvas 截圖 8,212 → 1,612 byte。
+   *
+   * `preventDefault()` 本來就有（three.js 唔會幫你叫，係下面呢句），冇佢
+   * 瀏覽器就永遠唔會還原。但單靠佢唔夠：喺個 context 返嚟之前嗰段時間,
+   * 玩家見到嘅係一塊乜都冇嘅棋盤，而**冇一隻字話佢知發生咗咩事**。
+   * 同 repo 入面 Tower（「Graphics interrupted」）、Racing Car（「⏸ 已暫停」）、
+   * Snooker 3D（「3D 畫面失去連線」）、Royale（「已自動調低畫質」）四隻都有講,
+   * 得呢隻冇——所以補返。
+   */
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();          // 冇呢句瀏覽器唔會還原
+    顯示畫面訊息('3D 畫面暫時中斷，正在恢復…');
+  });
+  canvas.addEventListener('webglcontextrestored', () => {
+    顯示畫面訊息(null);
+    resize();                    // 尺寸要重新設定，之後嗰次畫先啱
+    renderFrame();
+  });
   renderer.setPixelRatio(devicePixelRatio);
   renderer.physicallyCorrectLights = true;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
