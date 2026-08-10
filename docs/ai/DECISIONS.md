@@ -4496,6 +4496,51 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-218 — Snooker 3D: 查完決定唔改，同埋一個我入唔到嘅狀態
+
+Date: 2026-08-10. Status: accepted（結論係「唔改」）。
+
+ADR-217 之後淨返 Snooker 3D 冇「切走就停」。呢一輪查咗佢，**結論係唔改**。
+記低係因為下一個人唔應該由零再查一次——同 ADR-213 對 Royale 一樣。
+
+### 三個查得實嘅事實
+
+1. **佢真係冇 `visibilitychange` handler**（grep 過 `3d/main.js`、`2d/`、`online.js`
+   三處，一個都冇）。
+2. **佢冇任何計時**：`shotClock` / `turnTimer` / `timeLeft` 三個字喺成隻遊戲度
+   都搵唔到。即係你走開嗰陣，**冇一個鐘喺度對你倒數**。
+3. **佢係回合制**：唔喺一杆打緊嘅時候，枱面根本冇嘢喺度動——`animate()` 每幀
+   照 render，但 `stepSimulation` 冇嘢好行。而一杆由出手到啲波停低係幾秒。
+
+即係話：MOBA 嗰種傷害（你去覆個訊息返嚟已經送咗一血）喺呢度**唔成立**。
+最壞情況係你喺一杆飛緊嘅時候切走，返嚟見到啲波已經停晒——但嗰個結果同你
+留喺度睇住佢停係一模一樣，因為冇人趁你唔喺度食你。
+
+### 一個我入唔到嘅狀態
+
+想量「一杆飛緊嗰陣切走」嗰個 case，但入唔到局：
+
+    __snookerDebug.placeCueInD(0.05, -0.9)   → { ok: true, x: 0.084, z: -1.008 }
+    __snookerDebug.confirmCuePlacement()      → turnState 由 PLACE_CUE 變 AIMING
+    __snookerDebug.shoot(0, 1, 0.95)          → 返 true
+    但：shotSerial 一直 0、cueBallSpeed 0、actionRequired "WAIT"
+
+`shoot()` 返 true 淨係代表佢收到個方向同力度，唔代表 `shootCueBall()` 真係
+出到手（入面仲有 `canTakeShotReason()` 一重）。**呢個係我把尺嘅缺口，唔係
+一個發現**——寫低係為咗下一個人由呢度接手，唔使再撞一次。
+
+（第一版仲更差：連 `confirmCuePlacement()` 都冇叫，`turnState` 一直 PLACE_CUE，
+量到「打完個鐘都唔郁」——一個「根本冇打過」嘅狀態，扮到似「打完好快就停」。）
+
+### 所以唔改
+
+冇計時、冇對手趁你唔喺度出手、而唯一會動嘅窗口係幾秒。喺呢個情況下加一個
+暫停，得到嘅係零，而風險係喺一杆中間 pause 會整亂 `turnState` 同 `stationaryTime`
+嗰套判定。**冇量到傷害就唔好落刀。**
+
+下一個人如果要接：入手位係 `canTakeShotReason()` ——搞清楚點解喺 AIMING 之下
+仲係出唔到手（多數係啲波未 settle，或者 `foulDecisionPending` 未清）。
+
 ## ADR-217 — Hub: 你切走咗，四隻遊戲照打
 
 Date: 2026-08-10. Status: accepted.
