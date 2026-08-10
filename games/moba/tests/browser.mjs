@@ -740,10 +740,30 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
             const q = new THREE.Vector3(p.x, 1.2, p.z).project(cam);
             return (1 - (q.y + 1) / 2) * 100;
         };
-        let 幀 = 0, 穩 = 0, 上次 = yOf();
+        /*
+         * 呢一段量嘅係**構圖**，唔係打得贏打唔贏。
+         *
+         * 但佢繼承住上一段（普攻）留低嘅場面——隔籬有一隻滿血敵人企喺 1.5 米。
+         * 玩家喺呢 150 幀入面死咗嘅話，就會重生返泉水（x ≈ −62），而鏡頭跟住
+         * 追過去；量到嘅就係一個**喺半路嘅鏡頭**，而唔係構圖。實測紅過兩次,
+         * 其中一次 `鏡頭焦點` 離玩家成 44 個單位，但條收斂判斷照樣話收斂咗。
+         *
+         * 所以喺量之前同每一幀都撐住佢生存。呢個唔係放寬斷言——條 gate 問嘅
+         * 「玩家喺畫面邊個位置」一個字都冇改，改嘅係「量嗰陣個場面唔可以中途
+         * 變成另一個場面」。同 ADR-216 清 `respawnAt` 係同一種嘢。
+         *
+         * （十五次受控重現全部過，即係我**重現唔到**嗰個偶發；呢度封死嘅係
+         *   報告指住嗰個機制。`途中死過` 留喺報告度，下次再紅就一眼睇得出
+         *   究竟係唔係呢個原因。）
+         */
+        p.stunUntil = 0; p.rootUntil = 0; p.recallUntil = 0; p.respawnAt = 0;
+        p.alive = true; p.hp = p.maxHp;
+        let 幀 = 0, 穩 = 0, 上次 = yOf(), 途中死過 = false;
         const this_camFocus_ref = () => v.camFocus;
         while (幀 < 150 && 穩 < 5) {
             v.update(1 / 30, []);
+            if (!p.alive || p.hp <= 0) 途中死過 = true;
+            p.alive = true; p.hp = p.maxHp; p.respawnAt = 0;
             const now = yOf();
             穩 = Math.abs(now - 上次) < 0.2 ? 穩 + 1 : 0;
             上次 = now; 幀++;
@@ -757,6 +777,7 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
             // （例如死咗重生返泉水），鏡頭就唔再對正佢，而「玩家喺畫面邊個
             // 位置」就會跟住走——同 ADR-132 撞到嗰個係同一件事。
             玩家x: +p.x.toFixed(1), 鏡頭焦點: +this_camFocus_ref().toFixed(1),
+            焦點離玩家: +Math.abs(this_camFocus_ref() - p.x).toFixed(1), 途中死過,
             夾界: +(M.fountainX - 4).toFixed(1),
             垂直: vertical,
         };
