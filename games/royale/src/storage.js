@@ -171,6 +171,27 @@ export function loadSave() {
     return save;
 }
 
+/**
+ * 改存檔之前一定要行呢句。
+ *
+ * `save` 係開場讀一次就 cache 住嘅。`localStorage` 係成個 origin 共用嘅
+ * ——另一個 tab 喺呢段時間寫低咗嘅嘢，喺我哋記憶體嗰份入面唔存在，
+ * 就咁 `persist()` 返出去就會**食咗佢**。
+ *
+ * 實測（`tests/hub-tabs.mjs`，兩個 tab 同時開住各贏一場）：獎盃
+ * 0 → 30 → **30**，第二場食咗第一場。
+ *
+ * **唔止收場嗰下會蓋。** 第一次修淨係喺 `recordMatch` 度重讀，跑出嚟一樣紅
+ * ——因為第二個 tab 一入場就叫 `markTutorialSeen()`，佢個 `persist()` 已經
+ * 將成份舊嘢（獎盃 0）寫咗返落去。**任何一個 `persist()` 都會蓋**，
+ * 所以每個改存檔嘅入口都要重讀，唔係淨係嗰個「睇落似會出事」嗰個。
+ *
+ * 掉咗記憶體嗰份係安全嘅：每個 mutator 改完即刻 `persist()`，即係同一個 tab
+ * 入面記憶體同 storage 一路同步，唯一嘅差異就係另一個 tab 寫低咗嘅嘢
+ * ——而嗰樣正正係我哋要保住嘅。
+ */
+function 改之前重讀() { save = null; loadSave(); }
+
 function persist() {
     try { localStorage.setItem(getProfileSaveKey(KEY), JSON.stringify(save)); } catch { /* private mode 都照玩 */ }
 }
@@ -213,7 +234,7 @@ export function getDecks() {
 }
 
 export function setDeck(idx, cards) {
-    loadSave();
+    改之前重讀();
     save.decks[idx].cards = [...cards];
     persist();
 }
@@ -224,7 +245,7 @@ export function getActiveDeck() {
 }
 
 export function setActiveDeck(idx) {
-    loadSave();
+    改之前重讀();
     save.activeDeck = idx;
     persist();
 }
@@ -236,7 +257,7 @@ export function shouldShowTutorial() {
 }
 
 export function markTutorialSeen() {
-    loadSave();
+    改之前重讀();
     save.tutorialSeen = true;
     persist();
 }
@@ -279,7 +300,7 @@ function grantShards(id, n) {
 // matchStats: { win, draw, difficulty, crowns, towersDestroyed, bestSpellHit,
 //               cardsPlayed, deck, avgCost, matchSeconds, gauntletStage }
 export function recordMatch(stats) {
-    loadSave();
+    改之前重讀();
     const oldRank = rankOf(save.trophies);
     const delta = stats.gauntletStage
         ? (stats.win ? 20 + stats.gauntletStage * 5 : 0) // 連勝挑戰：只加唔減

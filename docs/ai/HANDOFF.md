@@ -1,10 +1,10 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-10 (Asia/Macau)
-Prepared by: Claude Code (cloud) — ADR-202 至 230
+Prepared by: Claude Code (cloud) — ADR-202 至 232
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: 十四把跨遊戲尺全綠；洩漏線由 Royale 一隻擴到九隻（`hub-leak`），十隻遊戲全部有守
+Status: 十五把跨遊戲尺全綠；新 `hub-tabs` 捉到兩隻遊戲「打咗兩局淨係記低一局」
 
 ## Current objective
 
@@ -14,52 +14,53 @@ Status: 十四把跨遊戲尺全綠；洩漏線由 Royale 一隻擴到九隻（`
 
 ## Completed
 
-**ADR-227 至 230（本輪）— 洩漏：GPU 守咗 DOM 冇；一隻守咗其餘八隻冇**
+**ADR-232（本輪）— 兩個 tab：打咗兩局淨係記低一局**
 
-- 227：GPU 三個數連開五局**完全平**——`royale/tests/leak.mjs`（ADR-008）一直守住,
-  **我量咗一樣已經有人守嘅嘢**。佢冇守嘅係 **DOM**：一局爬一個 `<script>`（jsdelivr
-  supabase SDK）。`loadSdk()` 攞唔到重設 promise 再試，**但上次嗰個 element 冇拆走**
-  ——**網絡差＝重試多＝爬得快**。共用 `loadSupabaseSdk()`（ADR-209 我寫，六隻用）同一
-  pattern，兩邊一齊修。**條 gate 擺錯位會扮成守緊嘢**：第一版加落現有 loop 突變照樣報綠
-  ——嗰個 loop 唔經選單。**唔行玩家條路嘅 gate，守唔到玩家撞到嘅嘢。**
-- 228／229：新 `tests/hub-leak.mjs` 補齊——五隻卡牌／棋類（入大廳 → 返選單，**要擋走
-  第三方**先量到重試）、Tower（說明面板）、Racing Car（日夜切換）、Snake（撞牆死 → Enter
-  重開）。四個「把尺講緊自己」：①Snooker 大廳係 `#snooker-online-lobby`、Big Two 全域叫
-  `setMode`——兩隻報「完全平」因為冇入過大廳，**「先證明循環真係行過」條 check 第一次跑就
-  捉到**；②`.gh-toast` 顯示 3.5 秒而一圈 1.2 秒——**顯示緊嘅提示唔係洩漏**；③**撳個掣同撳
-  Enter 唔同**（Snake 撳掣個遮罩唔走，隻蛇冇再郁過但每圈都報「死到」）；④**唔好拎兩個唔同
-  狀態嘅數嚟比** → **只喺確認咗狀態嗰陣先取樣** ＋「取樣 ≥ 3」。
-- 230：上一輪寫「MOBA 要打完一場先有循環」——**個前提本身錯咗**。`finish()` 最後一句係
-  `location.reload()`，即係每場都由全新 document 開始，**結構上唔可能跨局積 DOM**。
-  **「未冚到」同「冚唔到」係兩件事。** 佢真正值得守嘅係局中面板（開／閂商店）：今日
-  淨係 class toggle 所以一定平，但守住「將來唔好改成每次開都重建」。**一條而家一定綠嘅
-  gate 唔等於冇用**，只要佢守住嘅嘢係真嘅而且會壞。突變報 `[286,…,290]`。
+- 上一輪粗掃「零 error、身分冇撞」**唔算數**——嗰把尺量緊「未有進度可以撞」嗰一刻。
+- 兩個 tab 同時開住各打完一局：Snake `gamesPlayed` 0 → 1 → **1**、Royale `trophies`
+  0 → 30 → **30**。**兩局變一局**——`localStorage` 成個 origin 共用，而兩隻都係
+  「開場讀一次入記憶體，收場寫返成份出去」。
+- 新 `games/shared/js/merge-save.mjs` 一個原語 `改存檔()`：寫嗰陣先讀返 storage。
+- **兩次都修錯位**：①Royale 淨係改 `recordMatch` 一樣紅——真兇係第二個 tab 一入場叫
+  `markTutorialSeen()`，個 `persist()` 已經蓋咗。②Snake 淨係改 `saveUserData` 一樣紅
+  ——dump 咗 storage 先見到真兇係 **`login()`**（第二個 tab 掛載時 storage 仲空，
+  `prev` 係 `{}`，一登入就抹晒）。**唔係得「睇落似會出事」嗰個寫入會蓋，係每一個由
+  記憶體快照出發嘅都會蓋。估唔到就 dump，唔好對住碼再估一次。**
+- Tower／MOBA／Racing Car **特登唔掃**（checkpoint／上次揀邊個／最快幽靈，last-write-wins
+  係設計）——例外連理由一齊寫入把尺。`tests/hub-tabs.mjs` 4/4（兩條對照 ＋ 正題 ＋ 零
+  error）；driver 抽咗去 `tests/lib/drivers.mjs` 同 `hub-progress` 共用。突變報紅。
+
+**ADR-227 至 230（已合埋 main）— 洩漏：GPU 守咗 DOM 冇；一隻守咗其餘八隻冇**
+
+- GPU 三個數連開五局完全平（`royale/tests/leak.mjs` 一直守住，**我量咗一樣已經有人
+  守嘅嘢**）。佢冇守嘅係 **DOM**：一局爬一個 jsdelivr `<script>`——重試唔拆走上一個,
+  **網絡差＝重試多＝爬得快**。新 `tests/hub-leak.mjs` 由一隻擴到九隻。
+- 四個「把尺講緊自己」：大廳 id／全域名唔同令兩隻報「完全平」（**「先證明循環真係
+  行過」條 check 第一次跑就捉到**）；`.gh-toast` 顯示緊唔算洩漏；**撳掣同撳 Enter 唔同**；
+  **唔好拎兩個唔同狀態嘅數嚟比**。230：MOBA 收場係 `location.reload()`，**結構上唔可能
+  跨局積 DOM**——**「未冚到」同「冚唔到」係兩件事**。
+
 **ADR-226（已合埋 main）— 睇唔睇得清：五個主要行動掣跌穿 WCAG AA**
 
-- **把尺量咗四個版先啱**：①computed style 搵底色、有 `background-image` 就跳過——body 一個
-  gradient 令九個介面 100% 跳過再報「零問題」，**一個量咗零樣嘢得出嚟嘅綠**；②改量真像素
-  但攞框內眾數做底——細框入面**字本身先係眾數**，Tower 報 35 個假紅；③純 emoji 假紅；
-  ④**喺 layout 入面唔等於畫得出嚟**。**每版都要親眼影低先信。**
-- 真嘢：Big Two／Dou Dizhu「線上對戰」**2.39 → 5.61**；MOBA「開打」→ **4.90／6.45**；Xiangqi
-  「ONLINE 對戰」→ **4.98**；MOBA 角色標籤向白拉三成（**英雄色本身唔郁**）。**字體大細只報
-  唔守**（Hub 14、MOBA 16）。`hub-read.mjs` 3/3，另有兩條「唔畀自己扮綠」。
+- **把尺量咗四個版先啱**（gradient 令九個介面全跳過再報「零問題」＝**量咗零樣嘢嘅綠**；
+  框內眾數做底令細框報假紅；純 emoji 假紅；**喺 layout 入面唔等於畫得出嚟**）。
+  **每版都要親眼影低先信。** 真嘢：Big Two／Dou Dizhu「線上對戰」**2.39 → 5.61**、
+  MOBA「開打」**4.90／6.45**、Xiangqi **4.98**。字體大細**只報唔守**。`hub-read` 3/3。
 
 **ADR-224／225（已合埋 main）— GL context 掉咗／返得返去**
 
-- 224：交代方面**得 Xiangqi AI 乜都冇**。五個「把尺講緊自己」，其中一個係**我幫咗佢還原**
-  （自己叫 `restoreContext()`，於是拆走 Tower 成個 handler 都報綠）。225：`hub.mjs` 守咗**入去**
-  十三條路，**冇人守過出返嚟**；**得 MOBA 一條都冇**。四個「把尺講緊自己」：掃屬性掃唔到
-  `onclick`、**撳第一個唔等於撳啱**、`getByText` 撞中副標題、一個 timeout 掃唔到分階段介面。
-  **一條指住唔存在檔案嘅鏈，睇落一樣好地地**。兩條 gate 各 3/3。
+- 224：交代方面**得 Xiangqi AI 乜都冇**；五個「尺講緊自己」，一個係**我幫咗佢還原**
+  （自己叫 `restoreContext()`，拆走 Tower 成個 handler 都報綠）。225：守咗**入去**十三條路，
+  **冇人守過出返嚟**，**得 MOBA 一條都冇**；四個尺錯（掃唔到 `onclick`、**撳第一個唔等於
+  撳啱**、撞中副標題、timeout 掃唔到分階段介面）。兩條 gate 各 3/3。
 
 **ADR-202 至 209（已合埋 main；詳情全部喺 DECISIONS）**
 
-- Tower 四輪：44×44 ／ 撳完 START 嘅靜默 → 進度條＋重入防護 ／ **佈景喺你最想望遠嗰陣斷咗**
-  ／ 格 → **24×14**、路 → **37 格 10 彎**、HP 二次項 → **0.0026**。**`flow.mjs` 有三處寫死同一格**。
-- 四把跨遊戲尺：`hub-touch`（捉到八個介面共 24 個細掣）、`hub-load`（launcher **904 → 51 KB**）、
-  `hub-keyboard`（**十二個介面本來就啱**）、`hub-cdn`（jsdelivr SDK 吊 8 秒＝**DCL 8.0–8.4s，
-  一比一**）。記低：classic script 入面 `window.joinFixedRoom` 同頂層函數係同一個綁定，
-  擺完佔位 `window.x = x` 就自己指自己。
+- Tower 四輪：44×44 ／ START 靜默 → 進度條＋重入防護 ／ **佈景喺你最想望遠嗰陣斷咗** ／
+  格 → **24×14**、路 → **37 格 10 彎**、HP → **0.0026**。**`flow.mjs` 有三處寫死同一格**。
+- 四把跨遊戲尺：`hub-touch`（八個介面 24 個細掣）、`hub-load`（launcher **904 → 51 KB**）、
+  `hub-keyboard`（**本來就啱**）、`hub-cdn`（jsdelivr 吊 8 秒＝**DCL 一比一遲 8 秒**）。記低：
+  classic script 入面 `window.joinFixedRoom` 同頂層函數係同一個綁定，擺完佔位就自己指自己。
 
 **ADR-219 至 223（已合埋 main）— 聲／流暢度／draw-call／鏡頭偶發／進度記憶**
 
@@ -97,7 +98,7 @@ Status: 十四把跨遊戲尺全綠；洩漏線由 Royale 一隻擴到九隻（`
 - `npm test`：PASS（要 `PW_CHROMIUM=/opt/pw-browsers/chromium`）。**十四把跨遊戲尺全綠**：
   `hub` 96/96、`hub-touch` 5/5、`hub-load` 3/3、`hub-keyboard` 3/3、`hub-cdn` 3/3、`hub-wait` 1/1、
   `hub-storage` 2/2、`hub-away` 3/3、`hub-audio` 3/3、`hub-progress` 2/2、`hub-context` 3/3、
-  `hub-home` 3/3、`hub-read` 3/3、**`hub-leak` 4/4**；Tower 三 suite、`moba` 196/196、royale `leak` 7/7。Mutation 驗過廿六次。`touch/load/keyboard/cdn/wait` 五把喺 synced tree 重跑過。
+  `hub-home` 3/3、`hub-read` 3/3、`hub-leak` 4/4、**`hub-tabs` 4/4**；Tower 三 suite、`moba` 196/196、royale `leak` 7/7。Mutation 驗過廿六次。`touch/load/keyboard/cdn/wait` 五把喺 synced tree 重跑過。
 
 ## Known issues and cautions
 
@@ -106,10 +107,9 @@ Status: 十四把跨遊戲尺全綠；洩漏線由 Royale 一隻擴到九隻（`
 ## Exact next action
 
 1. `export PW_CHROMIUM=/opt/pw-browsers/chromium`，跑 `./scripts/agent-context.sh --sync`。
-2. **接手位：兩個 tab。** 粗掃十二個介面（同開兩版各撳開場）零 error、身分冇撞，但嗰把
-   尺量緊「未有進度可以撞」嗰一刻，**未算量過**。真嘢係累積型存檔（Snake `gamesPlayed`／
-   Royale `trophies`）各打一局會唔會少咗一局——重用 `hub-progress.mjs` 嘅 driver（Snake
-   第二個 tab **唔會再問名**）。另：`hub-read` 報咗但冇守；ADR-224 冇遊戲收到 restored。
+2. **接手位**：兩個 tab 條線做完（ADR-232）。仲未量過嘅：**同一個 tab 開兩隻遊戲嘅
+   storage 互撞**（key 前綴撞唔撞）；`hub-read` 報咗但冇守；ADR-224 呢個容器冇遊戲
+   收到 `webglcontextrestored`，要真機先寫得到。
 3. 一個檢查點一件事，改完連 handoff 一齊 commit。
 
 ## Do not redo

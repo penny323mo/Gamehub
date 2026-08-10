@@ -4496,6 +4496,74 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-232 — 兩個 tab：打咗兩局淨係記低一局
+
+Date: 2026-08-10. Status: accepted.
+
+上一輪粗掃過「同一部機開兩個 tab」——十二個介面同時開兩版、各撳開場掣，
+結果零 error、身分冇撞。**但嗰個結果唔算數**：嗰把尺量緊「未有進度可以撞」
+嗰一刻。冇進度就冇嘢好撞，綠得好安詳。
+
+### 量到咩
+
+`localStorage` 係**成個 origin 共用**嘅——兩個 tab 唔係兩部機。而好多遊戲係
+「開場讀一次成份存檔入記憶體，收場寫返成份出去」。兩個 tab 同時開住、各打完
+一局（`tests/hub-tabs.mjs`）：
+
+| 遊戲 | 記乜 | 起 | A 打完 | 兩個 tab 打完 |
+|---|---|---|---|---|
+| Neon Snake | `gamesPlayed` | 0 | 1 | **1** |
+| Empire Royale | `trophies` | 0 | 30 | **30** |
+
+**兩局變一局。** 呢個係 last-write-wins 嘅預設行為，要特登避先避得到。
+
+### 改法：唔好信記憶體嗰份
+
+新 `games/shared/js/merge-save.mjs` 得一個原語 `改存檔(key, 改, 預設)`
+——改嘅時候即刻讀返 storage 現時嘅值，喺嗰個之上改，再寫返去。
+
+（真正同一毫秒嘅兩個寫入仍然可以撞——`localStorage` 冇原子 read-modify-write。
+但玩家嘅兩個 tab 唔會喺同一毫秒收場；呢度避嘅係「隔咗成分鐘」嗰種，
+即係實際會發生嗰種。）
+
+### 兩次都修錯位，兩次都係同一個教訓
+
+**唔係得「睇落似會出事」嗰個寫入會蓋，係每一個由記憶體快照出發嘅寫入都會蓋。**
+
+1. **Royale**：第一次淨係喺 `recordMatch` 度重讀——跑出嚟一樣紅。查落去，
+   第二個 tab 一入場就叫 `markTutorialSeen()`，佢個 `persist()` 已經將成份舊嘢
+   （獎盃 0）寫咗返落去，之後 `recordMatch` 由 0 起計。改成**每個改存檔嘅入口**
+   （`setDeck`／`setActiveDeck`／`markTutorialSeen`／`recordMatch`）都先重讀。
+
+2. **Snake**：第一次淨係改咗 `saveUserData`——一樣紅。dump 咗成個
+   `localStorage` 落去先見到真兇係 **`login()`**：第二個 tab 掛載嗰陣 storage
+   仲係空（第一個 tab 未入名），佢個 `prev` 係 `{}`，一登入就將個空物件寫返
+   出去，**抹咗第一個 tab 成個 profile**，跟住先至打自己嗰局。
+
+   兩次都係「改咗個最明顯嘅寫入就當修好」，兩次都要 dump 真實 storage 先知
+   錯咗邊度。**估唔到就 dump，唔好對住碼再估一次。**
+
+### 邊啲遊戲特登唔掃
+
+只有**累積型**存檔先有呢個病。其餘三隻係特登 last-write-wins：
+Tower 嘅 run checkpoint（同一個玩家同一部機，後面嗰個就係最新進度）、
+MOBA 嘅 `champion` 設定（記住上次揀邊個，本來就係「最後一次」）、
+Racing Car 嘅幽靈（存最快嗰個，唔係存全部）。
+**一條會將特登嘅設計叫做 bug 嘅 gate 係壞 gate**，所以例外連理由一齊寫入把尺。
+
+### 把尺
+
+`tests/hub-tabs.mjs` 4/4，四條：兩個 tab 都真係各打完一局（對照）、A 打完個
+累積數要真係行過（對照，唔係嘅話下面條 check 量緊空氣）、兩個 tab 各打一局
+唔可以少咗一局、兩個 tab 開住零 error。
+
+門檻唔係我揀個數——係「A 一局行咗幾多，兩局就至少要行到咁多嘅兩倍」。
+
+driver 由 `hub-progress.mjs` 抽咗去 `tests/lib/drivers.mjs` 兩把尺共用
+——**抄多一份就會有兩份各自漂移嘅真相**。
+
+突變（淨係將 `markTutorialSeen` 退返去）令佢報紅，而且淨係叫 Royale。
+
 ## ADR-230 — MOBA: 佢冇一局又一局嘅循環，因為收場個掣係 location.reload()
 
 Date: 2026-08-10. Status: accepted.

@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+// 兩個 tab 共用同一個 `localStorage`：寫之前要讀返（見 merge-save.mjs）
+// @ts-expect-error 共用層係 plain JS，冇 .d.ts
+import { 改存檔 } from '../../../shared/js/merge-save.mjs';
 import type { ScoreEntry, GameSettings } from '../types/game';
 import { ACHIEVEMENTS, type SnakeSkinId } from '../config/achievements';
 
@@ -90,13 +93,26 @@ export function useStorage() {
     }
   }, []);
 
+  /*
+   * 寫之前要讀返 storage。
+   *
+   * `prev` 係開場讀落 React state 嗰份。`localStorage` 係成個 origin 共用嘅
+   * ——另一個 tab 喺呢段時間打完嘅局，喺 `prev` 入面唔存在。就咁 `{...prev}`
+   * 寫返出去就會食咗佢。實測（`tests/hub-tabs.mjs`）：兩個 tab 各打完一局,
+   * `gamesPlayed` 由 0 → 1 → **1**——第二局食咗第一局。
+   *
+   * 所以基底由 storage 攞（`改存檔` 幫手讀＋寫），唔係由 `prev` 攞。
+   * 同一個 tab 入面兩者一路同步（每次改完即刻寫），唯一嘅差異就係另一個
+   * tab 寫低咗嘅嘢——而嗰樣正正係我哋要保住嘅。
+   */
   const saveUserData = useCallback((updater: (profile: UserProfile) => UserProfile) => {
     setUsers(prev => {
       if (!currentUserName) return prev;
-      
-      const currentProfile = prev[currentUserName] || createDefaultProfile(currentUserName);
-      const updated = { ...prev, [currentUserName]: updater(currentProfile) };
-      localStorage.setItem(USERS_KEY, JSON.stringify(updated));
+
+      const updated = 改存檔(USERS_KEY, (現時: Record<string, UserProfile>) => {
+        const base = 現時?.[currentUserName] ?? prev[currentUserName] ?? createDefaultProfile(currentUserName);
+        return { ...(現時 ?? {}), ...prev, ...現時, [currentUserName]: updater(base) };
+      }, prev) as Record<string, UserProfile>;
       return updated;
     });
   }, [currentUserName]);
@@ -105,12 +121,24 @@ export function useStorage() {
     const trimmedName = name.trim();
     if (!trimmedName) return;
     
-    setUsers(prev => {
-      let updated = { ...prev };
-      if (!updated[trimmedName]) {
-        updated[trimmedName] = createDefaultProfile(trimmedName);
-      }
-      localStorage.setItem(USERS_KEY, JSON.stringify(updated));
+    /*
+     * 登入都要由 storage 出發，唔可以由 `prev` 出發。
+     *
+     * **呢個先係真兇。** 第一次修淨係改咗 `saveUserData`，兩個 tab 嘅
+     * `gamesPlayed` 照樣得一局。dump 落去先見到：第二個 tab 掛載嗰陣
+     * storage 仲係空（第一個 tab 未入名），所以佢個 `prev` 係 `{}`
+     * ——一登入就將個空物件寫返出去，**抹咗第一個 tab 成個 profile**,
+     * 跟住先至打自己嗰局。
+     *
+     * 同 Royale 一模一樣嘅教訓（ADR-232）：**唔係得「睇落似會出事」嗰個
+     * 寫入會蓋，係每一個由記憶體快照出發嘅寫入都會蓋。**
+     */
+    setUsers(() => {
+      const updated = 改存檔(USERS_KEY, (現時: Record<string, UserProfile>) => {
+        const base = { ...(現時 ?? {}) };
+        if (!base[trimmedName]) base[trimmedName] = createDefaultProfile(trimmedName);
+        return base;
+      }, {}) as Record<string, UserProfile>;
       localStorage.setItem(CURRENT_USER_KEY, trimmedName);
       return updated;
     });
