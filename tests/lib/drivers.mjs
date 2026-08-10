@@ -213,4 +213,89 @@ export const 遊戲 = [
       } catch { return null; }
     },
   },
+  {
+    名: 'Gomoku', url: '/games/gomoku/index.html',
+    玩: async (p) => {
+      await p.click('#gomoku-ai-btn', { timeout: 60000 });
+      await p.waitForSelector('#gomoku-board', { timeout: 60000 });
+      // 落三手（AI 會夾喺中間行）。落喺中間附近，一定係空格。
+      const box = await p.locator('#gomoku-board').boundingBox();
+      for (const [fx, fy] of [[0.5, 0.5], [0.4, 0.5], [0.6, 0.4]]) {
+        await p.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
+        await p.waitForTimeout(1200);
+      }
+      await p.waitForFunction(() => {
+        try { return JSON.parse(localStorage.getItem('gomoku_ai_run_v1') || 'null') !== null; }
+        catch { return false; }
+      }, null, { timeout: 30000 });
+    },
+    到咗: () => {
+      // 對照：真係落咗棋（唔係停喺選單扮「冇嘢好記」）
+      try {
+        const j = JSON.parse(localStorage.getItem('gomoku_ai_run_v1') || 'null');
+        return !!j && j.board.flat().filter(Boolean).length > 0;
+      } catch { return false; }
+    },
+    憑據: () => {
+      try {
+        const j = JSON.parse(localStorage.getItem('gomoku_ai_run_v1') || 'null');
+        if (!j) return null;
+        const 棋 = j.board.flat().filter(Boolean).length;
+        return 棋 > 0 ? { 盤上幾多隻: 棋, 輪到: j.currentPlayer, 難度: j.difficulty } : null;
+      } catch { return null; }
+    },
+    // 「留得住」唔等於「返得到」：撳個 Continue 要真係開返上一局。
+    續: async (p) => {
+      await p.waitForSelector('#gomoku-continue-btn:not(.hidden)', { timeout: 30000 });
+      await p.click('#gomoku-continue-btn');
+      await p.waitForTimeout(2000);
+    },
+    /*
+     * 兩樣都唔可以讀返 storage——讀返 storage 就變成「存檔仲喺度」嘅同義詞,
+     * 而條 check 想問嘅係「局真係開返咗未」。
+     *   · `盤上幾多隻` 由遊戲自己個 `board` 攞（reload 之後係空嘅，
+     *     撳完 Continue 先會有嘢）;
+     *   · `畫咗嘢` 抽 canvas 像素——狀態返咗嚟但畫唔返出嚟一樣係壞。
+     */
+    續驗: () => {
+      const g = window.__gomoku;
+      const b = g?.board ?? [];
+      const cv = document.getElementById('gomoku-board');
+      /*
+       * **「畫面有嘢」唔等於「啲棋畫返咗」。** 第一版數成塊 canvas 有幾多
+       * 非背景像素——量到 301，但突變（唔畫返啲棋）照樣量到 300：嗰 300 個
+       * 係**格線**，畫盤嗰陣一定有。一條分唔開「格線」同「棋子」嘅 check
+       * 係壞 check。
+       *
+       * 改成拎「有棋嗰格」同「空格」比：同一條公式算兩個中心點
+       * （`drawBoard` 用 `cellSize = w / 15`，中心喺 `(i + 0.5) * cellSize`）。
+       * 公式算錯嘅話兩邊都錯，條 check 會報紅——**錯要向紅嗰邊錯**。
+       */
+      let 有棋格 = null, 空格 = null;
+      for (let r = 0; r < b.length; r++) for (let c = 0; c < b.length; c++) {
+        if (b[r][c] && !有棋格) 有棋格 = [r, c];
+        else if (!b[r][c] && !空格) 空格 = [r, c];
+      }
+      let 棋色 = null, 空色 = null;
+      try {
+        const ctx = cv.getContext('2d');
+        const cell = cv.width / b.length;
+        const 抽 = ([r, c]) => {
+          const d = ctx.getImageData(Math.round((c + 0.5) * cell), Math.round((r + 0.5) * cell), 1, 1).data;
+          return [d[0], d[1], d[2]];
+        };
+        if (有棋格) 棋色 = 抽(有棋格);
+        if (空格) 空色 = 抽(空格);
+      } catch (e) { /* 抽唔到就留 null，下面會報紅 */ }
+      const 差 = (棋色 && 空色)
+        ? Math.abs(棋色[0] - 空色[0]) + Math.abs(棋色[1] - 空色[1]) + Math.abs(棋色[2] - 空色[2])
+        : 0;
+      return {
+        畫面: !document.getElementById('game-board-area')?.classList.contains('hidden'),
+        盤上幾多隻: b.flat().filter(Boolean).length,
+        有棋格, 空格, 棋色, 空色,
+        棋同空差幾多: 差,
+      };
+    },
+  },
 ];

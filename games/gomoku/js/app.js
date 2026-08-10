@@ -9,6 +9,7 @@ function initApp() {
     if (typeof leaveRoom !== 'undefined') window.leaveRoom = leaveRoom;
 
     window.selectMode = selectMode;
+    window.continueGame = continueGame;
     window.backToLanding = backToLanding;
     window.showView = showView;
     window.resetGame = resetGame;
@@ -24,6 +25,7 @@ function initApp() {
 
     // Default View
     showView('landing');
+    更新繼續掣();
 
     // Attempt to restore online session
     if (window.initOnlineMode) {
@@ -40,7 +42,44 @@ function resetGame() {
         resetBoardUI();
         createBoardUI((r, c) => handleCellClick(r, c, difficulty));
         updateStatusUI('black');
+        清局();   // 開新局＝放棄上一局，唔好留住個掣呃人
+        更新繼續掣();
     }
+}
+
+/**
+ * 上一局未完就出個「繼續上一局」——**唔會靜靜雞幫你續**。
+ *
+ * 同 Tower 一樣：續唔續係玩家嘅決定。撳「對 AI 對戰」就係開新局，
+ * 所以嗰條路會清走舊存檔（見 `resetGame`）。
+ */
+function 更新繼續掣() {
+    const btn = document.getElementById('gomoku-continue-btn');
+    if (!btn) return;
+    btn.classList.toggle('hidden', !有得繼續());
+}
+
+function continueGame() {
+    const j = 續局();
+    if (!j) { 更新繼續掣(); return; }      // 存檔壞咗／畀人清咗：唔好扮續到
+    setMode('ai');
+    setIsVsAI(true);
+    if (j.difficulty) {
+        const sel = document.getElementById('difficulty');
+        if (sel) sel.value = j.difficulty;
+    }
+    showView('ai-game');
+    const aiResetBtn = document.getElementById('reset-btn');
+    if (aiResetBtn) aiResetBtn.style.display = 'inline-block';
+
+    resetBoardUI();
+    // `createBoardUI` 入面 `resizeGomokuBoard()` 會 `drawBoard()`，而 `drawBoard`
+    // 係由 `board` 整幅畫返——即係啲棋一次過畫晒。（第一版喺呢度逐格再叫
+    // `placeStoneUI`，但佢自己都係叫 `drawBoard()`：畫足 226 次同一幅嘢。）
+    createBoardUI((r, c) => handleCellClick(r, c, difficulty));
+    updateStatusUI(currentPlayer);
+    // 存嗰陣可能啱啱輪到 AI——唔叫佢行，個盤就會永遠等你落一隻唔到你落嘅棋
+    if (currentPlayer === 'white') setTimeout(() => makeAIMove(difficulty), 500);
 }
 
 function selectMode(selectedMode) {
@@ -119,6 +158,8 @@ function backToLanding() {
         if (window.exitFixedRoom) window.exitFixedRoom();
     }
     showView('landing');
+    // 由局中返選單**唔算放棄**——個掣要即刻出返，唔使等下次開頁
+    更新繼續掣();
 }
 
 // Start

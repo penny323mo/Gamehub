@@ -38,6 +38,9 @@
                         AI 對戰</button>
                     <button id="gomoku-online-btn" class="pill-btn mode-btn" data-action="online"
                         onclick="selectMode('online')">ONLINE 對戰</button>
+                    <!-- 上一局未完先出（同 Tower 個 Continue 一樣，唔會靜靜雞幫你續） -->
+                    <button id="gomoku-continue-btn" class="pill-btn mode-btn hidden"
+                        data-action="continue" onclick="continueGame()">繼續上一局</button>
                     <button id="gomoku-back-btn" class="pill-btn secondary" data-action="back"
                         onclick="goToLauncher()">返回遊戲大廳</button>
                 </div>

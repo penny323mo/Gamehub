@@ -82,7 +82,19 @@ for (const g of 遊戲) {
     await page.reload({ waitUntil: 'load', timeout: 180000 });
     await page.waitForTimeout(3500);
     const 返嚟 = await page.evaluate(g.憑據).catch(() => null);
-    量[g.名] = { 到咗, 玩完: 玩完 ?? '（冇）', 返嚟: 返嚟 ?? '（冇）' };
+    /*
+     * **「留得住」唔等於「返得到」。** 一個續唔返嘅存檔，對玩家嚟講同冇存
+     * 冇分別——佢見到嘅係「我上一局去咗邊」。所以有 Continue 嗰啲遊戲要
+     * 再行多一步：真係撳落去，再問局有冇開返。
+     */
+    let 續到 = null;
+    if (g.續) {
+      try {
+        await g.續(page);
+        續到 = await page.evaluate(g.續驗).catch(() => null);
+      } catch (e) { 續到 = { 撳唔到: String(e).split('\n')[0].slice(0, 70) }; }
+    }
+    量[g.名] = { 到咗, 玩完: 玩完 ?? '（冇）', 返嚟: 返嚟 ?? '（冇）', ...(g.續 ? { 續到 } : {}) };
   } catch (e) {
     量[g.名] = { 掛咗: String(e).split('\n')[0].slice(0, 110) };
   }
@@ -99,6 +111,13 @@ const 冇留低 = Object.entries(量).filter(([, v]) => v.掛咗 || v.返嚟 ===
 check('玩完之後成果要留得住（reload 返嚟仲喺度）', 冇留低.length === 0,
   冇留低.length ? Object.fromEntries(冇留低) : Object.fromEntries(
     Object.entries(量).map(([k, v]) => [k, v.返嚟])));
+
+// 有 Continue 嘅遊戲：撳落去要真係開返局（狀態同畫面都要）
+const 續唔返 = Object.entries(量).filter(([, v]) => '續到' in v
+  && !(v.續到 && v.續到.畫面 === true && v.續到.盤上幾多隻 > 0 && v.續到.棋同空差幾多 > 30));
+check('有 Continue 嘅，撳落去要真係開返上一局（唔係得個存檔）', 續唔返.length === 0,
+  續唔返.length ? Object.fromEntries(續唔返) : Object.fromEntries(
+    Object.entries(量).filter(([, v]) => '續到' in v).map(([k, v]) => [k, v.續到])));
 
 console.log('\n各遊戲：');
 for (const [名, v] of Object.entries(量)) {

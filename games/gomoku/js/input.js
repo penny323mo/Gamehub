@@ -116,6 +116,7 @@ function handleCellClick(row, col, difficulty) {
 
     switchTurn();
     updateStatusUI();
+    存局();   // 落完即刻存——玩家可能落完就切走 app
 
     // AI Response
     if (isVsAI && currentPlayer === 'white' && !gameOver) {

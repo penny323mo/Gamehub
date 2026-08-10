@@ -37,6 +37,7 @@ function makeAIMove(difficulty) {
 
     switchTurn();
     updateStatusUI();
+    存局();
 }
 
 function findEasyMove() {

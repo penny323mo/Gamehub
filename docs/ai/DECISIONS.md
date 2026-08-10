@@ -4496,6 +4496,84 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-234 — 落咗三十手，一 refresh 就冇晒：Gomoku 補返 Continue
+
+Date: 2026-08-10. Status: accepted.
+
+上一輪留低嘅問題：四隻牌／棋類乜都唔記得，**係漏咗定係設計？**
+
+### 先答個問題
+
+「打完一局記唔記得成績」同「打到一半走咗算唔算數」係兩條唔同嘅問題。
+第一條可以答「一局過，唔使記」；第二條唔可以。
+
+實測（人機模式落幾手，然後 refresh）：
+
+| 遊戲 | refresh 之後 | 存低咗 | 有冇提示 |
+|---|---|---|---|
+| Gomoku | **返咗選單** | 得 `gomoku_clientId`（線上身分） | 冇 |
+| Big Two | **返咗選單** | 冇 | 冇 |
+| Dou Dizhu | **返咗選單** | 冇 | 冇 |
+| Xiangqi AI | **返咗選單** | 得 `xiangqi_clientId` | 冇 |
+
+四隻一樣：局冇咗，冇存過，亦冇任何交代。
+
+而**手機上面呢個唔係「你自己揀走」**：切走 app 之後系統回收咗個 tab，返嚟
+就係咁。你落咗三十手對 Hard AI，冇咗就冇咗。
+
+呢個 repo 早就答過呢條問題——Tower 有 checkpoint ＋ 一個**見得到嘅** Continue。
+所以答案係：漏咗。
+
+### 做咗邊隻，點解
+
+揀咗 **Gomoku**——四隻入面狀態最深（一局可以落幾十手，對 Hard AI 好花時間），
+而且狀態最簡單（15×15 個格 ＋ 輪到邊個 ＋ 難度，AI 本身冇狀態）。
+
+- 存喺 `gomoku_ai_run_v1`，**每落一手就存**（玩家嗰手同 AI 嗰手都存）
+  ——唔等收場，因為玩家係隨時切走 app 嘅。
+- **覆蓋式，唔用 ADR-232 個 `改存檔()`**：呢個係「呢部機呢一局」嘅進度，
+  後面嗰個就係最新，同 Tower 個 checkpoint 一樣喺「特登 last-write-wins」名單。
+- 讀返嗰陣**逐格驗**（15×15、每格只可以係 null／black／white、輪到嘅人要合法、
+  空盤唔算）——**壞存檔要當冇**，唔可以令個掣撳落去乜都唔發生。
+- 出個「繼續上一局」掣，**唔會靜靜雞幫你續**（同 Tower 一樣）。撳「對 AI 對戰」
+  ＝開新局，所以嗰條路會清走舊存檔；由局中返選單**唔算放棄**，個掣即刻出返。
+- 存嗰陣可能啱啱輪到 AI——續返之後要叫佢行，否則個盤永遠等你落一隻唔到你落嘅棋。
+
+### 把尺：「留得住」唔等於「返得到」
+
+`hub-progress.mjs` 加咗第三條 check：有 Continue 嘅遊戲，**撳落去要真係開返
+上一局**。一個續唔返嘅存檔，對玩家嚟講同冇存冇分別。
+
+**條 check 量咗兩個版先分得開兩樣嘢：**
+
+1. 第一版數成塊 canvas 有幾多非背景像素——量到 301。突變（唔畫返啲棋）
+   照樣量到 300：嗰 300 個係**格線**，畫盤嗰陣一定有。
+   **一條分唔開「格線」同「棋子」嘅 check 係壞 check。**
+2. 改成拎「有棋嗰格」同「空格」比：同一條公式算兩個中心點，色差要 > 30。
+   公式算錯嘅話兩邊都錯 → 報紅。**錯要向紅嗰邊錯。**
+
+順帶發現第一次嘅突變**根本冇突變到**：`createBoardUI` 入面 `resizeGomokuBoard()`
+已經 `drawBoard()`，而 `drawBoard` 係由 `board` 整幅畫返——我喺 `continueGame`
+入面逐格叫 `placeStoneUI` 係多餘嘅（而佢自己都係叫 `drawBoard()`，即係畫足
+226 次同一幅嘢）。剷咗。真正嘅突變係「`續局()` 唔倒返個盤」，嗰個報紅。
+
+要量遊戲自己嘅狀態就要開 seam：`let board` 喺 classic script 入面唔會上
+`window`。加咗 `window.__gomoku`（同 `__TD`／`__racer`／`__pennyCrush` 一致）
+——**讀返 storage 就變成「存檔仲喺度」嘅同義詞**，而條 check 想問嘅係
+「局真係開返咗未」。
+
+### 其餘三隻
+
+Big Two／Dou Dizhu／Xiangqi 同一個形狀，量度擺喺上面。冇喺呢一輪一齊做,
+因為每隻嘅局面狀態都唔同（一手牌／叫地主階段／中國象棋盤 ＋ 將軍狀態），
+逐隻都要自己一輪。**做嘅時候可以照抄呢度：存邊啲、幾時存、點驗、Continue
+點出。**
+
+### 驗證
+
+`hub-progress` **3/3**（七隻）、`hub-tabs` 4/4、`hub-touch` 5/5、`hub-keyboard` 3/3、
+`hub-read` 3/3、`hub-storage` 2/2、`hub` 96/96。
+
 ## ADR-233 — 十三隻遊戲一個 origin：key 冇撞，但捉到一隻乜都唔記得嘅
 
 Date: 2026-08-10. Status: accepted.
