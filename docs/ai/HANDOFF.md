@@ -1,10 +1,10 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-09 (Asia/Macau)
-Prepared by: Claude Code (cloud) — ADR-202 至 218
+Prepared by: Claude Code (cloud) — ADR-202 至 219
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: 八把跨遊戲尺；「切走就停」四隻遊戲補齊（MOBA／Royale／Snake），Snooker 查完決定唔改
+Status: 九把跨遊戲尺；本輪量聲——autoplay 本來就啱，Royale 靜音一個字都冇存，修咗
 
 ## Current objective
 
@@ -25,59 +25,43 @@ Status: 八把跨遊戲尺；「切走就停」四隻遊戲補齊（MOBA／Royal
   記低：classic script 入面 `window.joinFixedRoom` 同頂層函數係同一個綁定，擺完
   佔位 `window.x = x` 就自己指自己——**把尺利咗先捉到**。
 
-**ADR-218（本輪）— Snooker 3D 查完決定唔改**
+**ADR-219（本輪）— 聲：一條本來就啱，一條漏咗一隻**
 
-- 三個查得實嘅事實：①真係冇 `visibilitychange` handler（3d／2d／online 都冇）;
-  ②**冇任何計時**（`shotClock`／`turnTimer`／`timeLeft` 一個字都搵唔到）；③回合制，
-  唔喺一杆飛緊嘅時候枱面根本冇嘢動，而一杆得幾秒。即係 MOBA 嗰種傷害**唔成立**。
-- **一個我入唔到嘅狀態**：`placeCueInD` → `confirmCuePlacement`（PLACE_CUE → AIMING）
-  → `shoot()` 返 true，但 `shotSerial` 一直 0、`cueBallSpeed` 0、`actionRequired` WAIT
-  ——`shoot()` 返 true 淨係代表收到方向同力度。**呢個係把尺嘅缺口，唔係發現。**
-  下一個人入手位：`canTakeShotReason()`。
-- **唔改**：冇量到傷害就唔好落刀，一杆中間 pause 反而會整亂 `turnState` 判定。
+- **開唔開得到聲——本來就啱。** autoplay policy 之下 `AudioContext` 一 new 出嚟
+  就 `suspended` 而且唔會自己 resume。實測（Proxy 住 constructor，**唔開**
+  `--autoplay-policy=no-user-gesture-required`）：Tower／MOBA／Royale／Snake／
+  Racing Car 五隻**開場一個 context 都冇 new**，第一下手勢先 new 而且即刻
+  `running`。寫落把尺係為咗守住。（Snooker／Xiangqi 由頭到尾冇 new，即係冇遊戲聲。）
+- **Royale 個靜音一個字都冇存**：`sfx.js` 入面係 `let muted = false`，每次入嚟都
+  要重新撳。同 repo 嘅 Racing Car 記得住——即係漏咗一個（同 ADR-209 鏡像）。
+  改法跟 `main.js` 個 `GFX_KEY`：自己一個 localStorage key，唔塞落 `storage.js`
+  嗰個存檔。個掣嘅字都要跟返，唔係嘅話明明靜音但寫住 🔊。
+- **一個對照救返一個假綠**：第一版喺開場畫面撳 `#mute-btn`，但佢喺局內 HUD
+  ——撳唔到，於是「撳完」同「reload 後」一樣，條 check 報綠。加咗「撳之前先要
+  證明個掣真係撳到」。同 ADR-217 嗰個「隱藏之前個鐘要真係喺度行」同一種嘢：
+  **一個冇發生過嘅動作，會令「前後一樣」睇落好似守得好好。**
+- 新 `tests/hub-audio.mjs` 3/3。突變（拆走 `setMuted` 嗰句 `setItem`）報紅，
+  叫得出係 Royale、`🔇 → reload 🔊`。
 
-**ADR-217（已合埋 main）— 你切走咗，四隻遊戲照打**
+**ADR-210 至 218（已合埋 main；詳情全部喺 DECISIONS）**
 
-- 先量錯方向：掃 localStorage 見到九隻「玩完乜都冇寫低」，其實 Snake 有成套
-  profile 系統，淨係 game over 先寫——**掃唔夠，唔係佢冇記**。
-- 轉去量得準嗰條：**成個 repo 得 Tower 同 Racing Car 有 `visibilitychange`
-  handler**。隱藏六秒：MOBA **＋8.6 秒**、Royale **−7.5 秒**。改法跟 Tower：停低、
-  講明點解、**返嚟唔會偷偷續**（撳一下先續，順手重設 `last`）。
-- 量法三個位企唔穩：①`bringToFront` 喺 headless 唔會令個頁隱藏 → 用 Tower
-  `flow.mjs` 嗰個 override＋dispatch；②「畫面有冇郁」分唔開停冇停（Tower 真停咗
-  但暫停畫面自己呼吸）→ 逐隻寫明讀邊個 seam；③第一個數要**隱藏之後**先讀。
-- **Snake 剷過一次先做得成**：補返嘅係一個對照——**隱藏之前個鐘要真係喺度行**。
-  呢個對照即刻再捉到 Tower 嗰個鐘喺備戰唔郁（換 `prepTimer`）。Snake 最後用另一
-  種證據：**切走六秒返嚟係咪已經玩完咗**（突變 true／有修 false）。
-- 新 `tests/hub-away.mjs` 3/3，三個突變分別令對應 check 報紅。
-
-**ADR-216（已合埋 main）— 兩條偶發 gate**
-
-- `普攻會真係揮動作`：真線索係 **`重生: 0.13`**——fixture 清咗 `stunUntil` 等而**冇清
-  `respawnAt`**，暖機喺重生窗口收工就畀 `revive()` 抹走個鎖。**改 fixture 唔改斷言。**
-- `玩家企喺畫面下半但唔會跌出畫外`：五跑紅兩次、方向相反（32.1 對 −28.6，夾界
-  58），`鏡頭焦點` 曾離玩家 44 個單位而 `收斂咗:true`。**未查到根因，唔亂改。**
-
-**ADR-214／215（已合埋 main；詳情喺 DECISIONS）**
-
-- 215 **儲存唔到唔應該連遊戲都開唔到**：封住 storage 之後 **Racing Car 控制 51 → 0、
-  Neon Snake 1 → 0**。修法係新 `shared/js/safe-storage.js` 喺任何遊戲碼之前換走個
-  枱面——**要改嘅係枱面，唔係每一次落枱**。加落去撞到三個踩到先現形嘅嘢
-  （xiangqi vite 寫死共用檔名／snake postbuild 改錯對象而**自己條 assert 照樣報 OK**／
-  snake dist 本來就 rebuild 唔返出嚟）。新 `tests/hub-storage.mjs` 2/2。
-- 214 **捉到漏網之後要改嘅係網**：bump 腳本個 regex 冚唔到共用層 → 改 regex＋bump。
-  突變揭到 `cache-bust.mjs` 捉到「冇標記」但捉唔到「標記落後」——**兩種壞法要分開守**。
-
-**ADR-210 至 213（已合埋 main；詳情喺 DECISIONS）**
-
-- 210 **有字唔等於有交代**：Fast 3G 最長靜默 MOBA **23.6s**／Royale **14.4s**。根因係
-  **進度單位揀錯**（平行落而計「幾多件落完」）→ `byte-progress.mjs` 量位元組；冇
+- **載入交代**（210）：Fast 3G 最長靜默 MOBA 23.6s／Royale 14.4s。根因係**進度單位
+  揀錯**（平行落而計「幾多件落完」）→ `byte-progress.mjs` 量位元組；冇
   `Content-Length` 就報 `null` ＋ indeterminate bar，**唔報假嘅 0%**。
-- 211 Tower 1,087 KB **未壓過嘅 GLB** → Draco，**開場 1,291 → 754 KB（−42%）**。順手
-  發現 **`hub-load` 一直冇 gzip**。新 check：GLB > 300 KB 就要壓過，**讀真正派出去
-  嗰個 GLB 嘅 glTF header**。
-- 212 MOBA 拆資產 **16.0 → 12.7s**（重排時間軸唔係壓縮）；213 Royale 三條減磅路逐條
-  量完**決定唔改**，順帶剷咗一個證偽咗嘅把尺改動。
+- **重量**（211/212）：Tower 1,087 KB 未壓過嘅 GLB → Draco，**1,291 → 754 KB**；
+  MOBA 拆資產 **16.0 → 12.7s**（重排時間軸唔係壓縮）。順手發現 `hub-load` 一直冇
+  gzip。213 Royale 三條減磅路逐條量完**決定唔改**。
+- **切走就停**（217）：**成個 repo 得 Tower 同 Racing Car 有 `visibilitychange`**。
+  隱藏六秒 MOBA ＋8.6s／Royale −7.5s。MOBA／Royale／Snake 補齊，跟 Tower：停低、
+  講明點解、**返嚟唔會偷偷續**。218 Snooker 查完唔改（冇計時、回合制、傷害唔成立）。
+- **偶發 gate**（216）：`揮動作` 真因係 fixture **冇清 `respawnAt`**（改 fixture 唔改
+  斷言）；`鏡頭跌出畫外` 五跑兩紅、**未查到根因，唔亂改**。
+- **cache-bust／storage**（214/215）：bump regex 冚唔到共用層 → 改網唔改一個位;
+  封住 storage 之後 Racing Car 控制 51 → 0、Snake 1 → 0 → 新 `safe-storage.js`
+  換走個枱面。**要改嘅係枱面，唔係每一次落枱。**
+- **量法通用教訓**：`bringToFront` 喺 headless 唔會令個頁隱藏；「畫面有冇郁」分唔開
+  停冇停；test server 一定要 gzip ＋ 送 `Content-Length`；**做動作之前先證明個動作
+  真係發生咗**（鐘要喺行、掣要撳到）——冇呢個對照，「前後一樣」會扮到守得好好。
 
 ## Changed files
 
@@ -92,13 +76,14 @@ Status: 八把跨遊戲尺；「切走就停」四隻遊戲補齊（MOBA／Royal
 - ADR-216：`games/moba/tests/browser.mjs`（fixture 清埋 `respawnAt`）
 - ADR-217：moba／royale `src/main.js`（`看住切走()`）、snake `Game.tsx`＋`dist/`、
   `tests/hub-away.mjs`（新）
+- ADR-219：royale `src/sfx.js`＋`src/main.js`、`tests/hub-audio.mjs`（新）
 
 ## Verification
 
 - `npm test`：PASS（要 `PW_CHROMIUM=/opt/pw-browsers/chromium`）。
 - 跨遊戲：`hub` 96/96、`hub-touch` 5/5、`hub-load` 3/3、`hub-keyboard` 3/3、`hub-cdn` 3/3、
-  `hub-wait` 1/1、`hub-storage` 2/2、**`hub-away` 3/3**。Tower 三個 suite 全過；
-  `moba/browser.mjs` 196/196、royale 全套過。Mutation 驗過十四次，次次叫得出係邊個。
+  `hub-wait` 1/1、`hub-storage` 2/2、`hub-away` 3/3、**`hub-audio` 3/3**。Tower 三個
+  suite 全過；`moba/browser.mjs` 196/196、royale 全套 111/111。Mutation 驗過十五次。
 
 ## Known issues and cautions
 
@@ -110,7 +95,7 @@ Status: 八把跨遊戲尺；「切走就停」四隻遊戲補齊（MOBA／Royal
 ## Exact next action
 
 1. `export PW_CHROMIUM=/opt/pw-browsers/chromium`，跑 `./scripts/agent-context.sh --sync`。
-2. **仲未量過嘅**：流暢度（jank）、音效、進度記憶（要逐隻寫 driver）；MOBA 鏡頭偶發。
+2. **仲未量過嘅**：流暢度（jank）、進度記憶（要逐隻寫 driver）；MOBA 鏡頭偶發。
 3. 一個檢查點一件事，改完連 handoff 一齊 commit。
 
 ## Do not redo

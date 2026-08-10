@@ -1327,6 +1327,12 @@ async function init() {
     fitCamera();
     const cardThumbs = generateCardThumbs();
     ui = new UI(uiCallbacks, cardThumbs);
+    // 靜音而家記得住（`sfx.js`），所以個掣嘅字要跟返存返嚟嗰個狀態——
+    // 唔係嘅話載入返嚟明明係靜音，但個掣寫住 🔊，玩家會以為壞咗。
+    {
+        const b = document.getElementById('mute-btn');
+        if (b) b.textContent = sfx.isMuted() ? '🔇' : '🔊';
+    }
     rts = createRtsMode({
         scene, camera, renderer, screenToWorld,
         zoomBy: (f) => { zoom = clampZoom(zoom * f); applyCameraView(); },

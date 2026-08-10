@@ -1,6 +1,21 @@
 // 極簡 WebAudio 音效合成器（唔載外部音檔，全部即時合成）
 let ctx = null;
-let muted = false;
+/*
+ * 靜音要記得住。
+ *
+ * 之前呢度係 `let muted = false`，一個字都冇存——即係你每次入嚟都要重新撳
+ * 一次靜音掣。實測：撳咗 🔇，reload 返嚟又係 🔊。（同一個 repo 入面 Racing
+ * Car 嘅音效開關係記得住嘅，即係呢個唔係大家嘅共識，係漏咗一個。）
+ *
+ * 用 `localStorage` 直接存：呢個係一個純 UI 偏好，唔屬於 `storage.js` 嗰個
+ * 存檔（獎盃／卡牌／連勝），同 `main.js` 度 `GFX_KEY` 一樣自己一個 key。
+ * ADR-215 之後 `safe-storage.js` 已經包住咗 storage，封咗 cookie 都唔會掟錯,
+ * 但呢度照樣 try／catch——一個記唔記得住嘅偏好，唔值得整冧隻遊戲。
+ */
+const MUTE_KEY = 'royale-muted-v1';
+let muted = (() => {
+    try { return localStorage.getItem(MUTE_KEY) === '1'; } catch { return false; }
+})();
 let master = null;
 
 function ac() {
@@ -91,7 +106,10 @@ function noise(dur, vol = 0.2, { filter = null, freq = 1000, q = 1, sweep = 0, w
 }
 
 export const sfx = {
-    setMuted(m) { muted = m; },
+    setMuted(m) {
+        muted = !!m;
+        try { localStorage.setItem(MUTE_KEY, muted ? '1' : '0'); } catch { /* 記唔住就算，唔好掟 */ }
+    },
     isMuted() { return muted; },
 
     // ---------- 出兵／落卡 ----------

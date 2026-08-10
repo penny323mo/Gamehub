@@ -4496,6 +4496,57 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-219 — Hub: 聲——一條本來就啱，一條漏咗一隻
+
+Date: 2026-08-10. Status: accepted.
+
+聲從來冇人量過。兩條問題，兩條都係玩家真係感受到嗰種。
+
+### 一、開唔開得到聲——**本來就啱**
+
+瀏覽器嘅 autoplay policy：未有過用戶手勢之前，`AudioContext` 一 new 出嚟就係
+`suspended`，而且**唔會自己 resume**。遊戲如果喺載入嗰陣就 new 咗個 context，
+之後淨係 `.play()` 而唔 `.resume()`，就會由頭到尾冇聲——而且畫面上一個錯都冇。
+
+實測（喺頁面碼之前 Proxy 住 `AudioContext` 嘅 constructor，記低每一個 new
+出嚟嘅 context 同狀態；**唔開 `--autoplay-policy=no-user-gesture-required`**，
+因為咁樣就等於喺一個冇 policy 嘅世界度量）：
+
+| | 開場 | 撳咗第一下之後 |
+|---|---|---|
+| Tower／MOBA／Royale／Snake／Racing Car | **一個 context 都冇 new** | `running` |
+
+五隻全部係「第一下手勢先 new」——即係本來就啱。寫落把尺係為咗守住。
+（Snooker 3D 同 Xiangqi 由頭到尾冇 new 過，即係佢哋根本冇遊戲聲。）
+
+### 二、撳咗靜音記唔記得住——**Royale 漏咗**
+
+`games/royale/src/sfx.js` 入面係一個 module-level `let muted = false`，
+**一個字都冇存**。即係你每次入嚟都要重新撳一次靜音掣。
+
+同一個 repo 入面 Racing Car 記得住（實測 有聲 → 靜音 → reload 靜音）,
+即係呢個唔係大家嘅共識，係漏咗一個——同 ADR-209（Royale 老早就 lazy-load
+SDK，得其餘五隻冇跟）係鏡像嘅情況，今次輪到 Royale 做嗰個漏網。
+
+改法跟同一個檔案入面 `main.js` 嘅 `GFX_KEY` 一樣：自己一個 localStorage key
+（`royale-muted-v1`），唔塞落 `storage.js` 嗰個存檔（嗰個係獎盃／卡牌／連勝）。
+`setMuted` 寫，module 載入嗰陣讀。仲要記住個掣嘅字都要跟返——唔係嘅話載入
+返嚟明明係靜音，但個掣寫住 🔊，玩家會以為壞咗。
+
+### 一個對照，救返一個假綠
+
+第一版把尺喺**開場畫面**撳 `#mute-btn`——但嗰個掣喺局內 HUD，撳唔到。於是
+「撳完」同「reload 後」兩個讀數一樣，條 check **報綠**。
+
+所以加咗一個對照：**撳之前先要證明個掣真係撳到**（撳完個狀態要同撳之前唔同）。
+呢個同 ADR-217 嗰個「隱藏之前個鐘要真係喺度行」係同一種嘢——
+**一個冇發生過嘅動作，會令「前後一樣」睇落好似「守得好好」。**
+
+### 把尺
+
+`tests/hub-audio.mjs` 3/3。突變（拆走 `setMuted` 入面嗰句 `localStorage.setItem`）
+令第三條報紅，而且叫得出係 Royale、`🔇 → reload 🔊`。
+
 ## ADR-218 — Snooker 3D: 查完決定唔改，同埋一個我入唔到嘅狀態
 
 Date: 2026-08-10. Status: accepted（結論係「唔改」）。
