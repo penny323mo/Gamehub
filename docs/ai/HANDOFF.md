@@ -1,10 +1,10 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-10 (Asia/Macau)
-Prepared by: Claude Code (cloud) — ADR-202 至 228
+Prepared by: Claude Code (cloud) — ADR-202 至 229
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: 十四把跨遊戲尺全綠；洩漏線由 Royale 一隻擴到六隻（新 `hub-leak`）
+Status: 十四把跨遊戲尺全綠；洩漏線由 Royale 一隻擴到八隻（`hub-leak`；MOBA 未冚，有寫低）
 
 ## Current objective
 
@@ -14,24 +14,25 @@ Status: 十四把跨遊戲尺全綠；洩漏線由 Royale 一隻擴到六隻（�
 
 ## Completed
 
-**ADR-227／228（本輪）— 一把只守一種資源嘅洩漏閘，會漏走另一種資源嘅洩漏**
+**ADR-227／228／229（本輪）— 洩漏：GPU 守咗 DOM 冇；一隻守咗其餘七隻冇**
 
-- 問「玩多幾局會唔會愈嚟愈重」。GPU 三個數連開五局**完全平**——查返先發現
-  `royale/tests/leak.mjs`（ADR-008）一直守住。**我量咗一樣已經有人守嘅嘢。**
-- 佢冇守嘅係 **DOM**：一局爬一個 `<script>`（4 → 10），全部係 jsdelivr 嘅 supabase SDK。
-  `loadSdk()` 攞唔到會重設 promise 再試，**但上次嗰個 element 冇拆走**——**網絡差＝重試多
-  ＝爬得快**。同一 pattern 喺 ADR-209 我寫嘅共用 `loadSupabaseSdk()`（六隻用）一樣，兩邊
-  一齊修（載到／載唔到／逾時三條路都拆）。`leak.mjs` 6/6 → **7/7**。
-- **條 gate 擺錯位會扮成一條守緊嘢嘅 gate**：第一版加落現有 loop，突變照樣報綠——嗰個
-  loop 喺 `evaluate` 入面直接叫 `startMatch`，唔經選單。**一條唔行玩家條路嘅 gate，守唔到
-  玩家撞到嘅嘢。** 坑：入局後 `#start-btn` 祖先加 `.hidden`（狀態問題扮成 timeout）；投降
-  流程過唔到 Playwright actionability，要用**原生 DOM click**。
-- 228：嗰把尺**淨係 Royale 有** → 新 `tests/hub-leak.mjs` 補其餘五隻（循環「入線上大廳 →
-  返選單」，**要擋走第三方**先量到重試）。4/4。三個「把尺講緊自己」：①Snooker 大廳係
-  `#snooker-online-lobby`、Big Two 全域叫 `setMode`（Dou Dizhu 先係 `setGameMode`）——兩隻報
-  「完全平」因為冇入過大廳，**「先證明循環真係行過」條 check 第一次跑就捉到**；②`.gh-toast`
-  顯示 3.5 秒而一圈 1.2 秒——**顯示緊嘅提示唔係洩漏**，剔走佢但另加「≤ MAX_TOASTS」；
-  ③叫全域函數唔撳掣。突變令 Snooker／Big Two／Dou Dizhu 一圈爬一個。
+- 227：GPU 三個數連開五局**完全平**——`royale/tests/leak.mjs`（ADR-008）一直守住,
+  **我量咗一樣已經有人守嘅嘢**。佢冇守嘅係 **DOM**：一局爬一個 `<script>`（jsdelivr
+  supabase SDK）。`loadSdk()` 攞唔到重設 promise 再試，**但上次嗰個 element 冇拆走**
+  ——**網絡差＝重試多＝爬得快**。共用 `loadSupabaseSdk()`（ADR-209 我寫，六隻用）同一
+  pattern，兩邊一齊修。**條 gate 擺錯位會扮成守緊嘢**：第一版加落現有 loop 突變照樣報綠
+  ——嗰個 loop 唔經選單。**唔行玩家條路嘅 gate，守唔到玩家撞到嘅嘢。**
+- 228：新 `tests/hub-leak.mjs` 補五隻卡牌／棋類（循環「入線上大廳 → 返選單」，**要擋走
+  第三方**先量到重試）。三個「把尺講緊自己」：①Snooker 大廳係 `#snooker-online-lobby`、
+  Big Two 全域叫 `setMode`（Dou Dizhu 先係 `setGameMode`）——兩隻報「完全平」因為冇入過
+  大廳，**「先證明循環真係行過」條 check 第一次跑就捉到**；②`.gh-toast` 顯示 3.5 秒而一圈
+  1.2 秒——**顯示緊嘅提示唔係洩漏**，剔走佢但另加「≤ MAX_TOASTS」；③叫全域函數唔撳掣。
+- 229：再補 Tower（說明面板開／閂）、Racing Car（日夜切換，會重建燈光）、Snake（撞牆死
+  → Enter 重開）。**MOBA 冇平嘅循環（HUD 淨係局中有），冇冚到就寫低，唔扮冚到。**
+  兩個新教訓：**撳個掣同撳 Enter 唔同**（Snake 個遮罩撳掣唔會走，於是隻蛇冇再郁過而四圈
+  都報「死到」）；**唔好拎兩個唔同狀態嘅數嚟比**（565／561 上落係「有冇遮罩」，唔係洩漏）
+  → 改成**只喺確認咗狀態嗰陣先取樣**，再加「取樣 ≥ 3」。8 隻全平，突變報
+  `[323,324,325,326,327]`。
 
 **ADR-226（已合埋 main）— 睇唔睇得清：五個主要行動掣跌穿 WCAG AA**
 
@@ -107,8 +108,8 @@ Status: 十四把跨遊戲尺全綠；洩漏線由 Royale 一隻擴到六隻（�
 
 1. `export PW_CHROMIUM=/opt/pw-browsers/chromium`，跑 `./scripts/agent-context.sh --sync`。
 2. **接手位**：`hub-read` 報咗但冇守（Hub 14 段、MOBA 16 段字細過 12px，設計決定）；
-   洩漏線而家冚 Royale ＋ 五隻卡牌／棋類；**Tower／MOBA／Snake／Racing Car 仲未有**
-   （要打完一局先有循環）。ADR-224：呢個容器**冇一隻遊戲收到 `webglcontextrestored`**。
+   洩漏線冚 8 隻；**淨返 MOBA**（HUD／商店淨係局中有，要打完一場先有循環）。
+   ADR-224：呢個容器**冇一隻遊戲收到 `webglcontextrestored`**，嗰條 gate 要真機先寫得到。
 3. 一個檢查點一件事，改完連 handoff 一齊 commit。
 
 ## Do not redo

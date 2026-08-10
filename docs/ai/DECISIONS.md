@@ -4496,6 +4496,42 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-229 — Hub: 洩漏線由六隻擴到八隻，同埋「唔好拎兩個唔同狀態嘅數嚟比」
+
+Date: 2026-08-10. Status: accepted.
+
+ADR-228 用「入線上大廳 → 返選單」冚咗五隻卡牌／棋類，加上 Royale 自己嗰把,
+即係六隻。剩低 Tower／Racing Car／Snake／MOBA——佢哋冇「線上大廳」呢條路,
+而真正嘅一局循環要打完成局先有，太貴。
+
+### 揀一個平嘅循環好過唔守，但要揀一個真係會重建嘢嘅循環
+
+- **Tower**：開說明面板 → Escape 閂返。係一個 modal，會起同拆 DOM。
+- **Racing Car**：日夜切換。會重建燈光／環境——比撳個暫停掣更貼近「會唔會積嘢」
+  （而且開場畫面撳暫停根本冇效，`.pause-panel` 淨係喺賽中先出）。
+- **Snake**：撞牆死一次 → Enter 重開。佢死得快，係四隻入面唯一一個平到可以
+  真係跑一局循環嘅。
+- **MOBA**：冇平嘅循環——HUD／商店淨係喺局中存在，而一場波要打完。**冇冚到,
+  寫低咗**，唔扮冚到。
+
+### 三個新嘅「把尺講緊自己」
+
+1. **撳個掣同撳 Enter 唔同。** Snake 個 GAME OVER 遮罩寫住「按 ENTER 重新開始」,
+   而**撳嗰個「重新開始」掣個遮罩唔會走**。我第一版撳掣，於是隻蛇由頭到尾冇再
+   郁過——但每一圈個「入證」都認住上一局殘留嗰個「GAME OVER」，四圈都報「死到」,
+   而**一個完全冇動過嘅畫面，DOM 梗係平**。條「出到」check 捉返呢個假綠。
+2. **唔好拎兩個唔同狀態嘅數嚟比。** 改用 Enter 之後仲係唔穩：重開之後隻蛇要一陣
+   先 arm，撳得太早嗰一圈唔會死。照樣取樣嘅話，嗰圈量到嘅係「冇遮罩」嘅畫面,
+   於是讀數喺 565／561 之間上落——**兩個數各自都啱，只係量緊兩個唔同狀態**。
+   改成**只喺確認咗個狀態嗰陣先取樣**，跟住四個樣本全部 565。
+3. **樣本唔夠就唔算守到。** 只取樣嘅話，一隻永遠入唔到狀態嘅遊戲會攞到零個樣本
+   然後「完全平」。所以加咗「取樣 ≥ 3」——Snake 跑八圈攞四個樣本。
+
+### 結果
+
+`tests/hub-leak.mjs` 4/4，八隻全部平。突變（令 Tower 每次開說明留低一個節點）
+報 `[323,324,325,326,327]`，叫得出係邊隻——即係新加嗰族循環都真係守到嘢。
+
 ## ADR-228 — Hub: 同一個洩漏，另外五隻遊戲都有，但把尺淨係 Royale 有
 
 Date: 2026-08-10. Status: accepted.

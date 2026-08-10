@@ -62,25 +62,88 @@ const 圈數 = 5;
 // 動畫或者遮罩就會令條 gate 喺同洩漏無關嘅位逾時（ADR-227 撞過）。
 const 遊戲 = [
   { 名: 'Gomoku',     url: '/games/gomoku/index.html',
-    入: () => window.selectMode('online'), 出: () => window.backToLanding(),
-    大廳: '#online-lobby', 選單: '#landing-page' },
+    入: (p) => p.evaluate(() => window.selectMode('online')), 出: (p) => p.evaluate(() => window.backToLanding()),
+    入咗睇: '#online-lobby', 出咗睇: '#landing-page' },
   // Snooker 個大廳係 `#snooker-online-lobby`，唔係 `#online-lobby`
   // ——第一版寫錯咗，於是「入到 0/5」但 DOM 完全平：**一個假綠**。
   { 名: 'Snooker',    url: '/games/snooker/index.html',
-    入: () => window.selectMode('online'), 出: () => window.backToLanding(),
-    大廳: '#snooker-online-lobby', 選單: '#landing-page' },
+    入: (p) => p.evaluate(() => window.selectMode('online')), 出: (p) => p.evaluate(() => window.backToLanding()),
+    入咗睇: '#snooker-online-lobby', 出咗睇: '#landing-page' },
   { 名: 'Xiangqi AI', url: '/games/xiangqi-ai/dist/index.html',
-    入: () => window.selectMode('online'), 出: () => window.backToLanding(),
-    大廳: '#online-lobby', 選單: '#landing-page' },
+    入: (p) => p.evaluate(() => window.selectMode('online')), 出: (p) => p.evaluate(() => window.backToLanding()),
+    入咗睇: '#online-lobby', 出咗睇: '#landing-page' },
   // Big Two 個全域叫 `setMode`（Dou Dizhu 先係 `setGameMode`）——同一個 repo
   // 入面兩隻幾乎一樣嘅牌類遊戲，全域名唔同。抄嗰隻嘅名落呢隻度就會靜靜雞
   // 乜都唔做，然後報綠。
   { 名: 'Big Two',    url: '/games/big2/index.html',
-    入: () => window.setMode('online-lobby'), 出: () => window.setMode('landing'),
-    大廳: '#online-lobby', 選單: '#landing-page' },
+    入: (p) => p.evaluate(() => window.setMode('online-lobby')), 出: (p) => p.evaluate(() => window.setMode('landing')),
+    入咗睇: '#online-lobby', 出咗睇: '#landing-page' },
   { 名: 'Dou Dizhu',  url: '/games/doudizhu/index.html',
-    入: () => window.setGameMode('online-lobby'), 出: () => window.setGameMode('landing'),
-    大廳: '#online-lobby', 選單: '#landing-page' },
+    入: (p) => p.evaluate(() => window.setGameMode('online-lobby')), 出: (p) => p.evaluate(() => window.setGameMode('landing')),
+    入咗睇: '#online-lobby', 出咗睇: '#landing-page' },
+
+  /*
+   * 第二族循環：**開一個面板／切一個設定，再返轉頭**。
+   *
+   * Tower／Racing Car／Snake 冇「線上大廳」呢條路，而佢哋真正嘅一局循環要打完
+   * 成局先有——太貴。但「開說明再閂返」「日夜切嚟切去」「死咗再開一局」
+   * 一樣係玩家一晚會做幾十次嘅嘢，而且一樣會重建 DOM／場景。
+   * **揀一個平嘅循環好過唔守**，但要揀一個真係會重建嘢嘅循環。
+   */
+  { 名: 'Tower Defense', url: '/games/tower/dist/index.html',
+    入: (p) => p.evaluate(() => document.getElementById('help-btn')?.click()),
+    出: (p) => p.evaluate(() => document.getElementById('help-close-btn')?.click()
+          ?? document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))),
+    入咗睇: '#help-overlay', 出咗睇: '#start-screen, #start-btn' },
+  { 名: 'Racing Car 3D', url: '/games/Racing Car/index.html',
+    // 日夜切換會重建燈光／環境——比撳個暫停掣更加接近「會唔會積嘢」。
+    入: (p) => p.evaluate(() => document.querySelector('[data-tod="night"]')?.click()),
+    出: (p) => p.evaluate(() => document.querySelector('[data-tod="day"]')?.click()),
+    入咗睇: '[data-tod="night"].on', 出咗睇: '[data-tod="day"].on' },
+
+  /*
+   * Snake 揀真正嘅一局循環：**撞牆死一次，再開一局**。佢死得快（撳右一路
+   * 撞埋去），所以呢個循環平過其餘幾隻嘅一局。
+   * 開場要先入名（form submit）——`fill()` ＋ 撳掣入唔到，要真係打字再 Enter。
+   */
+  // 跑八圈唔係八局：重開之後撳得太早嗰啲圈唔會死，嗰啲圈唔取樣。
+  // 八圈實測穩定攞到四個樣本以上。
+  { 名: 'Neon Snake', url: '/games/snake-game/dist/index.html', 圈: 8,
+    開場: async (p) => {
+      await p.locator('input').first().click({ timeout: 30000 });
+      await p.keyboard.type('尺仔');
+      await p.keyboard.press('Enter');
+      await p.waitForTimeout(2500);
+      await p.getByText(/經典模式/).first().click({ timeout: 30000 }).catch(() => {});
+      await p.waitForTimeout(2000);
+    },
+    入: async (p) => {
+      // 重開之後隻蛇要一陣先 arm——撳得太早嗰下方向鍵會冇效，
+      // 於是嗰一圈唔會死，個「入到」就會少一。等一等先撳。
+      await p.waitForTimeout(1200);
+      await p.keyboard.press('ArrowRight');
+      await p.waitForFunction(() => document.body.innerText.includes('GAME OVER'),
+        null, { timeout: 90000 }).catch(() => {});
+    },
+    /*
+     * 重開要撳 **Enter**，唔係撳嗰個「重新開始」掣——實測撳個掣個 GAME OVER
+     * 遮罩唔會走（個 UI 自己都寫住「按 ENTER 重新開始」）。
+     *
+     * 而且撳完要**等到 GAME OVER 真係消失**先算重開咗。淨係撳完就當重開咗
+     * 嘅話：下一圈個「入證」會認住上一局殘留嗰個「GAME OVER」，於是每圈都報
+     * 「死到」，但其實隻蛇由頭到尾冇再郁過——**一個完全冇動過嘅畫面，DOM
+     * 梗係平**。我第一版探路就係咁樣攞咗個假綠，係條「出到」check 捉返。
+     */
+    出: async (p) => {
+      await p.keyboard.press('Enter');
+      await p.waitForFunction(() => !document.body.innerText.includes('GAME OVER'),
+        null, { timeout: 20000 }).catch(() => {});
+    },
+    入咗睇: 'body', 出咗睇: 'body',
+    // Snake 冇一個「開咗／閂咗」嘅面板可以指——憑據係「真係死到」。
+    入證: () => document.body.innerText.includes('GAME OVER'),
+    出證: () => !document.body.innerText.includes('GAME OVER'),
+  },
 ];
 
 let pass = 0, fail = 0; const failed = [];
@@ -109,13 +172,25 @@ for (const g of 遊戲) {
       (r) => r.abort('connectionfailed').catch(() => {}));
     await page.goto(`http://localhost:${port}${encodeURI(g.url)}`, { waitUntil: 'load', timeout: 90000 });
     await page.waitForTimeout(2500);
+    if (g.開場) await g.開場(page);
 
+    const 圈 = g.圈 ?? 圈數;
     const 記 = []; let 入到 = 0, 出到 = 0, toast最多 = 0;
-    for (let i = 0; i < 圈數; i++) {
-      await page.evaluate(g.入).catch(() => {});
+    for (let i = 0; i < 圈; i++) {
+      await g.入(page).catch(() => {});
       await page.waitForTimeout(700);
-      if (await page.evaluate(見得到, g.大廳)) 入到 += 1;
-      記.push(await page.evaluate(() => {
+      /*
+       * **只喺確認咗個狀態嗰陣先取樣。**
+       *
+       * Snake 嘅循環（撞牆死 → Enter 重開）係時序敏感嘅：重開之後隻蛇要一陣先
+       * arm，撳得太早嗰一圈就唔會死。如果照樣取樣，嗰一圈量到嘅係「冇 GAME OVER
+       * 遮罩」嘅畫面，個數自然細啲——於是讀數喺 565／561 之間上落，
+       * 睇落好似有嘢喺度飄，其實兩個數各自都係啱嘅，只係量緊兩個唔同狀態。
+       * **拎兩個唔同狀態嘅數嚟比，比出嚟嘅嘢冇意思。**
+       */
+      const 入咗 = await page.evaluate(g.入證 ?? 見得到, g.入證 ? undefined : g.入咗睇);
+      if (入咗) 入到 += 1;
+      if (入咗) 記.push(await page.evaluate(() => {
         /*
          * **剔走 toast 子樹先數。**
          *
@@ -132,13 +207,13 @@ for (const g of 遊戲) {
         const toast = c ? 1 + c.getElementsByTagName('*').length : 0;
         return 全 - toast;
       }));
-      await page.evaluate(g.出).catch(() => {});
-      await page.waitForTimeout(500);
-      if (await page.evaluate(見得到, g.選單)) 出到 += 1;
+      await g.出(page).catch(() => {});
+      await page.waitForTimeout(1000);
+      if (await page.evaluate(g.出證 ?? 見得到, g.出證 ? undefined : g.出咗睇)) 出到 += 1;
       toast最多 = Math.max(toast最多, await page.evaluate(() =>
         document.getElementById('gh-toast-container')?.childElementCount ?? 0));
     }
-    量[g.名] = { 記, 入到, 出到, 圈數, toast最多, errs: errs.length };
+    量[g.名] = { 記, 入到, 出到, 圈數: 圈, toast最多, errs: errs.length };
   } catch (e) {
     量[g.名] = { 掛咗: String(e).split('\n')[0].slice(0, 90) };
   }
@@ -151,14 +226,17 @@ check('五隻用共用 SDK loader 嘅遊戲都跑得完', 掛.length === 0,
 
 // **先證明個循環真係行過。** 入唔到大廳嘅話，下面條 DOM check 一定平——
 // 而嗰個平係因為乜都冇做過，唔係因為冇洩漏。
-const 冇行到 = Object.entries(量).filter(([, v]) => !v.掛咗 && (v.入到 < v.圈數 || v.出到 < v.圈數));
-check(`每隻都真係入到大廳又返到選單（${圈數} 圈）`, 冇行到.length === 0,
-  冇行到.length ? Object.fromEntries(冇行到.map(([k, v]) => [k, { 入到: v.入到, 出到: v.出到, 圈數: v.圈數 }]))
-    : Object.fromEntries(Object.entries(量).map(([k, v]) => [k, `${v.入到}/${v.圈數}`])));
+// 取樣少過三次就唔夠比較——同時亦即係個循環冇真正行過幾多次。
+const 最少樣本 = 3;
+const 冇行到 = Object.entries(量).filter(([, v]) => !v.掛咗 &&
+  (v.記.length < 最少樣本 || v.出到 < v.圈數));
+check(`每隻都真係行完個循環（取樣 ≥ ${最少樣本}，返得返去 = 圈數）`, 冇行到.length === 0,
+  冇行到.length ? Object.fromEntries(冇行到.map(([k, v]) => [k, { 取樣: v.記.length, 出到: v.出到, 圈數: v.圈數 }]))
+    : Object.fromEntries(Object.entries(量).map(([k, v]) => [k, `${v.記.length}/${v.圈數}`])));
 
 // 第一圈會起大廳嗰堆 DOM，所以由第二圈起計。
 const 爬 = Object.entries(量).filter(([, v]) => !v.掛咗 && new Set(v.記.slice(1)).size !== 1);
-check('反覆入大廳再返選單，DOM 唔准一圈一圈咁爬（第 2 圈起）', 爬.length === 0,
+check('反覆行同一個循環，DOM 唔准一圈一圈咁爬（第 2 次取樣起）', 爬.length === 0,
   爬.length ? Object.fromEntries(爬.map(([k, v]) => [k, v.記])) : { 圈數 });
 
 // `showOnlineToast` 自己有 `MAX_TOASTS = 5` 嘅上限。呢條唔係守「平」，
