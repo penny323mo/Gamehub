@@ -525,6 +525,27 @@ export default function Game() {
 
   useGameLoop(gameTick, currentSpeed, gameState.isRunning && !gameState.isPaused);
 
+  /*
+   * 切走咗就停低。
+   *
+   * 實測（override `document.hidden` 再派 `visibilitychange`，同 Tower
+   * `tests/flow.mjs` 一樣嘅量法）：呢隻遊戲本來冇 `visibilitychange` handler
+   * ——條蛇唔會停，你切去覆個訊息返嚟就已經撞咗牆。
+   *
+   * 跟 Tower 定落嘅做法：停低，而且**返嚟唔會偷偷續**——`isPaused` 留住，
+   * 玩家自己撳空白鍵／P 先至繼續。個暫停畫面本來就有，唔使另外整。
+   */
+  useEffect(() => {
+    const onVis = () => {
+      if (!document.hidden) return;
+      setGameState(prev => (prev.isRunning && !prev.isPaused && !prev.isGameOver)
+        ? { ...prev, isPaused: true }
+        : prev);
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+
   useEffect(() => {
     const levelData = LEVELS[gameState.level - 1] || LEVELS[0];
     setCurrentLevel(levelData);

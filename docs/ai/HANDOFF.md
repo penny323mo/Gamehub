@@ -27,23 +27,22 @@ Status: 八把跨遊戲尺；本輪捉到「切走咗場波照打」——MOBA �
 
 **ADR-217（本輪）— 你切走咗，四隻遊戲照打**
 
-- 先量錯咗方向：掃十二個介面嘅 localStorage 見到九隻「玩完一個字都冇寫低」，差啲
-  當咗九個病。查 Neon Snake 先知佢有成套 profile 系統，淨係 game over 先寫——
-  **掃唔夠，唔係佢冇記**（今個 session 第三次踩）。
+- 先量錯咗方向：掃 localStorage 見到九隻「玩完一個字都冇寫低」，差啲當咗九個病。
+  Snake 其實有成套 profile 系統，淨係 game over 先寫——**掃唔夠，唔係佢冇記**。
 - 轉去量得準嗰條：一 grep 就知**成個 repo 得 Tower 同 Racing Car 有
   `visibilitychange` handler**。隱藏六秒實測：MOBA **＋8.6 秒**、Royale **−7.5 秒**。
   MOBA 一場十六分鐘，你去覆個訊息返嚟就送咗一血。
-- 量法三個位企唔穩：①**`bringToFront` 喺 headless 唔會令個頁隱藏**（量到
-  `document.hidden === false`）→ 改用 Tower `flow.mjs` 嗰個 override＋dispatch；
-  ②**「隱藏期間畫面有冇郁」分唔開停冇停**（Tower 真停咗但暫停畫面自己呼吸）→
-  逐隻寫明讀邊個 seam；③第一個數要**隱藏之後**先讀，否則影相嗰兩秒計落個差度。
+- 量法三個位企唔穩：①**`bringToFront` 喺 headless 唔會令個頁隱藏** → 改用 Tower
+  `flow.mjs` 嗰個 override＋dispatch；②**「畫面有冇郁」分唔開停冇停**（Tower 真停咗
+  但暫停畫面自己呼吸）→ 逐隻寫明讀邊個 seam；③第一個數要**隱藏之後**先讀。
 - 改法跟 Tower：停低、講明點解、**返嚟唔會偷偷續**（撳一下先續，順手重設 `last`
   ——唔係嘅話第一格 dt 係「停咗幾耐」）。同兩邊自己 `onContextLost` 一個形狀。
-- **Neon Snake 寫過但剷咗**：量到隱藏前後 tick 都係 36，我一度當咗成功，直到突變
-  （拆走 handler）**照樣 36 → 36**——條蛇喺窗口之前已經死咗，個數由頭到尾冇行過。
-  **唔係個改法錯，係我驗唔到。** 下次：seam 做法行得通，難喺要條蛇六秒內唔死
-  （「經典模式無限生命」）。Snooker 同樣未量。
-- 新 `tests/hub-away.mjs` 2/2。突變（拆走兩個 `看住切走()`）報紅，叫得出邊隻。
+- **Neon Snake 剷過一次先做得成**：第一次量到隱藏前後 tick 都係 36，我當咗成功,
+  直到突變**照樣 36 → 36**——條蛇喺窗口之前已經死咗。補返嘅係一個對照：
+  **隱藏之前個鐘要真係喺度行**。呢個對照即刻再捉到 Tower 嗰個鐘（gold＋wave＋
+  敵人數）喺備戰唔郁，換成 `prepTimer`。Snake 最後用另一種證據：**切走六秒返嚟
+  係咪已經玩完咗**（突變 true／有修 false）。Snooker 同樣冇 handler，未量。
+- 新 `tests/hub-away.mjs` 3/3。三個突變分別令對應 check 報紅，叫得出邊隻。
 
 **ADR-216（已合埋 main）— 兩條偶發 gate，一條修咗，一條唔亂修**
 
@@ -87,7 +86,8 @@ Status: 八把跨遊戲尺；本輪捉到「切走咗場波照打」——MOBA �
 - ADR-215：六個 `index.html` 加 guard、xiangqi `vite.config.js`、snake `postbuild.mjs`、兩個 `dist/`
 - ADR-209 波及：big2／doudizhu／gomoku／snooker(×3)／xiangqi-ai 嘅 `index.html`＋`online.js`
 - ADR-216：`games/moba/tests/browser.mjs`（fixture 清埋 `respawnAt`）
-- ADR-217：moba／royale `src/main.js`（`看住切走()`）、`tests/hub-away.mjs`（新）
+- ADR-217：moba／royale `src/main.js`（`看住切走()`）、snake `Game.tsx`＋`dist/`、
+  `tests/hub-away.mjs`（新）
 
 ## Verification
 
@@ -109,7 +109,7 @@ Status: 八把跨遊戲尺；本輪捉到「切走咗場波照打」——MOBA �
 
 1. `export PW_CHROMIUM=/opt/pw-browsers/chromium`，跑 `./scripts/agent-context.sh --sync`。
 2. **仲未量過嘅**：玩落去嘅流暢度（jank）、音效、進度記憶（要逐隻寫 driver,
-   generic 掃法證實咗掃唔夠）。Snake／Snooker 嘅切走保護未做；MOBA 鏡頭偶發未查。
+   generic 掃法證實咗掃唔夠）。**Snooker 3D 嘅切走保護未做**；MOBA 鏡頭偶發未查。
 3. 一個檢查點一件事，改完連 handoff 一齊 commit。
 
 ## Do not redo

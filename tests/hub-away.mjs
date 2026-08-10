@@ -75,9 +75,11 @@ const 遊戲 = [
     名: 'Tower Defense（對照）', url: '/games/tower/dist/index.html',
     入局: async (p) => { await p.click('#start-btn', { timeout: 60000 });
       await p.waitForFunction(() => window.__TD?.開波次數?.() > 0, null, { timeout: 240000 }); },
-    // gold＋wave＋場上敵人數：任何一樣行過都代表模擬行緊
+    // `prepTimer` 係備戰倒數，開波之後即刻就喺度行——而 gold／wave／敵人數
+    // 喺備戰嗰幾秒係完全唔郁嘅（第一版就係揀咗佢哋，畀「隱藏前要真係喺度行」
+    // 嗰個對照捉返出嚟）。加埋 wave*1000 令佢跨波都唔會撞返轉頭。
     鐘: () => { const s = window.__TD?.state;
-      return s ? (s.enemies?.length ?? 0) + (s.wave ?? 0) * 1000 + Math.round(s.gold ?? 0) : null; },
+      return s ? (s.wave ?? 0) * 1000 - (s.prepTimer ?? 0) + (s.enemies?.length ?? 0) : null; },
   },
   {
     名: '深淵之橋 MOBA', url: '/games/moba/index.html',
@@ -127,6 +129,21 @@ for (const g of 遊戲) {
       document.dispatchEvent(new Event('visibilitychange'));
     }, h);
 
+    /*
+     * **隱藏之前要先證明個鐘真係喺度行。**
+     *
+     * 上一輪就係漏咗呢個對照：Neon Snake 量到「隱藏前後 tick 都係 36」，
+     * 我當咗係「停得好」，但突變（拆走 handler）照樣 36 → 36——即係條蛇喺
+     * 量度窗口之前已經死咗，個數由頭到尾冇行過。一個喺「修咗」同「拆咗」
+     * 兩種情況下讀數一樣嘅量度，證明唔到任何嘢。
+     *
+     * 冇呢個對照，一隻「根本冇喺度行」嘅遊戲會扮到「守得好好」。
+     */
+    const 開頭 = await page.evaluate(g.鐘).catch(() => null);
+    await page.waitForTimeout(2000);
+    const 開尾 = await page.evaluate(g.鐘).catch(() => null);
+    const 隱藏前行咗 = (開頭 === null || 開尾 === null) ? null : +Math.abs(開尾 - 開頭).toFixed(2);
+
     await 設隱藏(true);
     const 真隱藏 = await page.evaluate(() => document.hidden);
     // **隱藏之後先讀第一個數。** 讀完再隱藏嘅話，中間影相／evaluate 嗰一兩秒
@@ -141,6 +158,7 @@ for (const g of 遊戲) {
 
     量[g.名] = {
       真隱藏,
+      隱藏前行咗,
       頭, 尾, 返嚟,
       隱藏期間行咗: (頭 === null || 尾 === null) ? null : +Math.abs(尾 - 頭).toFixed(2),
     };
@@ -150,18 +168,66 @@ for (const g of 遊戲) {
   await ctx.close();
 }
 
-// 讀唔到鐘＝量唔到，而**量唔到要報紅，唔係報綠**。
-const 冇量到 = Object.entries(量).filter(([, v]) => v.掛咗 || v.真隱藏 !== true || v.隱藏期間行咗 === null);
-check('三個場鐘都讀得到，而且個頁真係隱藏得到', 冇量到.length === 0,
-  冇量到.length ? Object.fromEntries(冇量到) : { 驗過: Object.keys(量) });
+// 讀唔到鐘、或者個鐘本來就唔郁＝量唔到，而**量唔到要報紅，唔係報綠**。
+const 冇量到 = Object.entries(量).filter(([, v]) =>
+  v.掛咗 || v.真隱藏 !== true || v.隱藏期間行咗 === null || !(v.隱藏前行咗 > 0));
+check('每個場鐘喺隱藏之前都真係喺度行（冇呢個對照，一隻死咗嘅遊戲會扮到守得好好）',
+  冇量到.length === 0, 冇量到.length ? Object.fromEntries(冇量到) : { 驗過: Object.keys(量) });
 
 const 照跑 = Object.entries(量).filter(([, v]) => (v.隱藏期間行咗 ?? 0) > 容許);
 check(`切走咗嘅時候，場鐘唔可以行（隱藏 ${隱藏秒} 秒，容許 ${容許}）`,
   照跑.length === 0, 照跑.length ? Object.fromEntries(照跑) : { 容許 });
 
+/* ── Neon Snake：另一種證據 ──────────────────────────────────────────
+ *
+ * 條蛇冇一個「一直行」嘅鐘可以用：佢無人揸就會撞牆，而一死個 tick 數就停
+ * ——「停咗」同「死咗」讀數一模一樣，突變測試分唔開（上一輪就係喺呢度
+ * 誤判過一次，量到 36 → 36 當咗成功，其實個數由頭到尾冇行過）。
+ *
+ * 但佢有一個更貼近傷害嘅證據：**你切走六秒返嚟，係咪已經玩完咗。**
+ * 呢個正正就係玩家實際感受到嗰件事。
+ */
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await ctx.newPage();
+  let 結果;
+  try {
+    await page.goto(`http://localhost:${port}/games/snake-game/dist/index.html`, { waitUntil: 'load', timeout: 180000 });
+    await page.waitForTimeout(2500);
+    // 要先入名（form submit）先入到選單。`fill()` ＋ 撳掣入唔到——
+    // 要 click 個 input、打字、Enter。
+    await page.locator('input').first().click({ timeout: 60000 });
+    await page.keyboard.type('尺仔');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(3000);
+    await page.getByText(/經典模式/).first().click({ timeout: 30000 });
+    await page.waitForTimeout(2500);
+    await page.keyboard.press('ArrowRight');
+    await page.waitForTimeout(800);
+    const 玩緊 = await page.evaluate(() => !document.body.innerText.includes('重新開始'));
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.waitForTimeout(隱藏秒 * 1000);
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.waitForTimeout(1200);
+    const 玩完咗 = await page.evaluate(() => document.body.innerText.includes('重新開始'));
+    結果 = { 切走前玩緊: 玩緊, 返嚟玩完咗: 玩完咗 };
+  } catch (e) { 結果 = { 掛咗: String(e).split('\n')[0].slice(0, 110) }; }
+  await ctx.close();
+  check('Neon Snake：切走六秒返嚟，唔可以已經玩完咗',
+    結果.切走前玩緊 === true && 結果.返嚟玩完咗 === false, 結果);
+}
+
 console.log('\n各遊戲：');
 for (const [名, v] of Object.entries(量)) {
-  console.log(`  ${名.padEnd(20)} ${v.掛咗 ?? `隱藏中 ${v.頭} → ${v.尾}　行咗 ${v.隱藏期間行咗}　返嚟 ${v.返嚟}`}`);
+  console.log(`  ${名.padEnd(20)} ${v.掛咗 ?? `隱藏前行咗 ${v.隱藏前行咗}　隱藏中 ${v.隱藏期間行咗}　返嚟 ${v.返嚟}`}`);
 }
 console.log(`\nhub 切走: ${pass}/${pass + fail} 通過`);
 if (failed.length) console.log('未過:', failed.join('; '));
