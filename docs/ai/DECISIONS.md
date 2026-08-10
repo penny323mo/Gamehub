@@ -4496,6 +4496,60 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-226 — Hub: 睇唔睇得清——五個主要行動掣，白字擺喺中亮度彩色上面
+
+Date: 2026-08-10. Status: accepted.
+
+已經有「掂得到」（`hub-touch`，44×44）同「去得到」（`hub-keyboard`，Tab ＋ focus
+提示）。冇一條問過**睇唔睇得清**。
+
+### 把尺量咗四個版先啱，四次都係量錯
+
+1. **靠 computed style 向上搵底色，凡有 `background-image` 就跳過。**
+   body 有個 gradient 就已經觸發——十二個介面入面九個係 100% 跳過，然後報
+   「零問題」。**一個量咗零樣嘢得出嚟嘅綠。**
+2. 改成量真像素，但攞「框入面嘅眾數」做底色。細細個框（例如 Tower 一個「400」）
+   入面**字本身先係眾數**，於是算出「對比 1.02」——即係睇唔到，但佢明明睇得
+   好清楚。Tower 一度報咗 35 個假紅。
+3. 改成「字色由 computed `color` 攞、底色喺剔走近似字色嘅像素之後再攞眾數」。
+   啱咗，但**純 emoji 仲係假紅**：emoji 係多色字形，佢嘅顏色唔係 `color`
+   ——Royale／Racing Car 個 🏠 報「對比 3.2」，但個掣本身清清楚楚。
+4. **喺 layout 入面唔等於畫得出嚟。** Tower 個 `80g` 有 box、冇 `display:none`、
+   又喺 viewport 入面，但畀 overflow 剪走咗——影出嚟一片黑。守衛：框入面搵唔到
+   接近字色嘅像素，就當佢冇畫過，唔做證據。加咗之後 Tower 由 62 段「字」變 15 段。
+
+**每一版都要親眼影低嗰個位睇過先信。** 頭三個假紅全部係影完之後先發現。
+
+### 剩低嘅係真嘢
+
+五個介面嘅**主要行動掣**，白字擺喺中亮度彩色上面——望落 OK，但實測跌穿
+WCAG AA 4.5:1：
+
+| 位 | 前 | 後 |
+|---|---|---|
+| Big Two／Dou Dizhu「線上對戰」`#4CAF50` | 2.39 | **5.61**（`#256B29`） |
+| MOBA「開打」漸變藍端／紫端 | 2.60／3.85 | **4.90／6.45** |
+| Xiangqi「ONLINE 對戰」漸變淺端 `#388e3c` | 3.14 | **4.98**（`#256b29`） |
+| MOBA 角色標籤（跟英雄色，最暗嗰隻） | 4.46 | 向白拉三成 |
+| Gomoku build 標記 `#666` | 3.09 | `#8a93a8` |
+
+色相全部冇改，淨係加深。MOBA 角色標籤用 `color-mix` 向白拉，
+**英雄色本身（環、卡邊）一律唔郁**——唔好為咗一行細字改晒個識別色。
+
+### 字體大細只報唔守
+
+冇一條標準寫死手機最細幾多 px，而 9–11px 喺一個密集嘅遊戲 HUD 度可以係諗過
+先咁做。**一條會將深思熟慮嘅決定叫做 bug 嘅 gate 係壞 gate**（同 ADR-206 嗰粒
+carousel 圓點一樣嘅判斷）。所以照量、照報，唔守。報出嚟嘅數：Hub 14、MOBA 16、
+Racing Car 8、Royale 6、Tower 2、Gomoku 1。
+
+### 把尺
+
+`tests/hub-read.mjs` 3/3。除咗對比之外仲有兩條「唔畀自己扮綠」嘅：
+開唔到嘅頁要報紅（唔可以掛咗當冇事），同埋**每個介面都要真係量到字**
+——量到零段就係把尺喺嗰度失效，唔係嗰個介面冇字。
+突變（兩個掣色改返）令佢報紅，而且叫得出係邊個掣、幾多比。
+
 ## ADR-225 — Hub: 守住入去嗰十三條路，冇人守過出返嚟嗰條
 
 Date: 2026-08-10. Status: accepted.
