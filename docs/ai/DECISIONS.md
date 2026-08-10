@@ -4496,6 +4496,67 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-220 — Hub: 流暢度量唔到，但量到一個覆蓋缺口
+
+Date: 2026-08-10. Status: accepted（結論係「量唔到，但搵到要補嘅位」）。
+
+handoff 剩低嘅最後一條玩家感受得到嘅線係「玩落去順唔順」。查完，**呢個容器
+量唔到**，但過程中量到一個真嘅覆蓋缺口。記低係為咗下一個人唔好重複試。
+
+### 一、幀時間：Royale 八秒得 13 幀，報唔到 p95
+
+唔量 FPS（swiftshader 純軟件渲染，絕對幀率同真機冇關係），改量**抖唔抖**
+——p95 幀時間除以中位數。全部幀一齊變慢，呢個比值唔會變，所以理論上對
+「部機幾快」唔敏感。
+
+實測（844×390，入局之後量 8 秒）：
+
+| | 幀數 | 中位 | p95 | p95/中位 |
+|---|---|---|---|---|
+| Neon Snake | 478 | 16.7ms | 16.7ms | 1.00 |
+| Tower Defense | 83 | 99.9ms | 116.7ms | 1.17 |
+| Racing Car 3D | 100 | 83.3ms | 100ms | 1.20 |
+| 深淵之橋 MOBA | 31 | 233.3ms | 300ms | 1.29 |
+| Empire Royale | 13 | 533.3ms | 833.3ms | 1.56 |
+
+**但 Royale 嗰行讀唔得。** 13 個樣本嘅「p95」其實就係第 12 個值，即係接近最大值
+——一個樣本數咁少嘅分位數唔係分位數。而佢正正就係最想量嗰隻（最重）。
+即係：**呢把尺喺佢最有用嗰個 case 上面失效。**
+
+要喺呢個容器度得到足夠樣本，就要量到成分鐘；而量到嘅仲係 swiftshader 嘅
+分佈，唔係真機嘅。所以**唔寫呢條 gate**。
+
+### 二、Draw call：取樣時機錯，讀到 1/1
+
+轉去一個同硬件無關嘅量法——draw call。但量到：
+
+    Tower Defense   draw call 中位 1    三角 1
+    深淵之橋 MOBA    draw call 中位 93   三角 89,368
+    Empire Royale   draw call 中位 1    三角 1
+
+Tower 同 Royale 嗰個 `1` 唔係真數：three.js 喺每次 `renderer.render()` 開頭
+`info.reset()`，而我喺自己嘅 rAF callback 度讀——即係讀緊「reset 咗之後、
+遊戲仲未 render」嗰一刻。MOBA 讀到真數，係因為佢個 loop 喺 callback 一開頭
+就 `requestAnimationFrame(frame)`，排喺我前面。**同一個取樣點，喺三個唔同嘅
+loop 結構下面有三個唔同意思。**
+
+`moba/tests/browser.mjs:879` 嗰條做啱咗：佢**喺遊戲自己嘅 update 之後**讀。
+Tower 嗰條一樣。即係呢種量度冇得「喺外面通用咁量」，要接落個 loop 度。
+
+### 三、真嘅發現：Royale 冇 draw-call 預算
+
+Tower 有（`performance.mjs`：空場 budget 450、真峰值 229 怪 budget 1100）,
+MOBA 有（`browser.mjs`：一場波尖峰 < 600）。**Empire Royale 一條都冇**
+——佢個 `__royaleRenderer` 而家淨係畀滲漏測試用。
+
+而佢係三隻入面最重嗰隻（同一個軟件光柵器之下中位 533ms，Tower 100ms）。
+一隻冇預算嘅遊戲，加幾件嘢落場景冇人會攔佢。
+
+**呢一輪唔補**：補得啱嘅話要接落 Royale 自己個 render loop（同 Tower／MOBA
+一樣），而唔係喺外面隔住 rAF 估。呢個係下一個人明確嘅入手位：
+`games/royale/src/main.js` 嘅 `loop()` 入面 `renderScene()` 之後讀
+`renderer.info.render.calls`，再照 Tower 嗰條寫法立一個由實測定嘅 budget。
+
 ## ADR-219 — Hub: 聲——一條本來就啱，一條漏咗一隻
 
 Date: 2026-08-10. Status: accepted.

@@ -1,10 +1,10 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-09 (Asia/Macau)
-Prepared by: Claude Code (cloud) — ADR-202 至 219
+Prepared by: Claude Code (cloud) — ADR-202 至 220
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: 九把跨遊戲尺；本輪量聲——autoplay 本來就啱，Royale 靜音一個字都冇存，修咗
+Status: 九把跨遊戲尺；聲量完（Royale 靜音修咗），流暢度呢個容器量唔到但搵到一個覆蓋缺口
 
 ## Current objective
 
@@ -25,23 +25,31 @@ Status: 九把跨遊戲尺；本輪量聲——autoplay 本來就啱，Royale �
   記低：classic script 入面 `window.joinFixedRoom` 同頂層函數係同一個綁定，擺完
   佔位 `window.x = x` 就自己指自己——**把尺利咗先捉到**。
 
-**ADR-219（本輪）— 聲：一條本來就啱，一條漏咗一隻**
+**ADR-220（本輪）— 流暢度量唔到，但量到一個覆蓋缺口**
 
-- **開唔開得到聲——本來就啱。** autoplay policy 之下 `AudioContext` 一 new 出嚟
-  就 `suspended` 而且唔會自己 resume。實測（Proxy 住 constructor，**唔開**
-  `--autoplay-policy=no-user-gesture-required`）：Tower／MOBA／Royale／Snake／
-  Racing Car 五隻**開場一個 context 都冇 new**，第一下手勢先 new 而且即刻
-  `running`。寫落把尺係為咗守住。（Snooker／Xiangqi 由頭到尾冇 new，即係冇遊戲聲。）
-- **Royale 個靜音一個字都冇存**：`sfx.js` 入面係 `let muted = false`，每次入嚟都
-  要重新撳。同 repo 嘅 Racing Car 記得住——即係漏咗一個（同 ADR-209 鏡像）。
-  改法跟 `main.js` 個 `GFX_KEY`：自己一個 localStorage key，唔塞落 `storage.js`
-  嗰個存檔。個掣嘅字都要跟返，唔係嘅話明明靜音但寫住 🔊。
-- **一個對照救返一個假綠**：第一版喺開場畫面撳 `#mute-btn`，但佢喺局內 HUD
-  ——撳唔到，於是「撳完」同「reload 後」一樣，條 check 報綠。加咗「撳之前先要
-  證明個掣真係撳到」。同 ADR-217 嗰個「隱藏之前個鐘要真係喺度行」同一種嘢：
-  **一個冇發生過嘅動作，會令「前後一樣」睇落好似守得好好。**
-- 新 `tests/hub-audio.mjs` 3/3。突變（拆走 `setMuted` 嗰句 `setItem`）報紅，
-  叫得出係 Royale、`🔇 → reload 🔊`。
+- **幀時間量法失效喺佢最有用嗰個 case**：唔量 FPS（swiftshader 同真機冇關），改量
+  p95/中位（抖唔抖）。Snake 1.00／Tower 1.17／Racing Car 1.20／MOBA 1.29／
+  **Royale 1.56——但 Royale 八秒得 13 幀**，13 個樣本嘅「p95」即係第 12 個值,
+  唔係分位數。而佢正正係最重、最想量嗰隻。**所以唔寫呢條 gate。**
+- **Draw call 取樣時機錯**：量到 Tower／Royale 都係 `calls 1、三角 1`。three.js 每次
+  `render()` 開頭 `info.reset()`，我喺自己 rAF callback 讀＝讀緊「reset 咗但遊戲未
+  render」。MOBA 讀到真數（93／尖峰 165）係因為佢個 loop 一開頭就排下一個 rAF,
+  排喺我前面。**同一個取樣點，喺三種 loop 結構下面有三個意思。**
+- **真嘅發現：Empire Royale 冇 draw-call 預算。** Tower 有（空場 450／峰值 1100）、
+  MOBA 有（尖峰 < 600），Royale 一條都冇，而佢係三隻最重嗰隻（同一個軟件光柵器
+  中位 533ms vs Tower 100ms）。**呢輪唔補**——補得啱要接落佢自己個 loop。
+  下一個人入手位：`royale/src/main.js` 個 `loop()` 入面 `renderScene()` 之後讀
+  `renderer.info.render.calls`，再照 Tower 嗰條寫法立一個由實測定嘅 budget。
+
+**ADR-219（已合埋 main）— 聲：一條本來就啱，一條漏咗一隻**
+
+- **autoplay 本來就啱**：五隻有聲嘅遊戲開場一個 `AudioContext` 都冇 new，第一下
+  手勢先 new 而且即刻 `running`。（Snooker／Xiangqi 冇 new 過＝冇遊戲聲。）
+- **Royale 個靜音一個字都冇存**（`let muted = false`），每次入嚟都要重新撳；同 repo
+  嘅 Racing Car 記得住。改法跟 `main.js` 個 `GFX_KEY`：自己一個 localStorage key,
+  個掣嘅字都要跟返。新 `tests/hub-audio.mjs` 3/3。
+- **一個對照救返一個假綠**：第一版喺開場畫面撳 `#mute-btn`（佢喺局內 HUD），撳唔到
+  → 「撳完」同「reload 後」一樣 → 報綠。加咗「撳之前先證明個掣真係撳到」。
 
 **ADR-210 至 218（已合埋 main；詳情全部喺 DECISIONS）**
 
@@ -95,7 +103,8 @@ Status: 九把跨遊戲尺；本輪量聲——autoplay 本來就啱，Royale �
 ## Exact next action
 
 1. `export PW_CHROMIUM=/opt/pw-browsers/chromium`，跑 `./scripts/agent-context.sh --sync`。
-2. **仲未量過嘅**：流暢度（jank）、進度記憶（要逐隻寫 driver）；MOBA 鏡頭偶發。
+2. **接手位**：Royale draw-call budget（ADR-220 寫咗入手點）；進度記憶（要逐隻寫
+   driver）；MOBA 鏡頭偶發。
 3. 一個檢查點一件事，改完連 handoff 一齊 commit。
 
 ## Do not redo
