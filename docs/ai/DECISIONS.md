@@ -4496,6 +4496,51 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-228 — Hub: 同一個洩漏，另外五隻遊戲都有，但把尺淨係 Royale 有
+
+Date: 2026-08-10. Status: accepted.
+
+ADR-227 喺 Royale 度捉到「反覆入局，`<head>` 一局積一個攞唔到嘅 supabase
+`<script>`」，並且修咗共用層嘅 `loadSupabaseSdk()`。但**嗰把尺淨係 Royale 有**
+——同一個 loader 另外五隻遊戲（Gomoku／Snooker／Xiangqi／Big Two／Dou Dizhu）
+都用緊，冇人守過。
+
+### 循環揀「入線上大廳 → 返選單」
+
+唔係求其揀個掣：①佢**真係行過**個 SDK loader（線上大廳先會叫連線層）；
+②佢係玩家真係會做嘅嘢（睇下有冇人喺度，冇就返去打人機）；③平又快。
+
+而且**要擋走第三方**——唔係為咗方便，係為咗量到真嘢：SDK 攞唔到先至會重試，
+重試先至會積 element。CDN 通嗰陣個 loader 只會行一次，呢個病量唔到。
+
+### 三個「把尺講緊自己」
+
+1. **兩隻遊戲個 driver 寫錯，於是報咗個假綠。** Snooker 個大廳係
+   `#snooker-online-lobby` 唔係 `#online-lobby`；Big Two 個全域叫 `setMode`，
+   而幾乎一模一樣嘅 Dou Dizhu 叫 `setGameMode`。兩隻都報「DOM 完全平」
+   ——因為根本冇入過大廳。
+   **條「先證明個循環真係行過」嘅 check 第一次跑就即刻捉到佢哋**（`入到 0/5`）。
+   冇呢條，呢把尺會帶住兩個永遠報綠嘅位交出去。
+2. **一句仲喺度顯示緊嘅提示唔係洩漏。** 第一版數全部節點，Gomoku 同 Xiangqi
+   報「一圈爬一個」——爬緊嘅係 `.gh-toast`。第三方擋走咗，每圈都彈一句
+   「連線服務載入失敗」，而一句 toast 顯示 3.5 秒、我一圈得 1.2 秒。量到嘅係
+   「而家畫面上有幾多句提示」，唔係「積咗幾多嘢」。
+   改成數之前剔走 toast 子樹——但**唔可以就咁當佢唔存在**，所以另外加一條
+   「提示唔准超過 `MAX_TOASTS = 5`」。剔走一樣嘢就要喺第二處補返一條線。
+3. `入`／`出` 直接叫遊戲自己嘅全域函數，唔靠撳掣。呢度要嘅唔係「模擬一隻手指」
+   （`hub-touch` 守緊嗰樣），係「行完呢條狀態轉換」——ADR-227 就係喺呢個分別
+   上面浪費過幾轉（投降流程過唔到 Playwright 嘅 actionability 檢查）。
+
+### 結果
+
+`tests/hub-leak.mjs` 4/4，五隻全部平。突變（拆走共用層嘅 `拆()`）令
+Snooker `[86,87,88,89,90]`、Big Two `[141,…,145]`、Dou Dizhu `[150,…,154]`
+一圈爬一個——即係 ADR-227 個修正真係喺呢三隻度救咗嘢，而家有尺守住。
+
+Gomoku 同 Xiangqi 喺突變之下**冇報紅**：佢哋 `initOnlineMode` 喺開頁嗰陣叫一次,
+唔會每次入大廳都叫，所以呢條循環唔會令佢哋重試。呢個唔係漏網，係佢哋本來就
+唔行嗰條路——**寫低咗，免得下次有人以為條 gate 冚咗五隻。**
+
 ## ADR-227 — Royale: 一把只守一種資源嘅洩漏閘，會漏走另一種資源嘅洩漏
 
 Date: 2026-08-10. Status: accepted.
