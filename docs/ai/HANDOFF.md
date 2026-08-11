@@ -1,7 +1,7 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Racing Car elevation-profile and aggregate verification pass
+Prepared by: Codex — Racing Car elevation, camera-grade and aggregate verification pass
 Integration branch: `main`
 Work branch: `main`
 Status: Racing source, tests, browser smoke and docs are ready for the next
@@ -46,6 +46,7 @@ browser evidence for every visual or control change.
   caps at `0.024`, and does not alter physics or draw calls.
 - Existing sport-arcade envelope, auto-throttle/simple controls, drift assists, speed
   layer, terrain/effects anchors, render-only suspension follow, rivals/ghost/season and lifecycle contracts unchanged.
+- Chase camera now smooths a clamped render-only `cameraGrade` copy of `car.trackPitch`: tiny position/look-target bias makes crest/downhill read with weight; it resets on start/build and never touches FOV, input or physics.
 
 ## Changed files
 
@@ -58,7 +59,7 @@ browser evidence for every visual or control change.
 - `games/Racing Car/style.css`
 - `games/Racing Car/tests/race.mjs`, `games/Racing Car/tests/setup.mjs`, `games/Racing Car/tests/lib/harness.mjs`, `games/Racing Car/tests/run-all.mjs`
 - `docs/ai/PROJECT_CONTEXT.md`
-- `docs/ai/DECISIONS.md` (ADR-273 through ADR-285)
+- `docs/ai/DECISIONS.md` (ADR-273 through ADR-286)
 - `docs/ai/HANDOFF.md`
 
 ## Verification
@@ -75,10 +76,7 @@ browser evidence for every visual or control change.
   **128/128**, setup **147/147**, rivals **61/61**, ghost **29/29**, season **55/55**,
   audio **33/33**; old 500ms gap reproduced setup timeout, which disappeared at
   `RACER_TEST_SETTLE_MS=5000`.
-- Real browser headed smoke after the profile change loaded the live page, started a
-  race and captured a raised-road crest at `/tmp/racing-elevation-v5.png` and
-  `/tmp/racing-elevation-v5-fast.png`; setup still verifies portrait 320×568 controls,
-  zero page errors and the new profile's render-only boundary.
+- Real browser headed smoke after the profile/camera change loaded the live page at 844×390, started a race and captured `/tmp/racing-camera-grade-v7.png`; at 96 km/h it read `trackPitch=-0.0293`, smoothed `cameraGrade=-0.0282`, with **0 console errors**. Earlier raised-road captures remain `/tmp/racing-elevation-v5.png` and `...-fast.png`; setup still verifies portrait 320×568 controls and the render-only boundary.
 - 844×390 real browser audit aimed at a naturally generated landmark position;
   the orange chevron reads as an upright sign with a visible short stem:
   `/tmp/racing-landmark-pole-audit.png`. Placement is separately guarded by
@@ -90,7 +88,7 @@ browser evidence for every visual or control change.
   `offroad=true`, `renderY=terrainY=-1.103m`, `shake=0.0126`, one dust particle.
 ## Known issues and cautions
 
-- `renderY`, `trackBank`, `trackPitch` and suspension follow are render-only; never feed
+- `renderY`, `trackBank`, `trackPitch`, `cameraGrade` and suspension follow are render-only; never feed
   them into `Car.pos`, collision, nearestT, checkpoints, progress, speed or AI decisions.
 - Keep the terrain as one bounded 32×32 mesh and the query cache at 240 X/Z
   samples. Do not add per-frame curve allocations or a second road pass.
@@ -101,13 +99,12 @@ browser evidence for every visual or control change.
   a real screenshot at the affected viewport.
 - Keep the speed layer low-contrast and pointer-transparent; its intensity must
   not become a physics or input dependency.
-- Aggregate `run-all.mjs` waits 5 seconds between heavy Chromium suites and retries
-  only a recognized readiness timeout once; `RACER_TEST_SETTLE_MS` remains an override. Suspension pose is capped at 0.018/0.015rad and must stay render-only.
+- Aggregate `run-all.mjs` waits 5 seconds between heavy Chromium suites and retries only a recognized readiness timeout once; `RACER_TEST_SETTLE_MS` remains an override. Suspension pose is capped at 0.018/0.015rad and must stay render-only.
   Severe pressure can still report `TIMEOUT`; browser/server cleanup prevents pollution.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-285.
+1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-286.
 2. Keep the aggregate and named suites green after any further render/physics change;
    keep rumble and suspension follow render-only and budget-neutral.
 3. For any further change, rerun the named Racing suites, update this handoff,

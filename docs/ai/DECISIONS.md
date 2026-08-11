@@ -8494,3 +8494,22 @@ terrain、車身 render pose、接地陰影同 effects 共享同一個 surface a
 aggregate 維持 `race` **128/128**、`setup` **147/147**、`rivals` **61/61**、
 `ghost` **29/29**、`season` **55/55**、`audio` **33/33**。日後再提高幅度前，必須
 重跑物理 gates、手機 budget 同自然駕駛 screenshot，唔好將 render slope 餵返 physics。
+
+## ADR-286 — Racing Car 追車鏡頭要讀坡度，但只改 render framing
+
+Date: 2026-08-12. Status: accepted.
+
+ADR-285 加深 crest／valley 後，車身同道路已經有真正嘅高低差，但追車鏡頭仍然用固定
+高度同固定 target；上落坡只見道路升降，車手冇重量／速度視線壓縮。`main.js` 現在保留
+一個 `cameraGrade`，以 raw `car.trackPitch` 夾喺 **−0.06…+0.06rad** 後用指數平滑追蹤，
+只對 chase camera position 同 look target 加細幅偏移（wide mobile 分別 **2.4／10.5**、
+desktop **2.8／12.5**）。上斜抬高視線、落斜望返落路，唔改 FOV、input、速度或物理，亦
+唔新增 curve query／每幀 allocation；換賽道／重開會清零。
+
+`cameraGrade` 係 render-only，`Car.pos`、碰撞、nearestT、checkpoint、progress、AI、
+contact shadow、effects 同 draw-call budget 完全不讀。真 headed **844×390** smoke 讀到
+自然 crest 嘅 `trackPitch=-0.0293`、平滑 `cameraGrade=-0.0282`，速度 **96 km/h**，
+console **0 errors**；aggregate 維持 race **128/128**、setup **147/147**、rivals
+**61/61**、ghost **29/29**、season **55/55**、audio **33/33**，世界 **16 calls／56,933 tris**。
+日後再加鏡頭衝擊或視線偏移，必須重跑真 844×390／portrait smoke 同物理 gates，唔好用
+camera response 代替真正操控或路面讀圖。

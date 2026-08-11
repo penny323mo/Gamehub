@@ -336,6 +336,7 @@ const renderSurfacePose = { y: 0, bank: 0, pitch: 0 };
 let camInit = false;      // 鏡頭要唔要即刻歸位（換賽道／重開都會用到）
 let cameraThrust = 0;
 let cameraPulse = 0;
+let cameraGrade = 0;
 
 // 賽道可以換：換嗰陣要 dispose 舊嗰個，唔係每揀一次就漏一份 3D 世界
 const minimap = new Minimap($('minimap'));
@@ -377,7 +378,7 @@ function buildTrack(id) {
     if (car) { car.reset(track.startPos, track.startDir); syncCarRenderSurface(); }
     if (race) { race.track = track; race.trackId = trackDef.id; race.reset(); }
     camInit = false;
-    cameraThrust = 0; cameraPulse = 0;
+    cameraThrust = 0; cameraPulse = 0; cameraGrade = 0;
     requestRender();
 }
 buildTrack(trackDef.id);
@@ -553,6 +554,7 @@ loader.load('./assets/car.glb', (gltf) => {
         get ready() { return carReadyRendered; },
         get renderCount() { return renderCount; },
         get performance() { return { ...performanceState }; },
+        get cameraGrade() { return cameraGrade; },
         visualLength: CAR_VISUAL_LENGTH,
     };
     requestRender();
@@ -596,6 +598,13 @@ function updateCamera(dt) {
     const dist = (10.8 + speedT * 3.0) * (wideMobile ? 0.68 : 0.88);
     const want = camWant.copy(car.pos).addScaledVector(fwd, -dist);
     want.y = car.renderY + (6.7 + speedT * 1.4) * (wideMobile ? 0.72 : 0.94);
+    // 上落坡唔只係車身郁：如果鏡頭永遠用固定高度／固定視線，過 crest 會
+    // 似道路自己升降、車手冇重量。用 raw render pitch 做一個極細、平滑嘅
+    // camera-grade response：上斜時視線抬少少，落斜時望返落路；唔讀
+    // physics Y、唔改 camera FOV，亦唔新增任何 curve query／allocation。
+    const gradeTarget = THREE.MathUtils.clamp(car.trackPitch, -0.06, 0.06);
+    cameraGrade += (gradeTarget - cameraGrade) * Math.min(1, dt * 5.5);
+    want.y += -cameraGrade * (wideMobile ? 2.4 : 2.8);
     // 加油／煞車嘅瞬間，鏡頭有一個極細嘅反向載荷位移；唔改物理，只畀
     // 玩家讀到「推背／點頭」，而且有平滑上限，唔會變成震鏡頭。
     const thrustTarget = THREE.MathUtils.clamp(car.longAccel / 14, -1, 1);
@@ -604,7 +613,7 @@ function updateCamera(dt) {
     want.addScaledVector(fwd, -cameraThrust * 0.24);
     want.y += Math.sin(performance.now() * 0.012) * cameraPulse * 0.018;
     const lookAt = camLookAt.copy(car.pos).addScaledVector(fwd, wideMobile ? 15 : 21)
-        .setY(car.renderY + 0.55);
+        .setY(car.renderY + 0.55 - cameraGrade * (wideMobile ? 10.5 : 12.5));
     if (!camInit) { camPos.copy(want); camLook.copy(lookAt); camInit = true; }
     // 追car 用指數平滑。唔可以再喺漂移時特登放鬆——方向本身已經跟住
     // 行進方向擺，位置再拖就會framing唔到架車。
@@ -1235,7 +1244,7 @@ function startRace() {
     lapProgressBase = 0;
     ghostMesh.visible = false;
     camInit = false;
-    cameraThrust = 0; cameraPulse = 0;
+    cameraThrust = 0; cameraPulse = 0; cameraGrade = 0;
     race.reset();
     hudCache = {};
     resetPerformance();
