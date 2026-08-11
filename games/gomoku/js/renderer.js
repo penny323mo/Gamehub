@@ -8,6 +8,26 @@ let onCellClick = null;
 // Keep track of the current board interaction handler so we can remove it
 // before adding a new one (prevents duplicate listeners on re-entry or rematch).
 let _boardHandler = null;
+let _touchStartHandler = null;
+let _touchMoveHandler = null;
+let _touchEndHandler = null;
+let _touchCancelHandler = null;
+let _touchGesture = null;
+let _suppressSyntheticClick = false;
+
+// App switches and backgrounding are not guaranteed to deliver touchcancel.
+// Clear the pending tap there as well, so a late touchend cannot place a stone
+// after the player has already left the game.
+function cancelBoardTouchGesture() {
+    _touchGesture = null;
+    _suppressSyntheticClick = false;
+}
+
+window.addEventListener('blur', cancelBoardTouchGesture);
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) cancelBoardTouchGesture();
+});
+canvas.addEventListener('pointercancel', cancelBoardTouchGesture);
 
 // Star points for 15x15 board (0-indexed)
 const STAR_POINTS = [
@@ -26,18 +46,9 @@ function createBoardUI(handleCellClick) {
     window.removeEventListener('resize', resizeGomokuBoard);
     window.addEventListener('resize', resizeGomokuBoard);
 
-    const clickHandler = (e) => {
+    const handleClientPoint = (clientX, clientY) => {
         if (!onCellClick) return;
-
-        // Prevent default touch actions like scrolling if inside canvas
-        if (e.type === 'touchstart') e.preventDefault();
-
         const rect = canvas.getBoundingClientRect();
-
-        // Handle touch or mouse
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
         const x = clientX - rect.left;
         const y = clientY - rect.top;
 
@@ -55,18 +66,86 @@ function createBoardUI(handleCellClick) {
         }
     };
 
+    const clickHandler = (e) => {
+        if (_suppressSyntheticClick) {
+            _suppressSyntheticClick = false;
+            return;
+        }
+        handleClientPoint(e.clientX, e.clientY);
+    };
+
+    // Do not commit a mobile move on touchstart. A finger can start a scroll,
+    // be interrupted by the app switcher, or turn into a multi-touch gesture;
+    // all of those must leave the board unchanged. Commit only an unmoved
+    // touchend, and suppress the delayed synthetic click that follows it.
+    const findActiveTouch = (event, identifier) => {
+        const touches = [
+            ...Array.from(event.changedTouches ?? []),
+            ...Array.from(event.touches ?? []),
+        ];
+        return touches.find((touch) => touch.identifier === identifier) ?? null;
+    };
+    const touchStartHandler = (e) => {
+        if (e.touches.length !== 1) {
+            _touchGesture = null;
+            return;
+        }
+        if (!onCellClick || _touchGesture) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        _touchGesture = {
+            identifier: touch.identifier,
+            startX: touch.clientX,
+            startY: touch.clientY,
+            moved: false,
+        };
+    };
+    const touchMoveHandler = (e) => {
+        if (!_touchGesture) return;
+        if (e.touches.length > 1) {
+            _touchGesture = null;
+            return;
+        }
+        const touch = findActiveTouch(e, _touchGesture.identifier);
+        if (!touch) return;
+        if (Math.hypot(touch.clientX - _touchGesture.startX, touch.clientY - _touchGesture.startY) > 10) {
+            _touchGesture.moved = true;
+        }
+        e.preventDefault();
+    };
+    const touchEndHandler = (e) => {
+        if (!_touchGesture) return;
+        const gesture = _touchGesture;
+        const touch = findActiveTouch(e, gesture.identifier);
+        _touchGesture = null;
+        if (!touch || gesture.moved || e.touches.length > 0) return;
+        e.preventDefault();
+        _suppressSyntheticClick = true;
+        window.setTimeout(() => { _suppressSyntheticClick = false; }, 700);
+        handleClientPoint(touch.clientX, touch.clientY);
+    };
+    const touchCancelHandler = cancelBoardTouchGesture;
+
     // Remove previous handler before adding the new one to prevent stacking
     // when createBoardUI is called again on rematch or room re-entry.
     if (_boardHandler) {
         canvas.removeEventListener('click', _boardHandler);
-        canvas.removeEventListener('touchstart', _boardHandler);
     }
+    if (_touchStartHandler) canvas.removeEventListener('touchstart', _touchStartHandler);
+    if (_touchMoveHandler) canvas.removeEventListener('touchmove', _touchMoveHandler);
+    if (_touchEndHandler) canvas.removeEventListener('touchend', _touchEndHandler);
+    if (_touchCancelHandler) canvas.removeEventListener('touchcancel', _touchCancelHandler);
     _boardHandler = clickHandler;
+    _touchStartHandler = touchStartHandler;
+    _touchMoveHandler = touchMoveHandler;
+    _touchEndHandler = touchEndHandler;
+    _touchCancelHandler = touchCancelHandler;
 
     canvas.addEventListener('click', clickHandler);
-    // Add touch handler for better mobile responsiveness (avoid 300ms delay)
-    // Use passive: false to allow preventDefault
-    canvas.addEventListener('touchstart', clickHandler, { passive: false });
+    canvas.addEventListener('touchstart', touchStartHandler, { passive: false });
+    canvas.addEventListener('touchmove', touchMoveHandler, { passive: false });
+    canvas.addEventListener('touchend', touchEndHandler, { passive: false });
+    canvas.addEventListener('touchcancel', touchCancelHandler, { passive: true });
 }
 
 function resizeGomokuBoard() {

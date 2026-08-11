@@ -72,6 +72,11 @@ const tapCenter = async () => {
   if (!rect) throw new Error('Gomoku board canvas is not visible');
   await page.mouse.click(rect.x + rect.width * 0.5, rect.y + rect.height * 0.5);
 };
+const touchCenter = async () => {
+  const rect = await page.locator('#gomoku-board').boundingBox();
+  if (!rect) throw new Error('Gomoku board canvas is not visible');
+  await page.touchscreen.tap(rect.x + rect.width * 0.5, rect.y + rect.height * 0.5);
+};
 const state = () => page.evaluate(() => ({
   cells: window.__gomoku.board.flat().filter(Boolean).length,
   black: window.__gomoku.board.flat().filter((cell) => cell === 'black').length,
@@ -82,7 +87,68 @@ const state = () => page.evaluate(() => ({
 
 await page.locator('#gomoku-ai-btn').click();
 await page.waitForSelector('#game-board-area:not(.hidden)');
-await tapCenter();
+const boardBox = await page.locator('#gomoku-board').boundingBox();
+if (!boardBox) throw new Error('Gomoku board canvas is not visible for touch cancellation gate');
+const interruptedTouch = await page.evaluate(({ x, y }) => {
+  const canvas = document.querySelector('#gomoku-board');
+  const touch = new Touch({ identifier: 91, target: canvas, clientX: x, clientY: y, screenX: x, screenY: y });
+  canvas.dispatchEvent(new TouchEvent('touchstart', {
+    bubbles: true, cancelable: true, changedTouches: [touch], touches: [touch], targetTouches: [touch],
+  }));
+  canvas.dispatchEvent(new TouchEvent('touchcancel', {
+    bubbles: true, cancelable: true, changedTouches: [touch], touches: [], targetTouches: [],
+  }));
+  return window.__gomoku.board.flat().filter(Boolean).length;
+}, { x: boardBox.x + boardBox.width * 0.5, y: boardBox.y + boardBox.height * 0.5 });
+check('Gomoku touchcancel 唔會誤落棋', interruptedTouch === 0, interruptedTouch);
+
+const draggedTouch = await page.evaluate(({ x, y }) => {
+  const canvas = document.querySelector('#gomoku-board');
+  const point = (clientX, clientY) => new Touch({ identifier: 92, target: canvas, clientX, clientY, screenX: clientX, screenY: clientY });
+  const start = point(x, y);
+  canvas.dispatchEvent(new TouchEvent('touchstart', {
+    bubbles: true, cancelable: true, changedTouches: [start], touches: [start], targetTouches: [start],
+  }));
+  const moved = point(x + 36, y + 2);
+  canvas.dispatchEvent(new TouchEvent('touchmove', {
+    bubbles: true, cancelable: true, changedTouches: [moved], touches: [moved], targetTouches: [moved],
+  }));
+  canvas.dispatchEvent(new TouchEvent('touchend', {
+    bubbles: true, cancelable: true, changedTouches: [moved], touches: [], targetTouches: [],
+  }));
+  return window.__gomoku.board.flat().filter(Boolean).length;
+}, { x: boardBox.x + boardBox.width * 0.5, y: boardBox.y + boardBox.height * 0.5 });
+check('Gomoku 移動手指後放手唔會誤落棋', draggedTouch === 0, draggedTouch);
+
+const backgroundedTouch = await page.evaluate(({ x, y }) => {
+  const canvas = document.querySelector('#gomoku-board');
+  const touch = new Touch({ identifier: 93, target: canvas, clientX: x, clientY: y, screenX: x, screenY: y });
+  canvas.dispatchEvent(new TouchEvent('touchstart', {
+    bubbles: true, cancelable: true, changedTouches: [touch], touches: [touch], targetTouches: [touch],
+  }));
+  window.dispatchEvent(new Event('blur'));
+  canvas.dispatchEvent(new TouchEvent('touchend', {
+    bubbles: true, cancelable: true, changedTouches: [touch], touches: [], targetTouches: [],
+  }));
+  return window.__gomoku.board.flat().filter(Boolean).length;
+}, { x: boardBox.x + boardBox.width * 0.5, y: boardBox.y + boardBox.height * 0.5 });
+check('Gomoku blur 後遲到 touchend 唔會誤落棋', backgroundedTouch === 0, backgroundedTouch);
+
+const pointerCancelledTouch = await page.evaluate(({ x, y }) => {
+  const canvas = document.querySelector('#gomoku-board');
+  const touch = new Touch({ identifier: 94, target: canvas, clientX: x, clientY: y, screenX: x, screenY: y });
+  canvas.dispatchEvent(new TouchEvent('touchstart', {
+    bubbles: true, cancelable: true, changedTouches: [touch], touches: [touch], targetTouches: [touch],
+  }));
+  canvas.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 94, pointerType: 'touch' }));
+  canvas.dispatchEvent(new TouchEvent('touchend', {
+    bubbles: true, cancelable: true, changedTouches: [touch], touches: [], targetTouches: [],
+  }));
+  return window.__gomoku.board.flat().filter(Boolean).length;
+}, { x: boardBox.x + boardBox.width * 0.5, y: boardBox.y + boardBox.height * 0.5 });
+check('Gomoku pointercancel 後遲到 touchend 唔會誤落棋', pointerCancelledTouch === 0, pointerCancelledTouch);
+
+await touchCenter();
 await page.waitForFunction(() => window.__gomoku?.currentPlayer === 'white');
 const afterHuman = await state();
 check('人手落黑子後輪到 AI',

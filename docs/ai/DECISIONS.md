@@ -8102,3 +8102,17 @@ timer 亦可能喺返嚟之後由 stale pointer 遲到觸發。
 capture、清 pointer state/class，並還原最後儲存／CSS 位置；只有正常 `pointerup` 先會保存完成嘅拖動。`tests/flow.mjs`
 用真實 browser 長按 HUD panel，分別守住 blur 同 hidden interruption，並確認未提交位置及 hold timer 都被清理。
 日後任何 floating HUD panel 都必須沿用呢條 lifecycle policy 同 restore invariant。
+
+## ADR-261 — Gomoku 手機落子要喺 touchend commit，唔可以 touchstart ghost-place
+
+Date: 2026-08-11. Status: accepted.
+
+Gomoku 舊版喺 `touchstart` 直接落子。真實 mobile browser 重現 `touchstart → touchcancel` 後棋盤仍然
+多咗一粒棋；手指開始滑動、切 app 或 OS gesture 都可能令玩家誤落一步。只靠 `click` 亦唔夠，因為手機
+tap 需要即時而且唔應該等 300ms compatibility delay。
+
+`renderer.js` 將手機輸入改成 `touchstart → (未移動) touchend` 才提交；超過 10px 移動、第二隻手指、
+`touchcancel`、`pointercancel`、window `blur` 或 hidden page 都清除 pending gesture。正常 touchend 會
+短暫抑制瀏覽器嘅 delayed synthetic click，桌面 click 路徑保持不變。`tests/gomoku-flow.mjs` 用真實
+mobile browser 守住 cancellation 四條路徑、正常 touchscreen tap、mouse tap、AI response 同 zero errors。
+日後棋盤或其他 turn-based canvas 輸入必須先完成 gesture，再改變遊戲狀態。
