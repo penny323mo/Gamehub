@@ -181,6 +181,73 @@ check('3D 手機一指觸控會進入瞄準拖動狀態',
     mobileAim.aimed?.turnState === 'AIMING_DRAG',
   mobileAim);
 
+// A camera/aim pointer can be interrupted before pointerup when the player
+// switches app or the browser backgrounds the tab. The next table gesture must
+// still receive its own pointerup instead of inheriting the stale camera flag.
+const canvasInterruption = await page.evaluate(() => {
+  const canvas = document.getElementById('game');
+  const rect = canvas.getBoundingClientRect();
+  const emit = (type, x, y, pointerId, buttons) => canvas.dispatchEvent(new PointerEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    pointerId,
+    pointerType: 'touch',
+    isPrimary: true,
+    button: 0,
+    buttons,
+    clientX: x,
+    clientY: y,
+  }));
+  const tableX = rect.left + rect.width * 0.5;
+  const tableY = rect.top + rect.height * 0.59;
+
+  emit('pointerdown', rect.left + 5, rect.top + 5, 51, 1);
+  const blurHeld = JSON.parse(window.render_game_to_text());
+  window.dispatchEvent(new Event('blur'));
+  const blurCancelled = JSON.parse(window.render_game_to_text());
+  emit('pointerdown', tableX, tableY, 52, 1);
+  const blurNextDown = JSON.parse(window.render_game_to_text());
+  emit('pointerup', tableX, tableY, 52, 0);
+  const blurNextUp = JSON.parse(window.render_game_to_text());
+
+  emit('pointerdown', rect.left + 5, rect.top + 5, 53, 1);
+  const hiddenHeld = JSON.parse(window.render_game_to_text());
+  Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+  document.dispatchEvent(new Event('visibilitychange'));
+  delete document.hidden;
+  const hiddenCancelled = JSON.parse(window.render_game_to_text());
+  emit('pointerdown', tableX, tableY, 54, 1);
+  const hiddenNextDown = JSON.parse(window.render_game_to_text());
+  emit('pointerup', tableX, tableY, 54, 0);
+  const hiddenNextUp = JSON.parse(window.render_game_to_text());
+  return {
+    blurHeld: { turnState: blurHeld.turnState, input: blurHeld.input },
+    blurCancelled: { turnState: blurCancelled.turnState, input: blurCancelled.input },
+    blurNextDown: { turnState: blurNextDown.turnState, input: blurNextDown.input },
+    blurNextUp: { turnState: blurNextUp.turnState, input: blurNextUp.input },
+    hiddenHeld: { turnState: hiddenHeld.turnState, input: hiddenHeld.input },
+    hiddenCancelled: { turnState: hiddenCancelled.turnState, input: hiddenCancelled.input },
+    hiddenNextDown: { turnState: hiddenNextDown.turnState, input: hiddenNextDown.input },
+    hiddenNextUp: { turnState: hiddenNextUp.turnState, input: hiddenNextUp.input },
+  };
+});
+check('3D 枱外鏡頭 blur 會清走舊 pointer，下一次瞄準可正常收尾',
+  canvasInterruption.blurHeld?.input?.isRotatingCamera === true &&
+    canvasInterruption.blurCancelled?.input?.isRotatingCamera === false &&
+    canvasInterruption.blurCancelled?.input?.activePointerId === null &&
+    canvasInterruption.blurNextDown?.turnState === 'AIMING_DRAG' &&
+    canvasInterruption.blurNextUp?.turnState === 'AIMING' &&
+    canvasInterruption.blurNextUp?.input?.activePointerId === null,
+  canvasInterruption);
+check('3D 枱外鏡頭 hidden page 亦會清走舊 pointer，唔會吞下一次 pointerup',
+  canvasInterruption.hiddenHeld?.input?.isRotatingCamera === true &&
+    canvasInterruption.hiddenCancelled?.input?.isRotatingCamera === false &&
+    canvasInterruption.hiddenCancelled?.input?.activePointerId === null &&
+    canvasInterruption.hiddenNextDown?.turnState === 'AIMING_DRAG' &&
+    canvasInterruption.hiddenNextUp?.turnState === 'AIMING' &&
+    canvasInterruption.hiddenNextUp?.input?.activePointerId === null,
+  canvasInterruption);
+
 await page.locator('#mobile-charge-btn').dispatchEvent('pointerdown');
 await page.waitForTimeout(180);
 const mobileCharge = await page.evaluate(() => JSON.parse(window.render_game_to_text()));

@@ -8063,3 +8063,17 @@ Snooker 3D mobile charge 以 `pointerdown → pointerup` 出桿。手機切 app�
 requestAnimationFrame、清除 `mobileChargeActive`/`isCharging`、重設力度／bar，而且唔出桿。正常下一次
 儲力仍然有效。`tests/snooker-flow.mjs` 用真實 390×844 mobile browser 守住三條中斷路徑同取消後正常出桿；
 日後改 charge/hold controls 必須保留同一個 cancellation policy。
+
+## ADR-258 — Snooker 3D 枱面 gesture 要同 blur／hidden 共用取消 seam
+
+Date: 2026-08-11. Status: accepted.
+
+3D 枱外一指會交畀 OrbitControls 旋轉鏡頭；如果 app switch 或 background 期間冇 `pointerup`，舊
+`isRotatingCamera=true` 會吞掉返嚟之後第一次枱面操作嘅 `pointerup`，令 `turnState` 卡喺 `AIMING_DRAG`。
+同一類 stale state 亦可以出現喺擺白球、桌面拖桿、spin widget 同 active pointer capture。
+
+`main.js` 以 `cancelTransientPointerInput()` 統一處理 canvas `pointercancel`、window `blur` 同 hidden
+page：釋放 capture、清除 active pointer、鏡頭／擺位／spin／mobile aim flags，並將未完成 gesture 還原到
+`PLACE_CUE` 或 `AIMING`；手機 charge button 仍由自己嘅 cancellation seam 管理力度 bar。`render_game_to_text()`
+只暴露 input lifecycle diagnostics，`tests/snooker-flow.mjs` 用真實 mobile browser 守 blur/hidden 後下一次
+瞄準 pointerup 正常完成。日後新增任何 canvas gesture 必須接入呢條 seam。

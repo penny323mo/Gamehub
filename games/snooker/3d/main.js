@@ -4428,15 +4428,47 @@ function handlePrimaryPointerUp(e) {
   }
 }
 
+// A mobile browser can interrupt a canvas gesture without dispatching the
+// matching pointerup (app switch, notification gesture, lock screen). Clear
+// every transient canvas flag so the next tap is a fresh gesture rather than a
+// stale camera rotation, cue placement drag, or desktop charge.
+function cancelTransientPointerInput() {
+  if (activePointerId !== null && typeof canvas.releasePointerCapture === 'function') {
+    try { canvas.releasePointerCapture(activePointerId); } catch (_) { /* ignore */ }
+  }
+  activePointerId = null;
+  isDraggingCueBall = false;
+  isRotatingCamera = false;
+  spinDragging = false;
+  mobileInputState = 'idle';
+  mobileAimLocked = false;
+
+  // The mobile charge button owns its own cancellation/reset UI. Do not race
+  // it here; this branch is for the canvas's desktop drag-to-charge path.
+  if (isCharging && !mobileChargeActive) {
+    isCharging = false;
+    power = 0;
+    if (powerFillEl) powerFillEl.style.width = '0%';
+  }
+
+  if (turnState === 'PLACE_CUE_DRAG') {
+    turnState = 'PLACE_CUE';
+  } else if (turnState === 'AIMING_DRAG') {
+    turnState = 'AIMING';
+    power = 0;
+    if (powerFillEl) powerFillEl.style.width = '0%';
+    updateAimLine();
+  }
+}
+
 if ('PointerEvent' in window) {
   canvas.addEventListener('pointerdown', handlePrimaryPointerDown);
   window.addEventListener('pointermove', handlePrimaryPointerMove);
   window.addEventListener('pointerup', handlePrimaryPointerUp);
-  window.addEventListener('pointercancel', () => {
-    activePointerId = null;
-    isDraggingCueBall = false;
-    isCharging = false;
-    isRotatingCamera = false; // OS 搶咗手勢（pointercancel）都要放低，唔係下一下 tap 會被食咗
+  window.addEventListener('pointercancel', cancelTransientPointerInput);
+  window.addEventListener('blur', cancelTransientPointerInput);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) cancelTransientPointerInput();
   });
 } else {
   canvas.addEventListener('mousedown', (e) =>
@@ -5270,6 +5302,14 @@ window.render_game_to_text = () => {
       z: ball.position.z,
       pocketed: ball.pocketed,
     })),
+    input: {
+      activePointerId,
+      isRotatingCamera,
+      isDraggingCueBall,
+      spinDragging,
+      mobileInputState,
+      mobileChargeActive,
+    },
     inputDebug,
   };
   return JSON.stringify(payload);
