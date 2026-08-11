@@ -468,12 +468,14 @@ function contactShadow() {
         new THREE.PlaneGeometry(5.4 * CAR_VISUAL_SCALE, 7.2 * CAR_VISUAL_SCALE),
         new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }),
     );
+    mesh.name = 'player-contact-shadow-plane';
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.y = 0.03;              // 貼住路面，唔好 z-fight
     mesh.renderOrder = 1;
     // 用 Group 包住再掛喺場景（唔係掛喺車底）：掛喺車嗰陣連車身側傾都會跟住
     // 一齊擘，陰影一邊會離地——影就係要貼實地面先騙到眼。
     const g2 = new THREE.Group();
+    g2.name = 'player-contact-shadow';
     g2.add(mesh);
     return g2;
 }
@@ -481,6 +483,15 @@ function contactShadow() {
 let carModel = null;
 let shadow = null;
 let colour = loadColour();
+
+// 陰影係 render-only 接地提示：跟車嘅位置、yaw 同賽道 render pitch/bank，
+// 但唔跟 body roll，亦唔寫入物理。車模喺坡面／側傾路段先唔會似一張水平
+// 貼紙浮喺路面上；陰影仍然係同一個單一 plane／draw call。
+function syncContactShadow() {
+    if (!shadow || !car) return;
+    shadow.position.set(car.pos.x, car.renderY, car.pos.z);
+    shadow.rotation.set(car.trackPitch, car.yaw, car.trackBank);
+}
 
 loader.load('./assets/car.glb', (gltf) => {
     const model = normalizeCar(gltf.scene);
@@ -511,7 +522,7 @@ loader.load('./assets/car.glb', (gltf) => {
     revealMenuAfterRender = true;
     // 畀自動化測試用；track 用 getter，換賽道之後攞到嘅係新嗰個
     window.__racer = {
-        car, race, renderer, scene, camera, environment, drivingEffects, rivals,
+        car, race, renderer, scene, camera, environment, drivingEffects, rivals, shadow,
         restart, startRace, buildTrack, TRACKS, input, minimap, setRivals,
         get rivalCount() { return rivalCount; },
         setColour, setTod, setQuality, setGhost, setAbs, get abs() { return absOn; }, season, startSeason, renderSeasonPanel, ghostRecorder, ghostPlayer, ghostMesh,
@@ -1359,8 +1370,7 @@ function frame(now) {
             minimap.draw(car, rivals.rivals);
         }
         if (shadow) {
-            shadow.position.set(car.pos.x, car.renderY, car.pos.z);
-            shadow.rotation.y = car.yaw;
+            syncContactShadow();
         }
         updateCamera(dt);
     }

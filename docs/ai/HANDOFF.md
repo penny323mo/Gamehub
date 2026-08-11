@@ -1,7 +1,7 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Racing Car graded-surface and wheel-motion pass
+Prepared by: Codex — Racing Car graded-surface, wheel-motion and contact-shadow pass
 Integration branch: `main`
 Work branch: `main`
 Status: Racing source, tests, browser smoke and docs are ready for the next
@@ -40,7 +40,8 @@ browser evidence for every visual or control change.
   stay independent from physics, AI and checkpoints.
 - `wheel-motion.js` now classifies four low-level wheel clusters inside the rigid
   GLB and updates only their merged position/normal vertices: speed-driven spin
-  plus smoothed front-wheel steering, with no new mesh or draw call.
+  plus smoothed front-wheel steering; the single contact-shadow plane follows
+  render pitch/bank too, with no new mesh or draw call.
 - Existing sport-arcade envelope, auto-throttle/simple controls, drift assists,
   speed layer, bounded effects, rivals/ghost/season and lifecycle contracts are
   unchanged.
@@ -56,19 +57,19 @@ browser evidence for every visual or control change.
 - `games/Racing Car/style.css`
 - `games/Racing Car/tests/setup.mjs`
 - `docs/ai/PROJECT_CONTEXT.md`
-- `docs/ai/DECISIONS.md` (ADR-273, ADR-274, ADR-275, ADR-276, ADR-277, ADR-278)
+- `docs/ai/DECISIONS.md` (ADR-273, ADR-274, ADR-275, ADR-276, ADR-277, ADR-278, ADR-279)
 - `docs/ai/HANDOFF.md`
 
 ## Verification
 
-- `node --check` on `track.js` and `setup.mjs` — PASS.
-- `git diff --check` — PASS before documentation update.
+- `node --check` on `main.js` and `setup.mjs` — PASS.
+- `git diff --check` — PASS.
 - `race.mjs` — **126/126**; six tracks, top **146 km/h**, 0–80 **2.40s**,
   drift/ABS/wall/recovery/roll gates green, zero browser errors.
-- `setup.mjs` — **144/144**; closed height/pitch seam, terrain/guardrail pose,
-  mobile layout/touch/gyro, day/night, lifecycle/context loss, draw budget,
-  speed-layer opacity, 6–14 landmark placement/material/draw gates, four-wheel
-  spin/steering regression and zero
+- `setup.mjs` — **145/145**; closed height/pitch seam, terrain/guardrail pose,
+  contact-shadow pitch/bank, mobile layout/touch/gyro, day/night, lifecycle/context loss,
+  draw budget, speed-layer opacity, 6–14 landmark placement/material/draw gates,
+  four-wheel spin/steering regression and zero
   browser errors. Latest full-world read: **16 calls／56,933 tris**; effects
   remain **17 calls**.
 - `rivals.mjs` — **61/61**; four AI rivals, ranking, minimap, instancing and
@@ -85,9 +86,9 @@ browser evidence for every visual or control change.
   the orange chevron reads as an upright sign with a visible short stem:
   `/tmp/racing-landmark-pole-audit.png`. Placement is separately guarded by
   setup (17.48–17.58m lateral, ≥0.97m above the local banked surface).
-- 844×390 side-view browser audit after wheel animation: four wheels remain
-  visually coherent at **25m/s**, spin angle **−11.22rad**, front steering
-  **0.39rad**; screenshot `/tmp/racing-wheel-side-audit.png`.
+- 844×390 side-view browser audits: wheels coherent at **25m/s** (spin
+  **−11.22rad**, steering **0.39rad**) and a **104 km/h** drive follows graded
+  shadow pose; screenshots `/tmp/racing-wheel-side-audit.png`, `/tmp/racing-contact-shadow-drive-audit.png`.
 ## Known issues and cautions
 
 - `renderY`, `trackBank` and `trackPitch` are render-only. Never feed them into
@@ -106,9 +107,9 @@ browser evidence for every visual or control change.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-278.
+1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-279.
 2. Inspect `/tmp/racing-wheel-side-audit.png` and the portrait grade smoke at
-   phone-sized scale; keep wheel animation render-only and budget-neutral.
+   phone-sized scale; keep wheel and contact-shadow animation render-only and budget-neutral.
 3. For any further change, rerun the named Racing suites, update this handoff,
    run `./scripts/check-handoff.sh`, then commit/push the verified checkpoint.
 

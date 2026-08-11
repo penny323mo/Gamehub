@@ -89,7 +89,8 @@ repository as a static site.
   `Track.surfaceYAtT()` / `surfaceBankAtT()` / `surfacePitchAtT()` are a bounded
   render-only profile: the road ribbon, kerbs, guardrails, terrain and trackside
   anchors follow it, while physics remains the established X/Z grid.
-  `Car.renderY`/`trackBank`/`trackPitch`, rival instances, the contact shadow and
+  `Car.renderY`/`trackBank`/`trackPitch`, rival instances, the contact shadow (which
+  follows render pitch/bank) and
   chase camera may consume that pose, but no gameplay distance, collision,
   checkpoint or speed calculation may read render Y.
   `Car.longAccel`/`lateralAccel` are read-only render feedback; camera impulse and

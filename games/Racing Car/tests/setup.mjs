@@ -162,6 +162,17 @@ const geo = await page.evaluate(async () => {
         carRenderY: car.renderY,
         carTrackPitch: car.trackPitch,
         wheels: car.wheels.snapshot(),
+        shadow: (() => {
+            const { shadow } = window.__racer;
+            return {
+                name: shadow?.name ?? '',
+                planeName: shadow?.children?.[0]?.name ?? '',
+                rotation: shadow ? [shadow.rotation.x, shadow.rotation.y, shadow.rotation.z] : null,
+                target: [car.trackPitch, car.yaw, car.trackBank],
+                position: shadow ? [shadow.position.x, shadow.position.y, shadow.position.z] : null,
+                targetPosition: [car.pos.x, car.renderY, car.pos.z],
+            };
+        })(),
         roadY: (() => {
             const ys = [];
             for (let i = 1; i < track.road.geometry.attributes.position.array.length; i += 3) {
@@ -198,6 +209,13 @@ check('閉環起伏喺起點無縫接返，車身會跟縱向坡度俯仰',
     && geo.surfacePitch > 0.008 && Math.abs(geo.carTrackPitch - geo.startSurfacePitch) < 0.01, geo);
 check('玩家車身起步 render pose 同路面高度對齊',
     Math.abs(geo.carRenderY - geo.startSurfaceY) < 0.01, geo);
+check('接地陰影跟住車身方向同 render 坡度／banking',
+    geo.shadow.name === 'player-contact-shadow'
+    && geo.shadow.planeName === 'player-contact-shadow-plane'
+    && geo.shadow.rotation
+    && geo.shadow.rotation.every((value, i) => Math.abs(value - geo.shadow.target[i]) < 0.001)
+    && geo.shadow.position
+    && geo.shadow.position.every((value, i) => Math.abs(value - geo.shadow.targetPosition[i]) < 0.001), geo.shadow);
 check('rigid GLB 仍有四個輪胎 cluster 做 render-only 動畫',
     geo.wheels.enabled && geo.wheels.wheels === 4 && geo.wheels.vertices > 5000
     && geo.wheels.radius > 0.4, geo.wheels);

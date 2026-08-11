@@ -8395,3 +8395,15 @@ material、draw call，亦唔改 `Car.pos`、碰撞或物理輪胎。setup 新�
 regression，完整 draw budget 仍 **16 calls／56,933 tris**；真 browser side audit 截圖
 `/tmp/racing-wheel-side-audit.png`，四輪 **10,296 vertices**、radius 約 **0.446m**。
 日後換車模要重新量 cluster，唔好將呢個 heuristic 當成通用骨架 API。
+
+## ADR-279 — Racing Car 接地陰影必須跟 render 坡度／banking
+
+Date: 2026-08-12. Status: accepted.
+
+賽道 ribbon 已有 track-specific 嘅 render elevation、pitch 同 banking，但原本嘅
+`player-contact-shadow` 只放喺 `renderY`，並只繞 `yaw`；陰影平面仍然係世界水平，
+車一上落坡或側傾時會出現「車身貼住、影浮住」嘅視覺矛盾。保留同一張低成本
+radial plane／draw call，由 group 喺 render pass 跟住車嘅位置、yaw、`trackPitch` 同
+`trackBank` 對齊；唔跟 body roll，唔寫入 `Car.pos`，亦唔引入第二個 shadow pass。
+setup 新增 node identity 同 `[pitch, yaw, bank]` transform gate；世界 budget 仍
+**16 calls／56,933 tris**，物理 race gate 維持 **126/126**。
