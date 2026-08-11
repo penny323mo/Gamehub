@@ -7890,3 +7890,15 @@ Elden Ring II 嘅手機速度 gate 需要等足幾秒，第一個樣本可以令
 同一個碎屑池會揀「命最長」嗰蓬回報。量重力時兩次讀取之間如果有新 burst，兩個 `vy` 係兩蓬
 唔同嘅初速度，唔可以相減；只接受 `打擊().次數` 不變嘅連續樣本。箭追擊同未鎖定轉向 gate
 亦要以真實玩家輸入（橫移／死亡後 R 重開）取得足夠落點，唔好用測試專用 state 代替。
+
+## ADR-244 — Xiangqi 環境光要自包含，失敗時唔阻住入局
+
+Date: 2026-08-11. Status: accepted.
+
+Xiangqi 3D 棋盤嘅 Studio Small 09 1k HDRI 係 CC0 資產，放喺
+`games/xiangqi-ai/assets/`，由 Vite `?url` import 並一同生成 tracked `dist/assets/`。
+GitHub Pages／離線瀏覽唔可以再依賴 Poly Haven runtime URL；`tests/hub-cdn.mjs` 會守住 source
+冇外部 HDR URL、dist 有唯一 `.hdr` 同 bundle 真係引用該檔。
+
+HDR 只係環境光增益，唔係玩法依賴。`HDRLoader` decode/load 失敗時保留現有 key/rim/ambient
+lights，並顯示短暫 status message；context-loss 嘅持續復原提示優先於呢個非阻塞提示。

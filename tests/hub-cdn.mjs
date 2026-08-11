@@ -198,6 +198,23 @@ for (const g of 遊戲.filter((x) => x.入口)) {
 check('SDK 未到嗰陣撳線上入口，1.5 秒內要有交代（唔可以靜靜雞乜都唔做）',
   Object.keys(冇交代).length === 0, Object.keys(冇交代).length ? 冇交代 : { 驗過: 遊戲.filter((x) => x.入口).length });
 
+// Xiangqi 嘅環境光係可選嘅視覺增益，唔應該令 GitHub Pages／離線入口多一條
+// Poly Haven runtime 依賴。Vite ?url import 必須同時落入 tracked dist，否則
+// source 看似自包含、實際部署仍然會漏檔。
+const xiangqiRender = fs.readFileSync(path.join(ROOT, 'games/xiangqi-ai/js/render.js'), 'utf8');
+const xiangqiDistAssets = path.join(ROOT, 'games/xiangqi-ai/dist/assets');
+const xiangqiHdrs = fs.readdirSync(xiangqiDistAssets).filter((name) => name.endsWith('.hdr'));
+const xiangqiBundle = fs.readdirSync(xiangqiDistAssets)
+  .filter((name) => /^index-[^/]+\.js$/.test(name))
+  .map((name) => fs.readFileSync(path.join(xiangqiDistAssets, name), 'utf8'))
+  .find((text) => text.includes('studio_small_09_1k-')) ?? '';
+check('Xiangqi 環境光自包含（唔依賴 Poly Haven runtime）',
+  xiangqiHdrs.length === 1 &&
+  xiangqiRender.includes('studio_small_09_1k.hdr?url') &&
+  !xiangqiRender.includes('dl.polyhaven.org') &&
+  xiangqiBundle.length > 0,
+  { hdr: xiangqiHdrs, external: xiangqiRender.includes('dl.polyhaven.org'), bundle: xiangqiBundle.length > 0 });
+
 console.log('\n各遊戲 DCL（秒）：');
 for (const [名, v] of Object.entries(差表)) {
   console.log(`  ${名.padEnd(16)} 即刻失敗 ${String(v.即刻失敗).padStart(6)}　吊${吊秒}s ${String(v[`吊${吊秒}s`]).padStart(6)}　差 ${String(v.差).padStart(6)}`);

@@ -2,7 +2,7 @@
    Keeps the same Render.* API so main.js needs zero changes. */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
+import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
@@ -10,6 +10,7 @@ import {
   COLS, ROWS, RED,
   pSide, idx, rowOf, colOf, pieceName, findKing
 } from './engine/types.js';
+import studioSmall09Url from '../assets/studio_small_09_1k.hdr?url';
 
 /* ── Constants ── */
 const CELL = 1;
@@ -169,6 +170,7 @@ function renderFrame() {
  * 擺喺 HTML 度就變成「兩個地方都要記得改」。
  */
 let 訊息條 = null;
+let 訊息清除計時器 = null;
 function 顯示畫面訊息(字) {
   if (!字) { 訊息條?.remove(); 訊息條 = null; return; }
   if (!訊息條) {
@@ -182,6 +184,22 @@ function 顯示畫面訊息(字) {
     document.body.appendChild(訊息條);
   }
   訊息條.textContent = 字;
+}
+
+function 顯示暫時畫面訊息(字, 持續毫秒 = 3600) {
+  if (訊息清除計時器 !== null) window.clearTimeout(訊息清除計時器);
+  顯示畫面訊息(字);
+  訊息清除計時器 = window.setTimeout(() => {
+    訊息清除計時器 = null;
+    if (訊息條?.textContent === 字) 顯示畫面訊息(null);
+  }, 持續毫秒);
+}
+
+function 清除暫時畫面訊息() {
+  if (訊息清除計時器 !== null) {
+    window.clearTimeout(訊息清除計時器);
+    訊息清除計時器 = null;
+  }
 }
 
 /* ── Init ── */
@@ -206,9 +224,11 @@ function init(cvs) {
    */
   canvas.addEventListener('webglcontextlost', (e) => {
     e.preventDefault();          // 冇呢句瀏覽器唔會還原
+    清除暫時畫面訊息();
     顯示畫面訊息('3D 畫面暫時中斷，正在恢復…');
   });
   canvas.addEventListener('webglcontextrestored', () => {
+    清除暫時畫面訊息();
     顯示畫面訊息(null);
     resize();                    // 尺寸要重新設定，之後嗰次畫先啱
     renderFrame();
@@ -265,14 +285,16 @@ function init(cvs) {
 
   const pmremGenerator = new THREE.PMREMGenerator(renderer);
   pmremGenerator.compileEquirectangularShader();
-  new RGBELoader().load(
-    'https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/studio_small_09_1k.hdr',
+  new HDRLoader().load(
+    studioSmall09Url,
     (hdr) => {
       const envRT = pmremGenerator.fromEquirectangular(hdr);
       scene.environment = envRT.texture;
       hdr.dispose();
       pmremGenerator.dispose();
-    }
+    },
+    undefined,
+    () => 顯示暫時畫面訊息('環境光暫時未能載入，已使用基本燈光')
   );
 
   boardGroup = new THREE.Group();

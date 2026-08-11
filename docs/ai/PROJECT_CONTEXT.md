@@ -33,7 +33,7 @@ repository as a static site.
 | Racing Car 3D | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Continuous spline track (`track.js`), day/dusk/night environment (`environment.js`), bounded driving effects, player-only arcade assists and simple auto-throttle controls, four physical AI rivals plus a dithered ghost in one instanced field (`rivals.js`, `ghost.js`), and a persistent three-race championship with career records (`season.js`). Draco-compressed player car. Tests in `games/Racing Car/tests/`. |
 | Ashen Rail | `games/ashen-rail/dist/index.html` | Self-contained Vite + TypeScript + Babylon.js bonus game; CI builds `dist/`. |
 | Elden Ring II | `games/elden-ring-ii/dist/index.html` | Self-contained Vite + React + TypeScript + Three.js/Cannon-es bonus game; three classes, mobile touch controls, local run history, optional Supabase write, bundled CC0 assets; CI builds ignored `dist/`. |
-| Xiangqi AI | `games/xiangqi-ai/dist/index.html` | Vite + Three.js; hub targets tracked `dist/`. |
+| Xiangqi AI | `games/xiangqi-ai/dist/index.html` | Vite + Three.js; hub targets tracked `dist/`; optional board environment HDR is bundled under `assets/` and copied into `dist/assets/`. |
 | Database | `supabase/migrations/` | Append-only numbered migrations; never edit an applied migration casually. |
 
 ## Current architectural invariants
@@ -50,6 +50,10 @@ repository as a static site.
 - Tower, Snake, and Xiangqi hub links currently target committed `dist/` output.
   Source-only changes to those games are incomplete until the required dist output
   is regenerated and verified.
+- Xiangqi's environment map is a local Vite `?url` import of the CC0 Studio Small 09
+  HDRI. Keep the tracked `.hdr` in `games/xiangqi-ai/dist/assets/`; do not reintroduce
+  a runtime Poly Haven URL. The renderer's local key/rim/ambient lights remain the
+  playable fallback if HDR decoding fails.
 - Tower's battlefield rules come from `games/tower/src/core/mapLayout.ts`. Render,
   camera, picking, and economy code consume its `LAYOUT` cell metadata instead of
   deriving separate rectangular masks. `route.ts` smooths the authoritative grid

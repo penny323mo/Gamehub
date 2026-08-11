@@ -36,10 +36,12 @@ function initApp() {
     更新繼續掣();
     setTimeout(更新繼續掣, 0);
 
-    // 嘗試恢復線上對戰 session
-    if (window.initOnlineMode) {
-        window.initOnlineMode();
-    }
+    // 嘗試恢復線上對戰 session，但唔好喺 module evaluation 階段開第三方
+    // request。把呢個 optional probe 推到下一個 task，確保單機玩家嘅 DCL／
+    // 首屏唔會等 Supabase；online.js 仍會自己掛返線上入口。
+    setTimeout(() => {
+        if (window.initOnlineMode) window.initOnlineMode();
+    }, 0);
 }
 
 function selectMode(selectedMode) {

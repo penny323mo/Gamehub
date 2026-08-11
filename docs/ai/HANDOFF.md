@@ -4,8 +4,8 @@ Updated: 2026-08-11 (Asia/Macau)
 Prepared by: Codex — integrated Game Hub product-audit checkpoint
 Integration branch: `main`
 Work branch: `main`
-Status: the latest integrated player-flow audit is green. This checkpoint contains verification notes only;
-no gameplay or renderer source changed after `b0c31de`.
+Status: the latest integrated player-flow audit is green, and Xiangqi's optional environment light is now
+self-contained. This checkpoint contains the bundled asset, renderer fallback, regression gate, and verification.
 
 ## Current objective
 
@@ -32,7 +32,9 @@ no gameplay or renderer source changed after `b0c31de`.
 
 - Tower core, map/route redesign, assets, combat, units, gateway/keep placement, look, map browser, touch, load,
   flow, projectile renderer, and standalone renderer/performance checks passed.
-- Xiangqi production build plus legal-move, search, and performance self-tests passed.
+- Xiangqi production build plus legal-move, search, and performance self-tests passed. The optional Studio Small 09
+  CC0 HDRI is now bundled under `games/xiangqi-ai/assets/`, imported with Vite `?url`, copied into tracked
+  `dist/assets/`, and guarded by a short load-failure status notice; local lights keep the board playable.
 
 **Earlier relay checkpoints remain integrated**
 
@@ -41,9 +43,15 @@ no gameplay or renderer source changed after `b0c31de`.
 
 ## Changed files
 
-- `docs/ai/HANDOFF.md` — replaced with this integrated-audit checkpoint.
+- `games/xiangqi-ai/js/render.js` — use the bundled HDR via `HDRLoader`; show a non-blocking fallback notice.
+- `games/xiangqi-ai/js/app.js` — defer optional online-session restore until after module evaluation so DCL stays local.
+- `games/xiangqi-ai/assets/studio_small_09_1k.hdr` and `assets/README.md` — CC0 environment asset plus provenance/hash.
+- `games/xiangqi-ai/dist/` — regenerated tracked entry bundle and HDR asset for GitHub Pages.
+- `tests/hub-cdn.mjs` — assert Xiangqi has no runtime Poly Haven HDR dependency and the dist bundle contains the HDR.
+- `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md`, `docs/ai/HANDOFF.md` — durable architecture/ADR/relay notes.
 
-No generated `dist/` output or gameplay source is intentionally included in this checkpoint.
+The Xiangqi `dist/` output is intentionally included because that directory is the hub's tracked deployment target.
+Ashen Rail and Elden Ring II generated `dist/` output remains ignored and is not part of this change.
 
 ## Verification
 
@@ -53,7 +61,8 @@ No generated `dist/` output or gameplay source is intentionally included in this
 - Hub targeted suites with
   `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'` — home **3/3**, pause **6/6**,
   storage **2/2**, progress **4/4**, audio **3/3**, tabs **4/4**, away **3/3**, context **3/3**, leak **4/4**,
-  CDN **3/3**, load **3/3**, readability **3/3**, touch **5/5**, keyboard **3/3**, wait **1/1**.
+  CDN **4/4**, load **3/3**, readability **3/3**, touch **5/5**, keyboard **3/3**, wait **1/1**. The new CDN
+  check confirms the Xiangqi HDR is local in source and tracked dist.
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/hub.mjs` — **96/96**;
   13 launcher entries, four pages, mobile 2×2 / desktop four-up layout, no dead links or browser errors.
 - `cd games/tower && npm test` — build, all core gates, browser gates, and projectile-renderer gates passed. The
@@ -65,6 +74,10 @@ No generated `dist/` output or gameplay source is intentionally included in this
   failure without reproducing it in a clean standalone run.
 - `cd games/xiangqi-ai && npm run build && node js/engine/selftest_legal.js && node js/engine/selftest_search.js &&
   node js/engine/selftest_perf.js` — all build/legal/search/performance checks passed.
+- Real mobile Chromium smokes of the rebuilt Xiangqi dist kept the landing and AI canvas usable while blocking
+  non-local requests; no Poly Haven request appeared. The expected lazy Supabase request is the only third-party
+  surface, and a second smoke aborting the bundled HDR showed `環境光暫時未能載入，已使用基本燈光` while the game stayed
+  playable.
 - Earlier checkpoint evidence remains valid: Elden Ring II HUD **92/92** plus `npm test` **17/17**; Ashen Rail
   asset audit/lint/Vitest **14/14**/build plus 844×390 browser smoke; Racing Car independent real-browser suites
   race **124/124**, setup **125/125**, rivals **61/61**, ghost **29/29**, season **55/55**, audio **32/32**.
@@ -76,10 +89,9 @@ No generated `dist/` output or gameplay source is intentionally included in this
   `PLAYWRIGHT_CHROMIUM` for `games/Racing Car/tests`.
 - Tower SwiftShader frame milliseconds are an environment-relative signal, not a physical-phone FPS claim. Keep
   the draw-call and resource gates, and collect real-device evidence before tuning graphics from those absolute ms.
-- Xiangqi's optional board environment light still comes from the external Polyhaven HDR URL in
-  `games/xiangqi-ai/js/render.js`. The board has local key/rim/ambient lights and remains usable if that request is
-  unavailable, but a future asset-hardening round may bundle a CC0 HDR or add an explicit non-blocking fallback
-  status. Do not turn this into a blocking dependency without a measured failure.
+- Xiangqi's optional board environment light is now a bundled CC0 HDR. If the local file cannot be decoded, the
+  renderer keeps its key/rim/ambient lights and shows a short fallback status; do not reintroduce a runtime Poly Haven
+  URL or make this visual enhancement block entry. Supabase remains lazy and optional for online play.
 - Ashen Rail and Elden Ring II `dist/` outputs are generated/ignored; do not stage or delete local generated assets.
   CI rebuilds them from source.
 - If changing Tower/Snake/Xiangqi source, rebuild their tracked `dist/` before committing. MOBA imports and the Hub
@@ -89,8 +101,8 @@ No generated `dist/` output or gameplay source is intentionally included in this
 ## Exact next action
 
 1. Run `./scripts/agent-context.sh --sync`, then read this file and `docs/ai/PROJECT_CONTEXT.md` before editing.
-2. If taking the next product scope, start with the non-blocking Xiangqi HDR hardening question or a new real
-   browser player risk; do not redo the already-green suites unless a new reproduction contradicts this checkpoint.
+2. If taking the next product scope, start with a new real browser player risk; Xiangqi HDR self-containment is
+   already closed by this checkpoint and should not be redone unless a new reproduction contradicts it.
 3. Before handoff, run `./scripts/check-handoff.sh` and `git diff --check`, commit this file with any scoped source
    changes, push `main`, and verify `git rev-parse HEAD` equals `git rev-parse origin/main`.
 
