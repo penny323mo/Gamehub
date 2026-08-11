@@ -8339,3 +8339,19 @@ streak gradient 本身最高只係約 0.08，截圖實際讀唔到「加速緊�
 零 browser errors。`setup.mjs` 收緊速度回饋 gate 至 86 km/h opacity **>0.20**，仍然
 **135/135**；`race.mjs` **126/126**。日後如果要再加速度效果，先以截圖確認可讀性，唔好
 靠再提高極速或將 feedback 餵返物理。
+
+## ADR-275 — Racing Car 彎位要有單一低成本導向地標
+
+Date: 2026-08-12. Status: accepted.
+
+真 browser 視覺 audit 確認路面起伏、速度 streak 同胎痕已經存在，但高速鏡頭仍然只見到
+重複柏油、紅白 kerb、樹木同護欄，唔容易讀到下一個彎，亦令三條賽道缺少性格。今輪由
+`Track.#radiusAt()` 喺 build time 揀每圈最急彎位，喺彎外側放 6–14 個 track-specific
+chevron 牌；牌面係 render-only、位於路面 ribbon 外側約 17.5m、護欄內側，唔參與
+碰撞、nearestT、checkpoint、progress、AI 或速度。三條 profile 分別用 orange／cyan／
+yellow palette，牌面用高對比 `MeshBasicMaterial`，避免背光變黑；所有牌共用一個
+`corner-chevron-landmarks` `InstancedMesh`，完整世界維持 setup **16 calls／56,913 tris**，
+效果啟用仍係 **17 calls**。
+
+setup gate 會驗證 instance 數、draw identity、牌位距離道路／護欄範圍同距離地表高度；日後
+如需加橋、看台或大型 billboard，先證明仍可維持單一 bounded pass，再另立 ADR。

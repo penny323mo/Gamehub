@@ -1,7 +1,7 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Racing Car grounded elevation/pitch and speed-feedback pass
+Prepared by: Codex — Racing Car corner-landmark and high-contrast road-read pass
 Integration branch: `main`
 Work branch: `main`
 Status: Racing source, tests, browser smoke and docs are ready for the next
@@ -11,8 +11,8 @@ verified `main` checkpoint. The receiving agent must sync GitHub before edits.
 
 Keep Racing Car moving toward a production-ready mobile arcade racer: responsive
 but bounded bicycle physics, readable high-speed/drift feedback, believable
-ground contact, stable frame pacing, and real browser evidence for every visual
-or control change.
+ground contact, track-specific visual landmarks, stable frame pacing, and real
+browser evidence for every visual or control change.
 
 ## Completed
 
@@ -31,6 +31,10 @@ or control change.
 - The speed layer now starts at `10 m/s` instead of `16 m/s`, reaches stronger
   readable intensity by roughly 80 km/h, and has a slightly clearer gradient;
   it remains pointer-transparent, HUD-safe, render-only and draw-call neutral.
+- Each track now builds 6–14 render-only outside-corner chevrons from its sampled
+  curvature. They share one `corner-chevron-landmarks` InstancedMesh, use
+  orange/cyan/yellow track palettes, sit about 17.5m outside the ribbon and
+  inside the guardrail, and stay independent from physics, AI and checkpoints.
 - Existing sport-arcade envelope, auto-throttle/simple controls, drift assists,
   speed layer, bounded effects, rivals/ghost/season and lifecycle contracts are
   unchanged.
@@ -44,18 +48,20 @@ or control change.
 - `games/Racing Car/style.css`
 - `games/Racing Car/tests/setup.mjs`
 - `docs/ai/PROJECT_CONTEXT.md`
-- `docs/ai/DECISIONS.md` (ADR-273)
+- `docs/ai/DECISIONS.md` (ADR-273, ADR-274, ADR-275)
 - `docs/ai/HANDOFF.md`
 
 ## Verification
 
-- `node --check` on all four changed Racing source modules — PASS.
+- `node --check` on `track.js` and `setup.mjs` — PASS.
 - `git diff --check` — PASS before documentation update.
 - `race.mjs` — **126/126**; six tracks, top **146 km/h**, 0–80 **2.40s**,
   drift/ABS/wall/recovery/roll gates green, zero browser errors.
-- `setup.mjs` — **135/135**; closed height/pitch seam, terrain/guardrail pose,
+- `setup.mjs` — **142/142**; closed height/pitch seam, terrain/guardrail pose,
   mobile layout/touch/gyro, day/night, lifecycle/context loss, draw budget,
-  speed-layer opacity and zero browser errors.
+  speed-layer opacity, 6–14 landmark placement/material/draw gates and zero
+  browser errors. Latest full-world read: **16 calls／56,913 tris**; effects
+  remain **17 calls**.
 - `rivals.mjs` — **61/61**; four AI rivals, ranking, minimap, instancing and
   lat-G gates green, zero browser errors.
 - `ghost.mjs` — **29/29**; recording/interpolation/render budget and zero errors.
@@ -70,6 +76,10 @@ or control change.
   `/tmp/racing-speed-feedback-v1.png`; 320×568 portrait smoke at **61 km/h**
   reads opacity **0.179**, no control overlap or browser errors:
   `/tmp/racing-speed-portrait-v1.png`.
+- 844×390 live browser render sanity moved one landmark to the camera to verify
+  the high-contrast orange face is actually visible; screenshot:
+  `/tmp/racing-landmark-forced-uniform.png`. Placement is separately guarded by
+  setup (17.48–17.58m lateral, ≥0.97m above the local banked surface).
 - A separate season startup once hit the known Chromium allocator pressure;
   the immediate authoritative rerun completed **55/55**. Do not treat an
   aggregate timeout as gameplay evidence.
@@ -92,14 +102,12 @@ or control change.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-273.
-2. Inspect `/tmp/racing-pitch-v3.png`, `/tmp/racing-speed-feedback-v1.png` and
-   `/tmp/racing-speed-portrait-v1.png`; do one real-device/phone-sized feel
-   review, focusing on hill crest, car contact, camera framing and speed/drift read.
-3. If no new evidence requires a change, run `./scripts/check-handoff.sh`,
-   confirm `git status` is clean and local `main` equals `origin/main`, then
-   accept this checkpoint. If changing constants, keep the change render-only
-   and rerun the full Racing matrix above.
+1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-275.
+2. Inspect the latest corner render and do one phone-sized feel review; if the
+   chevrons need repositioning, keep them render-only and preserve the single
+   instanced pass.
+3. For any further change, rerun the named Racing suites, update this handoff,
+   run `./scripts/check-handoff.sh`, then commit/push the verified checkpoint.
 
 ## Do not redo
 

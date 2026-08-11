@@ -20,6 +20,9 @@ const RAIL_OFFSET = ROAD_HALF_W + GRASS_W + WALL_W * 0.5;
 const VISUAL_STEP = 1.25;
 const QUERY_SAMPLES = 240;
 const TERRAIN_SEGMENTS = 32;
+const LANDMARK_OFFSET = ROAD_HALF_W + GRASS_W * 0.58;
+const LANDMARK_SAMPLES = 128;
+const LANDMARK_MIN_GAP = 0.045;
 export const ROAD_HALF = Math.round(ROAD_HALF_W / BLOCK);
 
 // 物理地表種類。code 係幕後格網入面存嘅數字（0 = 空）
@@ -658,6 +661,94 @@ export class Track {
         return group;
     }
 
+    // 彎位外側 chevron：路面本身已經連續，但冇一眼可讀嘅參照物時，
+    // 高速鏡頭會變成「一大片黑色地板」。用單一 InstancedMesh 放少量箭頭牌，
+    // 既畀玩家讀到下一個彎，亦保留原本手機 draw budget；位置只係視覺層，
+    // 唔參與碰撞、檢查點或者 AI 路線。
+    #buildLandmarks() {
+        const shape = new THREE.Shape();
+        shape.moveTo(-0.64, -0.42);
+        shape.lineTo(0.08, -0.42);
+        shape.lineTo(0.64, 0);
+        shape.lineTo(0.08, 0.42);
+        shape.lineTo(-0.64, 0.42);
+        shape.lineTo(-0.14, 0);
+        shape.closePath();
+        const geometry = new THREE.ShapeGeometry(shape);
+        const style = {
+            turbo: { primary: 0xff8d33, accent: 0xffd36a },
+            coast: { primary: 0x36d4e8, accent: 0xb6f7ff },
+            touge: { primary: 0xffd044, accent: 0xfff2a0 },
+        }[this.profileKey] ?? { primary: 0xffd044, accent: 0xfff2a0 };
+        // 牌面係高對比導向標記，唔應該因為背光／夜景方向而變成一塊黑
+        // 剪影；用 Basic material 保留一個 draw call，同時由 setTimeOfDay
+        // 調材質色做日／黃昏／夜晚嘅亮度。
+        const material = new THREE.MeshBasicMaterial({
+            color: style.primary,
+            vertexColors: false,
+            side: THREE.DoubleSide,
+            toneMapped: false,
+        });
+        const candidates = [];
+        for (let i = 0; i < LANDMARK_SAMPLES; i++) {
+            const t = i / LANDMARK_SAMPLES;
+            const radius = this.#radiusAt(t);
+            if (radius < 122) candidates.push({ t, radius });
+        }
+        candidates.sort((a, b) => a.radius - b.radius);
+        const selected = [];
+        for (const candidate of candidates) {
+            if (selected.some((other) => {
+                const gap = Math.abs(candidate.t - other.t);
+                return Math.min(gap, 1 - gap) < LANDMARK_MIN_GAP;
+            })) continue;
+            selected.push(candidate);
+            if (selected.length >= 14) break;
+        }
+        selected.sort((a, b) => a.t - b.t);
+
+        const mesh = new THREE.InstancedMesh(geometry, material, selected.length);
+        mesh.name = 'corner-chevron-landmarks';
+        mesh.frustumCulled = false;
+        const up = new THREE.Vector3(0, 1, 0);
+        const tangent = new THREE.Vector3();
+        const side = new THREE.Vector3();
+        const before = new THREE.Vector3();
+        const after = new THREE.Vector3();
+        const xAxis = new THREE.Vector3();
+        const zAxis = new THREE.Vector3();
+        const matrix = new THREE.Matrix4();
+        const scale = new THREE.Vector3(1.65, 1.2, 1);
+        for (let i = 0; i < selected.length; i++) {
+            const t = selected[i].t;
+            const p = this.curve.getPointAt(t);
+            tangent.copy(this.curve.getTangentAt(t)).setY(0).normalize();
+            side.copy(tangent).cross(up).normalize();
+            this.curve.getTangentAt((t + 0.012) % 1, after);
+            this.curve.getTangentAt((t + 1 - 0.012) % 1, before);
+            const turn = before.x * after.z - before.z * after.x;
+            const sign = turn >= 0 ? -1 : 1; // 彎外側，避開路面內側
+            const lateral = sign * LANDMARK_OFFSET;
+            const board = new THREE.Vector3(
+                p.x + side.x * lateral,
+                this.#surfaceYAt(t, lateral) + 0.98,
+                p.z + side.z * lateral,
+            );
+            // 牌面法線指向路心；local +X 沿行車方向，形狀因此似轉向箭頭。
+            xAxis.copy(tangent).multiplyScalar(-sign);
+            zAxis.copy(xAxis).cross(up).normalize();
+            matrix.makeBasis(xAxis, up, zAxis);
+            matrix.scale(scale);
+            matrix.setPosition(board);
+            mesh.setMatrixAt(i, matrix);
+        }
+        mesh.instanceMatrix.needsUpdate = true;
+        this.landmarkStyle = style;
+        this.landmarkCount = selected.length;
+        this.landmarkMaterial = material;
+        return mesh;
+    }
+
     setTimeOfDay(id) {
         this.timeOfDay = id;
         if (!this.visualRoot) return;
@@ -682,6 +773,11 @@ export class Track {
             setEmissive(object.material, night ? 0x29476d : dusk ? 0x291d13 : 0x000000,
                 night ? 0.95 : dusk ? 0.12 : 0);
         });
+        if (this.landmarkMaterial) {
+            const brightness = night ? 0.72 : dusk ? 0.86 : 1;
+            this.landmarkMaterial.color.setHex(this.landmarkStyle.primary);
+            this.landmarkMaterial.color.multiplyScalar(brightness);
+        }
         const [trunks, crowns] = this.trees.children;
         trunks?.material?.color.setHex(night ? 0x44372f : dusk ? 0x68503d : 0x70513a);
         crowns?.material?.color.setHex(night ? 0x1d3828 : dusk ? 0x40533a : 0x315f35);
@@ -699,7 +795,8 @@ export class Track {
         this.startLine = this.#buildStartLine();
         this.walls = this.#buildGuardrails();
         this.trees = this.#buildTrees();
-        this.visualRoot.add(this.ground, this.road, this.kerbs, this.startLine, this.walls, this.trees);
+        this.landmarks = this.#buildLandmarks();
+        this.visualRoot.add(this.ground, this.road, this.kerbs, this.startLine, this.walls, this.trees, this.landmarks);
         scene.add(this.visualRoot);
         this.setTimeOfDay(this.timeOfDay ?? 'day');
         this.groundQuads = this.visualSegments;
@@ -718,6 +815,7 @@ export class Track {
         geometries.forEach(g => g.dispose());
         materials.forEach(m => m.dispose()); // surface DataTexture 係 app 共用，唔喺度 dispose
         this.visualRoot.clear();
-        this.visualRoot = this.ground = this.road = this.kerbs = this.startLine = this.walls = this.trees = null;
+        this.visualRoot = this.ground = this.road = this.kerbs = this.startLine = this.walls = this.trees = this.landmarks = null;
+        this.landmarkMaterial = null;
     }
 }

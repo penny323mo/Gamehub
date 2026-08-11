@@ -87,12 +87,14 @@ for (const id of TRACK_IDS) {
             straightR: track.startStraightR,
             halfSpan,
             onRoad: track.isDrivable(p.x, p.z),
+            landmarks: track.landmarkCount,
         };
     }, id);
     console.log('  ', JSON.stringify(info));
     // 半徑 180 米以上，喺 60 米嘅起步區內偏離中線唔夠 2.5 米，肉眼就係直路
     check(`${id}：起跑線喺直路（半徑 >180）`, info.straightR > 180, info.straightR);
     check(`${id}：起跑線鋪滿擴闊後行車面`, info.halfSpan >= 13.5, info.halfSpan);
+    check(`${id}：有足夠彎位導向地標`, info.landmarks >= 6 && info.landmarks <= 14, info.landmarks);
 }
 
 // T2：畫面係連續 ribbon，而物理格網只留喺幕後做判定。
@@ -115,6 +117,34 @@ const geo = await page.evaluate(async () => {
         nextPositionScratch: car._nextPos?.isVector3 === true,
         centreBright, edgeBright,
         posts: track.wallCount, trees: track.treeCount,
+        landmarks: {
+            count: track.landmarkCount,
+            meshCount: track.landmarks?.count ?? 0,
+            name: track.landmarks?.name ?? '',
+            instanced: track.landmarks?.isInstancedMesh === true,
+            material: track.landmarks?.material?.type ?? '',
+            placement: (() => {
+                const mesh = track.landmarks;
+                const values = mesh?.instanceMatrix?.array ?? [];
+                let minLateral = Infinity, maxLateral = -Infinity, minHeight = Infinity;
+                for (let i = 0; i < (mesh?.count ?? 0); i++) {
+                    const o = i * 16, x = values[o + 12], z = values[o + 14], y = values[o + 13];
+                    const t = track.nearestT(x, z), p = track.curve.getPointAt(t);
+                    const tangent = track.curve.getTangentAt(t);
+                    const signedLateral = (x - p.x) * -tangent.z + (z - p.z) * tangent.x;
+                    const lateral = Math.hypot(x - p.x, z - p.z);
+                    minLateral = Math.min(minLateral, lateral);
+                    maxLateral = Math.max(maxLateral, lateral);
+                    minHeight = Math.min(minHeight,
+                        y - (track.surfaceYAtT(t) + signedLateral * Math.sin(track.surfaceBankAtT(t))));
+                }
+                return {
+                    minLateral: +minLateral.toFixed(2),
+                    maxLateral: +maxLateral.toFixed(2),
+                    minHeight: +minHeight.toFixed(2),
+                };
+            })(),
+        },
         calls: renderer.info.render.calls,
         tris: renderer.info.render.triangles,
         surfaceY: [track.surfaceMinY, track.surfaceMaxY],
@@ -149,6 +179,14 @@ check('車輛碰撞試探會重用 scratch position', geo.nextPositionScratch ==
 check('柏油有低對比中線／車轍參照而唔新增 draw call',
     geo.centreBright >= geo.edgeBright + 45, geo);
 check('有連續護欄支柱同賽道樹木', geo.posts > 200 && geo.trees >= 100, geo);
+check('彎位有低成本外側 chevron 地標，唔再只靠重複樹木讀路',
+    geo.landmarks.count >= 6 && geo.landmarks.count <= 14
+    && geo.landmarks.meshCount === geo.landmarks.count
+    && geo.landmarks.instanced && geo.landmarks.material === 'MeshBasicMaterial'
+    && geo.landmarks.placement.minLateral > 15.5
+    && geo.landmarks.placement.maxLateral < 20.5
+    && geo.landmarks.placement.minHeight > 0.3
+    && geo.landmarks.name === 'corner-chevron-landmarks', geo.landmarks);
 check('賽道 render surface 有受限起伏同 banking，唔再係全平 y=0',
     geo.surfaceY[1] - geo.surfaceY[0] > 0.3 && geo.roadY[1] - geo.roadY[0] > 0.6
     && geo.surfaceBank > 0.01, geo);
