@@ -2914,7 +2914,11 @@ function resetGame({ startNow = true, aiMode = aiEnabled } = {}) {
   });
   cueBall.position.copy(cueStart);
   cueBall.group.position.copy(cueStart);
-  snookered = isSnookeredNow();
+  // A cue-in-hand break has no committed shot position yet. Computing
+  // snookering from the old cueStart makes the opening HUD claim the player
+  // is snookered before they have even placed the cue ball; only evaluate it
+  // after a confirmed placement or a resolved turn.
+  snookered = false;
   updateAimLine();
   updateUi();
   if (gameStarted) {

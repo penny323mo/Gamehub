@@ -103,7 +103,7 @@ const initial3d = await page.evaluate(() => ({
 }));
 check('3D WebGL 手機入口有 canvas 同可讀狀態',
   initial3d.canvas?.width === 390 && initial3d.canvas?.height === 844 &&
-    initial3d.text?.turnState === 'PLACE_CUE' && initial3d.status.includes('開始遊戲'),
+    initial3d.text?.turnState === 'PLACE_CUE' && !initial3d.text?.snookered && initial3d.status.includes('開始遊戲'),
   initial3d);
 await page.locator('#start-game-btn').click();
 await page.waitForTimeout(120);
@@ -112,7 +112,7 @@ const started3d = await page.evaluate(() => ({
   status: document.getElementById('status')?.textContent || '',
 }));
 check('3D 開始遊戲進入擺白球狀態',
-  started3d.text?.turnState === 'PLACE_CUE' && started3d.status.includes('drag cue ball'),
+  started3d.text?.turnState === 'PLACE_CUE' && !started3d.text?.snookered && started3d.status.includes('drag cue ball'),
   started3d);
 await page.locator('#back-btn').click();
 await page.waitForLoadState('domcontentloaded');

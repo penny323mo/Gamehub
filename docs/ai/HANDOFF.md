@@ -4,7 +4,7 @@ Updated: 2026-08-11 (Asia/Macau)
 Prepared by: Codex — integrated Game Hub product-audit checkpoint
 Integration branch: `main`
 Work branch: `main`
-Status: the latest integrated player-flow audit is green; Xiangqi's optional environment light, undo/resume flow, Gomoku's delayed-AI lifecycle, Big Two's CPU queue, Dou Dizhu's bid/play loops, Penny Crush's async match lifecycle, Snooker's root/2D/3D entry plus Offline P2 foul decisions, and Snake's mobile login/board/lint/focus lifecycle are hardened. This checkpoint contains the source fixes, gates, and verification.
+Status: the latest integrated player-flow audit is green; Xiangqi's optional environment light, undo/resume flow, Gomoku's delayed-AI lifecycle, Big Two's CPU queue, Dou Dizhu's bid/play loops, Penny Crush's async match lifecycle, Snooker's root/2D/3D entry, truthful opening state, and Offline P2 foul decisions, and Snake's mobile login/board/lint/focus lifecycle are hardened. This checkpoint contains the source fixes, gates, and verification.
 
 ## Current objective
 
@@ -38,7 +38,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
   `dist/assets/`, and guarded by a short load-failure status notice; local lights keep the board playable. Real mobile
   tap → AI → undo → refresh/Continue flow is **4/4**. Gomoku's real mobile stale-timer/restart flow is **5/5**;
   Big Two's real mobile stale-queue/restart flow is **4/4**; Dou Dizhu's real mobile stale-bid/restart flow is **4/4**;
-  Penny Crush's real mobile stale-chain/restart flow is **6/6**; Snooker's root/2D/3D plus Offline P2 foul-decision flow is **13/13**; Snake's mobile Enter/start/Shift-focus/pause/resume/Hub flow is **10/10**.
+  Penny Crush's real mobile stale-chain/restart flow is **6/6**; Snooker's root/2D/3D opening-state plus Offline P2 foul-decision flow is **13/13**; Snake's mobile Enter/start/Shift-focus/pause/resume/Hub flow is **10/10**.
 
 ## Changed files
 
@@ -50,7 +50,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
 - `tests/hub-cdn.mjs`, `tests/xiangqi-flow.mjs`, `tests/gomoku-flow.mjs`, `tests/big2-flow.mjs`, `tests/doudizhu-flow.mjs`, `tests/penny-crush-flow.mjs`, `tests/snooker-flow.mjs`, `tests/snake-flow.mjs` — assert self-contained assets and player flows.
 - `games/snake-game/src/components/NameInput/NameInput.tsx`, `src/components/Game/Game.tsx`, `src/components/Background/Background.tsx`, `src/components/Particles/Particles.tsx`, `src/hooks/useStorage.ts`, `styles/Game.module.css`, and tracked `dist/` — isolate Enter login, bind the board/header to mobile viewport width, clean lint, and keep timed/held boosts finite.
 - `games/tower/src/main.ts`, `games/tower/tests/combat.mjs`, tracked `games/tower/dist/` — close preload/arena test races; `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md`, `docs/ai/HANDOFF.md` — durable relay notes.
-- `games/snooker/3d/main.js`, `tests/snooker-flow.mjs` — let local Offline P2 own foul decisions instead of hiding the panel and deadlocking the match; cover both take-turn and force-fouler-continue branches in a real mobile browser.
+- `games/snooker/3d/main.js`, `tests/snooker-flow.mjs` — keep opening cue-in-hand HUD state truthful and let local Offline P2 own foul decisions instead of hiding the panel and deadlocking the match; cover both branches in a real mobile browser.
 ## Verification
 
 - `PLAYWRIGHT_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' npm test` from
@@ -65,7 +65,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/big2-flow.mjs` — **4/4**;
   stale CPU queue cannot consume a fresh deal, normal CPU response still works, and local cache tokens agree.
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/doudizhu-flow.mjs` — **4/4**; stale bid/play timer cannot mutate a fresh deal, normal CPU bid still works, and local cache tokens agree.
-- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/penny-crush-flow.mjs` — Penny Crush **6/6**; `node tests/snooker-flow.mjs` — **13/13** (including Offline P2 foul panel, take, and force branches).
+- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/penny-crush-flow.mjs` — Penny Crush **6/6**; `node tests/snooker-flow.mjs` — **13/13** (including truthful opening state and Offline P2 foul panel, take, and force branches).
 - `cd games/snake-game && npm run lint && npm run build` — lint **0 errors/0 warnings** and tracked production dist rebuilt.
 - `PW_CHROMIUM="$CHROMIUM_BIN" node tests/snake-flow.mjs` (Chromium executable supplied by the environment) — **10/10** (mobile Enter isolation, responsive board, Shift focus cleanup, tick/pause/resume/Hub, zero browser errors).
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/hub.mjs` — **96/96**;
