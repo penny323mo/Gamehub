@@ -8300,3 +8300,25 @@ rival yaw 軸、Race 錯向切線、玩家救車切線同粒子 spawn point 全�
 844×390 smoke 實測 **106 km/h**、speed layer active opacity **0.299**、FOV
 **67.39**、effects particles **4**、零 page/console errors。最繁忙 effects 仍只
 增加一個 draw call，日後不可將尾氣另開 mesh pass。
+
+## ADR-273 — Racing Car 路面起伏必須同時提供閉環坡度與接地姿態
+
+Date: 2026-08-12. Status: accepted.
+
+上一輪加入嘅高度 profile 雖然已經令 ribbon 有 `y` 值，但真 browser screenshot 仍見到一個
+視覺斷層：車身只跟 `renderY`／bank，冇跟縱向坡度；護欄支柱同遠景樹基座亦留喺固定
+高度，結果係「路面升咗但車同景物冇升」。今輪將 profile 改成整數週期，保證閉環
+`t=0/1` 高度同 pitch 無縫；`surfacePitchAtT()` 由同一個 240-sample profile 計出受限
+local-X pitch。玩家、AI、ghost 只喺 render pose 讀 `pitch`，護欄支柱同樹改用 render
+terrain base；物理 `pos.y`、碰撞、進度、checkpoint 同速度仍然完全唔讀高度。
+
+視覺幅度由低矮平路級提升到 setup 實測 surface **−0.777…+0.777m**、最大 bank
+**0.055rad**、最大取樣 pitch **0.0097rad**；terrain 仍然係單一 **32×32** mesh。
+真 browser gates：`race.mjs` **126/126**、`setup.mjs` **135/135**、`rivals.mjs`
+**61/61**、`ghost.mjs` **29/29**、`season.mjs` **55/55**、`audio.mjs` **33/33**；
+setup 仍為 **15 calls／56,873 tris**，844×390 smoke 讀到玩家約 **85 km/h**、
+surfaceY **−0.11m**、track pitch **−0.012rad**、root pitch **−0.040rad**，零
+page/console errors（截圖：`/tmp/racing-pitch-v3.png`）。
+
+日後再加「真實感」唔可以將呢個 render pitch 餵返 bicycle physics；如需更大起伏，先
+重跑 autopilot、ABS/drift、手機 draw budget 同多 viewport screenshot。

@@ -135,7 +135,7 @@ export class RivalField {
         this._s = new THREE.Vector3(1, 1, 1);
         this._p = new THREE.Vector3();
         this._c = new THREE.Color();
-        this._surface = { y: 0, bank: 0 };
+        this._surface = { y: 0, bank: 0, pitch: 0 };
     }
 
     get count() { return this.rivals.length; }
@@ -160,7 +160,7 @@ export class RivalField {
             const car = new Car(new THREE.Group());     // 唔使真 model，畫面靠 instance
             car.reset(pos, tan);
             track.renderPoseAt?.(pos.x, pos.z, this._surface);
-            car.setRenderSurface(this._surface.y, this._surface.bank);
+            car.setRenderSurface(this._surface.y, this._surface.bank, this._surface.pitch);
             this.rivals.push({
                 car, name: who.name,
                 driver: createDriver(track, who.skill),
@@ -241,7 +241,7 @@ export class RivalField {
         const cp = cps[(r.nextCp - 1 + cps.length) % cps.length];
         r.car.reset(cp.pos, cp.dir);
         track.renderPoseAt?.(cp.pos.x, cp.pos.z, this._surface);
-        r.car.setRenderSurface(this._surface.y, this._surface.bank);
+        r.car.setRenderSurface(this._surface.y, this._surface.bank, this._surface.pitch);
         r.lane = 0;
     }
 
@@ -292,7 +292,7 @@ export class RivalField {
         for (let i = 0; i < this.rivals.length; i++) {
             const r = this.rivals[i];
             this._p.set(r.car.pos.x, r.car.renderY, r.car.pos.z);
-            this._e.set(0, r.car.yaw, r.car.bodyRoll + r.car.trackBank, 'YZX');
+            this._e.set(r.car.trackPitch, r.car.yaw, r.car.bodyRoll + r.car.trackBank, 'YZX');
             this._q.setFromEuler(this._e);
             this._m.compose(this._p, this._q, this._s);
             this.mesh.setMatrixAt(i, this._m);
@@ -305,7 +305,7 @@ export class RivalField {
             const i = visualCount++;
             this.track?.renderPoseAt?.(this.ghost.x, this.ghost.z, this._surface);
             this._p.set(this.ghost.x, this._surface.y, this.ghost.z);
-            this._e.set(0, this.ghost.yaw, this._surface.bank, 'YZX');
+            this._e.set(this._surface.pitch, this.ghost.yaw, this._surface.bank, 'YZX');
             this._q.setFromEuler(this._e);
             this._m.compose(this._p, this._q, this._s);
             this.mesh.setMatrixAt(i, this._m);

@@ -120,8 +120,16 @@ const geo = await page.evaluate(async () => {
         surfaceY: [track.surfaceMinY, track.surfaceMaxY],
         surfaceBank: Math.max(...Array.from({ length: 32 }, (_, i) =>
             Math.abs(track.surfaceBankAtT(i / 32)))),
+        surfacePitch: Math.max(...Array.from({ length: 240 }, (_, i) =>
+            Math.abs(track.surfacePitchAtT(i / 240)))),
+        profileSeam: {
+            height: Math.abs(track.surfaceYAtT(0) - track.surfaceYAtT(1)),
+            pitch: Math.abs(track.surfacePitchAtT(0) - track.surfacePitchAtT(1)),
+        },
         startSurfaceY: track.surfaceYAtT(track.startT),
+        startSurfacePitch: track.surfacePitchAtT(track.startT),
         carRenderY: car.renderY,
+        carTrackPitch: car.trackPitch,
         roadY: (() => {
             const ys = [];
             for (let i = 1; i < track.road.geometry.attributes.position.array.length; i += 3) {
@@ -144,6 +152,9 @@ check('有連續護欄支柱同賽道樹木', geo.posts > 200 && geo.trees >= 10
 check('賽道 render surface 有受限起伏同 banking，唔再係全平 y=0',
     geo.surfaceY[1] - geo.surfaceY[0] > 0.3 && geo.roadY[1] - geo.roadY[0] > 0.6
     && geo.surfaceBank > 0.01, geo);
+check('閉環起伏喺起點無縫接返，車身會跟縱向坡度俯仰',
+    geo.profileSeam.height < 0.0001 && geo.profileSeam.pitch < 0.0001
+    && geo.surfacePitch > 0.008 && Math.abs(geo.carTrackPitch - geo.startSurfacePitch) < 0.01, geo);
 check('玩家車身起步 render pose 同路面高度對齊',
     Math.abs(geo.carRenderY - geo.startSurfaceY) < 0.01, geo);
 check('草地 mesh 會喺賽道附近銜接高度（仍然單一 terrain mesh）',

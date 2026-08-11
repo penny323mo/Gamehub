@@ -332,7 +332,7 @@ function sampleAutoQuality(now) {
 // 放喺下面就會撞 TDZ（實測：Cannot access 'car' before initialization）
 let car = null;
 let race = null;
-const renderSurfacePose = { y: 0, bank: 0 };
+const renderSurfacePose = { y: 0, bank: 0, pitch: 0 };
 let camInit = false;      // 鏡頭要唔要即刻歸位（換賽道／重開都會用到）
 let cameraThrust = 0;
 let cameraPulse = 0;
@@ -362,7 +362,7 @@ let track = null;
 function syncCarRenderSurface() {
     if (!car || !track?.renderPoseAt) return;
     track.renderPoseAt(car.pos.x, car.pos.z, renderSurfacePose);
-    car.setRenderSurface(renderSurfacePose.y, renderSurfacePose.bank);
+    car.setRenderSurface(renderSurfacePose.y, renderSurfacePose.bank, renderSurfacePose.pitch);
 }
 function buildTrack(id) {
     trackDef = trackById(id);

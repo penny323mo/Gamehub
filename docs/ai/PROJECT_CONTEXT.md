@@ -86,11 +86,12 @@ repository as a static site.
   bicycle model: `CFG` owns the acceleration/steer envelope, `Car.bodyPitch` and
   `bodyRoll` stay bounded, `#sync()` compensates the rigid car mesh's floor
   envelope, and `#speed-lines` must remain `pointer-events:none` below the HUD.
-  `Track.surfaceYAtT()` / `surfaceBankAtT()` are a bounded render-only profile:
-  the road ribbon, kerbs, guardrails and nearby terrain follow it, while physics
-  remains the established X/Z grid. `Car.renderY`/`trackBank`, rival instances,
-  the contact shadow and chase camera may consume that pose, but no gameplay
-  distance, collision, checkpoint or speed calculation may read render Y.
+  `Track.surfaceYAtT()` / `surfaceBankAtT()` / `surfacePitchAtT()` are a bounded
+  render-only profile: the road ribbon, kerbs, guardrails, terrain and trackside
+  anchors follow it, while physics remains the established X/Z grid.
+  `Car.renderY`/`trackBank`/`trackPitch`, rival instances, the contact shadow and
+  chase camera may consume that pose, but no gameplay distance, collision,
+  checkpoint or speed calculation may read render Y.
   `Car.longAccel`/`lateralAccel` are read-only render feedback; camera impulse and
   the bounded exhaust pulses must remain render-only, smooth, reset on start/track
   build, and never feed physics. `Car.reset()` must clear posture, rescue and lock

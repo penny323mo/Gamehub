@@ -181,7 +181,8 @@ export class Car {
         // 賽道路面起伏／banking 只係 render pose；物理位置仍然係 X/Z 平面。
         this.renderY = 0;
         this.trackBank = 0;
-        this._renderPose = { y: 0, bank: 0 };
+        this.trackPitch = 0;
+        this._renderPose = { y: 0, bank: 0, pitch: 0 };
         this.longAccel = 0;             // m/s²，畀 render layer 做載荷／推背感回饋
         this.lateralAccel = 0;
         this.lockFront = false;
@@ -217,6 +218,7 @@ export class Car {
         this.bodyRoll = 0;
         this.renderY = 0;
         this.trackBank = 0;
+        this.trackPitch = 0;
         this.unspinning = false;
         this.offroad = false;
         this.lockFront = false;
@@ -226,9 +228,10 @@ export class Car {
         this.#sync();
     }
 
-    setRenderSurface(y = 0, bank = 0) {
+    setRenderSurface(y = 0, bank = 0, pitch = 0) {
         this.renderY = Number.isFinite(y) ? y : 0;
         this.trackBank = Number.isFinite(bank) ? bank : 0;
+        this.trackPitch = Number.isFinite(pitch) ? pitch : 0;
         this.#sync();
     }
 
@@ -526,6 +529,7 @@ export class Car {
             track.renderPoseAt(this.pos.x, this.pos.z, this._renderPose);
             this.renderY = this._renderPose.y;
             this.trackBank = this._renderPose.bank;
+            this.trackPitch = this._renderPose.pitch;
         }
         this.#sync();
     }
@@ -606,6 +610,11 @@ export class Car {
         // 包絡補一個極細 render-only lift，保持輪胎貼地；物理位置仍然係 y=0。
         const pitchLift = Math.abs(this.bodyPitch) * CFG.bodyPitchLift;
         this.root.position.set(this.pos.x, this.renderY + pitchLift, this.pos.z);
-        this.root.rotation.set(this.bodyPitch, this.yaw, this.bodyRoll + this.trackBank, 'YZX');
+        this.root.rotation.set(
+            this.bodyPitch + this.trackPitch,
+            this.yaw,
+            this.bodyRoll + this.trackBank,
+            'YZX',
+        );
     }
 }

@@ -118,8 +118,8 @@ export class Track {
 
     // 真正物理仍然係 X/Z 平面；呢個 profile 只係 render surface。完全平嘅
     // ribbon 會令 chase camera 睇落似一張無限大膠墊，尤其高速過彎時冇任何
-    // 高低／橫向重量參照。預先烘好低頻起伏同受曲率限制嘅 banking，runtime
-    // 只做一個 240-sample interpolation，唔會將高度物理偷偷混入車輛模型。
+    // 高低／橫向重量參照。預先烘好低頻起伏、縱向坡度同受曲率限制嘅 banking，
+    // runtime 只做一個 240-sample interpolation，唔會將高度物理偷偷混入車輛模型。
     #buildSurfaceProfile() {
         this.surfaceYProfile = new Float32Array(QUERY_SAMPLES);
         this.surfaceBankProfile = new Float32Array(QUERY_SAMPLES);
@@ -133,10 +133,12 @@ export class Track {
         let min = Infinity, max = -Infinity;
         for (let i = 0; i < QUERY_SAMPLES; i++) {
             const t = i / QUERY_SAMPLES;
-            // 約數百米一個大起伏，加少量短波令路面唔會似正弦函數；幅度
-            // 保持喺低矮坡道級，唔會造成車飛離路面或破壞現有格網碰撞。
-            const y = 0.28 * Math.sin(phase + t * Math.PI * 2 * 1.25)
-                + 0.10 * Math.sin(phase * 0.61 + t * Math.PI * 2 * 3.4);
+            // 以整數週期做低頻起伏，確保閉環 t=0/1 高度同坡度完全接返；
+            // 兩個頻段交疊令路面有長上落兼少量 crest，唔似一條規律正弦波。
+            // 幅度仍然係低矮坡道級，唔會造成車飛離路面或破壞既有格網碰撞。
+            const y = 0.52 * Math.sin(phase + t * Math.PI * 2)
+                + 0.20 * Math.sin(phase * 0.61 + t * Math.PI * 2 * 3)
+                + 0.08 * Math.sin(phase * 1.7 + t * Math.PI * 2 * 5);
             this.surfaceYProfile[i] = y;
             min = Math.min(min, y); max = Math.max(max, y);
 
@@ -147,9 +149,9 @@ export class Track {
             const cross = prev.x * next.z - prev.z * next.x;
             const dot = prev.x * next.x + prev.z * next.z;
             const turn = Math.atan2(cross, dot);
-            // banking 只跟平面曲率走，而且封頂約 2.6°，唔會令 rigid car
+            // banking 只跟平面曲率走，而且封頂約 3.2°，唔會令 rigid car
             // 一轉彎就似飛機側飛。正負方向由曲線切線自動決定。
-            this.surfaceBankProfile[i] = THREE.MathUtils.clamp(turn * 0.34, -0.045, 0.045);
+            this.surfaceBankProfile[i] = THREE.MathUtils.clamp(turn * 0.4, -0.055, 0.055);
         }
         this.surfaceMinY = min;
         this.surfaceMaxY = max;
@@ -165,6 +167,15 @@ export class Track {
     surfaceYAtT(t) { return this.#profileValue(this.surfaceYProfile, t); }
     surfaceBankAtT(t) { return this.#profileValue(this.surfaceBankProfile, t); }
 
+    // 車身要跟住上落坡，否則視覺上會似架車浮喺一張傾斜貼圖上面。
+    // 回傳值係 Three.js local-X rotation：前方上斜時要向負 X 仰起車頭。
+    surfacePitchAtT(t) {
+        const step = 1 / QUERY_SAMPLES;
+        const dy = this.surfaceYAtT(t + step) - this.surfaceYAtT(t - step);
+        const slope = dy / Math.max(0.001, this.length * step * 2);
+        return THREE.MathUtils.clamp(-Math.atan(slope), -0.12, 0.12);
+    }
+
     // out 係可重用 scratch object；Car／Rivals 每幀會傳入自己嗰個，避免
     // render-only 高度回饋反而製造短命 object。
     renderPoseAt(x, z, out = {}) {
@@ -172,6 +183,7 @@ export class Track {
         out.t = t;
         out.y = this.surfaceYAtT(t);
         out.bank = this.surfaceBankAtT(t);
+        out.pitch = this.surfacePitchAtT(t);
         return out;
     }
 
@@ -540,7 +552,11 @@ export class Track {
                 const t = i / perSide;
                 const p = this.curve.getPointAt(t);
                 const side = this.curve.getTangentAt(t).cross(up).normalize();
-                matrix.makeTranslation(p.x + side.x * sign * RAIL_OFFSET, 0.76, p.z + side.z * sign * RAIL_OFFSET);
+                matrix.makeTranslation(
+                    p.x + side.x * sign * RAIL_OFFSET,
+                    this.#surfaceYAt(t, sign * RAIL_OFFSET) + 0.76,
+                    p.z + side.z * sign * RAIL_OFFSET,
+                );
                 posts.setMatrixAt(at++, matrix);
             }
         }
@@ -628,11 +644,12 @@ export class Track {
             new THREE.MeshStandardMaterial({ color: 0x315f35, roughness: 0.92 }), positions.length,
         );
         const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+        const terrainBaseY = this.surfaceMinY - 0.22;
         positions.forEach((p, i) => {
             s.setScalar(p.s);
-            m.compose(new THREE.Vector3(p.x, 1.9 * p.s - 0.06, p.z), q, s);
+            m.compose(new THREE.Vector3(p.x, terrainBaseY + 1.9 * p.s, p.z), q, s);
             trunks.setMatrixAt(i, m);
-            m.compose(new THREE.Vector3(p.x, 5.4 * p.s - 0.06, p.z), q, s);
+            m.compose(new THREE.Vector3(p.x, terrainBaseY + 5.4 * p.s, p.z), q, s);
             crowns.setMatrixAt(i, m);
         });
         trunks.instanceMatrix.needsUpdate = crowns.instanceMatrix.needsUpdate = true;
