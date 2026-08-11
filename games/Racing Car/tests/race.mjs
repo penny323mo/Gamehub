@@ -931,6 +931,45 @@ check('路面突變會有細幅 render-only 懸掛滯後',
 check('懸掛回饋唔會改物理高度或速度',
     suspension.physicsY === 0 && suspension.speed > 0, suspension);
 
+// T3e：crest／valley 唔可以只係一張貼圖。坡度仍然係 bounded arcade
+// feedback：上坡會有少量負載、落坡會有推進，但唔將 render Y 寫入物理。
+const gradeFeel = await page.evaluate(() => {
+    const { car } = window.__racer;
+    const fakeTrack = (pitch) => ({
+        isDrivable: () => true,
+        isWall: () => false,
+        renderPoseAt(_x, _z, out) {
+            out.y = 0; out.terrainY = 0; out.terrainBlend = 1;
+            out.pitch = pitch; out.bank = 0;
+            return out;
+        },
+    });
+    const run = (pitch) => {
+        const track = fakeTrack(pitch);
+        car.reset({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
+        car.setRenderSurface(0, 0, pitch);
+        for (let i = 0; i < 240; i++) {
+            car.update(1 / 60, { throttle: 1, steer: 0, handbrake: false }, track);
+        }
+        return {
+            speed: +car.speed.toFixed(3),
+            gradeAccel: +car.gradeAccel.toFixed(3),
+            physicsY: car.pos.y,
+        };
+    };
+    return { uphill: run(-0.08), flat: run(0), downhill: run(0.08) };
+});
+console.log('  ', JSON.stringify(gradeFeel));
+check('上落坡會改變前後負載，唔再係純平面速度',
+    gradeFeel.uphill.speed < gradeFeel.flat.speed - 1
+    && gradeFeel.downhill.speed > gradeFeel.flat.speed + 1
+    && gradeFeel.uphill.gradeAccel < -0.5
+    && gradeFeel.downhill.gradeAccel > 0.5, gradeFeel);
+check('坡度回饋仍然唔寫入物理高度',
+    gradeFeel.uphill.physicsY === 0
+    && gradeFeel.flat.physicsY === 0
+    && gradeFeel.downhill.physicsY === 0, gradeFeel);
+
 // T3d：重開／換賽道要清走上一場嘅姿態同瞬態旗標。呢啲值通常會喺下一個
 // physics frame 覆寫，但第一個 render／HUD frame 會先讀到；如果玩家喺
 // 漂移途中撳「再跑一次」，一開波就側住或者顯示假鎖胎，讀感會似車壞咗。

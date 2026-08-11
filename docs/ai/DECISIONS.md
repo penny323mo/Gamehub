@@ -8556,3 +8556,23 @@ rivals **61/61**、ghost **29/29**、season **55/55**、audio **33/33**。真 he
 **0 errors**，畫面證據 `/tmp/racing-lookahead-v10-start.png`；世界仍係 **16 calls／56,933
 tris**。日後如要加大 look-ahead，必須重跑自然彎位 screenshot、mobile layout、物理 gates
 同 aggregate，避免鏡頭預讀變成過度拉鏡或遮 HUD。
+
+## ADR-289 — Racing Car 山勢要有速度負載，唔可以淨係 render 起伏
+
+Date: 2026-08-12. Status: accepted.
+
+真 browser smoke 同物理讀數顯示：路面雖然已經有約 3.34–4.65m render 高差，但車嘅速度
+完全唔讀坡度，所以玩家見到 crest／valley 仍然似喺一塊平面滑行。今輪將閉環波振幅調到
+`1.55/0.65/0.24`，賽道倍率改為 turbo **1.28**、coast **1.14**、touge **1.40**；
+setup 實測 touge-rev surface **−3.317…+3.317m**、span **6.634m**、最大 pitch
+**0.04219rad**，起點 height/pitch seam 仍然係零誤差。
+
+`Car.update()` 只讀上一幀已同步嘅 `trackPitch`，用 cached tangent 將坡度按車頭同路線
+方向對齊，再以 `CFG.gradeGravity=4.6` 產生 bounded longitudinal `gradeAccel`。上坡、
+平路、落坡 4 秒全油實測分別係 **30.503/32.895/35.293m/s**，坡度加速度
+**−0.784/0/+0.784m/s²**；`Car.pos.y` 仍然係 **0**，X/Z collision、nearestT、
+checkpoint、progress、AI 同 offroad 規則不變。漂移、ABS、救車、autopilot 同 mobile
+draw budget 全部維持綠燈；真正 headed 844×390 smoke 讀到 **114km/h**、renderY
+**1.279m**、trackPitch **0.01268rad**、gradeAccel **0.106m/s²**、offroad `false`、
+console **0 errors**（`/tmp/racing-grade-start-v12.png`）。日後再提高山勢或重力前，必須
+重跑 grade gate、物理 suite、portrait／landscape smoke，同手機 18-call／120k tris budget。

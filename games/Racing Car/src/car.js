@@ -51,6 +51,10 @@ export const CFG = {
     maxSpeed: 68,        // m/s 上限（約 245 km/h，留返極速餘量）
     dragCoef: 2.4,       // 空氣阻力；配合新引擎輸出，直路約 210 km/h
     rollResist: 220,     // 滾動阻力
+    // render surface 嘅坡度只畀一小截重力沿車身前後方向，令上坡有負載、
+    // 落坡有推進；唔將高度寫入 pos.y，亦唔會改 X/Z 碰撞。數值刻意低過
+    // 真實重力投影，保留手機街機遊戲嘅爽快節奏，唔會變成硬核爬坡模擬。
+    gradeGravity: 4.6,
 
     steerMax: 0.62,      // 最大前輪轉角（弧度，約 35°）——低速泊車先用得晒
     // 高速收窄轉角嘅程度。呢個數要夠大：實測 33 m/s 打 2.2° 前輪角就已經
@@ -208,6 +212,7 @@ export class Car {
         // update() 每幀都要試探下一個位置。重用 scratch vector，避免一場
         // 比賽累積大量短命 Vector3，令手機 GC 喺高速駕駛時插入長幀。
         this._nextPos = new THREE.Vector3();
+        this._gradeTangent = new THREE.Vector3();
         // 預設定位係爽快街機，而唔係硬核模擬。保留成員方便物理因果測試，
         // 遊戲 UI 唔要求玩家先理解一堆電子輔助設定先可以揸得順。
         this.arcadeAssist = true;
@@ -246,6 +251,7 @@ export class Car {
         this.lockRear = false;
         this.longAccel = 0;
         this.lateralAccel = 0;
+        this.gradeAccel = 0;
         this.#sync();
     }
 
@@ -313,6 +319,21 @@ export class Car {
 
         this.offroad = !track.isDrivable(this.pos.x, this.pos.z);
         const surface = this.offroad ? CFG.offroadGrip : 1;
+        // 路面 profile 用 local-X pitch 表示「沿賽道前進」嘅坡度。用上一幀
+        // 已同步好嘅 trackPitch，避免喺 hot path 重新 query 曲線；同步 track
+        // 有 cached tangent 時再按車頭同路線方向修正，漂移橫住時重力唔會
+        // 錯誤地當成一大截前後推力。物理位置仍然係 X/Z 平面。
+        let gradeAlign = 1;
+        if (track?.tangentAtT && Number.isFinite(this._renderPose.t)) {
+            track.tangentAtT(this._renderPose.t, this._gradeTangent);
+            gradeAlign = THREE.MathUtils.clamp(
+                fwdX * this._gradeTangent.x + fwdZ * this._gradeTangent.z,
+                -1, 1,
+            );
+        }
+        this.gradeAccel = !this.offroad && Number.isFinite(this.trackPitch)
+            ? G * Math.sin(this.trackPitch) * gradeAlign
+            : 0;
         // 入彎輔助：打得夠大軚、車身仲係貼住（未漂移）、又冇踩煞嗰陣，
         // 前軸抓地加一截。純粹提升「肯唔肯轉頭」，唔會碰到摩擦極限本身
         // 嗰兩個危險場景——減速入彎同漂移中——所以唔會令架車變易失控。
@@ -370,6 +391,7 @@ export class Car {
         if (speed > CFG.maxSpeed) driveF = Math.min(driveF, 0);
         const dragF = -CFG.dragCoef * vLong * Math.abs(vLong)
             - Math.sign(vLong) * (CFG.rollResist + (this.offroad ? CFG.offroadDrag : 0));
+        const gradeF = this.gradeAccel * CFG.mass;
 
         // ---- 載荷轉移同制動分配：兩者互為因果，所以行兩趟 ----
         // 載荷靠縱向加速度，而縱向加速度又靠「輪胎傳得到幾多」，即係靠載荷。
@@ -408,7 +430,7 @@ export class Car {
             };
         };
         const pass1 = applyBrakes(staticF, staticR);
-        const accelLong = (driveF + dragF - pass1.brakeF - pass1.brakeR) / CFG.mass;
+        const accelLong = (driveF + dragF + gradeF - pass1.brakeF - pass1.brakeR) / CFG.mass;
         const shift = CFG.mass * accelLong * CFG.loadTransfer;
         const loadF = Math.max(500, staticF - shift);
         const loadR = Math.max(500, staticR + shift);
@@ -437,7 +459,7 @@ export class Car {
 
         // 後輪最多傳到 μ·N 咁多力，多出嘅只係空轉。
         if (driveF > 0) driveF = Math.min(driveF, capR);
-        const longForce = driveF + dragF - brakeF - brakeR;
+        const longForce = driveF + dragF + gradeF - brakeF - brakeR;
 
         // 摩擦圓：每條軸用咗幾多縱向，側向就剩返幾多。之前淨係後軸有呢個
         // 帳，而且連制動都記落後軸——所以踩煞等於單方面攞走後輪嘅側向力。

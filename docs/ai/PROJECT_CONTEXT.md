@@ -30,7 +30,7 @@ repository as a static site.
 | Neon Snake | `games/snake-game/dist/index.html` | React + Vite + TypeScript; tracked `dist/` is the hub target. |
 | Empire Royale | `games/royale/index.html` | Static ES modules + vendored Three.js. Two modes: Clash-style lane battle (`game.js`, `ai.js`) and LV2 age-of-empires RTS (`src/rts/`). Shared: `models.js`, `rig.js` (procedural bone animation), `sfx.js`, `net.js`/`pvp.js` (Supabase PvP), `leaderboard.js`, `storage.js`, `gauntlet.js`, `profiles.js`. Regression suite in `games/royale/tests/`. |
 | 深淵之橋 MOBA | `games/moba/index.html` | Static ES modules + vendored Three.js. Deterministic sim, 3v3 bots, mobile HUD, anywhere-purchase shop, and procedural champion FX. Tests in `games/moba/tests/`. |
-| Racing Car 3D | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Continuous spline track (`track.js`) with cached nearest-point samples, track-specific render-only crest/elevation profile, subtle asphalt tyre-wear/dashed centre texture and one low-cost track-specific corner-chevron InstancedMesh, day/dusk/night environment (`environment.js`), sport-arcade acceleration with bounded body pitch/roll and a tuned mid/high-speed power envelope, closer/lower chase camera with bounded acceleration impulse and pointer-transparent speed-streak layer that starts before top speed, bounded driving effects, player-only arcade assists and simple auto-throttle controls, procedural merged-geometry wheel spin/steering (`wheel-motion.js`), four physical AI rivals plus a dithered ghost in one instanced field (`rivals.js`, `ghost.js`), and a persistent three-race championship with career records (`season.js`). Draco-compressed player car. Tests in `games/Racing Car/tests/`. |
+| Racing Car 3D | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Continuous spline track (`track.js`) with cached nearest-point samples, track-specific crest/elevation profile plus bounded grade load, subtle asphalt tyre-wear/dashed centre texture and one low-cost track-specific corner-chevron InstancedMesh, day/dusk/night environment (`environment.js`), sport-arcade acceleration with bounded body pitch/roll and a tuned mid/high-speed power envelope, closer/lower chase camera with bounded acceleration impulse and pointer-transparent speed-streak layer that starts before top speed, bounded driving effects, player-only arcade assists and simple auto-throttle controls, procedural merged-geometry wheel spin/steering (`wheel-motion.js`), four physical AI rivals plus a dithered ghost in one instanced field (`rivals.js`, `ghost.js`), and a persistent three-race championship with career records (`season.js`). Draco-compressed player car. Tests in `games/Racing Car/tests/`. |
 | Ashen Rail | `games/ashen-rail/dist/index.html` | Self-contained Vite + TypeScript + Babylon.js bonus game; soldier GLB has no clips, so `ProceduralPlayerAnimator` supplies rig-aware locomotion/aim/recoil and `WeaponSystem` supplies local weapon recoil; CI builds `dist/`. |
 | Elden Ring II | `games/elden-ring-ii/dist/index.html` | Self-contained Vite + React + TypeScript + Three.js/Cannon-es bonus game; three classes, mobile touch controls, local run history, optional Supabase write, bundled CC0 assets; tracked `dist/` is rebuilt by CI. |
 | Xiangqi AI | `games/xiangqi-ai/dist/index.html` | Vite + Three.js; hub targets tracked `dist/`; optional board environment HDR is bundled under `assets/` and copied into `dist/assets/`. |
@@ -82,18 +82,18 @@ repository as a static site.
   cookies, or connection secrets in code, handoffs, logs, or commits.
 - Visual, camera, input, responsive-layout, audio, and gameplay-feel changes need
   real browser verification at the relevant desktop/mobile viewport.
-- Racing Car's sport-arcade presentation is render-only around the established
+- Racing Car's sport-arcade presentation is layered around the established
   bicycle model: `CFG` owns the acceleration/steer envelope, `Car.bodyPitch` and
   `bodyRoll` stay bounded, `#sync()` compensates the rigid car mesh's floor
   envelope, and `#speed-lines` must remain `pointer-events:none` below the HUD.
   `Track.surfaceYAtT()` / `surfaceBankAtT()` / `surfacePitchAtT()` are a bounded
-  render-only profile: the road ribbon, kerbs, guardrails, terrain and trackside
-  anchors follow it, while physics remains the established X/Z grid.
-  `Car.renderY`/`trackBank`/`trackPitch`, the `Track.terrainYAt()` offroad render
-  anchor, rival instances, the contact shadow (which follows render pitch/bank) and
-  chase camera may consume that pose, but no gameplay distance, collision,
-  checkpoint or speed calculation may read render Y.
-  `Car.longAccel`/`lateralAccel` are read-only render feedback; camera impulse,
+  surface profile: the road ribbon, kerbs, guardrails, terrain and trackside
+  anchors follow it, while collision/progress remains on the established X/Z grid.
+  `Car.renderY` never feeds gameplay. `Car.trackPitch` is the explicit, bounded
+  longitudinal grade input: it may contribute a small slope load to speed, but
+  never changes `Car.pos.y`, nearestT, collision, checkpoints, progress or AI.
+  `Car.longAccel`/`lateralAccel` remain render feedback and `gradeAccel` is the
+  only physics-facing grade term; camera impulse,
   bounded camera grade/turn-load lean,
   speed-limited offroad rumble and the bounded exhaust pulses must remain render-only,
   smooth, reset on start/track build, and never feed physics. `Car.reset()` must clear
@@ -108,7 +108,7 @@ repository as a static site.
   built once as a 32×32 mesh;
   do not replace it with per-frame terrain generation or a second road pass.
 - Racing Car's visual track profile uses the `elevation` value on each track
-  definition (turbo **1.15**, coast **1.00**, touge **1.30**) plus closed integer
+  definition (turbo **1.28**, coast **1.14**, touge **1.40**) plus closed integer
   frequency waves to create a more legible crest/grade at build time. The
   constructor clamps this render-only multiplier to **0.75–1.40**; physics,
   collision, progress, checkpoints and AI stay on the established X/Z grid.
@@ -123,9 +123,9 @@ repository as a static site.
   four merged-geometry wheel clusters for render-only spin and front steering.
   It must not become a physics, collision or gameplay dependency.
 - Racing Car's current sport envelope is deliberately bounded: `engineForce=10000`,
-  `maxSpeed=68`, `dragCoef=2.4`, and `handbrakeGrip=0.35` are tuned against the
-  physical drift/ABS gates. The speed-streak layer begins at `10 m/s` and remains
-  render-only; do not turn it into a physics or pointer-input dependency.
+  `maxSpeed=68`, `dragCoef=2.4`, `gradeGravity=4.6`, and `handbrakeGrip=0.35` are
+  tuned against the physical drift/ABS/grade gates. The speed-streak layer begins
+  at `10 m/s` and remains render-only; do not turn it into a pointer-input dependency.
 - Ashen Rail's player GLB has a skeleton but no animation clips. `ProceduralPlayerAnimator`
   owns semantic rig aliases and procedural locomotion/aim/recoil; `PlayerController` owns
   turn-rate input and `WeaponSystem` owns local weapon recoil. The `__ashenRail` seam is
@@ -349,10 +349,13 @@ performance report contract (FPS windows, long frames, DPR, viewport, track, con
 gyro direction/sensitivity, screen orientation, audio state, and copy feedback) used for
 physical-phone handoff evidence. The startup gate requires the first
 complete WebGL frame plus pre-drawn minimap/HUD before the loading overlay reveals Start.
-The car keeps raw `trackPitch`/`trackBank` as render-surface truth and applies only a
-bounded render-only suspension follow (max 0.018/0.015 rad) to the visual root, so
-  stronger crest/bank transitions have weight without changing `Car.pos.y`, physics, collision,
-  progress, AI, or the contact-shadow anchor. `main.js` also smooths a clamped `cameraGrade`
+The car keeps raw `trackPitch`/`trackBank` as surface truth and applies a bounded
+render-only suspension follow (max 0.018/0.015 rad) to the visual root, so stronger
+crest/bank transitions have weight without changing `Car.pos.y`, collision, progress,
+AI, or the contact-shadow anchor. `Car.update()` may additionally use the current
+track pitch through the bounded `CFG.gradeGravity`/`gradeAccel` term to make speed
+rise/fall over a hill; this is the only gameplay-facing surface cue and must not
+become a height/collision query. `main.js` also smooths a clamped `cameraGrade`
   copy of raw `trackPitch` into small chase-camera position/look-target offsets, and smooths a
   clamped `cameraLean` from lateral load/yaw into a ±0.032rad horizon cue; both reset on
   start/track build and must remain render-only (no FOV, input, physics or per-frame curve query).

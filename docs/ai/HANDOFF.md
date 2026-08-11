@@ -1,120 +1,93 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Racing Car camera look-ahead and aggregate verification pass
+Prepared by: Codex — Racing Car grade-aware feel pass
 Integration branch: `main`
 Work branch: `main`
-Status: Racing source, tests, browser smoke and docs are ready for the next
-verified `main` checkpoint. The receiving agent must sync GitHub before edits.
+Status: Racing Car source, regression gates, headed mobile smoke and docs are
+ready for the next verified `main` checkpoint. The receiving agent must sync
+GitHub before edits.
 
 ## Current objective
 
 Keep Racing Car moving toward a production-ready mobile arcade racer: responsive
 but bounded bicycle physics, readable high-speed/drift feedback, believable
-ground contact, track-specific visual landmarks, stable frame pacing, and real
-browser evidence for every visual or control change.
+ground contact, track-specific landmarks and hills, stable frame pacing, and
+real browser evidence for every visual or control change.
 
 ## Completed
 
-- The render-only track surface now uses closed integer-frequency elevation waves;
-  the seam at `t=0/1` has matching height and longitudinal pitch, with no loop step.
-- `Track.surfacePitchAtT()` derives a clamped local-X slope from the existing 240
-  samples. Player, rival, ghost and offroad render poses follow `renderY`, banking
-  and pitch; physics remains the established X/Z bicycle model.
-- Guardrail posts now use the same lateral surface height as their tubes, and
-  trackside tree trunks/crowns are anchored to the terrain base instead of a
-  fixed world Y. This removes the visible floating/sinking mismatch on hills.
-- Elevation is now track-specific and visibly graded without adding geometry:
-  `tracks.js` supplies `elevation` multipliers (turbo **1.15**, coast **1.00**,
-  touge **1.30**) and `track.js` uses stronger closed waves. Setup on touge-rev
-  measures surface **−2.323…+2.323m**, span **4.645m**, pitch **0.02925rad** and
-  bank cap **0.055rad**; terrain remains one 32×32 mesh and the seam is exact.
-- The speed layer now starts at `10 m/s` instead of `16 m/s`, reaches stronger
-  readable intensity by roughly 80 km/h, and has a slightly clearer gradient;
-  it remains pointer-transparent, HUD-safe, render-only and draw-call neutral.
-- Each track now builds 6–14 render-only outside-corner chevron signs from its
-  sampled curvature. The high-contrast face and short integral stem share one
-  `corner-chevron-landmarks` InstancedMesh; signs use orange/cyan/yellow track
-  palettes, sit about 17.5m outside the ribbon and inside the guardrail, and
-  stay independent from physics, AI and checkpoints.
-- `wheel-motion.js` now classifies four low-level wheel clusters inside the rigid
-  GLB and updates only their merged position/normal vertices: speed-driven spin
-  plus smoothed front-wheel steering; the single contact-shadow plane follows
-  render pitch/bank too, with no new mesh or draw call.
-- Offroad render feedback now adds a speed-limited, render-only camera rumble on
-  top of terrain-anchored pose and dust. It reuses the existing effects shake path,
-  caps at `0.024`, and does not alter physics or draw calls.
-- Existing sport-arcade envelope, auto-throttle/simple controls, drift assists, speed
-  layer, terrain/effects anchors, render-only suspension follow, rivals/ghost/season and lifecycle contracts unchanged.
-- Chase camera now smooths clamped render-only `cameraGrade` and `cameraLean`: grade reads
-  crest/downhill, while corner lateral-load/yaw gives a bounded ±0.032rad horizon cue;
-  it also blends up to 0.24 toward a 12–22m ahead track tangent from cached samples;
-  all cues reset on start/build, never touch FOV/input/physics, and surface sync updates the
-  contact shadow immediately so reset/track changes cannot show a one-frame stale shadow.
+- Continuous Catmull-Rom road ribbon remains backed by 240 cached X/Z samples;
+  collision, checkpoints, progress and AI stay on the established X/Z grid.
+- Closed crest/valley waves are now more legible (`1.55/0.65/0.24` harmonics),
+  with track multipliers turbo **1.28**, coast **1.14**, touge **1.40**. Setup
+  on touge-rev measures surface **−3.317…+3.317m**, span **6.634m**, maximum
+  pitch **0.04219rad**; height/pitch seam at `t=0/1` remains exact.
+- `Car.update()` adds a bounded grade load from the already-synced track pitch:
+  cached tangent alignment prevents sideways drift from becoming fake thrust;
+  `CFG.gradeGravity=4.6`, `gradeAccel` changes speed on hills, but `Car.pos.y`
+  remains zero and no height enters collision or progress.
+- Player, rival, ghost, offroad pose, guardrail posts, trees, kerbs, contact
+  shadow and effects all follow the same surface anchor. Render-only suspension,
+  camera grade, corner-load lean and 12–22m tangent look-ahead remain bounded.
+- Speed layer starts at `10 m/s`; wheel-motion animates four merged wheel
+  clusters; bounded effects pool covers drift marks/smoke, dust, exhaust, brake
+  glow, impacts and rumble without adding a road/effects pass.
+- Six tracks (three reverse), player assists/simple auto-throttle, ABS, recovery,
+  rivals/ghost/season and lifecycle/context-loss contracts remain intact.
 
 ## Changed files
 
 - `games/Racing Car/src/track.js`
 - `games/Racing Car/src/tracks.js`
-- `games/Racing Car/src/main.js`
 - `games/Racing Car/src/car.js`
-- `games/Racing Car/src/wheel-motion.js`, `games/Racing Car/src/driving-effects.js`
-- `games/Racing Car/src/rivals.js`
-- `games/Racing Car/style.css`
-- `games/Racing Car/tests/race.mjs`, `games/Racing Car/tests/setup.mjs`, `games/Racing Car/tests/lib/harness.mjs`, `games/Racing Car/tests/run-all.mjs`
+- `games/Racing Car/tests/race.mjs`, `games/Racing Car/tests/ghost.mjs`
 - `docs/ai/PROJECT_CONTEXT.md`
-- `docs/ai/DECISIONS.md` (ADR-273 through ADR-288)
+- `docs/ai/DECISIONS.md` (ADR-289)
 - `docs/ai/HANDOFF.md`
 
 ## Verification
-- `node --check` on `main.js`, `car.js`, `driving-effects.js`, `setup.mjs`, `tests/race.mjs`, `tests/lib/harness.mjs`, `tests/run-all.mjs` — PASS.
-- `git diff --check` — PASS.
-- `race.mjs` — **128/128**; six tracks, top **146 km/h**, 0–80 **2.40s**,
-  drift/ABS/wall/recovery/roll/suspension gates green, zero browser errors.
-- `setup.mjs` — **149/149**; terrain/offroad pose, contact shadow/effects, mobile
-  controls, day/night, lifecycle/context loss, landmarks, four-wheel motion, rumble
-  (`shake=0.0075`) green; zero browser errors, **16 calls／56,933 tris**, effects **17**.
-- Named suites green: `rivals.mjs` **61/61**, `ghost.mjs` **29/29**, `season.mjs` **55/55**,
-  `audio.mjs` **33/33**, all zero browser errors.
-- Aggregate green with default 5-second teardown and readiness-only retry: race
-  **128/128**, setup **149/149**, rivals **61/61**, ghost **29/29**, season **55/55**,
-  audio **33/33**; `RACER_TEST_SETTLE_MS=5000` avoids the old 500ms setup timeout.
-- Real headed 844×390 smoke: **87 km/h**, `cameraLookAhead=0.1041`, offroad `false`, **0 console errors**,
-  `/tmp/racing-lookahead-v10-start.png`; earlier crest evidence remains `/tmp/racing-camera-grade-v7.png`.
-- 844×390 real browser audit aimed at a naturally generated landmark position;
-  the orange chevron reads as an upright sign with a visible short stem:
-  `/tmp/racing-landmark-pole-audit.png`. Placement is separately guarded by
-  setup (17.48–17.58m lateral, ≥0.97m above the local banked surface).
-- 844×390 audits cover wheels (**25m/s**), graded shadow drive, anchored effects and
-  grass exit: `/tmp/racing-wheel-side-audit.png`, `/tmp/racing-contact-shadow-drive-audit.png`,
-  `/tmp/racing-steer-drift-surface-anchored.png`, `/tmp/racing-brake-glow-audit.png`,
-  `/tmp/racing-offroad-terrain-audit.png`; direct rumble smoke reads **84 km/h**,
-  `offroad=true`, `renderY=terrainY=-1.103m`, `shake=0.0126`, one dust particle.
+
+- `race.mjs` — **130/130**; top **148 km/h**, 0–80 **2.40s**, drift/ABS/wall/
+  recovery/roll/suspension/grade gates green, zero browser errors.
+- `setup.mjs` — **149/149**; six tracks, graded ribbon/offroad pose, effects,
+  controls, lifecycle, landmarks and tangent gates green; **16 calls / 61,799
+  tris**, effects peak **17**, zero browser errors.
+- `ghost.mjs` — **29/29**; ghost remains physics-independent (the new slope load
+  is measured identically with and without the visual ghost) and the combined
+  night + four rivals + ghost + effects frame stays at **18 calls / 53,253 tris**.
+- Grade gate: uphill / flat / downhill 4-second full throttle =
+  **30.503 / 32.895 / 35.293 m/s**, grade acceleration **−0.784 / 0 / +0.784
+  m/s²**, physical Y remains **0**.
+- `node --check` on changed JS and tests — PASS; `git diff --check` — PASS.
+- Real headed **844×390** smoke: **114 km/h**, `renderY=1.279m`,
+  `trackPitch=0.01268rad`, `gradeAccel=0.106m/s²`, `offroad=false`, console
+  **0 errors**; screenshot `/tmp/racing-grade-start-v12.png`.
+
 ## Known issues and cautions
 
-- `renderY`, `trackBank`, `trackPitch`, `cameraGrade`, `cameraLean`, `cameraLookAhead` and suspension follow are render-only; never feed them into `Car.pos`, collision, nearestT, checkpoints, progress, speed or AI decisions.
-- Keep the terrain as one bounded 32×32 mesh and the query cache at 240 X/Z
-  samples. Do not add per-frame curve allocations or a second road pass.
-- The rigid GLB has no wheel bones/clips; `wheel-motion.js` is a model-specific
-  render heuristic and must be re-profiled if the car asset changes.
-- Do not increase engine output, camera shake, body roll/pitch, elevation or
-  banking without rerunning the physical drift/ABS gates, mobile draw budget and
-  a real screenshot at the affected viewport.
-- Keep the speed layer low-contrast and pointer-transparent; its intensity must
-  not become a physics or input dependency.
-- Aggregate `run-all.mjs` waits 5 seconds between heavy Chromium suites and retries only a recognized readiness timeout once; `RACER_TEST_SETTLE_MS` remains an override. Suspension pose is capped at 0.018/0.015rad and must stay render-only.
-  Severe pressure can still report `TIMEOUT`; browser/server cleanup prevents pollution.
+- `trackPitch` is now an explicit, bounded physics input only through
+  `gradeAccel`; do not feed `renderY` into physics or broaden grade coupling to
+  collision, nearestT, checkpoints, progress or AI.
+- Keep terrain as one bounded 32×32 mesh and query cache at 240 samples. Avoid
+  per-frame Catmull-Rom calls, `Vector3.clone()` allocations or extra draw passes.
+- The rigid GLB has no wheel bones/clips; re-profile `wheel-motion.js` if the
+  car asset changes. Keep suspension follow at max `0.018/0.015rad` and camera
+  lean at ±`0.032rad`.
+- Do not increase wave amplitude, `gradeGravity`, engine output, camera shake or
+  banking without rerunning physical gates, mobile budget and a real screenshot.
+- Aggregate `run-all.mjs` may need `RACER_TEST_SETTLE_MS=5000` on pressured Macs;
+  readiness-only retry is bounded and does not hide assertion failures.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-288.
-2. Keep the aggregate and named suites green after any further render/physics change;
-   keep rumble and suspension follow render-only and budget-neutral.
-3. For any further change, rerun the named Racing suites, update this handoff,
-   run `./scripts/check-handoff.sh`, then commit/push the verified checkpoint.
+1. Run `./scripts/agent-context.sh --sync`; read this handoff and ADR-289.
+2. Run the named Racing suites plus the aggregate after any further change.
+3. Run `./scripts/check-handoff.sh`, commit code and handoff together, push the
+   authorized checkpoint, and verify `git ls-remote origin refs/heads/main`.
 
 ## Do not redo
 
-- Do not restore per-frame `curve.getPointAt()` or `pos.clone()` allocations.
-- Do not replace the existing asphalt texture marker with another draw call.
+- Do not restore per-frame curve allocations or replace the existing bounded
+  effects/speed layer with new draw-call-heavy passes.
 - Do not force-push or rewrite shared `main` history.
