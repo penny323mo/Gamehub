@@ -114,11 +114,78 @@ const started3d = await page.evaluate(() => ({
 check('3D 開始遊戲進入擺白球狀態',
   started3d.text?.turnState === 'PLACE_CUE' && !started3d.text?.snookered && started3d.status.includes('drag cue ball'),
   started3d);
+
+// Mobile 3D must use the actual touch pointer path, not only the debug API.
+// A mouse pointer is intentionally not used here: OrbitControls owns desktop
+// mouse gestures, while the game reserves one-finger touch for aiming.
+await page.locator('#confirm-cue-btn').click();
+await page.waitForTimeout(100);
+const mobileAim = await page.evaluate(() => {
+  const canvas = document.getElementById('game');
+  const rect = canvas.getBoundingClientRect();
+  const emit = (type, x, y, buttons) => canvas.dispatchEvent(new PointerEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    pointerId: 41,
+    pointerType: 'touch',
+    isPrimary: true,
+    button: 0,
+    buttons,
+    clientX: x,
+    clientY: y,
+  }));
+  const x = rect.left + rect.width * 0.5;
+  const startY = rect.top + rect.height * 0.71; // table-side, above the control dock
+  const aimY = rect.top + rect.height * 0.59;
+  emit('pointerdown', x, startY, 1);
+  const dragging = JSON.parse(window.render_game_to_text());
+  emit('pointermove', x, aimY, 1);
+  const aimed = JSON.parse(window.render_game_to_text());
+  emit('pointerup', x, aimY, 0);
+  return { dragging, aimed };
+});
+check('3D 手機一指觸控會進入瞄準拖動狀態',
+  mobileAim.dragging?.turnState === 'AIMING_DRAG' && mobileAim.dragging?.actionRequired === 'CAN_SHOOT' &&
+    mobileAim.aimed?.turnState === 'AIMING_DRAG',
+  mobileAim);
+
+await page.locator('#mobile-charge-btn').dispatchEvent('pointerdown');
+await page.waitForTimeout(180);
+const mobileCharge = await page.evaluate(() => JSON.parse(window.render_game_to_text()));
+await page.locator('#mobile-charge-btn').dispatchEvent('pointerup');
+await page.waitForTimeout(100);
+const mobileShot = await page.evaluate(() => JSON.parse(window.render_game_to_text()));
+check('3D 手機儲力掣會累積力度並實際出桿',
+  mobileCharge?.aiming === true && mobileCharge?.power > 0 &&
+    mobileShot?.shotSerial === 1 && mobileShot?.turnState === 'BALLS_MOVING' && mobileShot?.cueBallSpeed > 0,
+  { charge: mobileCharge, shot: mobileShot });
 await page.locator('#back-btn').click();
 await page.waitForLoadState('domcontentloaded');
 check('3D 返回掣回到 Snooker root',
   page.url().endsWith('/games/snooker/index.html') && await page.locator('#landing-page').isVisible(),
   page.url());
+
+// P1-vs-AI must complete the whole handoff after a deterministic opening foul:
+// the AI beneficiary resolves the decision, places its cue, takes a shot, and
+// returns control to P1. This catches a silent AI queue/placement stall that a
+// console-error-only smoke would miss.
+await page.goto(`${base}/games/snooker/3d/index.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+await page.waitForTimeout(500);
+const aiHandoff = await page.evaluate(() => {
+  const D = window.__snookerDebug;
+  D.setAiEnabled(true);
+  D.reset();
+  D.placeCueInD(0, -1.1);
+  D.confirmCuePlacement();
+  D.shoot(0, 1, 0.65); // brown first: deterministic opening foul
+  return D.runUntilSettled(20);
+});
+check('P1 犯規後 AI 會完成一桿並交回玩家',
+  !aiHandoff.foulDecisionPending && aiHandoff.player === 1 &&
+    aiHandoff.shotSerial >= 2 && aiHandoff.scores[1] >= 4 &&
+    aiHandoff.turnState === 'AIMING' && aiHandoff.actionRequired === 'CAN_SHOOT' &&
+    aiHandoff.aiQueued === false,
+  aiHandoff);
 
 // Offline P2 is a local two-player match, so a foul decision must remain
 // actionable for either seat. This used to deadlock after P1 fouled because
