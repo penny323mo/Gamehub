@@ -74,6 +74,70 @@ const t4 = await page.evaluate(async () => {
 });
 check('對局一定有結果', t4.phase === 'ended', t4);
 
+// T5：手機系統手勢可以喺拖牌／落場中途送 pointercancel，而唔一定補 pointerup。
+// 如果半截狀態留低，下一個普通 tap 會被當成出牌，甚至令 cardBusy 永遠鎖住鏡頭。
+const interruptedInput = await page.evaluate(() => {
+    window.__royale.startMatch(
+        ['militia', 'archers', 'swordsman', 'knight', 'ram', 'fireball', 'arrows', 'elephant'],
+        'normal', 'single', 1);
+    const g = window.__royale.game, ui = window.__royale.ui;
+    g.players[0].elixir = 12;
+    const card = document.querySelector('#cards .card:not(.unaffordable)');
+    const cr = card.getBoundingClientRect();
+    const cx = cr.left + cr.width / 2, cy = cr.top + cr.height / 2;
+    const event = (type, pointerId, x, y) => new PointerEvent(type, {
+        bubbles: true, cancelable: true, pointerType: 'touch', pointerId, clientX: x, clientY: y,
+    });
+    const before = g.playedCards[0].length;
+    card.dispatchEvent(event('pointerdown', 71, cx, cy));
+    window.dispatchEvent(event('pointermove', 71, cx, cy + 80));
+    window.dispatchEvent(event('pointercancel', 71, cx, cy + 80));
+    const afterCancel = { dragIdx: ui.dragIdx, busy: ui.dragMoved, placing: ui.canvasPlacing };
+    window.dispatchEvent(event('pointerup', 72, 450, 500));
+    const afterLate = { played: g.playedCards[0].length, selected: ui.selectedIdx };
+
+    // 揀卡後喺戰場拖動係另一條 input path；取消後仍可保留揀卡，但唔可以落牌。
+    card.dispatchEvent(event('pointerdown', 73, cx, cy));
+    window.dispatchEvent(event('pointerup', 73, cx, cy));
+    const holder = document.querySelector('#canvas-holder');
+    holder.dispatchEvent(event('pointerdown', 74, 450, 500));
+    holder.dispatchEvent(event('pointermove', 74, 450, 520));
+    window.dispatchEvent(event('pointercancel', 74, 450, 520));
+    const placementCancel = { placing: ui.canvasPlacing, selected: ui.selectedIdx };
+    holder.dispatchEvent(event('pointerup', 75, 450, 500));
+    const placementLate = { played: g.playedCards[0].length, selected: ui.selectedIdx };
+
+    const beforeHidden = g.playedCards[0].length;
+    card.dispatchEvent(event('pointerdown', 81, cx, cy));
+    window.dispatchEvent(event('pointermove', 81, cx, cy + 80));
+    const hiddenDescriptor = Object.getOwnPropertyDescriptor(document, 'hidden');
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    const hiddenCancel = { dragIdx: ui.dragIdx, moved: ui.dragMoved };
+    if (hiddenDescriptor) Object.defineProperty(document, 'hidden', hiddenDescriptor);
+    else delete document.hidden;
+    window.dispatchEvent(event('pointerup', 82, 450, 500));
+    const hiddenLate = { played: g.playedCards[0].length };
+    return { before, afterCancel, afterLate, placementCancel, placementLate,
+        beforeHidden, hiddenCancel, hiddenLate };
+});
+check('pointercancel 取消拖牌後唔會喺遲到 pointerup 誤出牌',
+    interruptedInput.afterCancel.dragIdx === -1
+    && interruptedInput.afterCancel.placing === false
+    && interruptedInput.afterLate.played === interruptedInput.before,
+    interruptedInput);
+check('pointercancel 取消戰場落牌後唔會誤落牌，揀卡狀態仍可用',
+    interruptedInput.placementCancel.placing === false
+    && interruptedInput.placementCancel.selected >= 0
+    && interruptedInput.placementLate.played === interruptedInput.before
+    && interruptedInput.placementLate.selected >= 0,
+    interruptedInput);
+check('visibilitychange(hidden) 都會清走半截拖牌',
+    interruptedInput.hiddenCancel.dragIdx === -1
+    && interruptedInput.hiddenCancel.moved === false
+    && interruptedInput.hiddenLate.played === interruptedInput.beforeHidden,
+    interruptedInput);
+
 checkNoErrors(r.errors);
 await r.close();
 finish('match');

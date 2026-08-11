@@ -27,7 +27,12 @@ export class UI {
         this.lastHandKey = '';
         this.lastPlayedKey = '';
         this.dragIdx = -1;
+        this.dragPointerId = null;
+        this.dragMoved = false;
+        this.dragStart = null;
         this.selectedIdx = -1;
+        this.canvasPlacing = false;
+        this.canvasPointerId = null;
         this.difficulty = 'normal';
         this.mode = 'single'; // single | gauntlet
         this.deckSlot = getActiveDeck();
@@ -402,6 +407,7 @@ export class UI {
     }
 
     showStart() {
+        this.cancelTransientInput();
         this.refreshProfile();
         clearTimeout(this.endRevealTimer); // 撳投降走人嗰陣，唔好畀 1.4s 後嘅結算畫面彈上嚟蓋住選單
         clearTimeout(this.bannerDelayTimer);
@@ -425,6 +431,7 @@ export class UI {
     }
 
     showGame(offerTutorial = false) {
+        this.cancelTransientInput();
         this.hideReconnectBar(); // 入咗場就唔使再提重連
         clearTimeout(this.endRevealTimer);
         clearTimeout(this.bannerDelayTimer); // 上一場排咗隊但未出嘅橫額唔好走漏到新一場
@@ -444,6 +451,7 @@ export class UI {
     }
 
     showReplay() {
+        this.cancelTransientInput();
         clearTimeout(this.endRevealTimer);
         clearTimeout(this.bannerDelayTimer);
         this.$('screen-start').classList.add('hidden');
@@ -732,21 +740,25 @@ export class UI {
             if (!cardEl || cardEl.classList.contains('unaffordable')) return;
             const idx = Number(cardEl.dataset.idx);
             this.dragIdx = idx;
+            this.dragPointerId = ev.pointerId ?? null;
             this.dragMoved = false;
             this.dragStart = { x: ev.clientX, y: ev.clientY };
             ev.preventDefault();
         });
         window.addEventListener('pointermove', (ev) => {
-            if (this.dragIdx < 0) return;
+            if (this.dragIdx < 0 || (this.dragPointerId !== null && ev.pointerId !== this.dragPointerId)) return;
             const dx = ev.clientX - this.dragStart.x, dy = ev.clientY - this.dragStart.y;
             if (Math.abs(dx) + Math.abs(dy) > 12) this.dragMoved = true;
             if (this.dragMoved) this.cb.onDragMove(this.dragIdx, ev.clientX, ev.clientY);
         });
         window.addEventListener('pointerup', (ev) => {
-            if (this.dragIdx < 0) return;
+            if (this.dragIdx < 0 || (this.dragPointerId !== null && ev.pointerId !== this.dragPointerId)) return;
             const idx = this.dragIdx;
+            const moved = this.dragMoved;
             this.dragIdx = -1;
-            if (this.dragMoved) {
+            this.dragPointerId = null;
+            this.dragStart = null;
+            if (moved) {
                 this.cb.onDrop(idx, ev.clientX, ev.clientY);
                 this.selectedIdx = -1;
             } else {
@@ -755,30 +767,59 @@ export class UI {
                 this.#refreshSelection();
             }
             this.cb.onDragEnd();
-            if (!this.dragMoved) this.cb.onSelect?.(this.selectedIdx);
+            this.dragMoved = false;
+            if (!moved) this.cb.onSelect?.(this.selectedIdx);
+        });
+        // OS gesture／來電／切 App 可以只派 pointercancel、blur 或 hidden，唔保證
+        // 後面一定有 pointerup。清走半截拖曳，避免下一個普通 tap 被誤當成出牌。
+        window.addEventListener('pointercancel', (ev) => this.cancelTransientInput(ev));
+        window.addEventListener('lostpointercapture', (ev) => this.cancelTransientInput(ev));
+        window.addEventListener('blur', () => this.cancelTransientInput());
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) this.cancelTransientInput();
         });
         // 揀咗卡之後點/拖戰場都可以落
         const holder = this.$('canvas-holder');
         holder.addEventListener('pointerdown', (ev) => {
             if (this.selectedIdx >= 0) {
                 this.canvasPlacing = true;
+                this.canvasPointerId = ev.pointerId ?? null;
                 this.cb.onDragMove(this.selectedIdx, ev.clientX, ev.clientY);
             }
         });
         holder.addEventListener('pointermove', (ev) => {
-            if (this.selectedIdx >= 0 && this.canvasPlacing) {
+            if (this.selectedIdx >= 0 && this.canvasPlacing
+                && (this.canvasPointerId === null || ev.pointerId === this.canvasPointerId)) {
                 this.cb.onDragMove(this.selectedIdx, ev.clientX, ev.clientY);
             }
         });
         holder.addEventListener('pointerup', (ev) => {
-            if (this.selectedIdx >= 0 && this.canvasPlacing) {
+            if (this.selectedIdx >= 0 && this.canvasPlacing
+                && (this.canvasPointerId === null || ev.pointerId === this.canvasPointerId)) {
                 this.cb.onDrop(this.selectedIdx, ev.clientX, ev.clientY);
                 this.selectedIdx = -1;
                 this.canvasPlacing = false;
+                this.canvasPointerId = null;
                 this.cb.onDragEnd();
                 this.#refreshSelection();
             }
         });
+    }
+
+    cancelTransientInput(ev = null) {
+        const dragActive = this.dragIdx >= 0;
+        const placeActive = this.canvasPlacing;
+        if (!dragActive && !placeActive) return;
+        const activePointer = dragActive ? this.dragPointerId : this.canvasPointerId;
+        if (ev && activePointer !== null && ev.pointerId !== activePointer) return;
+        this.dragIdx = -1;
+        this.dragPointerId = null;
+        this.dragMoved = false;
+        this.dragStart = null;
+        this.canvasPlacing = false;
+        this.canvasPointerId = null;
+        this.cb.onDragEnd?.();
+        this.#refreshSelection();
     }
 
     #refreshSelection() {
@@ -796,6 +837,11 @@ export class UI {
         this.game = game;
         this.selectedIdx = -1;
         this.dragIdx = -1;
+        this.dragPointerId = null;
+        this.dragMoved = false;
+        this.dragStart = null;
+        this.canvasPlacing = false;
+        this.canvasPointerId = null;
         // 重置所有「有變先寫」HUD cache，新一場一定全部重繪一次
         this.lastHandKey = null;
         this.lastPlayedKey = null;
