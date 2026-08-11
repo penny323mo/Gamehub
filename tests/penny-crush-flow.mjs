@@ -62,10 +62,39 @@ await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
 await page.locator('#pc-menu button').filter({ hasText: '8x8' }).click();
 await page.waitForSelector('#pc-game:not(.hidden)');
 
-check('Penny Crush script has a cache-bust token', localScriptToken === 'penny-crush-20260811a', localScriptToken);
+check('Penny Crush script has a cache-bust token', localScriptToken === 'penny-crush-20260811b', localScriptToken);
 check('手機 8x8 棋盤完整顯示',
   await page.locator('#pc-grid .pc-tile').count() === 64,
   await page.locator('#pc-grid .pc-tile').count());
+
+const interruptedTouch = await page.evaluate(() => {
+  window.__pennyCrush.handleInteraction(0, 0);
+  // handleInteraction re-renders the board, so reacquire the live node before
+  // dispatching the interrupted gesture.
+  const liveFirst = document.querySelector('.pc-tile[data-r="0"][data-c="0"]');
+  const second = document.querySelector('.pc-tile[data-r="0"][data-c="1"]');
+  second.dispatchEvent(new PointerEvent('pointerdown', {
+    bubbles: true, cancelable: true, pointerId: 41, pointerType: 'touch', isPrimary: true,
+  }));
+  const pressedBeforeCancel = second.classList.contains('is-pressed');
+  second.dispatchEvent(new PointerEvent('pointercancel', {
+    bubbles: true, cancelable: true, pointerId: 41, pointerType: 'touch', isPrimary: true,
+  }));
+  return {
+    pressedBeforeCancel,
+    pressedAfterCancel: second.classList.contains('is-pressed'),
+    selectedAfterCancel: window.__pennyCrush.selectedTile,
+    selectedClassAfterCancel: liveFirst.classList.contains('is-selected'),
+    processing: window.__pennyCrush.isProcessing,
+  };
+});
+check('中斷 touch 會清走 pressed／半完成選取',
+  interruptedTouch.pressedBeforeCancel === true &&
+    interruptedTouch.pressedAfterCancel === false &&
+    interruptedTouch.selectedAfterCancel === null &&
+    interruptedTouch.selectedClassAfterCancel === false &&
+    interruptedTouch.processing === false,
+  interruptedTouch);
 
 const triggerGuaranteedMatch = () => page.evaluate(() => {
   const grid = Array.from({ length: 8 }, (_, r) =>

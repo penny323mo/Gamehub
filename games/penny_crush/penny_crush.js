@@ -6,6 +6,7 @@ const PennyCrush = {
     selectedTile: null, // {r, c}
     isProcessing: false,
     generation: 0,
+    inputLifecycleBound: false,
 
     // Updated to use 5 character types mapped to images
     colors: ['pc-char-1', 'pc-char-2', 'pc-char-3', 'pc-char-4', 'pc-char-5'],
@@ -80,6 +81,16 @@ const PennyCrush = {
         document.querySelectorAll('.score-pop, .combo-text').forEach((el) => el.remove());
         const gridEl = document.getElementById('pc-grid');
         gridEl?.classList.remove('pc-shake', 'pc-pop', 'is-clearing');
+    },
+
+    // Touch input can be interrupted by an OS gesture, app switch, or browser
+    // lifecycle transition.  A cancelled gesture must not leave a pressed
+    // tile or a half-completed two-tap selection armed for the next tap.
+    cancelTransientInput: function () {
+        this.selectedTile = null;
+        document.querySelectorAll('#pc-grid .is-pressed, #pc-grid .is-selected').forEach((el) => {
+            el.classList.remove('is-pressed', 'is-selected');
+        });
     },
 
     stop: function () {
@@ -844,3 +855,17 @@ function goToLauncher() {
  * 靠亂撳去等消，而一條靠彩數過嘅 gate 同冇 gate 分別唔大。
  */
 window.__pennyCrush = PennyCrush;
+
+// Keep this binding outside renderGrid: the board's child tiles are rebuilt
+// after every swap/cascade, while the lifecycle events belong to the game as a
+// whole.  The guard also makes hot-reload/re-entry harmless.
+if (!PennyCrush.inputLifecycleBound) {
+    const cancelInput = () => PennyCrush.cancelTransientInput();
+    window.addEventListener('pointercancel', cancelInput, { passive: true });
+    window.addEventListener('lostpointercapture', cancelInput, { passive: true });
+    window.addEventListener('blur', cancelInput);
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) cancelInput();
+    });
+    PennyCrush.inputLifecycleBound = true;
+}
