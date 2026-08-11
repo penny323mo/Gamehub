@@ -29,8 +29,10 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
 
 **Tower Defense, Xiangqi, Gomoku, Big Two, Dou Dizhu, Penny Crush, Snooker, and Snake verification**
 
-- Tower core, map/route redesign, assets, combat, units, gateway/keep placement, look, map browser, touch, load,
-  flow, projectile renderer, and standalone renderer/performance checks passed.
+- Tower core, map/route redesign, assets, combat **13/13**, units **14/14**, gateway/keep placement **11/11**, look
+  **9/9**, map browser **8/8**, touch **6/6**, load **5/5**, flow **18/18**, projectile renderer **5/5**, and
+  standalone renderer/performance **20/20** all passed. Diagnostic arena now suppresses automatic wave spawns, so
+  combat measurements cannot be stolen by later `targetingMode=first` enemies.
 - Xiangqi production build plus legal-move, search, and performance self-tests passed. The optional Studio Small 09
   CC0 HDRI is now bundled under `games/xiangqi-ai/assets/`, imported with Vite `?url`, copied into tracked
   `dist/assets/`, and guarded by a short load-failure status notice; local lights keep the board playable. Real mobile
@@ -38,8 +40,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
   Big Two's real mobile stale-queue/restart flow is **4/4**; Dou Dizhu's real mobile stale-bid/restart flow is **4/4**;
   Penny Crush's real mobile stale-chain/restart flow is **6/6**; Snooker's root/2D/3D flow is **9/9**; Snake's mobile Enter/start/Shift-focus/pause/resume/Hub flow is **10/10**.
 
-**Earlier relay checkpoints remain integrated** — MOBA persistent context-recovery card and `assets-31` cache-bust,
-Royale loading feedback, Tower start-screen contrast, Elden browser-gate isolation, and Ashen Rail production smoke.
+**Earlier relay checkpoints remain integrated** — MOBA persistent context-recovery card and `assets-31` cache-bust, Royale loading feedback, Tower start-screen contrast, Elden browser-gate isolation, and Ashen Rail production smoke.
 
 ## Changed files
 
@@ -50,8 +51,7 @@ Royale loading feedback, Tower start-screen contrast, Elden browser-gate isolati
 - `games/xiangqi-ai/dist/` — regenerated tracked entry bundle and HDR asset for GitHub Pages.
 - `tests/hub-cdn.mjs`, `tests/xiangqi-flow.mjs`, `tests/gomoku-flow.mjs`, `tests/big2-flow.mjs`, `tests/doudizhu-flow.mjs`, `tests/penny-crush-flow.mjs`, `tests/snooker-flow.mjs`, `tests/snake-flow.mjs` — assert self-contained assets and player flows.
 - `games/snake-game/src/components/NameInput/NameInput.tsx`, `src/components/Game/Game.tsx`, `src/components/Background/Background.tsx`, `src/components/Particles/Particles.tsx`, `src/hooks/useStorage.ts`, `styles/Game.module.css`, and tracked `dist/` — isolate Enter login, bind the board/header to mobile viewport width, clean lint, and keep timed/held boosts finite.
-- `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md`, `docs/ai/HANDOFF.md` — durable architecture/ADR/relay notes.
-
+- `games/tower/src/main.ts`, `games/tower/tests/combat.mjs`, tracked `games/tower/dist/` — close preload/arena test races; `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md`, `docs/ai/HANDOFF.md` — durable relay notes.
 ## Verification
 
 - `PLAYWRIGHT_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' npm test` from
@@ -71,10 +71,10 @@ Royale loading feedback, Tower start-screen contrast, Elden browser-gate isolati
 - `PW_CHROMIUM="$CHROMIUM_BIN" node tests/snake-flow.mjs` (Chromium executable supplied by the environment) — **10/10** (mobile Enter isolation, responsive board, Shift focus cleanup, tick/pause/resume/Hub, zero browser errors).
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/hub.mjs` — **96/96**;
   13 launcher entries, four pages, mobile 2×2 / desktop four-up layout, no dead links or browser errors.
-- `cd games/tower && npm test` — build, core/browser/projectile gates passed; an integrated performance run once hit a
-  30-second `window.__TD` startup timeout, then the same build rerun alone with `node tests/performance.mjs` passed
-  **20/20** desktop/mobile. Run WebGL suites separately under GPU pressure; the transient timeout is not a gameplay
-  failure without clean standalone reproduction.
+- `cd games/tower && npm run build && npm run test:core && PW_CHROMIUM="$CHROMIUM_BIN" npm run test:browser` — build,
+  core, browser (**97/97**) passed; `node tests/projectile-renderer.mjs` **5/5** and `node tests/performance.mjs`
+  **20/20** passed standalone. `node tests/playthrough.mjs 99 999 0.04 0.0026 198` won wave 99 with 20/20 lives;
+  `npm audit --prefix games/tower --audit-level=high` found **0 vulnerabilities**. First combined render launch hit a 30-second ground wait; standalone reruns passed, so keep WebGL suites one at a time under GPU pressure.
 - `cd games/xiangqi-ai && npm run build && node js/engine/selftest_legal.js && node js/engine/selftest_search.js &&
   node js/engine/selftest_perf.js`; `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/xiangqi-flow.mjs`
   — build/legal/search/performance

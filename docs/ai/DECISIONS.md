@@ -7996,3 +7996,16 @@ production dist 實測正常 500ms 行 2 格、Shift 行 4 格，失焦後仍然
 `Game.tsx` 將 blur 同 hidden lifecycle 視為失去手動輸入來源：清除 Shift ref，保留仍未到期嘅
 食物加速，並喺 hidden 時一併暫停遊戲。`tests/snake-flow.mjs` 用真實 keyboard down 加 blur event
 守住加速開啟同失焦清除（現為 10/10）；日後新增任何按住式控制亦要接入同一個 lifecycle seam。
+
+## ADR-253 — Tower diagnostic arena 必須封住自動 wave queue
+
+Date: 2026-08-11. Status: accepted.
+
+`window.__TD.擂台()` 係 combat、renderer 同 performance gates 共用嘅測量入口，語意係「清場後只
+量手動建立嘅局面」。如果只清 `enemies` 而保留當前 wave 嘅 `spawnCounts`，`tickWave()` 會繼續出怪；
+`targetingMode='first'` 之後會轉去追新敵人，DPS/DoT gate 就會量到出怪節奏而唔係指定 target，甚至
+令同一條測試喺資產／GPU timing 改變時得出唔同結果。
+
+Diagnostic arena 以 `Number.MAX_SAFE_INTEGER` sentinel 封住 group spawn 同 wave-complete transition，
+而同步 renderer build 只可以喺真實 Start asset barrier 完成後使用。`tests/combat.mjs` 必須先行 Start
+並等待 `phase='prep'`，再建立測量夾具；唔可以為咗測試而放鬆 production renderer 對未預載模型嘅保護。

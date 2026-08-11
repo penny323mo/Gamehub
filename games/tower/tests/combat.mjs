@@ -45,6 +45,10 @@ const errors = [];
 page.on('pageerror', e => errors.push(e.message.split('\n')[0].slice(0, 140)));
 await page.goto(外部網址 ?? `http://localhost:${port}/games/tower/dist/index.html`, { waitUntil: 'load' });
 await page.waitForFunction(() => !!window.__TD, null, { timeout: 30000 });
+// build() 同真正玩家流程一樣，係同步攞已預載模型；Start 會行過唯一嘅
+// asset barrier，直接喺 __TD 出現後起塔會同玩家路徑脫節，亦會製造假 race。
+await page.click('#start-btn');
+await page.waitForFunction(() => window.__TD.state.phase === 'prep', null, { timeout: 60000 });
 
 // 頁面入面嘅共用夾具：搵一格路、搵一格喺佢隔籬起得塔嘅位、擺低一隻唔郁嘅敵人。
 await page.evaluate(() => {

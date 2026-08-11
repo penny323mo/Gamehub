@@ -64,7 +64,9 @@ repository as a static site.
   deriving separate rectangular masks. `route.ts` smooths the authoritative grid
   path for movement without changing build adjacency. `chapters.ts` is the shared
   five-act presentation/tactical timeline. The shared playable surface is
-  `SURFACE_Y = 0.2`; resumable runs are saved only at safe prep boundaries.
+  `SURFACE_Y = 0.2`; resumable runs are saved only at safe prep boundaries. The
+  `window.__TD.擂台()` diagnostic arena suppresses automatic wave spawning so
+  combat measurements stay locked to manually spawned targets.
 - Royale carries local vendor modules and Draco assets so production must not
   assume a package-manager build step for that game. See ADR-007 to ADR-012 for
   the Royale rules an editor must not break; the load-bearing ones are: AI gets no

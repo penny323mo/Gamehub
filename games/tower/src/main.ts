@@ -1879,8 +1879,13 @@ function gameLoop(time: number): void {
         state.enemies = [];
         state.projectiles = [];
         state.towers = [];
-        state.spawnCounts = state.spawnCounts.map(() => 0);
-        state.waveEnemiesSpawned = state.waveEnemiesTotal;
+        // Diagnostic arena 要只量手動擺落嘅單一 target；如果保留現行 wave
+        // queue，tick() 會繼續出怪，targetingMode='first' 會轉去追新敵人，
+        // 令 combat gate 量到出怪節奏而唔係指定塔嘅傷害。用極大 sentinel
+        // 同時封住 group spawn 同 wave-complete transition。
+        state.spawnCounts = state.spawnCounts.map(() => Number.MAX_SAFE_INTEGER);
+        state.waveEnemiesSpawned = 0;
+        state.waveEnemiesTotal = Number.MAX_SAFE_INTEGER;
         state.gold = gold;
         state.lives = 999;
         return { phase: state.phase, gold: state.gold };
