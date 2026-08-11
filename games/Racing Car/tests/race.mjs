@@ -907,11 +907,12 @@ const suspension = await page.evaluate(() => {
     };
     car.reset({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
     car.setRenderSurface(0, 0, 0);
-    let maxPitch = 0, maxRoll = 0, maxRootDelta = 0;
+    let maxPitch = 0, maxRoll = 0, maxHeave = 0, maxRootDelta = 0;
     for (let i = 0; i < 60; i++) {
         car.update(1 / 60, { throttle: 1, steer: 0, handbrake: false }, fakeTrack);
         maxPitch = Math.max(maxPitch, Math.abs(car.suspensionPitch));
         maxRoll = Math.max(maxRoll, Math.abs(car.suspensionRoll));
+        maxHeave = Math.max(maxHeave, Math.abs(car.suspensionHeave));
         maxRootDelta = Math.max(maxRootDelta,
             Math.abs(car.root.rotation.x - (car.bodyPitch + car.trackPitch)),
             Math.abs(car.root.rotation.z - (car.bodyRoll + car.trackBank)));
@@ -919,6 +920,7 @@ const suspension = await page.evaluate(() => {
     return {
         pitchDeg: +(maxPitch * 57.3).toFixed(2),
         rollDeg: +(maxRoll * 57.3).toFixed(2),
+        heave: +maxHeave.toFixed(4),
         rootDeltaDeg: +(maxRootDelta * 57.3).toFixed(2),
         speed: +car.speed.toFixed(2),
         physicsY: car.pos.y,
@@ -928,6 +930,8 @@ console.log('  ', JSON.stringify(suspension));
 check('路面突變會有細幅 render-only 懸掛滯後',
     suspension.pitchDeg > 0.2 && suspension.rollDeg > 0.1
     && suspension.pitchDeg <= 1.1 && suspension.rollDeg <= 0.9, suspension);
+check('crest／valley 會有短暫垂向懸掛壓縮，但唔會跳飛',
+    suspension.heave > 0.015 && suspension.heave <= 0.091, suspension);
 check('懸掛回饋唔會改物理高度或速度',
     suspension.physicsY === 0 && suspension.speed > 0, suspension);
 
@@ -977,13 +981,15 @@ const resetPose = await page.evaluate(() => {
     const { car, track } = window.__racer;
     car.bodyRoll = 0.05;
     car.bodyPitch = -0.02;
+    car.suspensionHeave = 0.06;
     car.unspinning = true;
     car.offroad = true;
     car.lockFront = true;
     car.lockRear = true;
     car.reset(track.startPos, track.startDir);
     return {
-        roll: car.bodyRoll, pitch: car.bodyPitch, unspinning: car.unspinning,
+        roll: car.bodyRoll, pitch: car.bodyPitch, heave: car.suspensionHeave,
+        unspinning: car.unspinning,
         offroad: car.offroad, lockFront: car.lockFront, lockRear: car.lockRear,
         rootY: car.root.position.y,
     };
@@ -991,6 +997,7 @@ const resetPose = await page.evaluate(() => {
 console.log('  ', JSON.stringify(resetPose));
 check('重開會清走車身側傾／俯仰同瞬態狀態',
     resetPose.roll === 0 && resetPose.pitch === 0 && !resetPose.unspinning
+    && resetPose.heave === 0
     && !resetPose.offroad && !resetPose.lockFront && !resetPose.lockRear
     && Math.abs(resetPose.rootY) < 0.001, resetPose);
 

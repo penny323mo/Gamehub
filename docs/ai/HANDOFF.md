@@ -1,7 +1,7 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Racing Car terrain-anchor feel pass
+Prepared by: Codex — Racing Car suspension-heave feel pass
 Integration branch: `main`
 Work branch: `main`
 Status: Racing Car source, regression gates, headed mobile smoke and docs are
@@ -32,6 +32,9 @@ real browser evidence for every visual or control change.
   and crowns now use their local `terrainYAt(x,z)` at build time, so crest trees
   do not float and valley trees do not sink. Render-only suspension,
   camera grade, corner-load lean and 12–22m tangent look-ahead remain bounded.
+- `Car.suspensionHeave` now adds a short, bounded chassis compression/rebound
+  from pitch-rate transitions. It is limited to **±0.09m**, settles at rate 12,
+  resets to zero, and never enters physics, collision, progress or shadow.
 - Speed layer starts at `10 m/s`; wheel-motion animates four merged wheel
   clusters; bounded effects pool covers drift marks/smoke, dust, exhaust, brake
   glow, impacts and rumble without adding a road/effects pass.
@@ -42,16 +45,15 @@ real browser evidence for every visual or control change.
 
 - `games/Racing Car/src/track.js`
 - `games/Racing Car/src/tracks.js`
-- `games/Racing Car/src/car.js`
+- `games/Racing Car/src/car.js` (bounded render-only suspension heave)
 - `games/Racing Car/tests/setup.mjs`, `games/Racing Car/tests/race.mjs`,
   `games/Racing Car/tests/ghost.mjs`
-- `docs/ai/PROJECT_CONTEXT.md`
-- `docs/ai/DECISIONS.md` (ADR-289, ADR-290)
+- `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md` (ADR-289–ADR-291)
 - `docs/ai/HANDOFF.md`
 
 ## Verification
 
-- `race.mjs` — **130/130**; top **148 km/h**, 0–80 **2.40s**, drift/ABS/wall/
+- `race.mjs` — **131/131**; top **148 km/h**, 0–80 **2.40s**, drift/ABS/wall/
   recovery/roll/suspension/grade gates green, zero browser errors.
 - `setup.mjs` — **150/150**; six tracks, graded ribbon/offroad pose, effects,
   controls, lifecycle, landmarks, tangent and tree-anchor gates green. The new
@@ -64,12 +66,14 @@ real browser evidence for every visual or control change.
   **30.503 / 32.895 / 35.293 m/s**, grade acceleration **−0.784 / 0 / +0.784
   m/s²**, physical Y remains **0**.
 - Aggregate `RACER_TEST_SETTLE_MS=5000 node games/Racing\ Car/tests/run-all.mjs`:
-  race **130/130**, setup **150/150** (readiness retry), rivals **61/61**,
-  ghost **29/29**, season **55/55**, audio **33/33** (readiness retry).
+  race **131/131**, setup **150/150** (readiness retry), rivals **61/61**,
+  ghost **29/29**, season **55/55** (readiness retry), audio **33/33**.
 - `node --check` on changed JS and tests — PASS; `git diff --check` — PASS.
-- Real headed **844×390** smoke: **114 km/h**, `renderY=1.279m`,
-  `trackPitch=0.01268rad`, `gradeAccel=0.106m/s²`, `offroad=false`, console
-  **0 errors**; screenshot `/tmp/racing-grade-start-v12.png`.
+- Real headed **844×390** smoke: **127 km/h**, `renderY=1.430m`,
+  `trackPitch=0.0125rad`, `suspensionHeave=-0.0019m` at capture (sampled range
+  `+0.0109/−0.0119m`), `gradeAccel=0.1095m/s²`, `offroad=false`, console
+  **0 errors**. This validates the bounded heave in a real mobile-sized race;
+  the screenshot was treated as a temporary QA artifact and removed after review.
 
 ## Known issues and cautions
 
@@ -85,12 +89,15 @@ real browser evidence for every visual or control change.
   banking without rerunning physical gates, mobile budget and a real screenshot.
 - Tree placement is a build-time visual anchor; if terrain profiles or tree
   placement change, rerun the tree-anchor gate and headed mobile smoke.
+- Heave is deliberately render-only: do not use it as a gameplay height or
+  increase its limit without checking rigid-model floor clearance and mobile
+  screenshots.
 - Aggregate `run-all.mjs` may need `RACER_TEST_SETTLE_MS=5000` on pressured Macs;
   readiness-only retry is bounded and does not hide assertion failures.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync`; read this handoff and ADR-290.
+1. Run `./scripts/agent-context.sh --sync`; read this handoff and ADR-291.
 2. Run the named Racing suites plus the aggregate after any further change.
 3. Run `./scripts/check-handoff.sh`, commit code and handoff together, push the
    authorized checkpoint, and verify `git ls-remote origin refs/heads/main`.

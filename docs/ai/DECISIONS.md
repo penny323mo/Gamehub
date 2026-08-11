@@ -8590,3 +8590,19 @@ max error **0**，完整 Racing aggregate 維持全綠。
 
 日後如改 terrain profile、樹木 placement 或 road-to-grass blend，必須重跑 tree-anchor
 gate 及真 headed mobile smoke；唔好用固定 `surfaceMinY` 取代 local terrain anchor。
+
+## ADR-291 — Racing Car crest／valley 要有受限垂向懸掛讀感
+
+Date: 2026-08-12. Status: accepted.
+
+有坡度嘅 road surface 同 `trackPitch` grade load 之後，rigid 車模仍然只會隨 `renderY`
+硬切高度；過 crest／落谷時車身冇相對壓縮／回彈，視覺上仍似一張貼紙。今輪喺 `Car`
+加入 `suspensionHeave`：由相鄰 render pitch 嘅變化率產生短暫 chassis heave，再以
+`suspensionHeaveRate=12` 平滑回中，`suspensionHeaveGain=0.32`、上限 **±0.09m**。
+佢只加到車模 root 嘅 render Y，唔改 `Car.pos.y`、X/Z、速度、碰撞、checkpoint、進度、AI
+或接地陰影；冇 render pose 嘅 physics-only caller 會自然 settle。
+
+`race.mjs` 新 gate 實測 crest transition heave **0.018m**、reset **0**、physics Y **0**，
+而既有 0–80、漂移、ABS、autopilot、draw budget 同完整 aggregate 維持全綠。日後改坡度
+profile 或車模 floor envelope，必須重跑 heave 上限／reset gate 及真 headed mobile smoke，
+唔好將 heave 變成 gameplay 高度。

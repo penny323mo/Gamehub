@@ -168,6 +168,12 @@ export const CFG = {
     suspensionRollGain: 0.66,
     suspensionPitchLimit: 0.018,
     suspensionRollLimit: 0.015,
+    // 車身係 rigid GLB，單靠 pitch lag 仍然似貼紙黐住路面。用坡度變化率
+    // 只產生一個極細嘅垂向懸掛壓縮／回彈：過 crest 會輕輕 unload，落谷會
+    // settle；係 render-only，唔會將物理 pos.y、碰撞或者進度變成 3D。
+    suspensionHeaveGain: 0.32,
+    suspensionHeaveRate: 12,
+    suspensionHeaveLimit: 0.09,
 };
 
 const G = 9.81;
@@ -194,6 +200,7 @@ export class Car {
         this.bodyPitch = 0;
         this.suspensionPitch = 0;
         this.suspensionRoll = 0;
+        this.suspensionHeave = 0;
         this._surfacePitchFollow = 0;
         this._surfaceBankFollow = 0;
         this._surfacePoseReady = false;
@@ -234,6 +241,7 @@ export class Car {
         this.bodyPitch = 0;
         this.suspensionPitch = 0;
         this.suspensionRoll = 0;
+        this.suspensionHeave = 0;
         this._surfacePitchFollow = 0;
         this._surfaceBankFollow = 0;
         this._surfacePoseReady = false;
@@ -576,6 +584,7 @@ export class Car {
         // 路面高度同橫向 banking 只影響模型、陰影同鏡頭；唔寫入 pos.y，
         // 因為既有碰撞／進度／救車規則係刻意建立喺 X/Z 格網上。
         if (track?.renderPoseAt) {
+            const previousTrackPitch = this.trackPitch;
             track.renderPoseAt(this.pos.x, this.pos.z, this._renderPose);
             // 落草唔改物理位置，但 render root 要落到同一張 terrain mesh；
             // banking／pitch 由道路姿態向草地平滑淡出，避免車身喺草面仍然
@@ -606,12 +615,27 @@ export class Car {
                 -CFG.suspensionRollLimit,
                 CFG.suspensionRollLimit,
             );
+            // 路面坡度突然改變時，車輪先遇到 crest／valley，車身會有一個短暫
+            // 嘅壓縮／回彈，而唔係每幀硬切到新高度。用 pitch rate 而唔係直接
+            // 用 renderY，避免長斜坡將車身永久推離接地面；乘數同上限都刻意細，
+            // 只係讀感 cue。dt 有可能由 background wake-up 變大，先夾窄避免
+            // 一個長幀製造假跳躍。
+            const sampleDt = THREE.MathUtils.clamp(dt, 1 / 240, 0.1);
+            const pitchRate = (this.trackPitch - previousTrackPitch) / sampleDt;
+            const heaveTarget = THREE.MathUtils.clamp(
+                -pitchRate * CFG.suspensionHeaveGain,
+                -CFG.suspensionHeaveLimit,
+                CFG.suspensionHeaveLimit,
+            );
+            this.suspensionHeave += (heaveTarget - this.suspensionHeave)
+                * Math.min(1, sampleDt * CFG.suspensionHeaveRate);
         } else {
             // Physics-only callers（例如測試用平面）冇 render pose 時，唔可以
             // 將上一張賽道殘留嘅 visual lag 帶入；姿態自然回中但唔瞬間跳。
             const settle = Math.min(1, Math.max(0, dt) * CFG.suspensionPoseRate);
             this.suspensionPitch += (0 - this.suspensionPitch) * settle;
             this.suspensionRoll += (0 - this.suspensionRoll) * settle;
+            this.suspensionHeave += (0 - this.suspensionHeave) * settle;
         }
         this.wheels.update(dt, this.forwardSpeed, this.steer);
         this.#sync();
@@ -692,7 +716,7 @@ export class Car {
         // 車模係一件 rigid mesh，繞原點俯仰會令車底一邊落低。用模型量過嘅
         // 包絡補一個極細 render-only lift，保持輪胎貼地；物理位置仍然係 y=0。
         const pitchLift = Math.abs(this.bodyPitch) * CFG.bodyPitchLift;
-        this.root.position.set(this.pos.x, this.renderY + pitchLift, this.pos.z);
+        this.root.position.set(this.pos.x, this.renderY + pitchLift + this.suspensionHeave, this.pos.z);
         this.root.rotation.set(
             this.bodyPitch + this.trackPitch + this.suspensionPitch,
             this.yaw,

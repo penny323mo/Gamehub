@@ -89,7 +89,10 @@ repository as a static site.
   `Track.surfaceYAtT()` / `surfaceBankAtT()` / `surfacePitchAtT()` are a bounded
   surface profile: the road ribbon, kerbs, guardrails, terrain and trackside
   anchors follow it, while collision/progress remains on the established X/Z grid.
-  `Car.renderY` never feeds gameplay. `Car.trackPitch` is the explicit, bounded
+  `Car.renderY` never feeds gameplay. `Car.suspensionHeave` is a bounded
+  render-only chassis compression/rebound driven by pitch-rate transitions; it
+  must reset to zero and never feed the contact shadow, physics or progress.
+  `Car.trackPitch` is the explicit, bounded
   longitudinal grade input: it may contribute a small slope load to speed, but
   never changes `Car.pos.y`, nearestT, collision, checkpoints, progress or AI.
   `Car.longAccel`/`lateralAccel` remain render feedback and `gradeAccel` is the
