@@ -131,10 +131,11 @@ export class RivalField {
         this.raceTime = 0;
         this._m = new THREE.Matrix4();
         this._q = new THREE.Quaternion();
+        this._e = new THREE.Euler(0, 0, 0, 'YZX');
         this._s = new THREE.Vector3(1, 1, 1);
-        this._up = new THREE.Vector3(0, 1, 0);
         this._p = new THREE.Vector3();
         this._c = new THREE.Color();
+        this._surface = { y: 0, bank: 0 };
     }
 
     get count() { return this.rivals.length; }
@@ -158,6 +159,8 @@ export class RivalField {
             const who = ROSTER[i];
             const car = new Car(new THREE.Group());     // 唔使真 model，畫面靠 instance
             car.reset(pos, tan);
+            track.renderPoseAt?.(pos.x, pos.z, this._surface);
+            car.setRenderSurface(this._surface.y, this._surface.bank);
             this.rivals.push({
                 car, name: who.name,
                 driver: createDriver(track, who.skill),
@@ -237,6 +240,8 @@ export class RivalField {
         const cps = track.checkpoints;
         const cp = cps[(r.nextCp - 1 + cps.length) % cps.length];
         r.car.reset(cp.pos, cp.dir);
+        track.renderPoseAt?.(cp.pos.x, cp.pos.z, this._surface);
+        r.car.setRenderSurface(this._surface.y, this._surface.bank);
         r.lane = 0;
     }
 
@@ -286,8 +291,9 @@ export class RivalField {
     #sync() {
         for (let i = 0; i < this.rivals.length; i++) {
             const r = this.rivals[i];
-            this._p.set(r.car.pos.x, 0, r.car.pos.z);
-            this._q.setFromAxisAngle(this._up, r.car.yaw);
+            this._p.set(r.car.pos.x, r.car.renderY, r.car.pos.z);
+            this._e.set(0, r.car.yaw, r.car.bodyRoll + r.car.trackBank, 'YZX');
+            this._q.setFromEuler(this._e);
             this._m.compose(this._p, this._q, this._s);
             this.mesh.setMatrixAt(i, this._m);
             this._c.setHex(r.colour);
@@ -297,8 +303,10 @@ export class RivalField {
         let visualCount = this.rivals.length;
         if (this.ghost) {
             const i = visualCount++;
-            this._p.set(this.ghost.x, 0, this.ghost.z);
-            this._q.setFromAxisAngle(this._up, this.ghost.yaw);
+            this.track?.renderPoseAt?.(this.ghost.x, this.ghost.z, this._surface);
+            this._p.set(this.ghost.x, this._surface.y, this.ghost.z);
+            this._e.set(0, this.ghost.yaw, this._surface.bank, 'YZX');
+            this._q.setFromEuler(this._e);
             this._m.compose(this._p, this._q, this._s);
             this.mesh.setMatrixAt(i, this._m);
             this._c.setHex(0x9fd8ff);

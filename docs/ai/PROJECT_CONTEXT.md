@@ -86,6 +86,11 @@ repository as a static site.
   bicycle model: `CFG` owns the acceleration/steer envelope, `Car.bodyPitch` and
   `bodyRoll` stay bounded, `#sync()` compensates the rigid car mesh's floor
   envelope, and `#speed-lines` must remain `pointer-events:none` below the HUD.
+  `Track.surfaceYAtT()` / `surfaceBankAtT()` are a bounded render-only profile:
+  the road ribbon, kerbs, guardrails and nearby terrain follow it, while physics
+  remains the established X/Z grid. `Car.renderY`/`trackBank`, rival instances,
+  the contact shadow and chase camera may consume that pose, but no gameplay
+  distance, collision, checkpoint or speed calculation may read render Y.
   `Car.longAccel`/`lateralAccel` are read-only render feedback; camera impulse and
   the bounded exhaust pulses must remain render-only, smooth, reset on start/track
   build, and never feed physics. `Car.reset()` must clear posture, rescue and lock
@@ -95,7 +100,8 @@ repository as a static site.
   matrix axes reuse optional targets/scratch vectors too. Keep those allocations out
   of the frame loop. Road centre/tyre-wear cues and exhaust pulses belong in the
   existing texture/effects instance pass so the mobile draw budget does not gain a
-  road-marker or tail-smoke pass.
+  road-marker or tail-smoke pass. Terrain height is built once as a 32×32 mesh;
+  do not replace it with per-frame terrain generation or a second road pass.
 - Racing Car's current sport envelope is deliberately bounded: `engineForce=10000`,
   `maxSpeed=68`, `dragCoef=2.4`, and `handbrakeGrip=0.35` are tuned against the
   physical drift/ABS gates. The speed-streak layer begins at `16 m/s` and remains

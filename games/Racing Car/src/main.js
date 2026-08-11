@@ -332,6 +332,7 @@ function sampleAutoQuality(now) {
 // 放喺下面就會撞 TDZ（實測：Cannot access 'car' before initialization）
 let car = null;
 let race = null;
+const renderSurfacePose = { y: 0, bank: 0 };
 let camInit = false;      // 鏡頭要唔要即刻歸位（換賽道／重開都會用到）
 let cameraThrust = 0;
 let cameraPulse = 0;
@@ -358,17 +359,22 @@ season.load();
 
 let trackDef = trackById(localStorage.getItem('racer-track') ?? TRACKS[0].id);
 let track = null;
+function syncCarRenderSurface() {
+    if (!car || !track?.renderPoseAt) return;
+    track.renderPoseAt(car.pos.x, car.pos.z, renderSurfacePose);
+    car.setRenderSurface(renderSurfacePose.y, renderSurfacePose.bank);
+}
 function buildTrack(id) {
     trackDef = trackById(id);
     try { localStorage.setItem('racer-track', trackDef.id); } catch { }
     track?.dispose(scene);
-    track = new Track(trackDef.waypoints, trackDef.tension);
+    track = new Track(trackDef.waypoints, trackDef.tension, trackDef.id);
     track.build(scene);
     track.setTimeOfDay(tod);
     drivingEffects.reset();
     rivals.clear();
     minimap.setTrack(track);
-    if (car) car.reset(track.startPos, track.startDir);
+    if (car) { car.reset(track.startPos, track.startDir); syncCarRenderSurface(); }
     if (race) { race.track = track; race.trackId = trackDef.id; race.reset(); }
     camInit = false;
     cameraThrust = 0; cameraPulse = 0;
@@ -578,7 +584,7 @@ function updateCamera(dt) {
     // 一個細模型咁大，路面比例反而搶晒畫面。保留高速拉遠，唔會遮住下一個彎。
     const dist = (10.8 + speedT * 3.0) * (wideMobile ? 0.68 : 0.88);
     const want = camWant.copy(car.pos).addScaledVector(fwd, -dist);
-    want.y = (6.7 + speedT * 1.4) * (wideMobile ? 0.72 : 0.94);
+    want.y = car.renderY + (6.7 + speedT * 1.4) * (wideMobile ? 0.72 : 0.94);
     // 加油／煞車嘅瞬間，鏡頭有一個極細嘅反向載荷位移；唔改物理，只畀
     // 玩家讀到「推背／點頭」，而且有平滑上限，唔會變成震鏡頭。
     const thrustTarget = THREE.MathUtils.clamp(car.longAccel / 14, -1, 1);
@@ -586,7 +592,8 @@ function updateCamera(dt) {
     cameraPulse += (Math.min(1, car.speed / 48) - cameraPulse) * Math.min(1, dt * 5);
     want.addScaledVector(fwd, -cameraThrust * 0.24);
     want.y += Math.sin(performance.now() * 0.012) * cameraPulse * 0.018;
-    const lookAt = camLookAt.copy(car.pos).addScaledVector(fwd, wideMobile ? 15 : 21).setY(0.55);
+    const lookAt = camLookAt.copy(car.pos).addScaledVector(fwd, wideMobile ? 15 : 21)
+        .setY(car.renderY + 0.55);
     if (!camInit) { camPos.copy(want); camLook.copy(lookAt); camInit = true; }
     // 追car 用指數平滑。唔可以再喺漂移時特登放鬆——方向本身已經跟住
     // 行進方向擺，位置再拖就會framing唔到架車。
@@ -1206,6 +1213,7 @@ function startRace() {
     $('hud').classList.remove('hidden');
     input.reset();
     car.reset(track.startPos, track.startDir);
+    syncCarRenderSurface();
     drivingEffects.reset();
     rivals.spawn(track, rivalCount, race.totalLaps);
     resetPlayerProgress();
@@ -1351,7 +1359,7 @@ function frame(now) {
             minimap.draw(car, rivals.rivals);
         }
         if (shadow) {
-            shadow.position.set(car.pos.x, 0, car.pos.z);
+            shadow.position.set(car.pos.x, car.renderY, car.pos.z);
             shadow.rotation.y = car.yaw;
         }
         updateCamera(dt);

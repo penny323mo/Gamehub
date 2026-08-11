@@ -19,6 +19,7 @@ const ASPHALT_HALF_W = ROAD_HALF_W - KERB_W;
 const RAIL_OFFSET = ROAD_HALF_W + GRASS_W + WALL_W * 0.5;
 const VISUAL_STEP = 1.25;
 const QUERY_SAMPLES = 240;
+const TERRAIN_SEGMENTS = 32;
 export const ROAD_HALF = Math.round(ROAD_HALF_W / BLOCK);
 
 // 物理地表種類。code 係幕後格網入面存嘅數字（0 = 空）
@@ -88,9 +89,10 @@ function surfaceTexture(kind) {
 
 export class Track {
     // waypoints：中線座標串；tension 細＝彎位尖（髮夾），大＝圓滑長弧
-    constructor(waypoints, tension = 0.5) {
+    constructor(waypoints, tension = 0.5, profileKey = 'track') {
         const pts = waypoints.map(([x, z]) => new THREE.Vector3(x, 0, z));
         this.curve = new THREE.CatmullRomCurve3(pts, true, 'catmullrom', tension);
+        this.profileKey = profileKey;
         this.length = this.curve.getLength();
         // nearestT() 係駕駛 loop 每架車每幀都會叫；曲線取樣本身會建立
         // 新 Vector3，四架對手加玩家會令一幀產生過千個短命物件。建好
@@ -103,6 +105,7 @@ export class Track {
             this.querySamples[i * 2 + 1] = p.z;
         }
         this.querySampleCount = QUERY_SAMPLES;
+        this.#buildSurfaceProfile();
         // 取樣密度：每半格一個點，確保印路面唔會有窿
         this.samples = Math.ceil(this.length / (BLOCK * 0.5));
         this.#allocGrid(pts);
@@ -111,6 +114,69 @@ export class Track {
         this.#stampRoad();
         this.#stampSurroundings();
         this.#makeCheckpoints();
+    }
+
+    // 真正物理仍然係 X/Z 平面；呢個 profile 只係 render surface。完全平嘅
+    // ribbon 會令 chase camera 睇落似一張無限大膠墊，尤其高速過彎時冇任何
+    // 高低／橫向重量參照。預先烘好低頻起伏同受曲率限制嘅 banking，runtime
+    // 只做一個 240-sample interpolation，唔會將高度物理偷偷混入車輛模型。
+    #buildSurfaceProfile() {
+        this.surfaceYProfile = new Float32Array(QUERY_SAMPLES);
+        this.surfaceBankProfile = new Float32Array(QUERY_SAMPLES);
+        let hash = 2166136261;
+        for (const ch of String(this.profileKey)) {
+            hash ^= ch.charCodeAt(0);
+            hash = Math.imul(hash, 16777619) >>> 0;
+        }
+        const phase = (hash / 4294967296) * Math.PI * 2;
+        const prev = new THREE.Vector3(), next = new THREE.Vector3();
+        let min = Infinity, max = -Infinity;
+        for (let i = 0; i < QUERY_SAMPLES; i++) {
+            const t = i / QUERY_SAMPLES;
+            // 約數百米一個大起伏，加少量短波令路面唔會似正弦函數；幅度
+            // 保持喺低矮坡道級，唔會造成車飛離路面或破壞現有格網碰撞。
+            const y = 0.28 * Math.sin(phase + t * Math.PI * 2 * 1.25)
+                + 0.10 * Math.sin(phase * 0.61 + t * Math.PI * 2 * 3.4);
+            this.surfaceYProfile[i] = y;
+            min = Math.min(min, y); max = Math.max(max, y);
+
+            const before = (t + 1 - 0.006) % 1;
+            const after = (t + 0.006) % 1;
+            this.curve.getTangentAt(before, prev);
+            this.curve.getTangentAt(after, next);
+            const cross = prev.x * next.z - prev.z * next.x;
+            const dot = prev.x * next.x + prev.z * next.z;
+            const turn = Math.atan2(cross, dot);
+            // banking 只跟平面曲率走，而且封頂約 2.6°，唔會令 rigid car
+            // 一轉彎就似飛機側飛。正負方向由曲線切線自動決定。
+            this.surfaceBankProfile[i] = THREE.MathUtils.clamp(turn * 0.34, -0.045, 0.045);
+        }
+        this.surfaceMinY = min;
+        this.surfaceMaxY = max;
+    }
+
+    #profileValue(profile, t) {
+        const wrapped = ((t % 1) + 1) % 1;
+        const f = wrapped * QUERY_SAMPLES;
+        const i = Math.floor(f), j = (i + 1) % QUERY_SAMPLES, mix = f - i;
+        return profile[i] + (profile[j] - profile[i]) * mix;
+    }
+
+    surfaceYAtT(t) { return this.#profileValue(this.surfaceYProfile, t); }
+    surfaceBankAtT(t) { return this.#profileValue(this.surfaceBankProfile, t); }
+
+    // out 係可重用 scratch object；Car／Rivals 每幀會傳入自己嗰個，避免
+    // render-only 高度回饋反而製造短命 object。
+    renderPoseAt(x, z, out = {}) {
+        const t = this.nearestT(x, z);
+        out.t = t;
+        out.y = this.surfaceYAtT(t);
+        out.bank = this.surfaceBankAtT(t);
+        return out;
+    }
+
+    #surfaceYAt(t, lateral = 0) {
+        return this.surfaceYAtT(t) + lateral * Math.sin(this.surfaceBankAtT(t));
     }
 
     // ---------- 格網 ----------
@@ -325,8 +391,8 @@ export class Track {
             const p = this.curve.getPointAt(t);
             const side = this.curve.getTangentAt(t).cross(up).normalize();
             pos.push(
-                p.x + side.x * offsetA, y, p.z + side.z * offsetA,
-                p.x + side.x * offsetB, y, p.z + side.z * offsetB,
+                p.x + side.x * offsetA, this.#surfaceYAt(t, offsetA) + y, p.z + side.z * offsetA,
+                p.x + side.x * offsetB, this.#surfaceYAt(t, offsetB) + y, p.z + side.z * offsetB,
             );
             const along = i / segments * this.length / 5;
             uv.push(along, 0, along, 1);
@@ -360,12 +426,12 @@ export class Track {
         const up = new THREE.Vector3(0, 1, 0);
         const red = new THREE.Color(0xc62828), white = new THREE.Color(0xf4f1e8);
         let v = 0;
-        const addBand = (p0, s0, p1, s1, a, b, color) => {
+        const addBand = (p0, s0, p1, s1, a, b, color, t0, t1) => {
             pos.push(
-                p0.x + s0.x * a, 0.035, p0.z + s0.z * a,
-                p0.x + s0.x * b, 0.035, p0.z + s0.z * b,
-                p1.x + s1.x * a, 0.035, p1.z + s1.z * a,
-                p1.x + s1.x * b, 0.035, p1.z + s1.z * b,
+                p0.x + s0.x * a, this.#surfaceYAt(t0, a) + 0.035, p0.z + s0.z * a,
+                p0.x + s0.x * b, this.#surfaceYAt(t0, b) + 0.035, p0.z + s0.z * b,
+                p1.x + s1.x * a, this.#surfaceYAt(t1, a) + 0.035, p1.z + s1.z * a,
+                p1.x + s1.x * b, this.#surfaceYAt(t1, b) + 0.035, p1.z + s1.z * b,
             );
             for (let k = 0; k < 4; k++) col.push(color.r, color.g, color.b);
             idx.push(v, v + 1, v + 2, v + 1, v + 3, v + 2);
@@ -377,8 +443,8 @@ export class Track {
             const s0 = this.curve.getTangentAt(t0).cross(up).normalize();
             const s1 = this.curve.getTangentAt(t1 % 1).cross(up).normalize();
             const color = Math.floor(i * this.length / this.visualSegments / 2.5) % 2 ? white : red;
-            addBand(p0, s0, p1, s1, -ROAD_HALF_W, -ASPHALT_HALF_W, color);
-            addBand(p0, s0, p1, s1, ASPHALT_HALF_W, ROAD_HALF_W, color);
+            addBand(p0, s0, p1, s1, -ROAD_HALF_W, -ASPHALT_HALF_W, color, t0, t1);
+            addBand(p0, s0, p1, s1, ASPHALT_HALF_W, ROAD_HALF_W, color, t0, t1);
         }
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -398,6 +464,8 @@ export class Track {
         const up = new THREE.Vector3(0, 1, 0);
         const p = this.startPos, tan = this.startDir.clone().normalize();
         const side = tan.clone().cross(up).normalize();
+        const startY = this.surfaceYAtT(this.startT);
+        const startBank = this.surfaceBankAtT(this.startT);
         const dark = new THREE.Color(0x17191c), light = new THREE.Color(0xf5f3eb);
         const cell = 1.5, depth = 3;
         let v = 0, row = 0;
@@ -408,7 +476,9 @@ export class Track {
                 const d1 = Math.min(depth, d + cell);
                 const point = (ww, dd) => p.clone().addScaledVector(side, ww).addScaledVector(tan, dd);
                 const a = point(w, d), b = point(w1, d), c = point(w, d1), e = point(w1, d1);
-                pos.push(a.x, 0.045, a.z, b.x, 0.045, b.z, c.x, 0.045, c.z, e.x, 0.045, e.z);
+                const ay = startY + w * Math.sin(startBank) + 0.045;
+                const by = startY + w1 * Math.sin(startBank) + 0.045;
+                pos.push(a.x, ay, a.z, b.x, by, b.z, c.x, ay, c.z, e.x, by, e.z);
                 const color = (row + column) % 2 ? dark : light;
                 for (let k = 0; k < 4; k++) col.push(color.r, color.g, color.b);
                 idx.push(v, v + 1, v + 2, v + 1, v + 3, v + 2);
@@ -432,7 +502,11 @@ export class Track {
             const t = i / count;
             const p = this.curve.getPointAt(t);
             const side = this.curve.getTangentAt(t).cross(up).normalize();
-            points.push(new THREE.Vector3(p.x + side.x * offset, y, p.z + side.z * offset));
+            points.push(new THREE.Vector3(
+                p.x + side.x * offset,
+                this.#surfaceYAt(t, offset) + y,
+                p.z + side.z * offset,
+            ));
         }
         return new THREE.CatmullRomCurve3(points, true, 'catmullrom', 0.5);
     }
@@ -479,13 +553,50 @@ export class Track {
     #buildTerrain() {
         const width = this.gw * BLOCK, depth = this.gh * BLOCK;
         const tex = surfaceTexture('grass');
-        tex.repeat.set(Math.max(1, width / 18), Math.max(1, depth / 18));
+        // 一張大平面會令有起伏嘅路面同草地之間出現懸空／穿插。用低密度
+        // 32×32 grid 將賽道附近草地拉到路肩高度；仍然係一個 mesh、同一個
+        // draw call，三角形只增加約 2k，留返手機 budget 畀車同效果。
+        tex.repeat.set(1, 1);
+        const pos = [], uv = [], idx = [];
+        const minX = this.minCX * BLOCK, minZ = this.minCZ * BLOCK;
+        const baseY = this.surfaceMinY - 0.22;
+        const inner = ROAD_HALF_W - 1;
+        const outer = ROAD_HALF_W + GRASS_W + 2;
+        const smooth = (v) => {
+            const t = THREE.MathUtils.clamp((v - inner) / (outer - inner), 0, 1);
+            return t * t * (3 - 2 * t);
+        };
+        const nearest = new THREE.Vector3();
+        for (let iz = 0; iz <= TERRAIN_SEGMENTS; iz++) {
+            const z = minZ + depth * iz / TERRAIN_SEGMENTS;
+            for (let ix = 0; ix <= TERRAIN_SEGMENTS; ix++) {
+                const x = minX + width * ix / TERRAIN_SEGMENTS;
+                const t = this.nearestT(x, z);
+                const sample = Math.floor(t * QUERY_SAMPLES) * 2;
+                nearest.set(this.querySamples[sample], 0, this.querySamples[sample + 1]);
+                const dist = Math.hypot(x - nearest.x, z - nearest.z);
+                const blend = 1 - smooth(dist);
+                const y = baseY + (this.surfaceYAtT(t) - 0.05 - baseY) * blend;
+                pos.push(x, y, z);
+                uv.push(ix / TERRAIN_SEGMENTS * width / 18, iz / TERRAIN_SEGMENTS * depth / 18);
+            }
+        }
+        const row = TERRAIN_SEGMENTS + 1;
+        for (let iz = 0; iz < TERRAIN_SEGMENTS; iz++) {
+            for (let ix = 0; ix < TERRAIN_SEGMENTS; ix++) {
+                const a = iz * row + ix, b = a + 1, c = a + row, d = c + 1;
+                idx.push(a, c, b, b, c, d);
+            }
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+        geo.setIndex(idx);
+        geo.computeVertexNormals();
         const mesh = new THREE.Mesh(
-            new THREE.PlaneGeometry(width, depth),
+            geo,
             new THREE.MeshStandardMaterial({ color: 0x82a968, map: tex, roughness: 1, metalness: 0 }),
         );
-        mesh.rotation.x = -Math.PI / 2;
-        mesh.position.set((this.minCX + this.gw / 2) * BLOCK, -0.07, (this.minCZ + this.gh / 2) * BLOCK);
         mesh.receiveShadow = true;
         mesh.name = 'smooth-terrain';
         return mesh;

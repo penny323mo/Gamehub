@@ -117,6 +117,19 @@ const geo = await page.evaluate(async () => {
         posts: track.wallCount, trees: track.treeCount,
         calls: renderer.info.render.calls,
         tris: renderer.info.render.triangles,
+        surfaceY: [track.surfaceMinY, track.surfaceMaxY],
+        surfaceBank: Math.max(...Array.from({ length: 32 }, (_, i) =>
+            Math.abs(track.surfaceBankAtT(i / 32)))),
+        startSurfaceY: track.surfaceYAtT(track.startT),
+        carRenderY: car.renderY,
+        roadY: (() => {
+            const ys = [];
+            for (let i = 1; i < track.road.geometry.attributes.position.array.length; i += 3) {
+                ys.push(track.road.geometry.attributes.position.array[i]);
+            }
+            return [Math.min(...ys), Math.max(...ys)];
+        })(),
+        terrainVertices: track.ground.geometry.attributes.position.count,
     };
 });
 console.log('  ', JSON.stringify(geo));
@@ -128,6 +141,13 @@ check('車輛碰撞試探會重用 scratch position', geo.nextPositionScratch ==
 check('柏油有低對比中線／車轍參照而唔新增 draw call',
     geo.centreBright >= geo.edgeBright + 45, geo);
 check('有連續護欄支柱同賽道樹木', geo.posts > 200 && geo.trees >= 100, geo);
+check('賽道 render surface 有受限起伏同 banking，唔再係全平 y=0',
+    geo.surfaceY[1] - geo.surfaceY[0] > 0.3 && geo.roadY[1] - geo.roadY[0] > 0.6
+    && geo.surfaceBank > 0.01, geo);
+check('玩家車身起步 render pose 同路面高度對齊',
+    Math.abs(geo.carRenderY - geo.startSurfaceY) < 0.01, geo);
+check('草地 mesh 會喺賽道附近銜接高度（仍然單一 terrain mesh）',
+    geo.terrainVertices >= 32 * 32, geo.terrainVertices);
 check('完整 3D 世界 draw calls 維持手機預算（<18）', geo.calls < 18, geo.calls);
 check('三角形數量喺手機預算（<120k）', geo.tris < 120000, geo.tris);
 

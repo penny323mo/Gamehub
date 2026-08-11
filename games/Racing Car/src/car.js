@@ -178,6 +178,10 @@ export class Car {
         this.wallImpact = 0;
         this.bodyRoll = 0;
         this.bodyPitch = 0;
+        // 賽道路面起伏／banking 只係 render pose；物理位置仍然係 X/Z 平面。
+        this.renderY = 0;
+        this.trackBank = 0;
+        this._renderPose = { y: 0, bank: 0 };
         this.longAccel = 0;             // m/s²，畀 render layer 做載荷／推背感回饋
         this.lateralAccel = 0;
         this.lockFront = false;
@@ -211,12 +215,20 @@ export class Car {
         // frame 繼續沿用上一場嘅救車／鎖胎旗標——物理下一幀雖然會覆寫，
         // render 同 HUD 會先讀到一個假狀態。
         this.bodyRoll = 0;
+        this.renderY = 0;
+        this.trackBank = 0;
         this.unspinning = false;
         this.offroad = false;
         this.lockFront = false;
         this.lockRear = false;
         this.longAccel = 0;
         this.lateralAccel = 0;
+        this.#sync();
+    }
+
+    setRenderSurface(y = 0, bank = 0) {
+        this.renderY = Number.isFinite(y) ? y : 0;
+        this.trackBank = Number.isFinite(bank) ? bank : 0;
         this.#sync();
     }
 
@@ -508,6 +520,13 @@ export class Car {
             CFG.bodyPitchLimit,
         );
         this.bodyPitch += (targetPitch - this.bodyPitch) * Math.min(1, dt * CFG.bodyPitchRate);
+        // 路面高度同橫向 banking 只影響模型、陰影同鏡頭；唔寫入 pos.y，
+        // 因為既有碰撞／進度／救車規則係刻意建立喺 X/Z 格網上。
+        if (track?.renderPoseAt) {
+            track.renderPoseAt(this.pos.x, this.pos.z, this._renderPose);
+            this.renderY = this._renderPose.y;
+            this.trackBank = this._renderPose.bank;
+        }
         this.#sync();
     }
 
@@ -586,7 +605,7 @@ export class Car {
         // 車模係一件 rigid mesh，繞原點俯仰會令車底一邊落低。用模型量過嘅
         // 包絡補一個極細 render-only lift，保持輪胎貼地；物理位置仍然係 y=0。
         const pitchLift = Math.abs(this.bodyPitch) * CFG.bodyPitchLift;
-        this.root.position.set(this.pos.x, pitchLift, this.pos.z);
-        this.root.rotation.set(this.bodyPitch, this.yaw, this.bodyRoll, 'YZX');
+        this.root.position.set(this.pos.x, this.renderY + pitchLift, this.pos.z);
+        this.root.rotation.set(this.bodyPitch, this.yaw, this.bodyRoll + this.trackBank, 'YZX');
     }
 }

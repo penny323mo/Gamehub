@@ -8260,6 +8260,27 @@ settle delay，同 POSIX process group；超時會先 TERM、5 秒後只殺自�
 總結列出 `TIMEOUT` 並以非零碼結束。呢個係診斷／清理層，唔會將 timeout 當 pass；
 `race.mjs`、`setup.mjs` 等 authoritative suites 仍應喺資源充足時分開跑。
 
+## ADR-272 — Racing Car 以受限 render surface 打破完全平板賽道
+
+Date: 2026-08-12. Status: accepted.
+
+真 browser 視覺 audit 確認原本所有 road／kerb／guardrail vertex 都固定喺 `y=0`；
+車模雖然係 3D，但 chase camera 望住一張完全平嘅膠墊，令高速過彎缺少空間同重量
+參照。`Track` 現在預先由 240 個 X/Z query sample 烘一個低頻 `surfaceYProfile`，
+同一條曲線曲率推導封頂約 0.045 rad（約 2.6°）嘅 `surfaceBankProfile`。ribbon、
+紅白 kerb、起跑線、護欄 tube 同附近 32×32 terrain mesh 只喺 build 時跟 profile
+對齊；`Car.renderY`／`trackBank`、rival/ghost instance、接地影同 chase camera
+只讀 render pose。物理 `pos.y`、碰撞、nearestT、checkpoint、進度同速度完全不讀
+呢個高度，保持既有 bicycle model 同所有賽道規則。
+
+真 browser gates：`race.mjs` **126/126**、`setup.mjs` **134/134**、`rivals.mjs`
+**61/61**、`ghost.mjs` **29/29**、`season.mjs` **55/55**、`audio.mjs` **33/33**；
+setup 量到 surface **−0.375…+0.379m**、bank **0.045rad**、road **−0.886…+0.919m**，
+完整世界 **15 calls／56,873 tris**，最繁忙效果 **16 calls／53,025 tris**，零
+page/console errors。844×390 dusk smoke 讀到玩家 **37 km/h**、surfaceY **0.345m**、
+rootY **0.440m**、FOV **62.80**、effects particles **1**，截圖留喺
+`/tmp/racing-elevation-dusk-v1.png`。
+
 ## ADR-271 — Racing Car 重開姿態同駕駛回饋必須同一個 bounded render pass
 
 Date: 2026-08-12. Status: accepted.
