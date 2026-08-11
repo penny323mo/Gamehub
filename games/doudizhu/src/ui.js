@@ -180,10 +180,15 @@
     if (els.restartBtn) els.restartBtn.addEventListener('click', onRestartClick);
     document.getElementById('restartBtn2')?.addEventListener('click', onRestartClick);
 
-    function bidCpuLoop() {
-      const step = () => {
-        if (state.phase !== 'bid') { render(game); return; }
-        if (state.current === 0) { render(game); return; }
+    function startCpuLoops() {
+      const token = window.beginDoudizhuCpuGeneration?.() ?? null;
+      const schedule = (fn, delay) => {
+        if (window.scheduleDoudizhuCpu && token !== null) window.scheduleDoudizhuCpu(fn, delay, token);
+        else setTimeout(fn, delay);
+      };
+
+      const runBid = () => {
+        if (state.phase !== 'bid' || state.current === 0) { render(game); return; }
 
         const decision = cpuBidDecision(state.players[state.current].hand, state.bid);
         if (decision === 'call') actions.bidCall();
@@ -191,16 +196,24 @@
         else actions.bidPass();
 
         render(game);
-
-        if (state.phase === 'play' && state.current !== 0) {
-          playCpuLoop();
-          return;
-        }
-
-        setTimeout(step, 450);
+        if (state.phase === 'play' && state.current !== 0) schedule(runPlay, 450);
+        else if (state.phase === 'bid' && state.current !== 0) schedule(runBid, 450);
       };
-      setTimeout(step, 450);
+
+      const runPlay = () => {
+        if (state.phase !== 'play' || state.current === 0) { render(game); return; }
+        actions.cpuStep();
+        render(game);
+        if (state.phase === 'play' && state.current !== 0) schedule(runPlay, 450);
+      };
+
+      if (state.phase === 'bid' && state.current !== 0) schedule(runBid, 450);
+      else if (state.phase === 'play' && state.current !== 0) schedule(runPlay, 450);
     }
+
+    window.startDoudizhuCpuLoops = startCpuLoops;
+    function bidCpuLoop() { startCpuLoops(); }
+    function playCpuLoop() { startCpuLoops(); }
 
     els.bidCallBtn.addEventListener('click', () => {
       actions.bidCall();

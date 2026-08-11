@@ -207,7 +207,17 @@ The browser flow covers mobile local start → CPU delayed turn, immediate exit 
 that an old CPU timer generation cannot consume cards from the new deal. It also checks the two local script
 cache tokens stay aligned; optional online probes are intentionally blocked in the offline harness.
 
-### Royale, Snooker, Dou Dizhu, Penny Crush
+### Dou Dizhu
+
+```sh
+PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/doudizhu-flow.mjs
+```
+
+The browser flow covers mobile local start → human bid → delayed CPU bid, immediate exit and fresh restart, and
+verifies that an old bidding/play timer generation cannot mutate the new deal. It also checks the eight local
+script cache tokens stay aligned; optional online probes are intentionally blocked in the offline harness.
+
+### Royale, Snooker, Penny Crush
 
 There is no single root test command that certifies these games. Use targeted
 tests or existing self-check hooks where present, syntax/import checks where

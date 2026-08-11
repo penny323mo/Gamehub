@@ -15,6 +15,39 @@
   const { clearMovesCache } = DDZ;
   const { cpuChooseMove, cpuBidDecision } = DDZ;
 
+  // CPU bidding/playback is intentionally delayed so the table remains
+  // readable. A delayed callback must not survive a mode switch, restart, or
+  // Continue into a different deal and mutate the new game.
+  let cpuTimer = null;
+  let cpuToken = 0;
+
+  function cancelQueuedCpu() {
+    cpuToken += 1;
+    if (cpuTimer !== null) {
+      clearTimeout(cpuTimer);
+      cpuTimer = null;
+    }
+  }
+
+  function beginCpuGeneration() {
+    cancelQueuedCpu();
+    return cpuToken;
+  }
+
+  function scheduleCpu(fn, delay, token = cpuToken) {
+    if (token !== cpuToken) return;
+    if (cpuTimer !== null) clearTimeout(cpuTimer);
+    cpuTimer = setTimeout(() => {
+      cpuTimer = null;
+      if (token !== cpuToken) return;
+      fn();
+    }, delay);
+  }
+
+  window.cancelQueuedDoudizhuCpu = cancelQueuedCpu;
+  window.beginDoudizhuCpuGeneration = beginCpuGeneration;
+  window.scheduleDoudizhuCpu = scheduleCpu;
+
   function makeGame(){
     const state = {
       phase: 'idle', // 'bid' | 'play' | 'over'
@@ -49,6 +82,7 @@
     };
 
     function resetForNewRound(){
+      cancelQueuedCpu();
       clearMovesCache();
       state.lastPlay = null;
       state.passes = [false,false,false];
@@ -69,6 +103,7 @@
     }
 
     function deal(){
+      cancelQueuedCpu();
       清局();   // 開新局＝放棄上一局
       resetForNewRound();
 
@@ -279,6 +314,7 @@
     }
 
     function 續局(){
+      cancelQueuedCpu();
       const j = 讀局();
       if (!j) return null;
       state.phase = j.phase;
@@ -376,7 +412,7 @@
         
         // Host trigger first bid if it is CPU
         if (window.isOnlineHost() && !room[`player${state.current}_id`]) {
-           setTimeout(() => { if (window.__ddz.actions.cpuBidStep) window.__ddz.actions.cpuBidStep(); }, 1500);
+           scheduleCpu(() => { if (window.__ddz.actions.cpuBidStep) window.__ddz.actions.cpuBidStep(); }, 1500);
         }
       }
     };
@@ -400,8 +436,8 @@
       if (window.gameMode === 'online' && window.isOnlineHost()) {
          const nextId = window.currentRoom ? window.currentRoom[`player${state.current}_id`] : null;
          if (!nextId) {
-            if (state.phase === 'bid') setTimeout(() => { if (window.__ddz.actions.cpuBidStep) window.__ddz.actions.cpuBidStep(); }, 1500);
-            else if (state.phase === 'play') setTimeout(() => { cpuStep(); }, 1500);
+            if (state.phase === 'bid') scheduleCpu(() => { if (window.__ddz.actions.cpuBidStep) window.__ddz.actions.cpuBidStep(); }, 1500);
+            else if (state.phase === 'play') scheduleCpu(() => { cpuStep(); }, 1500);
          }
       }
     };
@@ -420,8 +456,9 @@
         if (window.DDZ.render) window.DDZ.render(window.__ddz);
         // 存嗰陣可能啱啱輪到電腦——唔叫佢行，個局就會永遠等你出一手唔到你出嘅牌
         if (state.current !== 0) {
-          if (state.phase === 'bid') setTimeout(() => window.__ddz.actions.cpuBidStep?.(), 600);
-          else setTimeout(() => cpuStep(), 600);
+          if (window.startDoudizhuCpuLoops) window.startDoudizhuCpuLoops();
+          else if (state.phase === 'bid') scheduleCpu(() => window.__ddz.actions.cpuBidStep?.(), 600);
+          else scheduleCpu(() => cpuStep(), 600);
         }
         return true;
       },

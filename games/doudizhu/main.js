@@ -17,6 +17,7 @@
 
   // Expose mode switcher
   window.setGameMode = function(mode) {
+    window.cancelQueuedDoudizhuCpu?.();
     window.gameMode = mode;
     document.getElementById('landing-page')?.classList.add('hidden');
     document.getElementById('online-lobby')?.classList.add('hidden');

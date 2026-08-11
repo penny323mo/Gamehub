@@ -7935,3 +7935,15 @@ Big Two 為咗畀玩家睇清楚每一步，用 450/600ms timer chain 執行 CPU
 續局同新 deal 都會 invalidate 舊 generation；只有當前 generation 可以再 schedule 下一步。`tests/big2-flow.mjs`
 用真實 mobile browser 先開 CPU turn、即刻退出再開 CPU turn，守住舊 generation **0** fire 同新局正常
 **1** 個 CPU turn。兩個 local script 共用新 cache token，避免 Pages/Safari 混載舊 queue code。
+
+## ADR-248 — Dou Dizhu 叫牌／出牌 CPU loop 要共用 generation
+
+Date: 2026-08-11. Status: accepted.
+
+Dou Dizhu 有兩套 delayed loop：叫地主同出牌。原本兩套都直接 `setTimeout`，退出、重新發牌、續局或
+切換 online mode 時冇取消；舊叫牌 callback 可以落入新局，亦會同新局 loop 疊加。
+
+`game.js` 提供單一 timer handle 加 generation scheduler，`ui.js` 嘅 bid/play loop、Continue 同 online
+CPU fallback 全部經同一個 seam；`main.js` mode switch 先 invalidate 舊 generation。`tests/doudizhu-flow.mjs`
+用真實 mobile browser 守住舊 generation **0** fire、新局正常 **1** 個 CPU 叫牌回合，同八個 local script
+cache token 一致。

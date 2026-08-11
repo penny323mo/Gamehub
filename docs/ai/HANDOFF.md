@@ -5,7 +5,7 @@ Prepared by: Codex — integrated Game Hub product-audit checkpoint
 Integration branch: `main`
 Work branch: `main`
 Status: the latest integrated player-flow audit is green; Xiangqi's optional environment light, undo/resume flow,
-Gomoku's delayed-AI lifecycle, and Big Two's CPU queue lifecycle are hardened. This checkpoint contains the source fixes, gates, and verification.
+Gomoku's delayed-AI lifecycle, Big Two's CPU queue, and Dou Dizhu's bid/play loops are hardened. This checkpoint contains the source fixes, gates, and verification.
 
 ## Current objective
 
@@ -28,7 +28,7 @@ Gomoku's delayed-AI lifecycle, and Big Two's CPU queue lifecycle are hardened. T
 - The Xiangqi 3D entry was also checked under a throttled mobile network: its landing menu became usable while
   the optional environment map was still pending, so slow HDR download does not block the game entry.
 
-**Tower Defense, Xiangqi, Gomoku, and Big Two verification**
+**Tower Defense, Xiangqi, Gomoku, Big Two, and Dou Dizhu verification**
 
 - Tower core, map/route redesign, assets, combat, units, gateway/keep placement, look, map browser, touch, load,
   flow, projectile renderer, and standalone renderer/performance checks passed.
@@ -36,7 +36,7 @@ Gomoku's delayed-AI lifecycle, and Big Two's CPU queue lifecycle are hardened. T
   CC0 HDRI is now bundled under `games/xiangqi-ai/assets/`, imported with Vite `?url`, copied into tracked
   `dist/assets/`, and guarded by a short load-failure status notice; local lights keep the board playable. Real mobile
   tap → AI → undo → refresh/Continue flow is **4/4**. Gomoku's real mobile stale-timer/restart flow is **5/5**;
-  Big Two's real mobile stale-queue/restart flow is **4/4**.
+  Big Two's real mobile stale-queue/restart flow is **4/4**; Dou Dizhu's real mobile stale-bid/restart flow is **4/4**.
 
 **Earlier relay checkpoints remain integrated**
 
@@ -47,10 +47,10 @@ Gomoku's delayed-AI lifecycle, and Big Two's CPU queue lifecycle are hardened. T
 
 - `games/xiangqi-ai/js/render.js`, `js/app.js`, `js/main.js` — bundled HDR/fallback, deferred online probe, and undo/storage fixes.
 - `games/gomoku/js/ai.js`, `js/input.js`, `js/app.js`, `index.html` — cancellable/token-guarded AI timer and aligned cache token.
-- `games/big2/app.js`, `index.html` — cancellable/token-guarded CPU queue and aligned cache token.
+- `games/big2/app.js`, `index.html` — cancellable/token-guarded CPU queue and aligned cache token; `games/doudizhu/src/game.js`, `src/ui.js`, `main.js`, `index.html` — shared generation scheduler for bid/play loops and aligned cache tokens.
 - `games/xiangqi-ai/assets/studio_small_09_1k.hdr` and `assets/README.md` — CC0 environment asset plus provenance/hash.
 - `games/xiangqi-ai/dist/` — regenerated tracked entry bundle and HDR asset for GitHub Pages.
-- `tests/hub-cdn.mjs`, `tests/xiangqi-flow.mjs`, `tests/gomoku-flow.mjs`, `tests/big2-flow.mjs` — assert self-contained assets and player flows.
+- `tests/hub-cdn.mjs`, `tests/xiangqi-flow.mjs`, `tests/gomoku-flow.mjs`, `tests/big2-flow.mjs`, `tests/doudizhu-flow.mjs` — assert self-contained assets and player flows.
 - `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md`, `docs/ai/HANDOFF.md` — durable architecture/ADR/relay notes.
 
 ## Verification
@@ -66,6 +66,7 @@ Gomoku's delayed-AI lifecycle, and Big Two's CPU queue lifecycle are hardened. T
   stale AI timer cannot contaminate a fresh game, normal AI response still works, and local cache tokens agree.
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/big2-flow.mjs` — **4/4**;
   stale CPU queue cannot consume a fresh deal, normal CPU response still works, and local cache tokens agree.
+- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/doudizhu-flow.mjs` — **4/4**; stale bid/play timer cannot mutate a fresh deal, normal CPU bid still works, and local cache tokens agree.
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/hub.mjs` — **96/96**;
   13 launcher entries, four pages, mobile 2×2 / desktop four-up layout, no dead links or browser errors.
 - `cd games/tower && npm test` — build, all core gates, browser gates, and projectile-renderer gates passed. The
@@ -86,7 +87,6 @@ Gomoku's delayed-AI lifecycle, and Big Two's CPU queue lifecycle are hardened. T
 - Earlier checkpoint evidence remains valid: Elden Ring II HUD **92/92** plus `npm test` **17/17**; Ashen Rail
   asset audit/lint/Vitest **14/14**/build plus 844×390 browser smoke; Racing Car independent real-browser suites
   race **124/124**, setup **125/125**, rivals **61/61**, ghost **29/29**, season **55/55**, audio **32/32**.
-- `./scripts/check-handoff.sh` and `git diff --check` — must be run immediately before the checkpoint commit.
 
 ## Known issues and cautions
 
