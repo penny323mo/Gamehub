@@ -667,12 +667,16 @@ export class Track {
     // 唔參與碰撞、檢查點或者 AI 路線。
     #buildLandmarks() {
         const shape = new THREE.Shape();
-        shape.moveTo(-0.64, -0.42);
+        shape.moveTo(-0.08, -1.18);
+        shape.lineTo(-0.08, -0.42);
+        shape.lineTo(-0.64, -0.42);
         shape.lineTo(0.08, -0.42);
         shape.lineTo(0.64, 0);
         shape.lineTo(0.08, 0.42);
         shape.lineTo(-0.64, 0.42);
         shape.lineTo(-0.14, 0);
+        shape.lineTo(0.08, -0.42);
+        shape.lineTo(0.08, -1.18);
         shape.closePath();
         const geometry = new THREE.ShapeGeometry(shape);
         const style = {

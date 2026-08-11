@@ -8355,3 +8355,15 @@ yellow palette，牌面用高對比 `MeshBasicMaterial`，避免背光變黑；�
 
 setup gate 會驗證 instance 數、draw identity、牌位距離道路／護欄範圍同距離地表高度；日後
 如需加橋、看台或大型 billboard，先證明仍可維持單一 bounded pass，再另立 ADR。
+
+## ADR-276 — Racing Car 彎位地標要有支撐感，但不增加 draw pass
+
+Date: 2026-08-12. Status: accepted.
+
+真 browser audit 將鏡頭對準自然生成嘅 chevron 後，確認原本只得薄牌面，近鏡似貼紙，
+唔似路旁提示牌。今輪將同一個 `ShapeGeometry` 輪廓延伸出短 stem，令牌面由本地地表
+附近開始向上伸；仍然係單一 `corner-chevron-landmarks` `InstancedMesh`、單一
+`MeshBasicMaterial` draw call，冇新增 collider、AI、checkpoint 或速度耦合。setup 維持
+**142/142**、完整世界 **16 calls／56,933 tris**；844×390 browser audit 截圖為
+`/tmp/racing-landmark-pole-audit.png`。日後若改成真正 3D 立柱，先重新量手機 draw budget，
+唔好直接為每個彎位新增 mesh。

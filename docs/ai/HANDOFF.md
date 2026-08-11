@@ -1,7 +1,7 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Racing Car corner-landmark and high-contrast road-read pass
+Prepared by: Codex — Racing Car upright corner-landmark pass
 Integration branch: `main`
 Work branch: `main`
 Status: Racing source, tests, browser smoke and docs are ready for the next
@@ -31,10 +31,11 @@ browser evidence for every visual or control change.
 - The speed layer now starts at `10 m/s` instead of `16 m/s`, reaches stronger
   readable intensity by roughly 80 km/h, and has a slightly clearer gradient;
   it remains pointer-transparent, HUD-safe, render-only and draw-call neutral.
-- Each track now builds 6–14 render-only outside-corner chevrons from its sampled
-  curvature. They share one `corner-chevron-landmarks` InstancedMesh, use
-  orange/cyan/yellow track palettes, sit about 17.5m outside the ribbon and
-  inside the guardrail, and stay independent from physics, AI and checkpoints.
+- Each track now builds 6–14 render-only outside-corner chevron signs from its
+  sampled curvature. The high-contrast face and short integral stem share one
+  `corner-chevron-landmarks` InstancedMesh; signs use orange/cyan/yellow track
+  palettes, sit about 17.5m outside the ribbon and inside the guardrail, and
+  stay independent from physics, AI and checkpoints.
 - Existing sport-arcade envelope, auto-throttle/simple controls, drift assists,
   speed layer, bounded effects, rivals/ghost/season and lifecycle contracts are
   unchanged.
@@ -60,7 +61,7 @@ browser evidence for every visual or control change.
 - `setup.mjs` — **142/142**; closed height/pitch seam, terrain/guardrail pose,
   mobile layout/touch/gyro, day/night, lifecycle/context loss, draw budget,
   speed-layer opacity, 6–14 landmark placement/material/draw gates and zero
-  browser errors. Latest full-world read: **16 calls／56,913 tris**; effects
+  browser errors. Latest full-world read: **16 calls／56,933 tris**; effects
   remain **17 calls**.
 - `rivals.mjs` — **61/61**; four AI rivals, ranking, minimap, instancing and
   lat-G gates green, zero browser errors.
@@ -76,9 +77,9 @@ browser evidence for every visual or control change.
   `/tmp/racing-speed-feedback-v1.png`; 320×568 portrait smoke at **61 km/h**
   reads opacity **0.179**, no control overlap or browser errors:
   `/tmp/racing-speed-portrait-v1.png`.
-- 844×390 live browser render sanity moved one landmark to the camera to verify
-  the high-contrast orange face is actually visible; screenshot:
-  `/tmp/racing-landmark-forced-uniform.png`. Placement is separately guarded by
+- 844×390 real browser audit aimed at a naturally generated landmark position;
+  the orange chevron reads as an upright sign with a visible short stem:
+  `/tmp/racing-landmark-pole-audit.png`. Placement is separately guarded by
   setup (17.48–17.58m lateral, ≥0.97m above the local banked surface).
 - A separate season startup once hit the known Chromium allocator pressure;
   the immediate authoritative rerun completed **55/55**. Do not treat an
@@ -102,10 +103,9 @@ browser evidence for every visual or control change.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-275.
-2. Inspect the latest corner render and do one phone-sized feel review; if the
-   chevrons need repositioning, keep them render-only and preserve the single
-   instanced pass.
+1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-276.
+2. Inspect `/tmp/racing-landmark-pole-audit.png` at phone-sized scale; if the
+   signs need repositioning, keep them render-only and preserve the single pass.
 3. For any further change, rerun the named Racing suites, update this handoff,
    run `./scripts/check-handoff.sh`, then commit/push the verified checkpoint.
 

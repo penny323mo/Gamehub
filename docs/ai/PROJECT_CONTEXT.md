@@ -103,11 +103,12 @@ repository as a static site.
   existing texture/effects instance pass so the mobile draw budget does not gain a
   road-marker or tail-smoke pass. Terrain height is built once as a 32×32 mesh;
   do not replace it with per-frame terrain generation or a second road pass.
-- Racing Car's corner chevrons are render-only warning shapes built once from the
-  profile curvature. Keep them outside the road ribbon and inside the guardrail,
-  use the single `corner-chevron-landmarks` InstancedMesh (six to fourteen
-  instances per track), and keep their track palette/high contrast independent
-  from steering, collision, checkpoints, progress and speed.
+- Racing Car's corner chevrons are upright render-only warning signs built once
+  from profile curvature. Their single shape includes a short integral stem;
+  keep them outside the road ribbon and inside the guardrail, use the single
+  `corner-chevron-landmarks` InstancedMesh (six to fourteen instances per
+  track), and keep palette/high contrast independent from steering, collision,
+  checkpoints, progress and speed.
 - Racing Car's current sport envelope is deliberately bounded: `engineForce=10000`,
   `maxSpeed=68`, `dragCoef=2.4`, and `handbrakeGrip=0.35` are tuned against the
   physical drift/ABS gates. The speed-streak layer begins at `10 m/s` and remains
