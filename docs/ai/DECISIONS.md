@@ -7971,3 +7971,16 @@ Snake 的全域 `keydown` handler 會用 Enter 啟動未開始嘅局面。名稱
 原本 game board 固定 500px，手機 390px 即使 menu 蓋住仍會令 document 橫向 overflow。`.gameWrapper`、header
 同 board 而家以 viewport-bound width/`aspect-ratio` 排版，desktop 保留 500px 上限。`tests/snake-flow.mjs`
 用真實 mobile browser 守住 Enter isolation、開局 tick、pause/resume、遊戲中無 overflow、返回 Hub 同 zero errors。
+
+## ADR-251 — Snake 加速要分開按鍵持有同限時 power-up
+
+Date: 2026-08-11. Status: accepted.
+
+Snake 有兩種加速來源：玩家按住 Shift，以及食物帶來嘅 `speedBoostUntil`。兩者唔可以只靠一個
+「曾經開過」嘅 boolean：如果 tick 將限時效果寫成 `prev.isSpeedBoost || timedActive`，expiry 之後
+會永遠保持加速；如果 render 直接讀 `Date.now()`，又會令 React purity lint 失效。
+
+`Game.tsx` 以 ref 記住 Shift 是否仍然按住，並喺每次 game tick 重新計算
+`isSpeedBoost = shiftHeld || speedBoostUntil > now`。keyup 會即時清除手動來源，但仍保留未到期嘅
+食物效果；`currentSpeed` 只讀 state。日後修改加速、pause 或 timed mode 時，必須保留呢個 expiry seam，
+並用 `tests/snake-flow.mjs` 加真 browser smoke 驗證。

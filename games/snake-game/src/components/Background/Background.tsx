@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import styles from '../../styles/Background.module.css';
 
+/* These effects hydrate generated visual particles and then animate them. */
+/* eslint-disable react-hooks/set-state-in-effect */
+
 type WeatherEffect = 'none' | 'rain' | 'snow' | 'thunder';
 
 interface BackgroundProps {

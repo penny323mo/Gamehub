@@ -1,11 +1,17 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { GameState, Position, Direction, Food, Level, Obstacle, GameMode, GameSettings } from '../../types/game';
+import type { GameState, Position, Direction, Food, Obstacle, GameMode, GameSettings } from '../../types/game';
 
 let _audioCtx: AudioContext | null = null;
+type AudioContextWindow = Window & typeof globalThis & {
+  webkitAudioContext?: typeof AudioContext;
+};
+
 const getAudioContext = (): AudioContext | null => {
   if (_audioCtx) return _audioCtx;
   try {
-    _audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const AudioContextCtor = window.AudioContext || (window as AudioContextWindow).webkitAudioContext;
+    if (!AudioContextCtor) return null;
+    _audioCtx = new AudioContextCtor();
     return _audioCtx;
   } catch (e) {
     console.warn('AudioContext unavailable:', e);
@@ -148,16 +154,14 @@ const getOppositeDirection = (dir: Direction): Direction => {
 };
 
 export default function Game() {
-  const [currentLevel, setCurrentLevel] = useState<Level>(LEVELS[0]);
-  const obstaclesRef = useRef<Obstacle[]>([]);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const speedBoostHeldRef = useRef(false);
   const prevStateRef = useRef<GameState | null>(null);
   const 格數Ref = useRef(0);
 
   function initializeGame(level: number): GameState {
     const levelData = LEVELS[level - 1] || LEVELS[0];
     const obstacles = structuredClone(levelData.obstacles);
-    obstaclesRef.current = obstacles;
 
     return {
       snake: [
@@ -187,6 +191,7 @@ export default function Game() {
   }
 
   const [gameState, setGameState] = useState<GameState>(() => initializeGame(1));
+  const currentLevel = LEVELS[gameState.level - 1] || LEVELS[0];
   const {
     currentUserName,
     scores,
@@ -204,7 +209,7 @@ export default function Game() {
   const [showAchievements, setShowAchievements] = useState(false);
   const [showSkinSelector, setShowSkinSelector] = useState(false);
   const [showGameMenu, setShowGameMenu] = useState(true);
-  const [particleTrigger, _setParticleTrigger] = useState(0);
+  const [particleTrigger] = useState(0);
   const [gameMode, setGameMode] = useState<GameMode>('CLASSIC');
   const [timeRemaining, setTimeRemaining] = useState<number>(TIMED_MODE_DURATION);
 
@@ -225,7 +230,7 @@ export default function Game() {
     return obstacles.map(obs => {
       if (obs.type !== 'MOVING') return obs;
 
-      let newPos = { ...obs.position };
+      const newPos = { ...obs.position };
       let newDir = obs.direction || 'RIGHT';
 
       const move = () => {
@@ -278,8 +283,6 @@ export default function Game() {
 
       const now = Date.now();
       let newInvincible = prev.isInvincible;
-      // let newSpeedBoost = prev.speedBoostUntil ? prev.speedBoostUntil > now : false;
-
       if (prev.invincibleUntil && prev.invincibleUntil < now) {
         newInvincible = false;
       }
@@ -289,7 +292,7 @@ export default function Game() {
       const isMagnet = prev.magnetUntil ? prev.magnetUntil > now : false;
       const isDouble = prev.doubleUntil ? prev.doubleUntil > now : false;
 
-      let newSnake = [...prev.snake];
+      const newSnake = [...prev.snake];
       const head = { ...newSnake[0] };
       // REVERSE 效果：控制方向反轉（撳左行右）
       const desiredDir = isReversed ? getOppositeDirection(prev.nextDirection) : prev.nextDirection;
@@ -360,14 +363,12 @@ export default function Game() {
       }
 
       const newObstacles = moveObstacles(prev.obstacles);
-      obstaclesRef.current = newObstacles;
 
       const collisionWithObstacle = newObstacles.some(obs =>
         obs.position.x === head.x && obs.position.y === head.y
       );
-      if (collisionWithObstacle) {
-        if (prev.isInvincible) {
-        } else if (prev.hasShield) {
+      if (collisionWithObstacle && !prev.isInvincible) {
+        if (prev.hasShield) {
           return { ...prev, hasShield: false };
         } else {
           const newLives = prev.lives - 1;
@@ -393,7 +394,7 @@ export default function Game() {
       newSnake.unshift(head);
 
       // MAGNET 效果：附近嘅食物每一格慢慢被吸埋嚟
-      let magnetFood = prev.food;
+      let magnetFood = prev.food ?? spawnFood(prev.snake, prev.obstacles);
       if (isMagnet && magnetFood) {
         const dx = head.x - magnetFood.position.x;
         const dy = head.y - magnetFood.position.y;
@@ -465,19 +466,20 @@ export default function Game() {
       if (shouldAdvanceLevel) {
         const nextLevel = prev.level + 1;
         const newLevelData = LEVELS[nextLevel - 1];
-        obstaclesRef.current = structuredClone(newLevelData.obstacles);
+        const nextObstacles = structuredClone(newLevelData.obstacles);
         return {
           ...prev,
           snake: newSnake,
           direction: nextDir,
           food: newFood,
-          obstacles: obstaclesRef.current,
+          obstacles: nextObstacles,
           score: newScore,
           level: nextLevel,
           hasShield: newHasShield,
           isInvincible: newInvincible,
           invincibleUntil: newInvincibleUntil,
           speedBoostUntil: newSpeedBoostUntil,
+          isSpeedBoost: speedBoostHeldRef.current || Boolean(newSpeedBoostUntil && newSpeedBoostUntil > now),
           isGhost,
           isReversed,
           isMagnet,
@@ -500,6 +502,7 @@ export default function Game() {
         isInvincible: newInvincible,
         invincibleUntil: newInvincibleUntil,
         speedBoostUntil: newSpeedBoostUntil,
+        isSpeedBoost: speedBoostHeldRef.current || Boolean(newSpeedBoostUntil && newSpeedBoostUntil > now),
         isGhost,
         isReversed,
         isMagnet,
@@ -510,18 +513,9 @@ export default function Game() {
         doubleUntil: newDoubleUntil,
       };
     });
-  }, [currentLevel, moveObstacles, saveScore, spawnFood]);
+  }, [moveObstacles, saveScore, spawnFood]);
 
-  useEffect(() => {
-    if (gameState.food === null && gameState.isRunning) {
-      setGameState(prev => ({
-        ...prev,
-        food: spawnFood(prev.snake, prev.obstacles),
-      }));
-    }
-  }, [gameState.food, gameState.isRunning, spawnFood]);
-
-  const currentSpeed = (gameState.speedBoostUntil && gameState.speedBoostUntil > Date.now()) || gameState.isSpeedBoost
+  const currentSpeed = gameState.isSpeedBoost
     ? currentLevel.speed * 0.5
     : currentLevel.speed;
 
@@ -585,11 +579,6 @@ export default function Game() {
   }, []);
 
   useEffect(() => {
-    const levelData = LEVELS[gameState.level - 1] || LEVELS[0];
-    setCurrentLevel(levelData);
-  }, [gameState.level]);
-
-  useEffect(() => {
     const prev = prevStateRef.current;
     if (prev && gameState.isGameOver && !prev.isGameOver) {
       playSoundEffect('die', settings);
@@ -635,6 +624,7 @@ export default function Game() {
       }
 
       if (e.key === 'Shift') {
+        speedBoostHeldRef.current = true;
         setGameState(prev => ({ ...prev, isSpeedBoost: true }));
         return;
       }
@@ -685,7 +675,7 @@ export default function Game() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameState.isGameOver, gameState.isRunning, togglePause]);
+  }, [gameMode, gameState.isGameOver, gameState.isRunning, togglePause]);
 
   useEffect(() => {
     const gameBoard = document.querySelector(`.${styles.gameBoard}`);
@@ -769,12 +759,16 @@ export default function Game() {
       }, 1000);
       return () => clearInterval(timer);
     }
-  }, [gameMode, gameState.isRunning, gameState.isPaused]);
+  }, [gameMode, gameState.isRunning, gameState.isPaused, saveScore, settings, timeRemaining]);
 
   useEffect(() => {
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === 'Shift') {
-        setGameState(prev => ({ ...prev, isSpeedBoost: false }));
+        speedBoostHeldRef.current = false;
+        setGameState(prev => ({
+          ...prev,
+          isSpeedBoost: Boolean(prev.speedBoostUntil && prev.speedBoostUntil > Date.now()),
+        }));
       }
     };
     window.addEventListener('keyup', handleKeyUp);
@@ -922,7 +916,7 @@ export default function Game() {
 
       {showGameMenu && (
         <GameMenu
-          onStart={(mode, _diff) => {
+          onStart={(mode) => {
             setGameMode(mode);
             setShowGameMenu(false);
             setGameState(initializeGame(1));

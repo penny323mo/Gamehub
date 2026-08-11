@@ -4,7 +4,7 @@ Updated: 2026-08-11 (Asia/Macau)
 Prepared by: Codex — integrated Game Hub product-audit checkpoint
 Integration branch: `main`
 Work branch: `main`
-Status: the latest integrated player-flow audit is green; Xiangqi's optional environment light, undo/resume flow, Gomoku's delayed-AI lifecycle, Big Two's CPU queue, Dou Dizhu's bid/play loops, Penny Crush's async match lifecycle, Snooker's root/2D/3D entry flow, and Snake's mobile login/board lifecycle are hardened. This checkpoint contains the source fixes, gates, and verification.
+Status: the latest integrated player-flow audit is green; Xiangqi's optional environment light, undo/resume flow, Gomoku's delayed-AI lifecycle, Big Two's CPU queue, Dou Dizhu's bid/play loops, Penny Crush's async match lifecycle, Snooker's root/2D/3D entry flow, and Snake's mobile login/board/lint lifecycle are hardened. This checkpoint contains the source fixes, gates, and verification.
 
 ## Current objective
 
@@ -49,7 +49,7 @@ Royale loading feedback, Tower start-screen contrast, Elden browser-gate isolati
 - `games/xiangqi-ai/assets/studio_small_09_1k.hdr` and `assets/README.md` — CC0 environment asset plus provenance/hash.
 - `games/xiangqi-ai/dist/` — regenerated tracked entry bundle and HDR asset for GitHub Pages.
 - `tests/hub-cdn.mjs`, `tests/xiangqi-flow.mjs`, `tests/gomoku-flow.mjs`, `tests/big2-flow.mjs`, `tests/doudizhu-flow.mjs`, `tests/penny-crush-flow.mjs`, `tests/snooker-flow.mjs`, `tests/snake-flow.mjs` — assert self-contained assets and player flows.
-- `games/snake-game/src/components/NameInput/NameInput.tsx`, `styles/Game.module.css`, and tracked `dist/` — isolate Enter login and bind the board/header to mobile viewport width.
+- `games/snake-game/src/components/NameInput/NameInput.tsx`, `src/components/Game/Game.tsx`, `src/components/Background/Background.tsx`, `src/components/Particles/Particles.tsx`, `src/hooks/useStorage.ts`, `styles/Game.module.css`, and tracked `dist/` — isolate Enter login, bind the board/header to mobile viewport width, clean lint, and keep timed/held boosts finite.
 - `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md`, `docs/ai/HANDOFF.md` — durable architecture/ADR/relay notes.
 
 ## Verification
@@ -67,7 +67,8 @@ Royale loading feedback, Tower start-screen contrast, Elden browser-gate isolati
   stale CPU queue cannot consume a fresh deal, normal CPU response still works, and local cache tokens agree.
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/doudizhu-flow.mjs` — **4/4**; stale bid/play timer cannot mutate a fresh deal, normal CPU bid still works, and local cache tokens agree.
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/penny-crush-flow.mjs` — Penny Crush **6/6**; `node tests/snooker-flow.mjs` — **9/9**.
-- `PW_CHROMIUM='/Users/penny323/Library/Caches/ms-playwright/chromium-1234/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome' node tests/snake-flow.mjs` — **8/8** (mobile Enter isolation, responsive board, tick/pause/resume/Hub, zero browser errors).
+- `cd games/snake-game && npm run lint && npm run build` — lint **0 errors/0 warnings** and tracked production dist rebuilt.
+- `PW_CHROMIUM="$CHROMIUM_BIN" node tests/snake-flow.mjs` (Chromium executable supplied by the environment) — **8/8** (mobile Enter isolation, responsive board, tick/pause/resume/Hub, zero browser errors).
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/hub.mjs` — **96/96**;
   13 launcher entries, four pages, mobile 2×2 / desktop four-up layout, no dead links or browser errors.
 - `cd games/tower && npm test` — build, core/browser/projectile gates passed; an integrated performance run once hit a
@@ -99,15 +100,14 @@ Royale loading feedback, Tower start-screen contrast, Elden browser-gate isolati
   CI rebuilds them from source.
 - If changing Tower/Snake/Xiangqi source, rebuild their tracked `dist/` before committing. MOBA imports and the Hub
   entry must keep one cache token.
-- Snake `npm run lint` still reports 12 pre-existing React/ESLint errors; TypeScript/Vite build and the real mobile
-  flow gate pass. Do not treat the lint baseline as evidence that this checkpoint's browser fix failed.
+- Snake `npm run lint` is clean; three intentional external/visual hydration effects use narrow `react-hooks/set-state-in-effect` suppressions. Vite's classic `safe-storage.js` warning remains non-fatal; the build exits 0 and the tracked dist target is valid.
 - No force-push to shared `main`; preserve any dirty/diverged state another agent leaves behind.
 
 ## Exact next action
 
 1. Run `./scripts/agent-context.sh --sync`, then read this file and `docs/ai/PROJECT_CONTEXT.md` before editing.
-2. If taking the next product scope, start with a new real browser player risk; Xiangqi HDR self-containment is
-   already closed by this checkpoint and should not be redone unless a new reproduction contradicts it.
+2. If taking the next product scope, start with a new real browser player risk; Xiangqi HDR self-containment and the
+   CDN-abort gate are closed by this checkpoint and should not be redone unless a new reproduction contradicts it.
 3. Before handoff, run `./scripts/check-handoff.sh` and `git diff --check`, commit this file with any scoped source
    changes, push `main`, and verify `git rev-parse HEAD` equals `git rev-parse origin/main`.
 

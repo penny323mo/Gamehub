@@ -26,8 +26,8 @@ export default function Snake({ snake, gridSize, isInvincible, skin = 'neon_gree
           <div
             key={`${segment.x}-${segment.y}-${index}`}
             className={`
-              ${styles.snakeSegment} 
-              ${isHead ? styles.head : ''} 
+              ${styles.snakeSegment}
+              ${isHead ? styles.head : ''}
               ${isBody ? styles.body : ''}
               ${isTail ? styles.tail : ''}
               ${isInvincible ? styles.invincible : ''}

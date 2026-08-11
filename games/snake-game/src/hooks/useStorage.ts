@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+/* localStorage hydration is an external sync boundary, not derived render state. */
+/* eslint-disable react-hooks/set-state-in-effect */
 // 兩個 tab 共用同一個 `localStorage`：寫之前要讀返（見 merge-save.mjs）
 // @ts-expect-error 共用層係 plain JS，冇 .d.ts
 import { 改存檔 } from '../../../shared/js/merge-save.mjs';

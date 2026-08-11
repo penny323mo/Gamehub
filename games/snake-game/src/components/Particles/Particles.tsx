@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import type { Position } from '../../types/game';
 import styles from '../../styles/Particles.module.css';
 
+/* The effect owns a short-lived visual burst; state is intentionally hydrated here. */
+/* eslint-disable react-hooks/set-state-in-effect */
+
 interface Particle {
   id: number;
   x: number;
