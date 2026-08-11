@@ -8129,3 +8129,17 @@ Racing Car audio 每幀會將 physics 的 speed、slip angle、throttle 同 wall
 同 tau，fallback assignment 再套一層 catch；撞擊音效 strength 同樣安全化。`tests/audio.mjs` 用真實
 browser 守正常 mapping、audio lifecycle 同 non-finite frame，現為 **33/33**。日後任何 physics-to-audio
 mapping 必須先做有限值邊界處理，唔可以直接寫入 AudioParam。
+
+## ADR-263 — Gomoku build-info 必須有可部署嘅本機 fallback
+
+Date: 2026-08-11. Status: accepted.
+
+Gomoku `index.html` 會喺所有遊戲 script 之前載入 `build_info.js`，用嚟顯示 Pages commit。呢個檔案原本只
+喺 deploy workflow 臨時生成；本機靜態預覽、workflow 失敗後保留嘅 artifact，或者任何直接由 repo 服務嘅環境
+都會收到 404，並喺玩家首屏留下 console error。舊 flow 又將所有 `Failed to load resource` 一律忽略，所以
+呢個部署錯誤可以靜靜雞流入驗證結果。
+
+`games/gomoku/build_info.js` 現在提交一個 `dev/local` fallback；Pages workflow 仍會喺 upload 前覆寫成真正
+commit 同 build timestamp。`tests/gomoku-flow.mjs` 只容許明確嘅外部網絡 abort code，並守住 fallback object 同
+zero browser errors，現為 **10/10**。日後 build metadata 可以由 CI 更新，但唔可以令首屏依賴一個 repo 入面
+不存在嘅 generated script。

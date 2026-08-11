@@ -4,7 +4,7 @@ Updated: 2026-08-11 (Asia/Macau)
 Prepared by: Codex — integrated Game Hub product-audit checkpoint
 Integration branch: `main`
 Work branch: `main`
-Status: the latest integrated player-flow audit is green; Xiangqi's optional environment light, undo/resume flow, and interrupted-pointer lifecycle, Elden Ring II's interrupted keyboard/touch/camera lifecycle, Gomoku's delayed-AI lifecycle, Big Two's CPU queue, Dou Dizhu's bid/play loops, Penny Crush's async match plus interrupted-touch lifecycle, Snooker's root/2D/3D entry, truthful opening state, Offline P2 foul decisions, mobile touch/charge input, 3D interrupted-charge/canvas-gesture lifecycle and mobile-control hitboxes, AI handoff, Ashen Rail's fire-pointer lifecycle, Royale's interrupted card drag/placement lifecycle, MOBA's interrupted skill/attack/joystick lifecycle, Snake's mobile login/board/lint/focus lifecycle, and Racing Car's non-finite physics-to-audio boundary are hardened. This checkpoint contains the source fixes, gates, and verification.
+Status: the latest integrated player-flow audit is green; Xiangqi's optional environment light, undo/resume flow, and interrupted-pointer lifecycle, Elden Ring II's interrupted keyboard/touch/camera lifecycle, Gomoku's delayed-AI lifecycle plus local build-info fallback, Big Two's CPU queue, Dou Dizhu's bid/play loops, Penny Crush's async match plus interrupted-touch lifecycle, Snooker's root/2D/3D entry, truthful opening state, Offline P2 foul decisions, mobile touch/charge input, 3D interrupted-charge/canvas-gesture lifecycle and mobile-control hitboxes, AI handoff, Ashen Rail's fire-pointer lifecycle, Royale's interrupted card drag/placement lifecycle, MOBA's interrupted skill/attack/joystick lifecycle, Snake's mobile login/board/lint/focus lifecycle, and Racing Car's non-finite physics-to-audio boundary are hardened. This checkpoint contains the source fixes, gates, and verification.
 
 ## Current objective
 
@@ -44,7 +44,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
 ## Changed files
 
 - `games/xiangqi-ai/js/render.js`, `js/app.js`, `js/main.js` — bundled HDR/fallback, deferred online probe, undo/storage fixes, and active-pointer cancellation/lifecycle cleanup.
-- `games/gomoku/js/renderer.js`, `js/ai.js`, `js/input.js`, `js/app.js`, `index.html`, `tests/gomoku-flow.mjs` — commit mobile board taps on an unmoved touchend, cancel touch/pointer gestures on movement, blur, hidden, or cancellation, and keep the cache token aligned.
+- `games/gomoku/js/renderer.js`, `js/ai.js`, `js/input.js`, `js/app.js`, `index.html`, `build_info.js`, `tests/gomoku-flow.mjs` — commit mobile board taps on an unmoved touchend, cancel touch/pointer gestures on movement, blur, hidden, or cancellation, provide a local build-info fallback, and keep the cache token aligned.
 - `games/big2/app.js`, `index.html` — cancellable/token-guarded CPU queue and aligned cache token; `games/doudizhu/src/game.js`, `src/ui.js`, `main.js`, `index.html` — shared generation scheduler for bid/play loops and aligned cache tokens; `games/penny_crush/penny_crush.js`, `index.html` — generation-guarded async match pipeline, interrupted-touch cleanup, and cache token.
 - `games/xiangqi-ai/assets/studio_small_09_1k.hdr` and `assets/README.md` — CC0 environment asset plus provenance/hash.
 - `games/xiangqi-ai/dist/` — regenerated tracked entry bundle and HDR asset for GitHub Pages.
@@ -61,7 +61,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
   `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'` — home **3/3**, pause **6/6**,
   storage **2/2**, progress **4/4**, audio **3/3**, tabs **4/4**, away **3/3**, context **3/3**, leak **4/4**,
   CDN **4/4**, load **3/3**, readability **3/3**, touch **5/5**, keyboard **3/3**, wait **1/1**.
-- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/gomoku-flow.mjs` — **9/9**;
+- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/gomoku-flow.mjs` — **10/10**;
   touchcancel/movement/blur/pointercancel cannot ghost-place a stone, stale AI timer cannot contaminate a fresh game, normal touchscreen and mouse moves still work, and local cache tokens agree.
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/big2-flow.mjs` — **4/4**;
   stale CPU queue cannot consume a fresh deal, normal CPU response still works, and local cache tokens agree.
@@ -106,7 +106,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
 
 1. Run `./scripts/agent-context.sh --sync`, then read this file and `docs/ai/PROJECT_CONTEXT.md` before editing.
 2. If taking the next product scope, start with a new real browser player risk; Xiangqi HDR self-containment, the
-   CDN-abort gate, Gomoku touch cancellation, Snake focus cleanup, Elden input interruption, Snooker 3D charge/canvas interruption plus mobile control layout, Tower floating-panel blur/hidden cancellation, and Racing Car AudioParam boundary handling are closed by this checkpoint unless contradicted.
+   CDN-abort gate, Gomoku touch cancellation plus build-info fallback, Snake focus cleanup, Elden input interruption, Snooker 3D charge/canvas interruption plus mobile control layout, Tower floating-panel blur/hidden cancellation, and Racing Car AudioParam boundary handling are closed by this checkpoint unless contradicted.
 3. Before handoff, run `./scripts/check-handoff.sh` and `git diff --check`, commit this file with any scoped source
    changes, push `main`, and verify `git rev-parse HEAD` equals `git rev-parse origin/main`.
 

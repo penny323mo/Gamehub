@@ -41,7 +41,9 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (msg) => {
   // Offline mode deliberately aborts optional online probes.
-  if (msg.type() === 'error' && !/ERR_CONNECTION_FAILED|Failed to load resource/.test(msg.text())) {
+  // Only ignore the browser's network-abort code. A local 404 (for example a
+  // missing build_info.js) is a real deployment error and must fail the flow.
+  if (msg.type() === 'error' && !/ERR_CONNECTION_FAILED|ERR_FAILED/.test(msg.text())) {
     errors.push(msg.text());
   }
 });
@@ -66,6 +68,9 @@ await page.waitForSelector('#landing-page:not(.hidden)');
 check('Gomoku local scripts share one cache token',
   localScriptTokens.length === 6 && new Set(localScriptTokens).size === 1,
   localScriptTokens);
+const buildInfo = await page.evaluate(() => window.__BUILD__);
+check('Gomoku build info script exists and exposes a fallback',
+  Boolean(buildInfo?.commit && buildInfo?.commitTime && buildInfo?.buildTime), buildInfo);
 
 const tapCenter = async () => {
   const rect = await page.locator('#gomoku-board').boundingBox();
