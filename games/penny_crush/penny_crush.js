@@ -5,6 +5,7 @@ const PennyCrush = {
     score: 0,
     selectedTile: null, // {r, c}
     isProcessing: false,
+    generation: 0,
 
     // Updated to use 5 character types mapped to images
     colors: ['pc-char-1', 'pc-char-2', 'pc-char-3', 'pc-char-4', 'pc-char-5'],
@@ -29,6 +30,8 @@ const PennyCrush = {
     shuffleRemaining: 3,
 
     init: function (size) {
+        const generation = ++this.generation;
+        this.clearTransientUi();
         this.gridSize = size;
         this.score = 0;
         this.selectedTile = null;
@@ -55,7 +58,7 @@ const PennyCrush = {
         }
 
         this.generateGrid();
-        this.ensurePlayable();
+        this.ensurePlayable(generation);
         this.renderGrid();
     },
 
@@ -63,8 +66,26 @@ const PennyCrush = {
     // functionality is replaced by CSS Grid responsiveness
 
 
+    isCurrentGeneration: function (generation) {
+        return generation === this.generation;
+    },
+
+    waitFor: function (ms, generation) {
+        return new Promise((resolve) => {
+            setTimeout(() => resolve(this.isCurrentGeneration(generation)), ms);
+        });
+    },
+
+    clearTransientUi: function () {
+        document.querySelectorAll('.score-pop, .combo-text').forEach((el) => el.remove());
+        const gridEl = document.getElementById('pc-grid');
+        gridEl?.classList.remove('pc-shake', 'pc-pop', 'is-clearing');
+    },
+
     stop: function () {
+        ++this.generation;
         this.isProcessing = false;
+        this.selectedTile = null;
     },
 
     restart: function () {
@@ -72,6 +93,8 @@ const PennyCrush = {
     },
 
     exit: function () {
+        this.stop();
+        this.clearTransientUi();
         document.getElementById('pc-game').classList.add('hidden');
         document.getElementById('pc-menu').classList.remove('hidden');
     },
@@ -182,7 +205,8 @@ const PennyCrush = {
     },
 
     // 死局自動免費洗牌（唔食玩家嘅 shuffle 次數），唔會俾玩家困死喺冇路行嘅棋盤
-    ensurePlayable: function () {
+    ensurePlayable: function (generation = this.generation) {
+        if (!this.isCurrentGeneration(generation)) return;
         let guard = 0;
         while (!this.hasPossibleMove() && guard < 30) {
             this.generateGrid();
@@ -193,7 +217,9 @@ const PennyCrush = {
             const gridEl = document.getElementById('pc-grid');
             if (gridEl) {
                 gridEl.classList.add('pc-shake');
-                setTimeout(() => gridEl.classList.remove('pc-shake'), 500);
+                setTimeout(() => {
+                    if (this.isCurrentGeneration(generation)) gridEl.classList.remove('pc-shake');
+                }, 500);
             }
         }
     },
@@ -204,6 +230,7 @@ const PennyCrush = {
 
     handleInteraction: function (r, c) {
         if (this.isProcessing) return;
+        const generation = this.generation;
 
         // --- Rainbow Ball Activation ---
         if (this.selectedTile) {
@@ -216,7 +243,7 @@ const PennyCrush = {
                 this.selectedTile = null;
                 this.turnClearedCount = 0;
                 this.comboCount = 0;
-                this.useRainbow(sel.r, sel.c, clickedTile);
+                this.useRainbow(sel.r, sel.c, clickedTile, generation);
                 return;
             }
             if (clickedTile === 'pc-rainbow' && this.colors.includes(selTile)) {
@@ -224,7 +251,7 @@ const PennyCrush = {
                 this.selectedTile = null;
                 this.turnClearedCount = 0;
                 this.comboCount = 0;
-                this.useRainbow(r, c, selTile);
+                this.useRainbow(r, c, selTile, generation);
                 return;
             }
         }
@@ -245,13 +272,15 @@ const PennyCrush = {
             this.updateScore(50);
 
             setTimeout(async () => {
-                await this.applyGravity();
+                if (!this.isCurrentGeneration(generation)) return;
+                if (!await this.applyGravity(generation)) return;
+                if (!this.isCurrentGeneration(generation)) return;
                 // 補落嚟嘅新磚可能自己砌出 match，要照樣結算，唔好留喺棋盤度
                 const newMatches = this.findMatches();
                 if (newMatches.length > 0) {
-                    await this.processMatches(newMatches, false);
+                    await this.processMatches(newMatches, false, generation);
                 } else {
-                    this.finalizeTurn();
+                    this.finalizeTurn(generation);
                 }
             }, 300);
             return;
@@ -277,9 +306,9 @@ const PennyCrush = {
                 this.forcedSwapRemaining--;
                 this.activeToolMode = null;
                 this.updateToolButtons();
-                this.swapTiles(r1, c1, r2, c2, true);
+                this.swapTiles(r1, c1, r2, c2, true, generation);
             } else {
-                this.swapTiles(r1, c1, r2, c2, false);
+                this.swapTiles(r1, c1, r2, c2, false, generation);
             }
         } else {
             this.selectedTile = { r, c };
@@ -336,7 +365,8 @@ const PennyCrush = {
         }
     },
 
-    swapTiles: async function (r1, c1, r2, c2, forceSwap = false) {
+    swapTiles: async function (r1, c1, r2, c2, forceSwap = false, generation = this.generation) {
+        if (!this.isCurrentGeneration(generation)) return;
         this.isProcessing = true;
         this.selectedTile = null;
         this.comboCount = 0;
@@ -355,30 +385,30 @@ const PennyCrush = {
 
         // Cross Bomb
         if (tile1 === 'pc-bomb' || tile2 === 'pc-bomb') {
-            await new Promise(r => setTimeout(r, 200));
+            if (!await this.waitFor(200, generation)) return;
             this.turnClearedCount = 0;
             const bombsToDetonate = [];
             if (tile1 === 'pc-bomb') bombsToDetonate.push({ r: r1, c: c1 });
             if (tile2 === 'pc-bomb') bombsToDetonate.push({ r: r2, c: c2 });
-            await this.detonateBombs(bombsToDetonate, false);
+            await this.detonateBombs(bombsToDetonate, false, generation);
             return;
         }
 
         // Row Bomb
         if (tile1 === 'pc-row-bomb' || tile2 === 'pc-row-bomb') {
-            await new Promise(r => setTimeout(r, 200));
+            if (!await this.waitFor(200, generation)) return;
             this.turnClearedCount = 0;
-            if (tile1 === 'pc-row-bomb') await this.detonateRowBomb(r1, c1, false);
-            if (tile2 === 'pc-row-bomb') await this.detonateRowBomb(r2, c2, false);
+            if (tile1 === 'pc-row-bomb') await this.detonateRowBomb(r1, c1, false, generation);
+            if (tile2 === 'pc-row-bomb') await this.detonateRowBomb(r2, c2, false, generation);
             return;
         }
 
         // Column Bomb
         if (tile1 === 'pc-col-bomb' || tile2 === 'pc-col-bomb') {
-            await new Promise(r => setTimeout(r, 200));
+            if (!await this.waitFor(200, generation)) return;
             this.turnClearedCount = 0;
-            if (tile1 === 'pc-col-bomb') await this.detonateColBomb(r1, c1, false);
-            if (tile2 === 'pc-col-bomb') await this.detonateColBomb(r2, c2, false);
+            if (tile1 === 'pc-col-bomb') await this.detonateColBomb(r1, c1, false, generation);
+            if (tile2 === 'pc-col-bomb') await this.detonateColBomb(r2, c2, false, generation);
             return;
         }
 
@@ -387,10 +417,10 @@ const PennyCrush = {
         if (matches.length > 0 || forceSwap) {
             this.turnClearedCount = 0;
             if (matches.length > 0) {
-                await this.processMatches(matches, true);
+                await this.processMatches(matches, true, generation);
             } else {
-                await this.applyGravity();
-                this.finalizeTurn();
+                if (!await this.applyGravity(generation)) return;
+                this.finalizeTurn(generation);
             }
         } else {
             const t1 = document.querySelector(`.pc-tile[data-r="${r1}"][data-c="${c1}"]`);
@@ -398,7 +428,7 @@ const PennyCrush = {
             if (t1) t1.classList.add('pc-shake');
             if (t2) t2.classList.add('pc-shake');
 
-            await new Promise(r => setTimeout(r, 300));
+            if (!await this.waitFor(300, generation)) return;
 
             const temp2 = this.grid[r1][c1];
             this.grid[r1][c1] = this.grid[r2][c2];
@@ -409,7 +439,8 @@ const PennyCrush = {
         }
     },
 
-    detonateBombs: async function (bombs, allowSpecialSpawn = false) {
+    detonateBombs: async function (bombs, allowSpecialSpawn = false, generation = this.generation) {
+        if (!this.isCurrentGeneration(generation)) return;
         this.isPlayerInitiatedTurn = false;
         const toClear = new Set();
         bombs.forEach(b => {
@@ -423,7 +454,7 @@ const PennyCrush = {
             if (tile) tile.classList.add('is-clearing');
         });
 
-        await new Promise(r => setTimeout(r, 320));
+        if (!await this.waitFor(320, generation)) return;
 
         this.updateScore(toClear.size * 20);
         this.turnClearedCount += toClear.size;
@@ -433,17 +464,18 @@ const PennyCrush = {
             this.grid[r][c] = null;
         });
 
-        await this.applyGravity();
+        if (!await this.applyGravity(generation)) return;
 
         const newMatches = this.findMatches();
         if (newMatches.length > 0) {
-            await this.processMatches(newMatches, false);
+            await this.processMatches(newMatches, false, generation);
         } else {
-            this.finalizeTurn();
+            this.finalizeTurn(generation);
         }
     },
 
-    processMatches: async function (matches, allowSpecialSpawn = false) {
+    processMatches: async function (matches, allowSpecialSpawn = false, generation = this.generation) {
+        if (!this.isCurrentGeneration(generation)) return;
         // 每一波消除（包括連鎖）都計 combo，唔係得第一波——
         // 唔係 comboCount 永遠最多 1，倍數同 combo 字幕一世都出唔到
         this.comboCount++;
@@ -472,7 +504,7 @@ const PennyCrush = {
             if (tile) tile.classList.add('is-clearing');
         });
 
-        await new Promise(r => setTimeout(r, 320));
+        if (!await this.waitFor(320, generation)) return;
 
         const multiplier = this.getComboMultiplier();
         const points = matches.length * 10 * multiplier;
@@ -500,17 +532,18 @@ const PennyCrush = {
             this.renderGrid();
         }
 
-        await this.applyGravity();
+        if (!await this.applyGravity(generation)) return;
 
         const newMatches = this.findMatches();
         if (newMatches.length > 0) {
-            await this.processMatches(newMatches, false);
+            await this.processMatches(newMatches, false, generation);
         } else {
-            this.finalizeTurn();
+            this.finalizeTurn(generation);
         }
     },
 
-    applyGravity: async function () {
+    applyGravity: async function (generation = this.generation) {
+        if (!this.isCurrentGeneration(generation)) return false;
         let moved = false;
         // Simple gravity: iterate columns, move nulls to top
         for (let c = 0; c < this.gridSize; c++) {
@@ -541,11 +574,13 @@ const PennyCrush = {
 
         if (moved) {
             this.renderGrid();
-            await new Promise(r => setTimeout(r, 300));
+            if (!await this.waitFor(300, generation)) return false;
         }
+        return this.isCurrentGeneration(generation);
     },
 
-    finalizeTurn: function () {
+    finalizeTurn: function (generation = this.generation) {
+        if (!this.isCurrentGeneration(generation)) return;
         if (this.isPlayerInitiatedTurn &&
             this.turnClearedCount >= 6 &&
             this.bombsSpawnedThisTurn < this.MAX_BOMBS_PER_TURN) {
@@ -555,7 +590,7 @@ const PennyCrush = {
         this.isProcessing = false;
         this.turnClearedCount = 0;
         this.isPlayerInitiatedTurn = false;
-        this.ensurePlayable(); // 消完之後補位可能變死局，即場檢查
+        this.ensurePlayable(generation); // 消完之後補位可能變死局，即場檢查
     },
 
     spawnBomb: function () {
@@ -665,6 +700,7 @@ const PennyCrush = {
 
     shuffleBoard: function () {
         if (this.shuffleRemaining <= 0 || this.isProcessing) return;
+        const generation = this.generation;
         this.shuffleRemaining--;
         this.updateShuffleBtn();
 
@@ -672,13 +708,15 @@ const PennyCrush = {
         // Let's just shuffle existing tiles to keep the set fair?
         // Actually, Random Generate is easiest and fair enough.
         this.generateGrid();
-        this.ensurePlayable();
+        this.ensurePlayable(generation);
         this.renderGrid();
 
         // Show effect
         const gridEl = document.getElementById('pc-grid');
         gridEl.classList.add('pc-shake');
-        setTimeout(() => gridEl.classList.remove('pc-shake'), 500);
+        setTimeout(() => {
+            if (this.isCurrentGeneration(generation)) gridEl.classList.remove('pc-shake');
+        }, 500);
     },
 
     showScorePop: function (r, c, points) {
@@ -728,19 +766,22 @@ const PennyCrush = {
         return null;
     },
 
-    detonateRowBomb: async function (r, c, allowSpecialSpawn = false) {
+    detonateRowBomb: async function (r, c, allowSpecialSpawn = false, generation = this.generation) {
+        if (!this.isCurrentGeneration(generation)) return;
         const toClear = new Set();
         for (let col = 0; col < this.gridSize; col++) toClear.add(`${r},${col}`);
-        await this.clearTiles(toClear, 25, false);
+        await this.clearTiles(toClear, 25, false, generation);
     },
 
-    detonateColBomb: async function (r, c, allowSpecialSpawn = false) {
+    detonateColBomb: async function (r, c, allowSpecialSpawn = false, generation = this.generation) {
+        if (!this.isCurrentGeneration(generation)) return;
         const toClear = new Set();
         for (let row = 0; row < this.gridSize; row++) toClear.add(`${row},${c}`);
-        await this.clearTiles(toClear, 25, false);
+        await this.clearTiles(toClear, 25, false, generation);
     },
 
-    useRainbow: async function (r, c, targetColor) {
+    useRainbow: async function (r, c, targetColor, generation = this.generation) {
+        if (!this.isCurrentGeneration(generation)) return;
         const toClear = new Set();
         for (let row = 0; row < this.gridSize; row++) {
             for (let col = 0; col < this.gridSize; col++) {
@@ -748,10 +789,11 @@ const PennyCrush = {
             }
         }
         toClear.add(`${r},${c}`);
-        await this.clearTiles(toClear, 30, false);
+        await this.clearTiles(toClear, 30, false, generation);
     },
 
-    clearTiles: async function (tileSet, pointsPerTile, allowSpecialSpawn = false) {
+    clearTiles: async function (tileSet, pointsPerTile, allowSpecialSpawn = false, generation = this.generation) {
+        if (!this.isCurrentGeneration(generation)) return;
         this.isPlayerInitiatedTurn = false;
         tileSet.forEach(str => {
             const [r, c] = str.split(',').map(Number);
@@ -759,7 +801,7 @@ const PennyCrush = {
             if (tile) tile.classList.add('is-clearing');
         });
 
-        await new Promise(r => setTimeout(r, 320));
+        if (!await this.waitFor(320, generation)) return;
         const points = tileSet.size * pointsPerTile;
         this.updateScore(points);
         this.turnClearedCount += tileSet.size;
@@ -774,13 +816,13 @@ const PennyCrush = {
             this.grid[r][c] = null;
         });
 
-        await this.applyGravity();
+        if (!await this.applyGravity(generation)) return;
 
         const newMatches = this.findMatches();
         if (newMatches.length > 0) {
-            await this.processMatches(newMatches, false);
+            await this.processMatches(newMatches, false, generation);
         } else {
-            this.finalizeTurn();
+            this.finalizeTurn(generation);
         }
     },
 

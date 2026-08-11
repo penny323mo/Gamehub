@@ -7947,3 +7947,15 @@ Dou Dizhu 有兩套 delayed loop：叫地主同出牌。原本兩套都直接 `s
 CPU fallback 全部經同一個 seam；`main.js` mode switch 先 invalidate 舊 generation。`tests/doudizhu-flow.mjs`
 用真實 mobile browser 守住舊 generation **0** fire、新局正常 **1** 個 CPU 叫牌回合，同八個 local script
 cache token 一致。
+
+## ADR-249 — Penny Crush 消除鏈要按局面 generation 取消
+
+Date: 2026-08-11. Status: accepted.
+
+Penny Crush 嘅消除、補位、連鎖同特殊磚係多段 `async` 動畫鏈。原本 Restart 只重設棋盤同分數，
+舊鏈喺等待 320/300ms 後仍會對新棋盤加分、補位或結束新回合；真實手機 flow 實測新局由 0 分
+變成 30 分。
+
+`penny_crush.js` 以 `generation` 加 `waitFor()` guard 包住所有消除／補位／特殊磚遞迴入口；
+`init`、`stop`、`exit` 會 invalidate 舊 generation，同時清走殘留動畫 DOM。`tests/penny-crush-flow.mjs`
+守住 Restart 後舊鏈 **0** 分污染、新局正常消除計分，同一個 cache-bust token 保證 Pages 不會混載舊 script。

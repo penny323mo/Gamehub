@@ -217,7 +217,17 @@ The browser flow covers mobile local start → human bid → delayed CPU bid, im
 verifies that an old bidding/play timer generation cannot mutate the new deal. It also checks the eight local
 script cache tokens stay aligned; optional online probes are intentionally blocked in the offline harness.
 
-### Royale, Snooker, Penny Crush
+### Penny Crush
+
+```sh
+PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/penny-crush-flow.mjs
+```
+
+The flow uses a deterministic forced swap on a mobile 8×8 board, verifies Restart invalidates the prior
+消除／補位 async chain, and then verifies a fresh match still completes and scores. `generation` is the
+local lifecycle authority; source changes to the async match pipeline must preserve that guard.
+
+### Royale, Snooker
 
 There is no single root test command that certifies these games. Use targeted
 tests or existing self-check hooks where present, syntax/import checks where
