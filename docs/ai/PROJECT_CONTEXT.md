@@ -132,6 +132,10 @@ repository as a static site.
   `maxSpeed=68`, `dragCoef=2.4`, `gradeGravity=4.6`, and `handbrakeGrip=0.35` are
   tuned against the physical drift/ABS/grade gates. The speed-streak layer begins
   at `10 m/s` and remains render-only; do not turn it into a pointer-input dependency.
+- Simple mode keeps `AUTO_LIFT=0.4` and full-lock throttle at `0.6`, but its lift shape
+  has a 25% steering knee: tiny corrections keep >90% push while a half-stick turn
+  gives the rear axle back enough grip for responsive mobile turn-in. Touch steering
+  smoothing is faster than keyboard smoothing; keep the end-to-end touch t45 gate green.
 - Ashen Rail's player GLB has a skeleton but no animation clips. `ProceduralPlayerAnimator`
   owns semantic rig aliases and procedural locomotion/aim/recoil; `PlayerController` owns
   turn-rate input and `WeaponSystem` owns local weapon recoil. The `__ashenRail` seam is

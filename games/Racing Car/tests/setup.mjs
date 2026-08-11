@@ -1105,6 +1105,7 @@ const autoLift = await page.evaluate(async () => {
     input.reset();
     const read = (steer) => { input.touch.steer = steer; let out = null; for (let i = 0; i < 200; i++) out = input.read(1 / 60); return out; };
     const straight = read(0).throttle;
+    const slight = read(0.1).throttle;
     const half = read(0.5).throttle;
     const full = read(1).throttle;
     input.touch.steer = 0; input.touch.brake = true;
@@ -1119,12 +1120,14 @@ const autoLift = await page.evaluate(async () => {
     input.setControlMode('simple');
     return {
         lift: AUTO_LIFT,
-        straight: +straight.toFixed(2), half: +half.toFixed(2), full: +full.toFixed(2),
+        straight: +straight.toFixed(2), slight: +slight.toFixed(2),
+        half: +half.toFixed(2), full: +full.toFixed(2),
         braking: braking.throttle, standardNoAuto: std.throttle,
     };
 });
 console.log('  ', JSON.stringify(autoLift));
 check('簡易模式直路仍然全油', autoLift.straight === 1, autoLift);
+check('簡易模式細微修正唔會突然抽走推進', autoLift.slight > 0.9, autoLift);
 check('打軚就按比例鬆油', autoLift.half > autoLift.full && autoLift.half < 1, autoLift);
 check('打盡都仲有六成油（動力過彎照用得）',
     autoLift.full >= 0.55 && autoLift.full <= 0.65, autoLift);

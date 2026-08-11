@@ -350,7 +350,11 @@ export class Input {
         const keyTarget = (right ? 1 : 0) - (left ? 1 : 0);
         const stickActive = this.touchPointers.has('steer') || Math.abs(this.touch.steer) > 0.01;
         const target = stickActive ? this.touch.steer : keyTarget;
-        this.steerSmooth += (target - this.steerSmooth) * Math.min(1, dt * (stickActive ? 20 : 9));
+        // 搖桿數值本身已經係拇指位置，唔需要同鍵盤一樣慢慢追目標；20
+        // 喺 120Hz 實機會再疊一層約 0.3 秒輸入延遲（物理本身已經有
+        // steerRate），急彎會變成「架車唔聽手」。36 仍然保留一格平滑，
+        // 但將 touch path 嘅額外 latency 壓返到玩家可感嘅即時範圍。
+        this.steerSmooth += (target - this.steerSmooth) * Math.min(1, dt * (stickActive ? 36 : 9));
         if (Math.abs(this.steerSmooth) < 0.01) this.steerSmooth = 0;
 
         // 搖桿唔再過曲線（ADR-079 撤回 ADR-077）。壓低中段嘅代價係中段
@@ -381,7 +385,17 @@ export class Input {
         // 一個唔會自己收油嘅模式，等於迫玩家全程用一半抓地入彎——所以呢個
         // 唔係「輔助」，係修返簡易模式本身嘅缺陷。
         // 打盡都仲有六成油（> driftPowerThrottle 0.5），所以動力過彎照用得。
-        const autoLift = 1 - AUTO_LIFT * Math.min(1, Math.abs(steer));
+        // 中段用一條較早鬆油嘅曲線：半軚唔再仲有 80% 動力去搶後軸摩擦圓，
+        // 但直路仍然係 100%，全軚仍然封頂喺 60%。呢個係入彎抓地分配，
+        // 唔係自動煞車，所以唔會改標準模式或者手煞漂移動力。
+        const steerAmount = Math.min(1, Math.abs(steer));
+        // 細微修正唔應該突然抽走動力；真正入彎由 25% 行程開始先進入
+        // concave knee，半軚仍會早啲讓抓地，直路小幅修正就保留推進。
+        const liftShape = Math.min(1, Math.pow(steerAmount / 0.25, 2))
+            * Math.pow(steerAmount, 0.1);
+        const autoLift = steerAmount < 0.001
+            ? 1
+            : Math.max(1 - AUTO_LIFT, 1 - AUTO_LIFT * liftShape);
         // 試過再加「自動煞車」（打大軚 + 速度高就煞），量完否決咗：見 ADR-082。
         const throttle = this.controlMode === 'simple'
             ? (down ? -1 : drift ? 0.72 : autoLift)

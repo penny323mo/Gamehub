@@ -8681,3 +8681,25 @@ Date: 2026-08-12. Status: accepted.
 mobile controls；自然無打軚時出現少量落草係玩家未跟彎，唔係鏡頭 cue 改動。日後如再
 調整預讀距離、幅度或 slope profile，必須重跑自然 mobile screenshot、nausea check、
 物理 gates 同 aggregate，唔好將 cached elevation 餵入車身、陰影、路線或碰撞。
+
+## ADR-296 — Racing Car 簡易模式要將中段搖桿動力交返畀轉向抓地
+
+Date: 2026-08-12. Status: accepted.
+
+上一版 `Input.read()` 喺簡易模式用直線 `1 - AUTO_LIFT·|steer|`，半軚仍然保留 80%
+引擎推力。物理直接餵半軚嘅 t45 已係 **1.43s／1.73s**（22／30m/s），但完整
+`Input.read() → Car.update()` touch path 變成 **1.75s／2.05s**；玩家實際拉手機
+搖桿會覺得架車慢半拍，呢個係輸入層可重現嘅真 bug，唔係 engineForce 或輪胎抓地要亂調。
+
+今輪保留 `AUTO_LIFT=0.4`、直路 **100%** 推進、全軚 **60%** 推進同手掣 0.72 動力，
+只將 steering lift 改成有 25% knee 嘅 concave shape：細微修正保持 **>90%** 推力，
+半軚約 **63%**，入彎時及早釋放後軸摩擦圓；touch smoothing 由 20 加快到 36，仍然
+保留平滑，鍵盤 smoothing 維持 9。唔加自動煞車、唔改標準模式、唔搶玩家手軚。
+
+`race.mjs` 新 end-to-end gate 先故意紅燈 **134/136**，修正後以真 `Input.read()` 驗證
+手機半軚 t45 **1.59s／1.90s**、全軚 **1.60s**，`race` **136/136**；`setup.mjs`
+新增細微修正推力 gate 後 **153/153**，其餘 rivals／ghost／season／audio 同 aggregate
+維持全綠。真 headed **844×390** pointer drag console **0 errors**，input peak **0.666**、
+car steer peak **0.25**，駕駛期間最高 **127km/h**。日後如再加強 auto assist，必須保留
+細微 steering 推力、end-to-end t45、drift／ABS 同手機真 pointer smoke，唔好以單獨
+`Car.update()` 物理數字代替實際輸入路徑。

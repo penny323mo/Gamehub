@@ -1,7 +1,7 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Racing Car crest/valley camera response pass
+Prepared by: Codex — Racing Car touch turn-in response pass
 Integration branch: `main`
 Work branch: `main`
 Status: Racing Car source, regression gates, headed mobile smoke and docs are ready
@@ -40,8 +40,8 @@ contact, track-specific landmarks/hills, stable frame pacing and real browser ev
 - Speed layer starts at `10 m/s`; wheel-motion animates four merged wheel
   clusters; bounded effects pool covers drift marks/smoke, dust, exhaust, brake
   glow, impacts and rumble without adding a road/effects pass.
-- Six tracks (three reverse), player assists/simple auto-throttle, ABS, recovery,
-  rivals/ghost/season and lifecycle/context-loss contracts remain intact.
+- Six tracks (three reverse), player assists/simple auto-throttle with the touch turn-in knee,
+  ABS, recovery, rivals/ghost/season and lifecycle/context-loss contracts remain intact.
 
 ## Changed files
 
@@ -49,16 +49,18 @@ contact, track-specific landmarks/hills, stable frame pacing and real browser ev
 - `games/Racing Car/src/tracks.js`
 - `games/Racing Car/src/car.js` (bounded render-only vertical-rate heave)
 - `games/Racing Car/src/main.js` (cached surface-elevation camera cue and tangent hot path)
+- `games/Racing Car/src/input.js` (touch steering smoothing and simple-mode lift shape)
 - `games/Racing Car/src/race.js`, `games/Racing Car/src/driver.js` (cached runtime tangents)
-- `games/Racing Car/tests/setup.mjs` (elevation-distance and hot-path gates),
+- `games/Racing Car/tests/setup.mjs` (elevation-distance, touch and hot-path gates),
   `games/Racing Car/tests/race.mjs`, `games/Racing Car/tests/ghost.mjs`
-- `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md` (ADR-289–ADR-295), `docs/ai/HANDOFF.md`
+- `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md` (ADR-289–ADR-296), `docs/ai/HANDOFF.md`
 
 ## Verification
 
-- `race.mjs` — **133/133**; top **148 km/h**, 0–80 **2.40s**, drift/ABS/wall/
+- `race.mjs` — **136/136**; top **148 km/h**, 0–80 **2.40s**, touch t45
+  **1.59/1.90s** at 22/30m/s, drift/ABS/wall/
   recovery/roll/suspension/grade gates green, zero browser errors.
-- `setup.mjs` — **152/152**; six tracks, graded ribbon/offroad pose, effects,
+- `setup.mjs` — **153/153**; six tracks, graded ribbon/offroad pose, effects,
   controls, lifecycle and visual gates green. Elevation pre-read is at least
   **23m**, cue cap **±0.18**, physics Y **0**; tree roots **130/130**, max error
   **0**; budget **16 calls / 56,933 tris**, zero browser errors. Hot-path
@@ -70,17 +72,15 @@ contact, track-specific landmarks/hills, stable frame pacing and real browser ev
   **30.503 / 32.895 / 35.293 m/s**, grade acceleration **−0.784 / 0 / +0.784
   m/s²**, physical Y remains **0**.
 - Aggregate `RACER_TEST_SETTLE_MS=5000 node games/Racing\ Car/tests/run-all.mjs`:
-  race **133/133**, setup **152/152**, rivals **61/61**, ghost **29/29**
+  race **136/136**, setup **153/153**, rivals **61/61**, ghost **29/29**
   (readiness retry), season **55/55**, audio **33/33**.
 - `node --check` on changed JS and tests — PASS; `git diff --check` — PASS.
+- Real headed root-served **844×390** pointer smoke: input **0.666** / car **0.25**,
+  **127km/h**, console **0 errors**; screenshot reviewed as temporary QA.
 - Real headed root-served **844×390** camera-elevation smoke (touge, no input):
   sampled `cameraElevationLook` **+0.0916/−0.0312**, 10 offroad samples while
   the car followed the unsteered curve, console **0 errors**; mobile screenshot
   reviewed as a temporary non-commit QA artifact.
-- Real headed **844×390** root-served smoke after the cached-tangent pass: the
-  race reached about **110 km/h** with the road ribbon, crest cue, chevrons and
-  mobile controls visible; console **0 errors**. Screenshot is a temporary
-  non-commit QA artifact.
 
 ## Known issues and cautions
 
@@ -109,7 +109,7 @@ contact, track-specific landmarks/hills, stable frame pacing and real browser ev
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync`; read this handoff and ADR-295.
+1. Run `./scripts/agent-context.sh --sync`; read this handoff and ADR-296.
 2. Run the named Racing suites plus the aggregate after any further change.
 3. Run `./scripts/check-handoff.sh`, commit code and handoff together, push the
    authorized checkpoint, and verify `git ls-remote origin refs/heads/main`.

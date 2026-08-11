@@ -716,6 +716,51 @@ check('入彎輔助真係有出力（熄咗會明顯慢）',
     turnIn.off['半14'] > turnIn.now['半14'] * 1.15
     && turnIn.off['半30'] > turnIn.now['半30'] * 1.08, turnIn);
 
+// T3c1b：手機搖桿要將物理本身嘅反應交畀玩家，唔可以再疊一層明顯輸入延遲。
+// 之前 T3c1 只直接餵 Car.update()，所以物理 gate 會綠，但實機由
+// Input.read() 嘅 touch smoothing 再加一次 steerRate 之後，22/30m/s 半軚
+// 轉到 45° 實測變成約 1.75/2.05 秒——玩家會覺得「點拉都唔夠軚」。
+const touchSteerLatency = await page.evaluate(async () => {
+    const { car, track, input } = window.__racer;
+    const PLANE = { isDrivable: () => true, isWall: () => false };
+    const D = 57.2958;
+    const oldInvert = input.invert;
+    const oldMode = input.controlMode;
+    input.setInvert(false);
+    input.setControlMode('simple');
+    const t45 = (stick, speed) => {
+        car.reset(track.startPos, track.startDir);
+        const d = track.startDir;
+        car.vel.x = d.x * speed; car.vel.z = d.z * speed;
+        const yaw0 = car.yaw;
+        input.reset(document);
+        input.touch.steer = stick;
+        for (let i = 1; i <= 1200; i++) {
+            car.update(1 / 120, input.read(1 / 120, car.speed), PLANE);
+            let dy = Math.abs(car.yaw - yaw0);
+            if (dy > Math.PI) dy = 2 * Math.PI - dy;
+            if (dy * D >= 45) return +(i / 120).toFixed(2);
+        }
+        return null;
+    };
+    const out = {
+        半22: t45(0.5, 22),
+        半30: t45(0.5, 30),
+        全30: t45(1, 30),
+    };
+    input.reset(document);
+    input.setInvert(oldInvert);
+    input.setControlMode(oldMode);
+    return out;
+});
+console.log('  ', JSON.stringify(touchSteerLatency));
+check('手機半軚 22 m/s 1.60 秒內轉到 45°',
+    touchSteerLatency['半22'] <= 1.6, touchSteerLatency);
+check('手機半軚 30 m/s 1.90 秒內轉到 45°',
+    touchSteerLatency['半30'] <= 1.9, touchSteerLatency);
+check('手機全軚 30 m/s 1.70 秒內轉到 45°',
+    touchSteerLatency['全30'] <= 1.7, touchSteerLatency);
+
 // T3c2：漂移要維持得住，而且要維持得住喺玩家手上。實測未加動力過彎
 // 之前：放咗手煞之後 26° 嘅漂移 0.8 秒就自己收返，而且玩家點反打都
 // 改變唔到（反打 gain 由 0.4 掃到 2.0，維持時間全部 0.80–0.81 秒）——
