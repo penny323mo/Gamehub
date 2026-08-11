@@ -1,24 +1,24 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Racing Car camera-elevation feel pass
+Prepared by: Codex — Racing Car cached-tangent runtime pass
 Integration branch: `main`
 Work branch: `main`
-Status: Racing Car source, regression gates, headed mobile smoke and docs are
-ready for the next verified `main` checkpoint. The receiving agent must sync
-GitHub before edits.
+Status: Racing Car source, regression gates, headed mobile smoke and docs are ready
+for the next verified `main` checkpoint; the receiving agent must sync GitHub first.
 
 ## Current objective
 
 Keep Racing Car moving toward a production-ready mobile arcade racer: responsive
-but bounded bicycle physics, readable high-speed/drift feedback, believable
-ground contact, track-specific landmarks and hills, stable frame pacing, and
-real browser evidence for every visual or control change.
+but bounded bicycle physics, readable high-speed/drift feedback, believable ground
+contact, track-specific landmarks/hills, stable frame pacing and real browser evidence.
 
 ## Completed
 
 - Continuous Catmull-Rom road ribbon remains backed by 240 cached X/Z samples;
   collision, checkpoints, progress and AI stay on the established X/Z grid.
+  Main recovery, wrong-way detection and AI lateral offset now use the cached
+  `Track.tangentAtT()` path; spline `getPointAt()` remains for accurate aim points.
 - Closed crest/valley waves are now more legible (`1.55/0.65/0.24` harmonics),
   with track multipliers turbo **1.28**, coast **1.14**, touge **1.40**. Setup
   on touge-rev measures surface **−3.317…+3.317m**, span **6.634m**, maximum
@@ -48,20 +48,22 @@ real browser evidence for every visual or control change.
 - `games/Racing Car/src/track.js`
 - `games/Racing Car/src/tracks.js`
 - `games/Racing Car/src/car.js` (bounded render-only vertical-rate heave)
-- `games/Racing Car/src/main.js` (cached surface-elevation camera cue)
-- `games/Racing Car/tests/setup.mjs`, `games/Racing Car/tests/race.mjs`,
+- `games/Racing Car/src/main.js` (cached surface-elevation camera cue and tangent hot path)
+- `games/Racing Car/src/race.js`, `games/Racing Car/src/driver.js` (cached runtime tangents)
+- `games/Racing Car/tests/setup.mjs` (hot-path regression gate), `games/Racing Car/tests/race.mjs`,
   `games/Racing Car/tests/ghost.mjs`
-- `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md` (ADR-289–ADR-293)
-- `docs/ai/HANDOFF.md`
+- `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md` (ADR-289–ADR-294),
+  `docs/ai/HANDOFF.md`
 
 ## Verification
 
 - `race.mjs` — **133/133**; top **148 km/h**, 0–80 **2.40s**, drift/ABS/wall/
   recovery/roll/suspension/grade gates green, zero browser errors.
-- `setup.mjs` — **151/151**; six tracks, graded ribbon/offroad pose, effects,
+- `setup.mjs` — **152/152**; six tracks, graded ribbon/offroad pose, effects,
   controls, lifecycle, landmarks, tangent and tree-anchor gates green. The new
   tree gate measures **130/130 roots with max error 0**; setup budget remains
-  **16 calls / 56,933 tris**, zero browser errors.
+  **16 calls / 56,933 tris**, zero browser errors. The hot-path gate measured
+  `curve.getTangentAt` **0 calls** during a running race.
 - `ghost.mjs` — **29/29**; ghost remains physics-independent (the new slope load
   is measured identically with and without the visual ghost) and the combined
   night + four rivals + ghost + effects frame stays at **18 calls / 53,253 tris**.
@@ -69,18 +71,16 @@ real browser evidence for every visual or control change.
   **30.503 / 32.895 / 35.293 m/s**, grade acceleration **−0.784 / 0 / +0.784
   m/s²**, physical Y remains **0**.
 - Aggregate `RACER_TEST_SETTLE_MS=5000 node games/Racing\ Car/tests/run-all.mjs`:
-  race **133/133**, setup **151/151** (readiness retry), rivals **61/61**
-  (readiness retry), ghost **29/29**, season **55/55**, audio **33/33**.
+  race **133/133**, setup **152/152**, rivals **61/61**, ghost **29/29**
+  (readiness retry), season **55/55**, audio **33/33**.
 - `node --check` on changed JS and tests — PASS; `git diff --check` — PASS.
-- Real headed **844×390** smoke (standard controls with guided steering):
-  **55 km/h**, `renderY=1.208m`, `trackPitch=0.0115rad`,
-  `suspensionHeave=0.0123m` at capture (sampled range `+0.0220/−0.0290m`),
-  `offroad=false` at capture with **1/500** offroad frames, audio ready and
-  console **0 errors**. This validates the vertical-rate cue in a real
-  mobile-sized race; screenshot was a temporary non-commit QA artifact.
 - Real headed **844×390** camera-elevation smoke (touge, guided driver): peak
   **99 km/h**, **0** offroad frames, sampled `cameraElevationLook`
   **+0.0295/−0.0152**, console **0 errors**; screenshot reviewed as a temporary
+  non-commit QA artifact.
+- Real headed **844×390** root-served smoke after the cached-tangent pass: the
+  race reached about **110 km/h** with the road ribbon, crest cue, chevrons and
+  mobile controls visible; console **0 errors**. Screenshot is a temporary
   non-commit QA artifact.
 
 ## Known issues and cautions
@@ -88,8 +88,9 @@ real browser evidence for every visual or control change.
 - `trackPitch` is now an explicit, bounded physics input only through
   `gradeAccel`; do not feed `renderY` into physics or broaden grade coupling to
   collision, nearestT, checkpoints, progress or AI.
-- Keep terrain as one bounded 32×32 mesh and query cache at 240 samples. Avoid
-  per-frame Catmull-Rom calls, `Vector3.clone()` allocations or extra draw passes.
+- Keep terrain as one bounded 32×32 mesh and query cache at 240 samples. Use
+  `Track.tangentAtT()` for direction-only frame-loop queries; avoid per-frame
+  Catmull-Rom calls, `Vector3.clone()` allocations or extra draw passes.
 - The rigid GLB has no wheel bones/clips; re-profile `wheel-motion.js` if the
   car asset changes. Keep suspension follow at max `0.018/0.015rad` and camera
   lean at ±`0.032rad`.
@@ -108,13 +109,12 @@ real browser evidence for every visual or control change.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync`; read this handoff and ADR-293.
+1. Run `./scripts/agent-context.sh --sync`; read this handoff and ADR-294.
 2. Run the named Racing suites plus the aggregate after any further change.
 3. Run `./scripts/check-handoff.sh`, commit code and handoff together, push the
    authorized checkpoint, and verify `git ls-remote origin refs/heads/main`.
 
 ## Do not redo
 
-- Do not restore per-frame curve allocations or replace the existing bounded
-  effects/speed layer with new draw-call-heavy passes.
-- Do not force-push or rewrite shared `main` history.
+- Do not restore per-frame curve allocations, add draw-call-heavy passes, force-push,
+  or rewrite shared `main` history.

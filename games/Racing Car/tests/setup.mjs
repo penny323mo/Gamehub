@@ -650,6 +650,31 @@ check('crest／valley 會令鏡頭預讀上下落差，但唔會污染物理 Y',
     && Math.abs(cameraElevation.cue) <= cameraElevation.limit + 0.001
     && cameraElevation.physicsY === 0, cameraElevation);
 
+// Hot-path tangent seam：主 loop 嘅逆行提示／救車同 AI 偏移方向都應該用
+// Track.tangentAtT() cache，而唔係比賽中每幀重建 Catmull-Rom tangent。
+const hotPathTangent = await page.evaluate(async () => {
+    const root = window.__racer;
+    root.setRivals(4);
+    root.startRace();
+    root.race.countdown = -1;
+    const curve = root.track.curve;
+    const oldGetTangentAt = curve.getTangentAt;
+    let calls = 0;
+    curve.getTangentAt = function (...args) {
+        calls += 1;
+        return oldGetTangentAt.apply(this, args);
+    };
+    await new Promise(resolve => setTimeout(resolve, 550));
+    curve.getTangentAt = oldGetTangentAt;
+    const result = { calls, running: root.running, raceState: root.race.state };
+    root.pauseRace('cached tangent test');
+    root.toMenu();
+    return result;
+});
+console.log('  ', JSON.stringify(hotPathTangent));
+check('比賽 hot path 唔會每幀重建 Catmull-Rom tangent',
+    hotPathTangent.calls === 0 && hotPathTangent.raceState === 'racing', hotPathTangent);
+
 // T4：轉向反轉係逃生門——反轉之後同一個輸入要行相反方向
 const inv = await page.evaluate(async () => {
     const THREE = await import('three');

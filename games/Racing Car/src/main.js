@@ -1410,7 +1410,9 @@ function frame(now) {
             // 而且指錯 80° 以上），正常揸車同漂移都踩唔中。
             if (race.state === 'racing') {
                 const tt = track.nearestT(car.pos.x, car.pos.z);
-                const tan = track.curve.getTangentAt(tt, raceTangent);
+                // 救車只需要路線方向；用 Track 嘅 cached samples，唔好喺每幀
+                // 重新重建 Catmull-Rom tangent，尤其手機長直路會白白燒 CPU。
+                const tan = track.tangentAtT(tt, raceTangent);
                 car.unspin(tan.x, tan.z, dt);
             }
             audio.update(dt, car, cmd);

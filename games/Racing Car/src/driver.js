@@ -75,7 +75,11 @@ export function createDriver(track, skill = SKILLS.quick) {
             const aheadT = (t + (8 + speed * skill.look) / track.length) % 1;
             track.curve.getPointAt(aheadT, aim);
             if (lateral) {
-                track.curve.getTangentAt(aheadT, aimTan);
+                // 走線偏移只需要方向；用 Track 嘅 cached query samples，唔好每架
+                // 對手每幀都重新取 Catmull-Rom tangent。aim 點本身仍然保留 spline
+                // 精度，避免改變對手真正追嘅路線。
+                if (track.tangentAtT) track.tangentAtT(aheadT, aimTan);
+                else track.curve.getTangentAt(aheadT, aimTan);
                 aim.x += -aimTan.z * lateral;
                 aim.z += aimTan.x * lateral;
             }

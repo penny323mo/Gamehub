@@ -103,9 +103,11 @@ repository as a static site.
   smooth, reset on start/track build, and never feed physics. `Car.reset()` must clear
   posture, rescue and lock flags before the first render of a new run.
 - Racing Car's hot runtime queries use `Track.querySamples` (240 precomputed XZ
-  points) and `Car._nextPos`; AI driver curve samples, wrong-way tangents and rival
-  matrix axes reuse optional targets/scratch vectors too. Keep those allocations out
-  of the frame loop. Road centre/tyre-wear cues, surface-anchored tyre smoke and
+  points) and `Car._nextPos`; direction-only main recovery, wrong-way tangents and
+  AI lateral offsets use `Track.tangentAtT()` with reused scratch vectors, while AI
+  keeps spline points for accurate aim targets. Rival matrix axes also reuse optional
+  targets/scratch vectors. Keep those allocations out of the frame loop. Road
+  centre/tyre-wear cues, surface-anchored tyre smoke and
   exhaust pulses and brake glow belong in the existing texture/effects instance pass
   so the mobile draw budget does not gain a road-marker, tail-smoke or brake-glow pass.
   Terrain height is

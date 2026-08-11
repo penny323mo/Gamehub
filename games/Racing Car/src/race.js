@@ -98,7 +98,9 @@ export class Race {
 
         // 逆行提示：車頭同賽道切線夾角超過 120 度
         const t = this.track.nearestT(car.pos.x, car.pos.z);
-        const tan = this.track.curve.getTangentAt(t, this._trackTangent);
+        // 只需要判斷路線方向；Track 已經烘好 240 點 query samples，唔好喺
+        // 每幀用 Catmull-Rom 重建一次，避免手機長直路增加無必要 CPU。
+        const tan = this.track.tangentAtT(t, this._trackTangent);
         const fwdX = Math.sin(car.yaw), fwdZ = Math.cos(car.yaw);
         this.wrongWay = (tan.x * fwdX + tan.z * fwdZ) < -0.5 && car.speed > 4;
     }

@@ -8641,3 +8641,23 @@ crest sample 驗證 cue 會到 **0.17984** 但 `physicsY=0`；真 headed **844×
 讀到最高約 **99km/h**、0 幀落草、console **0 errors**。日後再加大 cue 或改 look-ahead，
 必須重跑自然坡段 screenshot、mobile layout、物理 gates 同 aggregate，避免鏡頭預讀變成
 暈眩或遮住路線。
+
+## ADR-294 — Racing Car frame loop 方向查詢改用 cached tangent，保留精確 aim point
+
+Date: 2026-08-12. Status: accepted.
+
+審查最新 race frame loop 發現，玩家救車方向、wrong-way 判斷同 AI lateral offset
+仍然每幀直接呼叫 Catmull-Rom `curve.getTangentAt()`。呢啲查詢只需要路線方向，並不需要
+重建完整 spline tangent；但喺 mobile 瀏覽器會重複做不必要工作，亦容易令日後加入更多
+對手後 frame pacing 變差。
+
+今輪將 `main.js`、`race.js` 同 `driver.js` 嘅方向-only 查詢改用 `Track.tangentAtT()`，
+直接讀既有 **240** 個 X/Z query samples，並重用現有 scratch `Vector3`。AI 仍然用
+`curve.getPointAt()` 取前方精確 aim point，避免用離散 tangent 令對手走線改形；物理、
+碰撞、進度、鏡頭、輸入同 draw budget 均不變。setup 新 hot-path gate monkey-patch
+`curve.getTangentAt()`，比賽運行期間實測 **0 calls**；aggregate 維持 race **133/133**、
+setup **152/152**、rivals **61/61**、ghost **29/29**、season **55/55**、audio **33/33**。
+真 headed **844×390** root-served smoke 到約 **110km/h**，road／crest／chevron／controls
+正常，console **0 errors**。日後任何新增方向查詢先判斷可否走 `tangentAtT()`，唔好為咗
+微小視覺差異恢復 frame-loop Catmull-Rom tangent；若要改 aim point 取樣，必須重跑 rivals、
+race、mobile screenshot 同 aggregate。
