@@ -300,6 +300,22 @@
     gameOver: false,
   };
 
+  // CPU turns are deliberately delayed so the table can show each move. A
+  // delayed callback must not survive a mode switch, restart, or Continue
+  // into a different deal; otherwise it can consume cards from the new game.
+  let cpuTurnTimer = null;
+  let cpuTurnToken = 0;
+
+  function cancelQueuedCpuTurns() {
+    cpuTurnToken += 1;
+    if (cpuTurnTimer !== null) {
+      clearTimeout(cpuTurnTimer);
+      cpuTurnTimer = null;
+    }
+  }
+
+  window.cancelQueuedBig2CpuTurns = cancelQueuedCpuTurns;
+
 
   /* ----------------------------------------------------------------
    * 打到一半走咗，返嚟仲喺度（同 ADR-234/235 棋類兩隻同一個做法）
@@ -367,6 +383,7 @@
   }
 
   function 續局() {
+    cancelQueuedCpuTurns();
     const j = 讀局();
     if (!j) return null;
     state.players = j.players.map(p => ({ name: p.name, isHuman: p.isHuman, hand: p.hand }));
@@ -427,6 +444,7 @@
   }
 
   function dealNewGame(forcedDeck = null) {
+    cancelQueuedCpuTurns();
     // New game => invalidate cached move generation.
     legalPlaysCache.clear();
 
@@ -1220,8 +1238,21 @@
   }
 
   function queueCpuTurns() {
+    cancelQueuedCpuTurns();
+    const token = cpuTurnToken;
+
+    const schedule = (delay) => {
+      if (token !== cpuTurnToken) return;
+      cpuTurnTimer = setTimeout(() => {
+        cpuTurnTimer = null;
+        if (token !== cpuTurnToken) return;
+        step();
+      }, delay);
+    };
+
     // Execute CPU turns with small delays for readability.
     const step = () => {
+      if (token !== cpuTurnToken) return;
       if (state.gameOver) { render(); 清局(); return; }
 
       const idx = state.currentPlayer;
@@ -1259,7 +1290,7 @@
 
         // Continue chaining CPU turns
         if (!state.gameOver && !state.players[state.currentPlayer].isHuman) {
-          setTimeout(step, 600);
+          schedule(600);
         }
         return;
       }
@@ -1277,10 +1308,10 @@
       }
 
       render();
-      setTimeout(step, 450);
+      schedule(450);
     };
 
-    setTimeout(step, 450);
+    schedule(450);
   }
 
   // ---------- Wire up ----------
@@ -1309,6 +1340,7 @@
   if (startBtn) startBtn.addEventListener('click', startGame);
 
   async function restartGame() {
+    cancelQueuedCpuTurns();
     ui.selected.clear();
     clearSuggest();
 
@@ -1327,6 +1359,7 @@
   }
 
   function startGame() {
+    cancelQueuedCpuTurns();
     const startScreen = document.getElementById('startScreen');
     if (startScreen) startScreen.classList.add('startScreen--hidden');
 
@@ -1349,6 +1382,7 @@
 
   // ---------- UI Mode Switching ----------
   window.resetGameState = function () {
+    cancelQueuedCpuTurns();
     _hostAppliedIds.clear();
     state.gameOver = false;
     state.table = null;
@@ -1378,6 +1412,7 @@
   window.gameMode = 'local'; // 'local' or 'online'
 
   window.setMode = function (mode) {
+    cancelQueuedCpuTurns();
     const landing = document.getElementById('landing-page');
     const lobby = document.getElementById('online-lobby');
     const gameCont = document.getElementById('game-container');

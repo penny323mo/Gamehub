@@ -197,7 +197,17 @@ The browser flow covers mobile human tap → delayed AI response, immediate retu
 restart, and verifies that a stale AI timer cannot place a stone in the new game. It also checks the six local
 script cache tokens stay aligned; optional online probes are intentionally blocked in the offline harness.
 
-### Royale, Snooker, Big Two, Dou Dizhu, Penny Crush
+### Big Two
+
+```sh
+PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/big2-flow.mjs
+```
+
+The browser flow covers mobile local start → CPU delayed turn, immediate exit and fresh restart, and verifies
+that an old CPU timer generation cannot consume cards from the new deal. It also checks the two local script
+cache tokens stay aligned; optional online probes are intentionally blocked in the offline harness.
+
+### Royale, Snooker, Dou Dizhu, Penny Crush
 
 There is no single root test command that certifies these games. Use targeted
 tests or existing self-check hooks where present, syntax/import checks where

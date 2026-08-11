@@ -7923,3 +7923,15 @@ pollution，唔係 AI 策略問題。
 都會取消 pending move，`makeAIMove` 亦只接受仍然係 AI 白子回合嘅 state。`tests/gomoku-flow.mjs`
 用真實 mobile browser 守住「離開後立即重開仍然係空盤」同「正常新局仍會落白子」兩條 invariant。
 Gomoku 六個 local script 共用同一個 cache token，避免 Pages/Safari 混載舊 lifecycle code。
+
+## ADR-247 — Big Two CPU queue 要按 deal generation 取消
+
+Date: 2026-08-11. Status: accepted.
+
+Big Two 為咗畀玩家睇清楚每一步，用 450/600ms timer chain 執行 CPU。原本退出對局或重新 deal
+唔會取消舊 chain；真實 mobile flow 可以令舊 callback 同新局 callback 同時消耗新手牌。
+
+`app.js` 以 timer handle 加 generation token 管理 CPU queue。進入 landing、轉 mode、開始／重新開始、
+續局同新 deal 都會 invalidate 舊 generation；只有當前 generation 可以再 schedule 下一步。`tests/big2-flow.mjs`
+用真實 mobile browser 先開 CPU turn、即刻退出再開 CPU turn，守住舊 generation **0** fire 同新局正常
+**1** 個 CPU turn。兩個 local script 共用新 cache token，避免 Pages/Safari 混載舊 queue code。
