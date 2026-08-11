@@ -156,6 +156,14 @@ export const CFG = {
     bodyPitchLimit: 0.028,    // 全車一體模型只容許約 1.6° 前後俯仰
     bodyPitchRate: 8.5,       // 懸掛回正速度；唔追住每一幀震
     bodyPitchLift: 3.4,       // 俯仰時抬高 render root，補回 rigid 車模嘅接地包絡
+    // 路面 pitch/bank 本身係 render surface；如果車身 100% 即時跟住，
+    // 高速過 crest／落谷會似一張貼紙。呢組只控制車身對路面姿態嘅細微
+    // 滯後，唔會改物理 X/Z、輪胎抓地或者碰撞。
+    suspensionPoseRate: 10.5,
+    suspensionPitchGain: 0.72,
+    suspensionRollGain: 0.66,
+    suspensionPitchLimit: 0.018,
+    suspensionRollLimit: 0.015,
 };
 
 const G = 9.81;
@@ -180,6 +188,11 @@ export class Car {
         this.wallImpact = 0;
         this.bodyRoll = 0;
         this.bodyPitch = 0;
+        this.suspensionPitch = 0;
+        this.suspensionRoll = 0;
+        this._surfacePitchFollow = 0;
+        this._surfaceBankFollow = 0;
+        this._surfacePoseReady = false;
         // 賽道路面起伏／banking 只係 render pose；物理位置仍然係 X/Z 平面。
         this.renderY = 0;
         this.trackBank = 0;
@@ -214,6 +227,11 @@ export class Car {
         this.wallImpact = 0;
         this.wallCooldown = 0;
         this.bodyPitch = 0;
+        this.suspensionPitch = 0;
+        this.suspensionRoll = 0;
+        this._surfacePitchFollow = 0;
+        this._surfaceBankFollow = 0;
+        this._surfacePoseReady = false;
         // 重開／換賽道要由一個完全中性姿態開始。bodyRoll 同 unspin 狀態
         // 如果沿用上一場，玩家會見到架車一開波仍然側住，或者第一個慢速
         // frame 繼續沿用上一場嘅救車／鎖胎旗標——物理下一幀雖然會覆寫，
@@ -235,6 +253,13 @@ export class Car {
         this.renderY = Number.isFinite(y) ? y : 0;
         this.trackBank = Number.isFinite(bank) ? bank : 0;
         this.trackPitch = Number.isFinite(pitch) ? pitch : 0;
+        // 換賽道／重開嗰一刻要由靜止姿態開始，唔可以將上一場嘅「懸掛未回正」
+        // 帶入第一幀；正式比賽中 subsequent update 先會累積真正嘅滯後。
+        if (!this._surfacePoseReady) {
+            this._surfacePitchFollow = this.trackPitch;
+            this._surfaceBankFollow = this.trackBank;
+            this._surfacePoseReady = true;
+        }
         this.#sync();
     }
 
@@ -537,6 +562,34 @@ export class Car {
             this.renderY = this.offroad ? this._renderPose.terrainY : this._renderPose.y;
             this.trackBank = this._renderPose.bank * roadWeight;
             this.trackPitch = this._renderPose.pitch * roadWeight;
+            if (!this._surfacePoseReady) {
+                this._surfacePitchFollow = this.trackPitch;
+                this._surfaceBankFollow = this.trackBank;
+                this._surfacePoseReady = true;
+            }
+            // 懸掛只係跟隨 render pose：新路面姿態先到，車身 follow 值慢半拍，
+            // 形成 crest／bank transition 嘅重量感；低速仍然足夠快，唔會望落
+            // 車身浮住。偏差有硬上限，亦會跟 offroad terrain blend 一齊淡出。
+            const follow = Math.min(1, Math.max(0, dt) * CFG.suspensionPoseRate);
+            this._surfacePitchFollow += (this.trackPitch - this._surfacePitchFollow) * follow;
+            this._surfaceBankFollow += (this.trackBank - this._surfaceBankFollow) * follow;
+            const speedResponse = THREE.MathUtils.clamp(this.speed / 18, 0.22, 1);
+            this.suspensionPitch = THREE.MathUtils.clamp(
+                (this._surfacePitchFollow - this.trackPitch) * CFG.suspensionPitchGain * speedResponse,
+                -CFG.suspensionPitchLimit,
+                CFG.suspensionPitchLimit,
+            );
+            this.suspensionRoll = THREE.MathUtils.clamp(
+                (this._surfaceBankFollow - this.trackBank) * CFG.suspensionRollGain * speedResponse,
+                -CFG.suspensionRollLimit,
+                CFG.suspensionRollLimit,
+            );
+        } else {
+            // Physics-only callers（例如測試用平面）冇 render pose 時，唔可以
+            // 將上一張賽道殘留嘅 visual lag 帶入；姿態自然回中但唔瞬間跳。
+            const settle = Math.min(1, Math.max(0, dt) * CFG.suspensionPoseRate);
+            this.suspensionPitch += (0 - this.suspensionPitch) * settle;
+            this.suspensionRoll += (0 - this.suspensionRoll) * settle;
         }
         this.wheels.update(dt, this.forwardSpeed, this.steer);
         this.#sync();
@@ -619,9 +672,9 @@ export class Car {
         const pitchLift = Math.abs(this.bodyPitch) * CFG.bodyPitchLift;
         this.root.position.set(this.pos.x, this.renderY + pitchLift, this.pos.z);
         this.root.rotation.set(
-            this.bodyPitch + this.trackPitch,
+            this.bodyPitch + this.trackPitch + this.suspensionPitch,
             this.yaw,
-            this.bodyRoll + this.trackBank,
+            this.bodyRoll + this.trackBank + this.suspensionRoll,
             'YZX',
         );
     }

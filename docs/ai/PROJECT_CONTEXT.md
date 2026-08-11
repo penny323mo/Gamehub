@@ -346,6 +346,10 @@ performance report contract (FPS windows, long frames, DPR, viewport, track, con
 gyro direction/sensitivity, screen orientation, audio state, and copy feedback) used for
 physical-phone handoff evidence. The startup gate requires the first
 complete WebGL frame plus pre-drawn minimap/HUD before the loading overlay reveals Start.
+The car keeps raw `trackPitch`/`trackBank` as render-surface truth and applies only a
+bounded render-only suspension follow (max 0.018/0.015 rad) to the visual root, so
+crest/bank transitions have weight without changing `Car.pos.y`, physics, collision,
+progress, AI, or the contact-shadow anchor.
 
 Royale has a committed regression suite. Run it for any change under
 `games/royale/`:

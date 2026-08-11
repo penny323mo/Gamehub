@@ -888,7 +888,50 @@ check('加減速會有受限前後載荷回饋', roll.pitchDeg >= 0.5 && roll.pi
 // Penny 講嗰種「飛機打側飛」。
 check('過彎時車身唔會插落路面超過 10 厘米', roll.lowest > -0.1, roll.lowest);
 
-// T3c：重開／換賽道要清走上一場嘅姿態同瞬態旗標。呢啲值通常會喺下一個
+// T3c：路面姿態變化要有少量懸掛滯後，否則 rigid 車模會似貼紙即時
+// 黐住坡度。呢個係 render-only gate：假 track 只改 pitch/bank，物理仍然
+// 用同一個 X/Z 平面，確保新回饋唔會偷偷改速度／碰撞。
+const suspension = await page.evaluate(() => {
+    const { car } = window.__racer;
+    let ticks = 0;
+    const fakeTrack = {
+        isDrivable: () => true,
+        isWall: () => false,
+        renderPoseAt(_x, _z, out) {
+            ticks++;
+            const phase = ticks < 12 ? 0 : ticks < 24 ? 0.085 : -0.06;
+            out.y = 0; out.terrainY = 0; out.terrainBlend = 1;
+            out.pitch = phase; out.bank = phase * 0.65;
+            return out;
+        },
+    };
+    car.reset({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
+    car.setRenderSurface(0, 0, 0);
+    let maxPitch = 0, maxRoll = 0, maxRootDelta = 0;
+    for (let i = 0; i < 60; i++) {
+        car.update(1 / 60, { throttle: 1, steer: 0, handbrake: false }, fakeTrack);
+        maxPitch = Math.max(maxPitch, Math.abs(car.suspensionPitch));
+        maxRoll = Math.max(maxRoll, Math.abs(car.suspensionRoll));
+        maxRootDelta = Math.max(maxRootDelta,
+            Math.abs(car.root.rotation.x - (car.bodyPitch + car.trackPitch)),
+            Math.abs(car.root.rotation.z - (car.bodyRoll + car.trackBank)));
+    }
+    return {
+        pitchDeg: +(maxPitch * 57.3).toFixed(2),
+        rollDeg: +(maxRoll * 57.3).toFixed(2),
+        rootDeltaDeg: +(maxRootDelta * 57.3).toFixed(2),
+        speed: +car.speed.toFixed(2),
+        physicsY: car.pos.y,
+    };
+});
+console.log('  ', JSON.stringify(suspension));
+check('路面突變會有細幅 render-only 懸掛滯後',
+    suspension.pitchDeg > 0.2 && suspension.rollDeg > 0.1
+    && suspension.pitchDeg <= 1.1 && suspension.rollDeg <= 0.9, suspension);
+check('懸掛回饋唔會改物理高度或速度',
+    suspension.physicsY === 0 && suspension.speed > 0, suspension);
+
+// T3d：重開／換賽道要清走上一場嘅姿態同瞬態旗標。呢啲值通常會喺下一個
 // physics frame 覆寫，但第一個 render／HUD frame 會先讀到；如果玩家喺
 // 漂移途中撳「再跑一次」，一開波就側住或者顯示假鎖胎，讀感會似車壞咗。
 const resetPose = await page.evaluate(() => {

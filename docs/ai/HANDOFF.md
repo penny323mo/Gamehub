@@ -1,7 +1,7 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Racing Car offroad feedback and test-harness cleanup pass
+Prepared by: Codex — Racing Car suspension-feedback and aggregate verification pass
 Integration branch: `main`
 Work branch: `main`
 Status: Racing source, tests, browser smoke and docs are ready for the next
@@ -46,7 +46,7 @@ browser evidence for every visual or control change.
   top of terrain-anchored pose and dust. It reuses the existing effects shake path,
   caps at `0.024`, and does not alter physics or draw calls.
 - Existing sport-arcade envelope, auto-throttle/simple controls, drift assists, speed
-  layer, terrain/effects anchors, rivals/ghost/season and lifecycle contracts unchanged.
+  layer, terrain/effects anchors, render-only suspension follow, rivals/ghost/season and lifecycle contracts unchanged.
 
 ## Changed files
 
@@ -57,28 +57,28 @@ browser evidence for every visual or control change.
 - `games/Racing Car/src/wheel-motion.js`, `games/Racing Car/src/driving-effects.js`
 - `games/Racing Car/src/rivals.js`
 - `games/Racing Car/style.css`
-- `games/Racing Car/tests/setup.mjs`, `games/Racing Car/tests/lib/harness.mjs`, `games/Racing Car/tests/run-all.mjs`
+- `games/Racing Car/tests/race.mjs`, `games/Racing Car/tests/setup.mjs`, `games/Racing Car/tests/lib/harness.mjs`, `games/Racing Car/tests/run-all.mjs`
 - `docs/ai/PROJECT_CONTEXT.md`
-- `docs/ai/DECISIONS.md` (ADR-273 through ADR-283)
+- `docs/ai/DECISIONS.md` (ADR-273 through ADR-284)
 - `docs/ai/HANDOFF.md`
 
 ## Verification
-- `node --check` on `main.js`, `driving-effects.js`, `setup.mjs`, `tests/lib/harness.mjs`, `tests/run-all.mjs` — PASS.
+- `node --check` on `main.js`, `car.js`, `driving-effects.js`, `setup.mjs`, `tests/race.mjs`, `tests/lib/harness.mjs`, `tests/run-all.mjs` — PASS.
 - `git diff --check` — PASS.
-- `race.mjs` — **126/126**; six tracks, top **146 km/h**, 0–80 **2.40s**,
-  drift/ABS/wall/recovery/roll gates green, zero browser errors.
+- `race.mjs` — **128/128**; six tracks, top **146 km/h**, 0–80 **2.40s**,
+  drift/ABS/wall/recovery/roll/suspension gates green, zero browser errors.
 - `setup.mjs` — **147/147**; terrain/offroad pose, contact shadow/effects, mobile
   controls, day/night, lifecycle/context loss, landmarks, four-wheel motion, rumble
   (`shake=0.0075`) green; zero browser errors, **16 calls／56,933 tris**, effects **17**.
 - Named suites green: `rivals.mjs` **61/61**, `ghost.mjs` **29/29**, `season.mjs`
   **55/55**, `audio.mjs` **33/33**, all zero browser errors.
 - Aggregate green with default 5-second teardown and readiness-only retry: race
-  **126/126**, setup **147/147**, rivals **61/61**, ghost **29/29**, season **55/55**,
+  **128/128**, setup **147/147**, rivals **61/61**, ghost **29/29**, season **55/55**,
   audio **33/33**; old 500ms gap reproduced setup timeout, which disappeared at
   `RACER_TEST_SETTLE_MS=5000`.
 - Real browser grade smoke: 844×390 at **135 km/h**, `surfaceY` **−0.117m**, pitch
   **−0.0195rad**, body pitch **−0.028rad**; portrait 320×568 at **111 km/h** keeps
-  controls inside viewport. Screenshots `/tmp/racing-elevation-v4.png`, `/tmp/racing-elevation-portrait-v4.png`.
+  controls inside viewport. Screenshots `/tmp/racing-elevation-v4.png`, `/tmp/racing-elevation-portrait-v4.png`; Playwright headed smoke has zero console errors.
 - 844×390 real browser audit aimed at a naturally generated landmark position;
   the orange chevron reads as an upright sign with a visible short stem:
   `/tmp/racing-landmark-pole-audit.png`. Placement is separately guarded by
@@ -90,8 +90,8 @@ browser evidence for every visual or control change.
   `offroad=true`, `renderY=terrainY=-1.103m`, `shake=0.0126`, one dust particle.
 ## Known issues and cautions
 
-- `renderY`, `trackBank` and `trackPitch` are render-only. Never feed them into
-  `Car.pos`, collision, nearestT, checkpoints, progress, speed or AI decisions.
+- `renderY`, `trackBank`, `trackPitch` and suspension follow are render-only. Never
+  feed them into `Car.pos`, collision, nearestT, checkpoints, progress, speed or AI decisions.
 - Keep the terrain as one bounded 32×32 mesh and the query cache at 240 X/Z
   samples. Do not add per-frame curve allocations or a second road pass.
 - The rigid GLB has no wheel bones/clips; `wheel-motion.js` is a model-specific
@@ -102,14 +102,14 @@ browser evidence for every visual or control change.
 - Keep the speed layer low-contrast and pointer-transparent; its intensity must
   not become a physics or input dependency.
 - Aggregate `run-all.mjs` waits 5 seconds between heavy Chromium suites and retries
-  only a recognized readiness timeout once; `RACER_TEST_SETTLE_MS` remains an override.
+  only a recognized readiness timeout once; `RACER_TEST_SETTLE_MS` remains an override. Suspension pose is capped at 0.018/0.015rad and must stay render-only.
   Severe pressure can still report `TIMEOUT`; browser/server cleanup prevents pollution.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-283.
+1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-284.
 2. Keep the aggregate and named suites green after any further render/physics change;
-   keep rumble render-only and budget-neutral.
+   keep rumble and suspension follow render-only and budget-neutral.
 3. For any further change, rerun the named Racing suites, update this handoff,
    run `./scripts/check-handoff.sh`, then commit/push the verified checkpoint.
 

@@ -8455,3 +8455,23 @@ render-only，唔改 `Car.pos`、速度、碰撞、輸入或 draw-call budget，
 亦會自然衰減。setup gate 同真 browser smoke 分別讀到 `shake=0.0075`（12 m/s）及
 `shake=0.0126`（約 84 km/h），16 calls／17 effects calls 不變。同步將 `openRacer()`
 嘅 browser／HTTP server cleanup 放入失敗路徑，readiness timeout 唔再污染下一個 suite。
+
+## ADR-284 — Racing Car 車身要有受限 suspension follow，路面滯後只留喺 render layer
+
+Date: 2026-08-12. Status: accepted.
+
+真 browser screenshot 同物理 gate 已經證明路面有起伏、banking、車輪轉動同 body
+pitch/roll，但車身姿態仍然 100% 即時貼住 `trackPitch`／`trackBank`；過 crest 或落谷時
+會似一張模型貼紙，缺少重量同懸掛回正感。`Car` 現在保留 raw
+`trackPitch`／`trackBank` 作 surface truth，另外以 `suspensionPoseRate` 平滑追蹤一份
+render-only pose，將差值以受限 `suspensionPitch`／`suspensionRoll` 加到車模 root。
+兩軸分別封頂 **0.018／0.015rad**（約 1.03°／0.86°），而且按速度由 0.22 至 1.0
+平滑放大；重開／換賽道會先對齊 follow 值，唔會帶入上一場殘餘姿態。
+
+呢層唔可以寫入 `Car.pos.y`、速度、輪胎力、碰撞、nearestT、checkpoint、progress、AI
+或者接地陰影；陰影仍然只跟 raw surface pose。`race.mjs` 加入假路面突變 gate，實測
+滯後 **1.03° pitch／0.64° roll**、物理高度 **0**；完整 browser aggregate 維持
+`race` **128/128**、`setup` **147/147**、`rivals` **61/61**、`ghost` **29/29**、
+`season` **55/55**、`audio` **33/33**，世界 **16 calls／56,933 tris**。日後換車模或
+提高路面幅度，必須重跑呢個 gate、手機 draw budget 同真 browser screenshot，唔好將
+lag 直接餵返物理。
