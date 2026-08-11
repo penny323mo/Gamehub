@@ -338,8 +338,8 @@ function afterMoveFlow() {
       }
     }
     清局();   // 收咗場就唔好留住一局已經完咗嘅棋扮「未打完」
-    redraw();
     moveLock = false;
+    redraw();
     return;
   }
 
@@ -351,6 +351,10 @@ function afterMoveFlow() {
     updateTurnStatus();
   }
 
+  // Commit animation has finished at this point. Clear the lock before the
+  // redraw so the controls (especially 悔棋) reflect the new state instead of
+  // staying disabled until some unrelated UI event happens.
+  moveLock = false;
   redraw();
   存局();   // 行完即刻存——玩家可能行完就切走 app
 
@@ -358,7 +362,6 @@ function afterMoveFlow() {
     startAI();
   }
 
-  moveLock = false;
 }
 
 function animateMove(packedMove, movingPiece, durationMs, turnAfter, onDone) {
@@ -651,6 +654,11 @@ undoBtn.addEventListener('click', () => {
   updateTurnStatus();
   updateEvalBar(0);
   syncStatusAndControls();
+  // Undo changes the actual resumable position. Do not leave a post-undo
+  // snapshot behind, otherwise refresh/Continue resurrects the move the
+  // player just explicitly reverted.
+  if (history.length > 0) 存局();
+  else 清局();
 });
 
 /* ── Restart ── */

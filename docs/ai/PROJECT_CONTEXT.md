@@ -179,9 +179,13 @@ npm run build
 node js/engine/selftest_legal.js
 node js/engine/selftest_search.js
 node js/engine/selftest_perf.js
+cd ../..
+PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/xiangqi-flow.mjs
 ```
 
-Record any environment-specific limitation instead of silently skipping it.
+The browser flow gate covers real mobile tap → AI response → undo → refresh/Continue
+storage consistency. Record any environment-specific limitation instead of silently
+skipping it.
 
 ### Royale, Snooker, Gomoku, Big Two, Dou Dizhu, Penny Crush
 

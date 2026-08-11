@@ -7902,3 +7902,11 @@ GitHub Pages／離線瀏覽唔可以再依賴 Poly Haven runtime URL；`tests/hu
 
 HDR 只係環境光增益，唔係玩法依賴。`HDRLoader` decode/load 失敗時保留現有 key/rim/ambient
 lights，並顯示短暫 status message；context-loss 嘅持續復原提示優先於呢個非阻塞提示。
+
+## ADR-245 — Xiangqi 悔棋要解鎖控制，同存檔一齊回退
+
+Date: 2026-08-11. Status: accepted.
+
+落子動畫完成後先解除 `moveLock` 再 redraw，否則 `悔棋` 會永遠保留動畫期間嘅 disabled 狀態。
+悔棋亦必須同步 resumable localStorage：有 history 就存返目前局面，冇 history 就清除存檔。
+`tests/xiangqi-flow.mjs` 用真實 mobile tap、AI 回應、悔棋同 refresh/Continue 守住呢兩條 invariant。

@@ -4,8 +4,8 @@ Updated: 2026-08-11 (Asia/Macau)
 Prepared by: Codex — integrated Game Hub product-audit checkpoint
 Integration branch: `main`
 Work branch: `main`
-Status: the latest integrated player-flow audit is green, and Xiangqi's optional environment light is now
-self-contained. This checkpoint contains the bundled asset, renderer fallback, regression gate, and verification.
+Status: the latest integrated player-flow audit is green, and Xiangqi's optional environment light plus
+single-player undo/resume flow are hardened. This checkpoint contains the source fixes, gates, and verification.
 
 ## Current objective
 
@@ -34,7 +34,8 @@ self-contained. This checkpoint contains the bundled asset, renderer fallback, r
   flow, projectile renderer, and standalone renderer/performance checks passed.
 - Xiangqi production build plus legal-move, search, and performance self-tests passed. The optional Studio Small 09
   CC0 HDRI is now bundled under `games/xiangqi-ai/assets/`, imported with Vite `?url`, copied into tracked
-  `dist/assets/`, and guarded by a short load-failure status notice; local lights keep the board playable.
+  `dist/assets/`, and guarded by a short load-failure status notice; local lights keep the board playable. Real mobile
+  tap → AI → undo → refresh/Continue flow is **4/4**.
 
 **Earlier relay checkpoints remain integrated**
 
@@ -43,11 +44,10 @@ self-contained. This checkpoint contains the bundled asset, renderer fallback, r
 
 ## Changed files
 
-- `games/xiangqi-ai/js/render.js` — use the bundled HDR via `HDRLoader`; show a non-blocking fallback notice.
-- `games/xiangqi-ai/js/app.js` — defer optional online-session restore until after module evaluation so DCL stays local.
+- `games/xiangqi-ai/js/render.js`, `js/app.js`, `js/main.js` — bundled HDR/fallback, deferred online probe, and undo/storage fixes.
 - `games/xiangqi-ai/assets/studio_small_09_1k.hdr` and `assets/README.md` — CC0 environment asset plus provenance/hash.
 - `games/xiangqi-ai/dist/` — regenerated tracked entry bundle and HDR asset for GitHub Pages.
-- `tests/hub-cdn.mjs` — assert Xiangqi has no runtime Poly Haven HDR dependency and the dist bundle contains the HDR.
+- `tests/hub-cdn.mjs`, `tests/xiangqi-flow.mjs` — assert self-contained HDR and real undo/storage player flow.
 - `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md`, `docs/ai/HANDOFF.md` — durable architecture/ADR/relay notes.
 
 The Xiangqi `dist/` output is intentionally included because that directory is the hub's tracked deployment target.
@@ -73,7 +73,9 @@ Ashen Rail and Elden Ring II generated `dist/` output remains ignored and is not
   Treat WebGL suites as separate runs under GPU pressure; do not call the transient startup timeout a gameplay
   failure without reproducing it in a clean standalone run.
 - `cd games/xiangqi-ai && npm run build && node js/engine/selftest_legal.js && node js/engine/selftest_search.js &&
-  node js/engine/selftest_perf.js` — all build/legal/search/performance checks passed.
+  node js/engine/selftest_perf.js`; `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/xiangqi-flow.mjs`
+  — build/legal/search/performance
+  plus browser flow **4/4** passed.
 - Real mobile Chromium smokes of the rebuilt Xiangqi dist kept the landing and AI canvas usable while blocking
   non-local requests; no Poly Haven request appeared. The expected lazy Supabase request is the only third-party
   surface, and a second smoke aborting the bundled HDR showed `環境光暫時未能載入，已使用基本燈光` while the game stayed
