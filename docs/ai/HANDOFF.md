@@ -57,37 +57,37 @@ browser evidence for every visual or control change.
 - `games/Racing Car/src/wheel-motion.js`, `games/Racing Car/src/driving-effects.js`
 - `games/Racing Car/src/rivals.js`
 - `games/Racing Car/style.css`
-- `games/Racing Car/tests/setup.mjs`, `games/Racing Car/tests/lib/harness.mjs`
+- `games/Racing Car/tests/setup.mjs`, `games/Racing Car/tests/lib/harness.mjs`, `games/Racing Car/tests/run-all.mjs`
 - `docs/ai/PROJECT_CONTEXT.md`
 - `docs/ai/DECISIONS.md` (ADR-273 through ADR-283)
 - `docs/ai/HANDOFF.md`
 
 ## Verification
-
 - `node --check` on `main.js`, `driving-effects.js`, `setup.mjs`, `tests/lib/harness.mjs` — PASS.
 - `git diff --check` — PASS.
 - `race.mjs` — **126/126**; six tracks, top **146 km/h**, 0–80 **2.40s**,
   drift/ABS/wall/recovery/roll gates green, zero browser errors.
 - `setup.mjs` — **147/147**; terrain/offroad pose, contact shadow/effects, mobile
-  controls, day/night, lifecycle/context loss, landmarks, four-wheel motion and
-  offroad rumble (`shake=0.0075`) all green; zero browser errors, **16 calls／56,933
-  tris**, effects **17 calls**.
-- `rivals.mjs` — **61/61** last verified before this render-only patch; current retry
-  hit the 90s readiness timeout before assertions. `ghost.mjs` (**29/29**), `season.mjs`
-  (**55/55**) and `audio.mjs` (**33/33**) remain last-verified; rerun separately later.
+  controls, day/night, lifecycle/context loss, landmarks, four-wheel motion, rumble
+  (`shake=0.0075`) green; zero browser errors, **16 calls／56,933 tris**, effects **17**.
+- Named suites green: `rivals.mjs` **61/61**, `ghost.mjs` **29/29**, `season.mjs`
+  **55/55**, `audio.mjs` **33/33**, all zero browser errors.
+- Aggregate green with default 5-second teardown and readiness-only retry: race
+  **126/126**, setup **147/147**, rivals **61/61**, ghost **29/29**, season **55/55**,
+  audio **33/33**; old 500ms gap reproduced setup timeout, which disappeared at
+  `RACER_TEST_SETTLE_MS=5000`.
 - Real browser grade smoke: 844×390 at **135 km/h**, `surfaceY` **−0.117m**, pitch
   **−0.0195rad**, body pitch **−0.028rad**; portrait 320×568 at **111 km/h** keeps
-  stick/gas inside viewport. Screenshots `/tmp/racing-elevation-v4.png`, `/tmp/racing-elevation-portrait-v4.png`.
+  controls inside viewport. Screenshots `/tmp/racing-elevation-v4.png`, `/tmp/racing-elevation-portrait-v4.png`.
 - 844×390 real browser audit aimed at a naturally generated landmark position;
   the orange chevron reads as an upright sign with a visible short stem:
   `/tmp/racing-landmark-pole-audit.png`. Placement is separately guarded by
   setup (17.48–17.58m lateral, ≥0.97m above the local banked surface).
-- 844×390 audits cover wheels (**25m/s**), graded shadow drive, anchored drift/brake
-  glow and grass exit: `/tmp/racing-wheel-side-audit.png`, `/tmp/racing-contact-shadow-drive-audit.png`,
+- 844×390 audits cover wheels (**25m/s**), graded shadow drive, anchored effects and
+  grass exit: `/tmp/racing-wheel-side-audit.png`, `/tmp/racing-contact-shadow-drive-audit.png`,
   `/tmp/racing-steer-drift-surface-anchored.png`, `/tmp/racing-brake-glow-audit.png`,
-  `/tmp/racing-offroad-terrain-audit.png`. Direct rumble smoke reads **84 km/h**,
-  `offroad=true`, `renderY=terrainY=-1.103m`, `terrainBlend=0.412`, `shake=0.0126`,
-  one dust particle.
+  `/tmp/racing-offroad-terrain-audit.png`; direct rumble smoke reads **84 km/h**,
+  `offroad=true`, `renderY=terrainY=-1.103m`, `shake=0.0126`, one dust particle.
 ## Known issues and cautions
 
 - `renderY`, `trackBank` and `trackPitch` are render-only. Never feed them into
@@ -101,15 +101,15 @@ browser evidence for every visual or control change.
   a real screenshot at the affected viewport.
 - Keep the speed layer low-contrast and pointer-transparent; its intensity must
   not become a physics or input dependency.
-- Aggregate `run-all.mjs` can report `TIMEOUT` under Mac pressure; rerun named suites
-  separately. The harness now closes browser and HTTP server on readiness failure, so
-  a timeout does not contaminate the next suite.
+- Aggregate `run-all.mjs` waits 5 seconds between heavy Chromium suites and retries
+  only a recognized readiness timeout once; `RACER_TEST_SETTLE_MS` remains an override.
+  Severe pressure can still report `TIMEOUT`; browser/server cleanup prevents pollution.
 
 ## Exact next action
 
 1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-283.
-2. Rerun `rivals.mjs`, `ghost.mjs`, `season.mjs` and `audio.mjs` separately when
-   Chromium pressure clears; keep rumble render-only and budget-neutral.
+2. Keep the aggregate and named suites green after any further render/physics change;
+   keep rumble render-only and budget-neutral.
 3. For any further change, rerun the named Racing suites, update this handoff,
    run `./scripts/check-handoff.sh`, then commit/push the verified checkpoint.
 

@@ -327,12 +327,15 @@ idle render-on-demand, 320×568 portrait and 667×375 landscape control/HUD layo
 dual-touch input, adaptive DPR limits, pause/wake-lock lifecycle, WebGL context
 loss/restore, orientation pause, settings, gyro mapping, and minimap.
 The Racing Car harness reads `PLAYWRIGHT_CHROMIUM` (the root Hub/MOBA harnesses read
-`PW_CHROMIUM`); `run-all.mjs` puts a per-suite timeout and process-group cleanup around
-the same children, so a Chromium allocator hang is reported as `TIMEOUT` instead of
-leaving CI waiting forever. The shared `openRacer()` also closes its browser and HTTP
-server on readiness failure, so a timed-out child cannot poison the next suite. Run the
-WebGL suites separately when the machine is under GPU pressure; a bounded aggregate
-timeout is not gameplay evidence.
+`PW_CHROMIUM`); `run-all.mjs` puts a per-suite timeout, process-group cleanup and a
+5-second default teardown window around the same children, so a Chromium allocator
+hang is reported as `TIMEOUT` instead of leaving CI waiting forever. If a child reports
+only the known `__racer.ready` timeout, the aggregate runner performs one bounded
+readiness-only retry; assertion failures are not retried. The shared `openRacer()` also
+closes its browser and HTTP server on readiness failure, so a timed-out child cannot
+poison the next suite. `RACER_TEST_SETTLE_MS` can override the settle window when a
+machine needs a different value. Run the WebGL suites separately under GPU pressure;
+a bounded aggregate timeout is not gameplay evidence.
 It also verifies the enlarged floating analogue joystick/right-thumb slide-action cluster, the
 day/dusk/night sky, stars, headlight, reflective-track states, fixed-capacity driving
 effects, player-only arcade assists, simple-mode/gyro input, rivals/ghost/season career
