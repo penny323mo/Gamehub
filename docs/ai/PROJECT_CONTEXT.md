@@ -105,7 +105,7 @@ repository as a static site.
   do not replace it with per-frame terrain generation or a second road pass.
 - Racing Car's current sport envelope is deliberately bounded: `engineForce=10000`,
   `maxSpeed=68`, `dragCoef=2.4`, and `handbrakeGrip=0.35` are tuned against the
-  physical drift/ABS gates. The speed-streak layer begins at `16 m/s` and remains
+  physical drift/ABS gates. The speed-streak layer begins at `10 m/s` and remains
   render-only; do not turn it into a physics or pointer-input dependency.
 - Ashen Rail's player GLB has a skeleton but no animation clips. `ProceduralPlayerAnimator`
   owns semantic rig aliases and procedural locomotion/aim/recoil; `PlayerController` owns

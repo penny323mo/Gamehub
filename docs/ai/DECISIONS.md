@@ -8322,3 +8322,20 @@ page/console errors（截圖：`/tmp/racing-pitch-v3.png`）。
 
 日後再加「真實感」唔可以將呢個 render pitch 餵返 bicycle physics；如需更大起伏，先
 重跑 autopilot、ABS/drift、手機 draw budget 同多 viewport screenshot。
+
+## ADR-274 — Racing Car 中速開始就要有可見速度層，但仍然只係 HUD feedback
+
+Date: 2026-08-12. Status: accepted.
+
+真 browser 漂移 smoke 量到約 **78 km/h** 時，舊速度層整體 opacity 只有 **0.141**；
+streak gradient 本身最高只係約 0.08，截圖實際讀唔到「加速緊」。漂移角度條、胎痕同
+車身 roll 有反應，但直路推進仍似慢鏡。今輪將 speed intensity 起點由 `16 m/s` 提前到
+`10 m/s`、行程縮到 `24 m/s`，並稍微提高 gradient 對比；仍保留 `#speed-lines` 嘅
+`pointer-events:none`、HUD z-index、opacity cap `0.70`、零新增 mesh/draw call，亦
+唔會回寫 physics。
+
+真 browser 讀到 78 km/h 漂移時 opacity **0.340**、speed intensity **0.475**，畫面可見
+周邊 streak 且 HUD／控制冇被遮；320×568 portrait 61 km/h opacity **0.179**、16 calls、
+零 browser errors。`setup.mjs` 收緊速度回饋 gate 至 86 km/h opacity **>0.20**，仍然
+**135/135**；`race.mjs` **126/126**。日後如果要再加速度效果，先以截圖確認可讀性，唔好
+靠再提高極速或將 feedback 餵返物理。

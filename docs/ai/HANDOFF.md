@@ -1,7 +1,7 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Racing Car grounded elevation/pitch follow-up
+Prepared by: Codex — Racing Car grounded elevation/pitch and speed-feedback pass
 Integration branch: `main`
 Work branch: `main`
 Status: Racing source, tests, browser smoke and docs are ready for the next
@@ -28,6 +28,9 @@ or control change.
 - Elevation is more readable without adding geometry: setup measured surface
   **−0.777…+0.777m**, bank cap **0.055rad**, maximum sampled pitch **0.0097rad**;
   terrain remains one 32×32 mesh.
+- The speed layer now starts at `10 m/s` instead of `16 m/s`, reaches stronger
+  readable intensity by roughly 80 km/h, and has a slightly clearer gradient;
+  it remains pointer-transparent, HUD-safe, render-only and draw-call neutral.
 - Existing sport-arcade envelope, auto-throttle/simple controls, drift assists,
   speed layer, bounded effects, rivals/ghost/season and lifecycle contracts are
   unchanged.
@@ -38,6 +41,7 @@ or control change.
 - `games/Racing Car/src/car.js`
 - `games/Racing Car/src/main.js`
 - `games/Racing Car/src/rivals.js`
+- `games/Racing Car/style.css`
 - `games/Racing Car/tests/setup.mjs`
 - `docs/ai/PROJECT_CONTEXT.md`
 - `docs/ai/DECISIONS.md` (ADR-273)
@@ -50,8 +54,8 @@ or control change.
 - `race.mjs` — **126/126**; six tracks, top **146 km/h**, 0–80 **2.40s**,
   drift/ABS/wall/recovery/roll gates green, zero browser errors.
 - `setup.mjs` — **135/135**; closed height/pitch seam, terrain/guardrail pose,
-  mobile layout/touch/gyro, day/night, lifecycle/context loss, draw budget and
-  zero browser errors.
+  mobile layout/touch/gyro, day/night, lifecycle/context loss, draw budget,
+  speed-layer opacity and zero browser errors.
 - `rivals.mjs` — **61/61**; four AI rivals, ranking, minimap, instancing and
   lat-G gates green, zero browser errors.
 - `ghost.mjs` — **29/29**; recording/interpolation/render budget and zero errors.
@@ -61,6 +65,11 @@ or control change.
   **−0.11m**, track pitch **−0.012rad**, root pitch **−0.040rad**, **15 calls／
   56,963 tris**, zero page/console errors; screenshot:
   `/tmp/racing-pitch-v3.png`.
+- 844×390 controlled drift smoke: **78 km/h**, slip **18.6°**, speed-layer
+  opacity **0.340**, intensity **0.475**, screenshot:
+  `/tmp/racing-speed-feedback-v1.png`; 320×568 portrait smoke at **61 km/h**
+  reads opacity **0.179**, no control overlap or browser errors:
+  `/tmp/racing-speed-portrait-v1.png`.
 - A separate season startup once hit the known Chromium allocator pressure;
   the immediate authoritative rerun completed **55/55**. Do not treat an
   aggregate timeout as gameplay evidence.
@@ -76,14 +85,17 @@ or control change.
 - Do not increase engine output, camera shake, body roll/pitch, elevation or
   banking without rerunning the physical drift/ABS gates, mobile draw budget and
   a real screenshot at the affected viewport.
+- Keep the speed layer low-contrast and pointer-transparent; its intensity must
+  not become a physics or input dependency.
 - Aggregate `run-all.mjs` is bounded but can still report `TIMEOUT` when several
   Chromiums launch under Mac pressure; rerun the named suite separately.
 
 ## Exact next action
 
 1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-273.
-2. Inspect `/tmp/racing-pitch-v3.png` and do one real-device/phone-sized feel
-   review, focusing on hill crest, car contact, camera framing and drift read.
+2. Inspect `/tmp/racing-pitch-v3.png`, `/tmp/racing-speed-feedback-v1.png` and
+   `/tmp/racing-speed-portrait-v1.png`; do one real-device/phone-sized feel
+   review, focusing on hill crest, car contact, camera framing and speed/drift read.
 3. If no new evidence requires a change, run `./scripts/check-handoff.sh`,
    confirm `git status` is clean and local `main` equals `origin/main`, then
    accept this checkpoint. If changing constants, keep the change render-only

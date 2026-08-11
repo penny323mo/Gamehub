@@ -1130,9 +1130,9 @@ function updateHud() {
 
     const kmh = car.kmh;
     if (kmh !== hudCache.kmh) { $('speed-num').textContent = kmh; hudCache.kmh = kmh; }
-    // 速度層唔等到極速先出：寬屏手機路面比例闊，約 80 km/h 已經需要
-    // 一點周邊流動感；仍然由低透明度漸進，唔遮 HUD／唔改物理。
-    const speedIntensity = THREE.MathUtils.clamp((car.speed - 16) / 30, 0, 1);
+    // 速度層唔等到極速先出：由約 36 km/h 開始，去到 80 km/h 已經有
+    // 明顯但仍然受限嘅周邊流動感；只係 HUD render feedback，唔遮 HUD／唔改物理。
+    const speedIntensity = THREE.MathUtils.clamp((car.speed - 10) / 24, 0, 1);
     const speedLines = $('speed-lines');
     if (speedLines) {
         speedLines.style.setProperty('--speed-intensity', String(speedIntensity));

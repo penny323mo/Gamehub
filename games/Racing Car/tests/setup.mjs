@@ -63,7 +63,7 @@ const speedFeedback = await page.evaluate(() => {
 });
 console.log('  ', JSON.stringify(speedFeedback));
 check('約 86 km/h 已有漸進速度回饋', speedFeedback.speed >= 80
-    && speedFeedback.active && speedFeedback.opacity > 0.02, speedFeedback);
+    && speedFeedback.active && speedFeedback.opacity > 0.2, speedFeedback);
 
 const TRACK_IDS = await page.evaluate(() => window.__racer.TRACKS.map(t => t.id));
 
