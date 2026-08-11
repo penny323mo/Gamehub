@@ -4,7 +4,7 @@ Updated: 2026-08-11 (Asia/Macau)
 Prepared by: Codex — integrated Game Hub product-audit checkpoint
 Integration branch: `main`
 Work branch: `main`
-Status: the latest integrated player-flow audit is green; Xiangqi's optional environment light, undo/resume flow, and interrupted-pointer lifecycle, Gomoku's delayed-AI lifecycle, Big Two's CPU queue, Dou Dizhu's bid/play loops, Penny Crush's async match plus interrupted-touch lifecycle, Snooker's root/2D/3D entry, truthful opening state, Offline P2 foul decisions, mobile touch/charge input, AI handoff, Ashen Rail's fire-pointer lifecycle, Royale's interrupted card drag/placement lifecycle, MOBA's interrupted skill/attack/joystick lifecycle, and Snake's mobile login/board/lint/focus lifecycle are hardened. This checkpoint contains the source fixes, gates, and verification.
+Status: the latest integrated player-flow audit is green; Xiangqi's optional environment light, undo/resume flow, and interrupted-pointer lifecycle, Elden Ring II's interrupted keyboard/touch/camera lifecycle, Gomoku's delayed-AI lifecycle, Big Two's CPU queue, Dou Dizhu's bid/play loops, Penny Crush's async match plus interrupted-touch lifecycle, Snooker's root/2D/3D entry, truthful opening state, Offline P2 foul decisions, mobile touch/charge input, AI handoff, Ashen Rail's fire-pointer lifecycle, Royale's interrupted card drag/placement lifecycle, MOBA's interrupted skill/attack/joystick lifecycle, and Snake's mobile login/board/lint/focus lifecycle are hardened. This checkpoint contains the source fixes, gates, and verification.
 
 ## Current objective
 
@@ -27,7 +27,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
 - The Xiangqi 3D entry was also checked under a throttled mobile network: its landing menu became usable while
   the optional environment map was still pending, so slow HDR download does not block the game entry.
 
-**Tower Defense, Xiangqi, Gomoku, Big Two, Dou Dizhu, Penny Crush, Snooker, and Snake verification**
+**Tower Defense, Xiangqi, Elden Ring II, Gomoku, Big Two, Dou Dizhu, Penny Crush, Snooker, and Snake verification**
 
 - Tower core, map/route redesign, assets, combat **13/13**, units **14/14**, gateway/keep placement **11/11**, look
   **9/9**, map browser **8/8**, touch **6/6**, load **5/5**, flow **18/18**, projectile renderer **5/5**, and
@@ -39,7 +39,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
   touchscreen tap → AI → undo → refresh/Continue plus interrupted-pointer/late-click flow is **5/5**. Gomoku's real mobile stale-timer/restart flow is **5/5**;
   Big Two's real mobile stale-queue/restart flow is **4/4**; Dou Dizhu's real mobile stale-bid/restart flow is **4/4**;
   Penny Crush's real mobile stale-chain/restart/interrupted-touch flow is **7/7**; Snooker's root/2D/3D opening-state, mobile touch/charge,
-  AI handoff, and Offline P2 foul-decision flow is **18/18**; Snake's mobile Enter/start/Shift-focus/pause/resume/Hub flow is **10/10**.
+  AI handoff, and Offline P2 foul-decision flow is **18/18**; Snake's mobile Enter/start/Shift-focus/pause/resume/Hub flow is **10/10**; Elden Ring II's HUD/input flow is **94/94**.
 
 ## Changed files
 
@@ -52,7 +52,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
 - `games/snake-game/src/components/NameInput/NameInput.tsx`, `src/components/Game/Game.tsx`, `src/components/Background/Background.tsx`, `src/components/Particles/Particles.tsx`, `src/hooks/useStorage.ts`, `styles/Game.module.css`, and tracked `dist/` — isolate Enter login, bind the board/header to mobile viewport width, clean lint, and keep timed/held boosts finite.
 - `games/tower/src/main.ts`, `games/tower/tests/combat.mjs`, tracked `games/tower/dist/` — close preload/arena test races; `games/royale/src/ui.js`, `games/royale/tests/match.mjs` — cancel interrupted card drag/placement on pointercancel, lost capture, blur, and hidden-page transitions; `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md`, `docs/ai/HANDOFF.md` — durable relay notes.
 - `games/snooker/2d/app.js`, `games/snooker/3d/main.js`, `tests/snooker-flow.mjs` — keep opening cue-in-hand HUD state truthful, cancel interrupted 2D charge/drag input on pointercancel, blur, or hidden-page transitions, and let local Offline P2 own foul decisions instead of hiding the panel and deadlocking the match; cover mobile touch/charge input and the P1-vs-AI handoff in a real mobile browser.
-- `games/ashen-rail/src/ui/TouchControls.ts`, tracked `games/ashen-rail/dist/` — capture the fire pointer and clear held fire on release, cancellation, blur, or hidden-page interruption; `games/moba/src/input.js`, `tests/browser.mjs` — clear held skill/attack/joystick/pinch state and visuals on blur or hidden-page interruption, with real landscape/portrait gates.
+- `games/ashen-rail/src/ui/TouchControls.ts`, tracked `games/ashen-rail/dist/` — capture the fire pointer and clear held fire on release, cancellation, blur, or hidden-page interruption; `games/moba/src/input.js`, `tests/browser.mjs` — clear held skill/attack/joystick/pinch state and visuals on blur or hidden-page interruption, with real landscape/portrait gates; `games/elden-ring-ii/src/GameClient.tsx`, `tests/hud-layout.mjs`, tracked `dist/` — clear held/queued keyboard, touch-stick, camera, and pinch input on blur/hidden-page interruption, covering late pointermove and keyup in real mobile browser gates.
 ## Verification
 - `PLAYWRIGHT_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' npm test` from
   `games/royale/tests/` — all nine suites passed: leak **7/7**, perf **3/3**, gauntlet **17/17**, combat **8/8**,
@@ -83,9 +83,8 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
   non-local requests; no Poly Haven request appeared. The expected lazy Supabase request is the only third-party
   surface, and a second smoke aborting the bundled HDR showed `環境光暫時未能載入，已使用基本燈光` while the game stayed
   playable.
-- Ashen Rail asset audit/lint/Vitest **14/14**/build plus production 844×390 browser pointer-release smoke passed: ammo
-  stayed stable after release outside the fire button and after a blur interruption, with zero browser errors. Earlier
-  checkpoint evidence remains valid: Elden Ring II HUD **92/92** plus `npm test` **17/17**; Racing Car independent real-browser suites
+- Elden Ring II HUD/input **94/94** plus `npm test` **17/17** passed, including blur/hidden input cleanup and zero browser errors. Ashen Rail asset audit/lint/Vitest **14/14**/build plus production 844×390 browser pointer-release smoke passed: ammo
+  stayed stable after release outside the fire button and after a blur interruption, with zero browser errors. Racing Car independent real-browser suites
   race **124/124**, setup **125/125**, rivals **61/61**, ghost **29/29**, season **55/55**, audio **32/32**.
 
 ## Known issues and cautions
@@ -96,8 +95,8 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
 - Xiangqi's optional board environment light is now a bundled CC0 HDR. If the local file cannot be decoded, the
   renderer keeps its key/rim/ambient lights and shows a short fallback status; do not reintroduce a runtime Poly Haven
   URL or make this visual enhancement block entry. Supabase remains lazy and optional for online play.
-- Ashen Rail's `dist/` is tracked deployment output and must be rebuilt for source changes; Elden Ring II's `dist/` remains
-  generated/ignored and CI rebuilds it from source. Do not stage unrelated generated assets.
+- Ashen Rail and Elden Ring II `dist/` are tracked deployment output and must be rebuilt for source changes; do not stage
+  unrelated generated assets.
 - If changing Tower/Snake/Xiangqi source, rebuild their tracked `dist/` before committing. MOBA imports and the Hub
   entry must keep one cache token.
 - Snake `npm run lint` is clean; three intentional external/visual hydration effects use narrow `react-hooks/set-state-in-effect` suppressions. Vite's classic `safe-storage.js` warning remains non-fatal; the build exits 0 and the tracked dist target is valid.
@@ -107,7 +106,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
 
 1. Run `./scripts/agent-context.sh --sync`, then read this file and `docs/ai/PROJECT_CONTEXT.md` before editing.
 2. If taking the next product scope, start with a new real browser player risk; Xiangqi HDR self-containment, the
-   CDN-abort gate, and Snake focus cleanup are closed by this checkpoint unless a new reproduction contradicts them.
+   CDN-abort gate, Snake focus cleanup, and Elden input interruption are closed by this checkpoint unless contradicted.
 3. Before handoff, run `./scripts/check-handoff.sh` and `git diff --check`, commit this file with any scoped source
    changes, push `main`, and verify `git rev-parse HEAD` equals `git rev-parse origin/main`.
 

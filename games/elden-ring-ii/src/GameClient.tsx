@@ -2036,6 +2036,49 @@ export default function GameClient() {
         renderer.domElement.releasePointerCapture(event.pointerId);
       }
     };
+    const onInputInterruption = () => {
+      // Mobile browsers are not required to send keyup/pointerup when the page
+      // loses focus or is backgrounded. Clear every held/queued source here so
+      // a notification swipe cannot leave movement, camera drag, pinch, or an
+      // action queued after the player returns.
+      keys.clear();
+      touchMove.set(0, 0);
+      queuedAttack = false;
+      queuedDodge = false;
+      queuedLock = false;
+      互動到 = -1;
+
+      if (cameraPointerId !== null) {
+        try {
+          if (renderer.domElement.hasPointerCapture(cameraPointerId)) {
+            renderer.domElement.releasePointerCapture(cameraPointerId);
+          }
+        } catch {
+          // Pointer capture may already have been released by the browser.
+        }
+      }
+      cameraDragging = false;
+      cameraPointerId = null;
+      pinchPointers.clear();
+      pinchSpan = 0;
+
+      const stickId = stickPointer.current;
+      const stickZone = document.querySelector(".touch-zone");
+      if (stickId !== null && stickZone instanceof HTMLElement) {
+        try {
+          if (stickZone.hasPointerCapture(stickId)) stickZone.releasePointerCapture(stickId);
+        } catch {
+          // Pointer capture may already have been released by the browser.
+        }
+      }
+      stickPointer.current = null;
+      stickOriginRef.current = null;
+      setStickOrigin(null);
+      setStick({ x: 0, y: 0 });
+    };
+    const onVisibilityChange = () => {
+      if (document.hidden) onInputInterruption();
+    };
     const onContextMenu = (event: MouseEvent) => event.preventDefault();
     const onResize = () => {
       if (!mount) return;
@@ -2049,6 +2092,8 @@ export default function GameClient() {
     window.addEventListener("keydown", onKeyDown, { passive: false });
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("resize", onResize);
+    window.addEventListener("blur", onInputInterruption);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
       zoomBy(event.deltaY > 0 ? 1.09 : 1 / 1.09);
@@ -2107,6 +2152,10 @@ export default function GameClient() {
       },
       clock: () => ({ real: performance.now() / 1000, motion: motionClock, attacks: minionAttacks,
         間隔: attackGaps.slice() }),
+      input: () => ({
+        keys: [...keys], touch: [touchMove.x, touchMove.y],
+        cameraDragging, cameraPointerId, pinchPointers: pinchPointers.size,
+      }),
       // 揮擊弧線畫成點 vs 判定實際係點——兩組數分開出，等測試可以夾佢哋
       bossMove: (phase: 1 | 2, distance: number, roll: number, 見到落點 = true) =>
         chooseBossMove(phase, distance, roll, 見到落點),
@@ -3390,6 +3439,8 @@ export default function GameClient() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("resize", onResize);
+      window.removeEventListener("blur", onInputInterruption);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       renderer.domElement.removeEventListener("wheel", onWheel);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointermove", onPointerMove);

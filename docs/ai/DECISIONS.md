@@ -8036,3 +8036,17 @@ pointer state，`lostpointercapture` 只喺 gesture 仍然 down 時清除。第�
 嘅 origin。`tests/xiangqi-flow.mjs` 用真實 mobile `touchscreen.tap` 守正常 AI、悔棋／Continue，並
 用 active pointer cancellation 加遲到 click 守取消後唔落子；日後改 OrbitControls 或落子輸入時要保留
 呢個 event ordering invariant。
+
+## ADR-256 — Elden Ring II 失焦要清晒按住式輸入
+
+Date: 2026-08-11. Status: accepted.
+
+Elden Ring II 嘅遊戲 loop 同時讀鍵盤 `keys`、手機 `touchMove`、鏡頭 drag/pinch 同 queued action。
+手機切去通知中心、另一個 app 或鎖屏時，瀏覽器未必會補返 `keyup`／`pointerup`；production dist
+實測只派 blur 後，搖桿仍保持 `[0,-1]`，角色繼續向前行。
+
+`GameClient.tsx` 將 blur 同 hidden-page 視為同一個 input interruption：清鍵盤、搖桿、鏡頭
+pointer capture、pinch、queued attack/dodge/lock/interact，並收返浮動搖桿。診斷 seam `__ER2.input()`
+只讀返呢啲 transient state；`tests/hud-layout.mjs` 用真 mobile browser 守住持有搖桿後 blur、遲到
+pointermove 唔會重新加速，以及遲到 keyup 前鍵盤移動會清除。日後新增按住式控制，必須接入同一個
+`onInputInterruption`，唔可以只靠各自 control 嘅 release event。

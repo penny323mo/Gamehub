@@ -1166,6 +1166,54 @@ await page.goto('about:blank');
     check('手機都衝刺到（搖桿推到個環度就係跑）',
         盡 != null && 盡.最高速 > 盡.設計速 + 0.05,
         { 推到底: 盡 && 盡.最高速, 行路唔可能過: 盡 && 盡.設計速, 動畫: 盡 && 盡.動畫 });
+
+    // 手機切去通知中心／另一個 app 時，瀏覽器未必會補返 pointerup 或 keyup。
+    // 如果只靠各自控制嘅 release handler，搖桿同 WASD 都可以喺玩家返嚟後繼續
+    // 生效；呢條 gate 先確認真係持有，再用 blur 清走，最後送一個遲到 pointermove
+    // 守住取消後唔可以重新武裝舊 pointer。
+    await p3.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
+    await p3.waitForTimeout(1200);
+    await 入場(p3);
+    const inputLifecycle = await p3.evaluate(async () => {
+        const zone = document.querySelector('.touch-zone');
+        if (!zone) return { 冇區: true };
+        const pointer = (type, extra = {}) => zone.dispatchEvent(new PointerEvent(type, {
+            bubbles: true, cancelable: true, pointerId: 41, pointerType: 'touch', isPrimary: true,
+            clientX: 150, clientY: 280, ...extra,
+        }));
+        pointer('pointerdown');
+        pointer('pointermove', { clientY: 220 });
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        const held = window.__ER2.input();
+        window.dispatchEvent(new Event('blur'));
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        const cleared = window.__ER2.input();
+        const stickCleared = !document.querySelector('.touch-stick');
+        pointer('pointermove', { clientY: 200 });
+        await new Promise((resolve) => setTimeout(resolve, 80));
+        const late = window.__ER2.input();
+        return { held, cleared, late, stickCleared };
+    });
+    check('手機 blur 會清除搖桿，遲到 pointermove 唔會重新加速',
+        inputLifecycle != null && !inputLifecycle.冇區 &&
+        Math.hypot(...inputLifecycle.held.touch) > 0.5 &&
+        inputLifecycle.cleared.touch.every((value) => value === 0) &&
+        inputLifecycle.cleared.keys.length === 0 &&
+        inputLifecycle.late.touch.every((value) => value === 0) &&
+        inputLifecycle.stickCleared,
+        inputLifecycle);
+
+    await p3.keyboard.down('KeyW');
+    await p3.waitForTimeout(100);
+    const heldKey = await p3.evaluate(() => window.__ER2.input());
+    await p3.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await p3.waitForTimeout(100);
+    const clearedKey = await p3.evaluate(() => window.__ER2.input());
+    await p3.keyboard.up('KeyW');
+    check('手機 blur 亦會清除遲到 keyup 前嘅鍵盤移動',
+        heldKey.keys.includes('KeyW') && clearedKey.keys.length === 0 &&
+        clearedKey.touch.every((value) => value === 0),
+        { held: heldKey, cleared: clearedKey });
     await 手機.close();
 }
 
