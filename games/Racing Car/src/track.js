@@ -691,12 +691,17 @@ export class Track {
             new THREE.MeshStandardMaterial({ color: 0x315f35, roughness: 0.92 }), positions.length,
         );
         const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3();
-        const terrainBaseY = this.surfaceMinY - 0.22;
         positions.forEach((p, i) => {
             s.setScalar(p.s);
-            m.compose(new THREE.Vector3(p.x, terrainBaseY + 1.9 * p.s, p.z), q, s);
+            // 樹根要落喺自己所在位置嘅 terrain，而唔係全場最低點。路面
+            // profile 有 crest／valley 時，固定 baseY 會令山頂啲樹浮起、谷底
+            // 啲樹插入草地；用同一個 terrain helper 共享 road-to-grass blend，
+            // 視覺上先會真係讀到個地形起伏。每棵樹仍然只係一個 instance，
+            // 唔增加 draw call 或 runtime work。
+            const terrainY = this.terrainYAt(p.x, p.z);
+            m.compose(new THREE.Vector3(p.x, terrainY + 1.9 * p.s, p.z), q, s);
             trunks.setMatrixAt(i, m);
-            m.compose(new THREE.Vector3(p.x, terrainBaseY + 5.4 * p.s, p.z), q, s);
+            m.compose(new THREE.Vector3(p.x, terrainY + 5.4 * p.s, p.z), q, s);
             crowns.setMatrixAt(i, m);
         });
         trunks.instanceMatrix.needsUpdate = crowns.instanceMatrix.needsUpdate = true;

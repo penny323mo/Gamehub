@@ -8576,3 +8576,17 @@ draw budget 全部維持綠燈；真正 headed 844×390 smoke 讀到 **114km/h**
 **1.279m**、trackPitch **0.01268rad**、gradeAccel **0.106m/s²**、offroad `false`、
 console **0 errors**（`/tmp/racing-grade-start-v12.png`）。日後再提高山勢或重力前，必須
 重跑 grade gate、物理 suite、portrait／landscape smoke，同手機 18-call／120k tris budget。
+
+## ADR-290 — Racing Car 路邊樹木必須錨定所在地形
+
+Date: 2026-08-12. Status: accepted.
+
+賽道加入 crest／valley 後，`Track.#buildTrees()` 仍然用全場最低面固定的 base Y。
+因此山頂樹根會浮離草地，谷底樹身會插入地面，破壞玩家對坡度、速度同路邊距離嘅判讀。
+今輪改為每個 tree placement 以同一個 `terrainYAt(x,z)` 計算 trunk root，再由相同
+surface anchor 放 crown；仍然係兩個既有 `InstancedMesh`，唔增加 draw call，亦唔喺 frame
+loop 重建曲線。`setup.mjs` 新增 130 棵樹嘅 root-vs-terrain gate，實測 count **130**、
+max error **0**，完整 Racing aggregate 維持全綠。
+
+日後如改 terrain profile、樹木 placement 或 road-to-grass blend，必須重跑 tree-anchor
+gate 及真 headed mobile smoke；唔好用固定 `surfaceMinY` 取代 local terrain anchor。

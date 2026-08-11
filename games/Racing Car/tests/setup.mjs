@@ -117,6 +117,19 @@ const geo = await page.evaluate(async () => {
         nextPositionScratch: car._nextPos?.isVector3 === true,
         centreBright, edgeBright,
         posts: track.wallCount, trees: track.treeCount,
+        treeAnchors: (() => {
+            const trunk = track.trees?.children?.[0];
+            const values = trunk?.instanceMatrix?.array ?? [];
+            let maxError = 0;
+            for (let i = 0; i < (trunk?.count ?? 0); i++) {
+                const o = i * 16;
+                const scale = Math.abs(values[o]);
+                const x = values[o + 12], z = values[o + 14];
+                const rootY = values[o + 13] - 1.9 * scale;
+                maxError = Math.max(maxError, Math.abs(rootY - track.terrainYAt(x, z)));
+            }
+            return { count: trunk?.count ?? 0, maxError: +maxError.toFixed(4) };
+        })(),
         landmarks: {
             count: track.landmarkCount,
             meshCount: track.landmarks?.count ?? 0,
@@ -192,6 +205,8 @@ check('車輛碰撞試探會重用 scratch position', geo.nextPositionScratch ==
 check('柏油有低對比中線／車轍參照而唔新增 draw call',
     geo.centreBright >= geo.edgeBright + 45, geo);
 check('有連續護欄支柱同賽道樹木', geo.posts > 200 && geo.trees >= 100, geo);
+check('樹木根部跟返所在地形，山頂唔浮、谷底唔沉',
+    geo.treeAnchors.count === geo.trees && geo.treeAnchors.maxError < 0.02, geo.treeAnchors);
 check('彎位有低成本外側 chevron 地標，唔再只靠重複樹木讀路',
     geo.landmarks.count >= 6 && geo.landmarks.count <= 14
     && geo.landmarks.meshCount === geo.landmarks.count
