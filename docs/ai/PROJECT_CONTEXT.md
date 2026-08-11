@@ -227,7 +227,17 @@ The flow uses a deterministic forced swap on a mobile 8×8 board, verifies Resta
 消除／補位 async chain, and then verifies a fresh match still completes and scores. `generation` is the
 local lifecycle authority; source changes to the async match pipeline must preserve that guard.
 
-### Royale, Snooker
+### Snooker
+
+```sh
+PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/snooker-flow.mjs
+```
+
+The flow covers the root single-player picker, mobile 2D canvas drag-to-shot and restart, 3D WebGL
+start state, return navigation, and zero unexpected browser errors. Online room probes remain intentionally
+outside the offline gate.
+
+### Royale
 
 There is no single root test command that certifies these games. Use targeted
 tests or existing self-check hooks where present, syntax/import checks where

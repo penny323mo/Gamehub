@@ -5,7 +5,7 @@ Prepared by: Codex — integrated Game Hub product-audit checkpoint
 Integration branch: `main`
 Work branch: `main`
 Status: the latest integrated player-flow audit is green; Xiangqi's optional environment light, undo/resume flow,
-Gomoku's delayed-AI lifecycle, Big Two's CPU queue, Dou Dizhu's bid/play loops, and Penny Crush's async match lifecycle are hardened. This checkpoint contains the source fixes, gates, and verification.
+Gomoku's delayed-AI lifecycle, Big Two's CPU queue, Dou Dizhu's bid/play loops, Penny Crush's async match lifecycle, and Snooker's root/2D/3D entry flow are hardened. This checkpoint contains the source fixes, gates, and verification.
 
 ## Current objective
 
@@ -28,7 +28,7 @@ Gomoku's delayed-AI lifecycle, Big Two's CPU queue, Dou Dizhu's bid/play loops, 
 - The Xiangqi 3D entry was also checked under a throttled mobile network: its landing menu became usable while
   the optional environment map was still pending, so slow HDR download does not block the game entry.
 
-**Tower Defense, Xiangqi, Gomoku, Big Two, Dou Dizhu, and Penny Crush verification**
+**Tower Defense, Xiangqi, Gomoku, Big Two, Dou Dizhu, Penny Crush, and Snooker verification**
 
 - Tower core, map/route redesign, assets, combat, units, gateway/keep placement, look, map browser, touch, load,
   flow, projectile renderer, and standalone renderer/performance checks passed.
@@ -49,7 +49,7 @@ Royale loading feedback, Tower start-screen contrast, Elden browser-gate isolati
 - `games/big2/app.js`, `index.html` — cancellable/token-guarded CPU queue and aligned cache token; `games/doudizhu/src/game.js`, `src/ui.js`, `main.js`, `index.html` — shared generation scheduler for bid/play loops and aligned cache tokens; `games/penny_crush/penny_crush.js`, `index.html` — generation-guarded async match pipeline and cache token.
 - `games/xiangqi-ai/assets/studio_small_09_1k.hdr` and `assets/README.md` — CC0 environment asset plus provenance/hash.
 - `games/xiangqi-ai/dist/` — regenerated tracked entry bundle and HDR asset for GitHub Pages.
-- `tests/hub-cdn.mjs`, `tests/xiangqi-flow.mjs`, `tests/gomoku-flow.mjs`, `tests/big2-flow.mjs`, `tests/doudizhu-flow.mjs`, `tests/penny-crush-flow.mjs` — assert self-contained assets and player flows.
+- `tests/hub-cdn.mjs`, `tests/xiangqi-flow.mjs`, `tests/gomoku-flow.mjs`, `tests/big2-flow.mjs`, `tests/doudizhu-flow.mjs`, `tests/penny-crush-flow.mjs`, `tests/snooker-flow.mjs` — assert self-contained assets and player flows.
 - `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md`, `docs/ai/HANDOFF.md` — durable architecture/ADR/relay notes.
 
 ## Verification
@@ -66,7 +66,7 @@ Royale loading feedback, Tower start-screen contrast, Elden browser-gate isolati
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/big2-flow.mjs` — **4/4**;
   stale CPU queue cannot consume a fresh deal, normal CPU response still works, and local cache tokens agree.
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/doudizhu-flow.mjs` — **4/4**; stale bid/play timer cannot mutate a fresh deal, normal CPU bid still works, and local cache tokens agree.
-- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/penny-crush-flow.mjs` — **6/6**; stale async match chain cannot mutate a fresh board, normal match still scores, and the script cache token is aligned.
+- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/penny-crush-flow.mjs` — **6/6**; stale async match chain cannot mutate a fresh board, normal match still scores, and the script cache token is aligned; Snooker root/2D/3D mobile flow **9/9**.
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/hub.mjs` — **96/96**;
   13 launcher entries, four pages, mobile 2×2 / desktop four-up layout, no dead links or browser errors.
 - `cd games/tower && npm test` — build, all core gates, browser gates, and projectile-renderer gates passed. The
