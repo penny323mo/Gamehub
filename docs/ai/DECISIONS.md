@@ -8116,3 +8116,16 @@ tap 需要即時而且唔應該等 300ms compatibility delay。
 短暫抑制瀏覽器嘅 delayed synthetic click，桌面 click 路徑保持不變。`tests/gomoku-flow.mjs` 用真實
 mobile browser 守住 cancellation 四條路徑、正常 touchscreen tap、mouse tap、AI response 同 zero errors。
 日後棋盤或其他 turn-based canvas 輸入必須先完成 gesture，再改變遊戲狀態。
+
+## ADR-262 — Racing Car audio 對 non-finite physics 必須安全降級
+
+Date: 2026-08-11. Status: accepted.
+
+Racing Car audio 每幀會將 physics 的 speed、slip angle、throttle 同 wall impact 寫入 Web Audio
+`AudioParam`。真實 browser 以 NaN inputs 重現到：`setTargetAtTime` 失敗後 fallback `param.value = NaN`
+再拋 `TypeError: The provided float value is non-finite`，一個壞 physics frame 可以污染 render loop。
+
+`src/audio.js` 以 `finiteOr` 先將非有限 physics 值降級為 idle/quiet fallback，`ramp` 亦會保護 value
+同 tau，fallback assignment 再套一層 catch；撞擊音效 strength 同樣安全化。`tests/audio.mjs` 用真實
+browser 守正常 mapping、audio lifecycle 同 non-finite frame，現為 **33/33**。日後任何 physics-to-audio
+mapping 必須先做有限值邊界處理，唔可以直接寫入 AudioParam。

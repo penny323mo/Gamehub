@@ -22,14 +22,20 @@ export function saveAudioOn(on) {
 const GEAR_SPAN = 21;      // 每格波覆蓋幾多 m/s
 const GEARS = 5;
 
+// Physics can briefly contain NaN/Infinity while a context is restoring or a
+// collision is being resolved. AudioParam rejects those values synchronously;
+// treat them as the quiet/idle fallback instead of letting one bad frame break
+// the render loop.
+const finiteOr = (value, fallback = 0) => Number.isFinite(value) ? value : fallback;
+
 // 引擎：轉數喺一格波入面由低爬到高，換波跌返落去——冇呢個鋸齒，
 // 加速就變成一條無聊嘅上升線，聽唔出「有波段」。
 export function engineTone(speed, throttle) {
-    const s = Math.max(0, speed);
+    const s = Math.max(0, finiteOr(speed));
     const gear = Math.min(GEARS - 1, Math.floor(s / GEAR_SPAN));
     const within = Math.min(1, (s - gear * GEAR_SPAN) / GEAR_SPAN);
     const rpm = 0.25 + within * 0.75;
-    const th = Math.max(0, Math.min(1, throttle));
+    const th = Math.max(0, Math.min(1, finiteOr(throttle)));
     return {
         gear, rpm,
         freq: 54 + rpm * 92 + gear * 4,
@@ -42,16 +48,17 @@ export function engineTone(speed, throttle) {
 // 輪胎：約 8° 滑移角開始響，慢車唔響（泊車扭軚唔應該有甩尾聲），
 // 出咗草地就悶啲。
 export function skidGain(slipAngle, speed, offroad = false, handbrake = false) {
-    if (speed < 6) return 0;
-    const slip = Math.abs(slipAngle);
+    const v = Math.max(0, finiteOr(speed));
+    if (v < 6) return 0;
+    const slip = Math.abs(finiteOr(slipAngle));
     const base = Math.max(0, slip - 0.14) * 2.2 + (handbrake ? 0.25 : 0);
-    const fade = Math.min(1, (speed - 6) / 10);
+    const fade = Math.min(1, (v - 6) / 10);
     return Math.min(1, base * fade) * (offroad ? 0.5 : 1);
 }
 
 // 風噪：高速先聽到，用嚟做速度感嘅底層
 export function windGain(speed) {
-    return Math.min(0.75, Math.max(0, speed - 8) / 52);
+    return Math.min(0.75, Math.max(0, finiteOr(speed) - 8) / 52);
 }
 
 export function createDefaultContext() {
@@ -136,8 +143,10 @@ export function createRacerAudio({
     }
 
     const ramp = (param, value, tau = 0.05) => {
-        try { param.setTargetAtTime(value, ctx.currentTime, tau); }
-        catch { param.value = value; }
+        const safeValue = finiteOr(value);
+        const safeTau = Number.isFinite(tau) && tau > 0 ? tau : 0.05;
+        try { param.setTargetAtTime(safeValue, ctx.currentTime, safeTau); }
+        catch { try { param.value = safeValue; } catch { /* audio device unavailable */ } }
     };
 
     function silence(tau = 0.08) {
@@ -184,7 +193,8 @@ export function createRacerAudio({
             f.frequency.setValueAtTime(900, t0);
             f.frequency.exponentialRampToValueAtTime(120, t0 + 0.22);
             const g = a.createGain();
-            const vol = Math.min(0.45, 0.12 + strength * 0.02);
+            const impact = Math.max(0, finiteOr(strength));
+            const vol = Math.min(0.45, 0.12 + impact * 0.02);
             g.gain.setValueAtTime(vol, t0);
             g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.26);
             src.connect(f).connect(g).connect(master);

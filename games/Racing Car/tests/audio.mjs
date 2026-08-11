@@ -149,6 +149,33 @@ console.log('  ', JSON.stringify(broken));
 check('建唔到 AudioContext 都唔會爆', broken.dead.broken === true && broken.dead.blips === 0, broken.dead);
 check('回傳 null 都唔會爆', broken.nul.broken === true && broken.nul.ready === false, broken.nul);
 
+// T5b：physics 邊界值唔可以將 non-finite 寫入 AudioParam。碰撞／context
+// restore 期間一個壞 frame 應該退回安全 idle，而唔係拋錯中斷 render loop。
+const nonFinite = await page.evaluate(async () => {
+    const { createRacerAudio, engineTone, skidGain, windGain } = await import('./src/audio.js');
+    const a = createRacerAudio({ enabled: true });
+    a.startRace();
+    a.update(1 / 60, {
+        speed: Number.NaN,
+        slipAngle: Number.NaN,
+        offroad: false,
+        wallHit: true,
+        wallImpact: Number.NaN,
+    }, { throttle: Number.NaN, handbrake: false });
+    const snapshot = a.snapshot();
+    a.stopRace();
+    return {
+        snapshot,
+        maps: [engineTone(Number.NaN, Number.NaN), skidGain(Number.NaN, Number.NaN), windGain(Number.NaN)],
+    };
+});
+const finiteNumbers = [
+    nonFinite.snapshot.freq, nonFinite.snapshot.engine, nonFinite.snapshot.skid,
+    nonFinite.snapshot.wind, ...Object.values(nonFinite.maps[0]), nonFinite.maps[1], nonFinite.maps[2],
+].every(Number.isFinite);
+check('physics non-finite 值會安全降級，唔會污染 AudioParam',
+    !nonFinite.snapshot.broken && finiteNumbers, nonFinite);
+
 // T6：入返遊戲——開波有聲、返選單收聲、設定掣改得到
 const live = await page.evaluate(async () => {
     const { audio, startRace, race, car, track, toMenu } = window.__racer;
