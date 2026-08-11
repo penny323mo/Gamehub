@@ -30,7 +30,7 @@ repository as a static site.
 | Neon Snake | `games/snake-game/dist/index.html` | React + Vite + TypeScript; tracked `dist/` is the hub target. |
 | Empire Royale | `games/royale/index.html` | Static ES modules + vendored Three.js. Two modes: Clash-style lane battle (`game.js`, `ai.js`) and LV2 age-of-empires RTS (`src/rts/`). Shared: `models.js`, `rig.js` (procedural bone animation), `sfx.js`, `net.js`/`pvp.js` (Supabase PvP), `leaderboard.js`, `storage.js`, `gauntlet.js`, `profiles.js`. Regression suite in `games/royale/tests/`. |
 | 深淵之橋 MOBA | `games/moba/index.html` | Static ES modules + vendored Three.js. Deterministic sim, 3v3 bots, mobile HUD, anywhere-purchase shop, and procedural champion FX. Tests in `games/moba/tests/`. |
-| Racing Car 3D | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Continuous spline track (`track.js`) with cached nearest-point samples and subtle asphalt tyre-wear/dashed centre texture, day/dusk/night environment (`environment.js`), sport-arcade acceleration with bounded body pitch/roll, closer/lower chase camera with bounded acceleration impulse and pointer-transparent speed-streak layer, bounded driving effects, player-only arcade assists and simple auto-throttle controls, four physical AI rivals plus a dithered ghost in one instanced field (`rivals.js`, `ghost.js`), and a persistent three-race championship with career records (`season.js`). Draco-compressed player car. Tests in `games/Racing Car/tests/`. |
+| Racing Car 3D | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Continuous spline track (`track.js`) with cached nearest-point samples and subtle asphalt tyre-wear/dashed centre texture, day/dusk/night environment (`environment.js`), sport-arcade acceleration with bounded body pitch/roll and a tuned mid/high-speed power envelope, closer/lower chase camera with bounded acceleration impulse and pointer-transparent speed-streak layer that starts before top speed, bounded driving effects, player-only arcade assists and simple auto-throttle controls, four physical AI rivals plus a dithered ghost in one instanced field (`rivals.js`, `ghost.js`), and a persistent three-race championship with career records (`season.js`). Draco-compressed player car. Tests in `games/Racing Car/tests/`. |
 | Ashen Rail | `games/ashen-rail/dist/index.html` | Self-contained Vite + TypeScript + Babylon.js bonus game; soldier GLB has no clips, so `ProceduralPlayerAnimator` supplies rig-aware locomotion/aim/recoil and `WeaponSystem` supplies local weapon recoil; CI builds `dist/`. |
 | Elden Ring II | `games/elden-ring-ii/dist/index.html` | Self-contained Vite + React + TypeScript + Three.js/Cannon-es bonus game; three classes, mobile touch controls, local run history, optional Supabase write, bundled CC0 assets; tracked `dist/` is rebuilt by CI. |
 | Xiangqi AI | `games/xiangqi-ai/dist/index.html` | Vite + Three.js; hub targets tracked `dist/`; optional board environment HDR is bundled under `assets/` and copied into `dist/assets/`. |
@@ -92,6 +92,10 @@ repository as a static site.
   points) and `Car._nextPos`; keep those allocations out of the frame loop. Road
   centre/tyre-wear cues belong in the existing asphalt texture so the mobile draw
   budget does not gain a road-marker pass.
+- Racing Car's current sport envelope is deliberately bounded: `engineForce=10000`,
+  `maxSpeed=68`, `dragCoef=2.4`, and `handbrakeGrip=0.35` are tuned against the
+  physical drift/ABS gates. The speed-streak layer begins at `16 m/s` and remains
+  render-only; do not turn it into a physics or pointer-input dependency.
 - Ashen Rail's player GLB has a skeleton but no animation clips. `ProceduralPlayerAnimator`
   owns semantic rig aliases and procedural locomotion/aim/recoil; `PlayerController` owns
   turn-rate input and `WeaponSystem` owns local weapon recoil. The `__ashenRail` seam is
@@ -282,7 +286,11 @@ it in links (`games/Racing%20Car/index.html`):
 cd "games/Racing Car/tests"
 npm install        # once
 PLAYWRIGHT_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
-  npm test         # track build, physics, a full three-lap autopilot run, resource gate
+  npm test         # full runner; may report a bounded TIMEOUT under repeated Chrome launch pressure
+
+# On a pressured Mac, use these authoritative suites separately:
+PLAYWRIGHT_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node race.mjs
+PLAYWRIGHT_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node setup.mjs
 ```
 
 The autopilot lap is the load-bearing gameplay check: a broken track shape, an
@@ -292,7 +300,10 @@ idle render-on-demand, 320×568 portrait and 667×375 landscape control/HUD layo
 dual-touch input, adaptive DPR limits, pause/wake-lock lifecycle, WebGL context
 loss/restore, orientation pause, settings, gyro mapping, and minimap.
 The Racing Car harness reads `PLAYWRIGHT_CHROMIUM` (the root Hub/MOBA harnesses read
-`PW_CHROMIUM`); run the WebGL suites separately when the machine is under GPU pressure.
+`PW_CHROMIUM`); `run-all.mjs` puts a per-suite timeout and process-group cleanup around
+the same children, so a Chromium allocator hang is reported as `TIMEOUT` instead of
+leaving CI waiting forever. Run the WebGL suites separately when the machine is under
+GPU pressure; a bounded aggregate timeout is not gameplay evidence.
 It also verifies the enlarged floating analogue joystick/right-thumb slide-action cluster, the
 day/dusk/night sky, stars, headlight, reflective-track states, fixed-capacity driving
 effects, player-only arcade assists, simple-mode/gyro input, rivals/ghost/season career

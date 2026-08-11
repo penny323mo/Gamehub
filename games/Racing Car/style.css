@@ -109,7 +109,7 @@ body {
 }
 
 #speed-lines.active {
-    opacity: calc(var(--speed-intensity) * .55);
+    opacity: calc(var(--speed-intensity) * .70);
     animation: speed-streaks .28s linear infinite;
 }
 

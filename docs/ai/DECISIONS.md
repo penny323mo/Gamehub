@@ -8230,3 +8230,32 @@ collision probe，`updateCamera()` 重用五個 scratch vectors。呢啲只係 q
 DataTexture，而唔新增 mesh/draw call；真 844×390 browser 讀到中心像素峰值 **159**、路邊
 **73**，renderer 仍 **15 calls**。`race.mjs` **125/125**、`setup.mjs` **129/129** 守住物理、
 draw budget、cache/scratch/texture gates。
+
+## ADR-269 — Racing Car 中高速推進與速度回饋要一齊提升，但仍然 render-safe
+
+Date: 2026-08-11. Status: accepted.
+
+上一輪畫面已經有較近追車鏡頭，但玩家由數字上睇到速度，路面周邊要到接近極速先有
+流動感；中高速亦略顯平。今輪只收窄 sport-arcade envelope：`engineForce=10000`、
+`maxSpeed=68`、`dragCoef=2.4`，並將手煞後軸抓地由 `0.45` 調到 `0.35`，令中高速有
+持續推進、手機短按手煞約半秒可穩定入漂，但仍由摩擦圓、ABS、反打輔助、牆碰撞同
+救車狀態機限制。真 browser `race.mjs` 實測最高 **146 km/h**、0–80 **2.40s**、
+手煞半秒入口 **19°**、六條賽道三圈全通過（**125/125**）。
+
+速度 streak 係 HUD 內既有 pointer-transparent render layer；由 `16 m/s` 開始以
+低透明度漸進，CSS opacity 上限 `0.70`，唔新增 mesh/draw call、唔回寫 physics。
+844×390 真 browser smoke 實測 **82 km/h** 時 layer `active`、opacity **0.142**、
+FOV **65.95**，零 page/console error；setup gate 加到 **130/130**。日後再加速度感
+必須先重跑物理 drift/ABS、mobile draw budget 同真 browser screenshot，唔可以靠提高
+極速掩蓋操控問題。
+
+## ADR-270 — Racing aggregate runner 必須 bounded 並清理同一 suite process group
+
+Date: 2026-08-11. Status: accepted.
+
+連續啟動多個 Playwright Chromium suite 喺呢部 Mac 會偶發卡喺 `openRacer()` ready wait；
+舊 `run-all.mjs` 會永遠等住 child，令 CI／交接冇法分辨測試失敗同測試環境 hang。
+Runner 而家每個 child 有 `RACER_TEST_TIMEOUT_MS`（預設 120 秒、最低 30 秒）、suite 間
+settle delay，同 POSIX process group；超時會先 TERM、5 秒後只殺自己個 process group，
+總結列出 `TIMEOUT` 並以非零碼結束。呢個係診斷／清理層，唔會將 timeout 當 pass；
+`race.mjs`、`setup.mjs` 等 authoritative suites 仍應喺資源充足時分開跑。

@@ -46,6 +46,25 @@ check('高速速度層存在但唔會攔截 HUD／觸控', speedLayer.exists
     && speedLayer.ariaHidden && speedLayer.pointerEvents === 'none'
     && speedLayer.position === 'absolute', speedLayer);
 
+const speedFeedback = await page.evaluate(() => {
+    const { car, updateHudForTest } = window.__racer;
+    const before = car.vel.clone();
+    car.vel.set(0, 0, 24); // 約 86 km/h：唔應該等到極速先有速度感
+    updateHudForTest();
+    const el = document.getElementById('speed-lines');
+    const out = {
+        speed: car.kmh,
+        active: el?.classList.contains('active'),
+        opacity: Number.parseFloat(getComputedStyle(el).opacity),
+    };
+    car.vel.copy(before);
+    updateHudForTest();
+    return out;
+});
+console.log('  ', JSON.stringify(speedFeedback));
+check('約 86 km/h 已有漸進速度回饋', speedFeedback.speed >= 80
+    && speedFeedback.active && speedFeedback.opacity > 0.02, speedFeedback);
+
 const TRACK_IDS = await page.evaluate(() => window.__racer.TRACKS.map(t => t.id));
 
 // T1：起跑線喺直路上面，而且打橫過晒條路
