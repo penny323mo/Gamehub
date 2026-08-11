@@ -109,7 +109,8 @@ body {
 }
 
 #speed-lines.active {
-    opacity: calc(var(--speed-intensity) * .70);
+    /* 中速已要讀到速度，最高仍保持半透明，唔會洗白賽道。 */
+    opacity: calc(var(--speed-intensity) * .82);
     animation: speed-streaks .28s linear infinite;
 }
 

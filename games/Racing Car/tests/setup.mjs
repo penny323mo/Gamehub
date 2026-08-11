@@ -65,6 +65,30 @@ console.log('  ', JSON.stringify(speedFeedback));
 check('約 86 km/h 已有漸進速度回饋', speedFeedback.speed >= 80
     && speedFeedback.active && speedFeedback.opacity > 0.2, speedFeedback);
 
+const midSpeedCue = await page.evaluate(() => {
+    const { car, updateHudForTest } = window.__racer;
+    const before = car.vel.clone();
+    const el = document.getElementById('speed-lines');
+    const previousTransition = el?.style.transition ?? '';
+    if (el) el.style.transition = 'none';
+    car.vel.set(0, 0, 70 / 3.6); // 約 70 km/h：應該已經有清晰但不刺眼的速度層
+    updateHudForTest();
+    const out = {
+        speed: car.kmh,
+        active: el?.classList.contains('active'),
+        intensity: Number.parseFloat(el?.style.getPropertyValue('--speed-intensity') ?? '0'),
+        opacity: Number.parseFloat(getComputedStyle(el).opacity),
+    };
+    car.vel.copy(before);
+    updateHudForTest();
+    if (el) el.style.transition = previousTransition;
+    return out;
+});
+console.log('  ', JSON.stringify(midSpeedCue));
+check('70 km/h 已有足夠可讀性嘅速度 cue', midSpeedCue.speed >= 69
+    && midSpeedCue.active && midSpeedCue.intensity >= 0.39
+    && midSpeedCue.opacity >= 0.30, midSpeedCue);
+
 const TRACK_IDS = await page.evaluate(() => window.__racer.TRACKS.map(t => t.id));
 
 // T1：起跑線喺直路上面，而且打橫過晒條路
@@ -216,8 +240,8 @@ check('彎位有低成本外側 chevron 地標，唔再只靠重複樹木讀路'
     && geo.landmarks.placement.minHeight > 0.3
     && geo.landmarks.name === 'corner-chevron-landmarks', geo.landmarks);
 check('賽道 render surface 有可讀坡度同 banking，唔再係近乎平路',
-    geo.elevation >= 1.05 && geo.surfaceY[1] - geo.surfaceY[0] > 3.4
-    && geo.roadY[1] - geo.roadY[0] > 4.2 && geo.surfacePitch > 0.024
+    geo.elevation >= 1.05 && geo.surfaceY[1] - geo.surfaceY[0] > 7.0
+    && geo.roadY[1] - geo.roadY[0] > 8.0 && geo.surfacePitch > 0.028
     && geo.surfaceBank > 0.01, geo);
 check('閉環起伏喺起點無縫接返，車身會跟縱向坡度俯仰',
     geo.profileSeam.height < 0.0001 && geo.profileSeam.pitch < 0.0001

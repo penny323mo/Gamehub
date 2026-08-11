@@ -8703,3 +8703,24 @@ Date: 2026-08-12. Status: accepted.
 car steer peak **0.25**，駕駛期間最高 **127km/h**。日後如再加強 auto assist，必須保留
 細微 steering 推力、end-to-end t45、drift／ABS 同手機真 pointer smoke，唔好以單獨
 `Car.update()` 物理數字代替實際輸入路徑。
+
+## ADR-297 — Racing Car 中高速速度 cue 同 crest/valley 深度要一齊可讀
+
+Date: 2026-08-12. Status: accepted.
+
+真 headed 844×390 smoke 見到 65–107km/h 嘅 road ribbon、車身接地同控制正常，但
+`#speed-lines` 喺受控 **70km/h** 只得 **0.275** opacity；玩家睇到速度數字，畫面卻未
+有足夠流動感。今輪只將 render-only speed layer 上限由 **0.70** 調到 **0.82**，同 setup
+gate 固定中速 cue opacity **≥0.30**（實測 **0.3227**）。gradient 仍然半透明、
+`pointer-events:none`、無新增 draw pass，唔會遮 HUD 或改物理。
+
+同一輪實測現有起伏仍偏平，將閉環 profile harmonics 由 `1.55/0.65/0.24` 提升到
+`1.78/0.75/0.28`（約 +15%）。touge-rev surface span 由 **6.634m** 變 **7.639m**、
+最大 pitch **0.04219→0.04883rad**；`Car.pos.y`、X/Z collision/progress、bank cap、
+draw calls/triangles 都不變。setup 新 gate 先以舊值紅燈，修後 **154/154**；race
+**136/136**、rivals **61/61**、ghost **29/29**、season **55/55**、audio **33/33**，
+desktop **1200×700** 同 mobile **844×390** headed screenshot 均 console **0 errors**。
+
+日後再加大坡度或 speed opacity，必須重跑 setup/race/aggregate、確認物理 Y 仍為 0、
+tree/road surface anchor 同 mobile/desktop screenshot；唔好用 camera shake、額外 pass
+或自動轉向補償速度感。

@@ -115,7 +115,7 @@ repository as a static site.
   do not replace it with per-frame terrain generation or a second road pass.
 - Racing Car's visual track profile uses the `elevation` value on each track
   definition (turbo **1.28**, coast **1.14**, touge **1.40**) plus closed integer
-  frequency waves to create a more legible crest/grade at build time. The
+  frequency waves (`1.78/0.75/0.28`) to create a more legible crest/grade at build time. The
   constructor clamps this render-only multiplier to **0.75–1.40**; physics,
   collision, progress, checkpoints and AI stay on the established X/Z grid.
   Corner chevrons are upright render-only warning
@@ -131,7 +131,8 @@ repository as a static site.
 - Racing Car's current sport envelope is deliberately bounded: `engineForce=10000`,
   `maxSpeed=68`, `dragCoef=2.4`, `gradeGravity=4.6`, and `handbrakeGrip=0.35` are
   tuned against the physical drift/ABS/grade gates. The speed-streak layer begins
-  at `10 m/s` and remains render-only; do not turn it into a pointer-input dependency.
+  at `10 m/s`, caps at opacity **0.82** and remains render-only; do not turn it into
+  a pointer-input dependency.
 - Simple mode keeps `AUTO_LIFT=0.4` and full-lock throttle at `0.6`, but its lift shape
   has a 25% steering knee: tiny corrections keep >90% push while a half-stick turn
   gives the rear axle back enough grip for responsive mobile turn-in. Touch steering

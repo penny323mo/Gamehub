@@ -145,14 +145,15 @@ export class Track {
             // 以整數週期做低頻起伏，確保閉環 t=0/1 高度同坡度完全接返；
             // 主波負責長上落，次波製造 crest／valley，第三波只留少量細節。
             // 振幅再加深一級，令 crest／valley 唔只係背景起伏，而係真係有
-            // 一段上坡、落坡嘅節奏。波長仍然係整數週期，所以閉環唔會喺
+            // 一段上坡、落坡嘅節奏。今次再加約 15% 立體感，令高速鏡頭讀到
+            // crest／valley，但仍然係 render-only、唔會變成硬核山路。波長仍然係整數週期，所以閉環唔會喺
             // 起終點跳高；車嘅坡度加減速係 Car 入面另一層 bounded arcade
             // feedback，唔會將路面高度寫入物理 Y 或碰撞格網。
             const grade = this.elevation;
             const y = grade * (
-                1.55 * Math.sin(phase + t * Math.PI * 2)
-                + 0.65 * Math.sin(phase * 0.61 + t * Math.PI * 2 * 3)
-                + 0.24 * Math.sin(phase * 1.7 + t * Math.PI * 2 * 5)
+                1.78 * Math.sin(phase + t * Math.PI * 2)
+                + 0.75 * Math.sin(phase * 0.61 + t * Math.PI * 2 * 3)
+                + 0.28 * Math.sin(phase * 1.7 + t * Math.PI * 2 * 5)
             );
             this.surfaceYProfile[i] = y;
             min = Math.min(min, y); max = Math.max(max, y);
