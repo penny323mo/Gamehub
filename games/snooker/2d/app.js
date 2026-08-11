@@ -170,6 +170,10 @@
     }
     state.turn = 'player';
     state.aiThinking = false;
+    state.dragging = false;
+    state.placingDrag = false;
+    state.pullStart = null;
+    state.pullPower = 0;
 
     state.balls = [];
     state.scores = { player: 0, ai: 0 };
@@ -1411,7 +1415,7 @@
       state.pullPower = Math.min(90, Math.max(0, proj) * 1.4);
     }
   });
-  window.addEventListener('pointerup', () => {
+  function finishPointerInput(cancelled = false) {
     if (state.turn === 'ai' || state.aiThinking) return;
     if (state.placingDrag) {
       state.placingDrag = false;
@@ -1420,7 +1424,7 @@
     state.dragging = false;
 
     if (state.inputState === 'powering') {
-      if (state.pullPower > 2) {
+      if (!cancelled && state.pullPower > 2) {
         state.placingCue = false;
         shoot(state.pullPower);
         state.inputState = 'idle';
@@ -1433,6 +1437,13 @@
       }
       state.pullPower = 0;
     }
+    if (cancelled) updateStatus();
+  }
+  window.addEventListener('pointerup', () => finishPointerInput(false));
+  window.addEventListener('pointercancel', () => finishPointerInput(true));
+  window.addEventListener('blur', () => finishPointerInput(true));
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) finishPointerInput(true);
   });
 
 
@@ -1493,6 +1504,15 @@
   spinControl.addEventListener('pointerup', (e) => {
     spinDragging = false;
   });
+  spinControl.addEventListener('pointercancel', () => {
+    spinDragging = false;
+  });
+  window.addEventListener('blur', () => {
+    spinDragging = false;
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) spinDragging = false;
+  });
 
   resetSpinBtn.addEventListener('click', () => {
     state.spin.x = 0;
@@ -1505,6 +1525,19 @@
     state.showExtendedGuide = extendGuideChk.checked;
   });
 
+  // Read-only seam for the real-browser flow gate.  It exposes input lifecycle
+  // state only; game state is still changed through the normal UI handlers.
+  window.__snooker2dDebug = {
+    state: () => ({
+      phase: state.phase,
+      inputState: state.inputState,
+      aiming: state.aiming,
+      dragging: state.dragging,
+      placingDrag: state.placingDrag,
+      pullPower: state.pullPower,
+      placingCue: state.placingCue,
+    }),
+  };
 
   reset();
   tick();

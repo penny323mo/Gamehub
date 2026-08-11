@@ -93,6 +93,38 @@ await page.locator('#restartBtn2').click();
 check('2D 重新開始回到新一局擺位',
   (await page.locator('#status-msg').textContent()).includes('準備開始'),
   (await page.locator('#status-msg').textContent()).trim());
+await page.locator('#aimBtn').click();
+const cancelledInput = await page.evaluate(() => {
+  const canvas = document.getElementById('table');
+  const rect = canvas.getBoundingClientRect();
+  const emit = (type, pointerId) => canvas.dispatchEvent(new PointerEvent(type, {
+    bubbles: true, cancelable: true, pointerId, pointerType: 'touch', isPrimary: true,
+    button: 0, buttons: type === 'pointerup' ? 0 : 1,
+    clientX: rect.left + rect.width * 0.2 - (type === 'pointermove' ? 70 : 0),
+    clientY: rect.top + rect.height * 0.5,
+  }));
+  emit('pointerdown', 71);
+  emit('pointermove', 71);
+  const powering = window.__snooker2dDebug.state();
+  emit('pointercancel', 71);
+  const afterCancel = window.__snooker2dDebug.state();
+  emit('pointerdown', 72);
+  emit('pointermove', 72);
+  const beforeBlur = window.__snooker2dDebug.state();
+  window.dispatchEvent(new Event('blur'));
+  const afterBlur = window.__snooker2dDebug.state();
+  return { powering, afterCancel, beforeBlur, afterBlur };
+});
+check('2D pointercancel 會取消儲力而唔會卡住瞄準',
+  cancelledInput.powering?.inputState === 'powering' && cancelledInput.powering.pullPower > 2 &&
+    cancelledInput.afterCancel?.inputState === 'aiming' && cancelledInput.afterCancel.aiming === true &&
+    cancelledInput.afterCancel.dragging === false && cancelledInput.afterCancel.pullPower === 0,
+  cancelledInput);
+check('2D blur 中斷亦會清走儲力狀態',
+  cancelledInput.beforeBlur?.inputState === 'powering' && cancelledInput.afterBlur?.inputState === 'aiming' &&
+    cancelledInput.afterBlur.aiming === true && cancelledInput.afterBlur.dragging === false &&
+    cancelledInput.afterBlur.pullPower === 0,
+  cancelledInput);
 
 await page.goto(`${base}/games/snooker/3d/index.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
 await page.waitForTimeout(700);

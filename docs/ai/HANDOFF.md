@@ -39,7 +39,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
   tap → AI → undo → refresh/Continue flow is **4/4**. Gomoku's real mobile stale-timer/restart flow is **5/5**;
   Big Two's real mobile stale-queue/restart flow is **4/4**; Dou Dizhu's real mobile stale-bid/restart flow is **4/4**;
   Penny Crush's real mobile stale-chain/restart flow is **6/6**; Snooker's root/2D/3D opening-state, mobile touch/charge,
-  AI handoff, and Offline P2 foul-decision flow is **16/16**; Snake's mobile Enter/start/Shift-focus/pause/resume/Hub flow is **10/10**.
+  AI handoff, and Offline P2 foul-decision flow is **18/18**; Snake's mobile Enter/start/Shift-focus/pause/resume/Hub flow is **10/10**.
 
 ## Changed files
 
@@ -51,7 +51,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
 - `tests/hub-cdn.mjs`, `tests/xiangqi-flow.mjs`, `tests/gomoku-flow.mjs`, `tests/big2-flow.mjs`, `tests/doudizhu-flow.mjs`, `tests/penny-crush-flow.mjs`, `tests/snooker-flow.mjs`, `tests/snake-flow.mjs` — assert self-contained assets and player flows.
 - `games/snake-game/src/components/NameInput/NameInput.tsx`, `src/components/Game/Game.tsx`, `src/components/Background/Background.tsx`, `src/components/Particles/Particles.tsx`, `src/hooks/useStorage.ts`, `styles/Game.module.css`, and tracked `dist/` — isolate Enter login, bind the board/header to mobile viewport width, clean lint, and keep timed/held boosts finite.
 - `games/tower/src/main.ts`, `games/tower/tests/combat.mjs`, tracked `games/tower/dist/` — close preload/arena test races; `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md`, `docs/ai/HANDOFF.md` — durable relay notes.
-- `games/snooker/3d/main.js`, `tests/snooker-flow.mjs` — keep opening cue-in-hand HUD state truthful and let local Offline P2 own foul decisions instead of hiding the panel and deadlocking the match; cover mobile touch/charge input and the P1-vs-AI handoff in a real mobile browser.
+- `games/snooker/2d/app.js`, `games/snooker/3d/main.js`, `tests/snooker-flow.mjs` — keep opening cue-in-hand HUD state truthful, cancel interrupted 2D charge/drag input on pointercancel, blur, or hidden-page transitions, and let local Offline P2 own foul decisions instead of hiding the panel and deadlocking the match; cover mobile touch/charge input and the P1-vs-AI handoff in a real mobile browser.
 - `games/ashen-rail/src/ui/TouchControls.ts`, tracked `games/ashen-rail/dist/` — capture the fire pointer and clear held fire on release, cancellation, blur, or hidden-page interruption.
 ## Verification
 - `PLAYWRIGHT_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' npm test` from
@@ -66,7 +66,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/big2-flow.mjs` — **4/4**;
   stale CPU queue cannot consume a fresh deal, normal CPU response still works, and local cache tokens agree.
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/doudizhu-flow.mjs` — **4/4**; stale bid/play timer cannot mutate a fresh deal, normal CPU bid still works, and local cache tokens agree.
-- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/penny-crush-flow.mjs` — Penny Crush **6/6**; `node tests/snooker-flow.mjs` — **16/16** (truthful opening state, mobile touch/charge shot, AI handoff, and Offline P2 foul panel/take/force branches).
+- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/penny-crush-flow.mjs` — Penny Crush **6/6**; `node tests/snooker-flow.mjs` — **18/18** (truthful opening state, mobile touch/charge shot, 2D pointercancel/blur cleanup, AI handoff, and Offline P2 foul panel/take/force branches).
 - `cd games/snake-game && npm run lint && npm run build` — lint **0 errors/0 warnings** and tracked production dist rebuilt.
 - `PW_CHROMIUM="$CHROMIUM_BIN" node tests/snake-flow.mjs` (Chromium executable supplied by the environment) — **10/10** (mobile Enter isolation, responsive board, Shift focus cleanup, tick/pause/resume/Hub, zero browser errors).
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/hub.mjs` — **96/96**;
