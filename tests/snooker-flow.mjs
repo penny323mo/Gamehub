@@ -184,13 +184,58 @@ check('3D 手機一指觸控會進入瞄準拖動狀態',
 await page.locator('#mobile-charge-btn').dispatchEvent('pointerdown');
 await page.waitForTimeout(180);
 const mobileCharge = await page.evaluate(() => JSON.parse(window.render_game_to_text()));
+await page.evaluate(() => {
+  document.getElementById('mobile-charge-btn')?.dispatchEvent(new PointerEvent('pointercancel', {
+    bubbles: true, cancelable: true, pointerId: 7, pointerType: 'touch', isPrimary: true,
+  }));
+});
+await page.waitForTimeout(80);
+const cancelledCharge = await page.evaluate(() => JSON.parse(window.render_game_to_text()));
+check('3D 手機 pointercancel 會取消儲力而唔會誤出桿',
+  mobileCharge?.aiming === true && mobileCharge?.power > 0 &&
+    cancelledCharge?.aiming === false && cancelledCharge?.power === 0 &&
+    cancelledCharge?.shotSerial === 0 && cancelledCharge?.turnState === 'AIMING',
+  { held: mobileCharge, cancelled: cancelledCharge });
+
+await page.locator('#mobile-charge-btn').dispatchEvent('pointerdown');
+await page.waitForTimeout(180);
+const blurCharge = await page.evaluate(() => JSON.parse(window.render_game_to_text()));
+await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+await page.waitForTimeout(80);
+const blurCancelled = await page.evaluate(() => JSON.parse(window.render_game_to_text()));
+check('3D 手機 blur 會清走儲力狀態',
+  blurCharge?.aiming === true && blurCharge?.power > 0 &&
+    blurCancelled?.aiming === false && blurCancelled?.power === 0 &&
+    blurCancelled?.shotSerial === 0 && blurCancelled?.turnState === 'AIMING',
+  { held: blurCharge, cancelled: blurCancelled });
+
+await page.locator('#mobile-charge-btn').dispatchEvent('pointerdown');
+await page.waitForTimeout(180);
+const hiddenCharge = await page.evaluate(() => JSON.parse(window.render_game_to_text()));
+await page.evaluate(() => {
+  Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+  document.dispatchEvent(new Event('visibilitychange'));
+  delete document.hidden;
+});
+await page.waitForTimeout(80);
+const hiddenCancelled = await page.evaluate(() => JSON.parse(window.render_game_to_text()));
+check('3D 手機 hidden page 會清走儲力狀態',
+  hiddenCharge?.aiming === true && hiddenCharge?.power > 0 &&
+    hiddenCancelled?.aiming === false && hiddenCancelled?.power === 0 &&
+    hiddenCancelled?.shotSerial === 0 && hiddenCancelled?.turnState === 'AIMING',
+  { held: hiddenCharge, cancelled: hiddenCancelled });
+
+// Cancellation must not poison the next normal charge-and-shoot interaction.
+await page.locator('#mobile-charge-btn').dispatchEvent('pointerdown');
+await page.waitForTimeout(180);
+const mobileChargeAfterCancel = await page.evaluate(() => JSON.parse(window.render_game_to_text()));
 await page.locator('#mobile-charge-btn').dispatchEvent('pointerup');
 await page.waitForTimeout(100);
 const mobileShot = await page.evaluate(() => JSON.parse(window.render_game_to_text()));
 check('3D 手機儲力掣會累積力度並實際出桿',
-  mobileCharge?.aiming === true && mobileCharge?.power > 0 &&
+  mobileChargeAfterCancel?.aiming === true && mobileChargeAfterCancel?.power > 0 &&
     mobileShot?.shotSerial === 1 && mobileShot?.turnState === 'BALLS_MOVING' && mobileShot?.cueBallSpeed > 0,
-  { charge: mobileCharge, shot: mobileShot });
+  { charge: mobileChargeAfterCancel, shot: mobileShot });
 await page.locator('#back-btn').click();
 await page.waitForLoadState('domcontentloaded');
 check('3D 返回掣回到 Snooker root',

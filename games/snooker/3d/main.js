@@ -4596,7 +4596,18 @@ if (mobileChargeBtn) {
 
   mobileChargeBtn.addEventListener('pointerup', stopChargingAndShoot);
   if (!('PointerEvent' in window)) mobileChargeBtn.addEventListener('touchend', stopChargingAndShoot);
+  mobileChargeBtn.addEventListener('pointercancel', cancelCharging);
   mobileChargeBtn.addEventListener('touchcancel', cancelCharging);
+
+  // Mobile browsers may interrupt a held charge without sending pointerup:
+  // app switching, notification gestures, and backgrounding can surface as
+  // blur/hidden or a pointercancel instead. Treat all of them as cancellation,
+  // never as an accidental full-power shot when the player returns.
+  window.addEventListener('pointercancel', cancelCharging);
+  window.addEventListener('blur', () => cancelCharging());
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) cancelCharging();
+  });
 
   mobileChargeBtn.addEventListener('pointermove', (e) => {
     if (isCharging && !withinButton(e)) {

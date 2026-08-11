@@ -8050,3 +8050,16 @@ pointer capture、pinch、queued attack/dodge/lock/interact，並收返浮動搖
 只讀返呢啲 transient state；`tests/hud-layout.mjs` 用真 mobile browser 守住持有搖桿後 blur、遲到
 pointermove 唔會重新加速，以及遲到 keyup 前鍵盤移動會清除。日後新增按住式控制，必須接入同一個
 `onInputInterruption`，唔可以只靠各自 control 嘅 release event。
+
+## ADR-257 — Snooker 3D 手機儲力中斷唔可以變成出桿
+
+Date: 2026-08-11. Status: accepted.
+
+Snooker 3D mobile charge 以 `pointerdown → pointerup` 出桿。手機切 app、通知手勢或背景化時，瀏覽器
+未必會送返 `pointerup`；production mobile browser 實測只派 blur 後，原本 `aiming=true`、power 仍由
+0.242 升到 0.578，返嚟放手可能誤出一桿。
+
+`main.js` 將 charge button/window 的 `pointercancel`、window `blur` 同 hidden page 視為取消：停止
+requestAnimationFrame、清除 `mobileChargeActive`/`isCharging`、重設力度／bar，而且唔出桿。正常下一次
+儲力仍然有效。`tests/snooker-flow.mjs` 用真實 390×844 mobile browser 守住三條中斷路徑同取消後正常出桿；
+日後改 charge/hold controls 必須保留同一個 cancellation policy。
