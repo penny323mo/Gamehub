@@ -240,6 +240,52 @@ check('草地 mesh 會喺賽道附近銜接高度（仍然單一 terrain mesh）
 check('完整 3D 世界 draw calls 維持手機預算（<18）', geo.calls < 18, geo.calls);
 check('三角形數量喺手機預算（<120k）', geo.tris < 120000, geo.tris);
 
+const offroadSurface = await page.evaluate(async () => {
+    const THREE = await import('three');
+    const { car, track, drivingEffects: fx } = window.__racer;
+    const start = track.startPos.clone();
+    const side = new THREE.Vector3(-track.startDir.z, 0, track.startDir.x);
+    const road = {};
+    track.renderPoseAt(start.x, start.z, road);
+    car.reset(start, track.startDir);
+    car.pos.copy(start).addScaledVector(side, 18);
+    car.update(1 / 60, { throttle: 0, steer: 0, handbrake: false }, track);
+    car.vel.set(Math.sin(car.yaw) * 12, 0, Math.cos(car.yaw) * 12);
+    fx.reset();
+    for (let i = 0; i < 12; i++) {
+        car.update(1 / 60, { throttle: 0, steer: 0, handbrake: false }, track);
+        fx.update(1 / 60, car, { throttle: 0, handbrake: false });
+    }
+    const dust = fx.snapshot();
+    const result = {
+        offroad: car.offroad,
+        renderY: car.renderY,
+        terrainY: track.terrainYAt(car.pos.x, car.pos.z),
+        roadY: road.y,
+        terrainBlend: car._renderPose.terrainBlend,
+        bank: car.trackBank,
+        pitch: car.trackPitch,
+        physicsY: car.pos.y,
+        dust,
+    };
+    fx.reset();
+    car.reset(track.startPos, track.startDir);
+    track.renderPoseAt(car.pos.x, car.pos.z, road);
+    car.setRenderSurface(road.y, road.bank, road.pitch);
+    return result;
+});
+console.log('  ', JSON.stringify(offroadSurface));
+check('落草時車身／render pose 會跟 terrain，而唔會浮返道路高度',
+    offroadSurface.offroad
+    && Math.abs(offroadSurface.renderY - offroadSurface.terrainY) < 0.001
+    && offroadSurface.roadY - offroadSurface.terrainY > 0.01
+    && offroadSurface.terrainBlend > 0 && offroadSurface.terrainBlend < 1
+    && Math.abs(offroadSurface.physicsY) < 0.001
+    && offroadSurface.dust.particles > 0
+    && offroadSurface.dust.minParticleY > offroadSurface.renderY
+    && offroadSurface.dust.minParticleY < offroadSurface.renderY + 0.2,
+    offroadSurface);
+
 // 車身由過大嘅 10.35 縮細三分之一返去 6.9；物理參數唔跟住改。
 const carScale = await page.evaluate(async () => {
     const THREE = await import('three');

@@ -20,8 +20,8 @@ browser evidence for every visual or control change.
   the seam at `t=0/1` has matching height and longitudinal pitch instead of a
   hidden step at the loop boundary.
 - `Track.surfacePitchAtT()` derives a clamped local-X slope from the existing 240
-  samples. Player, rival and ghost render poses follow `renderY`, banking and
-  pitch; physics remains the established X/Z bicycle model.
+  samples. Player, rival, ghost and offroad render poses follow `renderY`, banking
+  and pitch; physics remains the established X/Z bicycle model.
 - Guardrail posts now use the same lateral surface height as their tubes, and
   trackside tree trunks/crowns are anchored to the terrain base instead of a
   fixed world Y. This removes the visible floating/sinking mismatch on hills.
@@ -43,7 +43,7 @@ browser evidence for every visual or control change.
   plus smoothed front-wheel steering; the single contact-shadow plane follows
   render pitch/bank too, with no new mesh or draw call.
 - Existing sport-arcade envelope, auto-throttle/simple controls, drift assists,
-  speed layer, surface-anchored effects with brake cues, rivals/ghost/season and
+  speed layer, terrain/effects surface anchors with brake cues, rivals/ghost/season and
   lifecycle contracts are unchanged.
 
 ## Changed files
@@ -57,7 +57,7 @@ browser evidence for every visual or control change.
 - `games/Racing Car/style.css`
 - `games/Racing Car/tests/setup.mjs`
 - `docs/ai/PROJECT_CONTEXT.md`
-- `docs/ai/DECISIONS.md` (ADR-273, ADR-274, ADR-275, ADR-276, ADR-277, ADR-278, ADR-279, ADR-280, ADR-281)
+- `docs/ai/DECISIONS.md` (ADR-273, ADR-274, ADR-275, ADR-276, ADR-277, ADR-278, ADR-279, ADR-280, ADR-281, ADR-282)
 - `docs/ai/HANDOFF.md`
 
 ## Verification
@@ -66,7 +66,7 @@ browser evidence for every visual or control change.
 - `git diff --check` — PASS.
 - `race.mjs` — **126/126**; six tracks, top **146 km/h**, 0–80 **2.40s**,
   drift/ABS/wall/recovery/roll gates green, zero browser errors.
-- `setup.mjs` — **146/146**; closed height/pitch seam, terrain/guardrail pose,
+- `setup.mjs` — **147/147**; closed height/pitch seam, terrain/guardrail/offroad pose,
   contact-shadow pitch/bank, surface-anchored effects/brake cue, mobile layout/touch/gyro,
   day/night, lifecycle/context loss, draw budget, speed-layer opacity, 6–14 landmark
   placement/material/draw gates, four-wheel spin/steering regression and zero
@@ -87,8 +87,8 @@ browser evidence for every visual or control change.
   `/tmp/racing-landmark-pole-audit.png`. Placement is separately guarded by
   setup (17.48–17.58m lateral, ≥0.97m above the local banked surface).
 - 844×390 side-view audits: wheels coherent at **25m/s**; a **104 km/h** graded
-  shadow drive plus anchored drift smoke and brake glow at **74 km/h／0.72rad slip**;
-  screenshots `/tmp/racing-wheel-side-audit.png`, `/tmp/racing-contact-shadow-drive-audit.png`, `/tmp/racing-steer-drift-surface-anchored.png`, `/tmp/racing-brake-glow-audit.png`.
+  shadow drive plus anchored drift smoke/brake glow and a terrain-anchored grass exit;
+  screenshots `/tmp/racing-wheel-side-audit.png`, `/tmp/racing-contact-shadow-drive-audit.png`, `/tmp/racing-steer-drift-surface-anchored.png`, `/tmp/racing-brake-glow-audit.png`, `/tmp/racing-offroad-terrain-audit.png`.
 ## Known issues and cautions
 
 - `renderY`, `trackBank` and `trackPitch` are render-only. Never feed them into
@@ -107,9 +107,9 @@ browser evidence for every visual or control change.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-281.
+1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-282.
 2. Inspect `/tmp/racing-wheel-side-audit.png` and the portrait grade smoke at
-   phone-sized scale; inspect anchored drift smoke/brake glow and keep all effects render-only and budget-neutral.
+   phone-sized scale; inspect anchored drift smoke/brake glow/grass exit and keep all effects render-only and budget-neutral.
 3. For any further change, rerun the named Racing suites, update this handoff,
    run `./scripts/check-handoff.sh`, then commit/push the verified checkpoint.
 

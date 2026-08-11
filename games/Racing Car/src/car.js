@@ -184,7 +184,7 @@ export class Car {
         this.renderY = 0;
         this.trackBank = 0;
         this.trackPitch = 0;
-        this._renderPose = { y: 0, bank: 0, pitch: 0 };
+        this._renderPose = { y: 0, bank: 0, pitch: 0, terrainY: 0, terrainBlend: 1 };
         this.longAccel = 0;             // m/s²，畀 render layer 做載荷／推背感回饋
         this.lateralAccel = 0;
         this.wheels.reset();
@@ -530,9 +530,13 @@ export class Car {
         // 因為既有碰撞／進度／救車規則係刻意建立喺 X/Z 格網上。
         if (track?.renderPoseAt) {
             track.renderPoseAt(this.pos.x, this.pos.z, this._renderPose);
-            this.renderY = this._renderPose.y;
-            this.trackBank = this._renderPose.bank;
-            this.trackPitch = this._renderPose.pitch;
+            // 落草唔改物理位置，但 render root 要落到同一張 terrain mesh；
+            // banking／pitch 由道路姿態向草地平滑淡出，避免車身喺草面仍然
+            // 斜向遠處道路，亦令胎煙、接地陰影同車身用同一個高度基準。
+            const roadWeight = this.offroad ? this._renderPose.terrainBlend : 1;
+            this.renderY = this.offroad ? this._renderPose.terrainY : this._renderPose.y;
+            this.trackBank = this._renderPose.bank * roadWeight;
+            this.trackPitch = this._renderPose.pitch * roadWeight;
         }
         this.wheels.update(dt, this.forwardSpeed, this.steer);
         this.#sync();

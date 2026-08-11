@@ -23,6 +23,8 @@ const TERRAIN_SEGMENTS = 32;
 const LANDMARK_OFFSET = ROAD_HALF_W + GRASS_W * 0.58;
 const LANDMARK_SAMPLES = 128;
 const LANDMARK_MIN_GAP = 0.045;
+const TERRAIN_INNER = ROAD_HALF_W - 1;
+const TERRAIN_OUTER = ROAD_HALF_W + GRASS_W + 2;
 export const ROAD_HALF = Math.round(ROAD_HALF_W / BLOCK);
 
 // 物理地表種類。code 係幕後格網入面存嘅數字（0 = 空）
@@ -193,7 +195,34 @@ export class Track {
         out.y = this.surfaceYAtT(t);
         out.bank = this.surfaceBankAtT(t);
         out.pitch = this.surfacePitchAtT(t);
+        out.terrainBlend = this.#terrainBlend(x, z, t);
+        out.terrainY = this.#terrainYAt(t, out.terrainBlend);
         return out;
+    }
+
+    // 落草係 render-only：物理仍然留喺 X/Z 格網，但車身、陰影同煙霧要落到
+    // 真正嘅草地 mesh，否則一出 kerb 就會浮返喺道路 crest 高度。呢個 helper
+    // 完全重用 terrain mesh 嘅 32×32 高度公式，唔新增 mesh、raycast 或 allocation。
+    terrainYAt(x, z) {
+        const t = this.nearestT(x, z);
+        return this.#terrainYAt(t, this.#terrainBlend(x, z, t));
+    }
+
+    #terrainBlend(x, z, t) {
+        const sample = Math.min(QUERY_SAMPLES - 1, Math.floor(t * QUERY_SAMPLES)) * 2;
+        const dx = this.querySamples[sample] - x;
+        const dz = this.querySamples[sample + 1] - z;
+        const dist = Math.hypot(dx, dz);
+        const u = THREE.MathUtils.clamp(
+            (dist - TERRAIN_INNER) / (TERRAIN_OUTER - TERRAIN_INNER), 0, 1,
+        );
+        const smooth = u * u * (3 - 2 * u);
+        return 1 - smooth;
+    }
+
+    #terrainYAt(t, blend) {
+        const baseY = this.surfaceMinY - 0.22;
+        return baseY + (this.surfaceYAtT(t) - 0.05 - baseY) * blend;
     }
 
     #surfaceYAt(t, lateral = 0) {
@@ -584,24 +613,12 @@ export class Track {
         tex.repeat.set(1, 1);
         const pos = [], uv = [], idx = [];
         const minX = this.minCX * BLOCK, minZ = this.minCZ * BLOCK;
-        const baseY = this.surfaceMinY - 0.22;
-        const inner = ROAD_HALF_W - 1;
-        const outer = ROAD_HALF_W + GRASS_W + 2;
-        const smooth = (v) => {
-            const t = THREE.MathUtils.clamp((v - inner) / (outer - inner), 0, 1);
-            return t * t * (3 - 2 * t);
-        };
-        const nearest = new THREE.Vector3();
         for (let iz = 0; iz <= TERRAIN_SEGMENTS; iz++) {
             const z = minZ + depth * iz / TERRAIN_SEGMENTS;
             for (let ix = 0; ix <= TERRAIN_SEGMENTS; ix++) {
                 const x = minX + width * ix / TERRAIN_SEGMENTS;
                 const t = this.nearestT(x, z);
-                const sample = Math.floor(t * QUERY_SAMPLES) * 2;
-                nearest.set(this.querySamples[sample], 0, this.querySamples[sample + 1]);
-                const dist = Math.hypot(x - nearest.x, z - nearest.z);
-                const blend = 1 - smooth(dist);
-                const y = baseY + (this.surfaceYAtT(t) - 0.05 - baseY) * blend;
+                const y = this.#terrainYAt(t, this.#terrainBlend(x, z, t));
                 pos.push(x, y, z);
                 uv.push(ix / TERRAIN_SEGMENTS * width / 18, iz / TERRAIN_SEGMENTS * depth / 18);
             }

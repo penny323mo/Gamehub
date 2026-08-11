@@ -8430,3 +8430,16 @@ Date: 2026-08-12. Status: accepted.
 共用節流 timer，放手即停，粒子唔上浮，唔改物理、輸入或車模，亦唔增加 mesh／draw call。
 setup 回歸為 **146/146**，煞車同手掣都驗到雙邊脈衝、`surfaceY` 錨定、176 instance 上限；
 844×390 真 browser smoke 截圖 `/tmp/racing-brake-glow-audit.png`，effects 仍 **17 calls**。
+
+## ADR-282 — Racing Car 落草時 render pose 必須跟 terrain mesh
+
+Date: 2026-08-12. Status: accepted.
+
+道路高度係 render-only，原本車輛一離開 kerb 仍然用道路 `surfaceYAtT()`；由於草地
+會由道路邊緣 blend 到 terrain base，車身、接地影同胎煙會浮喺草面，特別係撞欄後救車
+嗰一刻好明顯。`Track.renderPoseAt()` 以同一套 32×32 terrain blend 公式提供
+`terrainY`／`terrainBlend`；`Car.update()` 只喺 `offroad` 時將 renderY 換成 terrainY，
+並將 bank／pitch 按 blend 淡出，物理 `Car.pos.y`、碰撞、進度同速度完全不變。
+setup 回歸升至 **147/147**，實測草地 `renderY=-0.792` 對齊 terrain、道路值 `0.628`，
+offroad dust 同一高度基準；真 844×390 截圖 `/tmp/racing-offroad-terrain-audit.png`，
+terrain 仍係單一 mesh，手機世界 budget 維持 **16 calls／56,933 tris**。
