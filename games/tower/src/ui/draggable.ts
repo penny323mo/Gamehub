@@ -95,6 +95,34 @@ export function makeDraggable(el: HTMLElement | null, key: string): void {
         (navigator as Navigator & { vibrate?: (ms: number) => void }).vibrate?.(20);
     };
 
+    const restorePositionAfterCancel = (): void => {
+        if (layout[key]) {
+            applyStored();
+            return;
+        }
+        // No saved position means the CSS defaults are authoritative. A drag
+        // may have written inline left/top before the browser interrupted it,
+        // so clear every inline placement value rather than leaving a half-moved
+        // panel stranded at the last pointer coordinate.
+        el.style.left = '';
+        el.style.top = '';
+        el.style.right = '';
+        el.style.bottom = '';
+        el.style.transform = '';
+    };
+
+    const cancelDrag = (): void => {
+        if (pointerId === -1) return;
+        clearTimeout(holdTimer);
+        holdTimer = 0;
+        try { el.releasePointerCapture(pointerId); } catch { /* noop */ }
+        pointerId = -1;
+        if (!dragging) return;
+        dragging = false;
+        el.classList.remove('ui-dragging');
+        restorePositionAfterCancel();
+    };
+
     /*
      * Do NOT capture the pointer here — capture on press kills every button
      * inside the panel for mouse users.
@@ -167,7 +195,15 @@ export function makeDraggable(el: HTMLElement | null, key: string): void {
         suppressNextClick();
     };
     window.addEventListener('pointerup', endDrag);
-    window.addEventListener('pointercancel', endDrag);
+    window.addEventListener('pointercancel', cancelDrag);
+    // App switches, notification gestures, and tab backgrounding may never
+    // deliver pointercancel/up. Treat those lifecycle events as cancellation
+    // too, otherwise the hold timer or pointer capture survives into the next
+    // player gesture.
+    window.addEventListener('blur', cancelDrag);
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) cancelDrag();
+    });
 }
 
 /** Restore every panel to its default CSS position and forget saved spots. */

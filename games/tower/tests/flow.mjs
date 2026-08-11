@@ -325,6 +325,62 @@ check('mobile multi-touch is build-safe and a later pure tap still places exactl
   mobileTap.afterGesture === 0 && mobileTap.afterPureTap === 1
     && mobileTap.cell?.[0] === 9 && mobileTap.cell?.[1] === 4, mobileTap);
 
+// A floating panel hold must not survive app switching. Open the real tower
+// panel, start a genuine long press/drag, interrupt it with blur, and verify
+// the in-progress position is rolled back rather than left in ui-dragging.
+const panelPoint = await mobile.evaluate(({ origin, cellSize }) => {
+  const T = window.__TD;
+  const V = T.camera.position.constructor;
+  const projected = new V(origin.x + 9.5 * cellSize, 0.2, origin.z + 4.5 * cellSize).project(T.camera);
+  const canvas = document.querySelector('#game-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const x = rect.left + (projected.x * 0.5 + 0.5) * rect.width;
+  const y = rect.top + (-projected.y * 0.5 + 0.5) * rect.height;
+  canvas.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y }));
+  const panel = document.querySelector('#tower-panel');
+  const box = panel?.getBoundingClientRect();
+  return box ? { x: box.x, y: box.y, width: box.width, height: box.height } : null;
+}, { origin: MAP_CONFIG.origin, cellSize: MAP_CONFIG.cellSize });
+if (!panelPoint) throw new Error('Tower panel did not open for draggable interruption gate');
+const dragStart = { x: panelPoint.x + panelPoint.width / 2, y: panelPoint.y + 18 };
+await mobile.mouse.move(dragStart.x, dragStart.y);
+await mobile.mouse.down();
+await mobile.waitForTimeout(520);
+const dragStarted = await mobile.evaluate(() => document.querySelector('#tower-panel')?.classList.contains('ui-dragging'));
+await mobile.mouse.move(dragStart.x + 42, dragStart.y + 28);
+await mobile.evaluate(() => window.dispatchEvent(new Event('blur')));
+await mobile.waitForTimeout(100);
+const blurDragCancelled = await mobile.evaluate(() => {
+  const panel = document.querySelector('#tower-panel');
+  return { dragging: panel?.classList.contains('ui-dragging'), left: panel?.style.left ?? '', top: panel?.style.top ?? '' };
+});
+await mobile.mouse.up();
+check('Tower HUD panel blur 會取消拖動並還原未提交位置',
+  dragStarted === true && blurDragCancelled.dragging === false
+    && blurDragCancelled.left === '' && blurDragCancelled.top === '',
+  { dragStarted, blurDragCancelled });
+
+const hiddenDragStart = await mobile.locator('#tower-panel').boundingBox();
+if (!hiddenDragStart) throw new Error('Tower panel disappeared before hidden interruption gate');
+await mobile.mouse.move(hiddenDragStart.x + hiddenDragStart.width / 2, hiddenDragStart.y + 18);
+await mobile.mouse.down();
+await mobile.waitForTimeout(100);
+await mobile.evaluate(() => {
+  Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+  document.dispatchEvent(new Event('visibilitychange'));
+  delete document.hidden;
+});
+await mobile.waitForTimeout(520);
+const hiddenDragCancelled = await mobile.evaluate(() => ({
+  dragging: document.querySelector('#tower-panel')?.classList.contains('ui-dragging'),
+  left: document.querySelector('#tower-panel')?.style.left ?? '',
+  top: document.querySelector('#tower-panel')?.style.top ?? '',
+}));
+await mobile.mouse.up();
+check('Tower HUD panel hidden page 會取消 hold timer，唔會遲到開始拖動',
+  hiddenDragCancelled.dragging === false && hiddenDragCancelled.left === '' && hiddenDragCancelled.top === '',
+  hiddenDragCancelled);
+
 check('flow audit produced no browser errors', errors.length === 0, errors.slice(0, 5));
 console.log(`\ntower flow browser: ${pass}/${pass + fail} passed`);
 if (failed.length) console.log(`Failed: ${failed.join(', ')}`);

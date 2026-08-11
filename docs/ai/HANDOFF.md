@@ -30,7 +30,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
 **Tower Defense, Xiangqi, Elden Ring II, Gomoku, Big Two, Dou Dizhu, Penny Crush, Snooker, and Snake verification**
 
 - Tower core, map/route redesign, assets, combat **13/13**, units **14/14**, gateway/keep placement **11/11**, look
-  **9/9**, map browser **8/8**, touch **6/6**, load **5/5**, flow **18/18**, projectile renderer **5/5**, and
+  **9/9**, map browser **8/8**, touch **6/6**, load **5/5**, flow **20/20**, projectile renderer **5/5**, and
   standalone renderer/performance **20/20** all passed. Diagnostic arena now suppresses automatic wave spawns, so
   combat measurements cannot be stolen by later `targetingMode=first` enemies.
 - Xiangqi production build plus legal-move, search, and performance self-tests passed. Its active-pointer guard now cancels pointercancel, blur, and hidden-page interruptions without mistaking OrbitControls' normal lostpointercapture-before-click ordering for a cancellation. The optional Studio Small 09
@@ -50,7 +50,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
 - `games/xiangqi-ai/dist/` — regenerated tracked entry bundle and HDR asset for GitHub Pages.
 - `launcher.js`, `tests/hub.mjs`, `tests/hub-cdn.mjs`, `tests/xiangqi-flow.mjs`, `tests/gomoku-flow.mjs`, `tests/big2-flow.mjs`, `tests/doudizhu-flow.mjs`, `tests/penny-crush-flow.mjs`, `tests/snooker-flow.mjs`, `tests/snake-flow.mjs` — assert self-contained assets, player flows, and cancelled carousel gestures.
 - `games/snake-game/src/components/NameInput/NameInput.tsx`, `src/components/Game/Game.tsx`, `src/components/Background/Background.tsx`, `src/components/Particles/Particles.tsx`, `src/hooks/useStorage.ts`, `styles/Game.module.css`, and tracked `dist/` — isolate Enter login, bind the board/header to mobile viewport width, clean lint, and keep timed/held boosts finite.
-- `games/tower/src/main.ts`, `games/tower/tests/combat.mjs`, tracked `games/tower/dist/` — close preload/arena test races; `games/royale/src/ui.js`, `games/royale/tests/match.mjs` — cancel interrupted card drag/placement on pointercancel, lost capture, blur, and hidden-page transitions; `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md`, `docs/ai/HANDOFF.md` — durable relay notes.
+- `games/tower/src/main.ts`, `games/tower/src/ui/draggable.ts`, `games/tower/tests/combat.mjs`, `games/tower/tests/flow.mjs`, tracked `games/tower/dist/` — close preload/arena test races and cancel/restore floating HUD drags on pointercancel, blur, or hidden-page transitions; `games/royale/src/ui.js`, `games/royale/tests/match.mjs` — cancel interrupted card drag/placement on pointercancel, lost capture, blur, and hidden-page transitions; `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md`, `docs/ai/HANDOFF.md` — durable relay notes.
 - `games/snooker/2d/app.js`, `games/snooker/3d/main.js`, `games/snooker/3d/style.css`, `tests/snooker-flow.mjs` — keep opening cue-in-hand HUD state truthful, cancel interrupted 2D charge/drag and 3D mobile/canvas gesture input on pointercancel, blur, or hidden-page transitions, separate mobile spin/charge hitboxes, and let local Offline P2 own foul decisions instead of hiding the panel and deadlocking the match; cover layout hitboxes, cancellation paths, normal post-cancel shot, mobile touch/charge input, and the P1-vs-AI handoff in a real mobile browser (**25/25**).
 - `games/ashen-rail/src/ui/TouchControls.ts`, tracked `games/ashen-rail/dist/` — capture the fire pointer and clear held fire on release, cancellation, blur, or hidden-page interruption; `games/moba/src/input.js`, `tests/browser.mjs` — clear held skill/attack/joystick/pinch state and visuals on blur or hidden-page interruption, with real landscape/portrait gates; `games/elden-ring-ii/src/GameClient.tsx`, `tests/hud-layout.mjs`, tracked `dist/` — clear held/queued keyboard, touch-stick, camera, and pinch input on blur/hidden-page interruption, covering late pointermove and keyup in real mobile browser gates.
 ## Verification
@@ -72,7 +72,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/hub.mjs` — **100/100**; touchcancel followed by a late touchend cannot change the active page;
   13 launcher entries, four pages, mobile 2×2 / desktop four-up layout, no dead links or browser errors.
 - `cd games/tower && npm run build && npm run test:core && PW_CHROMIUM="$CHROMIUM_BIN" npm run test:browser` — build,
-  core, browser (**97/97**) passed; `node tests/projectile-renderer.mjs` **5/5** and `node tests/performance.mjs`
+  core, browser (**99/99**) passed; `node tests/projectile-renderer.mjs` **5/5** and `node tests/performance.mjs`
   **20/20** passed standalone. `node tests/playthrough.mjs 99 999 0.04 0.0026 198` won wave 99 with 20/20 lives;
   `npm audit --prefix games/tower --audit-level=high` found **0 vulnerabilities**. First combined render launch hit a 30-second ground wait; standalone reruns passed, so keep WebGL suites one at a time under GPU pressure.
 - `cd games/xiangqi-ai && npm run build && node js/engine/selftest_legal.js && node js/engine/selftest_search.js &&
@@ -106,7 +106,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
 
 1. Run `./scripts/agent-context.sh --sync`, then read this file and `docs/ai/PROJECT_CONTEXT.md` before editing.
 2. If taking the next product scope, start with a new real browser player risk; Xiangqi HDR self-containment, the
-   CDN-abort gate, Snake focus cleanup, Elden input interruption, and Snooker 3D charge/canvas interruption plus mobile control layout are closed by this checkpoint unless contradicted.
+   CDN-abort gate, Snake focus cleanup, Elden input interruption, Snooker 3D charge/canvas interruption plus mobile control layout, and Tower floating-panel blur/hidden cancellation are closed by this checkpoint unless contradicted.
 3. Before handoff, run `./scripts/check-handoff.sh` and `git diff --check`, commit this file with any scoped source
    changes, push `main`, and verify `git rev-parse HEAD` equals `git rev-parse origin/main`.
 

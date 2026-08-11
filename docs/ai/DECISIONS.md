@@ -8089,3 +8089,16 @@ Date: 2026-08-11. Status: accepted.
 charge cluster；desktop 座標保持不變。`tests/snooker-flow.mjs` 用真實 390×844 browser 守矩形不重疊、
 `elementFromPoint()` 命中 spin、真實 spin gesture 同 blur cleanup；日後新增 mobile HUD 控件必須先做
 hitbox intersection gate，唔可以只靠 screenshot 估位。
+
+## ADR-260 — Tower HUD draggable panels 必須喺 lifecycle interruption 取消
+
+Date: 2026-08-11. Status: accepted.
+
+Tower floating panels 用 450ms long-press 先開始 pointer capture。玩家切 app、視窗失焦或背景化時，瀏覽器
+未必會補返 `pointerup`／`pointercancel`；舊版真 browser 實測會令 `#tower-panel.ui-dragging` 永久保留，hold
+timer 亦可能喺返嚟之後由 stale pointer 遲到觸發。
+
+`ui/draggable.ts` 將 `pointercancel`、window `blur` 同 hidden page 視為同一種取消：清 hold timer、釋放
+capture、清 pointer state/class，並還原最後儲存／CSS 位置；只有正常 `pointerup` 先會保存完成嘅拖動。`tests/flow.mjs`
+用真實 browser 長按 HUD panel，分別守住 blur 同 hidden interruption，並確認未提交位置及 hold timer 都被清理。
+日後任何 floating HUD panel 都必須沿用呢條 lifecycle policy 同 restore invariant。
