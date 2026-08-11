@@ -386,6 +386,83 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     check(`${tag}：撳掣出技能——pointer 捕捉失敗都照出`,
         touchCast.after.cd > 0 && touchCast.after.mp < touchCast.before.mp, touchCast);
 
+    // 系統手勢／切 app 可以喺技能瞄準或普攻按住期間觸發 blur，唔可以將
+    // 半截 input 帶返場：否則返嚟嗰一下 pointerup 會突然出技能，或者普攻
+    // 自己不停重新鎖目標。亦要清走搖桿視覺，避免畫面留住一個假按住狀態。
+    const interrupted = await page.evaluate(async () => {
+        const s = window.__sim, p = s.player;
+        p.alive = true; p.hp = p.maxHp; p.recallUntil = 0; p.stunUntil = 0; p.rootUntil = 0;
+        p.level = 12; p.mp = p.maxMp; p.abilityCd = [0, 0, 0, 0];
+        const skill = document.querySelector('.moba-skills .moba-skill');
+        const sr = skill.getBoundingClientRect();
+        const sx = sr.left + sr.width / 2, sy = sr.top + sr.height / 2;
+        const opts = (x, y, pointerId = 731) => ({ bubbles: true, cancelable: true,
+            pointerId, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y });
+        skill.dispatchEvent(new PointerEvent('pointerdown', opts(sx, sy)));
+        skill.dispatchEvent(new PointerEvent('pointermove', opts(sx + 90, sy - 12)));
+        const skillBefore = { mp: p.mp, cd: p.abilityCd[0] };
+        window.dispatchEvent(new Event('blur'));
+        skill.dispatchEvent(new PointerEvent('pointerup', opts(sx + 90, sy - 12)));
+        await new Promise(r => setTimeout(r, 140));
+        const skillAfter = { mp: p.mp, cd: p.abilityCd[0] };
+
+        const foe = s.entities.find(e => e.alive && e.team !== p.team && e.kind === 'minion');
+        if (foe) { foe.x = p.x + 2; foe.z = p.z; foe.hp = foe.maxHp; }
+        p.orderTarget = null; p.orderX = null; p.orderZ = null; p.cd = 0;
+        const attack = document.querySelector('.moba-attack');
+        const ar = attack.getBoundingClientRect();
+        const ax = ar.left + ar.width / 2, ay = ar.top + ar.height / 2;
+        attack.dispatchEvent(new PointerEvent('pointerdown', opts(ax, ay, 732)));
+        window.dispatchEvent(new Event('blur'));
+        p.orderTarget = null; p.orderX = null; p.orderZ = null;
+        await new Promise(r => setTimeout(r, 280));
+        const attackAfter = { orderTarget: p.orderTarget, orderX: p.orderX, orderZ: p.orderZ };
+
+        const canvas = document.querySelector('#gl');
+        const y = Math.min(innerHeight * 0.58, innerHeight - 150);
+        const touch = (x) => new Touch({ identifier: 733, target: canvas, clientX: x, clientY: y,
+            pageX: x, pageY: y, screenX: x, screenY: y, radiusX: 8, radiusY: 8, force: 1 });
+        const start = touch(70);
+        canvas.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true,
+            touches: [start], targetTouches: [start], changedTouches: [start] }));
+        const moved = touch(140);
+        canvas.dispatchEvent(new TouchEvent('touchmove', { bubbles: true, cancelable: true,
+            touches: [moved], targetTouches: [moved], changedTouches: [moved] }));
+        const joystickBefore = document.querySelector('.moba-stick')?.classList.contains('active');
+        window.dispatchEvent(new Event('blur'));
+        const joystickAfter = document.querySelector('.moba-stick')?.classList.contains('active');
+        const aimHidden = document.querySelector('.moba-aim')?.classList.contains('hidden');
+
+        // 只收 visibilitychange、冇 blur 嘅 WebView 亦要有同一份清理；測試
+        // 假裝文件進入 hidden，再還原並用一次 pointerdown 解除主迴圈 pause。
+        p.mp = p.maxMp; p.abilityCd = [0, 0, 0, 0];
+        skill.dispatchEvent(new PointerEvent('pointerdown', opts(sx, sy, 734)));
+        const hiddenDescriptor = Object.getOwnPropertyDescriptor(document, 'hidden');
+        Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+        const hiddenAim = document.querySelector('.moba-aim')?.classList.contains('hidden');
+        if (hiddenDescriptor) Object.defineProperty(document, 'hidden', hiddenDescriptor);
+        else delete document.hidden;
+        window.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 735 }));
+        skill.dispatchEvent(new PointerEvent('pointerup', opts(sx, sy, 734)));
+        await new Promise(r => setTimeout(r, 120));
+        const hiddenAfter = { mp: p.mp, cd: p.abilityCd[0] };
+        return { skillBefore, skillAfter, attackAfter, joystickBefore, joystickAfter, aimHidden,
+            hiddenAim, hiddenAfter };
+    });
+    check(`${tag}：blur 中斷技能瞄準唔會喺遲到嘅 pointerup 誤施法`,
+        interrupted.skillAfter.cd === 0 && interrupted.skillAfter.mp >= interrupted.skillBefore.mp - 0.5,
+        interrupted);
+    check(`${tag}：blur 中斷普攻按住唔會返場後自動鎖敵`,
+        interrupted.attackAfter.orderTarget == null && interrupted.attackAfter.orderX == null
+            && interrupted.attackAfter.orderZ == null, interrupted);
+    check(`${tag}：blur 會清走搖桿／瞄準視覺狀態`,
+        interrupted.joystickBefore === true && interrupted.joystickAfter === false && interrupted.aimHidden === true,
+        interrupted);
+    check(`${tag}：visibilitychange(hidden) 一樣會取消技能瞄準`,
+        interrupted.hiddenAim === true && interrupted.hiddenAfter.cd === 0
+            && interrupted.hiddenAfter.mp >= interrupted.skillBefore.mp - 0.5, interrupted);
+
     // 每粒技能掣都要寫住自己個名，唔可以淨係得一個字母
     const labels = await page.$$eval('.moba-skill .nm', ns => ns.map(n => n.textContent.trim()));
     check(`${tag}：四粒技能掣都有名`, labels.length === 4 && labels.every(l => l.length >= 2), labels);

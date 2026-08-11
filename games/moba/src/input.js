@@ -174,9 +174,24 @@ export function createInput(canvas, view, sim, hud) {
         if (pendingKey === idx) { cast(idx, aimX, aimZ); pendingKey = null; }
         if (previewIndex === idx) previewIndex = null;
     }
+    function clearPointerState() {
+        joy = null;
+        knob.style.transform = '';
+        stick.classList.remove('active');
+        aiming = null;
+        attackHeld = false;
+        previewIndex = null;
+        pendingKey = null;
+        pinch = null;
+        aimLine.classList.add('hidden');
+    }
     function onBlur() {
-        keys.clear(); joy = null; previewIndex = null; pendingKey = null;
+        keys.clear();
+        clearPointerState();
         stopDirectMove();
+    }
+    function onVisibilityChange() {
+        if (document.hidden) onBlur();
     }
 
     // 鍵盤方向係螢幕方向：右 = +dx、上 = -dz。要變成世界方向就交畀
@@ -313,6 +328,7 @@ export function createInput(canvas, view, sim, hud) {
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', onBlur);
+    document.addEventListener('visibilitychange', onVisibilityChange);
     canvas.addEventListener('touchstart', touchStart, { passive: false });
     canvas.addEventListener('touchmove', touchMove, { passive: false });
     canvas.addEventListener('touchend', touchEnd);
@@ -394,6 +410,7 @@ export function createInput(canvas, view, sim, hud) {
             window.removeEventListener('keydown', onKeyDown);
             window.removeEventListener('keyup', onKeyUp);
             window.removeEventListener('blur', onBlur);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
             stick.remove();
             aimLine.remove();
         },
