@@ -8,6 +8,7 @@ export class TouchControls {
   firing = false;
   private joystickPointer?: number;
   private aimPointer?: number;
+  private firePointer?: number;
   private aimLast = Vector2.Zero();
   private keyboard = new Set<string>();
   private readonly joystick = document.querySelector<HTMLElement>("#joystick");
@@ -22,14 +23,15 @@ export class TouchControls {
     window.addEventListener("pointercancel", this.onJoystickUp);
     this.aimZone.addEventListener("pointerdown", this.onAimDown);
     const fire = document.querySelector<HTMLButtonElement>("#fire-button");
-    fire?.addEventListener("pointerdown", (event) => { event.preventDefault(); this.firing = true; this.callbacks.onFire(); });
-    fire?.addEventListener("pointerup", () => { this.firing = false; });
-    fire?.addEventListener("pointercancel", () => { this.firing = false; });
+    fire?.addEventListener("pointerdown", this.onFireDown);
+    fire?.addEventListener("pointerup", this.onFireUp);
+    fire?.addEventListener("pointercancel", this.onFireUp);
     document.querySelector("#dodge-button")?.addEventListener("pointerdown", (event) => { event.preventDefault(); this.callbacks.onDodge(); });
     document.querySelector("#pause-button")?.addEventListener("click", this.callbacks.onPause);
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
-    window.addEventListener("blur", () => { this.keyboard.clear(); this.movement.set(0, 0); this.lookDelta.set(0, 0); this.firing = false; });
+    window.addEventListener("blur", this.onInterruption);
+    document.addEventListener("visibilitychange", this.onVisibilityChange);
   }
 
   update(): void {
@@ -42,7 +44,7 @@ export class TouchControls {
 
   consumeLookDelta(): Vector2 { const delta = this.lookDelta.clone(); this.lookDelta.set(0, 0); return delta; }
 
-  reset(): void { this.movement.set(0, 0); this.lookDelta.set(0, 0); this.firing = false; this.joystickPointer = undefined; this.aimPointer = undefined; if (this.knob) this.knob.style.transform = "translate(-50%, -50%)"; }
+  reset(): void { this.movement.set(0, 0); this.lookDelta.set(0, 0); this.firing = false; this.joystickPointer = undefined; this.aimPointer = undefined; this.firePointer = undefined; if (this.knob) this.knob.style.transform = "translate(-50%, -50%)"; }
 
   private readonly onJoystickDown = (event: PointerEvent): void => { event.preventDefault(); this.joystickPointer = event.pointerId; this.joystick?.setPointerCapture(event.pointerId); this.applyJoystick(event); };
   private readonly onJoystickMove = (event: PointerEvent): void => {
@@ -52,6 +54,15 @@ export class TouchControls {
   private readonly onJoystickUp = (event: PointerEvent): void => {
     if (event.pointerId === this.joystickPointer) { this.joystickPointer = undefined; this.movement.set(0, 0); if (this.knob) this.knob.style.transform = "translate(-50%, -50%)"; }
     if (event.pointerId === this.aimPointer) { this.aimPointer = undefined; this.aimZone?.classList.remove("active"); }
+    this.onFireUp(event);
+  };
+  private readonly onFireDown = (event: PointerEvent): void => {
+    event.preventDefault(); this.firePointer = event.pointerId; this.firing = true;
+    (event.currentTarget as HTMLButtonElement | null)?.setPointerCapture?.(event.pointerId);
+    this.callbacks.onFire();
+  };
+  private readonly onFireUp = (event: PointerEvent): void => {
+    if (event.pointerId === this.firePointer) { this.firePointer = undefined; this.firing = false; }
   };
   private readonly onAimDown = (event: PointerEvent): void => { event.preventDefault(); this.aimPointer = event.pointerId; this.aimLast.set(event.clientX, event.clientY); this.aimZone?.setPointerCapture(event.pointerId); this.aimZone?.classList.add("active"); };
   private readonly onKeyDown = (event: KeyboardEvent): void => {
@@ -61,6 +72,8 @@ export class TouchControls {
     if (event.code === "Escape") this.callbacks.onPause();
   };
   private readonly onKeyUp = (event: KeyboardEvent): void => { this.keyboard.delete(event.code); if (event.code === "Space") this.firing = false; };
+  private readonly onInterruption = (): void => { this.keyboard.clear(); this.movement.set(0, 0); this.lookDelta.set(0, 0); this.firing = false; this.joystickPointer = undefined; this.aimPointer = undefined; this.firePointer = undefined; if (this.knob) this.knob.style.transform = "translate(-50%, -50%)"; this.aimZone?.classList.remove("active"); };
+  private readonly onVisibilityChange = (): void => { if (document.hidden) this.onInterruption(); };
 
   private applyJoystick(event: PointerEvent): void {
     if (!this.joystick || !this.knob) return;
