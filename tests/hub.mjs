@@ -208,6 +208,28 @@ for (const viewport of [
     const back = await read(page);
     check(`${label}：反方向掃會返第一組`, back.currentPage === 0, back);
 
+    // iOS／Android 系統手勢可以送 touchcancel，之後先補一個遲到嘅 touchend。
+    // cancel 必須清走起點，否則呢個「冇真正完成嘅手勢」會偷跳一頁。
+    const cancelled = await page.evaluate(() => {
+        const target = document.querySelector('.carousel-track-container');
+        const touch = (identifier, x) => new Touch({
+            identifier, target, screenX: x, clientX: x, screenY: 300, clientY: 300,
+        });
+        const active = touch(19, 260);
+        target.dispatchEvent(new TouchEvent('touchstart', {
+            bubbles: true, changedTouches: [active], touches: [active], targetTouches: [active],
+        }));
+        target.dispatchEvent(new TouchEvent('touchcancel', {
+            bubbles: true, changedTouches: [active], touches: [], targetTouches: [],
+        }));
+        const late = touch(19, 70);
+        target.dispatchEvent(new TouchEvent('touchend', {
+            bubbles: true, changedTouches: [late], touches: [], targetTouches: [],
+        }));
+        return Number(document.querySelector('.carousel-track').dataset.currentPage);
+    });
+    check(`${label}：touchcancel 後嘅遲到 touchend 唔會誤換頁`, cancelled === 0, cancelled);
+
     await page.keyboard.press('ArrowRight');
     await page.waitForTimeout(430);
     const keyboard = await read(page);

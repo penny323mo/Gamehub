@@ -232,14 +232,39 @@ function prevGame() {
 // Touch swipe support
 let touchStartX = 0;
 let touchEndX = 0;
+let swipeTouchId = null;
+
+function resetSwipe() {
+    touchStartX = 0;
+    touchEndX = 0;
+    swipeTouchId = null;
+}
 
 function handleTouchStart(e) {
-    touchStartX = e.changedTouches[0].screenX;
+    // 只追蹤一隻手指。第二隻手指／系統手勢唔應該接管第一隻手指嘅
+    // carousel 起點，否則 pinch 或 WebView gesture 之後會誤跳頁。
+    if (swipeTouchId !== null || e.touches?.length > 1) return;
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+    swipeTouchId = touch.identifier;
+    touchStartX = touch.screenX;
+    touchEndX = touchStartX;
 }
 
 function handleTouchEnd(e) {
-    touchEndX = e.changedTouches[0].screenX;
+    if (swipeTouchId === null) return;
+    const touch = [...e.changedTouches].find(({ identifier }) => identifier === swipeTouchId);
+    if (!touch) return;
+    touchEndX = touch.screenX;
     handleSwipe();
+    resetSwipe();
+}
+
+function handleTouchCancel(e) {
+    if (swipeTouchId === null) return;
+    const cancelled = [...(e.changedTouches ?? [])]
+        .some(({ identifier }) => identifier === swipeTouchId);
+    if (cancelled) resetSwipe();
 }
 
 function handleSwipe() {
@@ -265,6 +290,7 @@ function initHub() {
     if (container) {
         container.addEventListener('touchstart', handleTouchStart, { passive: true });
         container.addEventListener('touchend', handleTouchEnd, { passive: true });
+        container.addEventListener('touchcancel', handleTouchCancel, { passive: true });
     }
 
     window.addEventListener('keydown', (event) => {
