@@ -7878,3 +7878,15 @@ reason 清走就錯誤續波。
 同一輪把 MOBA 所有 local imports、entry、Hub launcher/style 共用 `assets-31`，因為只 bump
 `main.js` 會令 Safari/GitHub Pages 混載舊 HUD/規則 module。Hub context driver 文字節點亦必須
 null-safe；detached loading DOM 唔應該被測試本身誤報 browser error。
+
+## ADR-243 — 長時間真 browser 量度要隔離局面，burst 量度要鎖定同一個樣本
+
+Date: 2026-08-11. Status: accepted.
+
+Elden Ring II 嘅手機速度 gate 需要等足幾秒，第一個樣本可以令玩家走入戰鬥甚至死亡；下一個
+樣本唔可以假設 `.touch-zone` 仲存在。兩個速度 probe 每次重新入場，死亡後收場只做安全放手，
+保留遊戲死亡時收起控制區嘅正常行為。
+
+同一個碎屑池會揀「命最長」嗰蓬回報。量重力時兩次讀取之間如果有新 burst，兩個 `vy` 係兩蓬
+唔同嘅初速度，唔可以相減；只接受 `打擊().次數` 不變嘅連續樣本。箭追擊同未鎖定轉向 gate
+亦要以真實玩家輸入（橫移／死亡後 R 重開）取得足夠落點，唔好用測試專用 state 代替。

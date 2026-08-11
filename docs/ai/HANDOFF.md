@@ -1,10 +1,10 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-11 (Asia/Macau)
-Prepared by: Codex — MOBA context recovery + loading checkpoint
+Prepared by: Codex — Elden browser reliability + Game Hub verification checkpoint
 Integration branch: `main`
 Work branch: `main`
-Status: MOBA WebGL context loss now has a persistent recovery card; Empire Royale loading starts with an indeterminate progress animation; checkpoint is ready for relay after commit/push.
+Status: latest product checks are green; this checkpoint contains a test-only Elden browser harness fix plus durable relay notes. No gameplay rule or deployed source code was changed in this round.
 
 ## Current objective
 
@@ -13,56 +13,69 @@ Status: MOBA WebGL context loss now has a persistent recovery card; Empire Royal
 
 ## Completed
 
-**MOBA context recovery**
+**Elden Ring II browser-gate reliability**
 
-- `Hud` 增加持續嘅 `.moba-context-recovery` card；context 掉落時唔再只靠 1.6 秒 flash，玩家會見到暫停原因及「重新整理」出口。
-- context 恢復後由 `main.js` 收起 card，再按原有 `pauseReasons` 規則安全續波；設定／切走期間唔會偷續。
-- MOBA 全部本地 imports、入口、Hub launcher、Hub CSS 共用 `assets-31`，避免 Safari/GitHub Pages 混載舊 module。
-- `tests/hub-context.mjs` 文字節點讀取加 null guard，避免 Royale detached/null text 變成假 browser error。
+- `games/elden-ring-ii/tests/hud-layout.mjs` now gives each long mobile joystick speed probe a fresh real
+  entry flow. A player dying during a long hold hides `.touch-zone` by design; the harness now releases
+  safely instead of throwing a null DOM error.
+- The movement/lunge probe attacks before its long movement sample, so software-rasterized combat cannot
+  kill the player before measuring a valid lunge.
+- Projectile tracking probes use real lateral movement so an arrow has a moving target during flight.
+- Unlocked-turn probes restart through the visible `R` result action when a static sample dies, accumulating
+  enough real impacts without changing game state through a private test API.
+- Impact gravity probes require the same burst-pool sample (`打擊().次數` unchanged) across both reads;
+  a newly selected burst is discarded rather than treated as gravity.
+- Added ADR-243 documenting these isolation rules.
 
-**Empire Royale loading**
+**Previously completed relay work remains included**
 
-- `games/royale/index.html` 初始 `#load-fill` 直接套 `.unknown`，第一個 progress event 未到之前仍有掃動提示；真實 byte progress 到達後由既有 loader 移除 class。
-- 無假百分比，仍然由實際 MB/byte progress 交代載入量。
-
-Previous Tower checkpoint (`3100c09`) remains included: start button contrast was fixed and `hub-read` now samples only topmost visible text. Do not redo it.
+- MOBA persistent WebGL context-recovery card, safe pause reasons, and `assets-31` cache-bust across local
+  imports/entry/Hub links.
+- Empire Royale indeterminate loading state before the first byte-progress event.
+- Tower start-screen contrast and topmost-visible text measurement.
 
 ## Changed files
 
-- `games/moba/src/hud.js`, `src/main.js`, `style.css` — persistent context recovery UI and lifecycle wiring。
-- `games/moba/src/*.js`, `games/moba/index.html` — cache-bust token `assets-30` → `assets-31` for every local import/entry。
-- `games/moba/tests/browser.mjs` — regression checks for visible recovery card and post-restore hiding。
-- `games/royale/index.html` — initial indeterminate loading bar。
-- `index.html`, `launcher.js` — Hub entry/style/MOBA link token `assets-31`。
-- `tests/hub-context.mjs` — null-safe visible text extraction。
+- `games/elden-ring-ii/tests/hud-layout.mjs` — isolate long mobile/impact browser measurements.
+- `docs/ai/DECISIONS.md` — ADR-243.
+- `docs/ai/PROJECT_CONTEXT.md` — clarify Racing Car's `PLAYWRIGHT_CHROMIUM` runner variable and GPU-safe order.
+- `docs/ai/HANDOFF.md` — this checkpoint.
 
 ## Verification
 
-- `node games/moba/tests/cache-bust.mjs` — PASS；all entry/import tokens `assets-31`。
-- `node games/moba/tests/sim.mjs` — **262/262**。
-- `PW_CHROMIUM='<Chrome for Testing path>' node games/moba/tests/browser.mjs` — **198/198**，含橫/直/SE viewport、商店、controls、asset failure、context loss/recovery、render/perf。
-- `PW_CHROMIUM='<Chrome for Testing path>' node tests/hub-context.mjs` — **3/3**；六隻 3D game 全部入局、context 可量、無 browser error。
-- `PW_CHROMIUM='<Chrome for Testing path>' node tests/hub-wait.mjs` — **1/1**；Fast 3G 三個 heavy entry 最長靜默 ≤ 2.9s。
-- Changed JS files `node --check` — PASS；`git diff --check` — PASS。
-- `./scripts/check-handoff.sh` — commit 前最後再跑一次。
+- `ER2_TIME=1 PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node games/elden-ring-ii/tests/hud-layout.mjs` — **92/92**, five responsive HUD sizes, mobile controls, three classes, waves/boss, death/restart, particles, DPR and zero browser errors.
+- `cd games/elden-ring-ii && npm test` — typecheck/build plus **17/17** static/map/motion tests.
+- `cd games/ashen-rail && npm run assets:inspect && npm run lint && npm run test && npm run build` — asset audit, lint, **14/14** Vitest, production build/prune.
+- Ashen Rail real browser smoke at 844×390 touch viewport — loading → start → HUD, canvas 801×370, ammo/wave visible, no page/console errors.
+- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/hub.mjs` — **96/96**; 13 entries, 2×2 mobile / four-up desktop layout, four pages, no dead links or browser errors.
+- Racing Car individual real-browser suites with `PLAYWRIGHT_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'` — race **124/124**, setup **125/125**, rivals **61/61**, ghost **29/29**, season **55/55**, audio **32/32**.
+- A sequential Racing Car run without the harness's `PLAYWRIGHT_CHROMIUM` override hit 90-second `openRacer()` startup timeouts in setup/ghost after the heavy race process; those two suites were rerun independently with the correct override and passed. Treat the override and separate WebGL execution as required for reliable local evidence.
+- `node --check games/elden-ring-ii/tests/hud-layout.mjs` and `git diff --check` — PASS.
+- `./scripts/check-handoff.sh` — run again immediately before commit.
 
 ## Known issues and cautions
 
-- 7 個本機原有未追蹤 generated assets 必須保留，唔好 stage、刪除或當成今輪變更：
-  `games/ashen-rail/dist/assets/*`（5 個）及 `games/elden-ring-ii/dist/assets/*`（2 個）。
-- Browser tests 要單獨跑；同時跑多個 WebGL suite 會有 GPU 資源型假紅。`PW_CHROMIUM` 應指向本機已安裝嘅 Chrome for Testing。
-- MOBA context card 只喺 context lost 顯示；正常 pause、shop、settings 不應改用此 card。
-- 下一位仍須先跑 `./scripts/agent-context.sh --sync`，再讀本文件；如 upstream 有新 commit，先 fast-forward／報告 dirty 或 divergence，唔好覆蓋其他 agent 工作。
+- Browser suites are GPU/CPU heavy. Run one WebGL suite at a time; use `PW_CHROMIUM` for root Hub/MOBA
+  tests and `PLAYWRIGHT_CHROMIUM` for `games/Racing Car/tests`.
+- Ashen Rail and Elden Ring II `dist/` outputs are generated/ignored; do not stage or delete local generated
+  assets. CI rebuilds them from source.
+- No source gameplay changes were made in this checkpoint. If changing Tower/Snake/Xiangqi source, rebuild
+  their tracked `dist/` before committing; MOBA imports and Hub entry must keep one cache token.
+- Next agent must first run `./scripts/agent-context.sh --sync`, then read this file and
+  `docs/ai/PROJECT_CONTEXT.md`; preserve any dirty/diverged state and do not force-push shared `main`.
 
 ## Exact next action
 
-1. 跑 `./scripts/check-handoff.sh`、`git diff --check`，只 stage 本 checkpoint 追蹤檔案。
-2. Commit and push `main`；確認 `git rev-parse HEAD` 同 `git rev-parse origin/main` 完全一致。
-3. 下一位如繼續產品優化，另開獨立 scope，先加 red gate；不要重做 MOBA context recovery、Royale indeterminate loading 或 Tower contrast。
+1. Run `./scripts/check-handoff.sh` and `git diff --check`.
+2. Stage only the four tracked files listed above; leave generated `dist/` assets untouched.
+3. Commit and push `main`; verify `git rev-parse HEAD` equals `git rev-parse origin/main`.
+4. Next agent may choose a new product scope; do not redo MOBA recovery, Royale loading, Tower contrast,
+   or the Elden browser gates unless a new red reproduction contradicts this checkpoint.
 
 ## Do not redo
 
-- 唔好刪走持續 recovery card，亦唔好將佢退回只留 transient flash。
-- 唔好只 bump MOBA entry；所有 local imports 同 Hub launcher/style 要維持同一個 `assets-31` token。
-- 唔好將對比 gate 改返只讀 computed style／忽略 overlay；要保留像素量度加 topmost visibility。
-- 唔好 stage 上述 7 個未追蹤資產，亦唔好 force-push 共用 `main`。
+- Do not remove the MOBA persistent recovery card or revert it to a transient flash.
+- Do not bump only one MOBA entry; all local imports and Hub launcher/style must keep `assets-31`.
+- Do not weaken Elden gates by skipping the real entry flow, accepting missing controls before a probe, or
+  comparing gravity across different burst-pool samples.
+- Do not stage generated `dist/` assets or force-push shared `main`.

@@ -1111,10 +1111,21 @@ await page.goto('about:blank');
     // 淨係綁 `ShiftLeft`：三粒觸控掣係 ◎／DODGE／⚔，即係**成個 1.55 倍嘅移動
     // 機制，手機玩家一世都用唔到**。加多粒掣會逼爆 HUD（ADR-175 為咗掣位打
     // 過一場），所以用主機遊戲嗰個做法：推到個環度就係跑。
+    // 兩個速度樣本係兩個獨立問題，唔應該共用一個已經行遠咗嘅戰鬥局面。
+    // 之前第一個半推樣本會將玩家帶到雜兵旁邊；第二個全推樣本等足 11 秒時，
+    // 玩家有機會已經死咗，遊戲按設計收起 `.touch-zone`，但測試仍直接搵佢
+    // dispatch `pointerup`，於是由測試自身拋出 null error。每次重新入場既保留
+    // 真實控制流程，又令兩個樣本互不污染；放手時則用 optional chaining，因為
+    // 長按期間自然死亡係合法產品狀態，唔應該變成測試 harness crash。
     const 推 = async (px, 秒) => {
+        await p3.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
+        await p3.waitForTimeout(1200);
+        await 入場(p3);
+        await p3.waitForSelector('.touch-zone', { timeout: 10000 });
         await p3.evaluate(() => window.__ER2.重置動作量度());
         await p3.evaluate((d) => {
             const z = document.querySelector('.touch-zone');
+            if (!z) throw new Error('手機速度量度開始前搵唔到搖桿區');
             z.dispatchEvent(new PointerEvent('pointerdown',
                 { pointerId: 9, pointerType: 'touch', clientX: 400, clientY: 250, bubbles: true }));
             z.dispatchEvent(new PointerEvent('pointermove',
@@ -1122,11 +1133,15 @@ await page.goto('about:blank');
         }, px);
         await p3.waitForTimeout(秒);
         const r = await p3.evaluate(() => window.__ER2.動作());
-        await p3.evaluate(() => document.querySelector('.touch-zone')
-            .dispatchEvent(new PointerEvent('pointerup',
-                { pointerId: 9, pointerType: 'touch', bubbles: true })));
+        const 收場 = await p3.evaluate(() => {
+            const status = document.querySelector('[data-game-status]')?.dataset.gameStatus ?? null;
+            const z = document.querySelector('.touch-zone');
+            z?.dispatchEvent(new PointerEvent('pointerup',
+                { pointerId: 9, pointerType: 'touch', bubbles: true }));
+            return { status, 有搖桿: Boolean(z) };
+        });
         await p3.waitForTimeout(2500);
-        return r;
+        return { ...r, 測試收場狀態: 收場.status, 測試收場有搖桿: 收場.有搖桿 };
     };
     // 搖桿半徑 52px：26 ＝ 啱啱好半推，62 ＝ 推穿個環。
     const 半 = await 推(26, 11000);
@@ -1137,7 +1152,8 @@ await page.goto('about:blank');
     check('搖桿推幾多就行幾快（唔係撳親就全速）',
         半 != null && 盡 != null && Math.abs(半.最高速 - 半.設計速 * 0.5) <= 0.35,
         { 半推: 半 && 半.最高速, 預測: 盡 && +(盡.設計速 * 0.5).toFixed(2),
-          推到底: 盡 && 盡.最高速, 設計速: 盡 && 盡.設計速 });
+          推到底: 盡 && 盡.最高速, 設計速: 盡 && 盡.設計速,
+          半推收場: 半 && 半.測試收場狀態, 全推收場: 盡 && 盡.測試收場狀態 });
 
     // 呢條**唔使揀門檻**：行路嗰條路嘅速度目標係 `設計速 × 推度`，而 `推度`
     // 上限係 1——即係行路**數學上唔可能**行得快過 4.4。任何高過 4.4 嘅數，
@@ -1291,7 +1307,7 @@ await page.goto('about:blank');
     await p4.waitForTimeout(1500);
     await 入場(p4);
     await p4.evaluate(() => window.__ER2.重置動作量度());
-    // 先直線跑一段長嘅。**條斜坡而家係真嘅**（0.55 秒到全速），而呢個環境
+    // 先量四刀再跑。**條斜坡而家係真嘅**（0.55 秒到全速），而呢個環境
     // 一秒三幀——1.3 秒嘅撳掣得四幀，根本未加速完，最高速讀到 4.3 對 4.4 就
     // 紅。條 gate 唔係量錯咗嘢，係**冇畀夠時間畀佢要量嗰件事發生**。
     // 向北係 34 米空地（出生點 z 12.3，霧門喺 −21.75）。
@@ -1299,6 +1315,9 @@ await page.goto('about:blank');
     // ADR-186 之後同一版跑 **4.2 fps**，即係同一段真實秒數入面遊戲行多 2.5 倍
     // ——玩家捱多咗 2.5 倍打，跑到最後一段先撳攻擊嗰陣已經死咗，`踏前實速`
     // 讀到 0。**腳本嘅單位係真實秒，佢驅動嘅嘢行郁動時間**，改咗比例就要跟。
+    // 出手放喺前面係刻意嘅：跑步測試需要幾秒，軟件光柵化下雜兵會喺後段
+    // 合圍；如果先跑後斬，測試量到嘅係一具屍體，`踏前實速` 會假性變成 0。
+    for (let i = 0; i < 4; i += 1) { await p4.keyboard.press('KeyJ'); await p4.waitForTimeout(700); }
     await p4.keyboard.down('KeyW'); await p4.waitForTimeout(2600); await p4.keyboard.up('KeyW');
     await p4.waitForTimeout(400);
     for (let i = 0; i < 2; i += 1) {
@@ -1308,8 +1327,6 @@ await page.goto('about:blank');
         await p4.keyboard.down('KeyA'); await p4.waitForTimeout(420); await p4.keyboard.up('KeyA');
         await p4.waitForTimeout(280);
     }
-    // 出手都要量：企定同跑住各斬幾刀。
-    for (let i = 0; i < 4; i += 1) { await p4.keyboard.press('KeyJ'); await p4.waitForTimeout(700); }
     const m = await p4.evaluate(() => window.__ER2.動作());
     const 上限 = await p4.evaluate(() => window.__ER2.郁動上限());
     const 敵 = await p4.evaluate(() => window.__ER2.敵動作());
@@ -1381,7 +1398,12 @@ await page.goto('about:blank');
         const 前 = await p2.evaluate(() =>
             +document.querySelector('[data-enemies-remaining]').dataset.enemiesRemaining);
         await p2.evaluate(() => window.__ER2.重置動作量度());
+        // 目標要真係郁，先可以分辨「箭追住活目標」同「箭射向出手嗰刻嘅
+        // 靜態座標」。一路橫移一路射係正常玩家操作，亦比企定等敵人埋身穩定：
+        // 目標會持續追擊，飛行窗口內一定有可量嘅位移；傷害 gate 仍然照守。
+        await p2.keyboard.down('KeyD');
         for (let i = 0; i < 26; i++) { await p2.keyboard.press('KeyF'); await p2.waitForTimeout(700); }
+        await p2.keyboard.up('KeyD');
         const 後 = await p2.evaluate(() => ({
             關: document.querySelector('[data-encounter]').dataset.encounter,
             狀態: document.querySelector('[data-game-status]').dataset.gameStatus,
@@ -1438,7 +1460,17 @@ await page.goto('about:blank');
     await p5.waitForTimeout(600);
     const 鎖 = await p5.evaluate(() => document.querySelector('[data-target-locked]')?.dataset.targetLocked);
     await p5.evaluate(() => window.__ER2.重置動作量度());
-    for (let i = 0; i < 16; i++) { await p5.keyboard.press('KeyF'); await p5.waitForTimeout(700); }
+    // 量轉向唔需要玩家移位；如果企定期間自然死亡，就用畫面上嘅 R 重開，
+    // 累積夠三個落點再判斷。咁樣唔會將「走遠咗令目標喺身後」誤報成鎖定
+    // 轉向失效，亦唔會因為一局死亡令樣本數跌到一個。
+    for (let i = 0; i < 16; i++) {
+        if (await p5.evaluate(() => document.querySelector('[data-game-status]')?.dataset.gameStatus !== 'playing')) {
+            await p5.keyboard.press('KeyR');
+            await p5.waitForTimeout(2500);
+        }
+        await p5.keyboard.press('KeyF');
+        await p5.waitForTimeout(700);
+    }
     const 解 = await p5.evaluate(() => window.__ER2.瞄準());
     check('解咗鎖之後，把尺真係量緊未鎖定嘅狀態', 鎖 === 'false', { targetLocked: 鎖 });
     check('冇鎖定都會轉入去出手（唔會側住身射箭）',
@@ -1464,13 +1496,21 @@ await page.goto('about:blank');
     await p7.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`, { waitUntil: 'load' });
     await p7.waitForTimeout(1500);
     await 入場(p7);
-    // 企喺度斬：自己斬中同時捱雜兵嘅拳，兩邊都出碎屑——重疊就係咁嚟。
+    // 先等出生／開門嗰啲無方向特效散走；之後只收集每一下 KeyJ 之後新出嗰蓬。
+    // 唔可以將聖所回血、敵人出生嗰啲刻意無方向嘅碎屑混入「背住打擊方向噴」
+    // 呢條 gate，否則測試量緊嘅就唔係同一類特效。
+    await p7.waitForTimeout(1200);
     const 樣本 = [];
     for (let i = 0; i < 16; i += 1) {
+        const 之前 = await p7.evaluate(() => window.__ER2.打擊().次數);
         await p7.keyboard.press('KeyJ');
-        await p7.waitForTimeout(400);
-        const f = await p7.evaluate(() => window.__ER2.打擊());
-        if (f.命 > 0.2) 樣本.push(f);
+        let f = null;
+        for (let k = 0; k < 8; k += 1) {
+            await p7.waitForTimeout(220);
+            f = await p7.evaluate(() => window.__ER2.打擊());
+            if (f.次數 > 之前) break;
+        }
+        if (f && f.次數 > 之前 && f.命 > 0.2) 樣本.push(f);
     }
     const fx = await p7.evaluate(() => window.__ER2.打擊());
     // 重力：兩次抽樣之間 vy 跌咗幾多 ÷ 郁動秒。量嘅係**積分本身**，唔係讀個
@@ -1496,7 +1536,10 @@ await page.goto('about:blank');
         if (!a1 || a1.f.命 <= 0.3) continue;
         await p7.waitForTimeout(300);
         const a2 = await p7.evaluate(() => ({ t: window.__ER2.clock().motion, f: window.__ER2.打擊() }));
-        if (a2.f.命 > 0 && a2.f.命 < a1.f.命 && a2.t > a1.t) {
+        // `打擊()` 會揀池入面命最長嗰蓬；如果兩次抽樣之間另一一下打擊
+        // 換咗命最長嗰蓬，直接用兩蓬嘅 vy 相減會量到隨機初速度，而唔係重力。
+        // 次數相同先代表仍然係同一蓬碎屑。
+        if (a2.f.次數 === a1.f.次數 && a2.f.命 > 0 && a2.f.命 < a1.f.命 && a2.t > a1.t) {
             重力 = (a1.f.粒[0].vy - a2.f.粒[0].vy) / (a2.t - a1.t);
         }
     }

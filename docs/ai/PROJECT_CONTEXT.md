@@ -194,7 +194,8 @@ it in links (`games/Racing%20Car/index.html`):
 ```sh
 cd "games/Racing Car/tests"
 npm install        # once
-npm test           # track build, physics, a full three-lap autopilot run, resource gate
+PLAYWRIGHT_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
+  npm test         # track build, physics, a full three-lap autopilot run, resource gate
 ```
 
 The autopilot lap is the load-bearing gameplay check: a broken track shape, an
@@ -203,6 +204,8 @@ setup suite also guards the continuous-ribbon renderer, mobile geometry budget,
 idle render-on-demand, 320×568 portrait and 667×375 landscape control/HUD layout,
 dual-touch input, adaptive DPR limits, pause/wake-lock lifecycle, WebGL context
 loss/restore, orientation pause, settings, gyro mapping, and minimap.
+The Racing Car harness reads `PLAYWRIGHT_CHROMIUM` (the root Hub/MOBA harnesses read
+`PW_CHROMIUM`); run the WebGL suites separately when the machine is under GPU pressure.
 It also verifies the enlarged floating analogue joystick/right-thumb slide-action cluster, the
 day/dusk/night sky, stars, headlight, reflective-track states, fixed-capacity driving
 effects, player-only arcade assists, simple-mode/gyro input, rivals/ghost/season career
