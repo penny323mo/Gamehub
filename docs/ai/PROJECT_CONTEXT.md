@@ -364,8 +364,10 @@ become a height/collision query. `main.js` also smooths a clamped `cameraGrade`
   clamped `cameraLean` from lateral load/yaw into a ±0.032rad horizon cue; both reset on
   start/track build and must remain render-only (no FOV, input, physics or per-frame curve query).
   The chase look target may blend up to 0.24 toward a 12–22m ahead track tangent from the
-  existing 240 query samples via `Track.tangentAtT()`; this is render-only and must not call
-  Catmull-Rom per frame or change the car's actual travel direction.
+  existing 240 query samples via `Track.tangentAtT()`, and `cameraElevationLook` may add a
+  bounded ±0.18 look-target elevation cue from the same cached `surfaceYAtT()` profile. Both
+  are render-only and must not call Catmull-Rom per frame or change the car's actual travel
+  direction; reset both on start/track build.
   `syncCarRenderSurface()` updates the contact shadow in the same transaction so reset/track
   changes cannot leave one frame of stale shadow placement.
 

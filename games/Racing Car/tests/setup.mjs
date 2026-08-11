@@ -619,6 +619,37 @@ check('高速追車鏡頭會預讀彎勢，但 look-ahead 仍然有界',
     && cameraCourse.maxAhead > 0.04
     && cameraCourse.capped <= cameraCourse.limit + 0.001, cameraCourse);
 
+// Camera elevation cue：用受控前方高度 sample 驗證 crest／valley 會令 look target
+// 有可讀但有界嘅上下移動；唔將 render-only surfaceHeight 寫入 physics Y。
+const cameraElevation = await page.evaluate(() => {
+    const root = window.__racer;
+    const surface = root.track;
+    const oldSurfaceYAtT = surface.surfaceYAtT;
+    root.startRace();
+    root.pauseRace('camera elevation test');
+    const baseY = root.car.renderY;
+    surface.surfaceYAtT = () => baseY + 4;
+    let maxLook = 0;
+    for (let i = 0; i < 90; i++) {
+        root.updateCameraForTest(1 / 60);
+        maxLook = Math.max(maxLook, Math.abs(root.cameraElevationLook));
+    }
+    const result = {
+        maxLook,
+        cue: root.cameraElevationLook,
+        physicsY: root.car.pos.y,
+        limit: 0.18,
+    };
+    surface.surfaceYAtT = oldSurfaceYAtT;
+    root.toMenu();
+    return result;
+});
+console.log('  ', JSON.stringify(cameraElevation));
+check('crest／valley 會令鏡頭預讀上下落差，但唔會污染物理 Y',
+    cameraElevation.maxLook > 0.01
+    && Math.abs(cameraElevation.cue) <= cameraElevation.limit + 0.001
+    && cameraElevation.physicsY === 0, cameraElevation);
+
 // T4：轉向反轉係逃生門——反轉之後同一個輸入要行相反方向
 const inv = await page.evaluate(async () => {
     const THREE = await import('three');

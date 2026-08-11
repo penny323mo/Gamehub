@@ -8622,3 +8622,22 @@ ADR-291 淨係用 `trackPitch` 變化率，對長上／落坡嘅實際車身反�
 844×390 smoke 實測約 **+0.022/−0.029m**；`setup.mjs` draw/triangle budget 維持。
 日後如改 terrain profile、surface query 或車模 floor envelope，必須重跑 heave 上限／
 reset／surface-rate gates 同真 headed mobile smoke，唔好將 vertical cue 變成 gameplay 高度。
+
+## ADR-293 — Racing Car 追車鏡頭要預讀 crest／valley，令上落唔再似平面滑動
+
+Date: 2026-08-12. Status: accepted.
+
+已有 `cameraGrade` 只跟車底當刻 `trackPitch`，`cameraLookAhead` 只跟前方平面切線；即使
+road ribbon 真正有 5–6.6m render elevation，長上坡／落谷仍然主要係鏡頭同車一齊平移，
+玩家未必讀到下一個 crest。今輪喺 `main.js` 以既有 240-sample `surfaceYAtT()` 預取
+前方高度差，平滑成 `cameraElevationLook`，再只加到 chase look target。cue 以
+`elevationDelta / 18` 計算並封頂 **±0.18**，wide-mobile／desktop 分別乘 **2.6／3.2m**；
+換賽道／重開清零。呢個係視線預讀，不係 camera shake 或 physics height。
+
+`cameraElevationLook` 完全 render-only：唔改 `Car.pos.y`、`renderY`、速度、steering、
+碰撞、nearestT、checkpoint、progress、AI、contact shadow、FOV 或 draw calls；亦唔喺
+frame loop 重新取 Catmull-Rom，仍然只讀 cached profile。`setup.mjs` 新 gate 以受控
+crest sample 驗證 cue 會到 **0.17984** 但 `physicsY=0`；真 headed **844×390** smoke
+讀到最高約 **99km/h**、0 幀落草、console **0 errors**。日後再加大 cue 或改 look-ahead，
+必須重跑自然坡段 screenshot、mobile layout、物理 gates 同 aggregate，避免鏡頭預讀變成
+暈眩或遮住路線。

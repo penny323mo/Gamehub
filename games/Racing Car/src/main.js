@@ -340,6 +340,7 @@ let cameraPulse = 0;
 let cameraGrade = 0;
 let cameraLean = 0;
 let cameraLookAhead = 0;
+let cameraElevationLook = 0;
 
 // 賽道可以換：換嗰陣要 dispose 舊嗰個，唔係每揀一次就漏一份 3D 世界
 const minimap = new Minimap($('minimap'));
@@ -384,7 +385,7 @@ function buildTrack(id) {
     if (car) { car.reset(track.startPos, track.startDir); syncCarRenderSurface(); }
     if (race) { race.track = track; race.trackId = trackDef.id; race.reset(); }
     camInit = false;
-    cameraThrust = 0; cameraPulse = 0; cameraGrade = 0; cameraLean = 0; cameraLookAhead = 0;
+    cameraThrust = 0; cameraPulse = 0; cameraGrade = 0; cameraLean = 0; cameraLookAhead = 0; cameraElevationLook = 0;
     requestRender();
 }
 buildTrack(trackDef.id);
@@ -562,6 +563,7 @@ loader.load('./assets/car.glb', (gltf) => {
         get cameraGrade() { return cameraGrade; },
         get cameraLean() { return cameraLean; },
         get cameraLookAhead() { return cameraLookAhead; },
+        get cameraElevationLook() { return cameraElevationLook; },
         updateCameraForTest: (dt) => updateCamera(dt),
         visualLength: CAR_VISUAL_LENGTH,
     };
@@ -630,6 +632,15 @@ function updateCamera(dt) {
         playerT + lookAheadMeters / Math.max(1, track.length),
         trackLookTangent,
     );
+    // 預讀前方已烘好嘅 surface profile，令 crest／valley 真正影響駕駛者視線；
+    // 呢個只係 look target 嘅有界 cue，唔改車身 Y、速度、碰撞或者 progress。
+    // 用 elevation delta 而唔係再取 Catmull-Rom，保持 camera hot path 無 allocation。
+    const aheadSurfaceY = track.surfaceYAtT(
+        playerT + lookAheadMeters / Math.max(1, track.length),
+    );
+    const elevationDelta = THREE.MathUtils.clamp(aheadSurfaceY - car.renderY, -8, 8);
+    const elevationTarget = THREE.MathUtils.clamp(elevationDelta / 18, -0.18, 0.18);
+    cameraElevationLook += (elevationTarget - cameraElevationLook) * Math.min(1, dt * 4.5);
     const courseBlendTarget = THREE.MathUtils.clamp(
         (Math.max(0, car.forwardSpeed) - 8) / 35,
         0,
@@ -638,7 +649,8 @@ function updateCamera(dt) {
     cameraLookAhead += (courseBlendTarget - cameraLookAhead) * Math.min(1, dt * 6);
     const lookDir = cameraLookDir.copy(fwd).lerp(trackLookTangent, cameraLookAhead).normalize();
     const lookAt = camLookAt.copy(car.pos).addScaledVector(lookDir, wideMobile ? 15 : 21)
-        .setY(car.renderY + 0.55 - cameraGrade * (wideMobile ? 10.5 : 12.5));
+        .setY(car.renderY + 0.55 - cameraGrade * (wideMobile ? 10.5 : 12.5)
+            + cameraElevationLook * (wideMobile ? 2.6 : 3.2));
     if (!camInit) { camPos.copy(want); camLook.copy(lookAt); camInit = true; }
     // 追car 用指數平滑。唔可以再喺漂移時特登放鬆——方向本身已經跟住
     // 行進方向擺，位置再拖就會framing唔到架車。
@@ -1277,7 +1289,7 @@ function startRace() {
     lapProgressBase = 0;
     ghostMesh.visible = false;
     camInit = false;
-    cameraThrust = 0; cameraPulse = 0; cameraGrade = 0; cameraLean = 0; cameraLookAhead = 0;
+    cameraThrust = 0; cameraPulse = 0; cameraGrade = 0; cameraLean = 0; cameraLookAhead = 0; cameraElevationLook = 0;
     race.reset();
     hudCache = {};
     resetPerformance();

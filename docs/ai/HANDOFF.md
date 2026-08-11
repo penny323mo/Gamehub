@@ -1,7 +1,7 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Racing Car vertical-heave feel pass
+Prepared by: Codex — Racing Car camera-elevation feel pass
 Integration branch: `main`
 Work branch: `main`
 Status: Racing Car source, regression gates, headed mobile smoke and docs are
@@ -31,7 +31,8 @@ real browser evidence for every visual or control change.
   shadow and effects all follow the same surface anchor. Trackside tree trunks
   and crowns now use their local `terrainYAt(x,z)` at build time, so crest trees
   do not float and valley trees do not sink. Render-only suspension,
-  camera grade, corner-load lean and 12–22m tangent look-ahead remain bounded.
+  camera grade, corner-load lean, 12–22m tangent look-ahead and bounded
+  `cameraElevationLook` crest/valley cue all reset on start/build.
 - `Car.suspensionHeave` now adds a short, bounded chassis compression/rebound
   from pitch-rate transitions **and render-surface vertical velocity**. The
   height-rate gain is **0.065**, total heave is limited to **±0.09m**, settles at
@@ -47,16 +48,17 @@ real browser evidence for every visual or control change.
 - `games/Racing Car/src/track.js`
 - `games/Racing Car/src/tracks.js`
 - `games/Racing Car/src/car.js` (bounded render-only vertical-rate heave)
+- `games/Racing Car/src/main.js` (cached surface-elevation camera cue)
 - `games/Racing Car/tests/setup.mjs`, `games/Racing Car/tests/race.mjs`,
   `games/Racing Car/tests/ghost.mjs`
-- `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md` (ADR-289–ADR-292)
+- `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md` (ADR-289–ADR-293)
 - `docs/ai/HANDOFF.md`
 
 ## Verification
 
 - `race.mjs` — **133/133**; top **148 km/h**, 0–80 **2.40s**, drift/ABS/wall/
   recovery/roll/suspension/grade gates green, zero browser errors.
-- `setup.mjs` — **150/150**; six tracks, graded ribbon/offroad pose, effects,
+- `setup.mjs` — **151/151**; six tracks, graded ribbon/offroad pose, effects,
   controls, lifecycle, landmarks, tangent and tree-anchor gates green. The new
   tree gate measures **130/130 roots with max error 0**; setup budget remains
   **16 calls / 56,933 tris**, zero browser errors.
@@ -67,7 +69,7 @@ real browser evidence for every visual or control change.
   **30.503 / 32.895 / 35.293 m/s**, grade acceleration **−0.784 / 0 / +0.784
   m/s²**, physical Y remains **0**.
 - Aggregate `RACER_TEST_SETTLE_MS=5000 node games/Racing\ Car/tests/run-all.mjs`:
-  race **133/133**, setup **150/150** (readiness retry), rivals **61/61**
+  race **133/133**, setup **151/151** (readiness retry), rivals **61/61**
   (readiness retry), ghost **29/29**, season **55/55**, audio **33/33**.
 - `node --check` on changed JS and tests — PASS; `git diff --check` — PASS.
 - Real headed **844×390** smoke (standard controls with guided steering):
@@ -75,8 +77,11 @@ real browser evidence for every visual or control change.
   `suspensionHeave=0.0123m` at capture (sampled range `+0.0220/−0.0290m`),
   `offroad=false` at capture with **1/500** offroad frames, audio ready and
   console **0 errors**. This validates the vertical-rate cue in a real
-  mobile-sized race; the screenshot was treated as a temporary QA artifact and
-  removed after review.
+  mobile-sized race; screenshot was a temporary non-commit QA artifact.
+- Real headed **844×390** camera-elevation smoke (touge, guided driver): peak
+  **99 km/h**, **0** offroad frames, sampled `cameraElevationLook`
+  **+0.0295/−0.0152**, console **0 errors**; screenshot reviewed as a temporary
+  non-commit QA artifact.
 
 ## Known issues and cautions
 
@@ -95,12 +100,15 @@ real browser evidence for every visual or control change.
 - Heave is deliberately render-only: do not use it as a gameplay height or
   increase its height-rate gain or ±`0.09m` limit without checking rigid-model
   floor clearance and mobile screenshots.
+- `cameraElevationLook` is deliberately a look-target cue only: keep its limit at
+  **±0.18** and do not add cached elevation to physics, vehicle root, shadow,
+  route or FOV without a natural crest/valley screenshot and mobile nausea check.
 - Aggregate `run-all.mjs` may need `RACER_TEST_SETTLE_MS=5000` on pressured Macs;
   readiness-only retry is bounded and does not hide assertion failures.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync`; read this handoff and ADR-292.
+1. Run `./scripts/agent-context.sh --sync`; read this handoff and ADR-293.
 2. Run the named Racing suites plus the aggregate after any further change.
 3. Run `./scripts/check-handoff.sh`, commit code and handoff together, push the
    authorized checkpoint, and verify `git ls-remote origin refs/heads/main`.
