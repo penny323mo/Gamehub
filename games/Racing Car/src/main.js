@@ -339,6 +339,7 @@ let cameraThrust = 0;
 let cameraPulse = 0;
 let cameraGrade = 0;
 let cameraLean = 0;
+let cameraLookAhead = 0;
 
 // 賽道可以換：換嗰陣要 dispose 舊嗰個，唔係每揀一次就漏一份 3D 世界
 const minimap = new Minimap($('minimap'));
@@ -383,7 +384,7 @@ function buildTrack(id) {
     if (car) { car.reset(track.startPos, track.startDir); syncCarRenderSurface(); }
     if (race) { race.track = track; race.trackId = trackDef.id; race.reset(); }
     camInit = false;
-    cameraThrust = 0; cameraPulse = 0; cameraGrade = 0; cameraLean = 0;
+    cameraThrust = 0; cameraPulse = 0; cameraGrade = 0; cameraLean = 0; cameraLookAhead = 0;
     requestRender();
 }
 buildTrack(trackDef.id);
@@ -560,6 +561,7 @@ loader.load('./assets/car.glb', (gltf) => {
         get performance() { return { ...performanceState }; },
         get cameraGrade() { return cameraGrade; },
         get cameraLean() { return cameraLean; },
+        get cameraLookAhead() { return cameraLookAhead; },
         updateCameraForTest: (dt) => updateCamera(dt),
         visualLength: CAR_VISUAL_LENGTH,
     };
@@ -582,6 +584,8 @@ const camWantDir = new THREE.Vector3();
 const camWant = new THREE.Vector3();
 const camLookAt = new THREE.Vector3();
 const raceTangent = new THREE.Vector3();
+const trackLookTangent = new THREE.Vector3();
+const cameraLookDir = new THREE.Vector3();
 function updateCamera(dt) {
     const heading = camHeading.set(Math.sin(car.yaw), 0, Math.cos(car.yaw));
     // 鏡頭唔可以淨係跟車頭：甩到八十幾度嗰陣車係打橫飛，跟車頭嘅話架車
@@ -618,7 +622,22 @@ function updateCamera(dt) {
     cameraPulse += (Math.min(1, car.speed / 48) - cameraPulse) * Math.min(1, dt * 5);
     want.addScaledVector(fwd, -cameraThrust * 0.24);
     want.y += Math.sin(performance.now() * 0.012) * cameraPulse * 0.018;
-    const lookAt = camLookAt.copy(car.pos).addScaledVector(fwd, wideMobile ? 15 : 21)
+    // 高速入彎時，單跟車頭會遲半拍先見到彎心；用已有 query samples 預取
+    // 12–22m 前方嘅賽道切線，只微量改 look target。機位仍然跟車／行進方向，
+    // 所以漂移唔會被拉離車身；呢層只係讀路線，唔改 steering、progress 或物理。
+    const lookAheadMeters = 12 + speedT * 10;
+    track.tangentAtT(
+        playerT + lookAheadMeters / Math.max(1, track.length),
+        trackLookTangent,
+    );
+    const courseBlendTarget = THREE.MathUtils.clamp(
+        (Math.max(0, car.forwardSpeed) - 8) / 35,
+        0,
+        1,
+    ) * 0.24;
+    cameraLookAhead += (courseBlendTarget - cameraLookAhead) * Math.min(1, dt * 6);
+    const lookDir = cameraLookDir.copy(fwd).lerp(trackLookTangent, cameraLookAhead).normalize();
+    const lookAt = camLookAt.copy(car.pos).addScaledVector(lookDir, wideMobile ? 15 : 21)
         .setY(car.renderY + 0.55 - cameraGrade * (wideMobile ? 10.5 : 12.5));
     if (!camInit) { camPos.copy(want); camLook.copy(lookAt); camInit = true; }
     // 追car 用指數平滑。唔可以再喺漂移時特登放鬆——方向本身已經跟住
@@ -1258,7 +1277,7 @@ function startRace() {
     lapProgressBase = 0;
     ghostMesh.visible = false;
     camInit = false;
-    cameraThrust = 0; cameraPulse = 0; cameraGrade = 0; cameraLean = 0;
+    cameraThrust = 0; cameraPulse = 0; cameraGrade = 0; cameraLean = 0; cameraLookAhead = 0;
     race.reset();
     hudCache = {};
     resetPerformance();

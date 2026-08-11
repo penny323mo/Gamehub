@@ -356,6 +356,9 @@ bounded render-only suspension follow (max 0.018/0.015 rad) to the visual root, 
   copy of raw `trackPitch` into small chase-camera position/look-target offsets, and smooths a
   clamped `cameraLean` from lateral load/yaw into a ±0.032rad horizon cue; both reset on
   start/track build and must remain render-only (no FOV, input, physics or per-frame curve query).
+  The chase look target may blend up to 0.24 toward a 12–22m ahead track tangent from the
+  existing 240 query samples via `Track.tangentAtT()`; this is render-only and must not call
+  Catmull-Rom per frame or change the car's actual travel direction.
   `syncCarRenderSurface()` updates the contact shadow in the same transaction so reset/track
   changes cannot leave one frame of stale shadow placement.
 

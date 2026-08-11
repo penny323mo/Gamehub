@@ -8537,3 +8537,22 @@ season **55/55**、audio **33/33**，setup **148/148**。真 headed 844×390 smo
 彎位 `cameraLean=0.0142rad`、console **0 errors**；世界 budget 維持低於 **18 calls／120k
 tris**。日後再加大 lean 或加入其他 camera cue，必須重跑自然彎位 screenshot、portrait
 smoke、物理 gates 同 aggregate，唔好用鏡頭 response 代替真正操控或抓地。
+
+## ADR-288 — Racing Car 追車鏡頭用預取賽道切線讀彎心，唔喺 frame loop 重建曲線
+
+Date: 2026-08-12. Status: accepted.
+
+真 browser 嘅高速直路畫面已經有 crest／bank／speed feedback，但追車 look target 原本
+只係沿車頭／行進方向延伸；入彎時彎心遲一拍先入畫面，車手會先見護欄再見路線。`Track`
+新增 `tangentAtT()`，直接從既有 **240** 個 X/Z query samples 做 centered difference，
+out 由 caller 重用；`main.js` 喺 12–22m look-ahead 範圍將前方切線以最多 **0.24** blend
+到 look target。機位仍然沿車／行進方向，唔改 steering、physics、progress、AI、FOV、
+車身姿態或 draw calls；倒車／低速亦會自然淡出，換賽道／重開清零。
+
+setup 新增 tangent 單位長度及 bounded look-ahead gate，實測 `maxAhead=0.1646`，升至
+**149/149**。第二次完整 aggregate 六套全綠：race **128/128**、setup **149/149**、
+rivals **61/61**、ghost **29/29**、season **55/55**、audio **33/33**。真 headed
+**844×390** smoke 讀到 **87 km/h**、`cameraLookAhead=0.1041`、offroad `false`、console
+**0 errors**，畫面證據 `/tmp/racing-lookahead-v10-start.png`；世界仍係 **16 calls／56,933
+tris**。日後如要加大 look-ahead，必須重跑自然彎位 screenshot、mobile layout、物理 gates
+同 aggregate，避免鏡頭預讀變成過度拉鏡或遮 HUD。

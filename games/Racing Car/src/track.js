@@ -181,6 +181,23 @@ export class Track {
     surfaceYAtT(t) { return this.#profileValue(this.surfaceYProfile, t); }
     surfaceBankAtT(t) { return this.#profileValue(this.surfaceBankProfile, t); }
 
+    // 追車鏡頭要預知少少前方彎勢，但唔可以喺 frame loop 重新叫 Catmull-Rom
+    // tangent。用建場時已有嘅 240 個 X/Z query samples 做 centered difference，
+    // runtime 只係兩次 Float32 讀取同一次 normalize；out 由 caller 重用，唔產生
+    // 短命 Vector3。
+    tangentAtT(t, out = new THREE.Vector3()) {
+        const wrapped = ((t % 1) + 1) % 1;
+        const i = Math.floor(wrapped * QUERY_SAMPLES);
+        const prev = ((i + QUERY_SAMPLES - 1) % QUERY_SAMPLES) * 2;
+        const next = ((i + 1) % QUERY_SAMPLES) * 2;
+        out.set(
+            this.querySamples[next] - this.querySamples[prev],
+            0,
+            this.querySamples[next + 1] - this.querySamples[prev + 1],
+        );
+        return out.normalize();
+    }
+
     // 車身要跟住上落坡，否則視覺上會似架車浮喺一張傾斜貼圖上面。
     // 回傳值係 Three.js local-X rotation：前方上斜時要向負 X 仰起車頭。
     surfacePitchAtT(t) {

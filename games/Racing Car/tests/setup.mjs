@@ -580,6 +580,30 @@ check('轉彎載荷會令追車鏡頭有受限 lean，但唔會搖爆',
     cameraFeel.maxLean > 0.004 && cameraFeel.maxLean <= cameraFeel.limit + 0.001
     && cameraFeel.maxLateral > 0.4, cameraFeel);
 
+// Camera route cue：高速時 look target 要向預取嘅賽道切線靠少少，令彎心早一拍
+// 入畫面；機位／車身仍然留喺既有 chase direction，亦要守住無 allocation 嘅 tangent seam。
+const cameraCourse = await page.evaluate(() => {
+    const root = window.__racer;
+    const tangent = root.track.tangentAtT(root.track.startT);
+    const tangentLength = Math.hypot(tangent.x, tangent.z);
+    root.startRace();
+    root.car.vel.set(Math.sin(root.car.yaw) * 32, 0, Math.cos(root.car.yaw) * 32);
+    let maxAhead = 0;
+    for (let i = 0; i < 90; i++) {
+        root.updateCameraForTest(1 / 60);
+        maxAhead = Math.max(maxAhead, root.cameraLookAhead);
+    }
+    const capped = root.cameraLookAhead;
+    root.pauseRace('camera course test');
+    root.toMenu();
+    return { tangentLength, maxAhead, capped, limit: 0.24 };
+});
+console.log('  ', JSON.stringify(cameraCourse));
+check('高速追車鏡頭會預讀彎勢，但 look-ahead 仍然有界',
+    Math.abs(cameraCourse.tangentLength - 1) < 0.01
+    && cameraCourse.maxAhead > 0.04
+    && cameraCourse.capped <= cameraCourse.limit + 0.001, cameraCourse);
+
 // T4：轉向反轉係逃生門——反轉之後同一個輸入要行相反方向
 const inv = await page.evaluate(async () => {
     const THREE = await import('three');
