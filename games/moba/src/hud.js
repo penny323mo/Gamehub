@@ -1,11 +1,11 @@
 // HUD。全部用 DOM，唔用 canvas 畫字——手機上面 DOM 文字先至清晰，
 // 而且 CSS 處理安全區同轉向比自己計座標可靠。
 
-import { abilityRank } from './champions.js?v=assets-30';
-import { armTap } from './tap.js?v=assets-30';
-import { settings } from './settings.js?v=assets-30';
-import { ITEMS, MAX_ITEMS, nextPurchase } from './items.js?v=assets-30';
-import { TEAM, teamName, GAME_MAX, MAP } from './constants.js?v=assets-30';
+import { abilityRank } from './champions.js?v=assets-31';
+import { armTap } from './tap.js?v=assets-31';
+import { settings } from './settings.js?v=assets-31';
+import { ITEMS, MAX_ITEMS, nextPurchase } from './items.js?v=assets-31';
+import { TEAM, teamName, GAME_MAX, MAP } from './constants.js?v=assets-31';
 
 const el = (tag, cls, text) => {
     const n = document.createElement(tag);
@@ -135,6 +135,22 @@ export class Hud {
         // 死亡遮罩
         this.deadBox = el('div', 'moba-dead hidden');
         r.append(this.deadBox);
+
+        // WebGL context 掉咗之後，短暫 flash 會喺手機上面好快消失，玩家只會
+        // 見到一塊冇反應嘅畫面。呢個係持續嘅 recovery card；context 真正返嚟
+        // 之前唔會自己消失，亦提供一條最後嘅重新整理出口。
+        this.contextRecovery = el('div', 'moba-context-recovery hidden');
+        const contextCard = el('div', 'moba-context-card');
+        contextCard.append(
+            el('h2', null, '畫面暫時中斷'),
+            el('p', null, '顯示裝置重置緊，遊戲已暫停。返嚟後會自動繼續。'),
+        );
+        const contextRetry = el('button', 'moba-context-retry', '重新整理');
+        contextRetry.setAttribute('aria-label', '重新整理遊戲');
+        armTap(contextRetry, () => window.location.reload());
+        contextCard.append(contextRetry);
+        this.contextRecovery.append(contextCard);
+        r.append(this.contextRecovery);
 
         // 設定：一個網頁遊戲冇靜音掣係硬傷——人哋隨時喺公司／地鐵開你隻嘢。
         this.gearBtn = el('button', 'moba-gear', '⚙');
@@ -288,6 +304,14 @@ export class Hud {
         this.shopBackdrop.classList.toggle('hidden', !this.shopOpen);
         this.root.classList.toggle('shop-open', this.shopOpen);
         if (this.shopOpen) this.toggleSettings(false);
+    }
+
+    showContextRecovery() {
+        this.contextRecovery?.classList.remove('hidden');
+    }
+
+    hideContextRecovery() {
+        this.contextRecovery?.classList.add('hidden');
     }
 
     showCast(ab) {

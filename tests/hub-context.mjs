@@ -136,7 +136,7 @@ for (const g of 遊戲) {
         return cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity) !== 0
           && r.width > 0 && r.height > 0 && r.top < innerHeight && r.bottom > 0; };
       return [...document.querySelectorAll('body *')].filter(見).map((e) =>
-        [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).join(' ').trim()
+        [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => (n.textContent ?? '').trim()).join(' ').trim()
       ).filter(Boolean);
     });
 

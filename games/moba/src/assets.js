@@ -14,7 +14,7 @@ import { DRACOLoader } from '../vendor/DRACOLoader.js';
 import { clone as cloneSkinned } from '../vendor/SkeletonUtils.js';
 // 版本標記要跟 MOBA 嘅規矩（`tests/cache-bust.mjs` ＋ browser 測試會查）：
 // 每一個攞落嚟嘅專案檔都要帶標記，唔係嘅話換咗版本返轉頭嘅玩家攞到舊檔。
-import { 建位元組進度 } from '../../shared/js/byte-progress.mjs?v=assets-30';
+import { 建位元組進度 } from '../../shared/js/byte-progress.mjs?v=assets-31';
 
 const BASE = new URL('../assets/models/', import.meta.url).href;
 

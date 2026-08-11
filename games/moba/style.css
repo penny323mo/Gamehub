@@ -157,7 +157,7 @@ html, body {
     pointer-events: auto;
     background: rgba(3, 6, 12, 0.42);
 }
-#hud.shop-open > :not(.moba-shop):not(.moba-shop-backdrop):not(.moba-flash) { pointer-events: none; }
+#hud.shop-open > :not(.moba-shop):not(.moba-shop-backdrop):not(.moba-flash):not(.moba-context-recovery) { pointer-events: none; }
 
 .moba-top {
     position: absolute; top: calc(8px + env(safe-area-inset-top, 0px)); left: 50%;
@@ -340,6 +340,25 @@ html, body {
     background: rgba(120, 10, 20, 0.22); color: #ffd9d4;
     text-shadow: 0 2px 12px #000a;
 }
+.moba-context-recovery {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    padding: 20px calc(20px + var(--safe-r)) calc(20px + var(--safe-b))
+        calc(20px + var(--safe-l));
+    background: rgba(3, 6, 12, 0.78); z-index: 90; pointer-events: auto;
+}
+.moba-context-card {
+    width: min(360px, 86vw); padding: 24px 22px; border-radius: 18px;
+    text-align: center; background: rgba(15, 22, 38, 0.97);
+    border: 1px solid #8fdcff66; box-shadow: 0 14px 44px #000b;
+}
+.moba-context-card h2 { margin: 0 0 10px; font-size: 21px; color: #e7f7ff; }
+.moba-context-card p { margin: 0; line-height: 1.7; color: #b9cbe1; font-size: 14px; }
+.moba-context-retry {
+    margin-top: 18px; min-height: 44px; padding: 9px 20px; border-radius: 999px;
+    border: 1px solid #8fdcff99; background: #143a56; color: #effaff;
+    font: inherit; font-weight: 700; cursor: pointer; pointer-events: auto;
+}
+.moba-context-retry:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 .moba-flash {
     /* 提示企喺施法橫額（30%）之上，而唔係之下。24% 嗰陣佢會撞：矮畫面撞
        施法橫額，窄畫面撞左下血條同右下商店掣——因為底部啲 HUD 用固定像素

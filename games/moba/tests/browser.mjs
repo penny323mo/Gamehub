@@ -1256,13 +1256,15 @@ for (const [tag, viewport] of LAYOUT_SIZES) {
         ext.loseContext();
         await new Promise(r => setTimeout(r, 400));
         const paused = !!window.__view.contextLost;
+        const recoveryVisible = !!document.querySelector('.moba-context-recovery:not(.hidden)');
         ext.restoreContext();
         await new Promise(r => setTimeout(r, 1200));
+        const recoveryHidden = !document.querySelector('.moba-context-recovery:not(.hidden)');
         const before = window.__sim.time;
         window.__view.renderer.info.reset();
         await new Promise(r => setTimeout(r, 1200));
         return {
-            skipped: false, paused,
+            skipped: false, paused, recoveryVisible, recoveryHidden,
             旗標清返: !window.__view.contextLost,
             場波行返: window.__sim.time > before + 0.2,
             畫返嘢: window.__view.renderer.info.render.calls > 0,
@@ -1273,7 +1275,9 @@ for (const [tag, viewport] of LAYOUT_SIZES) {
         check('掉 context：呢個瀏覽器唔支援 WEBGL_lose_context，跳過', true);
     } else {
         check('掉 context 嗰陣會停低', out.paused, out);
+        check('掉 context 嗰陣有持續嘅復原提示', out.recoveryVisible, out);
         check('context 返嚟就繼續打，唔使重新開局', out.旗標清返 && out.場波行返, out);
+        check('context 返嚟之後收起復原提示', out.recoveryHidden, out);
         check('context 返嚟之後真係畫緊嘢（唔係凍住一格）', out.畫返嘢, out);
         check('掉完 context 主控台仍然零錯誤', errs.length === 0, errs.slice(0, 3));
     }

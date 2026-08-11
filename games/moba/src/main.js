@@ -4,20 +4,20 @@
 // 兩樣分開嘅原因同 sim.js 唔 import three.js 一樣：規則要可重現，
 // 畫面要跟硬件。一個 120Hz 螢幕唔應該令小兵行快一倍。
 
-import { Assets } from './assets.js?v=assets-30';
-import { armTap } from './tap.js?v=assets-30';
-import { Sim } from './sim.js?v=assets-30';
-import { createBot, updateBots } from './ai.js?v=assets-30';
-import { View } from './view.js?v=assets-30';
-import { Hud } from './hud.js?v=assets-30';
-import { createInput } from './input.js?v=assets-30';
-import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=assets-30';
-import { TEAM, TICK, teamName } from './constants.js?v=assets-30';
-import { CHAMPION_LOOK } from './looks.js?v=assets-30';
-import { Sfx } from './sfx.js?v=assets-30';
-import { planFrame } from './pace.js?v=assets-30';
-import { settings } from './settings.js?v=assets-30';
-import { renderPortraits } from './portraits.js?v=assets-30';
+import { Assets } from './assets.js?v=assets-31';
+import { armTap } from './tap.js?v=assets-31';
+import { Sim } from './sim.js?v=assets-31';
+import { createBot, updateBots } from './ai.js?v=assets-31';
+import { View } from './view.js?v=assets-31';
+import { Hud } from './hud.js?v=assets-31';
+import { createInput } from './input.js?v=assets-31';
+import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=assets-31';
+import { TEAM, TICK, teamName } from './constants.js?v=assets-31';
+import { CHAMPION_LOOK } from './looks.js?v=assets-31';
+import { Sfx } from './sfx.js?v=assets-31';
+import { planFrame } from './pace.js?v=assets-31';
+import { settings } from './settings.js?v=assets-31';
+import { renderPortraits } from './portraits.js?v=assets-31';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -196,9 +196,11 @@ function startMatch(playerChamp) {
         // 但個 context 大多數情況下幾百毫秒之後就返嚟——即係一場打到一半
         // 嘅波，因為鎖咗一下屏就白白報銷。
         onContextLost: () => {
+            state.hud?.showContextRecovery();
             pauseFor('context', '顯示裝置重置緊，等一等…');
         },
         onContextRestored: () => {
+            state.hud?.hideContextRecovery();
             // 只有 context 呢個 reason 完成先會續；玩家開住設定／切走緊時
             // 仍然保持停頓。resetFrameClock 亦避免第一格追返停咗嘅時間。
             resumeFor('context', '返嚟喇，繼續');

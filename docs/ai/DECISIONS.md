@@ -7864,3 +7864,17 @@ gradient 兩個 stop 改用深青色，保留原有視覺語言但達到 WCAG AA
 同一輪亦確認「有 layout box」唔等於「玩家見到」：開場 modal 蓋住 Tower build menu 時，
 `.build-name` 會被像素尺誤報低對比。`tests/hub-read.mjs` 先以 `elementFromPoint()` 確認
 文字中心點係最上層可見元素，再量背景；遮住嘅 DOM 唔係可讀性 failure。
+
+## ADR-242 — WebGL context loss 要有持續復原出口，唔可以只靠 flash
+
+Date: 2026-08-11. Status: accepted.
+
+MOBA 掉 WebGL context 時原本只顯示 1.6 秒 flash。真實 Hub gate 會等到 context 自己恢復前先量畫面；
+flash 早已消失，玩家見到嘅係一塊冇反應嘅黑畫面。新增 `.moba-context-recovery` modal card，
+持續交代「畫面暫時中斷」及「遊戲已暫停」，並提供重新整理出口；`webglcontextrestored` 後先由
+HUD 收起。呢個 card 唔取代 pause reason set，設定、切走同 context 仍然各自計數，避免其中一個
+reason 清走就錯誤續波。
+
+同一輪把 MOBA 所有 local imports、entry、Hub launcher/style 共用 `assets-31`，因為只 bump
+`main.js` 會令 Safari/GitHub Pages 混載舊 HUD/規則 module。Hub context driver 文字節點亦必須
+null-safe；detached loading DOM 唔應該被測試本身誤報 browser error。

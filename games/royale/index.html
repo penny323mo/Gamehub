@@ -27,7 +27,10 @@
         <div id="loading">
             <div class="loading-box">
                 <div class="loading-label" id="loading-label">⚔️ 帝國皇家戰 · 載入模型中…</div>
-                <div id="load-bar"><div id="load-fill"></div></div>
+                <!-- 下載第一個 progress event 之前，亦要有活動嘅 indeterminate bar。
+                     Fast 3G 之下第一個 GLB header 可能隔幾秒先到；如果由 0% 靜止，
+                     玩家會以為頁面死咗。收到真實 byte progress 後 main.js 會移除呢個 class。 -->
+                <div id="load-bar"><div id="load-fill" class="unknown"></div></div>
             </div>
         </div>
 

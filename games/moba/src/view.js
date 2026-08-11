@@ -10,10 +10,10 @@ import { EffectComposer } from '../vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from '../vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/postprocessing/OutputPass.js';
-import { MAP, TEAM } from './constants.js?v=assets-30';
-import { CHAMPION_LOOK, MINION_LOOK, ARENA_LOOK, TEAM_COLOUR, CLIP, championFx } from './looks.js?v=assets-30';
-import { Rig } from './rig.js?v=assets-30';
-import { Fx } from './fx.js?v=assets-30';
+import { MAP, TEAM } from './constants.js?v=assets-31';
+import { CHAMPION_LOOK, MINION_LOOK, ARENA_LOOK, TEAM_COLOUR, CLIP, championFx } from './looks.js?v=assets-31';
+import { Rig } from './rig.js?v=assets-31';
+import { Fx } from './fx.js?v=assets-31';
 
 // 平滑追趕：每秒收窄 rate 咁多，而且同幀率無關。
 //
