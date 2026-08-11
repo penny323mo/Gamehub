@@ -51,38 +51,51 @@ export async function openRacer({
     ignore404 = true,
 } = {}) {
     const { server, origin } = await serve();
-    const browser = await chromium.launch({
-        executablePath: resolveChromium(),
-        args: ['--use-angle=swiftshader-webgl', '--enable-unsafe-swiftshader'],
+    let browser = null;
+    const closeServer = () => new Promise(resolve => {
+        if (!server.listening) { resolve(); return; }
+        server.close(() => resolve());
     });
-    const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
-    const errors = [];
-    page.on('pageerror', e => errors.push(String(e)));
-    page.on('console', m => {
-        if (m.type() !== 'error') return;
-        const text = m.text();
-        if (ignore404 && (text.includes('404') || text.includes('favicon'))) return;
-        // Supabase 喺離線／沙盒環境一定連唔到，唔算功能錯誤
-        if (text.includes('ERR_TUNNEL_CONNECTION_FAILED') || text.includes('Failed to load resource')) return;
-        errors.push('console: ' + text);
-    });
+    try {
+        browser = await chromium.launch({
+            executablePath: resolveChromium(),
+            args: ['--use-angle=swiftshader-webgl', '--enable-unsafe-swiftshader'],
+        });
+        const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
+        const errors = [];
+        page.on('pageerror', e => errors.push(String(e)));
+        page.on('console', m => {
+            if (m.type() !== 'error') return;
+            const text = m.text();
+            if (ignore404 && (text.includes('404') || text.includes('favicon'))) return;
+            // Supabase 喺離線／沙盒環境一定連唔到，唔算功能錯誤
+            if (text.includes('ERR_TUNNEL_CONNECTION_FAILED') || text.includes('Failed to load resource')) return;
+            errors.push('console: ' + text);
+        });
 
-    // 資料夾名有空格，URL 要編碼；用 encodeURI 就唔使人手記住 %20
-    await page.goto(encodeURI(`${origin}/games/Racing Car/index.html`));
-    // 車模載完先會有 __racer；載唔到就唔好靜靜等到 timeout
-    await page.waitForFunction(() => !!window.__racer?.ready, null, { timeout: 90000 });
+        // 資料夾名有空格，URL 要編碼；用 encodeURI 就唔使人手記住 %20
+        await page.goto(encodeURI(`${origin}/games/Racing Car/index.html`));
+        // 車模載完先會有 __racer；載唔到就唔好靜靜等到 timeout
+        await page.waitForFunction(() => !!window.__racer?.ready, null, { timeout: 90000 });
 
-    return {
-        page, errors, origin,
-        async startRace() {
-            await page.click('#start-btn');
-            await page.waitForTimeout(400);
-        },
-        async close() {
-            await browser.close();
-            server.close();
-        },
-    };
+        return {
+            page, errors, origin,
+            async startRace() {
+                await page.click('#start-btn');
+                await page.waitForTimeout(400);
+            },
+            async close() {
+                try { await browser.close(); } finally { await closeServer(); }
+            },
+        };
+    } catch (error) {
+        try {
+            await browser?.close();
+        } finally {
+            await closeServer();
+        }
+        throw error;
+    }
 }
 
 // ---------- 斷言計分 ----------

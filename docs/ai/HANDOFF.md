@@ -1,7 +1,7 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Racing Car graded-surface, wheel-motion and contact-shadow pass
+Prepared by: Codex — Racing Car offroad feedback and test-harness cleanup pass
 Integration branch: `main`
 Work branch: `main`
 Status: Racing source, tests, browser smoke and docs are ready for the next
@@ -42,9 +42,11 @@ browser evidence for every visual or control change.
   GLB and updates only their merged position/normal vertices: speed-driven spin
   plus smoothed front-wheel steering; the single contact-shadow plane follows
   render pitch/bank too, with no new mesh or draw call.
-- Existing sport-arcade envelope, auto-throttle/simple controls, drift assists,
-  speed layer, terrain/effects surface anchors with brake cues, rivals/ghost/season and
-  lifecycle contracts are unchanged.
+- Offroad render feedback now adds a speed-limited, render-only camera rumble on
+  top of terrain-anchored pose and dust. It reuses the existing effects shake path,
+  caps at `0.024`, and does not alter physics or draw calls.
+- Existing sport-arcade envelope, auto-throttle/simple controls, drift assists, speed
+  layer, terrain/effects anchors, rivals/ghost/season and lifecycle contracts unchanged.
 
 ## Changed files
 
@@ -55,40 +57,37 @@ browser evidence for every visual or control change.
 - `games/Racing Car/src/wheel-motion.js`, `games/Racing Car/src/driving-effects.js`
 - `games/Racing Car/src/rivals.js`
 - `games/Racing Car/style.css`
-- `games/Racing Car/tests/setup.mjs`
+- `games/Racing Car/tests/setup.mjs`, `games/Racing Car/tests/lib/harness.mjs`
 - `docs/ai/PROJECT_CONTEXT.md`
-- `docs/ai/DECISIONS.md` (ADR-273, ADR-274, ADR-275, ADR-276, ADR-277, ADR-278, ADR-279, ADR-280, ADR-281, ADR-282)
+- `docs/ai/DECISIONS.md` (ADR-273 through ADR-283)
 - `docs/ai/HANDOFF.md`
 
 ## Verification
 
-- `node --check` on `main.js` and `setup.mjs` — PASS.
+- `node --check` on `main.js`, `driving-effects.js`, `setup.mjs`, `tests/lib/harness.mjs` — PASS.
 - `git diff --check` — PASS.
 - `race.mjs` — **126/126**; six tracks, top **146 km/h**, 0–80 **2.40s**,
   drift/ABS/wall/recovery/roll gates green, zero browser errors.
-- `setup.mjs` — **147/147**; closed height/pitch seam, terrain/guardrail/offroad pose,
-  contact-shadow pitch/bank, surface-anchored effects/brake cue, mobile layout/touch/gyro,
-  day/night, lifecycle/context loss, draw budget, speed-layer opacity, 6–14 landmark
-  placement/material/draw gates, four-wheel spin/steering regression and zero
-  browser errors. Latest full-world read: **16 calls／56,933 tris**; effects
-  remain **17 calls**.
-- `rivals.mjs` — **61/61**; four AI rivals, ranking, minimap, instancing and
-  lat-G gates green, zero browser errors.
-- `ghost.mjs` — **29/29**; recording/interpolation/render budget and zero errors.
-- `season.mjs` — **55/55**; championship persistence and career records green.
-- `audio.mjs` — **33/33**; lifecycle and non-finite physics fallback green.
-- Real browser grade smoke: 844×390 at **135 km/h**, `surfaceY` **−0.117m**,
-  track pitch **−0.0195rad**, body pitch **−0.028rad**, zero page/console
-  errors; screenshot `/tmp/racing-elevation-v4.png`. 320×568 portrait at
-  **111 km/h** reads pitch **−0.0206rad**, stick/gas stay inside viewport;
-  screenshot `/tmp/racing-elevation-portrait-v4.png`.
+- `setup.mjs` — **147/147**; terrain/offroad pose, contact shadow/effects, mobile
+  controls, day/night, lifecycle/context loss, landmarks, four-wheel motion and
+  offroad rumble (`shake=0.0075`) all green; zero browser errors, **16 calls／56,933
+  tris**, effects **17 calls**.
+- `rivals.mjs` — **61/61** last verified before this render-only patch; current retry
+  hit the 90s readiness timeout before assertions. `ghost.mjs` (**29/29**), `season.mjs`
+  (**55/55**) and `audio.mjs` (**33/33**) remain last-verified; rerun separately later.
+- Real browser grade smoke: 844×390 at **135 km/h**, `surfaceY` **−0.117m**, pitch
+  **−0.0195rad**, body pitch **−0.028rad**; portrait 320×568 at **111 km/h** keeps
+  stick/gas inside viewport. Screenshots `/tmp/racing-elevation-v4.png`, `/tmp/racing-elevation-portrait-v4.png`.
 - 844×390 real browser audit aimed at a naturally generated landmark position;
   the orange chevron reads as an upright sign with a visible short stem:
   `/tmp/racing-landmark-pole-audit.png`. Placement is separately guarded by
   setup (17.48–17.58m lateral, ≥0.97m above the local banked surface).
-- 844×390 side-view audits: wheels coherent at **25m/s**; a **104 km/h** graded
-  shadow drive plus anchored drift smoke/brake glow and a terrain-anchored grass exit;
-  screenshots `/tmp/racing-wheel-side-audit.png`, `/tmp/racing-contact-shadow-drive-audit.png`, `/tmp/racing-steer-drift-surface-anchored.png`, `/tmp/racing-brake-glow-audit.png`, `/tmp/racing-offroad-terrain-audit.png`.
+- 844×390 audits cover wheels (**25m/s**), graded shadow drive, anchored drift/brake
+  glow and grass exit: `/tmp/racing-wheel-side-audit.png`, `/tmp/racing-contact-shadow-drive-audit.png`,
+  `/tmp/racing-steer-drift-surface-anchored.png`, `/tmp/racing-brake-glow-audit.png`,
+  `/tmp/racing-offroad-terrain-audit.png`. Direct rumble smoke reads **84 km/h**,
+  `offroad=true`, `renderY=terrainY=-1.103m`, `terrainBlend=0.412`, `shake=0.0126`,
+  one dust particle.
 ## Known issues and cautions
 
 - `renderY`, `trackBank` and `trackPitch` are render-only. Never feed them into
@@ -102,14 +101,15 @@ browser evidence for every visual or control change.
   a real screenshot at the affected viewport.
 - Keep the speed layer low-contrast and pointer-transparent; its intensity must
   not become a physics or input dependency.
-- Aggregate `run-all.mjs` is bounded but can still report `TIMEOUT` when several
-  Chromiums launch under Mac pressure; rerun the named suite separately.
+- Aggregate `run-all.mjs` can report `TIMEOUT` under Mac pressure; rerun named suites
+  separately. The harness now closes browser and HTTP server on readiness failure, so
+  a timeout does not contaminate the next suite.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-282.
-2. Inspect `/tmp/racing-wheel-side-audit.png` and the portrait grade smoke at
-   phone-sized scale; inspect anchored drift smoke/brake glow/grass exit and keep all effects render-only and budget-neutral.
+1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-283.
+2. Rerun `rivals.mjs`, `ghost.mjs`, `season.mjs` and `audio.mjs` separately when
+   Chromium pressure clears; keep rumble render-only and budget-neutral.
 3. For any further change, rerun the named Racing suites, update this handoff,
    run `./scripts/check-handoff.sh`, then commit/push the verified checkpoint.
 

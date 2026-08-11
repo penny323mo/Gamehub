@@ -8443,3 +8443,15 @@ Date: 2026-08-12. Status: accepted.
 setup 回歸升至 **147/147**，實測草地 `renderY=-0.792` 對齊 terrain、道路值 `0.628`，
 offroad dust 同一高度基準；真 844×390 截圖 `/tmp/racing-offroad-terrain-audit.png`，
 terrain 仍係單一 mesh，手機世界 budget 維持 **16 calls／56,933 tris**。
+
+## ADR-283 — Racing Car 落草要有受限路面震動，但唔可以污染物理
+
+Date: 2026-08-12. Status: accepted.
+
+落草後車身同塵粒已經跟 `terrainY`，但高速碾過草肩仍然只有外觀換塵，重量同抓地
+變化唔夠讀得出。`driving-effects.js` 沿用現有 camera-shake scalar：只有 `car.offroad`
+而且速度高過 **8 m/s** 時，按 `(speed-8)/42` 平滑加到 **0.024** 上限；佢係
+render-only，唔改 `Car.pos`、速度、碰撞、輸入或 draw-call budget，reset／收油離開落草
+亦會自然衰減。setup gate 同真 browser smoke 分別讀到 `shake=0.0075`（12 m/s）及
+`shake=0.0126`（約 84 km/h），16 calls／17 effects calls 不變。同步將 `openRacer()`
+嘅 browser／HTTP server cleanup 放入失敗路徑，readiness timeout 唔再污染下一個 suite。

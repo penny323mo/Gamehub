@@ -282,6 +282,7 @@ check('落草時車身／render pose 會跟 terrain，而唔會浮返道路高�
     && offroadSurface.terrainBlend > 0 && offroadSurface.terrainBlend < 1
     && Math.abs(offroadSurface.physicsY) < 0.001
     && offroadSurface.dust.particles > 0
+    && offroadSurface.dust.shake >= 0.005
     && offroadSurface.dust.minParticleY > offroadSurface.renderY
     && offroadSurface.dust.minParticleY < offroadSurface.renderY + 0.2,
     offroadSurface);

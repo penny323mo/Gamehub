@@ -93,10 +93,10 @@ repository as a static site.
   anchor, rival instances, the contact shadow (which follows render pitch/bank) and
   chase camera may consume that pose, but no gameplay distance, collision,
   checkpoint or speed calculation may read render Y.
-  `Car.longAccel`/`lateralAccel` are read-only render feedback; camera impulse and
-  the bounded exhaust pulses must remain render-only, smooth, reset on start/track
-  build, and never feed physics. `Car.reset()` must clear posture, rescue and lock
-  flags before the first render of a new run.
+  `Car.longAccel`/`lateralAccel` are read-only render feedback; camera impulse,
+  speed-limited offroad rumble and the bounded exhaust pulses must remain render-only,
+  smooth, reset on start/track build, and never feed physics. `Car.reset()` must clear
+  posture, rescue and lock flags before the first render of a new run.
 - Racing Car's hot runtime queries use `Track.querySamples` (240 precomputed XZ
   points) and `Car._nextPos`; AI driver curve samples, wrong-way tangents and rival
   matrix axes reuse optional targets/scratch vectors too. Keep those allocations out
@@ -329,8 +329,10 @@ loss/restore, orientation pause, settings, gyro mapping, and minimap.
 The Racing Car harness reads `PLAYWRIGHT_CHROMIUM` (the root Hub/MOBA harnesses read
 `PW_CHROMIUM`); `run-all.mjs` puts a per-suite timeout and process-group cleanup around
 the same children, so a Chromium allocator hang is reported as `TIMEOUT` instead of
-leaving CI waiting forever. Run the WebGL suites separately when the machine is under
-GPU pressure; a bounded aggregate timeout is not gameplay evidence.
+leaving CI waiting forever. The shared `openRacer()` also closes its browser and HTTP
+server on readiness failure, so a timed-out child cannot poison the next suite. Run the
+WebGL suites separately when the machine is under GPU pressure; a bounded aggregate
+timeout is not gameplay evidence.
 It also verifies the enlarged floating analogue joystick/right-thumb slide-action cluster, the
 day/dusk/night sky, stars, headlight, reflective-track states, fixed-capacity driving
 effects, player-only arcade assists, simple-mode/gyro input, rivals/ghost/season career

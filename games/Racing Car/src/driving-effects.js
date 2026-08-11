@@ -292,6 +292,12 @@ export function createDrivingEffects(scene) {
             if (car.offroad && car.speed > 8) {
                 smokeTimer += dt * Math.min(2, car.speed / 16);
                 while (smokeTimer >= 0.13) { spawnTyreCloud(car, true); smokeTimer -= 0.13; }
+                // 落草唔只係換一種塵：高速碾過草肩要有細微路面震動，
+                // 令車身重量同抓地變化讀得出。沿用現有 camera shake，
+                // render-only、有上限，唔會污染物理或增加 draw call。
+                shake = Math.max(shake, 0.006 + THREE.MathUtils.clamp(
+                    (car.speed - 8) / 42, 0, 1,
+                ) * 0.018);
             } else smokeTimer = 0;
         }
 
