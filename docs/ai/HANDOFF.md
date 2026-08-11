@@ -1,10 +1,11 @@
 # Current cross-agent handoff
 
-Updated: 2026-08-10 (Asia/Macau)
-Prepared by: Claude Code (cloud) — ADR-202 至 238
+Updated: 2026-08-11 (Asia/Macau)
+Prepared by: Claude Code (cloud) — ADR-202 至 239
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: 十六把跨遊戲尺全綠；「打到一半」由一隻擴到五隻，`hub-progress` 十隻 **4/4**
+Status: 十七把跨遊戲尺；新增 `hub-pause` **6/6**。捉到 **Tower HUD 四粒掣用滑鼠全部撳唔郁**
+（MOBA 暫停量到但未修，原因見下）
 
 ## Current objective
 
@@ -14,67 +15,63 @@ Status: 十六把跨遊戲尺全綠；「打到一半」由一隻擴到五隻，
 
 ## Completed
 
-**ADR-238（本輪）— 一個冇人知嘅 Continue，同冇 Continue 分別唔大**
+**ADR-239（本輪）— 一粒滑鼠撳唔郁嘅掣，同一粒冇畫出嚟嘅掣分別唔大**
 
-- 續得返唔等於玩家知。**撳「返回選單」嗰一刻就係唯一機會**（再遲就係下次開頁）。
-  量：Gomoku ✓／Xiangqi ✓／**Big Two ✗**／Dou Dizhu ✓——**得 Big Two 一隻漏咗接**
-  （`更新繼續掣()` 只喺開頁叫過，冇喺 `setMode('landing')` 度叫）。**同一批改動、
-  同一個 pattern、四隻遊戲，一隻漏咗**——呢種漏冇 gate 永遠唔會發現（唔掟錯，
-  亦唔會令任何現有 check 報紅）。
-- `hub-progress` 加第四條，driver 加 `離`／`繼續掣`。Tower **特登唔掃**（Home 直接離開
-  個頁去 hub，冇「返自己選單」；返嚟嗰陣由 `flow.mjs` 守）。
-- **個 selector 又錯一次**：`#gomoku-back-btn` 係**開場畫面**嗰個「返回遊戲大廳」，唔係
-  局中嗰個。而探路嗰陣我寫 `'A, B'` 兩個一齊試，B 中咗所以報綠——**一個「邊個中就用
-  邊個」嘅寫法，會令你以為自己量緊第一個。**
+- 本來想量「走之前有冇交代」，**量完發現嗰條線冇病可以修**（局中每條離開路都喺暫停版／
+  選單版）。**唔會為一條量唔到病嘅線砌尺。** 但撞到 Snake 個暫停面板寫住「按**空格鍵**
+  繼續」——手機冇鍵盤。
+- `hub-away` 守「你切走咗佢有冇自己停」；冇人問過**你想停嗰陣停唔停到**。量：
+  Tower ✓／Racing ✓／**Snake ✗**（`isPaused` 得鍵盤）／**MOBA ✗**（`state.running`
+  得 `visibilitychange`）。**機制有，路冇**——同 ADR-238 同一句。
+- **真兇喺 Tower**：`#hud` 拖得郁，`pointerdown` 就 `setPointerCapture` → 滑鼠嘅
+  `mouseup`／`click` 全部改派去 `#hud`，**`skip-prep`／`pause`／`speed`／`sound` 四粒
+  全部係死嘅**。觸控唔受影響，而 Tower 啲 test 唔係 `tap()` 就係 `el.click()`——**兩種
+  都繞過咗出事嗰條路**。capture 搬入 `beginDrag()`，move／up 搬去 `window`。
+- **MOBA 嗰半做咗但唔出街**：三個位擺新掣三個都撞（窄畫面冇空角）→ 改成「開設定＝
+  暫停」。跟住條 `普攻會真係揮動作` 間歇性紅（**baseline 兩跑 196/196，改完六跑八次紅**）
+  ——`鎖差 -110` 即係條 check 一路同背景 rAF 主迴圈搶同一個 rig，郁下幀時序就撞中。
+  **一個令現有 gate 唔穩嘅改動，同一個 bug 分別唔大**：整份還原，`hub-pause` 入面
+  寫低佢係一個**講明咗嘅缺口**。
+- 把尺自己又錯兩次：**「續」揀咗第一個中嘅元素**（Racing 真正嗰個係 `#resume-btn`）
+  ——ADR-238 同一個坑；**Racing 開賽仲有倒數**，唔等個鐘郁就量＝靠彩數。
+
+**ADR-238（已合埋 main）— 一個冇人知嘅 Continue，同冇 Continue 分別唔大**
+
+- 續得返唔等於玩家知。量：Gomoku ✓／Xiangqi ✓／**Big Two ✗**／Dou Dizhu ✓——**同一批
+  改動、同一個 pattern、四隻遊戲，一隻漏咗**。呢種漏冇 gate 永遠唔會發現。
+- **個 selector 又錯一次**：探路寫 `'A, B'` 兩個一齊試，B 中咗所以報綠——**「邊個中就用
+  邊個」會令你以為自己量緊第一個。**
 
 **ADR-236／237（已合埋 main）— Big Two ＋ Dou Dizhu：牌類點存**
 
-- 牌類要存**四家／三家手牌**（連電腦嗰幾家——唔存嘅話續返之後電腦會攞新牌）。
-  **`eval` 唔存**（`evalHand()` 計得返；存住就兩份真相）。鬥地主多一層叫地主階段：
-  `phase` 要存，**叫牌階段冇「輪返你」嗰個停點** → 每一步都存。
-- driver：十三張牌疊住撳唔中 → **用返遊戲自己個「提示」掣**（唔係 `force: true`）。
-- **條 check 本身要改**：本來逐隻遊戲讀自己嘅欄名，加到第三隻就撞線（`undefined > 0`
-  係 false，**明明啱嘅都報紅**）。**一條要跟住遊戲改名嘅 check，每加一隻就要改一次,
-  遲早有一次改漏。** 統一成四樣：`畫面`／`對得上`／`量`／`畫面證據`。
-- **呢條線做完**：由 Tower 一隻擴到**五隻**。其餘唔使——Snake／Racing Car／Royale／
-  MOBA／Penny Crush 存嘅係累積成績，冇「一局打到一半」；Snooker 3D 冇單機局面可存。
+- 存**四家／三家手牌**（唔存續返之後電腦會攞新牌）；**`eval` 唔存**。鬥地主 `phase` 要存,
+  **叫牌階段冇「輪返你」嗰個停點**。**條 check 本身要改**：本來逐隻讀自己嘅欄名，加到
+  第三隻就撞線（`undefined > 0` 係 false，**明明啱嘅都報紅**）→ 統一成四個欄名。
+- **呢條線做完**：由一隻擴到**五隻**；其餘存嘅係累積成績，冇「一局打到一半」。
 
-**ADR-234／235（已合埋 main）— Gomoku ＋ Xiangqi 補返 Continue**
+**ADR-232 至 235（已合埋 main）— 兩個 tab；Gomoku ＋ Xiangqi 補返 Continue**
 
-- 「打完記唔記得成績」同「打到一半走咗算唔算數」係兩條問題。四隻人機落幾手再 refresh：
-  **全部返咗選單、冇存過、冇提示**（手機切走 app 個 tab 畀回收，一樣）。**答案：漏咗。**
-  `hub-progress` 加第三條：**「留得住」唔等於「返得到」**。
-- 量咗幾個版先啱——Gomoku 數 canvas 非背景像素，突變照樣過（嗰 300 個係**格線**）;
-  Xiangqi 個盤係 3D，`getImageData` 全零，改影相之後**又揀錯對照** → 最後揀「續返嘅局面
-  vs 開局盤」。**錯要向紅嗰邊錯。** 3D 盤要**反用遊戲自己嘅 `Render.hitTest()`**；
-  **driver 唔應該跟住引擎嘅實作漂移**。
-
-**ADR-232／233（已合埋 main）— 兩個 tab；一個 origin 十三隻遊戲**
-
-- 兩個 tab 各打完一局：Snake `gamesPlayed` 0 → 1 → **1**、Royale `trophies` 0 → 30 → **30** →
-  新 `shared/js/merge-save.mjs` 嘅 `改存檔()`：寫嗰陣先讀返。**兩次都修錯位**（Royale 真兇係
-  `markTutorialSeen()`、Snake 真兇係 `login()`）——**每一個由記憶體快照出發嘅寫入都會蓋。
-  估唔到就 dump。** storage key：運行時掃**七隻一個都冇寫**（掃唔夠）→ 補靜態掃，**零撞**。
-  **兩層一齊做先得出結論。** 順帶捉到 **Penny Crush 冇掂過 storage 但佢有分數** → 加咗最高分。
+- 兩個 tab 各打完一局：Snake `gamesPlayed` 0 → 1 → **1** → `merge-save.mjs` 嘅 `改存檔()`：
+  寫嗰陣先讀返。**兩次都修錯位**（Royale 真兇係 `markTutorialSeen()`、Snake 係 `login()`）
+  ——**每個由記憶體快照出發嘅寫入都會蓋。估唔到就 dump。** storage key 運行時掃**七隻一個
+  都冇寫** → 補靜態掃。**兩層一齊做先得出結論。**
+- Continue：Gomoku 數 canvas 非背景像素，突變照樣過（嗰 300 個係**格線**）；Xiangqi 個盤
+  係 3D，`getImageData` 全零，改影相之後**又揀錯對照**。**錯要向紅嗰邊錯。**
+  3D 盤要**反用遊戲自己嘅 `Render.hitTest()`**；**driver 唔應該跟引擎實作漂移**。
 
 **ADR-226 至 230（已合埋 main）— 洩漏／睇唔睇得清**
 
-- 洩漏：GPU 三個數連開五局完全平（**我量咗一樣已經有人守嘅嘢**）；冇守嘅係 **DOM**：一局
-  爬一個 jsdelivr `<script>`（**網絡差＝重試多＝爬得快**）。`hub-leak` 一隻擴到九隻。
-  MOBA 收場係 `location.reload()`——**「未冚到」同「冚唔到」係兩件事**。
-- 對比度：**把尺量咗四個版先啱**（gradient 令九個介面全跳過＝**量咗零樣嘢嘅綠**；框內眾數
-  做底令細框假紅；純 emoji 假紅；**喺 layout 入面唔等於畫得出嚟**）。**每版都要親眼影低先信。**
-  真嘢：Big Two／Dou Dizhu **2.39 → 5.61**、MOBA **4.90／6.45**、Xiangqi **4.98**。
+- 洩漏：GPU 三個數連開五局完全平（**我量咗一樣已經有人守嘅嘢**）；冇守嘅係 **DOM**。
+  **「未冚到」同「冚唔到」係兩件事**。對比度：**把尺量咗四個版先啱**（gradient 令九個
+  介面全跳過＝**量咗零樣嘢嘅綠**）。**每版都要親眼影低先信。**
 
 **ADR-202 至 225（全部已合埋 main；詳情喺 DECISIONS，呢度只留會再撞到嘅教訓）**
 
-- Tower 四輪（44×44／START 靜默→進度條＋防重入／佈景喺你最想望遠嗰陣斷咗／格 →
-  **24×14**、HP → **0.0026**）。**`flow.mjs` 有三處寫死同一格。**
-- 跨遊戲尺：`hub-touch`（八個介面 24 個細掣）、`hub-load`（launcher **904 → 51 KB**）、
-  `hub-keyboard`（**本來就啱**）、`hub-cdn`（jsdelivr 吊 8 秒＝**DCL 一比一遲 8 秒**）、
-  `hub-wait`（進度單位揀錯：件數而件件平行落 → 量位元組）、`hub-away`／`hub-audio`／
-  `hub-context`／`hub-home`／`hub-storage`／`hub-leak`。重量：Tower GLB → Draco
-  **1,291 → 754 KB**、MOBA 拆資產 **16.0 → 12.7s**、Royale 量完**決定唔改**。
+- Tower 四輪（44×44／START 靜默→進度條／佈景斷咗／格 → **24×14**、HP → **0.0026**）。
+  **`flow.mjs` 有三處寫死同一格。**
+- 跨遊戲尺：`hub-touch`（24 個細掣）、`hub-load`（launcher **904 → 51 KB**）、`hub-cdn`
+  （jsdelivr 吊 8 秒＝**DCL 一比一遲 8 秒**）、`hub-wait`（**件件平行落就要量位元組**）等。
+  重量：Tower GLB → Draco **1,291 → 754 KB**、MOBA 拆資產 **16.0 → 12.7s**。
 - 會再撞到嘅：classic script 頂層 `let`／`const` **唔會上 `window`**（`var`／函數先會）；
   test server 要 gzip ＋ 送 `Content-Length`；**做動作之前先證明個動作真係發生咗**；
   **一個對照救返一個假綠**；**「未冚到」同「冚唔到」係兩件事**；教學遮罩開住嗰陣
@@ -82,37 +79,42 @@ Status: 十六把跨遊戲尺全綠；「打到一半」由一隻擴到五隻，
 
 ## Changed files
 
-- **跨遊戲把尺（全新）**：`tests/hub-{touch,load,keyboard,cdn,wait,storage,away,audio,progress,context,home,read,leak,tabs}.mjs`＋`tests/lib/drivers.mjs`（共用 driver）
+- **跨遊戲把尺（全新）**：`tests/hub-{touch,load,keyboard,cdn,wait,storage,away,audio,progress,context,home,read,leak,tabs,pause}.mjs`＋`tests/lib/drivers.mjs`（共用 driver）
 - **shared（新）**：`byte-progress.mjs`、`safe-storage.js`、`merge-save.mjs`；`online_utils.js` 加 lazy SDK
-- 本輪：`gomoku/js/*`、`xiangqi-ai/js/{main,app}.js`＋兩個 `index.html`（Continue 掣）＋`dist/`
+- 本輪：`tower/src/ui/draggable.ts`、`snake-game/src/components/Game/Game.tsx`
+  ＋`styles/Game.module.css`、兩個 `dist/`、新 `tests/hub-pause.mjs`（MOBA 嗰批已還原）
 - **Tower**：`src/{main.ts,render/assets.ts,ui/style.css,core/config.ts}`、`configs/map.json`、
-  `scripts/postbuild.mjs`（Draco）、`tests/{touch,load}.mjs`、`dist/`／**MOBA**：`src/{assets,main}.js`
-  ＋`style.css`＋`index.html`、`tests/browser.mjs`、bump 腳本／**Royale**：`src/{assets,main,sfx,net,storage}.js`、`tests/{perf,leak}.mjs`＋`run-all.mjs`
+  `scripts/postbuild.mjs`（Draco）、`tests/{touch,load}.mjs`、`dist/`／**MOBA**：`src/{assets,main,hud}.js`
+  ＋`style.css`＋`index.html`、`tests/browser.mjs`、bump 腳本／**Royale**：`src/*.js`、`tests/{perf,leak}.mjs`
 - **Snake**：`Game.tsx`＋`dist/`；六個 `index.html` 加 storage guard；ADR-209/226 波及五隻卡牌／棋類
-  ／**Xiangqi** 另有 `js/render.js`（GL context 訊息、ONLINE 掣對比）；**Penny Crush**：`penny_crush.{js,css}`＋`index.html`
+  ／**Xiangqi** 另有 `js/render.js`；**Penny Crush**：`penny_crush.{js,css}`＋`index.html`
 
 ## Verification
 
-- `npm test`：PASS（要 `PW_CHROMIUM=/opt/pw-browsers/chromium`）。**十六把跨遊戲尺全綠**：
-  `hub` 96/96、`hub-touch` 5/5、`hub-load` 3/3、`hub-keyboard` 3/3、`hub-cdn` 3/3、`hub-wait` 1/1、
-  `hub-storage` 2/2、`hub-away` 3/3、`hub-audio` 3/3、**`hub-progress` 4/4（十隻）**、`hub-context` 3/3、
-  `hub-home` 3/3、`hub-read` 3/3、`hub-leak` 4/4、`hub-tabs` 4/4；Tower 三 suite、`moba` 196/196、royale `leak` 7/7。Mutation 驗過三十五次，次次叫得出係邊個。
+- 本輪跑過：**`hub-pause` 6/6**、`hub` 96/96、`hub-touch` 5/5、`hub-away` 3/3、
+  `hub-progress` 4/4、`hub-keyboard` 3/3、`hub-leak` 4/4、`hub-home` 3/3；Tower 全套
+  （core 48、browser 十個 suite、render 25）逐個跑綠；`moba` 196/196（還原後）。
+  Mutation 驗過三十七次。
 
 ## Known issues and cautions
 
-- **要 `export PW_CHROMIUM=…/chromium`**；**`pgrep -f` 會撞到自己**；**做 mutation 要先 `cp`**。`moba` 條 `玩家企喺畫面下半…` 曾經五跑兩紅（ADR-222 封咗佢指住嗰個機制）。**開工前一定要 `--sync`**：呢一輪我冇 sync 就做，MOBA 拆批同 Codex ADR-213 撞晒單，成輪報廢。
+- **要 `export PW_CHROMIUM=…/chromium`**；**`pgrep -f` 會撞到自己**；**做 mutation 要先 `cp`**。
+- **呢個 container 一鬥資源就出假紅**：背景跑住 `moba` 嗰陣，`tower` 條 chain 報過
+  「模型未預載就攞」同 `#start-btn` 撳唔到——單獨再跑全綠。**一次紅要單獨再跑先算數。**
+- **開工前一定要 `--sync`**：試過冇 sync 就做，同 Codex 撞晒單，成輪報廢。
 
 ## Exact next action
 
 1. `export PW_CHROMIUM=/opt/pw-browsers/chromium`，跑 `./scripts/agent-context.sh --sync`。
-2. **接手位**：「打到一半」＋「返選單見到掣」兩條線都做完（ADR-234–238）。未量過：
-   **關 tab／返 Game Hub 之前**有冇交代（返自己選單嗰條路已經守住，但直接走嗰條冇）。
-   另：`hub-read` 報咗但冇守；ADR-224 冇遊戲收到 restored。
+2. **接手位**：(a) MOBA 補暫停——碼寫過（開設定＝暫停），卡喺 `普攻會真係揮動作`
+   同背景 rAF 搶 rig 嗰條 race，**要先修條 check（喺量之前停低主迴圈）再做**。
+   (b) 其餘幾隻有冇同類「淨係喺某一種輸入先撳得到」嘅掣——`hub-touch` 全部用 tap,
+   即係**成套尺由頭到尾冇用真滑鼠撳過任何嘢**。另：`hub-read` 報咗但冇守。
 3. 一個檢查點一件事，改完連 handoff 一齊 commit。
 
 ## Do not redo
 
 - 承上一份全部；另加：`#wave-banner` 唔好寫死 `top`；閃光 gate 唔好改返「影幾張相攞最大值」;
-  `enterRun` 唔好直接 `await 地面好`；**Supabase SDK 唔好擺返落 HTML 做 parser-blocking**；**test
-  server 要 gzip ＋ 送 `Content-Length`**；**驗 context 掉咗唔好自己叫 `restoreContext()`**；**洩漏
-  gate 唔好淨係數全部節點**（顯示緊嘅 toast 唔係洩漏）；**driver 唔好跟引擎內部次序**。
+  **Supabase SDK 唔好擺返落 HTML 做 parser-blocking**；**test server 要 gzip ＋ 送
+  `Content-Length`**；**驗 context 掉咗唔好自己叫 `restoreContext()`**；**洩漏 gate 唔好淨係
+  數全部節點**；**driver 唔好跟引擎內部次序**；**MOBA 唔好再試喺窄畫面另開一粒暫停掣**。

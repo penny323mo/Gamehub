@@ -79,6 +79,27 @@
   border-radius: 8px;
 }
 
+/* 暫停掣：44×44 跟 `hub-touch` 條線（其餘幾個 header 掣係文字掣，本來就夠闊）。
+   用青色分返開——佢係一個會即刻改變局面嘅掣，唔應該同「睇下排行榜」同色。 */
+.pauseButton {
+  min-width: 44px;
+  min-height: 44px;
+  background: rgba(0, 255, 255, 0.1);
+  border: 2px solid var(--neon-cyan);
+  color: var(--neon-cyan);
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 8px;
+  touch-action: manipulation;
+  transition: all 0.3s ease;
+}
+
+.pauseButton:active {
+  transform: scale(0.95);
+}
+
 .menuButton:hover,
 .scoreButton:hover {
   background: var(--neon-magenta);

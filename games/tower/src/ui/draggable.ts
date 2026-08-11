@@ -81,6 +81,8 @@ export function makeDraggable(el: HTMLElement | null, key: string): void {
 
     const beginDrag = (): void => {
         dragging = true;
+        // Capture belongs to the drag, not to the press — see the pointerdown note.
+        try { el.setPointerCapture(pointerId); } catch { /* older browsers */ }
         const rect = el.getBoundingClientRect();
         offX = startX - rect.left;
         offY = startY - rect.top;
@@ -93,16 +95,43 @@ export function makeDraggable(el: HTMLElement | null, key: string): void {
         (navigator as Navigator & { vibrate?: (ms: number) => void }).vibrate?.(20);
     };
 
+    /*
+     * Do NOT capture the pointer here — capture on press kills every button
+     * inside the panel for mouse users.
+     *
+     * Measured on the live HUD (desktop, real mouse): the button receives
+     * `pointerdown` and `mousedown` and then nothing. With the pointer captured
+     * by `#hud`, the compatibility `mouseup`/`click` are retargeted to the
+     * capture element, so `click` fires on `#hud` and never on the button that
+     * was pressed. All four HUD buttons — skip-prep, pause, speed, sound —
+     * were dead. Touch was fine, which is why this survived: touch-derived
+     * mouse events are not retargeted by pointer capture, and every existing
+     * test either taps or calls `el.click()` directly.
+     *
+     * Capture is only needed once a drag is actually running (to keep move
+     * events coming when the pointer leaves the panel), so it moved into
+     * `beginDrag`. Before the hold completes, plain bubbling is enough:
+     * the pointer is still over the panel.
+     */
     el.addEventListener('pointerdown', (e: PointerEvent) => {
         if (dragging || pointerId !== -1 || !e.isPrimary) return;
         pointerId = e.pointerId;
         startX = e.clientX;
         startY = e.clientY;
-        try { el.setPointerCapture(pointerId); } catch { /* older browsers */ }
         holdTimer = window.setTimeout(beginDrag, HOLD_MS);
     });
 
-    el.addEventListener('pointermove', (e: PointerEvent) => {
+    /*
+     * Move/up live on `window`, not on `el`.
+     *
+     * With capture gone from the press, a pointer that leaves the panel before
+     * the hold completes would stop delivering events to `el` — the hold timer
+     * would survive and fire a drag from a stale origin, and the release would
+     * never reset `pointerId`. Captured events still bubble from `el` to
+     * `window`, so one pair of listeners covers both phases; `pointerId`
+     * already scopes them to this gesture.
+     */
+    window.addEventListener('pointermove', (e: PointerEvent) => {
         if (e.pointerId !== pointerId) return;
         if (!dragging) {
             // Finger drifted before the hold completed — treat as a normal tap/scroll
@@ -137,8 +166,8 @@ export function makeDraggable(el: HTMLElement | null, key: string): void {
         saveLayout(layout);
         suppressNextClick();
     };
-    el.addEventListener('pointerup', endDrag);
-    el.addEventListener('pointercancel', endDrag);
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
 }
 
 /** Restore every panel to its default CSS position and forget saved spots. */

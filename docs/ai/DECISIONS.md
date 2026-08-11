@@ -4496,6 +4496,96 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-239 — 一粒滑鼠撳唔郁嘅掣，同一粒冇畫出嚟嘅掣分別唔大
+
+- Date: 2026-08-11
+- Status: accepted
+
+呢一輪本來想量「關 tab／返 Game Hub 之前有冇交代」。量完先發現嗰條線**冇病可以修**：
+局中每一條離開路都擺喺暫停版／選單版（Snake 個 🏠 喺 PAUSED 面板入面、Royale 個 🏳️
+投降照計一場敗仗入賬），即係玩家撳嗰陣本來就係有意離開。**唔會為一條量唔到病嘅線
+砌一把守唔到嘢嘅尺。** 但量嗰陣撞到另一樣嘢：Snake 個暫停面板寫住「按 **空格鍵** 繼續」。
+
+### 一、你想停嗰陣，停唔停到
+
+`hub-away` 守嘅係**你切走咗，佢有冇自己停**。冇人問過相反嗰條。一量就見到同一個形狀：
+
+    Tower Defense    `#pause-btn` 44×44                        ✓
+    Racing Car 3D    `#pause-btn` 44×44                        ✓
+    Neon Snake       `isPaused` 得空白鍵／P 撳到                 ✗
+    深淵之橋 MOBA     `state.running` 得 `visibilitychange` 撳到  ✗
+
+**機制有，路冇。** 兩隻都唔係「未做」——係做咗一半：Snake 連暫停畫面同「▶ 繼續」都有,
+但入去嗰道門淨係得鍵盤；MOBA 個 `state.running` 由頭到尾只有切走個 tab 撳得到。手機
+玩家想停一停（有人叫你、要落車），一條路都冇。呢個同 ADR-238 係同一句：**個功能存在
+唔等於玩家用到。**
+
+Snake 加咗一粒 45×45 嘅 ⏸／▶ 落 header，鍵盤同個掣行同一個 `togglePause()`（兩份各自
+寫，遲早有一份跟唔上）。條 `isRunning` 閘順手封咗個舊坑：開場果版撳空白鍵會令
+`isPaused` 變 true，跟住撳 Enter 開波（嗰行淨係設 `isRunning`），局面一開就凍住。
+
+**MOBA 呢半做咗，但唔出街。** 三個位擺一粒新掣，**三個都撞**：⚙ 下面撞打直版兵線
+總覽（由 y=96 起企喺左邊）；⚙ 隔籬撞條頂欄（SE 打直 375 闊，個 gap 得 33px）；擺入
+條頂欄就令佢由 26 變 44 高，打橫又撞返兵線總覽。**窄畫面根本冇一個空角**——最後改成
+「開設定＝暫停」（你調緊畫質，場波本來就唔應該照打），三條停低嘅路（切走、掉 GL
+context、玩家自己撳）全部經同一個 `續波()`（唔係嘅話你撳咗暫停、鎖一鎖屏，
+`onContextRestored` 就會幫你續返，而你根本冇撳過繼續）。
+
+跟住條 `普攻會真係揮動作` 開始間歇性紅：**baseline 兩跑 196/196，改完六跑出咗八次紅**
+（0、1、2、1、2、2——連紅嗰條都跳嚟跳去）。唔係我改咗 sim／view：報告寫住
+`鎖差 -110`，即係 `u.rig.time` 已經行過咗成一百秒——條 check 喺 `page.evaluate` 裏面
+自己行 `s.step`／`v.update` 嘅同時，**背景嗰個 rAF 主迴圈一路都喺度行同一個 rig**。
+即係佢本身就同主迴圈搶緊，郁一郁幀時序就撞中。呢個係條 check 自己嘅 race，
+但係我撩到佢。
+
+**未查清楚就唔推。** 一個令現有 gate 唔穩嘅改動，同一個 bug 分別唔大——尤其當佢專門
+去踩一條「Penny 親口報過睇唔到攻擊動作」嘅檢查。MOBA 嗰半整份還原（連 `assets-30`
+bump），`hub-pause` 入面寫低佢係**一個講明咗嘅缺口**（`未做嘅`），唔係一個唔知嘅病：
+條線照量佢、照報「冇暫停控制」，但唔會因為一個已知缺口日日紅。
+
+### 二、真兇：Tower HUD 入面**每一粒掣**，用滑鼠都撳唔郁
+
+把尺一開就報 Tower「撳完照行」。查落去：個掣收到 `pointerdown`、`mousedown`，**跟住
+乜都冇**——`mouseup` 同 `click` 永遠唔嚟。用 `el.click()` 就停到，用 tap 就停到，
+**得真滑鼠唔得**。
+
+`#hud` 係拖得郁嘅面板（`makeDraggable`），佢喺 `pointerdown` 就 `setPointerCapture`。
+指標一畀 `#hud` 攞咗，滑鼠嘅 `mouseup`／`click` 就全部改派去 `#hud`——`click` 於是
+喺 `#hud` 度響，永遠唔會喺你撳嗰粒掣度響。掃埋其餘幾粒：**`#skip-prep-btn`、
+`#pause-btn`、`#speed-btn`、`#sound-btn` 四粒全部係死嘅。**
+
+點解一直冇人知：**觸控唔受影響**（touch 派生嘅相容滑鼠事件唔會畀 pointer capture
+改派），而 Tower 自己啲 test 唔係 `tap()` 就係直接 `el.click()`——**兩種寫法都繞過咗
+真正出事嗰條路。** 一粒滑鼠撳唔郁嘅掣，同一粒冇畫出嚟嘅掣分別唔大。
+
+Capture 搬入 `beginDrag()`：佢本來就係為咗拖動途中指標飄出面板都收到 move，**唔係
+為咗撳低嗰一下**。`pointermove`／`pointerup` 搬去 `window`——冇咗 capture，指標喺
+hold 未夠鐘之前飄出面板就唔會再派事件畀 `el`，個 hold timer 會活過頭、放手亦唔會
+重設 `pointerId`；captured 事件本身一樣會由 `el` 冒泡上 `window`，所以一對 listener
+兩個階段都掂。
+
+### 三、把尺（`tests/hub-pause.mjs`，6 條）
+
+逐隻寫明個鐘讀邊個 seam——**「畫面有冇郁」分唔開停冇停**（Tower 個暫停畫面自己會呼吸,
+Snake 個霓虹背景一直閃）。Snake 冇 seam，所以加咗 `window.__snake.格數()`（`gameTick`
+真係行咗一格先加），同 `__gomoku`／`__big2Run` 一樣淨係轉發，冇自己嘅計算。
+
+- 撳之前個鐘要**真係行緊**（冇呢個對照，一隻卡死咗嘅遊戲會喺下面兩條度全綠）
+- 打緊嗰陣要有一個見得到嘅暫停控制、44×44、撳落去模擬要真係停、再撳返要行返
+
+兩個把尺自己嘅錯，兩個都係舊坑：
+
+1. **「續」揀咗第一個中嘅元素。** Racing Car 停低之後另開一版 `#screen-pause`，續嗰個
+   係 `#resume-btn`，但 DOM 排先嗰個仍然係 `#pause-btn`（撳落去 `pauseRace()` 見到
+   `running === false` 就返 false，乜都唔發生）。報咗「Racing 續唔返」——**量緊嘅係我
+   揀錯咗嘅元素，唔係隻遊戲。** ADR-238 踩過同一個坑。改成逐個試到個鐘行返為止。
+2. **Racing 撳完「開始」仲有一段開賽倒數**，圈鐘停喺 0:00.00；夠唔夠鐘純粹睇部機幾快。
+   **一條靠彩數過嘅 gate 同冇 gate 分別唔大**——driver 等到個鐘真係郁咗先量，
+   而條對照仍然獨立驗一次，等唔到照樣紅。
+
+Mutation：capture 搬返落 `pointerdown` → 只叫得出 Tower「撳完照行」；拆走 MOBA 個暫停
+入口（嗰陣佢仲喺樹上）→ 只叫得出 MOBA「冇暫停控制」。
+
 ## ADR-238 — 一個冇人知嘅 Continue，同冇 Continue 分別唔大
 
 Date: 2026-08-11. Status: accepted.

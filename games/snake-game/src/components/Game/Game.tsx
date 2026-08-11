@@ -152,6 +152,7 @@ export default function Game() {
   const obstaclesRef = useRef<Obstacle[]>([]);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const prevStateRef = useRef<GameState | null>(null);
+  const 格數Ref = useRef(0);
 
   function initializeGame(level: number): GameState {
     const levelData = LEVELS[level - 1] || LEVELS[0];
@@ -273,6 +274,7 @@ export default function Game() {
   const gameTick = useCallback(() => {
     setGameState(prev => {
       if (!prev.isRunning || prev.isPaused || prev.isGameOver) return prev;
+      格數Ref.current += 1;   // 量度用嘅鐘：**條蛇真係行咗一格**先加（見下面 `__snake`）
 
       const now = Date.now();
       let newInvincible = prev.isInvincible;
@@ -526,6 +528,42 @@ export default function Game() {
   useGameLoop(gameTick, currentSpeed, gameState.isRunning && !gameState.isPaused);
 
   /*
+   * 暫停：本來得空白鍵／P 撳得到。**手機冇鍵盤**——手機行嘅係喺個盤上面
+   * 掃（`handleTouchStart`／`handleTouchEnd`），成個介面一個暫停控制都冇。
+   * 即係個機制一直都喺度（`isPaused`、切走自動停、暫停畫面嘅「▶ 繼續」），
+   * 但**得一半玩家入得到**——而開場提示自己仲寫住「空格鍵 暫停」。
+   * Tower 同 Racing Car 兩隻都有個 44×44 嘅暫停掣，呢度跟同一個做法。
+   *
+   * 鍵盤同個掣要行同一條路：兩份各自寫，遲早有一份跟唔上。
+   *
+   * `isRunning` 呢個閘順手封咗一個舊坑：開場果版撳空白鍵會令 `isPaused`
+   * 變 true，跟住撳 Enter 開波（嗰個 handler 淨係設 `isRunning`，冇清
+   * `isPaused`），局面一開就即刻凍住。
+   */
+  const togglePause = useCallback(() => {
+    setGameState(prev => {
+      if (!prev.isRunning || prev.isGameOver) return prev;
+      playSoundEffect('pause', settings);
+      return { ...prev, isPaused: !prev.isPaused };
+    });
+  }, [settings]);
+
+  /*
+   * 量度接口。**「畫面有冇郁」分唔開停冇停**——霓虹背景自己會閃，暫停畫面
+   * 一樣有動畫。要分得清就要一個模擬自己數嘅數，所以呢度出 `格數`：
+   * `gameTick` 真係行咗一格先加。（同 `__gomoku`／`__big2Run` 一樣，
+   * 只係轉發現成嘢，冇自己嘅計算。）
+   */
+  useEffect(() => {
+    (window as unknown as Record<string, unknown>).__snake = {
+      格數: () => 格數Ref.current,
+      停咗: () => !!prevStateRef.current?.isPaused,
+      打緊: () => !!prevStateRef.current?.isRunning
+        && !prevStateRef.current?.isPaused && !prevStateRef.current?.isGameOver,
+    };
+  }, []);
+
+  /*
    * 切走咗就停低。
    *
    * 實測（override `document.hidden` 再派 `visibilitychange`，同 Tower
@@ -592,10 +630,7 @@ export default function Game() {
       }
 
       if (e.key === ' ' || e.key === 'p' || e.key === 'P') {
-        setGameState(prev => {
-          playSoundEffect('pause', settings);
-          return { ...prev, isPaused: !prev.isPaused };
-        });
+        togglePause();
         return;
       }
 
@@ -650,7 +685,7 @@ export default function Game() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameState.isGameOver, gameState.isRunning]);
+  }, [gameState.isGameOver, gameState.isRunning, togglePause]);
 
   useEffect(() => {
     const gameBoard = document.querySelector(`.${styles.gameBoard}`);
@@ -758,6 +793,17 @@ export default function Game() {
           <h1 className={styles.title}>🐍 NEON SNAKE</h1>
           <div className={styles.headerStats}>
             <span className={styles.userName}>👤 {currentUserName}</span>
+            {/* 打緊先出：唔喺局中撳「暫停」冇意思，而且會擋住開場果版嘅提示。 */}
+            {gameState.isRunning && !gameState.isGameOver && (
+              <button
+                className={styles.pauseButton}
+                onClick={togglePause}
+                aria-label={gameState.isPaused ? '繼續' : '暫停'}
+                title={gameState.isPaused ? '繼續' : '暫停'}
+              >
+                {gameState.isPaused ? '▶' : '⏸'}
+              </button>
+            )}
             <button
               className={styles.menuButton}
               onClick={() => setShowSkinSelector(true)}
