@@ -406,3 +406,13 @@ body.cue-placement #mobile-controls {
     transform: scale(0.95);
   }
 }
+
+/* Keep the spin widget out of the mobile charge hitbox.  The desktop
+   coordinates predate the 90px floating charge button; at 390px wide the two
+   controls overlapped by 10px, so tapping spin could start charging instead. */
+@media (max-width: 600px) {
+  #spin-control {
+    left: 12px;
+    bottom: 70px;
+  }
+}

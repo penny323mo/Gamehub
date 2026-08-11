@@ -152,6 +152,36 @@ check('3D 開始遊戲進入擺白球狀態',
 // mouse gestures, while the game reserves one-finger touch for aiming.
 await page.locator('#confirm-cue-btn').click();
 await page.waitForTimeout(100);
+const controlLayout = await page.evaluate(() => {
+  const box = (id) => {
+    const rect = document.getElementById(id)?.getBoundingClientRect();
+    return rect ? { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height } : null;
+  };
+  const spin = box('spin-control');
+  const charge = box('mobile-charge-btn');
+  const centerX = spin ? spin.left + spin.width / 2 : -1;
+  const centerY = spin ? spin.top + spin.height / 2 : -1;
+  const hit = centerX >= 0 ? document.elementFromPoint(centerX, centerY)?.closest('#spin-control')?.id : null;
+  const overlap = spin && charge
+    ? spin.left < charge.right && spin.right > charge.left && spin.top < charge.bottom && spin.bottom > charge.top
+    : true;
+  return { spin, charge, overlap, hit };
+});
+check('3D 手機 spin 控件同儲力掣分開，點擊命中 spin 而唔會誤儲力',
+  controlLayout.overlap === false && controlLayout.hit === 'spin-control',
+  controlLayout);
+const spinBox = await page.locator('#spin-control').boundingBox();
+if (!spinBox) throw new Error('Snooker 3D spin control is not visible');
+await page.mouse.move(spinBox.x + spinBox.width / 2, spinBox.y + spinBox.height / 2);
+await page.mouse.down();
+const spinHeld = await page.evaluate(() => JSON.parse(window.render_game_to_text()));
+await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+const spinCancelled = await page.evaluate(() => JSON.parse(window.render_game_to_text()));
+await page.mouse.up();
+check('3D 手機 spin gesture 失焦會清走而唔會開啟儲力',
+  spinHeld?.input?.spinDragging === true && spinHeld?.input?.mobileChargeActive === false &&
+    spinCancelled?.input?.spinDragging === false && spinCancelled?.input?.mobileChargeActive === false,
+  { held: spinHeld?.input, cancelled: spinCancelled?.input });
 const mobileAim = await page.evaluate(() => {
   const canvas = document.getElementById('game');
   const rect = canvas.getBoundingClientRect();

@@ -8077,3 +8077,15 @@ page：釋放 capture、清除 active pointer、鏡頭／擺位／spin／mobile 
 `PLACE_CUE` 或 `AIMING`；手機 charge button 仍由自己嘅 cancellation seam 管理力度 bar。`render_game_to_text()`
 只暴露 input lifecycle diagnostics，`tests/snooker-flow.mjs` 用真實 mobile browser 守 blur/hidden 後下一次
 瞄準 pointerup 正常完成。日後新增任何 canvas gesture 必須接入呢條 seam。
+
+## ADR-259 — Snooker 3D mobile spin 同 charge hitbox 必須分開
+
+Date: 2026-08-11. Status: accepted.
+
+舊版 390px mobile layout 將 `#spin-control` 放喺 x=270..330，而右下 90px 儲力掣係 x=280..370；兩者
+重疊 10px。真實 browser 點擊 spin 中心會命中 charge button，玩家無法可靠設定 spin，甚至會意外開始儲力。
+
+`style.css` 喺 <=600px 將 spin widget 移到左下（`left:12px; bottom:70px`），避開 power bar 同右下
+charge cluster；desktop 座標保持不變。`tests/snooker-flow.mjs` 用真實 390×844 browser 守矩形不重疊、
+`elementFromPoint()` 命中 spin、真實 spin gesture 同 blur cleanup；日後新增 mobile HUD 控件必須先做
+hitbox intersection gate，唔可以只靠 screenshot 估位。
