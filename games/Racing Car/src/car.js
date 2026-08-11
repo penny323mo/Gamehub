@@ -184,6 +184,9 @@ export class Car {
         this.lockRear = false;
         this.unspinning = false;
         this.wallCooldown = 0;
+        // update() 每幀都要試探下一個位置。重用 scratch vector，避免一場
+        // 比賽累積大量短命 Vector3，令手機 GC 喺高速駕駛時插入長幀。
+        this._nextPos = new THREE.Vector3();
         // 預設定位係爽快街機，而唔係硬核模擬。保留成員方便物理因果測試，
         // 遊戲 UI 唔要求玩家先理解一堆電子輔助設定先可以揸得順。
         this.arcadeAssist = true;
@@ -460,7 +463,7 @@ export class Car {
         }
 
         // ---- 位置 + 撞欄 ----
-        const next = this.pos.clone().addScaledVector(this.vel, dt);
+        const next = this._nextPos.copy(this.pos).addScaledVector(this.vel, dt);
         this.wallHit = false;
         this.wallImpact = 0;
         this.#collide(next, track);

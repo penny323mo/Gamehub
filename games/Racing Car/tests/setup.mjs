@@ -79,10 +79,22 @@ for (const id of TRACK_IDS) {
 // T2：畫面係連續 ribbon，而物理格網只留喺幕後做判定。
 const geo = await page.evaluate(async () => {
     const { BLOCK } = await import('./src/track.js');
-    const { track, renderer } = window.__racer;
+    const { car, track, renderer } = window.__racer;
+    const image = track.road.material.map?.image;
+    const N = image?.width ?? 0, data = image?.data ?? [];
+    let centreBright = 0, edgeBright = 0;
+    for (let x = 0; x < N; x++) {
+        centreBright = Math.max(centreBright, data[((N >> 1) * N + x) * 4] ?? 0);
+        edgeBright = Math.max(edgeBright, data[(8 * N + x) * 4] ?? 0);
+    }
     return {
         gridCell: BLOCK, cells: track.cellCount,
         style: track.visualStyle, segments: track.visualSegments,
+        querySamples: track.querySamples instanceof Float32Array
+            ? track.querySamples.length / 2 : 0,
+        querySampleCount: track.querySampleCount,
+        nextPositionScratch: car._nextPos?.isVector3 === true,
+        centreBright, edgeBright,
         posts: track.wallCount, trees: track.treeCount,
         calls: renderer.info.render.calls,
         tris: renderer.info.render.triangles,
@@ -91,6 +103,11 @@ const geo = await page.evaluate(async () => {
 console.log('  ', JSON.stringify(geo));
 check('視覺層係連續曲線 ribbon', geo.style === 'smooth-ribbon', geo.style);
 check('彎位取樣夠密（>=320 段）', geo.segments >= 320, geo.segments);
+check('nearestT 會用預取 query samples（唔喺每幀重建曲線點）',
+    geo.querySamples === 240 && geo.querySampleCount === 240, geo);
+check('車輛碰撞試探會重用 scratch position', geo.nextPositionScratch === true, geo);
+check('柏油有低對比中線／車轍參照而唔新增 draw call',
+    geo.centreBright >= geo.edgeBright + 45, geo);
 check('有連續護欄支柱同賽道樹木', geo.posts > 200 && geo.trees >= 100, geo);
 check('完整 3D 世界 draw calls 維持手機預算（<18）', geo.calls < 18, geo.calls);
 check('三角形數量喺手機預算（<120k）', geo.tris < 120000, geo.tris);

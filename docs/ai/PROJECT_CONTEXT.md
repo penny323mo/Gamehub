@@ -30,7 +30,7 @@ repository as a static site.
 | Neon Snake | `games/snake-game/dist/index.html` | React + Vite + TypeScript; tracked `dist/` is the hub target. |
 | Empire Royale | `games/royale/index.html` | Static ES modules + vendored Three.js. Two modes: Clash-style lane battle (`game.js`, `ai.js`) and LV2 age-of-empires RTS (`src/rts/`). Shared: `models.js`, `rig.js` (procedural bone animation), `sfx.js`, `net.js`/`pvp.js` (Supabase PvP), `leaderboard.js`, `storage.js`, `gauntlet.js`, `profiles.js`. Regression suite in `games/royale/tests/`. |
 | 深淵之橋 MOBA | `games/moba/index.html` | Static ES modules + vendored Three.js. Deterministic sim, 3v3 bots, mobile HUD, anywhere-purchase shop, and procedural champion FX. Tests in `games/moba/tests/`. |
-| Racing Car 3D | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Continuous spline track (`track.js`), day/dusk/night environment (`environment.js`), sport-arcade acceleration with bounded body pitch/roll, closer/lower chase camera with bounded acceleration impulse and pointer-transparent speed-streak layer, bounded driving effects, player-only arcade assists and simple auto-throttle controls, four physical AI rivals plus a dithered ghost in one instanced field (`rivals.js`, `ghost.js`), and a persistent three-race championship with career records (`season.js`). Draco-compressed player car. Tests in `games/Racing Car/tests/`. |
+| Racing Car 3D | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Continuous spline track (`track.js`) with cached nearest-point samples and subtle asphalt tyre-wear/dashed centre texture, day/dusk/night environment (`environment.js`), sport-arcade acceleration with bounded body pitch/roll, closer/lower chase camera with bounded acceleration impulse and pointer-transparent speed-streak layer, bounded driving effects, player-only arcade assists and simple auto-throttle controls, four physical AI rivals plus a dithered ghost in one instanced field (`rivals.js`, `ghost.js`), and a persistent three-race championship with career records (`season.js`). Draco-compressed player car. Tests in `games/Racing Car/tests/`. |
 | Ashen Rail | `games/ashen-rail/dist/index.html` | Self-contained Vite + TypeScript + Babylon.js bonus game; soldier GLB has no clips, so `ProceduralPlayerAnimator` supplies rig-aware locomotion/aim/recoil and `WeaponSystem` supplies local weapon recoil; CI builds `dist/`. |
 | Elden Ring II | `games/elden-ring-ii/dist/index.html` | Self-contained Vite + React + TypeScript + Three.js/Cannon-es bonus game; three classes, mobile touch controls, local run history, optional Supabase write, bundled CC0 assets; tracked `dist/` is rebuilt by CI. |
 | Xiangqi AI | `games/xiangqi-ai/dist/index.html` | Vite + Three.js; hub targets tracked `dist/`; optional board environment HDR is bundled under `assets/` and copied into `dist/assets/`. |
@@ -88,6 +88,10 @@ repository as a static site.
   envelope, and `#speed-lines` must remain `pointer-events:none` below the HUD.
   `Car.longAccel`/`lateralAccel` are read-only render feedback; camera impulse must
   remain smooth, bounded, reset on start/track build, and never feed physics.
+- Racing Car's hot runtime queries use `Track.querySamples` (240 precomputed XZ
+  points) and `Car._nextPos`; keep those allocations out of the frame loop. Road
+  centre/tyre-wear cues belong in the existing asphalt texture so the mobile draw
+  budget does not gain a road-marker pass.
 - Ashen Rail's player GLB has a skeleton but no animation clips. `ProceduralPlayerAnimator`
   owns semantic rig aliases and procedural locomotion/aim/recoil; `PlayerController` owns
   turn-rate input and `WeaponSystem` owns local weapon recoil. The `__ashenRail` seam is

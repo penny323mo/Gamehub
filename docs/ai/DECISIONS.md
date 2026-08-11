@@ -8214,3 +8214,19 @@ Date: 2026-08-11. Status: accepted.
 collision 或 track progress。camera impulse 有平滑及固定上限，start/buildTrack 會 reset；
 `#speed-lines` 仍 pointer-transparent、唔遮 HUD、唔參與 physics。`race.mjs` **125/125**、
 `setup.mjs` **126/126** 同 844×390 real browser smoke 係今輪 gate。
+
+## ADR-268 — Racing Car frame loop 要預取賽道 query 點，路面參照要留喺既有 texture
+
+Date: 2026-08-11. Status: accepted.
+
+`Track.nearestT()` 喺玩家、對手同進度同步每幀重複掃 240 個 `curve.getPointAt()`；每次取樣
+都會產生短命 `Vector3`。真 browser micro-benchmark 以同一批 query 做 2,400×8 次量度：直接
+曲線取樣 **74.2ms**，預取 Float32Array **1.7ms**，結果完全相同。`Car.update()` 同追車鏡頭亦
+有同類 hot-loop temporary vectors，會將 GC 壓力變成手機長幀，尤其係低功耗裝置。
+
+`Track` 建構時預取 240 個 XZ query samples，`nearestT()` 只掃呢個陣列；`Car` 重用一個
+collision probe，`updateCamera()` 重用五個 scratch vectors。呢啲只係 query/render implementation
+優化，唔可以改物理、賽道進度或輔助規則。道路嘅中心參照同兩條低對比車轍加入現有 asphalt
+DataTexture，而唔新增 mesh/draw call；真 844×390 browser 讀到中心像素峰值 **159**、路邊
+**73**，renderer 仍 **15 calls**。`race.mjs` **125/125**、`setup.mjs` **129/129** 守住物理、
+draw budget、cache/scratch/texture gates。

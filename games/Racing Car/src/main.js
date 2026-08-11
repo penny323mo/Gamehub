@@ -548,17 +548,25 @@ loader.load('./assets/car.glb', (gltf) => {
 const camPos = new THREE.Vector3();
 const camLook = new THREE.Vector3();
 const chaseDir = new THREE.Vector3(0, 0, 1);
+// updateCamera() 係每幀 hot path；重用呢幾個 scratch vectors，避免只係
+// 做鏡頭 feedback 就不停分配短命 Vector3，尤其手機 swiftshader／低記憶體
+// 裝置會將呢啲 allocation 變成可見長幀。
+const camHeading = new THREE.Vector3();
+const camTravel = new THREE.Vector3();
+const camWantDir = new THREE.Vector3();
+const camWant = new THREE.Vector3();
+const camLookAt = new THREE.Vector3();
 function updateCamera(dt) {
-    const heading = new THREE.Vector3(Math.sin(car.yaw), 0, Math.cos(car.yaw));
+    const heading = camHeading.set(Math.sin(car.yaw), 0, Math.cos(car.yaw));
     // 鏡頭唔可以淨係跟車頭：甩到八十幾度嗰陣車係打橫飛，跟車頭嘅話架車
     // 會直接飛出畫面（實測 45 幀手煞之後成架車跌咗落畫面底邊）。
     // 甩得愈勁就愈跟「行進方向」，咁架車就會打橫留喺畫面中間——
     // 亦即係漂移遊戲嗰種標準機位。
     const travel = car.speed > 3
-        ? new THREE.Vector3(car.vel.x, 0, car.vel.z).normalize()
-        : heading;
+        ? camTravel.set(car.vel.x, 0, car.vel.z).normalize()
+        : camTravel.copy(heading);
     const blend = Math.min(1, Math.abs(car.slipAngle) / 0.9) * 0.8;
-    const want3 = heading.clone().lerp(travel, blend).normalize();
+    const want3 = camWantDir.copy(heading).lerp(travel, blend).normalize();
     chaseDir.lerp(want3, Math.min(1, dt * 5)).normalize();
     const fwd = chaseDir;
     const speedT = Math.min(1, car.speed / 60);
@@ -568,7 +576,7 @@ function updateCamera(dt) {
     // 機位再收近少少，車身先會成為主角；原本寬屏 8.5m 後車距令架車得
     // 一個細模型咁大，路面比例反而搶晒畫面。保留高速拉遠，唔會遮住下一個彎。
     const dist = (10.8 + speedT * 3.0) * (wideMobile ? 0.68 : 0.88);
-    const want = car.pos.clone().addScaledVector(fwd, -dist);
+    const want = camWant.copy(car.pos).addScaledVector(fwd, -dist);
     want.y = (6.7 + speedT * 1.4) * (wideMobile ? 0.72 : 0.94);
     // 加油／煞車嘅瞬間，鏡頭有一個極細嘅反向載荷位移；唔改物理，只畀
     // 玩家讀到「推背／點頭」，而且有平滑上限，唔會變成震鏡頭。
@@ -577,7 +585,7 @@ function updateCamera(dt) {
     cameraPulse += (Math.min(1, car.speed / 48) - cameraPulse) * Math.min(1, dt * 5);
     want.addScaledVector(fwd, -cameraThrust * 0.24);
     want.y += Math.sin(performance.now() * 0.012) * cameraPulse * 0.018;
-    const lookAt = car.pos.clone().addScaledVector(fwd, wideMobile ? 15 : 21).setY(0.55);
+    const lookAt = camLookAt.copy(car.pos).addScaledVector(fwd, wideMobile ? 15 : 21).setY(0.55);
     if (!camInit) { camPos.copy(want); camLook.copy(lookAt); camInit = true; }
     // 追car 用指數平滑。唔可以再喺漂移時特登放鬆——方向本身已經跟住
     // 行進方向擺，位置再拖就會framing唔到架車。

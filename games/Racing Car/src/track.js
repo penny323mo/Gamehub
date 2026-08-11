@@ -18,6 +18,7 @@ const WALL_H = 2.5;                  // 欄杆高度（世界單位）
 const ASPHALT_HALF_W = ROAD_HALF_W - KERB_W;
 const RAIL_OFFSET = ROAD_HALF_W + GRASS_W + WALL_W * 0.5;
 const VISUAL_STEP = 1.25;
+const QUERY_SAMPLES = 240;
 export const ROAD_HALF = Math.round(ROAD_HALF_W / BLOCK);
 
 // 物理地表種類。code 係幕後格網入面存嘅數字（0 = 空）
@@ -51,7 +52,20 @@ function surfaceTexture(kind) {
             if (kind === 'asphalt') {
                 const grain = Math.round((n - 0.5) * 22);
                 const seam = (x % 47 === 0 && y % 9 < 6) ? -12 : 0;
-                r = 62 + grain + seam; g = 64 + grain + seam; b = 68 + grain + seam;
+                // 低對比車轍令直路唔再係一大片平黑；中線用短破折而唔係
+                // 一條持續白線，保留賽道感之餘亦畀彎位有明確透視參照。
+                const centre = Math.abs(y - (N - 1) / 2) <= 3;
+                const dash = Math.floor(x / 32) % 2 === 0;
+                const laneWear = Math.min(Math.abs(y - 42), Math.abs(y - 85)) <= 3;
+                if (centre && dash) {
+                    const marker = Math.round((n - 0.5) * 10);
+                    r = 154 + marker; g = 158 + marker; b = 164 + marker;
+                } else {
+                    const wear = laneWear ? -9 : 0;
+                    r = 62 + grain + seam + wear;
+                    g = 64 + grain + seam + wear;
+                    b = 68 + grain + seam + wear;
+                }
             } else {
                 const broad = Math.sin(x * 0.17) * Math.cos(y * 0.13) * 12;
                 r = 67 + broad + n * 18; g = 116 + broad + n * 28; b = 53 + broad + n * 13;
@@ -78,6 +92,17 @@ export class Track {
         const pts = waypoints.map(([x, z]) => new THREE.Vector3(x, 0, z));
         this.curve = new THREE.CatmullRomCurve3(pts, true, 'catmullrom', tension);
         this.length = this.curve.getLength();
+        // nearestT() 係駕駛 loop 每架車每幀都會叫；曲線取樣本身會建立
+        // 新 Vector3，四架對手加玩家會令一幀產生過千個短命物件。建好
+        // 賽道時預取同一組 query samples，runtime 只掃 Float32Array，既
+        // 保留原本 240 點嘅判定精度，亦唔再將 GC 壓力放入物理 loop。
+        this.querySamples = new Float32Array(QUERY_SAMPLES * 2);
+        for (let i = 0; i < QUERY_SAMPLES; i++) {
+            const p = this.curve.getPointAt(i / QUERY_SAMPLES);
+            this.querySamples[i * 2] = p.x;
+            this.querySamples[i * 2 + 1] = p.z;
+        }
+        this.querySampleCount = QUERY_SAMPLES;
         // 取樣密度：每半格一個點，確保印路面唔會有窿
         this.samples = Math.ceil(this.length / (BLOCK * 0.5));
         this.#allocGrid(pts);
@@ -279,12 +304,13 @@ export class Track {
     // 車喺賽道邊個位置（0..1）——用嚟判斷方向啱唔啱同計進度
     nearestT(x, z) {
         let bestT = 0, bestD = Infinity;
-        const N = 240;
+        const N = this.querySampleCount;
+        const samples = this.querySamples;
         for (let i = 0; i < N; i++) {
-            const t = i / N;
-            const p = this.curve.getPointAt(t);
-            const d = (p.x - x) ** 2 + (p.z - z) ** 2;
-            if (d < bestD) { bestD = d; bestT = t; }
+            const dx = samples[i * 2] - x;
+            const dz = samples[i * 2 + 1] - z;
+            const d = dx * dx + dz * dz;
+            if (d < bestD) { bestD = d; bestT = i / N; }
         }
         return bestT;
     }
