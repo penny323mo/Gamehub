@@ -4,7 +4,7 @@ Updated: 2026-08-11 (Asia/Macau)
 Prepared by: Codex — integrated Game Hub product-audit checkpoint
 Integration branch: `main`
 Work branch: `main`
-Status: the latest integrated player-flow audit is green; Xiangqi's optional environment light, undo/resume flow, Gomoku's delayed-AI lifecycle, Big Two's CPU queue, Dou Dizhu's bid/play loops, Penny Crush's async match plus interrupted-touch lifecycle, Snooker's root/2D/3D entry, truthful opening state, Offline P2 foul decisions, mobile touch/charge input, AI handoff, Ashen Rail's fire-pointer lifecycle, Royale's interrupted card drag/placement lifecycle, MOBA's interrupted skill/attack/joystick lifecycle, and Snake's mobile login/board/lint/focus lifecycle are hardened. This checkpoint contains the source fixes, gates, and verification.
+Status: the latest integrated player-flow audit is green; Xiangqi's optional environment light, undo/resume flow, and interrupted-pointer lifecycle, Gomoku's delayed-AI lifecycle, Big Two's CPU queue, Dou Dizhu's bid/play loops, Penny Crush's async match plus interrupted-touch lifecycle, Snooker's root/2D/3D entry, truthful opening state, Offline P2 foul decisions, mobile touch/charge input, AI handoff, Ashen Rail's fire-pointer lifecycle, Royale's interrupted card drag/placement lifecycle, MOBA's interrupted skill/attack/joystick lifecycle, and Snake's mobile login/board/lint/focus lifecycle are hardened. This checkpoint contains the source fixes, gates, and verification.
 
 ## Current objective
 
@@ -33,17 +33,17 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
   **9/9**, map browser **8/8**, touch **6/6**, load **5/5**, flow **18/18**, projectile renderer **5/5**, and
   standalone renderer/performance **20/20** all passed. Diagnostic arena now suppresses automatic wave spawns, so
   combat measurements cannot be stolen by later `targetingMode=first` enemies.
-- Xiangqi production build plus legal-move, search, and performance self-tests passed. The optional Studio Small 09
+- Xiangqi production build plus legal-move, search, and performance self-tests passed. Its active-pointer guard now cancels pointercancel, blur, and hidden-page interruptions without mistaking OrbitControls' normal lostpointercapture-before-click ordering for a cancellation. The optional Studio Small 09
   CC0 HDRI is now bundled under `games/xiangqi-ai/assets/`, imported with Vite `?url`, copied into tracked
   `dist/assets/`, and guarded by a short load-failure status notice; local lights keep the board playable. Real mobile
-  tap → AI → undo → refresh/Continue flow is **4/4**. Gomoku's real mobile stale-timer/restart flow is **5/5**;
+  touchscreen tap → AI → undo → refresh/Continue plus interrupted-pointer/late-click flow is **5/5**. Gomoku's real mobile stale-timer/restart flow is **5/5**;
   Big Two's real mobile stale-queue/restart flow is **4/4**; Dou Dizhu's real mobile stale-bid/restart flow is **4/4**;
   Penny Crush's real mobile stale-chain/restart/interrupted-touch flow is **7/7**; Snooker's root/2D/3D opening-state, mobile touch/charge,
   AI handoff, and Offline P2 foul-decision flow is **18/18**; Snake's mobile Enter/start/Shift-focus/pause/resume/Hub flow is **10/10**.
 
 ## Changed files
 
-- `games/xiangqi-ai/js/render.js`, `js/app.js`, `js/main.js` — bundled HDR/fallback, deferred online probe, and undo/storage fixes.
+- `games/xiangqi-ai/js/render.js`, `js/app.js`, `js/main.js` — bundled HDR/fallback, deferred online probe, undo/storage fixes, and active-pointer cancellation/lifecycle cleanup.
 - `games/gomoku/js/ai.js`, `js/input.js`, `js/app.js`, `index.html` — cancellable/token-guarded AI timer and aligned cache token.
 - `games/big2/app.js`, `index.html` — cancellable/token-guarded CPU queue and aligned cache token; `games/doudizhu/src/game.js`, `src/ui.js`, `main.js`, `index.html` — shared generation scheduler for bid/play loops and aligned cache tokens; `games/penny_crush/penny_crush.js`, `index.html` — generation-guarded async match pipeline, interrupted-touch cleanup, and cache token.
 - `games/xiangqi-ai/assets/studio_small_09_1k.hdr` and `assets/README.md` — CC0 environment asset plus provenance/hash.
@@ -77,8 +77,8 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
   `npm audit --prefix games/tower --audit-level=high` found **0 vulnerabilities**. First combined render launch hit a 30-second ground wait; standalone reruns passed, so keep WebGL suites one at a time under GPU pressure.
 - `cd games/xiangqi-ai && npm run build && node js/engine/selftest_legal.js && node js/engine/selftest_search.js &&
   node js/engine/selftest_perf.js`; `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/xiangqi-flow.mjs`
-  — build/legal/search/performance
-  plus browser flow **4/4** passed.
+  — build/legal/search/performance plus browser flow **5/5** passed, including real touchscreen tap, AI, undo/Continue,
+  pointer cancellation, and a late-click no-move gate.
 - Real mobile Chromium smokes of the rebuilt Xiangqi dist kept the landing and AI canvas usable while blocking
   non-local requests; no Poly Haven request appeared. The expected lazy Supabase request is the only third-party
   surface, and a second smoke aborting the bundled HDR showed `環境光暫時未能載入，已使用基本燈光` while the game stayed

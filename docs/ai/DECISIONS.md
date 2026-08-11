@@ -8022,3 +8022,17 @@ Y/N、按鈕操作。P1 對 AI 時則只畀 P1 操作，AI beneficiary 由 simul
 `canApplyFoulDecisionLocally()` 係唯一權限 seam，`updateDecisionPanel()`、鍵盤同按鈕都經呢條路；
 `tests/snooker-flow.mjs` 用真實 mobile browser 重現開球先撞棕波，守住 Offline P2 take-turn 同
 force-fouler-continue 兩條分支，避免 `FOUL_DECISION` 再次無面板卡死。
+
+## ADR-255 — Xiangqi pointer cancellation 要避開正常 lost-capture click
+
+Date: 2026-08-11. Status: accepted.
+
+Xiangqi 3D 用 `pointerdown → pointerup → click` 做兩段式手機落子。OrbitControls 會喺正常
+`pointerup` 後即時發 `lostpointercapture`，所以唔可以無條件將呢個事件當取消；否則 tap flag
+會喺 click 前被清走，所有正常落子都會失效。
+
+`main.js` 以 active `pointerId` 管理單一 gesture；`pointercancel`、失焦／hidden 會清除 transient
+pointer state，`lostpointercapture` 只喺 gesture 仍然 down 時清除。第二隻同時觸控唔可以覆蓋第一隻
+嘅 origin。`tests/xiangqi-flow.mjs` 用真實 mobile `touchscreen.tap` 守正常 AI、悔棋／Continue，並
+用 active pointer cancellation 加遲到 click 守取消後唔落子；日後改 OrbitControls 或落子輸入時要保留
+呢個 event ordering invariant。

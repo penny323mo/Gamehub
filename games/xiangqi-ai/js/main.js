@@ -45,7 +45,17 @@ let audioCtx = null;
 
 const TAP_MOVE_THRESHOLD = 8;
 const TAP_MAX_AGE_MS = 350;
-let pointerState = { down: false, sx: 0, sy: 0, drag: false, tap: false, ux: 0, uy: 0, ts: 0 };
+let pointerState = {
+  down: false,
+  pointerId: null,
+  sx: 0,
+  sy: 0,
+  drag: false,
+  tap: false,
+  ux: 0,
+  uy: 0,
+  ts: 0
+};
 
 /* ── History (for undo) ── */
 let history = [];
@@ -273,8 +283,35 @@ function handleTap(clientX, clientY) {
   redraw();
 }
 
+function resetPointerState() {
+  pointerState.down = false;
+  pointerState.pointerId = null;
+  pointerState.sx = 0;
+  pointerState.sy = 0;
+  pointerState.drag = false;
+  pointerState.tap = false;
+  pointerState.ux = 0;
+  pointerState.uy = 0;
+  pointerState.ts = 0;
+}
+
+function cancelPointerInput() {
+  const hadSelection = selectedIdx >= 0;
+  resetPointerState();
+  // A cancelled second tap must not leave an armed piece that can be moved by
+  // a later, unrelated tap after an app switch or OS gesture.
+  if (hadSelection) {
+    clearSelection();
+    redraw();
+  }
+}
+
 canvas.addEventListener('pointerdown', (e) => {
+  // Ignore a second finger/pointer until the active gesture has ended.  Without
+  // this, two simultaneous touches can overwrite the origin of each other.
+  if (pointerState.down) return;
   pointerState.down = true;
+  pointerState.pointerId = e.pointerId;
   pointerState.sx = e.clientX;
   pointerState.sy = e.clientY;
   pointerState.drag = false;
@@ -282,7 +319,7 @@ canvas.addEventListener('pointerdown', (e) => {
 });
 
 canvas.addEventListener('pointermove', (e) => {
-  if (!pointerState.down) return;
+  if (!pointerState.down || e.pointerId !== pointerState.pointerId) return;
   const dx = e.clientX - pointerState.sx;
   const dy = e.clientY - pointerState.sy;
   if (dx * dx + dy * dy > TAP_MOVE_THRESHOLD * TAP_MOVE_THRESHOLD) {
@@ -291,11 +328,25 @@ canvas.addEventListener('pointermove', (e) => {
 });
 
 canvas.addEventListener('pointerup', (e) => {
+  if (!pointerState.down || e.pointerId !== pointerState.pointerId) return;
   pointerState.down = false;
+  pointerState.pointerId = null;
   pointerState.ux = e.clientX;
   pointerState.uy = e.clientY;
   pointerState.ts = performance.now();
   pointerState.tap = !pointerState.drag;
+});
+
+canvas.addEventListener('pointercancel', cancelPointerInput);
+// A normal pointerup releases capture immediately before the synthetic click;
+// do not clear `tap` in that expected sequence.  Only treat lost capture as a
+// cancellation while the gesture is still down.
+canvas.addEventListener('lostpointercapture', () => {
+  if (pointerState.down) cancelPointerInput();
+});
+window.addEventListener('blur', cancelPointerInput);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) cancelPointerInput();
 });
 
 canvas.addEventListener('click', (e) => {
@@ -669,6 +720,9 @@ restartBtn.addEventListener('click', () => {
 
 window.resetGameParams = resetGameParams;
 window.resetGame = resetGameParams;
+window.__xiangqiInput = {
+  state: () => ({ ...pointerState })
+};
 
 function resetGameParams() {
   cancelPendingAI();

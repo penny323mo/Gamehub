@@ -77,7 +77,7 @@ const targetPoint = async (boardIndex) => page.evaluate((wanted) => {
 const tapCell = async (boardIndex) => {
   const point = await targetPoint(boardIndex);
   if (!point) throw new Error(`搵唔到棋盤格 ${boardIndex}`);
-  await page.mouse.click(point.x, point.y);
+  await page.touchscreen.tap(point.x, point.y);
   await page.waitForTimeout(350);
 };
 
@@ -128,6 +128,48 @@ const afterReload = await page.evaluate(() => ({
   save: localStorage.getItem('xiangqi_ai_run_v1'),
 }));
 check('refresh 後唔會顯示已悔清嘅 Continue', afterReload.continueHidden && afterReload.save === null, afterReload);
+
+// Run the interruption gate after the normal flow so a deliberately cancelled
+// pointer cannot contaminate the following tap sequence in this test page.
+await page.locator('#xiangqi-ai-btn').click();
+await page.waitForSelector('#game-container:not(.hidden)');
+await page.waitForTimeout(650);
+const interruptedTouchPoint = await targetPoint(54);
+await page.mouse.move(interruptedTouchPoint.x, interruptedTouchPoint.y);
+await page.mouse.down();
+const interruptedTouch = await page.evaluate((point) => {
+  const canvas = document.querySelector('#board');
+  const before = window.__xiangqiRun.現盤().slice();
+  canvas.dispatchEvent(new PointerEvent('pointercancel', {
+    bubbles: true,
+    cancelable: true,
+    pointerId: 1,
+    pointerType: 'mouse',
+    isPrimary: true,
+    clientX: point.x,
+    clientY: point.y,
+  }));
+  // A late up/click must remain inert after cancellation.
+  canvas.dispatchEvent(new MouseEvent('click', {
+    bubbles: true,
+    cancelable: true,
+    clientX: point.x,
+    clientY: point.y,
+  }));
+  return {
+    state: window.__xiangqiInput.state(),
+    before,
+    after: window.__xiangqiRun.現盤().slice(),
+  };
+}, interruptedTouchPoint);
+await page.mouse.up();
+check('中斷 touch 會清走 Xiangqi pointer 狀態，遲到事件唔會落子',
+  interruptedTouch.state.down === false &&
+    interruptedTouch.state.pointerId === null &&
+    interruptedTouch.state.drag === false &&
+    interruptedTouch.state.tap === false &&
+    JSON.stringify(interruptedTouch.before) === JSON.stringify(interruptedTouch.after),
+  interruptedTouch);
 check('單機流程冇非預期 browser error', errors.length === 0, errors);
 
 console.log(`\nxiangqi flow: ${pass}/${pass + fail} 通過`);
