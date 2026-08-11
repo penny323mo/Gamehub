@@ -4496,6 +4496,59 @@ The contract is measured rather than inferred: `map.mjs` guards land connectivit
 `units.mjs` guards surface height/footprint/evolved silhouettes, and `gateway.mjs` guards lateral
 doors, outside anchors, roof clearance and non-white spawn flash.
 
+## ADR-238 — 一個冇人知嘅 Continue，同冇 Continue 分別唔大
+
+Date: 2026-08-11. Status: accepted.
+
+ADR-234–237 令五隻遊戲續得返上一局。但**個功能存在唔等於玩家知**。
+
+玩家撳「返回選單」嗰一刻，就係遊戲同你講「你嗰局仲喺度」嘅唯一機會——
+再遲就係下次開頁，而好多人根本唔會再開。
+
+### 量到咩
+
+打到一半撳「返回選單」，個「繼續上一局」掣即刻見唔見到：
+
+| 遊戲 | 見唔見到 |
+|---|---|
+| Gomoku | ✓ |
+| Xiangqi AI | ✓ |
+| **Big Two** | **✗** |
+| Dou Dizhu | ✓ |
+
+**得 Big Two 一隻漏咗接。** 我喺 ADR-236 寫嗰陣，`更新繼續掣()` 只喺開頁嗰陣
+叫過一次，冇喺 `setMode('landing')` 度叫——即係你撳完「退出對局」返到選單,
+個掣唔出，玩家會以為局冇咗。其餘三隻同款遊戲都有接。
+
+**同一批改動、同一個 pattern、四隻遊戲，一隻漏咗。** 呢種漏冇 gate 就永遠
+唔會發現——因為佢唔會掟錯，亦唔會令任何現有 check 報紅。
+
+### 把尺
+
+`hub-progress` 加第四條：**打到一半返選單，「繼續上一局」要即刻見到。**
+driver 加兩個欄：`離`（局中嗰個返選單掣）同 `繼續掣`。
+
+Tower **特登唔掃**：佢個 Home 掣係直接離開個頁去 hub，冇「返自己選單」呢條路;
+佢返嚟嗰陣個 `#continue-run` 由 `tower/tests/flow.mjs` 守住。**例外連理由一齊
+寫入把尺。**
+
+### 個 selector 又錯一次
+
+第一版寫 `離: '#gomoku-back-btn'`——timeout。嗰個係**開場畫面**嗰個「返回遊戲
+大廳」，唔係局中嗰個「返回選單」（後者喺 `#ai-controls` 入面，冇 id，
+要靠 `onclick` 認）。
+
+同一個形狀今日已經出現過幾次：**個名似，唔代表係同一件嘢。** 探路嗰陣我用
+`'#gomoku-back-btn, [onclick*="backToLanding"]'` 兩個一齊試，後備嗰個中咗,
+所以探路報綠——**一個「試幾個 selector，邊個中就用邊個」嘅寫法，會令你以為
+自己量緊第一個。**
+
+### 驗證
+
+`hub-progress` **4/4（十隻）**、`hub-tabs` 4/4、`hub-touch` 5/5、`hub-keyboard` 3/3、
+`hub-read` 3/3、`hub` 96/96。突變（拆走 Big Two 嗰句 `更新繼續掣()`）報紅，
+而且淨係叫 Big Two。
+
 ## ADR-237 — Dou Dizhu 補返 Continue：存檔要分得清「叫緊」同「打緊」
 
 Date: 2026-08-10. Status: accepted.

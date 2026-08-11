@@ -78,6 +78,32 @@ for (const g of 遊戲) {
     await g.玩(page);
     const 到咗 = await page.evaluate(g.到咗).catch(() => false);
     const 玩完 = await page.evaluate(g.憑據).catch(() => null);
+    /*
+     * **一個冇人知嘅 Continue，同冇 Continue 分別唔大。**
+     *
+     * 打到一半撳「返回選單」——嗰一刻就係遊戲同你講「你嗰局仲喺度」嘅唯一
+     * 機會。個掣要即刻出返，唔可以等你下次開頁先發現。
+     *
+     * （實測捉到：Big Two 本來冇接呢條線——撳完「退出對局」個掣唔出，
+     *   玩家會以為局冇咗。其餘三隻同款遊戲都有，得佢一隻漏咗。）
+     *
+     * Tower **特登唔掃**：佢個 Home 掣係直接離開個頁去 hub，冇「返自己選單」
+     * 呢條路；佢返嚟嗰陣個 `#continue-run` 由 `tower/tests/flow.mjs` 守住。
+     */
+    let 走完見到掣 = null;
+    if (g.離 && g.繼續掣) {
+      try {
+        await page.click(g.離, { timeout: 20000 });
+        await page.waitForTimeout(1200);
+        走完見到掣 = await page.evaluate((sel) => {
+          const el = document.querySelector(sel);
+          if (!el) return { 冇個掣: true };
+          const cs = getComputedStyle(el); const r = el.getBoundingClientRect();
+          return { 見得到: cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0 };
+        }, g.繼續掣);
+      } catch (e) { 走完見到掣 = { 撳唔到: String(e).split('\n')[0].slice(0, 70) }; }
+    }
+
     // reload：真係留低咗，唔係得個記憶體副本
     await page.reload({ waitUntil: 'load', timeout: 180000 });
     await page.waitForTimeout(3500);
@@ -94,7 +120,8 @@ for (const g of 遊戲) {
         續到 = await page.evaluate(g.續驗).catch(() => null);
       } catch (e) { 續到 = { 撳唔到: String(e).split('\n')[0].slice(0, 70) }; }
     }
-    量[g.名] = { 到咗, 玩完: 玩完 ?? '（冇）', 返嚟: 返嚟 ?? '（冇）', ...(g.續 ? { 續到 } : {}) };
+    量[g.名] = { 到咗, 玩完: 玩完 ?? '（冇）', 返嚟: 返嚟 ?? '（冇）',
+      ...(g.離 ? { 走完見到掣 } : {}), ...(g.續 ? { 續到 } : {}) };
   } catch (e) {
     量[g.名] = { 掛咗: String(e).split('\n')[0].slice(0, 110) };
   }
@@ -128,6 +155,13 @@ const 續唔返 = Object.entries(量).filter(([, v]) => '續到' in v
 check('有 Continue 嘅，撳落去要真係開返上一局（唔係得個存檔）', 續唔返.length === 0,
   續唔返.length ? Object.fromEntries(續唔返) : Object.fromEntries(
     Object.entries(量).filter(([, v]) => '續到' in v).map(([k, v]) => [k, v.續到])));
+
+const 走咗唔見掣 = Object.entries(量).filter(([, v]) => '走完見到掣' in v
+  && !(v.走完見到掣 && v.走完見到掣.見得到 === true));
+check('打到一半返選單，「繼續上一局」要即刻見到（唔使等下次開頁）',
+  走咗唔見掣.length === 0, 走咗唔見掣.length ? Object.fromEntries(走咗唔見掣)
+    : Object.fromEntries(Object.entries(量).filter(([, v]) => '走完見到掣' in v)
+        .map(([k]) => [k, '見到'])));
 
 console.log('\n各遊戲：');
 for (const [名, v] of Object.entries(量)) {

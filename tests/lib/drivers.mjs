@@ -245,6 +245,11 @@ export const 遊戲 = [
       } catch { return null; }
     },
     // 「留得住」唔等於「返得到」：撳個 Continue 要真係開返上一局。
+    // 打到一半返選單：撳邊個掣走、個 Continue 掣係邊個。
+    // **唔係 `#gomoku-back-btn`**——嗰個係開場畫面嗰個「返回遊戲大廳」。
+    // 局中嗰個喺 `#ai-controls` 入面，冇 id，靠 `onclick` 認。
+    離: '#ai-controls [onclick*="backToLanding"]',
+    繼續掣: '#gomoku-continue-btn',
     續: async (p) => {
       await p.waitForSelector('#gomoku-continue-btn:not(.hidden)', { timeout: 30000 });
       await p.click('#gomoku-continue-btn');
@@ -354,6 +359,8 @@ export const 遊戲 = [
         return { 盤上幾多隻: j.board.filter(Boolean).length, 輪到: j.turn, 第幾手: j.moveNumber };
       } catch { return null; }
     },
+    離: '#btn-back',
+    繼續掣: '#xiangqi-continue-btn',
     續: async (p) => {
       /*
        * 3D canvas 用 `getImageData` 讀唔到（WebGL 預設冇 `preserveDrawingBuffer`,
@@ -435,6 +442,8 @@ export const 遊戲 = [
                  檯面: j.table ? j.table.cards.length : 0 };
       } catch { return null; }
     },
+    離: '#exitGameBtn',
+    繼續掣: '#btn-continue',
     續: async (p) => {
       await p.waitForSelector('#btn-continue:not(.hidden)', { timeout: 30000 });
       await p.click('#btn-continue');
@@ -502,6 +511,8 @@ export const 遊戲 = [
                  輪到: j.current, 地主: j.landlord };
       } catch { return null; }
     },
+    離: '#exitGameBtn',
+    繼續掣: '#btn-continue',
     續: async (p) => {
       await p.waitForSelector('#btn-continue:not(.hidden)', { timeout: 30000 });
       await p.click('#btn-continue');

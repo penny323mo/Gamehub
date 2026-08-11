@@ -1386,6 +1386,10 @@
 
     if (mode === 'landing') {
       window.gameMode = 'local';
+      // 由局中返選單**唔算放棄**——個 Continue 掣要即刻出返，唔使等下次開頁。
+      // （實測：本來冇呢句，撳完「退出對局」個掣唔出，玩家會以為局冇咗。
+      //   其餘三隻同款遊戲都有，得呢隻漏咗。）
+      window.更新繼續掣?.();
       landing.classList.remove('hidden');
       lobby.classList.add('hidden');
       gameCont.classList.add('hidden');

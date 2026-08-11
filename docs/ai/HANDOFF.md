@@ -1,10 +1,10 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-10 (Asia/Macau)
-Prepared by: Claude Code (cloud) — ADR-202 至 237
+Prepared by: Claude Code (cloud) — ADR-202 至 238
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: 十六把跨遊戲尺全綠；「打到一半走咗仲喺度」由一隻擴到五隻，`hub-progress` 十隻 3/3
+Status: 十六把跨遊戲尺全綠；「打到一半」由一隻擴到五隻，`hub-progress` 十隻 **4/4**
 
 ## Current objective
 
@@ -14,41 +14,39 @@ Status: 十六把跨遊戲尺全綠；「打到一半走咗仲喺度」由一隻
 
 ## Completed
 
-**ADR-237（本輪）— Dou Dizhu 補返 Continue：存檔要分得清「叫緊」同「打緊」**
+**ADR-238（本輪）— 一個冇人知嘅 Continue，同冇 Continue 分別唔大**
 
-- 鬥地主同大老二同族但**多一層叫地主階段**，所以 `phase` 要存，兩個階段各自嘅嘢都要存：
-  叫緊要 `bid`（邊個開始／輪到邊個／邊個叫咗／搶幾多次／邊個 pass）；打緊要 `landlord`／
-  `bottom`（三張底牌）／`lastPlay`／`passes`。三家手牌全部存（連兩個電腦）。
-  `lastPlay.eval` 同 `state.ui` 唔存（`Set` JSON 化唔到，「揀緊邊幾張」唔應該跨 session）。
-- **叫牌階段冇「輪返你」嗰個停點**（三家輪流，中間可能連續兩個 CPU，叫完可能即刻
-  入局）→ 叫牌階段**每一步都存**（`advanceBid()` 尾）；打牌階段照舊三個停點。
-- driver 唔試打到出牌先量：**叫緊本身就係一個值得記嘅局面**，而且存檔嘅重點正正
-  係兩個階段分得清。叫／搶／唔叫邊個撳得就撳邊個——**三個都係真嘅玩家動作**,
-  唔使喺測試度揀「最合理」嗰個（嗰樣等於抄一次策略）。
-- **呢條線做完**：由 Tower 一隻擴到**五隻**（＋Gomoku／Xiangqi／Big Two／Dou Dizhu）。其餘
-  唔使——Snake／Racing Car／Royale／MOBA／Penny Crush 存嘅係累積成績，冇「一局打到一半」
-  呢個概念；Snooker 3D 冇單機局面可存。
+- 續得返唔等於玩家知。**撳「返回選單」嗰一刻就係唯一機會**（再遲就係下次開頁）。
+  量：Gomoku ✓／Xiangqi ✓／**Big Two ✗**／Dou Dizhu ✓——**得 Big Two 一隻漏咗接**
+  （`更新繼續掣()` 只喺開頁叫過，冇喺 `setMode('landing')` 度叫）。**同一批改動、
+  同一個 pattern、四隻遊戲，一隻漏咗**——呢種漏冇 gate 永遠唔會發現（唔掟錯，
+  亦唔會令任何現有 check 報紅）。
+- `hub-progress` 加第四條，driver 加 `離`／`繼續掣`。Tower **特登唔掃**（Home 直接離開
+  個頁去 hub，冇「返自己選單」；返嚟嗰陣由 `flow.mjs` 守）。
+- **個 selector 又錯一次**：`#gomoku-back-btn` 係**開場畫面**嗰個「返回遊戲大廳」，唔係
+  局中嗰個。而探路嗰陣我寫 `'A, B'` 兩個一齊試，B 中咗所以報綠——**一個「邊個中就用
+  邊個」嘅寫法，會令你以為自己量緊第一個。**
 
-**ADR-236（已合埋 main）— Big Two 補返 Continue ＋ 一條「每加一隻就要改一次」嘅 check**
+**ADR-236／237（已合埋 main）— Big Two ＋ Dou Dizhu：牌類點存**
 
-- 牌類要存**四家手牌**（連電腦嗰三家——唔存嘅話續返之後電腦會攞新牌，你面前嗰局變咗
-  另一局）。**`table.eval` 唔存**（`evalHand()` 計得返；存住就兩份真相）。
-- driver：十三張牌互相疊住，撳第一張嘅中心點畀隔籬張遮住 → timeout。解法唔係
-  `force: true`（等於承認撳唔中都照撳），而係**用返遊戲自己個「提示」掣**。
+- 牌類要存**四家／三家手牌**（連電腦嗰幾家——唔存嘅話續返之後電腦會攞新牌）。
+  **`eval` 唔存**（`evalHand()` 計得返；存住就兩份真相）。鬥地主多一層叫地主階段：
+  `phase` 要存，**叫牌階段冇「輪返你」嗰個停點** → 每一步都存。
+- driver：十三張牌疊住撳唔中 → **用返遊戲自己個「提示」掣**（唔係 `force: true`）。
 - **條 check 本身要改**：本來逐隻遊戲讀自己嘅欄名，加到第三隻就撞線（`undefined > 0`
   係 false，**明明啱嘅都報紅**）。**一條要跟住遊戲改名嘅 check，每加一隻就要改一次,
-  遲早有一次改漏。** 統一成四樣：`畫面`／`對得上`（遊戲狀態＝存檔）／`量`／`畫面證據`
-  （2D 比像素・WebGL 影相・牌類數 DOM）。三種證據同一個欄名。
+  遲早有一次改漏。** 統一成四樣：`畫面`／`對得上`／`量`／`畫面證據`。
+- **呢條線做完**：由 Tower 一隻擴到**五隻**。其餘唔使——Snake／Racing Car／Royale／
+  MOBA／Penny Crush 存嘅係累積成績，冇「一局打到一半」；Snooker 3D 冇單機局面可存。
 
 **ADR-234／235（已合埋 main）— Gomoku ＋ Xiangqi 補返 Continue**
 
-- 「打完記唔記得成績」同「打到一半走咗算唔算數」係兩條問題。實測四隻人機落幾手再
-  refresh：**全部返咗選單、冇存過、冇提示**（手機切走 app 個 tab 畀回收，一樣——**唔係
-  「你自己揀走」**）。Tower 早就有 Continue。**答案：漏咗。**
-- `hub-progress` 加第三條：**「留得住」唔等於「返得到」**。量咗幾個版先啱——Gomoku 數成塊
-  canvas 嘅非背景像素，突變照樣過（嗰 300 個係**格線**）；Xiangqi 個盤係 3D，`getImageData`
-  全零，改影相之後**又揀錯對照**（撳之前仲喺選單）→ 最後揀「續返嘅局面 vs 開局盤」。
-  **錯要向紅嗰邊錯。** 記低：3D 盤要**反用遊戲自己嘅 `Render.hitTest()`**；
+- 「打完記唔記得成績」同「打到一半走咗算唔算數」係兩條問題。四隻人機落幾手再 refresh：
+  **全部返咗選單、冇存過、冇提示**（手機切走 app 個 tab 畀回收，一樣）。**答案：漏咗。**
+  `hub-progress` 加第三條：**「留得住」唔等於「返得到」**。
+- 量咗幾個版先啱——Gomoku 數 canvas 非背景像素，突變照樣過（嗰 300 個係**格線**）;
+  Xiangqi 個盤係 3D，`getImageData` 全零，改影相之後**又揀錯對照** → 最後揀「續返嘅局面
+  vs 開局盤」。**錯要向紅嗰邊錯。** 3D 盤要**反用遊戲自己嘅 `Render.hitTest()`**；
   **driver 唔應該跟住引擎嘅實作漂移**。
 
 **ADR-232／233（已合埋 main）— 兩個 tab；一個 origin 十三隻遊戲**
@@ -97,8 +95,8 @@ Status: 十六把跨遊戲尺全綠；「打到一半走咗仲喺度」由一隻
 
 - `npm test`：PASS（要 `PW_CHROMIUM=/opt/pw-browsers/chromium`）。**十六把跨遊戲尺全綠**：
   `hub` 96/96、`hub-touch` 5/5、`hub-load` 3/3、`hub-keyboard` 3/3、`hub-cdn` 3/3、`hub-wait` 1/1、
-  `hub-storage` 2/2、`hub-away` 3/3、`hub-audio` 3/3、**`hub-progress` 3/3（八隻）**、`hub-context` 3/3、
-  `hub-home` 3/3、`hub-read` 3/3、`hub-leak` 4/4、`hub-tabs` 4/4；Tower 三 suite、`moba` 196/196、royale `leak` 7/7。Mutation 驗過三十次，次次叫得出係邊個。
+  `hub-storage` 2/2、`hub-away` 3/3、`hub-audio` 3/3、**`hub-progress` 4/4（十隻）**、`hub-context` 3/3、
+  `hub-home` 3/3、`hub-read` 3/3、`hub-leak` 4/4、`hub-tabs` 4/4；Tower 三 suite、`moba` 196/196、royale `leak` 7/7。Mutation 驗過三十五次，次次叫得出係邊個。
 
 ## Known issues and cautions
 
@@ -107,8 +105,8 @@ Status: 十六把跨遊戲尺全綠；「打到一半走咗仲喺度」由一隻
 ## Exact next action
 
 1. `export PW_CHROMIUM=/opt/pw-browsers/chromium`，跑 `./scripts/agent-context.sh --sync`。
-2. **接手位**：「打到一半」條線做完（ADR-234–237）。仲未量過嘅：**離開之前有冇交代**
-   ——五隻續得到嘅遊戲，玩家撳「返回大廳」／關 tab 之前，冇一隻講過「你嗰局仲喺度」。
+2. **接手位**：「打到一半」＋「返選單見到掣」兩條線都做完（ADR-234–238）。未量過：
+   **關 tab／返 Game Hub 之前**有冇交代（返自己選單嗰條路已經守住，但直接走嗰條冇）。
    另：`hub-read` 報咗但冇守；ADR-224 冇遊戲收到 restored。
 3. 一個檢查點一件事，改完連 handoff 一齊 commit。
 
