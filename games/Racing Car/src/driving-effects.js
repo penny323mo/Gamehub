@@ -135,9 +135,9 @@ export function createDrivingEffects(scene) {
         color.setHex(hex);
         colors[slot * 3] = color.r; colors[slot * 3 + 1] = color.g; colors[slot * 3 + 2] = color.b;
     };
-    const localPoint = (car, x, z, out) => out.set(
+    const localPoint = (car, x, z, out, height = 0.08) => out.set(
         car.pos.x + Math.cos(car.yaw) * x + Math.sin(car.yaw) * z,
-        0.08,
+        car.renderY + height,
         car.pos.z - Math.sin(car.yaw) * x + Math.cos(car.yaw) * z,
     );
 
@@ -148,7 +148,8 @@ export function createDrivingEffects(scene) {
         const slot = markCursor;
         markCursor = (markCursor + 1) % MARK_COUNT;
         centers[slot * 3] = (from.x + to.x) / 2;
-        centers[slot * 3 + 1] = 0.048;
+        // 胎痕要貼住 render surface；唔可以假設物理 X/Z 平面永遠係 y=0。
+        centers[slot * 3 + 1] = (from.y + to.y) * 0.5;
         centers[slot * 3 + 2] = (from.z + to.z) / 2;
         axes[slot * 2] = dx / length; axes[slot * 2 + 1] = dz / length;
         sizes[slot * 2] = 0.18; sizes[slot * 2 + 1] = length + 0.1;
@@ -178,15 +179,24 @@ export function createDrivingEffects(scene) {
         const p = localPoint(car, side, -1.35, tempParticle);
         p.x += (random() - 0.5) * 0.55;
         p.z += (random() - 0.5) * 0.55;
-        spawnParticle(p, dust ? 0xb49568 : 0xaeb6be, dust ? 1.0 : 1.25, dust ? 0.85 : 1.2, {
+        // 胎煙唔應該只係一粒灰色點：滑移角愈大，煙團要愈大、愈亮、
+        // 留場耐少少，玩家先讀到「而家真係甩緊」。仍然用同一個 bounded
+        // pool；呢度只調 instance data，唔新增 mesh／draw call。
+        const slipT = dust ? 0 : THREE.MathUtils.clamp(
+            (Math.abs(car.slipAngle) - 0.26) / 0.7, 0, 1,
+        );
+        const size = dust ? 1.0 : 1.2 + slipT * 0.42;
+        const life = dust ? 0.85 : 1.1 + slipT * 0.3;
+        const alpha = dust ? 0.4 : 0.3 + slipT * 0.24;
+        spawnParticle(p, dust ? 0xb49568 : 0xc4ced8, size, life, {
             x: car.vel.x * 0.025 + (random() - 0.5) * 0.65,
-            y: dust ? 0.9 : 0.55,
+            y: dust ? 0.9 : 0.55 + slipT * 0.2,
             z: car.vel.z * 0.025 + (random() - 0.5) * 0.65,
-        }, dust ? 0.4 : 0.28);
+        }, alpha);
     };
 
     const spawnImpact = (car, strength) => {
-        const origin = tempImpact.copy(car.pos).setY(0.55);
+        const origin = tempImpact.copy(car.pos).setY(car.renderY + 0.55);
         const count = Math.min(12, 6 + Math.round(strength / 4));
         for (let i = 0; i < count; i++) {
             const angle = random() * Math.PI * 2;
@@ -217,7 +227,7 @@ export function createDrivingEffects(scene) {
         // 唔會寫回物理；兩邊交替出煙，避免所有粒子疊成一點。
         exhaustSide *= -1;
         const p = localPoint(car, exhaustSide * 0.52, -1.68, tempParticle);
-        p.y = 0.42;
+        p.y = car.renderY + 0.42;
         const fwdX = Math.sin(car.yaw), fwdZ = Math.cos(car.yaw);
         spawnParticle(p, 0x8ea6b8, 0.18, 0.42, {
             x: car.vel.x * 0.025 - fwdX * 1.1,
@@ -251,8 +261,8 @@ export function createDrivingEffects(scene) {
             active++;
         }
 
-        localPoint(car, -1.08, -1.35, tempLeft);
-        localPoint(car, 1.08, -1.35, tempRight);
+        localPoint(car, -1.08, -1.35, tempLeft, 0.045);
+        localPoint(car, 1.08, -1.35, tempRight, 0.045);
         if (car.drifting && !car.offroad) {
             if (lastLeft && lastRight) {
                 if (lastLeft.distanceTo(tempLeft) >= 0.32 || lastRight.distanceTo(tempRight) >= 0.32) {
@@ -306,11 +316,22 @@ export function createDrivingEffects(scene) {
     };
 
     const snapshot = () => {
-        let marks = 0, particles = 0;
+        let marks = 0, particles = 0, maxParticleAlpha = 0;
+        let minParticleY = Infinity, maxParticleY = -Infinity;
         for (let i = 0; i < MARK_COUNT; i++) if (alphas[i] > 0) marks++;
-        for (let i = MARK_COUNT; i < TOTAL; i++) if (alphas[i] > 0) particles++;
+        for (let i = MARK_COUNT; i < TOTAL; i++) {
+            if (alphas[i] > 0) {
+                particles++;
+                minParticleY = Math.min(minParticleY, centers[i * 3 + 1]);
+                maxParticleY = Math.max(maxParticleY, centers[i * 3 + 1]);
+                maxParticleAlpha = Math.max(maxParticleAlpha, peakAlphas[i]);
+            }
+        }
         return {
             marks, particles, shake, visible: mesh.visible,
+            maxParticleAlpha,
+            minParticleY: particles ? minParticleY : null,
+            maxParticleY: particles ? maxParticleY : null,
             maxInstances: TOTAL, markCapacity: MARK_COUNT, particleCapacity: PARTICLE_COUNT,
         };
     };

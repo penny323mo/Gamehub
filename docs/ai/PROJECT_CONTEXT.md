@@ -100,9 +100,10 @@ repository as a static site.
 - Racing Car's hot runtime queries use `Track.querySamples` (240 precomputed XZ
   points) and `Car._nextPos`; AI driver curve samples, wrong-way tangents and rival
   matrix axes reuse optional targets/scratch vectors too. Keep those allocations out
-  of the frame loop. Road centre/tyre-wear cues and exhaust pulses belong in the
-  existing texture/effects instance pass so the mobile draw budget does not gain a
-  road-marker or tail-smoke pass. Terrain height is built once as a 32×32 mesh;
+  of the frame loop. Road centre/tyre-wear cues, surface-anchored tyre smoke and
+  exhaust pulses belong in the existing texture/effects instance pass so the mobile
+  draw budget does not gain a road-marker or tail-smoke pass. Terrain height is
+  built once as a 32×32 mesh;
   do not replace it with per-frame terrain generation or a second road pass.
 - Racing Car's visual track profile uses the `elevation` value on each track
   definition to create a closed, track-specific crest/grade at build time. It

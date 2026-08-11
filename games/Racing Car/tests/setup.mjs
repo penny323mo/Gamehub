@@ -348,6 +348,8 @@ const drivingFx = await page.evaluate(() => {
     root.setTod('night');
     car.reset(root.track.startPos, root.track.startDir);
     car.vel.set(Math.sin(car.yaw) * 24, 0, Math.cos(car.yaw) * 24);
+    car.setRenderSurface(1.1, 0.04, -0.02);
+    car.slipAngle = 0.72;
     car.drifting = true;
     car.offroad = false;
     for (let i = 0; i < 42; i++) {
@@ -377,6 +379,8 @@ const drivingFx = await page.evaluate(() => {
 console.log('  ', JSON.stringify(drivingFx));
 check('漂移會留下雙輪胎痕同有上限輪胎煙', drivingFx.drift.marks >= 20
     && drivingFx.drift.particles > 0 && drivingFx.drift.visible
+    && drivingFx.drift.maxParticleAlpha >= 0.42
+    && drivingFx.drift.minParticleY > 1.1
     && drivingFx.drift.maxInstances === 176
     && drivingFx.drift.markCapacity === 128 && drivingFx.drift.particleCapacity === 48,
     drivingFx.drift);

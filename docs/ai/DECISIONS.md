@@ -8407,3 +8407,15 @@ radial plane／draw call，由 group 喺 render pass 跟住車嘅位置、yaw、
 `trackBank` 對齊；唔跟 body roll，唔寫入 `Car.pos`，亦唔引入第二個 shadow pass。
 setup 新增 node identity 同 `[pitch, yaw, bank]` transform gate；世界 budget 仍
 **16 calls／56,933 tris**，物理 race gate 維持 **126/126**。
+
+## ADR-280 — Racing Car effects 必須錨定 render surface，漂移煙按 slip 增強
+
+Date: 2026-08-12. Status: accepted.
+
+加入 elevation 之後，物理仍然留喺 X/Z 平面，但 `driving-effects.js` 原本將胎痕、煙霧、
+尾氣同撞擊碎光寫死喺 y=0.048／0.08／0.42／0.55；車行上坡時，粒子會埋入 render
+ribbon，畫面只剩下數值同胎痕。保留同一個 128 mark + 48 particle instanced pool，
+所有效果改以 `car.renderY` 做基準；漂移煙再按 `slipAngle` 將 size、life、alpha 平滑提升，
+令 15° 門檻附近低調、真正 40°+ 漂移先有明顯煙柱，唔會變成常駐白霧。setup 增加
+surface-Y／alpha regression；真 844×390 smoke audit 讀到 **74 km/h／0.72rad slip／7 particles**，
+世界仍 **16 calls**，而 effects 仍係同一個 draw pass。
