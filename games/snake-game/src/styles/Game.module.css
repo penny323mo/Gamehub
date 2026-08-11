@@ -2,6 +2,9 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  width: 100%;
+  max-width: 100vw;
+  min-width: 0;
   padding: 20px;
   perspective: 1000px;
 }
@@ -11,6 +14,9 @@
   flex-direction: column;
   align-items: center;
   gap: 25px;
+  width: min(500px, 100%);
+  max-width: 100%;
+  min-width: 0;
   transform-style: preserve-3d;
 }
 
@@ -20,10 +26,14 @@
   align-items: center;
   width: 100%;
   max-width: 500px;
+  min-width: 0;
+  gap: 12px;
   transform: translateZ(30px);
 }
 
 .title {
+  min-width: 0;
+  margin: 0;
   font-size: 2rem;
   font-weight: 900;
   color: var(--neon-cyan);
@@ -53,9 +63,15 @@
   display: flex;
   gap: 10px;
   align-items: center;
+  min-width: 0;
 }
 
 .userName {
+  min-width: 0;
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--neon-yellow);
   font-size: 0.9rem;
   font-weight: 600;
@@ -118,8 +134,9 @@
 
 .gameBoard {
   position: relative;
-  width: 500px;
-  height: 500px;
+  width: min(500px, 100%);
+  height: auto;
+  aspect-ratio: 1;
   background: linear-gradient(145deg, #0d0d15 0%, #1a1a25 100%);
   border: 3px solid var(--neon-cyan);
   border-radius: 12px;
@@ -251,4 +268,46 @@
 .speedBoostButton:active {
   transform: scale(0.9);
   box-shadow: 0 0 15px rgba(255, 200, 0, 0.6);
+}
+
+@media (max-width: 600px) {
+  .container {
+    padding: 12px;
+  }
+
+  .gameWrapper {
+    gap: 14px;
+  }
+
+  .header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .title {
+    flex: 1 1 auto;
+    font-size: clamp(1.15rem, 6vw, 1.5rem);
+    letter-spacing: 2px;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+
+  .headerStats {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .userName {
+    margin-right: auto;
+    font-size: 0.78rem;
+  }
+
+  .menuButton,
+  .scoreButton {
+    padding: 6px 9px;
+    font-size: 0.68rem;
+    letter-spacing: 1px;
+  }
 }

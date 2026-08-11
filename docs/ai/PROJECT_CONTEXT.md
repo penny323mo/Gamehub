@@ -50,6 +50,9 @@ repository as a static site.
 - Tower, Snake, and Xiangqi hub links currently target committed `dist/` output.
   Source-only changes to those games are incomplete until the required dist output
   is regenerated and verified.
+- Snake's name-entry form must stop Enter key propagation before the global game
+  keyboard handler, and its board/header widths must stay bound to the mobile
+  viewport; `tests/snake-flow.mjs` is the real-browser lifecycle gate.
 - Xiangqi's environment map is a local Vite `?url` import of the CC0 Studio Small 09
   HDRI. Keep the tracked `.hdr` in `games/xiangqi-ai/dist/assets/`; do not reintroduce
   a runtime Poly Haven URL. The renderer's local key/rim/ambient lights remain the
@@ -142,9 +145,15 @@ From `games/snake-game/`:
 ```sh
 npm run lint
 npm run build
+cd ../..
+PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/snake-flow.mjs
 ```
 
-Confirm the rebuilt tracked `dist/index.html` works through the hub.
+`npm run build` regenerates the tracked hub target. The mobile browser gate checks
+Enter login isolation, responsive width before/after start, real ticks, pause/resume,
+return-to-Hub, and unexpected browser errors. The current lint baseline contains
+pre-existing React/ESLint errors; do not use it as a substitute for the build and
+browser gate.
 
 ### Tower Defense
 

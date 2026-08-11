@@ -7959,3 +7959,15 @@ Penny Crush 嘅消除、補位、連鎖同特殊磚係多段 `async` 動畫鏈�
 `penny_crush.js` 以 `generation` 加 `waitFor()` guard 包住所有消除／補位／特殊磚遞迴入口；
 `init`、`stop`、`exit` 會 invalidate 舊 generation，同時清走殘留動畫 DOM。`tests/penny-crush-flow.mjs`
 守住 Restart 後舊鏈 **0** 分污染、新局正常消除計分，同一個 cache-bust token 保證 Pages 不會混載舊 script。
+
+## ADR-250 — Snake 登入 Enter 同手機版棋盤要隔離遊戲 lifecycle
+
+Date: 2026-08-11. Status: accepted.
+
+Snake 的全域 `keydown` handler 會用 Enter 啟動未開始嘅局面。名稱表單提交如果冒泡到 window，玩家按 Enter
+登入嗰一下就會同時偷開局；所以 `NameInput` form 必須 stop keydown propagation，登入只做 login，開始仍由
+遊戲 menu 或遊戲內明確操作觸發。
+
+原本 game board 固定 500px，手機 390px 即使 menu 蓋住仍會令 document 橫向 overflow。`.gameWrapper`、header
+同 board 而家以 viewport-bound width/`aspect-ratio` 排版，desktop 保留 500px 上限。`tests/snake-flow.mjs`
+用真實 mobile browser 守住 Enter isolation、開局 tick、pause/resume、遊戲中無 overflow、返回 Hub 同 zero errors。

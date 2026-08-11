@@ -21,7 +21,11 @@ export default function NameInput({ onLogin }: NameInputProps) {
         <h2 className={styles.title}>🐍 NEON SNAKE</h2>
         <p className={styles.subtitle}>輸入你既名稱開始遊戲</p>
         
-        <form onSubmit={handleSubmit} className={styles.form}>
+        <form
+          onSubmit={handleSubmit}
+          onKeyDown={(e) => e.stopPropagation()}
+          className={styles.form}
+        >
           <input
             type="text"
             value={name}

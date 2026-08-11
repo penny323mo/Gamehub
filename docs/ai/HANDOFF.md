@@ -4,8 +4,7 @@ Updated: 2026-08-11 (Asia/Macau)
 Prepared by: Codex — integrated Game Hub product-audit checkpoint
 Integration branch: `main`
 Work branch: `main`
-Status: the latest integrated player-flow audit is green; Xiangqi's optional environment light, undo/resume flow,
-Gomoku's delayed-AI lifecycle, Big Two's CPU queue, Dou Dizhu's bid/play loops, Penny Crush's async match lifecycle, and Snooker's root/2D/3D entry flow are hardened. This checkpoint contains the source fixes, gates, and verification.
+Status: the latest integrated player-flow audit is green; Xiangqi's optional environment light, undo/resume flow, Gomoku's delayed-AI lifecycle, Big Two's CPU queue, Dou Dizhu's bid/play loops, Penny Crush's async match lifecycle, Snooker's root/2D/3D entry flow, and Snake's mobile login/board lifecycle are hardened. This checkpoint contains the source fixes, gates, and verification.
 
 ## Current objective
 
@@ -28,7 +27,7 @@ Gomoku's delayed-AI lifecycle, Big Two's CPU queue, Dou Dizhu's bid/play loops, 
 - The Xiangqi 3D entry was also checked under a throttled mobile network: its landing menu became usable while
   the optional environment map was still pending, so slow HDR download does not block the game entry.
 
-**Tower Defense, Xiangqi, Gomoku, Big Two, Dou Dizhu, Penny Crush, and Snooker verification**
+**Tower Defense, Xiangqi, Gomoku, Big Two, Dou Dizhu, Penny Crush, Snooker, and Snake verification**
 
 - Tower core, map/route redesign, assets, combat, units, gateway/keep placement, look, map browser, touch, load,
   flow, projectile renderer, and standalone renderer/performance checks passed.
@@ -37,7 +36,7 @@ Gomoku's delayed-AI lifecycle, Big Two's CPU queue, Dou Dizhu's bid/play loops, 
   `dist/assets/`, and guarded by a short load-failure status notice; local lights keep the board playable. Real mobile
   tap → AI → undo → refresh/Continue flow is **4/4**. Gomoku's real mobile stale-timer/restart flow is **5/5**;
   Big Two's real mobile stale-queue/restart flow is **4/4**; Dou Dizhu's real mobile stale-bid/restart flow is **4/4**;
-  Penny Crush's real mobile stale-chain/restart flow is **6/6**.
+  Penny Crush's real mobile stale-chain/restart flow is **6/6**; Snooker's root/2D/3D flow is **9/9**; Snake's mobile Enter/start/pause/resume/Hub flow is **8/8**.
 
 **Earlier relay checkpoints remain integrated** — MOBA persistent context-recovery card and `assets-31` cache-bust,
 Royale loading feedback, Tower start-screen contrast, Elden browser-gate isolation, and Ashen Rail production smoke.
@@ -49,7 +48,8 @@ Royale loading feedback, Tower start-screen contrast, Elden browser-gate isolati
 - `games/big2/app.js`, `index.html` — cancellable/token-guarded CPU queue and aligned cache token; `games/doudizhu/src/game.js`, `src/ui.js`, `main.js`, `index.html` — shared generation scheduler for bid/play loops and aligned cache tokens; `games/penny_crush/penny_crush.js`, `index.html` — generation-guarded async match pipeline and cache token.
 - `games/xiangqi-ai/assets/studio_small_09_1k.hdr` and `assets/README.md` — CC0 environment asset plus provenance/hash.
 - `games/xiangqi-ai/dist/` — regenerated tracked entry bundle and HDR asset for GitHub Pages.
-- `tests/hub-cdn.mjs`, `tests/xiangqi-flow.mjs`, `tests/gomoku-flow.mjs`, `tests/big2-flow.mjs`, `tests/doudizhu-flow.mjs`, `tests/penny-crush-flow.mjs`, `tests/snooker-flow.mjs` — assert self-contained assets and player flows.
+- `tests/hub-cdn.mjs`, `tests/xiangqi-flow.mjs`, `tests/gomoku-flow.mjs`, `tests/big2-flow.mjs`, `tests/doudizhu-flow.mjs`, `tests/penny-crush-flow.mjs`, `tests/snooker-flow.mjs`, `tests/snake-flow.mjs` — assert self-contained assets and player flows.
+- `games/snake-game/src/components/NameInput/NameInput.tsx`, `styles/Game.module.css`, and tracked `dist/` — isolate Enter login and bind the board/header to mobile viewport width.
 - `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md`, `docs/ai/HANDOFF.md` — durable architecture/ADR/relay notes.
 
 ## Verification
@@ -66,16 +66,14 @@ Royale loading feedback, Tower start-screen contrast, Elden browser-gate isolati
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/big2-flow.mjs` — **4/4**;
   stale CPU queue cannot consume a fresh deal, normal CPU response still works, and local cache tokens agree.
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/doudizhu-flow.mjs` — **4/4**; stale bid/play timer cannot mutate a fresh deal, normal CPU bid still works, and local cache tokens agree.
-- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/penny-crush-flow.mjs` — **6/6**; stale async match chain cannot mutate a fresh board, normal match still scores, and the script cache token is aligned; Snooker root/2D/3D mobile flow **9/9**.
+- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/penny-crush-flow.mjs` — Penny Crush **6/6**; `node tests/snooker-flow.mjs` — **9/9**.
+- `PW_CHROMIUM='/Users/penny323/Library/Caches/ms-playwright/chromium-1234/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome' node tests/snake-flow.mjs` — **8/8** (mobile Enter isolation, responsive board, tick/pause/resume/Hub, zero browser errors).
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/hub.mjs` — **96/96**;
   13 launcher entries, four pages, mobile 2×2 / desktop four-up layout, no dead links or browser errors.
-- `cd games/tower && npm test` — build, all core gates, browser gates, and projectile-renderer gates passed. The
-  final integrated performance process once hit a 30-second `window.__TD` startup timeout after the preceding
-  WebGL suites; the same checked-in build was immediately rerun alone with
-  `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/performance.mjs` and
-  passed **20/20** for desktop and mobile (20 towers, 150/229-enemy stress, resize, yaw, and context restore).
-  Treat WebGL suites as separate runs under GPU pressure; do not call the transient startup timeout a gameplay
-  failure without reproducing it in a clean standalone run.
+- `cd games/tower && npm test` — build, core/browser/projectile gates passed; an integrated performance run once hit a
+  30-second `window.__TD` startup timeout, then the same build rerun alone with `node tests/performance.mjs` passed
+  **20/20** desktop/mobile. Run WebGL suites separately under GPU pressure; the transient timeout is not a gameplay
+  failure without clean standalone reproduction.
 - `cd games/xiangqi-ai && npm run build && node js/engine/selftest_legal.js && node js/engine/selftest_search.js &&
   node js/engine/selftest_perf.js`; `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/xiangqi-flow.mjs`
   — build/legal/search/performance
@@ -101,6 +99,8 @@ Royale loading feedback, Tower start-screen contrast, Elden browser-gate isolati
   CI rebuilds them from source.
 - If changing Tower/Snake/Xiangqi source, rebuild their tracked `dist/` before committing. MOBA imports and the Hub
   entry must keep one cache token.
+- Snake `npm run lint` still reports 12 pre-existing React/ESLint errors; TypeScript/Vite build and the real mobile
+  flow gate pass. Do not treat the lint baseline as evidence that this checkpoint's browser fix failed.
 - No force-push to shared `main`; preserve any dirty/diverged state another agent leaves behind.
 
 ## Exact next action
