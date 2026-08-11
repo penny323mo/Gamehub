@@ -168,10 +168,12 @@ export const CFG = {
     suspensionRollGain: 0.66,
     suspensionPitchLimit: 0.018,
     suspensionRollLimit: 0.015,
-    // 車身係 rigid GLB，單靠 pitch lag 仍然似貼紙黐住路面。用坡度變化率
-    // 只產生一個極細嘅垂向懸掛壓縮／回彈：過 crest 會輕輕 unload，落谷會
-    // settle；係 render-only，唔會將物理 pos.y、碰撞或者進度變成 3D。
+    // 車身係 rigid GLB，單靠 pitch lag 仍然似貼紙黐住路面。用坡度同
+    // render surface 垂向速度產生一個受限嘅垂向懸掛壓縮／回彈：過 crest
+    // 會輕輕 unload，落谷會 settle；係 render-only，唔會將物理 pos.y、
+    // 碰撞或者進度變成 3D。
     suspensionHeaveGain: 0.32,
+    suspensionHeaveHeightGain: 0.065,
     suspensionHeaveRate: 12,
     suspensionHeaveLimit: 0.09,
 };
@@ -585,6 +587,7 @@ export class Car {
         // 因為既有碰撞／進度／救車規則係刻意建立喺 X/Z 格網上。
         if (track?.renderPoseAt) {
             const previousTrackPitch = this.trackPitch;
+            const previousRenderY = this.renderY;
             track.renderPoseAt(this.pos.x, this.pos.z, this._renderPose);
             // 落草唔改物理位置，但 render root 要落到同一張 terrain mesh；
             // banking／pitch 由道路姿態向草地平滑淡出，避免車身喺草面仍然
@@ -616,14 +619,17 @@ export class Car {
                 CFG.suspensionRollLimit,
             );
             // 路面坡度突然改變時，車輪先遇到 crest／valley，車身會有一個短暫
-            // 嘅壓縮／回彈，而唔係每幀硬切到新高度。用 pitch rate 而唔係直接
-            // 用 renderY，避免長斜坡將車身永久推離接地面；乘數同上限都刻意細，
-            // 只係讀感 cue。dt 有可能由 background wake-up 變大，先夾窄避免
-            // 一個長幀製造假跳躍。
+            // 嘅壓縮／回彈，而唔係每幀硬切到新高度。除咗 pitch rate，再讀
+            // surface 垂向速度：長斜坡會有少量「車身追唔切路面」嘅重量感，
+            // 但 heave 本身有回中同硬上限，唔會將車永久推離接地面。兩個 cue
+            // 都只係 render feedback；dt 有可能由 background wake-up 變大，
+            // 先夾窄避免一個長幀製造假跳躍。
             const sampleDt = THREE.MathUtils.clamp(dt, 1 / 240, 0.1);
             const pitchRate = (this.trackPitch - previousTrackPitch) / sampleDt;
+            const surfaceVerticalRate = (this.renderY - previousRenderY) / sampleDt;
             const heaveTarget = THREE.MathUtils.clamp(
-                -pitchRate * CFG.suspensionHeaveGain,
+                -pitchRate * CFG.suspensionHeaveGain
+                    - surfaceVerticalRate * CFG.suspensionHeaveHeightGain,
                 -CFG.suspensionHeaveLimit,
                 CFG.suspensionHeaveLimit,
             );

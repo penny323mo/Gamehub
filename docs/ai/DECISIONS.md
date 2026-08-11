@@ -8606,3 +8606,19 @@ Date: 2026-08-12. Status: accepted.
 而既有 0–80、漂移、ABS、autopilot、draw budget 同完整 aggregate 維持全綠。日後改坡度
 profile 或車模 floor envelope，必須重跑 heave 上限／reset gate 及真 headed mobile smoke，
 唔好將 heave 變成 gameplay 高度。
+
+## ADR-292 — Racing Car heave 要讀 surface 垂向速度先有真上落重量
+
+Date: 2026-08-12. Status: accepted.
+
+ADR-291 淨係用 `trackPitch` 變化率，對長上／落坡嘅實際車身反應仍然太細；路面雖然有
+5–6.6m render elevation，真 browser 高速跑過時 heave 只有約 1cm，仍似車模貼住一張
+起伏貼圖。今輪保留 pitch-rate cue，再加 `renderY` 垂向速度 cue：
+`-surfaceVerticalRate * suspensionHeaveHeightGain`，gain **0.065**，總 heave 仍硬限
+喺 **±0.09m**，rate **12** 平滑回中。上坡時車身短暫落後、落坡時回彈，長斜坡唔會永久
+漂離路面；呢層完全 render-only，唔改 `Car.pos.y`、X/Z、速度、碰撞、進度、AI 或陰影。
+
+`race.mjs` 新 gate 實測 surface-rate heave **0.089m**、physics Y **0**，真 headed
+844×390 smoke 實測約 **+0.022/−0.029m**；`setup.mjs` draw/triangle budget 維持。
+日後如改 terrain profile、surface query 或車模 floor envelope，必須重跑 heave 上限／
+reset／surface-rate gates 同真 headed mobile smoke，唔好將 vertical cue 變成 gameplay 高度。

@@ -935,6 +935,39 @@ check('crest／valley 會有短暫垂向懸掛壓縮，但唔會跳飛',
 check('懸掛回饋唔會改物理高度或速度',
     suspension.physicsY === 0 && suspension.speed > 0, suspension);
 
+// T3c0b：長上／落坡嘅垂向 surface 速度亦要有讀感。只量 render-only heave，
+// 唔可以將高度寫入物理；用平滑假 surface 避免測試只係撞到一個瞬間 teleport。
+const verticalHeave = await page.evaluate(() => {
+    const { car } = window.__racer;
+    let ticks = 0;
+    const surfaceTrack = {
+        isDrivable: () => true,
+        isWall: () => false,
+        renderPoseAt(_x, _z, out) {
+            ticks++;
+            out.y = Math.sin(ticks * 0.11) * 0.42;
+            out.terrainY = out.y;
+            out.terrainBlend = 1;
+            out.pitch = 0;
+            out.bank = 0;
+            return out;
+        },
+    };
+    car.reset({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
+    car.setRenderSurface(0, 0, 0);
+    let maxHeave = 0;
+    for (let i = 0; i < 120; i++) {
+        car.update(1 / 60, { throttle: 1, steer: 0, handbrake: false }, surfaceTrack);
+        maxHeave = Math.max(maxHeave, Math.abs(car.suspensionHeave));
+    }
+    return { heave: +maxHeave.toFixed(4), physicsY: car.pos.y, speed: +car.speed.toFixed(2) };
+});
+console.log('  ', JSON.stringify(verticalHeave));
+check('長上／落坡嘅 surface 垂向速度會帶出懸掛重量感',
+    verticalHeave.heave > 0.025 && verticalHeave.heave <= 0.091, verticalHeave);
+check('垂向重量感仍然唔改物理高度或速度',
+    verticalHeave.physicsY === 0 && verticalHeave.speed > 0, verticalHeave);
+
 // T3e：crest／valley 唔可以只係一張貼圖。坡度仍然係 bounded arcade
 // feedback：上坡會有少量負載、落坡會有推進，但唔將 render Y 寫入物理。
 const gradeFeel = await page.evaluate(() => {

@@ -90,8 +90,9 @@ repository as a static site.
   surface profile: the road ribbon, kerbs, guardrails, terrain and trackside
   anchors follow it, while collision/progress remains on the established X/Z grid.
   `Car.renderY` never feeds gameplay. `Car.suspensionHeave` is a bounded
-  render-only chassis compression/rebound driven by pitch-rate transitions; it
-  must reset to zero and never feed the contact shadow, physics or progress.
+  render-only chassis compression/rebound driven by pitch-rate transitions and
+  vertical render-surface rate; it must reset to zero and never feed the
+  contact shadow, physics or progress.
   `Car.trackPitch` is the explicit, bounded
   longitudinal grade input: it may contribute a small slope load to speed, but
   never changes `Car.pos.y`, nearestT, collision, checkpoints, progress or AI.
