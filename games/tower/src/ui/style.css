@@ -922,7 +922,13 @@ body {
   border-radius: 12px;
   cursor: pointer;
   color: #fff;
-  background: linear-gradient(135deg, var(--action-strong), var(--action));
+  /*
+   * White text on the old `--action-strong → --action` gradient only reached
+   * 2.69:1 at the pale end on the mobile start screen.  Keep the cyan family,
+   * but make both stops dark enough for WCAG AA (4.5:1 for this 18px bold
+   * label) instead of relying on the button shadow to carry legibility.
+   */
+  background: linear-gradient(135deg, #0b6da5, #0877a4);
   transition: all 0.25s;
   box-shadow: 0 10px 28px rgba(46, 153, 208, 0.34);
   margin: 6px;

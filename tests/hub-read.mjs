@@ -87,6 +87,20 @@ const 分析 = (b64, dpr) => new Promise((resolve) => {
       if (cs.display==='none'||cs.visibility==='hidden'||Number(cs.opacity)===0) continue;
       const r = el.getBoundingClientRect();
       if (r.width<3||r.height<3||r.top>innerHeight||r.bottom<0||r.left>innerWidth||r.right<0) continue;
+      /*
+       * 有 box 同喺 viewport 入面，唔代表玩家真係見到佢。Tower 開場 modal
+       * 蓋住 build menu 時，menu 個 `.build-name` 仍然符合上面所有 layout
+       * 條件；如果照影佢個矩形，會用 modal 後面嘅像素報假紅。用中心點
+       * 確認最上層 hit target，先將「畫得出嚟」當成有證據。
+       */
+      const cx0 = Math.max(0, Math.min(innerWidth - 1, (r.left + r.right) / 2));
+      const cy0 = Math.max(0, Math.min(innerHeight - 1, (r.top + r.bottom) / 2));
+      const top = document.elementFromPoint(cx0, cy0);
+      let uncovered = false;
+      for (let n = top; n; n = n.parentElement) {
+        if (n === el) { uncovered = true; break; }
+      }
+      if (!uncovered) continue;
       const x=Math.max(0,Math.round(r.left*dpr)), y=Math.max(0,Math.round(r.top*dpr));
       const w=Math.min(cv.width-x,Math.round(r.width*dpr)), h=Math.min(cv.height-y,Math.round(r.height*dpr));
       if (w<3||h<3) continue;

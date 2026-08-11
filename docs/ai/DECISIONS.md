@@ -7852,3 +7852,15 @@ Date: 2026-08-11. Status: accepted.
 瀏覽器測試若要手動推 `sim`／`view`，先經真實齒輪停低主 rAF；fixture 重設死亡角色時亦要
 同步清 `view` 嘅 dead rig，否則測試會自己抹走攻擊 lock，製造間歇性假紅。`hub-pause` 唔再
 為 MOBA 保留 known-exception；以真手機 viewport 實測停住與續返。
+
+## ADR-241 — 對比度尺只量玩家實際見到嘅文字
+
+Date: 2026-08-11. Status: accepted.
+
+Tower 開場 `▶ START` 原本係白字配淺色 cyan gradient，手機截圖量到只有 2.69:1；按鈕主
+gradient 兩個 stop 改用深青色，保留原有視覺語言但達到 WCAG AA。今後 action button 嘅
+白字對比要由真像素 gate 守住，唔可以靠陰影或肉眼估。
+
+同一輪亦確認「有 layout box」唔等於「玩家見到」：開場 modal 蓋住 Tower build menu 時，
+`.build-name` 會被像素尺誤報低對比。`tests/hub-read.mjs` 先以 `elementFromPoint()` 確認
+文字中心點係最上層可見元素，再量背景；遮住嘅 DOM 唔係可讀性 failure。
