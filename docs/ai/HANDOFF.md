@@ -1,11 +1,10 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-11 (Asia/Macau)
-Prepared by: Claude Code (cloud) — ADR-202 至 239
+Prepared by: Codex (local) — MOBA pause checkpoint
 Integration branch: `main`
-Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: 十七把跨遊戲尺；新增 `hub-pause` **6/6**。捉到 **Tower HUD 四粒掣用滑鼠全部撳唔郁**
-（MOBA 暫停量到但未修，原因見下）
+Work branch: `main`
+Status: MOBA 手機暫停入口已完成；`hub-pause` **6/6**，MOBA browser **196/196**。
 
 ## Current objective
 
@@ -15,25 +14,17 @@ Status: 十七把跨遊戲尺；新增 `hub-pause` **6/6**。捉到 **Tower HUD 
 
 ## Completed
 
-**ADR-239（本輪）— 一粒滑鼠撳唔郁嘅掣，同一粒冇畫出嚟嘅掣分別唔大**
+**MOBA 暫停 checkpoint**
 
-- 本來想量「走之前有冇交代」，**量完發現嗰條線冇病可以修**（局中每條離開路都喺暫停版／
-  選單版）。**唔會為一條量唔到病嘅線砌尺。** 但撞到 Snake 個暫停面板寫住「按**空格鍵**
-  繼續」——手機冇鍵盤。
-- `hub-away` 守「你切走咗佢有冇自己停」；冇人問過**你想停嗰陣停唔停到**。量：
-  Tower ✓／Racing ✓／**Snake ✗**（`isPaused` 得鍵盤）／**MOBA ✗**（`state.running`
-  得 `visibilitychange`）。**機制有，路冇**——同 ADR-238 同一句。
-- **真兇喺 Tower**：`#hud` 拖得郁，`pointerdown` 就 `setPointerCapture` → 滑鼠嘅
-  `mouseup`／`click` 全部改派去 `#hud`，**`skip-prep`／`pause`／`speed`／`sound` 四粒
-  全部係死嘅**。觸控唔受影響，而 Tower 啲 test 唔係 `tap()` 就係 `el.click()`——**兩種
-  都繞過咗出事嗰條路**。capture 搬入 `beginDrag()`，move／up 搬去 `window`。
-- **MOBA 嗰半做咗但唔出街**：三個位擺新掣三個都撞（窄畫面冇空角）→ 改成「開設定＝
-  暫停」。跟住條 `普攻會真係揮動作` 間歇性紅（**baseline 兩跑 196/196，改完六跑八次紅**）
-  ——`鎖差 -110` 即係條 check 一路同背景 rAF 主迴圈搶同一個 rig，郁下幀時序就撞中。
-  **一個令現有 gate 唔穩嘅改動，同一個 bug 分別唔大**：整份還原，`hub-pause` 入面
-  寫低佢係一個**講明咗嘅缺口**。
-- 把尺自己又錯兩次：**「續」揀咗第一個中嘅元素**（Racing 真正嗰個係 `#resume-btn`）
-  ——ADR-238 同一個坑；**Racing 開賽仲有倒數**，唔等個鐘郁就量＝靠彩數。
+- 窄手機冇再加第三粒會撞位嘅按鈕；HUD 原有齒輪改成清楚嘅「開設定並暫停」，保留 44×44
+  觸控區，並同步寫入 `aria-label`、`title`、`aria-expanded`。
+- `games/moba/src/main.js` 用 `pauseReasons` set 統一 `manual`、`visibility`、`context` 三種
+  停頓。關設定／返 tab／WebGL restore 只會解除自己嗰個 reason，唔會誤將其他暫停續返；每次
+  真續波都重設 frame clock，避免追返停頓期間嘅 dt。
+- `games/moba/tests/browser.mjs` 手動戰鬥 fixture 先用真實齒輪停低 rAF，再同步清 dead rig，
+  解決原本同背景 loop 爭同一個 rig 嘅間歇性 `swinging` 假紅。
+- `tests/hub-pause.mjs` 移除 MOBA known-exception，新增 `HUB_PAUSE_GAME` 過濾器方便單隻快速
+  重現；四隻遊戲手機 pause/stop/resume 全部過關。
 
 **ADR-238（已合埋 main）— 一個冇人知嘅 Continue，同冇 Continue 分別唔大**
 
@@ -79,22 +70,22 @@ Status: 十七把跨遊戲尺；新增 `hub-pause` **6/6**。捉到 **Tower HUD 
 
 ## Changed files
 
-- **跨遊戲把尺（全新）**：`tests/hub-{touch,load,keyboard,cdn,wait,storage,away,audio,progress,context,home,read,leak,tabs,pause}.mjs`＋`tests/lib/drivers.mjs`（共用 driver）
-- **shared（新）**：`byte-progress.mjs`、`safe-storage.js`、`merge-save.mjs`；`online_utils.js` 加 lazy SDK
-- 本輪：`tower/src/ui/draggable.ts`、`snake-game/src/components/Game/Game.tsx`
-  ＋`styles/Game.module.css`、兩個 `dist/`、新 `tests/hub-pause.mjs`（MOBA 嗰批已還原）
-- **Tower**：`src/{main.ts,render/assets.ts,ui/style.css,core/config.ts}`、`configs/map.json`、
-  `scripts/postbuild.mjs`（Draco）、`tests/{touch,load}.mjs`、`dist/`／**MOBA**：`src/{assets,main,hud}.js`
-  ＋`style.css`＋`index.html`、`tests/browser.mjs`、bump 腳本／**Royale**：`src/*.js`、`tests/{perf,leak}.mjs`
-- **Snake**：`Game.tsx`＋`dist/`；六個 `index.html` 加 storage guard；ADR-209/226 波及五隻卡牌／棋類
-  ／**Xiangqi** 另有 `js/render.js`；**Penny Crush**：`penny_crush.{js,css}`＋`index.html`
+- `games/moba/src/main.js` — reason-based pause/resume wiring。
+- `games/moba/src/hud.js` — gear pause entry and accessible state。
+- `games/moba/tests/browser.mjs` — deterministic paused combat fixture。
+- `tests/hub-pause.mjs` — MOBA exception removed; optional single-game filter。
+- `games/moba/index.html`、MOBA imports and hub entry/style references — `assets-30` cache-bust。
+- 之前 Claude checkpoint 嘅跨遊戲／Tower／Snake 改動已喺 `origin/main`；本輪冇改嗰啲範圍。
 
 ## Verification
 
-- 本輪跑過：**`hub-pause` 6/6**、`hub` 96/96、`hub-touch` 5/5、`hub-away` 3/3、
-  `hub-progress` 4/4、`hub-keyboard` 3/3、`hub-leak` 4/4、`hub-home` 3/3；Tower 全套
-  （core 48、browser 十個 suite、render 25）逐個跑綠；`moba` 196/196（還原後）。
-  Mutation 驗過三十七次。
+- `node games/moba/tests/cache-bust.mjs` — PASS（所有入口／本地 imports `assets-30`）。
+- `node games/moba/tests/sim.mjs` — **262/262**。
+- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node games/moba/tests/browser.mjs`
+  — **196/196**（橫向、直向、SE、中闊、載入失敗、音效、context、完整對局）。
+- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/hub-pause.mjs`
+  — **6/6**（Tower、Racing、MOBA、Snake；MOBA 實測停住 `10400→10400` 再續 `11567→13533`）。
+- `git diff --check` — PASS。
 
 ## Known issues and cautions
 
@@ -105,12 +96,11 @@ Status: 十七把跨遊戲尺；新增 `hub-pause` **6/6**。捉到 **Tower HUD 
 
 ## Exact next action
 
-1. `export PW_CHROMIUM=/opt/pw-browsers/chromium`，跑 `./scripts/agent-context.sh --sync`。
-2. **接手位**：(a) MOBA 補暫停——碼寫過（開設定＝暫停），卡喺 `普攻會真係揮動作`
-   同背景 rAF 搶 rig 嗰條 race，**要先修條 check（喺量之前停低主迴圈）再做**。
-   (b) 其餘幾隻有冇同類「淨係喺某一種輸入先撳得到」嘅掣——`hub-touch` 全部用 tap,
-   即係**成套尺由頭到尾冇用真滑鼠撳過任何嘢**。另：`hub-read` 報咗但冇守。
-3. 一個檢查點一件事，改完連 handoff 一齊 commit。
+1. 下一位先跑 `./scripts/agent-context.sh --sync`，再讀本文件同目前 commit；唔好用未同步嘅
+   本機 snapshot 判斷狀態。
+2. 本 checkpoint 已冇已知阻塞；如繼續產品優化，另開一個獨立 scope，先加 red gate 再改碼。
+3. `games/ashen-rail/dist/*`、`games/elden-ring-ii/dist/*` 係本機原有未追蹤 build assets，
+   本輪刻意保留，唔好當成 MOBA 變更一齊清理。
 
 ## Do not redo
 

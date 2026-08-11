@@ -1,11 +1,11 @@
 // HUD。全部用 DOM，唔用 canvas 畫字——手機上面 DOM 文字先至清晰，
 // 而且 CSS 處理安全區同轉向比自己計座標可靠。
 
-import { abilityRank } from './champions.js?v=assets-29';
-import { armTap } from './tap.js?v=assets-29';
-import { settings } from './settings.js?v=assets-29';
-import { ITEMS, MAX_ITEMS, nextPurchase } from './items.js?v=assets-29';
-import { TEAM, teamName, GAME_MAX, MAP } from './constants.js?v=assets-29';
+import { abilityRank } from './champions.js?v=assets-30';
+import { armTap } from './tap.js?v=assets-30';
+import { settings } from './settings.js?v=assets-30';
+import { ITEMS, MAX_ITEMS, nextPurchase } from './items.js?v=assets-30';
+import { TEAM, teamName, GAME_MAX, MAP } from './constants.js?v=assets-30';
 
 const el = (tag, cls, text) => {
     const n = document.createElement(tag);
@@ -19,6 +19,7 @@ export class Hud {
     constructor(root, sim) {
         this.sim = sim;
         this.root = root;
+        this.onPause = null;
         this.feed = [];
         this.shopOpen = false;
         this.#build();
@@ -137,7 +138,11 @@ export class Hud {
 
         // 設定：一個網頁遊戲冇靜音掣係硬傷——人哋隨時喺公司／地鐵開你隻嘢。
         this.gearBtn = el('button', 'moba-gear', '⚙');
-        this.gearBtn.setAttribute('aria-label', '設定');
+        // 手機窄畫面冇位再塞多粒掣；開設定同時停波，齒輪就係玩家睇得到、
+        // 亦撳得到嘅暫停入口。aria/title 寫清楚，免得淨係靠一粒圖示猜。
+        this.gearBtn.setAttribute('aria-label', '開設定並暫停');
+        this.gearBtn.title = '開設定並暫停';
+        this.gearBtn.setAttribute('aria-expanded', 'false');
         armTap(this.gearBtn, () => this.toggleSettings());
         r.append(this.gearBtn);
         this.settings = el('div', 'moba-settings hidden');
@@ -269,8 +274,11 @@ export class Hud {
     }
 
     toggleSettings(force) {
-        const open = force ?? this.settings.classList.contains('hidden');
+        const wasOpen = !this.settings.classList.contains('hidden');
+        const open = force ?? !wasOpen;
         this.settings.classList.toggle('hidden', !open);
+        this.gearBtn?.setAttribute('aria-expanded', String(open));
+        if (open !== wasOpen) this.onPause?.(open);
         if (open) this.toggleShop(false);
     }
 

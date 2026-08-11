@@ -1,5 +1,6 @@
 // Hub-wide「你想停嗰陣停唔停到」契約。
 // 跑法：PW_CHROMIUM=/opt/pw-browsers/chromium node tests/hub-pause.mjs
+// 只驗一隻：HUB_PAUSE_GAME='深淵之橋 MOBA' PW_CHROMIUM=… node tests/hub-pause.mjs
 //
 // `hub-away` 守嘅係**你切走咗，佢有冇自己停**。冇人問過相反嗰條：**你自己
 // 想停嗰陣，撳唔撳得到。** 一量就見到同一個形狀又出現咗一次——
@@ -8,12 +9,11 @@
 //     Tower Defense    `#pause-btn` 44×44                        ✓
 //     Racing Car 3D    `#pause-btn` 44×44                        ✓
 //     Neon Snake       `isPaused` 得空白鍵／P 撳到                 ✗ → 本輪補咗
-//     深淵之橋 MOBA     `state.running` 得 `visibilitychange` 撳到  ✗ → **未修**
+//     深淵之橋 MOBA     設定齒輪（開設定並暫停）44×44              ✓
 //
 // 兩隻唔見得人嘅位：Snake 開場提示自己寫住「空格鍵 暫停」——**個功能存在，
 // 而且佢仲親口同你講佢存在，但手機玩家一條路都冇**。MOBA 一場波跑十六分鐘,
-// 中途有人叫你，你唯一嘅「暫停」係切走個 tab。（MOBA 點解未修，見下面
-// `未做嘅` 嗰段。）
+// 中途有人叫你，手機都有一條清楚嘅暫停入口。
 //
 // 量法上兩個位要企穩：
 //
@@ -161,8 +161,15 @@ const 搵暫停 = () => {
              闊: Math.round(r.width), 高: Math.round(r.height) }; });
 };
 
+const 指定遊戲 = process.env.HUB_PAUSE_GAME;
+const 要跑嘅遊戲 = 指定遊戲 ? 遊戲.filter((g) => g.名 === 指定遊戲) : 遊戲;
+if (指定遊戲 && !要跑嘅遊戲.length) {
+  console.error(`搵唔到 HUB_PAUSE_GAME：${指定遊戲}`);
+  process.exit(2);
+}
+
 const 量 = {};
-for (const g of 遊戲) {
+for (const g of 要跑嘅遊戲) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 },
     deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   const page = await ctx.newPage();
@@ -240,25 +247,13 @@ const 冇行 = Object.entries(量).filter(([, v]) => !v.驅動失敗 && !v.撳�
 check('撳之前個鐘要真係行緊（冇呢個對照，一隻卡死咗嘅遊戲會喺下面兩條度全綠）',
   冇行.length === 0, 冇行.length ? Object.fromEntries(冇行.map(([k, v]) => [k, v.撳前])) : { 驗過: Object.keys(量).length - 壞.length });
 
-/*
- * **深淵之橋 MOBA 係一個寫明咗嘅缺口，唔係一個唔知嘅病。**
- *
- * 佢個 `state.running` 一直都得 `visibilitychange` 撳得到——量到，認咗，但
- * 未修好：試過三個位擺一粒 44×44 嘅掣（⚙ 下面撞打直版兵線總覽、⚙ 隔籬撞
- * 條頂欄、擺入條頂欄撞打橫版兵線總覽），最後試「開設定＝暫停」——四樣改法
- * 全部令 `games/moba/tests/browser.mjs` 條 `普攻會真係揮動作` 間歇性報紅
- * （baseline 兩跑 196/196，改完六跑出咗八次紅）。查到嗰條 check 同背景嘅
- * rAF loop 搶同一個 rig（`鎖差 -110` 即係 `rig.time` 行過咗成一百秒），
- * 即係**一個郁一郁幀時序就會撞中嘅race**——未查清楚之前唔會推。
- *
- * 擺個例外喺呢度而唔係喺 driver 度剷走佢：條線仍然量得到（下面「行返」嗰幾條
- * 照計佢），而且缺口寫喺把尺入面，唔會有人以為呢隻遊戲本來就唔使暫停。
- */
-const 未做嘅 = new Set(['深淵之橋 MOBA']);
-const 冇掣 = Object.entries(量).filter(([k, v]) => !v.驅動失敗 && !v.掣?.length && !未做嘅.has(k));
+/* MOBA 用現有齒輪做「開設定並暫停」，所以窄手機唔需要再搶一個角落位。
+ * browser suite 嘅手動戰鬥 fixture 亦會先撳齒輪停低主迴圈，避免測試自己
+ * 推 sim/view 嗰陣同 requestAnimationFrame 搶同一個 rig。 */
+const 冇掣 = Object.entries(量).filter(([, v]) => !v.驅動失敗 && !v.掣?.length);
 check('打緊嗰陣要有一個見得到嘅暫停控制（手機冇鍵盤）', 冇掣.length === 0,
   冇掣.length ? Object.keys(Object.fromEntries(冇掣))
-    : { 驗過: Object.keys(量).length - 壞.length - 未做嘅.size, 未做: [...未做嘅] });
+    : { 驗過: Object.keys(量).length - 壞.length });
 
 const 太細 = Object.entries(量).filter(([, v]) => v.掣?.length && (v.掣[0].闊 < 44 || v.掣[0].高 < 44));
 check('個暫停控制要撳得到（44×44，同 hub-touch 同一條線）', 太細.length === 0,

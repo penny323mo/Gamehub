@@ -4,20 +4,20 @@
 // 兩樣分開嘅原因同 sim.js 唔 import three.js 一樣：規則要可重現，
 // 畫面要跟硬件。一個 120Hz 螢幕唔應該令小兵行快一倍。
 
-import { Assets } from './assets.js?v=assets-29';
-import { armTap } from './tap.js?v=assets-29';
-import { Sim } from './sim.js?v=assets-29';
-import { createBot, updateBots } from './ai.js?v=assets-29';
-import { View } from './view.js?v=assets-29';
-import { Hud } from './hud.js?v=assets-29';
-import { createInput } from './input.js?v=assets-29';
-import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=assets-29';
-import { TEAM, TICK, teamName } from './constants.js?v=assets-29';
-import { CHAMPION_LOOK } from './looks.js?v=assets-29';
-import { Sfx } from './sfx.js?v=assets-29';
-import { planFrame } from './pace.js?v=assets-29';
-import { settings } from './settings.js?v=assets-29';
-import { renderPortraits } from './portraits.js?v=assets-29';
+import { Assets } from './assets.js?v=assets-30';
+import { armTap } from './tap.js?v=assets-30';
+import { Sim } from './sim.js?v=assets-30';
+import { createBot, updateBots } from './ai.js?v=assets-30';
+import { View } from './view.js?v=assets-30';
+import { Hud } from './hud.js?v=assets-30';
+import { createInput } from './input.js?v=assets-30';
+import { CHAMPIONS, CHAMPION_IDS } from './champions.js?v=assets-30';
+import { TEAM, TICK, teamName } from './constants.js?v=assets-30';
+import { CHAMPION_LOOK } from './looks.js?v=assets-30';
+import { Sfx } from './sfx.js?v=assets-30';
+import { planFrame } from './pace.js?v=assets-30';
+import { settings } from './settings.js?v=assets-30';
+import { renderPortraits } from './portraits.js?v=assets-30';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -26,6 +26,28 @@ const state = {
     acc: 0, last: 0, running: false, raf: 0, 戰場好: null,
     tickCount: 0,        // updateBots 用嚟逐格對調決策次序
 };
+
+// 暫停唔可以再靠一個 boolean：設定面板、切走頁面、WebGL context 可能同時
+// 發生。用 reason set，解除其中一個唔會意外將另一個一齊續返。
+const pauseReasons = new Set();
+const resetFrameClock = () => {
+    state.last = performance.now();
+    state.acc = 0;
+};
+function pauseFor(reason, message) {
+    const newlyPaused = pauseReasons.size === 0;
+    pauseReasons.add(reason);
+    state.running = false;
+    if (message && newlyPaused) state.hud?.flash(message);
+}
+function resumeFor(reason, message) {
+    if (!pauseReasons.delete(reason) || pauseReasons.size) return false;
+    if (state.sim?.over) return false;
+    resetFrameClock();
+    state.running = true;
+    if (message) state.hud?.flash(message);
+    return true;
+}
 
 // ---------- 載入 ----------
 async function boot() {
@@ -159,6 +181,7 @@ function startMatch(playerChamp) {
     };
     const sim = new Sim({ seed: (Math.random() * 1e9) | 0, lineups, playerIndex: 0 });
     state.sim = sim;
+    pauseReasons.clear();
     // 玩家嗰個唔開 bot：唔可以有一個隱形嘅第二隻手幫你揸
     state.bots = sim.champions.filter(c => !c.isPlayer).map(c => createBot(sim, c));
     state.tickCount = 0;
@@ -173,21 +196,22 @@ function startMatch(playerChamp) {
         // 但個 context 大多數情況下幾百毫秒之後就返嚟——即係一場打到一半
         // 嘅波，因為鎖咗一下屏就白白報銷。
         onContextLost: () => {
-            state.running = false;
-            state.hud.flash('顯示裝置重置緊，等一等…');
+            pauseFor('context', '顯示裝置重置緊，等一等…');
         },
         onContextRestored: () => {
-            // last 要重設，否則第一格嘅 dt 係「停咗幾耐」，會即刻追一大步。
-            state.last = performance.now();
-            state.acc = 0;
-            state.running = true;
-            state.hud.flash('返嚟喇，繼續');
+            // 只有 context 呢個 reason 完成先會續；玩家開住設定／切走緊時
+            // 仍然保持停頓。resetFrameClock 亦避免第一格追返停咗嘅時間。
+            resumeFor('context', '返嚟喇，繼續');
         },
     });
     state.hud.onSetting = (key, value) => {
         if (key === 'sfx') state.sfx.setEnabled(value);
         else if (key === 'music') state.sfx.setMusic(value);
         else if (key === 'quality') state.view.setQuality(value);
+    };
+    state.hud.onPause = (paused) => {
+        if (paused) pauseFor('manual', '已暫停');
+        else resumeFor('manual', '繼續');
     };
     state.hud.markQuality(state.view.quality);
     state.hud.setPortrait(state.portraits?.[playerChamp]);
@@ -197,8 +221,7 @@ function startMatch(playerChamp) {
     watchViewport();
     看住切走();
     onResize();
-    state.last = performance.now();
-    state.acc = 0;
+    resetFrameClock();
     state.running = true;
     state.raf = requestAnimationFrame(frame);
     window.__mobaReady = true;
@@ -240,21 +263,16 @@ function onResize() {
  * （呢個坑喺上面 `onContextRestored` 已經踩過一次，同一個處理。）
  */
 function 看住切走() {
-    let 因為切走停咗 = false;
     const 繼續 = () => {
-        if (!因為切走停咗) return;
-        因為切走停咗 = false;
-        state.last = performance.now();
-        state.acc = 0;
-        state.running = true;
-        state.hud?.flash('繼續');
+        resumeFor('visibility', '繼續');
     };
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
-            if (!state.running) return;      // 本來就停咗（掉 context 等）就唔好搞佢
-            state.running = false;
-            因為切走停咗 = true;
-        } else if (因為切走停咗) {
+            if (state.sim?.over) return;
+            // 即使玩家本身開住設定，都要記住「切走」呢個 reason，否則返嚟
+            // 關設定會錯誤地續波。
+            pauseFor('visibility');
+        } else if (pauseReasons.has('visibility')) {
             state.hud?.flash('你切走咗，已經幫你暫停 — 撳一下繼續');
         }
     });
@@ -304,6 +322,7 @@ function frame(now) {
 }
 
 function finish() {
+    pauseReasons.clear();
     state.running = false;
     const won = state.sim.over.winner === state.sim.player.team;
     const box = $('#result');

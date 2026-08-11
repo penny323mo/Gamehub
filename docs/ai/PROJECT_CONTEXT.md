@@ -111,7 +111,10 @@ PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
 ```
 
 The browser suite covers landscape/portrait touch purchase and all shop exit routes as well as
-gameplay, FX, cleanup, and full-match gates. Visual changes still need a real rendered inspection.
+gameplay, FX, cleanup, and full-match gates. The in-match gear is the mobile-safe
+"open settings and pause" entry; `main.js` keeps manual, visibility, and WebGL-context pause
+reasons separate so closing one overlay cannot resume another pause. Visual changes still need a
+real rendered inspection.
 
 ### Elden Ring II
 

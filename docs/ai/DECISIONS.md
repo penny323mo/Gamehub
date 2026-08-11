@@ -7836,3 +7836,19 @@ session, and it needs its own round.
 
 Mutations: reading `現速` back off the body reproduces **3.5 against 12.5**; deleting the lunge
 reproduces `踏前實速 0`. `hud-layout.mjs` 64/64.
+
+## ADR-240 — MOBA 嘅齒輪係手機暫停入口，停頓原因要分開記
+
+Date: 2026-08-11. Status: accepted.
+
+窄手機版 MOBA 已經冇一個唔撞 HUD 嘅空角再放第四粒按鈕。保留原有 44×44 齒輪，將佢標成
+「開設定並暫停」；玩家開畫質／音效設定時，場波必須停低，關閉後先繼續。`aria-label`、
+`title` 同 `aria-expanded` 要同時反映呢個用途，唔可以只靠 ⚙ 圖示。
+
+`main.js` 用 `pauseReasons` set 分開 `manual`、`visibility`、`context`。任何一個 reason
+存在都唔行模擬；解除其中一個只可以喺 set 清空時重設 frame clock 同續波。呢個保證玩家開住
+設定時鎖屏／WebGL context 恢復，唔會偷偷續返未準備好嘅一局。
+
+瀏覽器測試若要手動推 `sim`／`view`，先經真實齒輪停低主 rAF；fixture 重設死亡角色時亦要
+同步清 `view` 嘅 dead rig，否則測試會自己抹走攻擊 lock，製造間歇性假紅。`hub-pause` 唔再
+為 MOBA 保留 known-exception；以真手機 viewport 實測停住與續返。

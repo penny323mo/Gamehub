@@ -418,6 +418,10 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     // 打擊要睇得到：普攻要出動作 + 軌跡／揮擊弧，彈道要有方向。
     // Penny 報過「攻擊完全見唔到個動作、法術見唔到軌跡」——所以呢幾樣
     // 唔可以只靠肉眼，要有 gate 釘住。
+    // 暖身／量度係手動推 sim 同 view；先用真實齒輪暫停主迴圈，避免背景
+    // requestAnimationFrame 同呢段 fixture 同時改 rig，造成間歇性 race。
+    await page.click('.moba-gear');
+    await page.waitForTimeout(100);
     const combat = await page.evaluate(async () => {
         const s = window.__sim, v = window.__view;
         const p = s.player;
@@ -464,6 +468,11 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
         foe.x = p.x + 1.5; foe.z = p.z; foe.alive = true; foe.hp = foe.maxHp;
         p.alive = true; p.hp = p.maxHp;
         const u = v.units.get(p.id);
+        // 暖機期間玩家可能死過；上面重設咗 sim，但 view 仲記住 dead rig。
+        // 若唔同步清埋，下一次 #syncUnits 會先 revive()，將剛剛由 attack
+        // 設好嘅 lockUntil 抹走，於是 gate 量到有事件／特效但冇揮動作。
+        u.wasAlive = true;
+        u.rig.revive();
         // 唔可以用 items.length 嘅淨變化：個池同一時間有舊特效到期消散，
         // 散得多過新加入，個差就會變成 0，而普攻其實有畫嘢。實測就係咁
         // 間歇性肥佬。改為記住原本嗰批物件身份，之後數真係新加入嘅。
@@ -523,6 +532,7 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
             swinging, emitted, rigWhy,
         };
     });
+    await page.click('.moba-settings .moba-x');
     check(`${tag}：普攻真係發生咗（唔係量緊積壓）`, combat && combat.emitted === true, combat);
     // 量嗰一刻要真係喺 gate 聲稱嗰個狀態。暖機期間死過一次、重生返泉水，
     // 之前就係喺泉水裏面量普攻——ADR-119 點名嘅唔具代表性狀態。
