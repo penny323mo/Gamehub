@@ -554,6 +554,7 @@ export default function Game() {
       停咗: () => !!prevStateRef.current?.isPaused,
       打緊: () => !!prevStateRef.current?.isRunning
         && !prevStateRef.current?.isPaused && !prevStateRef.current?.isGameOver,
+      加速中: () => !!prevStateRef.current?.isSpeedBoost,
     };
   }, []);
 
@@ -568,14 +569,30 @@ export default function Game() {
    * 玩家自己撳空白鍵／P 先至繼續。個暫停畫面本來就有，唔使另外整。
    */
   useEffect(() => {
+    const clearHeldBoost = (pause = false) => {
+      speedBoostHeldRef.current = false;
+      setGameState(prev => {
+        const timedBoostActive = Boolean(prev.speedBoostUntil && prev.speedBoostUntil > Date.now());
+        const shouldPause = pause && prev.isRunning && !prev.isPaused && !prev.isGameOver;
+        if (!shouldPause && prev.isSpeedBoost === timedBoostActive) return prev;
+        return {
+          ...prev,
+          ...(shouldPause ? { isPaused: true } : {}),
+          isSpeedBoost: timedBoostActive,
+        };
+      });
+    };
     const onVis = () => {
       if (!document.hidden) return;
-      setGameState(prev => (prev.isRunning && !prev.isPaused && !prev.isGameOver)
-        ? { ...prev, isPaused: true }
-        : prev);
+      clearHeldBoost(true);
     };
+    const onBlur = () => clearHeldBoost();
     document.addEventListener('visibilitychange', onVis);
-    return () => document.removeEventListener('visibilitychange', onVis);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('blur', onBlur);
+    };
   }, []);
 
   useEffect(() => {

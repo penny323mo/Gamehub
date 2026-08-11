@@ -4,7 +4,7 @@ Updated: 2026-08-11 (Asia/Macau)
 Prepared by: Codex — integrated Game Hub product-audit checkpoint
 Integration branch: `main`
 Work branch: `main`
-Status: the latest integrated player-flow audit is green; Xiangqi's optional environment light, undo/resume flow, Gomoku's delayed-AI lifecycle, Big Two's CPU queue, Dou Dizhu's bid/play loops, Penny Crush's async match lifecycle, Snooker's root/2D/3D entry flow, and Snake's mobile login/board/lint lifecycle are hardened. This checkpoint contains the source fixes, gates, and verification.
+Status: the latest integrated player-flow audit is green; Xiangqi's optional environment light, undo/resume flow, Gomoku's delayed-AI lifecycle, Big Two's CPU queue, Dou Dizhu's bid/play loops, Penny Crush's async match lifecycle, Snooker's root/2D/3D entry flow, and Snake's mobile login/board/lint/focus lifecycle are hardened. This checkpoint contains the source fixes, gates, and verification.
 
 ## Current objective
 
@@ -36,7 +36,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
   `dist/assets/`, and guarded by a short load-failure status notice; local lights keep the board playable. Real mobile
   tap → AI → undo → refresh/Continue flow is **4/4**. Gomoku's real mobile stale-timer/restart flow is **5/5**;
   Big Two's real mobile stale-queue/restart flow is **4/4**; Dou Dizhu's real mobile stale-bid/restart flow is **4/4**;
-  Penny Crush's real mobile stale-chain/restart flow is **6/6**; Snooker's root/2D/3D flow is **9/9**; Snake's mobile Enter/start/pause/resume/Hub flow is **8/8**.
+  Penny Crush's real mobile stale-chain/restart flow is **6/6**; Snooker's root/2D/3D flow is **9/9**; Snake's mobile Enter/start/Shift-focus/pause/resume/Hub flow is **10/10**.
 
 **Earlier relay checkpoints remain integrated** — MOBA persistent context-recovery card and `assets-31` cache-bust,
 Royale loading feedback, Tower start-screen contrast, Elden browser-gate isolation, and Ashen Rail production smoke.
@@ -68,7 +68,7 @@ Royale loading feedback, Tower start-screen contrast, Elden browser-gate isolati
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/doudizhu-flow.mjs` — **4/4**; stale bid/play timer cannot mutate a fresh deal, normal CPU bid still works, and local cache tokens agree.
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/penny-crush-flow.mjs` — Penny Crush **6/6**; `node tests/snooker-flow.mjs` — **9/9**.
 - `cd games/snake-game && npm run lint && npm run build` — lint **0 errors/0 warnings** and tracked production dist rebuilt.
-- `PW_CHROMIUM="$CHROMIUM_BIN" node tests/snake-flow.mjs` (Chromium executable supplied by the environment) — **8/8** (mobile Enter isolation, responsive board, tick/pause/resume/Hub, zero browser errors).
+- `PW_CHROMIUM="$CHROMIUM_BIN" node tests/snake-flow.mjs` (Chromium executable supplied by the environment) — **10/10** (mobile Enter isolation, responsive board, Shift focus cleanup, tick/pause/resume/Hub, zero browser errors).
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/hub.mjs` — **96/96**;
   13 launcher entries, four pages, mobile 2×2 / desktop four-up layout, no dead links or browser errors.
 - `cd games/tower && npm test` — build, core/browser/projectile gates passed; an integrated performance run once hit a
@@ -106,8 +106,8 @@ Royale loading feedback, Tower start-screen contrast, Elden browser-gate isolati
 ## Exact next action
 
 1. Run `./scripts/agent-context.sh --sync`, then read this file and `docs/ai/PROJECT_CONTEXT.md` before editing.
-2. If taking the next product scope, start with a new real browser player risk; Xiangqi HDR self-containment and the
-   CDN-abort gate are closed by this checkpoint and should not be redone unless a new reproduction contradicts it.
+2. If taking the next product scope, start with a new real browser player risk; Xiangqi HDR self-containment, the
+   CDN-abort gate, and Snake focus cleanup are closed by this checkpoint unless a new reproduction contradicts them.
 3. Before handoff, run `./scripts/check-handoff.sh` and `git diff --check`, commit this file with any scoped source
    changes, push `main`, and verify `git rev-parse HEAD` equals `git rev-parse origin/main`.
 

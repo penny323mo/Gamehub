@@ -7984,3 +7984,15 @@ Snake 有兩種加速來源：玩家按住 Shift，以及食物帶來嘅 `speedB
 `isSpeedBoost = shiftHeld || speedBoostUntil > now`。keyup 會即時清除手動來源，但仍保留未到期嘅
 食物效果；`currentSpeed` 只讀 state。日後修改加速、pause 或 timed mode 時，必須保留呢個 expiry seam，
 並用 `tests/snake-flow.mjs` 加真 browser smoke 驗證。
+
+## ADR-252 — Snake 失焦／切走要清除按住式輸入
+
+Date: 2026-08-11. Status: accepted.
+
+Shift 加速係按住式輸入；玩家切去另一個 app、視窗失焦或鎖屏時，瀏覽器未必會送返 `keyup`。
+production dist 實測正常 500ms 行 2 格、Shift 行 4 格，失焦後仍然行 4 格，證明只靠 keyup 會令
+加速永久殘留。
+
+`Game.tsx` 將 blur 同 hidden lifecycle 視為失去手動輸入來源：清除 Shift ref，保留仍未到期嘅
+食物加速，並喺 hidden 時一併暫停遊戲。`tests/snake-flow.mjs` 用真實 keyboard down 加 blur event
+守住加速開啟同失焦清除（現為 10/10）；日後新增任何按住式控制亦要接入同一個 lifecycle seam。

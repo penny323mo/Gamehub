@@ -54,7 +54,7 @@ repository as a static site.
   keyboard handler, and its board/header widths must stay bound to the mobile
   viewport; `tests/snake-flow.mjs` is the real-browser lifecycle gate. `isSpeedBoost`
   is refreshed on each tick from the held Shift ref or timed-food expiry, so a timed
-  boost cannot become permanent after render.
+  boost cannot become permanent after render; blur/hidden events clear the held input.
 - Xiangqi's environment map is a local Vite `?url` import of the CC0 Studio Small 09
   HDRI. Keep the tracked `.hdr` in `games/xiangqi-ai/dist/assets/`; do not reintroduce
   a runtime Poly Haven URL. The renderer's local key/rim/ambient lights remain the

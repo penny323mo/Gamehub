@@ -55,6 +55,7 @@ const apiState = () => page.evaluate(() => ({
   running: window.__snake?.打緊?.() ?? null,
   paused: window.__snake?.停咗?.() ?? null,
   ticks: window.__snake?.格數?.() ?? null,
+  boosting: window.__snake?.加速中?.() ?? null,
 }));
 
 const base = `http://localhost:${port}`;
@@ -79,6 +80,17 @@ check('Snake 新局正常開始並行格', started.running === true && started.t
 check('Snake 遊戲中手機版仍無 overflow',
   await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
   await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth })));
+
+// Shift 係一個「按住」輸入；切走視窗時瀏覽器未必會送 keyup，失焦必須清除手動加速。
+await page.keyboard.down('Shift');
+await page.waitForTimeout(80);
+const heldBoost = await apiState();
+check('Shift 按住會開啟加速', heldBoost.boosting === true, heldBoost);
+await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+await page.waitForTimeout(80);
+const blurClearedBoost = await apiState();
+check('視窗失焦會清除手動加速', blurClearedBoost.boosting === false, blurClearedBoost);
+await page.keyboard.up('Shift');
 
 const tickBeforePause = started.ticks;
 await page.locator('button[aria-label="暫停"]').click();
