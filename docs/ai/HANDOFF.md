@@ -21,7 +21,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
 
 **Hub-wide player-flow audit**
 
-- Return-to-Hub, pause/resume, storage-blocked fallback, progress/reload/Continue, audio, multi-tab accumulation,
+- Return-to-Hub, pause/resume, storage-blocked fallback, progress/reload/Continue (**hub-progress 4/4**), audio, multi-tab accumulation,
   backgrounding, context loss, leak loops, third-party/CDN failure, load weight, readability, touch, keyboard,
   and loading-feedback gates all passed.
 - The Xiangqi 3D entry was also checked under a throttled mobile network: its landing menu became usable while
@@ -36,7 +36,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
 - Xiangqi production build plus legal-move, search, and performance self-tests passed. Its active-pointer guard now cancels pointercancel, blur, and hidden-page interruptions without mistaking OrbitControls' normal lostpointercapture-before-click ordering for a cancellation. The optional Studio Small 09
   CC0 HDRI is now bundled under `games/xiangqi-ai/assets/`, imported with Vite `?url`, copied into tracked
   `dist/assets/`, and guarded by a short load-failure status notice; local lights keep the board playable. Real mobile
-  touchscreen tap → AI → undo → refresh/Continue plus interrupted-pointer/late-click flow is **5/5**. Gomoku's real mobile stale-timer/restart/touch-cancellation flow is **9/9**;
+  touchscreen tap → AI → undo → refresh/Continue plus interrupted-pointer/late-click flow is **5/5**. Gomoku's real mobile stale-timer/restart/touch-cancellation flow is **10/10**;
   Big Two's real mobile stale-queue/restart flow is **4/4**; Dou Dizhu's real mobile stale-bid/restart flow is **4/4**;
   Penny Crush's real mobile stale-chain/restart/interrupted-touch flow is **7/7**; Snooker's root/2D/3D opening-state, mobile touch/charge, 3D charge/canvas pointercancel/blur/hidden cancellation and control-layout hitboxes,
   AI handoff, and Offline P2 foul-decision flow is **25/25**; Snake's mobile Enter/start/Shift-focus/pause/resume/Hub flow is **10/10**; Elden Ring II's HUD/input flow is **94/94**.
@@ -48,7 +48,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
 - `games/big2/app.js`, `index.html` — cancellable/token-guarded CPU queue and aligned cache token; `games/doudizhu/src/game.js`, `src/ui.js`, `main.js`, `index.html` — shared generation scheduler for bid/play loops and aligned cache tokens; `games/penny_crush/penny_crush.js`, `index.html` — generation-guarded async match pipeline, interrupted-touch cleanup, and cache token.
 - `games/xiangqi-ai/assets/studio_small_09_1k.hdr` and `assets/README.md` — CC0 environment asset plus provenance/hash.
 - `games/xiangqi-ai/dist/` — regenerated tracked entry bundle and HDR asset for GitHub Pages.
-- `launcher.js`, `tests/hub.mjs`, `tests/hub-cdn.mjs`, `tests/xiangqi-flow.mjs`, `tests/gomoku-flow.mjs`, `tests/big2-flow.mjs`, `tests/doudizhu-flow.mjs`, `tests/penny-crush-flow.mjs`, `tests/snooker-flow.mjs`, `tests/snake-flow.mjs` — assert self-contained assets, player flows, and cancelled carousel gestures.
+- `launcher.js`, `tests/hub.mjs`, `tests/hub-cdn.mjs`, `tests/lib/drivers.mjs`, `tests/xiangqi-flow.mjs`, `tests/gomoku-flow.mjs`, `tests/big2-flow.mjs`, `tests/doudizhu-flow.mjs`, `tests/penny-crush-flow.mjs`, `tests/snooker-flow.mjs`, `tests/snake-flow.mjs` — assert self-contained assets, player flows, persistence drivers, and cancelled carousel gestures.
 - `games/snake-game/src/components/NameInput/NameInput.tsx`, `src/components/Game/Game.tsx`, `src/components/Background/Background.tsx`, `src/components/Particles/Particles.tsx`, `src/hooks/useStorage.ts`, `styles/Game.module.css`, and tracked `dist/` — isolate Enter login, bind the board/header to mobile viewport width, clean lint, and keep timed/held boosts finite.
 - `games/tower/src/main.ts`, `games/tower/src/ui/draggable.ts`, `games/tower/tests/combat.mjs`, `games/tower/tests/flow.mjs`, tracked `games/tower/dist/` — close preload/arena test races and cancel/restore floating HUD drags on pointercancel, blur, or hidden-page transitions; `games/royale/src/ui.js`, `games/royale/tests/match.mjs` — cancel interrupted card drag/placement on pointercancel, lost capture, blur, and hidden-page transitions; `games/Racing Car/src/audio.js`, `games/Racing Car/tests/audio.mjs` — clamp non-finite physics before Web Audio writes and cover the regression; `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md`, `docs/ai/HANDOFF.md` — durable relay notes.
 - `games/snooker/2d/app.js`, `games/snooker/3d/main.js`, `games/snooker/3d/style.css`, `tests/snooker-flow.mjs` — keep opening cue-in-hand HUD state truthful, cancel interrupted 2D charge/drag and 3D mobile/canvas gesture input on pointercancel, blur, or hidden-page transitions, separate mobile spin/charge hitboxes, and let local Offline P2 own foul decisions instead of hiding the panel and deadlocking the match; cover layout hitboxes, cancellation paths, normal post-cancel shot, mobile touch/charge input, and the P1-vs-AI handoff in a real mobile browser (**25/25**).
@@ -61,6 +61,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
   `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'` — home **3/3**, pause **6/6**,
   storage **2/2**, progress **4/4**, audio **3/3**, tabs **4/4**, away **3/3**, context **3/3**, leak **4/4**,
   CDN **4/4**, load **3/3**, readability **3/3**, touch **5/5**, keyboard **3/3**, wait **1/1**.
+- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/hub-progress.mjs` — cross-game persistence/reload/Continue **4/4**; all ten drivers reached a meaningful game state, reload preserved the artifact, and every Continue flow reopened the saved state.
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/gomoku-flow.mjs` — **10/10**;
   touchcancel/movement/blur/pointercancel cannot ghost-place a stone, stale AI timer cannot contaminate a fresh game, normal touchscreen and mouse moves still work, and local cache tokens agree.
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/big2-flow.mjs` — **4/4**;
@@ -106,7 +107,7 @@ Status: the latest integrated player-flow audit is green; Xiangqi's optional env
 
 1. Run `./scripts/agent-context.sh --sync`, then read this file and `docs/ai/PROJECT_CONTEXT.md` before editing.
 2. If taking the next product scope, start with a new real browser player risk; Xiangqi HDR self-containment, the
-   CDN-abort gate, Gomoku touch cancellation plus build-info fallback, Snake focus cleanup, Elden input interruption, Snooker 3D charge/canvas interruption plus mobile control layout, Tower floating-panel blur/hidden cancellation, and Racing Car AudioParam boundary handling are closed by this checkpoint unless contradicted.
+   CDN-abort gate, Gomoku touch cancellation plus build-info fallback, Snake focus cleanup plus the corrected persistence driver, Elden input interruption, Snooker 3D charge/canvas interruption plus mobile control layout, Tower floating-panel blur/hidden cancellation, and Racing Car AudioParam boundary handling are closed by this checkpoint unless contradicted.
 3. Before handoff, run `./scripts/check-handoff.sh` and `git diff --check`, commit this file with any scoped source
    changes, push `main`, and verify `git rev-parse HEAD` equals `git rev-parse origin/main`.
 

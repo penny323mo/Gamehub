@@ -8143,3 +8143,16 @@ Gomoku `index.html` 會喺所有遊戲 script 之前載入 `build_info.js`，用
 commit 同 build timestamp。`tests/gomoku-flow.mjs` 只容許明確嘅外部網絡 abort code，並守住 fallback object 同
 zero browser errors，現為 **10/10**。日後 build metadata 可以由 CI 更新，但唔可以令首屏依賴一個 repo 入面
 不存在嘅 generated script。
+
+## ADR-264 — Hub persistence driver 必須沿用遊戲真實開始步驟
+
+Date: 2026-08-11. Status: accepted.
+
+Hub-wide persistence driver 會逐隻遊戲開局、離開、reload 同 Continue。Neon Snake 嘅 GameMenu 將「揀經典
+模式」同「開始遊戲」分成兩個操作；driver 只揀 mode，冇按 start，之後等 120 秒 game-over。結果係 suite
+將測試 driver 自己冇入局誤報成 Snake product timeout，亦令整個 persistence gate 失去可信度。
+
+`tests/lib/drivers.mjs` 而家先選 mode，再用 `getByRole('button', { name: /開始遊戲/ })` 沿玩家真實路徑
+開局；現有 `tests/snake-flow.mjs` 仍守手機 start/hold/blur/pause/Hub。修正後 `hub-progress.mjs` 真 browser
+全套 **4/4**，10 隻遊戲都到達可記錄狀態、reload 保留成果，四個 Continue flow 亦全部重開成功。日後
+driver 唔可以將 mode selection 當成 start，必須對應實際可見 action。

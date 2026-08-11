@@ -40,6 +40,10 @@ export const 遊戲 = [
       await p.keyboard.press('Enter');
       await p.waitForTimeout(3000);
       await p.getByText(/經典模式/).first().click({ timeout: 30000 }).catch(() => {});
+      // 揀模式只係選取 radio-like card，唔會開始遊戲；要沿玩家真正嘅
+      // GameMenu 路徑再撳一次「開始遊戲」。漏咗呢步會令下面等 game-over
+      // 120 秒都唔會發生，將測試 driver 自己嘅假設誤報成產品壞咗。
+      await p.getByRole('button', { name: /開始遊戲/ }).first().click({ timeout: 30000 });
       await p.waitForTimeout(2000);
       await p.keyboard.press('ArrowRight');
       // `saveScore` 係喺 game over 度叫嘅，所以要真係死一次
