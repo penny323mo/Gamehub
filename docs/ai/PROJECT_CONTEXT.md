@@ -187,7 +187,17 @@ The browser flow gate covers real mobile tap → AI response → undo → refres
 storage consistency. Record any environment-specific limitation instead of silently
 skipping it.
 
-### Royale, Snooker, Gomoku, Big Two, Dou Dizhu, Penny Crush
+### Gomoku
+
+```sh
+PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/gomoku-flow.mjs
+```
+
+The browser flow covers mobile human tap → delayed AI response, immediate return-to-menu and fresh-game
+restart, and verifies that a stale AI timer cannot place a stone in the new game. It also checks the six local
+script cache tokens stay aligned; optional online probes are intentionally blocked in the offline harness.
+
+### Royale, Snooker, Big Two, Dou Dizhu, Penny Crush
 
 There is no single root test command that certifies these games. Use targeted
 tests or existing self-check hooks where present, syntax/import checks where

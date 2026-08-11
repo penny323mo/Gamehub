@@ -7910,3 +7910,16 @@ Date: 2026-08-11. Status: accepted.
 落子動畫完成後先解除 `moveLock` 再 redraw，否則 `悔棋` 會永遠保留動畫期間嘅 disabled 狀態。
 悔棋亦必須同步 resumable localStorage：有 history 就存返目前局面，冇 history 就清除存檔。
 `tests/xiangqi-flow.mjs` 用真實 mobile tap、AI 回應、悔棋同 refresh/Continue 守住呢兩條 invariant。
+
+## ADR-246 — Gomoku AI 延遲落子要有 lifecycle cancellation
+
+Date: 2026-08-11. Status: accepted.
+
+Gomoku 人機模式嘅白子由 500ms delayed timer 落。原本玩家落完黑子後即刻返選單，再開一局，舊 timer
+仍然會對新 board 執行：新局會無故多一粒黑子，輪次亦跳到白子。呢個係導航／reset 之間嘅 state
+pollution，唔係 AI 策略問題。
+
+`ai.js` 用可取消 timer 加 token guard；`resetGame`、`continueGame`、離開選單同轉去非 AI mode
+都會取消 pending move，`makeAIMove` 亦只接受仍然係 AI 白子回合嘅 state。`tests/gomoku-flow.mjs`
+用真實 mobile browser 守住「離開後立即重開仍然係空盤」同「正常新局仍會落白子」兩條 invariant。
+Gomoku 六個 local script 共用同一個 cache token，避免 Pages/Safari 混載舊 lifecycle code。

@@ -1,7 +1,32 @@
 
 
+let aiMoveTimer = null;
+let aiMoveToken = 0;
+
+function cancelPendingAIMove() {
+    aiMoveToken += 1;
+    if (aiMoveTimer !== null) {
+        clearTimeout(aiMoveTimer);
+        aiMoveTimer = null;
+    }
+}
+
+function scheduleAIMove(difficulty) {
+    cancelPendingAIMove();
+    const token = aiMoveToken;
+    aiMoveTimer = setTimeout(() => {
+        aiMoveTimer = null;
+        // A timer can outlive a menu transition or a newly reset game. Only
+        // the current AI turn may place a stone.
+        if (token !== aiMoveToken || mode !== 'ai' || !isVsAI || gameOver || currentPlayer !== 'white') return;
+        makeAIMove(difficulty);
+    }, 500);
+}
+
+window.cancelPendingGomokuAI = cancelPendingAIMove;
+
 function makeAIMove(difficulty) {
-    if (gameOver) return;
+    if (gameOver || mode !== 'ai' || !isVsAI || currentPlayer !== 'white') return;
     let move;
     if (difficulty === 'easy') {
         move = findEasyMove();

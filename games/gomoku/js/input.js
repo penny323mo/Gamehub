@@ -120,6 +120,6 @@ function handleCellClick(row, col, difficulty) {
 
     // AI Response
     if (isVsAI && currentPlayer === 'white' && !gameOver) {
-        setTimeout(() => makeAIMove(difficulty), 500);
+        scheduleAIMove(difficulty);
     }
 }

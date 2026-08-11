@@ -34,6 +34,7 @@ function initApp() {
 }
 
 function resetGame() {
+    window.cancelPendingGomokuAI?.();
     if (mode === 'online') {
         // online.js 提供嘅係 rematchGame（requestRestart 從來冇定義過，會 ReferenceError）
         if (window.rematchGame) window.rematchGame();
@@ -60,6 +61,7 @@ function 更新繼續掣() {
 }
 
 function continueGame() {
+    window.cancelPendingGomokuAI?.();
     const j = 續局();
     if (!j) { 更新繼續掣(); return; }      // 存檔壞咗／畀人清咗：唔好扮續到
     setMode('ai');
@@ -79,10 +81,11 @@ function continueGame() {
     createBoardUI((r, c) => handleCellClick(r, c, difficulty));
     updateStatusUI(currentPlayer);
     // 存嗰陣可能啱啱輪到 AI——唔叫佢行，個盤就會永遠等你落一隻唔到你落嘅棋
-    if (currentPlayer === 'white') setTimeout(() => makeAIMove(difficulty), 500);
+    if (currentPlayer === 'white') scheduleAIMove(difficulty);
 }
 
 function selectMode(selectedMode) {
+    if (selectedMode !== 'ai') window.cancelPendingGomokuAI?.();
     setMode(selectedMode);
 
     // Toggle Buttons based on mode
@@ -153,6 +156,7 @@ function showView(viewName) {
 }
 
 function backToLanding() {
+    window.cancelPendingGomokuAI?.();
     if (mode === 'online') {
         // If in a room, leave it（online.js 掛喺 window 嘅名係 exitFixedRoom）
         if (window.exitFixedRoom) window.exitFixedRoom();

@@ -4,8 +4,8 @@ Updated: 2026-08-11 (Asia/Macau)
 Prepared by: Codex — integrated Game Hub product-audit checkpoint
 Integration branch: `main`
 Work branch: `main`
-Status: the latest integrated player-flow audit is green, and Xiangqi's optional environment light plus
-single-player undo/resume flow are hardened. This checkpoint contains the source fixes, gates, and verification.
+Status: the latest integrated player-flow audit is green; Xiangqi's optional environment light, undo/resume flow,
+and Gomoku's delayed-AI lifecycle are hardened. This checkpoint contains the source fixes, gates, and verification.
 
 ## Current objective
 
@@ -28,14 +28,14 @@ single-player undo/resume flow are hardened. This checkpoint contains the source
 - The Xiangqi 3D entry was also checked under a throttled mobile network: its landing menu became usable while
   the optional environment map was still pending, so slow HDR download does not block the game entry.
 
-**Tower Defense and Xiangqi verification**
+**Tower Defense, Xiangqi, and Gomoku verification**
 
 - Tower core, map/route redesign, assets, combat, units, gateway/keep placement, look, map browser, touch, load,
   flow, projectile renderer, and standalone renderer/performance checks passed.
 - Xiangqi production build plus legal-move, search, and performance self-tests passed. The optional Studio Small 09
   CC0 HDRI is now bundled under `games/xiangqi-ai/assets/`, imported with Vite `?url`, copied into tracked
   `dist/assets/`, and guarded by a short load-failure status notice; local lights keep the board playable. Real mobile
-  tap → AI → undo → refresh/Continue flow is **4/4**.
+  tap → AI → undo → refresh/Continue flow is **4/4**. Gomoku's real mobile stale-timer/restart flow is **5/5**.
 
 **Earlier relay checkpoints remain integrated**
 
@@ -45,9 +45,10 @@ single-player undo/resume flow are hardened. This checkpoint contains the source
 ## Changed files
 
 - `games/xiangqi-ai/js/render.js`, `js/app.js`, `js/main.js` — bundled HDR/fallback, deferred online probe, and undo/storage fixes.
+- `games/gomoku/js/ai.js`, `js/input.js`, `js/app.js`, `index.html` — cancellable/token-guarded AI timer and aligned cache token.
 - `games/xiangqi-ai/assets/studio_small_09_1k.hdr` and `assets/README.md` — CC0 environment asset plus provenance/hash.
 - `games/xiangqi-ai/dist/` — regenerated tracked entry bundle and HDR asset for GitHub Pages.
-- `tests/hub-cdn.mjs`, `tests/xiangqi-flow.mjs` — assert self-contained HDR and real undo/storage player flow.
+- `tests/hub-cdn.mjs`, `tests/xiangqi-flow.mjs`, `tests/gomoku-flow.mjs` — assert self-contained assets and player flows.
 - `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md`, `docs/ai/HANDOFF.md` — durable architecture/ADR/relay notes.
 
 The Xiangqi `dist/` output is intentionally included because that directory is the hub's tracked deployment target.
@@ -63,6 +64,8 @@ Ashen Rail and Elden Ring II generated `dist/` output remains ignored and is not
   storage **2/2**, progress **4/4**, audio **3/3**, tabs **4/4**, away **3/3**, context **3/3**, leak **4/4**,
   CDN **4/4**, load **3/3**, readability **3/3**, touch **5/5**, keyboard **3/3**, wait **1/1**. The new CDN
   check confirms the Xiangqi HDR is local in source and tracked dist.
+- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/gomoku-flow.mjs` — **5/5**;
+  stale AI timer cannot contaminate a fresh game, normal AI response still works, and local cache tokens agree.
 - `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/hub.mjs` — **96/96**;
   13 launcher entries, four pages, mobile 2×2 / desktop four-up layout, no dead links or browser errors.
 - `cd games/tower && npm test` — build, all core gates, browser gates, and projectile-renderer gates passed. The
