@@ -117,7 +117,7 @@ export function createDrivingEffects(scene) {
     scene.add(mesh);
 
     let markCursor = 0, particleCursor = 0;
-    let smokeTimer = 0, exhaustTimer = 0, impactCooldown = 0, shake = 0, elapsed = 0;
+    let smokeTimer = 0, exhaustTimer = 0, brakeTimer = 0, impactCooldown = 0, shake = 0, elapsed = 0;
     let exhaustSide = -1;
     let lastLeft = null, lastRight = null;
     let seed = 0x7182ad;
@@ -214,7 +214,7 @@ export function createDrivingEffects(scene) {
         centers.fill(0); axes.fill(0); sizes.fill(0); colors.fill(0); kinds.fill(0);
         vx.fill(0); vy.fill(0); vz.fill(0);
         markCursor = particleCursor = 0;
-        smokeTimer = exhaustTimer = impactCooldown = shake = elapsed = 0;
+        smokeTimer = exhaustTimer = brakeTimer = impactCooldown = shake = elapsed = 0;
         exhaustSide = -1;
         lastLeft = lastRight = null;
         mesh.visible = false;
@@ -236,6 +236,18 @@ export function createDrivingEffects(scene) {
         }, 0.14, 1);
     };
 
+    const spawnBrakeGlow = (car, side) => {
+        // 車模只帶靜態尾燈貼圖；用同一個 bounded particle pool 做短促雙邊紅光，
+        // 令煞車／手掣有即時視覺反應而唔增加 mesh 或 draw call。
+        const p = localPoint(car, side * 0.56, -1.92, tempParticle, 0.34);
+        const fwdX = Math.sin(car.yaw), fwdZ = Math.cos(car.yaw);
+        spawnParticle(p, 0xff3f48, 0.38, 0.22, {
+            x: -fwdX * 0.05,
+            y: 0,
+            z: -fwdZ * 0.05,
+        }, 0.82, 3);
+    };
+
     const update = (dt, car, cmd = {}) => {
         elapsed += dt;
         impactCooldown = Math.max(0, impactCooldown - dt);
@@ -253,7 +265,7 @@ export function createDrivingEffects(scene) {
                 centers[slot * 3] += vx[slot] * dt;
                 centers[slot * 3 + 1] += vy[slot] * dt;
                 centers[slot * 3 + 2] += vz[slot] * dt;
-                vy[slot] += (kinds[slot] > 0.5 ? 0.12 : 0) * dt;
+                vy[slot] += (kinds[slot] > 0.5 && kinds[slot] < 2.5 ? 0.12 : 0) * dt;
                 sizes[slot * 2] *= 1 + dt * 0.72;
                 sizes[slot * 2 + 1] = sizes[slot * 2];
                 alphas[slot] = peakAlphas[slot] * (1 - t) * (1 - t);
@@ -293,6 +305,18 @@ export function createDrivingEffects(scene) {
             exhaustTimer = 0;
         }
 
+        const braking = (cmd.throttle ?? 0) < -0.2 || cmd.handbrake === true;
+        if (braking) {
+            brakeTimer += dt;
+            while (brakeTimer >= 0.11) {
+                spawnBrakeGlow(car, -1);
+                spawnBrakeGlow(car, 1);
+                brakeTimer -= 0.11;
+            }
+        } else {
+            brakeTimer = 0;
+        }
+
         if (car.wallImpact > 3.5 && impactCooldown === 0) {
             spawnImpact(car, car.wallImpact);
             shake = Math.max(shake, THREE.MathUtils.clamp(car.wallImpact / 42, 0.08, 0.48));
@@ -316,12 +340,13 @@ export function createDrivingEffects(scene) {
     };
 
     const snapshot = () => {
-        let marks = 0, particles = 0, maxParticleAlpha = 0;
+        let marks = 0, particles = 0, brakeParticles = 0, maxParticleAlpha = 0;
         let minParticleY = Infinity, maxParticleY = -Infinity;
         for (let i = 0; i < MARK_COUNT; i++) if (alphas[i] > 0) marks++;
         for (let i = MARK_COUNT; i < TOTAL; i++) {
             if (alphas[i] > 0) {
                 particles++;
+                if (kinds[i] > 2.5) brakeParticles++;
                 minParticleY = Math.min(minParticleY, centers[i * 3 + 1]);
                 maxParticleY = Math.max(maxParticleY, centers[i * 3 + 1]);
                 maxParticleAlpha = Math.max(maxParticleAlpha, peakAlphas[i]);
@@ -329,7 +354,7 @@ export function createDrivingEffects(scene) {
         }
         return {
             marks, particles, shake, visible: mesh.visible,
-            maxParticleAlpha,
+            brakeParticles, maxParticleAlpha,
             minParticleY: particles ? minParticleY : null,
             maxParticleY: particles ? maxParticleY : null,
             maxInstances: TOTAL, markCapacity: MARK_COUNT, particleCapacity: PARTICLE_COUNT,

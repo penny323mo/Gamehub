@@ -101,8 +101,9 @@ repository as a static site.
   points) and `Car._nextPos`; AI driver curve samples, wrong-way tangents and rival
   matrix axes reuse optional targets/scratch vectors too. Keep those allocations out
   of the frame loop. Road centre/tyre-wear cues, surface-anchored tyre smoke and
-  exhaust pulses belong in the existing texture/effects instance pass so the mobile
-  draw budget does not gain a road-marker or tail-smoke pass. Terrain height is
+  exhaust pulses and brake glow belong in the existing texture/effects instance pass
+  so the mobile draw budget does not gain a road-marker, tail-smoke or brake-glow pass.
+  Terrain height is
   built once as a 32×32 mesh;
   do not replace it with per-frame terrain generation or a second road pass.
 - Racing Car's visual track profile uses the `elevation` value on each track

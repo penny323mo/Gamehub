@@ -393,6 +393,26 @@ check('最繁忙夜景駕駛效果仍只加一個 draw call', drivingFx.activeBu
 check('新一場／換賽道可完整清空效果池', drivingFx.reset.marks === 0
     && drivingFx.reset.particles === 0 && !drivingFx.reset.visible, drivingFx.reset);
 
+const brakeFx = await page.evaluate(() => {
+    const { car, drivingEffects: fx, track } = window.__racer;
+    fx.reset();
+    car.reset(track.startPos, track.startDir);
+    car.setRenderSurface(0.8, 0, 0);
+    for (let i = 0; i < 24; i++) fx.update(1 / 60, car, { throttle: -1, handbrake: false });
+    const braking = fx.snapshot();
+    fx.reset();
+    for (let i = 0; i < 24; i++) fx.update(1 / 60, car, { throttle: 0, handbrake: true });
+    const handbrake = fx.snapshot();
+    fx.reset();
+    return { braking, handbrake };
+});
+console.log('  ', JSON.stringify(brakeFx));
+check('煞車會有 surface-anchored 紅尾燈脈衝',
+    brakeFx.braking.brakeParticles >= 2 && brakeFx.handbrake.brakeParticles >= 2
+    && brakeFx.braking.maxParticleAlpha >= 0.6
+    && brakeFx.braking.minParticleY > 0.8 && brakeFx.braking.maxInstances === 176,
+    brakeFx);
+
 const exhaustFx = await page.evaluate(() => {
     const { car, drivingEffects: fx, track } = window.__racer;
     fx.reset();

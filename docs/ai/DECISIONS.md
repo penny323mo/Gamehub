@@ -8419,3 +8419,14 @@ ribbon，畫面只剩下數值同胎痕。保留同一個 128 mark + 48 particle
 令 15° 門檻附近低調、真正 40°+ 漂移先有明顯煙柱，唔會變成常駐白霧。setup 增加
 surface-Y／alpha regression；真 844×390 smoke audit 讀到 **74 km/h／0.72rad slip／7 particles**，
 世界仍 **16 calls**，而 effects 仍係同一個 draw pass。
+
+## ADR-281 — Racing Car 煞車／手掣要有尾燈脈衝，但唔新增 render pass
+
+Date: 2026-08-12. Status: accepted.
+
+車模只帶靜態尾燈材質，玩家按煞車或手掣時速度數字會變，但車尾冇即時視覺 cue，
+令重煞同甩尾唔夠爽快。`driving-effects.js` 用現有 128 mark + 48 particle pool
+加兩粒短生命紅色 billboard（kind 3），以 `car.renderY` 作 surface anchor；煞車同手掣
+共用節流 timer，放手即停，粒子唔上浮，唔改物理、輸入或車模，亦唔增加 mesh／draw call。
+setup 回歸為 **146/146**，煞車同手掣都驗到雙邊脈衝、`surfaceY` 錨定、176 instance 上限；
+844×390 真 browser smoke 截圖 `/tmp/racing-brake-glow-audit.png`，effects 仍 **17 calls**。

@@ -43,7 +43,7 @@ browser evidence for every visual or control change.
   plus smoothed front-wheel steering; the single contact-shadow plane follows
   render pitch/bank too, with no new mesh or draw call.
 - Existing sport-arcade envelope, auto-throttle/simple controls, drift assists,
-  speed layer, bounded surface-anchored effects, rivals/ghost/season and
+  speed layer, surface-anchored effects with brake cues, rivals/ghost/season and
   lifecycle contracts are unchanged.
 
 ## Changed files
@@ -57,7 +57,7 @@ browser evidence for every visual or control change.
 - `games/Racing Car/style.css`
 - `games/Racing Car/tests/setup.mjs`
 - `docs/ai/PROJECT_CONTEXT.md`
-- `docs/ai/DECISIONS.md` (ADR-273, ADR-274, ADR-275, ADR-276, ADR-277, ADR-278, ADR-279, ADR-280)
+- `docs/ai/DECISIONS.md` (ADR-273, ADR-274, ADR-275, ADR-276, ADR-277, ADR-278, ADR-279, ADR-280, ADR-281)
 - `docs/ai/HANDOFF.md`
 
 ## Verification
@@ -66,8 +66,8 @@ browser evidence for every visual or control change.
 - `git diff --check` — PASS.
 - `race.mjs` — **126/126**; six tracks, top **146 km/h**, 0–80 **2.40s**,
   drift/ABS/wall/recovery/roll gates green, zero browser errors.
-- `setup.mjs` — **145/145**; closed height/pitch seam, terrain/guardrail pose,
-  contact-shadow pitch/bank, surface-anchored effects, mobile layout/touch/gyro,
+- `setup.mjs` — **146/146**; closed height/pitch seam, terrain/guardrail pose,
+  contact-shadow pitch/bank, surface-anchored effects/brake cue, mobile layout/touch/gyro,
   day/night, lifecycle/context loss, draw budget, speed-layer opacity, 6–14 landmark
   placement/material/draw gates, four-wheel spin/steering regression and zero
   browser errors. Latest full-world read: **16 calls／56,933 tris**; effects
@@ -87,8 +87,8 @@ browser evidence for every visual or control change.
   `/tmp/racing-landmark-pole-audit.png`. Placement is separately guarded by
   setup (17.48–17.58m lateral, ≥0.97m above the local banked surface).
 - 844×390 side-view audits: wheels coherent at **25m/s**; a **104 km/h** graded
-  shadow drive plus surface-anchored drift smoke at **74 km/h／0.72rad slip／7 particles**;
-  screenshots `/tmp/racing-wheel-side-audit.png`, `/tmp/racing-contact-shadow-drive-audit.png`, `/tmp/racing-steer-drift-surface-anchored.png`.
+  shadow drive plus anchored drift smoke and brake glow at **74 km/h／0.72rad slip**;
+  screenshots `/tmp/racing-wheel-side-audit.png`, `/tmp/racing-contact-shadow-drive-audit.png`, `/tmp/racing-steer-drift-surface-anchored.png`, `/tmp/racing-brake-glow-audit.png`.
 ## Known issues and cautions
 
 - `renderY`, `trackBank` and `trackPitch` are render-only. Never feed them into
@@ -107,9 +107,9 @@ browser evidence for every visual or control change.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-280.
+1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-281.
 2. Inspect `/tmp/racing-wheel-side-audit.png` and the portrait grade smoke at
-   phone-sized scale; inspect anchored drift smoke and keep all effects render-only and budget-neutral.
+   phone-sized scale; inspect anchored drift smoke/brake glow and keep all effects render-only and budget-neutral.
 3. For any further change, rerun the named Racing suites, update this handoff,
    run `./scripts/check-handoff.sh`, then commit/push the verified checkpoint.
 
