@@ -1,7 +1,7 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Racing Car upright corner-landmark pass
+Prepared by: Codex — Racing Car graded-surface and upright landmark pass
 Integration branch: `main`
 Work branch: `main`
 Status: Racing source, tests, browser smoke and docs are ready for the next
@@ -25,9 +25,11 @@ browser evidence for every visual or control change.
 - Guardrail posts now use the same lateral surface height as their tubes, and
   trackside tree trunks/crowns are anchored to the terrain base instead of a
   fixed world Y. This removes the visible floating/sinking mismatch on hills.
-- Elevation is more readable without adding geometry: setup measured surface
-  **−0.777…+0.777m**, bank cap **0.055rad**, maximum sampled pitch **0.0097rad**;
-  terrain remains one 32×32 mesh.
+- Elevation is now track-specific and visibly graded without adding geometry:
+  `tracks.js` supplies a bounded `elevation` multiplier (turbo 1.00, coast 0.84,
+  touge 1.16). Default turbo setup measures surface **−1.509…+1.509m**, bank
+  cap **0.055rad**, maximum sampled pitch **0.0191rad**; terrain remains one
+  32×32 mesh and the seam is still exact.
 - The speed layer now starts at `10 m/s` instead of `16 m/s`, reaches stronger
   readable intensity by roughly 80 km/h, and has a slightly clearer gradient;
   it remains pointer-transparent, HUD-safe, render-only and draw-call neutral.
@@ -43,13 +45,14 @@ browser evidence for every visual or control change.
 ## Changed files
 
 - `games/Racing Car/src/track.js`
-- `games/Racing Car/src/car.js`
+- `games/Racing Car/src/tracks.js`
 - `games/Racing Car/src/main.js`
+- `games/Racing Car/src/car.js`
 - `games/Racing Car/src/rivals.js`
 - `games/Racing Car/style.css`
 - `games/Racing Car/tests/setup.mjs`
 - `docs/ai/PROJECT_CONTEXT.md`
-- `docs/ai/DECISIONS.md` (ADR-273, ADR-274, ADR-275)
+- `docs/ai/DECISIONS.md` (ADR-273, ADR-274, ADR-275, ADR-276, ADR-277)
 - `docs/ai/HANDOFF.md`
 
 ## Verification
@@ -68,10 +71,11 @@ browser evidence for every visual or control change.
 - `ghost.mjs` — **29/29**; recording/interpolation/render budget and zero errors.
 - `season.mjs` — **55/55**; championship persistence and career records green.
 - `audio.mjs` — **33/33**; lifecycle and non-finite physics fallback green.
-- 844×390 real browser smoke after the latest source: **85 km/h**, `surfaceY`
-  **−0.11m**, track pitch **−0.012rad**, root pitch **−0.040rad**, **15 calls／
-  56,963 tris**, zero page/console errors; screenshot:
-  `/tmp/racing-pitch-v3.png`.
+- Real browser grade smoke: 844×390 at **135 km/h**, `surfaceY` **−0.117m**,
+  track pitch **−0.0195rad**, body pitch **−0.028rad**, zero page/console
+  errors; screenshot `/tmp/racing-elevation-v4.png`. 320×568 portrait at
+  **111 km/h** reads pitch **−0.0206rad**, stick/gas stay inside viewport;
+  screenshot `/tmp/racing-elevation-portrait-v4.png`.
 - 844×390 controlled drift smoke: **78 km/h**, slip **18.6°**, speed-layer
   opacity **0.340**, intensity **0.475**, screenshot:
   `/tmp/racing-speed-feedback-v1.png`; 320×568 portrait smoke at **61 km/h**
@@ -81,10 +85,6 @@ browser evidence for every visual or control change.
   the orange chevron reads as an upright sign with a visible short stem:
   `/tmp/racing-landmark-pole-audit.png`. Placement is separately guarded by
   setup (17.48–17.58m lateral, ≥0.97m above the local banked surface).
-- A separate season startup once hit the known Chromium allocator pressure;
-  the immediate authoritative rerun completed **55/55**. Do not treat an
-  aggregate timeout as gameplay evidence.
-
 ## Known issues and cautions
 
 - `renderY`, `trackBank` and `trackPitch` are render-only. Never feed them into
@@ -103,9 +103,10 @@ browser evidence for every visual or control change.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-276.
-2. Inspect `/tmp/racing-landmark-pole-audit.png` at phone-sized scale; if the
-   signs need repositioning, keep them render-only and preserve the single pass.
+1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-277.
+2. Inspect `/tmp/racing-elevation-v4.png` and the landmark audit at phone-sized
+   scale; if the grade feels too strong, adjust only the bounded track
+   `elevation` values and rerun the named suites.
 3. For any further change, rerun the named Racing suites, update this handoff,
    run `./scripts/check-handoff.sh`, then commit/push the verified checkpoint.
 

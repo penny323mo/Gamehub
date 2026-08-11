@@ -148,6 +148,7 @@ const geo = await page.evaluate(async () => {
         calls: renderer.info.render.calls,
         tris: renderer.info.render.triangles,
         surfaceY: [track.surfaceMinY, track.surfaceMaxY],
+        elevation: track.elevation,
         surfaceBank: Math.max(...Array.from({ length: 32 }, (_, i) =>
             Math.abs(track.surfaceBankAtT(i / 32)))),
         surfacePitch: Math.max(...Array.from({ length: 240 }, (_, i) =>
@@ -187,8 +188,9 @@ check('彎位有低成本外側 chevron 地標，唔再只靠重複樹木讀路'
     && geo.landmarks.placement.maxLateral < 20.5
     && geo.landmarks.placement.minHeight > 0.3
     && geo.landmarks.name === 'corner-chevron-landmarks', geo.landmarks);
-check('賽道 render surface 有受限起伏同 banking，唔再係全平 y=0',
-    geo.surfaceY[1] - geo.surfaceY[0] > 0.3 && geo.roadY[1] - geo.roadY[0] > 0.6
+check('賽道 render surface 有可讀坡度同 banking，唔再係近乎平路',
+    geo.elevation >= 0.95 && geo.surfaceY[1] - geo.surfaceY[0] > 2.4
+    && geo.roadY[1] - geo.roadY[0] > 3.2 && geo.surfacePitch > 0.014
     && geo.surfaceBank > 0.01, geo);
 check('閉環起伏喺起點無縫接返，車身會跟縱向坡度俯仰',
     geo.profileSeam.height < 0.0001 && geo.profileSeam.pitch < 0.0001

@@ -8367,3 +8367,18 @@ Date: 2026-08-12. Status: accepted.
 **142/142**、完整世界 **16 calls／56,933 tris**；844×390 browser audit 截圖為
 `/tmp/racing-landmark-pole-audit.png`。日後若改成真正 3D 立柱，先重新量手機 draw budget，
 唔好直接為每個彎位新增 mesh。
+
+## ADR-277 — Racing Car 路面要有 track-specific crest，而唔係視覺平板
+
+Date: 2026-08-12. Status: accepted.
+
+真 browser drive audit 顯示原本 default surface 約 **−0.777…+0.777m**、最大 pitch
+**0.0097rad**，長直路鏡頭仍讀成平路，車速同路面冇足夠「上落」參照。今輪保留
+240-sample、整數週期、閉環 profile，但將係數提高到約 1.75 倍，並由 `tracks.js` 用
+`elevation`（turbo **1.00**、coast **0.84**、touge **1.16**）做受限個性差異。呢個
+只改 `renderY`／bank／pitch、road ribbon、kerb、護欄、terrain 同 trackside anchor；
+`Car.pos.y`、碰撞、nearestT、checkpoint、progress、speed、AI 同物理 bicycle model
+完全不讀。setup gate 現在要求 default surface range **>2.4m**、pitch **>0.014rad**，
+並繼續守 seam、16 calls／56,933 tris、<120k triangles。真 browser smoke 讀到
+**135 km/h／−0.0195rad pitch**，截圖 `/tmp/racing-elevation-v4.png`；日後再加坡度必須
+先重跑六賽道 autopilot、手機 draw budget 同自然駕駛截圖，唔可以將 render grade 餵返物理。

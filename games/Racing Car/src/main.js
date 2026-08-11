@@ -368,7 +368,7 @@ function buildTrack(id) {
     trackDef = trackById(id);
     try { localStorage.setItem('racer-track', trackDef.id); } catch { }
     track?.dispose(scene);
-    track = new Track(trackDef.waypoints, trackDef.tension, trackDef.id);
+    track = new Track(trackDef.waypoints, trackDef.tension, trackDef.id, trackDef.elevation);
     track.build(scene);
     track.setTimeOfDay(tod);
     drivingEffects.reset();

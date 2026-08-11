@@ -30,7 +30,7 @@ repository as a static site.
 | Neon Snake | `games/snake-game/dist/index.html` | React + Vite + TypeScript; tracked `dist/` is the hub target. |
 | Empire Royale | `games/royale/index.html` | Static ES modules + vendored Three.js. Two modes: Clash-style lane battle (`game.js`, `ai.js`) and LV2 age-of-empires RTS (`src/rts/`). Shared: `models.js`, `rig.js` (procedural bone animation), `sfx.js`, `net.js`/`pvp.js` (Supabase PvP), `leaderboard.js`, `storage.js`, `gauntlet.js`, `profiles.js`. Regression suite in `games/royale/tests/`. |
 | 深淵之橋 MOBA | `games/moba/index.html` | Static ES modules + vendored Three.js. Deterministic sim, 3v3 bots, mobile HUD, anywhere-purchase shop, and procedural champion FX. Tests in `games/moba/tests/`. |
-| Racing Car 3D | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Continuous spline track (`track.js`) with cached nearest-point samples, subtle asphalt tyre-wear/dashed centre texture and one low-cost track-specific corner-chevron InstancedMesh, day/dusk/night environment (`environment.js`), sport-arcade acceleration with bounded body pitch/roll and a tuned mid/high-speed power envelope, closer/lower chase camera with bounded acceleration impulse and pointer-transparent speed-streak layer that starts before top speed, bounded driving effects, player-only arcade assists and simple auto-throttle controls, four physical AI rivals plus a dithered ghost in one instanced field (`rivals.js`, `ghost.js`), and a persistent three-race championship with career records (`season.js`). Draco-compressed player car. Tests in `games/Racing Car/tests/`. |
+| Racing Car 3D | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Continuous spline track (`track.js`) with cached nearest-point samples, track-specific render-only crest/elevation profile, subtle asphalt tyre-wear/dashed centre texture and one low-cost track-specific corner-chevron InstancedMesh, day/dusk/night environment (`environment.js`), sport-arcade acceleration with bounded body pitch/roll and a tuned mid/high-speed power envelope, closer/lower chase camera with bounded acceleration impulse and pointer-transparent speed-streak layer that starts before top speed, bounded driving effects, player-only arcade assists and simple auto-throttle controls, four physical AI rivals plus a dithered ghost in one instanced field (`rivals.js`, `ghost.js`), and a persistent three-race championship with career records (`season.js`). Draco-compressed player car. Tests in `games/Racing Car/tests/`. |
 | Ashen Rail | `games/ashen-rail/dist/index.html` | Self-contained Vite + TypeScript + Babylon.js bonus game; soldier GLB has no clips, so `ProceduralPlayerAnimator` supplies rig-aware locomotion/aim/recoil and `WeaponSystem` supplies local weapon recoil; CI builds `dist/`. |
 | Elden Ring II | `games/elden-ring-ii/dist/index.html` | Self-contained Vite + React + TypeScript + Three.js/Cannon-es bonus game; three classes, mobile touch controls, local run history, optional Supabase write, bundled CC0 assets; tracked `dist/` is rebuilt by CI. |
 | Xiangqi AI | `games/xiangqi-ai/dist/index.html` | Vite + Three.js; hub targets tracked `dist/`; optional board environment HDR is bundled under `assets/` and copied into `dist/assets/`. |
@@ -103,8 +103,12 @@ repository as a static site.
   existing texture/effects instance pass so the mobile draw budget does not gain a
   road-marker or tail-smoke pass. Terrain height is built once as a 32×32 mesh;
   do not replace it with per-frame terrain generation or a second road pass.
-- Racing Car's corner chevrons are upright render-only warning signs built once
-  from profile curvature. Their single shape includes a short integral stem;
+- Racing Car's visual track profile uses the `elevation` value on each track
+  definition to create a closed, track-specific crest/grade at build time. It
+  remains render-only: physics, collision, progress, checkpoints and AI stay
+  on the established X/Z grid. Corner chevrons are upright render-only warning
+  signs built once from profile curvature. Their single shape includes a short
+  integral stem;
   keep them outside the road ribbon and inside the guardrail, use the single
   `corner-chevron-landmarks` InstancedMesh (six to fourteen instances per
   track), and keep palette/high contrast independent from steering, collision,

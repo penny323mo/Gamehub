@@ -91,11 +91,13 @@ function surfaceTexture(kind) {
 }
 
 export class Track {
-    // waypoints：中線座標串；tension 細＝彎位尖（髮夾），大＝圓滑長弧
-    constructor(waypoints, tension = 0.5, profileKey = 'track') {
+    // waypoints：中線座標串；tension 細＝彎位尖（髮夾），大＝圓滑長弧。
+    // elevation 只係 render surface 倍率，唔會改物理 X/Z 格網。
+    constructor(waypoints, tension = 0.5, profileKey = 'track', elevation = 1) {
         const pts = waypoints.map(([x, z]) => new THREE.Vector3(x, 0, z));
         this.curve = new THREE.CatmullRomCurve3(pts, true, 'catmullrom', tension);
         this.profileKey = profileKey;
+        this.elevation = Number.isFinite(elevation) ? THREE.MathUtils.clamp(elevation, 0.7, 1.3) : 1;
         this.length = this.curve.getLength();
         // nearestT() 係駕駛 loop 每架車每幀都會叫；曲線取樣本身會建立
         // 新 Vector3，四架對手加玩家會令一幀產生過千個短命物件。建好
@@ -138,10 +140,14 @@ export class Track {
             const t = i / QUERY_SAMPLES;
             // 以整數週期做低頻起伏，確保閉環 t=0/1 高度同坡度完全接返；
             // 兩個頻段交疊令路面有長上落兼少量 crest，唔似一條規律正弦波。
-            // 幅度仍然係低矮坡道級，唔會造成車飛離路面或破壞既有格網碰撞。
-            const y = 0.52 * Math.sin(phase + t * Math.PI * 2)
-                + 0.20 * Math.sin(phase * 0.61 + t * Math.PI * 2 * 3)
-                + 0.08 * Math.sin(phase * 1.7 + t * Math.PI * 2 * 5);
+            // 比早期平路版大約提高 1.75 倍，再由賽道個性微調；仍然只係
+            // render surface，唔會造成物理車飛離路面或改變碰撞格網。
+            const grade = this.elevation;
+            const y = grade * (
+                0.86 * Math.sin(phase + t * Math.PI * 2)
+                + 0.34 * Math.sin(phase * 0.61 + t * Math.PI * 2 * 3)
+                + 0.14 * Math.sin(phase * 1.7 + t * Math.PI * 2 * 5)
+            );
             this.surfaceYProfile[i] = y;
             min = Math.min(min, y); max = Math.max(max, y);
 
