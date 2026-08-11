@@ -30,7 +30,7 @@ repository as a static site.
 | Neon Snake | `games/snake-game/dist/index.html` | React + Vite + TypeScript; tracked `dist/` is the hub target. |
 | Empire Royale | `games/royale/index.html` | Static ES modules + vendored Three.js. Two modes: Clash-style lane battle (`game.js`, `ai.js`) and LV2 age-of-empires RTS (`src/rts/`). Shared: `models.js`, `rig.js` (procedural bone animation), `sfx.js`, `net.js`/`pvp.js` (Supabase PvP), `leaderboard.js`, `storage.js`, `gauntlet.js`, `profiles.js`. Regression suite in `games/royale/tests/`. |
 | 深淵之橋 MOBA | `games/moba/index.html` | Static ES modules + vendored Three.js. Deterministic sim, 3v3 bots, mobile HUD, anywhere-purchase shop, and procedural champion FX. Tests in `games/moba/tests/`. |
-| Racing Car 3D | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Continuous spline track (`track.js`), day/dusk/night environment (`environment.js`), bounded driving effects, player-only arcade assists and simple auto-throttle controls, four physical AI rivals plus a dithered ghost in one instanced field (`rivals.js`, `ghost.js`), and a persistent three-race championship with career records (`season.js`). Draco-compressed player car. Tests in `games/Racing Car/tests/`. |
+| Racing Car 3D | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Continuous spline track (`track.js`), day/dusk/night environment (`environment.js`), sport-arcade acceleration with bounded body pitch/roll, lower closer chase camera and a pointer-transparent speed-streak layer, bounded driving effects, player-only arcade assists and simple auto-throttle controls, four physical AI rivals plus a dithered ghost in one instanced field (`rivals.js`, `ghost.js`), and a persistent three-race championship with career records (`season.js`). Draco-compressed player car. Tests in `games/Racing Car/tests/`. |
 | Ashen Rail | `games/ashen-rail/dist/index.html` | Self-contained Vite + TypeScript + Babylon.js bonus game; CI builds `dist/`. |
 | Elden Ring II | `games/elden-ring-ii/dist/index.html` | Self-contained Vite + React + TypeScript + Three.js/Cannon-es bonus game; three classes, mobile touch controls, local run history, optional Supabase write, bundled CC0 assets; tracked `dist/` is rebuilt by CI. |
 | Xiangqi AI | `games/xiangqi-ai/dist/index.html` | Vite + Three.js; hub targets tracked `dist/`; optional board environment HDR is bundled under `assets/` and copied into `dist/assets/`. |
@@ -82,6 +82,11 @@ repository as a static site.
   cookies, or connection secrets in code, handoffs, logs, or commits.
 - Visual, camera, input, responsive-layout, audio, and gameplay-feel changes need
   real browser verification at the relevant desktop/mobile viewport.
+- Racing Car's sport-arcade presentation is render-only around the established
+  bicycle model: `CFG` owns the acceleration/steer envelope, `Car.bodyPitch` and
+  `bodyRoll` stay bounded, `#sync()` compensates the rigid car mesh's floor
+  envelope, and `#speed-lines` must remain `pointer-events:none` below the HUD.
+  Keep the 0–80, drift, autopilot, floor-clearance, and mobile layout gates green.
 - 深淵之橋 uses `Sim#atFountain()` only for healing/recall location. `Sim#canShop()` permits
   purchases anywhere; do not re-couple those concepts. Its Hub link and changed entry assets use
   one cache-bust token so Safari cannot keep an obsolete shop UI/rule after a Pages deploy.

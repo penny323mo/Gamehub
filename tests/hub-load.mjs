@@ -43,6 +43,8 @@ const 遊戲 = [
   ['深淵之橋 MOBA', '/games/moba/index.html'],
   ['Racing Car 3D', '/games/Racing Car/index.html'],
   ['Xiangqi AI', '/games/xiangqi-ai/dist/index.html'],
+  ['Ashen Rail', '/games/ashen-rail/dist/index.html'],
+  ['Elden Ring II', '/games/elden-ring-ii/dist/index.html'],
 ];
 
 // 實測十二個介面之後定嘅兩條線（唔係拍腦袋——第一版我寫 5 MB，

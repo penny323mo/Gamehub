@@ -86,6 +86,8 @@ const 遊戲 = [
     行到: async (p) => { await p.waitForSelector('#pick-go', { state: 'visible', timeout: 120000 }); } },
   { 名: 'Racing Car 3D', url: '/games/Racing Car/index.html' },
   { 名: 'Xiangqi AI', url: '/games/xiangqi-ai/dist/index.html' },
+  { 名: 'Ashen Rail', url: '/games/ashen-rail/dist/index.html' },
+  { 名: 'Elden Ring II', url: '/games/elden-ring-ii/dist/index.html' },
 ];
 
 let pass = 0, fail = 0; const failed = [];

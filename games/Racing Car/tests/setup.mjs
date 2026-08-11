@@ -31,6 +31,21 @@ check('第一個完整 3D frame 後先揭選單，並已預熱 HUD／minimap', s
 check('遊戲自帶 favicon，production 唔會再請求網站根目錄 404',
     startupWarm.favicon.startsWith('data:image/svg+xml,'), startupWarm.favicon);
 
+const speedLayer = await page.evaluate(() => {
+    const el = document.getElementById('speed-lines');
+    const css = el ? getComputedStyle(el) : null;
+    return {
+        exists: !!el,
+        ariaHidden: el?.getAttribute('aria-hidden') === 'true',
+        pointerEvents: css?.pointerEvents,
+        position: css?.position,
+    };
+});
+console.log('  ', JSON.stringify(speedLayer));
+check('高速速度層存在但唔會攔截 HUD／觸控', speedLayer.exists
+    && speedLayer.ariaHidden && speedLayer.pointerEvents === 'none'
+    && speedLayer.position === 'absolute', speedLayer);
+
 const TRACK_IDS = await page.evaluate(() => window.__racer.TRACKS.map(t => t.id));
 
 // T1：起跑線喺直路上面，而且打橫過晒條路

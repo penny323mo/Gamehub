@@ -86,6 +86,40 @@ body {
     position: absolute;
     inset: 0;
     pointer-events: none;
+    z-index: 3;
+}
+
+/* 高速先出現嘅視覺速度層：唔改物理、唔遮住 HUD，淨係用低透明度嘅
+   radial / streak gradient 將「架車快緊」由數字變成畫面感。漂移時轉暖色，
+   同胎痕／煙霧一齊讀成一個動作。 */
+#speed-lines {
+    --speed-intensity: 0;
+    position: absolute;
+    inset: -18%;
+    opacity: 0;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    background:
+        radial-gradient(ellipse at center, transparent 0 28%, rgba(255,255,255,.02) 44%, rgba(255,255,255,.16) 100%),
+        repeating-linear-gradient(104deg, transparent 0 8%, rgba(220,242,255,.08) 8.4%, transparent 9.2% 17%);
+    filter: blur(1px);
+    transform: scale(1.08);
+    transition: opacity .16s ease, filter .16s ease;
+    z-index: 0;
+}
+
+#speed-lines.active {
+    opacity: calc(var(--speed-intensity) * .55);
+    animation: speed-streaks .28s linear infinite;
+}
+
+#speed-lines.drifting {
+    filter: blur(1.4px) hue-rotate(-18deg) saturate(1.2);
+}
+
+@keyframes speed-streaks {
+    from { background-position: 0 0, 0 0; }
+    to { background-position: 0 0, 38px -72px; }
 }
 
 #pause-btn {

@@ -61,7 +61,8 @@ const 遊戲=[
  ['Snooker','/games/snooker/index.html'],['Tower Defense','/games/tower/dist/index.html'],
  ['Neon Snake','/games/snake-game/dist/index.html'],['Empire Royale','/games/royale/index.html'],
  ['深淵之橋 MOBA','/games/moba/index.html'],['Racing Car 3D','/games/Racing Car/index.html'],
- ['Xiangqi AI','/games/xiangqi-ai/dist/index.html'],
+ ['Xiangqi AI','/games/xiangqi-ai/dist/index.html'],['Ashen Rail','/games/ashen-rail/dist/index.html'],
+ ['Elden Ring II','/games/elden-ring-ii/dist/index.html'],
 ];
 const 分析 = (b64, dpr) => new Promise((resolve) => {
   const img = new Image();

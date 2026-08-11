@@ -8156,3 +8156,29 @@ Hub-wide persistence driver 會逐隻遊戲開局、離開、reload 同 Continue
 開局；現有 `tests/snake-flow.mjs` 仍守手機 start/hold/blur/pause/Hub。修正後 `hub-progress.mjs` 真 browser
 全套 **4/4**，10 隻遊戲都到達可記錄狀態、reload 保留成果，四個 Continue flow 亦全部重開成功。日後
 driver 唔可以將 mode selection 當成 start，必須對應實際可見 action。
+
+## ADR-265 — Racing Car sport-arcade 手感要用有界物理加 render feedback
+
+Date: 2026-08-11. Status: accepted.
+
+上一版賽車已經有完整 bicycle model、ABS、手煞鎖後軸同漂移輔助，但直路加速、車身姿態同鏡頭回饋
+分開得太遠：數值上有速度，畫面上卻似一個模型滑過去。今輪目標係「更爽但唔變無限加速」，所以只
+調窄 `CFG` 的 sport-arcade envelope：`launchForce=12800`、`engineForce=9500`、`maxSpeed=66`、
+`dragCoef=2.5`、`steerRate=7.6`。物理仍受輪胎摩擦圓、ABS、草地阻力、欄杆碰撞同原有 drift refund
+封頂；實測 0–80 為 **2.47s**、沿賽道峰值 **144 km/h**、巡航 **134 km/h**，六條賽道仍可自動駕駛
+三圈。
+
+`Car.bodyPitch` 將加速抬頭／煞車點頭限制到 `0.028rad`（約 1.6°），同 `bodyRoll` 一樣由
+`#sync()` 平滑更新；因車模係一件 rigid mesh，`bodyPitchLift=3.4` 只抬高 render root 補回旋轉後
+的 floor envelope，物理位置仍固定 y=0。唔可以將俯仰放大到破壞 floor-clearance gate，亦唔可以把
+camera 跟車身 roll 一齊傾成飛機。
+
+追車鏡頭改為較低較近、速度時提高 FOV，並只按 yaw rate 加少於 1.5° horizon roll。`#speed-lines`
+係 HUD 內 pointer-transparent 的低透明度 streak/radial overlay，速度達門檻先顯示，漂移只改色調；
+唔得遮住 HUD、唔得接收 touch、唔得改物理。Race gate 加入 pitch 有界且確實生效的檢查，setup gate
+守住 overlay 的 `aria-hidden`、absolute positioning 同 `pointer-events:none`。
+
+Racing targeted browser 結果：`race.mjs` **125/125**、`setup.mjs` **126/126**；844×390 真 browser
+smoke 在約 153 km/h 時 `#speed-lines` active、opacity 約 0.264，冇 page/console errors。完整
+`npm test` run-all 喺連續啟動第二個 Chromium 時偶發卡在 `openRacer()` 的 90s ready wait；因此交接前
+要逐個 WebGL suite 跑，唔好將一次性 runner hang 當成產品 assertion 通過。

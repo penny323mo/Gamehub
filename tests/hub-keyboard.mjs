@@ -45,6 +45,8 @@ const 遊戲 = [
   ['深淵之橋 MOBA', '/games/moba/index.html'],
   ['Racing Car 3D', '/games/Racing Car/index.html'],
   ['Xiangqi AI', '/games/xiangqi-ai/dist/index.html'],
+  ['Ashen Rail', '/games/ashen-rail/dist/index.html'],
+  ['Elden Ring II', '/games/elden-ring-ii/dist/index.html'],
 ];
 
 let pass = 0, fail = 0; const failed = [];

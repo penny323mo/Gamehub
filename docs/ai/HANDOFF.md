@@ -1,120 +1,85 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-11 (Asia/Macau)
-Prepared by: Codex — integrated Game Hub product-audit checkpoint
+Prepared by: Codex — Racing Car sport-arcade feel checkpoint
 Integration branch: `main`
 Work branch: `main`
-Status: the latest integrated player-flow audit is green; Xiangqi's optional environment light, undo/resume flow, and interrupted-pointer lifecycle, Elden Ring II's interrupted keyboard/touch/camera lifecycle, Gomoku's delayed-AI lifecycle plus local build-info fallback, Big Two's CPU queue, Dou Dizhu's bid/play loops, Penny Crush's async match plus interrupted-touch lifecycle, Snooker's root/2D/3D entry, truthful opening state, Offline P2 foul decisions, mobile touch/charge input, 3D interrupted-charge/canvas-gesture lifecycle and mobile-control hitboxes, AI handoff, Ashen Rail's fire-pointer lifecycle, Royale's interrupted card drag/placement lifecycle, MOBA's interrupted skill/attack/joystick lifecycle, Snake's mobile login/board/lint/focus lifecycle, and Racing Car's non-finite physics-to-audio boundary are hardened. This checkpoint contains the source fixes, gates, and verification.
+Status: Racing Car 的有界加速／姿態／鏡頭／速度回饋已完成 targeted verification；本機同
+origin 在開始今輪前都係 `5b584a3`；本 checkpoint commit 已準備好，push 後要以 remote SHA
+重新核對。共享 worktree
+原本已有 Ashen Rail、Elden Ring II 同 Hub 入口嘅未提交變更；今輪冇覆蓋、冇回退，交接前會
+同 Racing 一齊保留成明確 checkpoint。
 
 ## Current objective
 
-持續提升 Game Hub 全部遊戲嘅可玩性、手機體驗、可讀性同部署可靠性。每輪先用真 browser gate
-搵一個未驗證嘅產品風險，修正後只提交相關 scope；交接前要確認本地同 `origin/main` 對齊。
+令賽車由「有物理數字但畫面似模型滑過」變成較真實而爽快嘅 sport-arcade：更有推背感、
+有受限載荷姿態、鏡頭讀到路面速度、漂移仍然易救，並保持手機控制／draw budget／既有賽道穩定。
 
 ## Completed
 
-**Empire Royale full regression**
-
-- Ran all nine committed suites one at a time with a real Chromium/WebGL browser.
-- Leak, performance, gauntlet, combat, PvP guest, match lifecycle, feature invariants, RTS, and mixed-session
-  paths all passed. No new player-facing regression was found.
-
-**Hub-wide player-flow audit**
-
-- Return-to-Hub, pause/resume, storage-blocked fallback, progress/reload/Continue (**hub-progress 4/4**), audio, multi-tab accumulation,
-  backgrounding, context loss, leak loops, third-party/CDN failure, load weight, readability, touch, keyboard,
-  and loading-feedback gates all passed.
-- The Xiangqi 3D entry was also checked under a throttled mobile network: its landing menu became usable while
-  the optional environment map was still pending, so slow HDR download does not block the game entry.
-
-**Tower Defense, Xiangqi, Elden Ring II, Gomoku, Big Two, Dou Dizhu, Penny Crush, Snooker, and Snake verification**
-
-- Tower core, map/route redesign, assets, combat **13/13**, units **14/14**, gateway/keep placement **11/11**, look
-  **9/9**, map browser **8/8**, touch **6/6**, load **5/5**, flow **20/20**, projectile renderer **5/5**, and
-  standalone renderer/performance **20/20** all passed. Diagnostic arena now suppresses automatic wave spawns, so
-  combat measurements cannot be stolen by later `targetingMode=first` enemies.
-- Xiangqi production build plus legal-move, search, and performance self-tests passed. Its active-pointer guard now cancels pointercancel, blur, and hidden-page interruptions without mistaking OrbitControls' normal lostpointercapture-before-click ordering for a cancellation. The optional Studio Small 09
-  CC0 HDRI is now bundled under `games/xiangqi-ai/assets/`, imported with Vite `?url`, copied into tracked
-  `dist/assets/`, and guarded by a short load-failure status notice; local lights keep the board playable. Real mobile
-  touchscreen tap → AI → undo → refresh/Continue plus interrupted-pointer/late-click flow is **5/5**. Gomoku's real mobile stale-timer/restart/touch-cancellation flow is **10/10**;
-  Big Two's real mobile stale-queue/restart flow is **4/4**; Dou Dizhu's real mobile stale-bid/restart flow is **4/4**;
-  Penny Crush's real mobile stale-chain/restart/interrupted-touch flow is **7/7**; Snooker's root/2D/3D opening-state, mobile touch/charge, 3D charge/canvas pointercancel/blur/hidden cancellation and control-layout hitboxes,
-  AI handoff, and Offline P2 foul-decision flow is **25/25**; Snake's mobile Enter/start/Shift-focus/pause/resume/Hub flow is **10/10**; Elden Ring II's HUD/input flow is **94/94**.
+- Racing Car sport-arcade pass、body-pitch floor compensation、camera framing、speed feedback 同
+  regression gates 已完成；targeted physics/UI/browser evidence 已記錄如下。
+- ADR-265 同 `PROJECT_CONTEXT.md` 已更新，下一棒只需同步後按 exact next action 接手。
 
 ## Changed files
 
-- `games/xiangqi-ai/js/render.js`, `js/app.js`, `js/main.js` — bundled HDR/fallback, deferred online probe, undo/storage fixes, and active-pointer cancellation/lifecycle cleanup.
-- `games/gomoku/js/renderer.js`, `js/ai.js`, `js/input.js`, `js/app.js`, `index.html`, `build_info.js`, `tests/gomoku-flow.mjs` — commit mobile board taps on an unmoved touchend, cancel touch/pointer gestures on movement, blur, hidden, or cancellation, provide a local build-info fallback, and keep the cache token aligned.
-- `games/big2/app.js`, `index.html` — cancellable/token-guarded CPU queue and aligned cache token; `games/doudizhu/src/game.js`, `src/ui.js`, `main.js`, `index.html` — shared generation scheduler for bid/play loops and aligned cache tokens; `games/penny_crush/penny_crush.js`, `index.html` — generation-guarded async match pipeline, interrupted-touch cleanup, and cache token.
-- `games/xiangqi-ai/assets/studio_small_09_1k.hdr` and `assets/README.md` — CC0 environment asset plus provenance/hash.
-- `games/xiangqi-ai/dist/` — regenerated tracked entry bundle and HDR asset for GitHub Pages.
-- `launcher.js`, `tests/hub.mjs`, `tests/hub-cdn.mjs`, `tests/lib/drivers.mjs`, `tests/xiangqi-flow.mjs`, `tests/gomoku-flow.mjs`, `tests/big2-flow.mjs`, `tests/doudizhu-flow.mjs`, `tests/penny-crush-flow.mjs`, `tests/snooker-flow.mjs`, `tests/snake-flow.mjs` — assert self-contained assets, player flows, persistence drivers, and cancelled carousel gestures.
-- `games/snake-game/src/components/NameInput/NameInput.tsx`, `src/components/Game/Game.tsx`, `src/components/Background/Background.tsx`, `src/components/Particles/Particles.tsx`, `src/hooks/useStorage.ts`, `styles/Game.module.css`, and tracked `dist/` — isolate Enter login, bind the board/header to mobile viewport width, clean lint, and keep timed/held boosts finite.
-- `games/tower/src/main.ts`, `games/tower/src/ui/draggable.ts`, `games/tower/tests/combat.mjs`, `games/tower/tests/flow.mjs`, tracked `games/tower/dist/` — close preload/arena test races and cancel/restore floating HUD drags on pointercancel, blur, or hidden-page transitions; `games/royale/src/ui.js`, `games/royale/tests/match.mjs` — cancel interrupted card drag/placement on pointercancel, lost capture, blur, and hidden-page transitions; `games/Racing Car/src/audio.js`, `games/Racing Car/tests/audio.mjs` — clamp non-finite physics before Web Audio writes and cover the regression; `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md`, `docs/ai/HANDOFF.md` — durable relay notes.
-- `games/snooker/2d/app.js`, `games/snooker/3d/main.js`, `games/snooker/3d/style.css`, `tests/snooker-flow.mjs` — keep opening cue-in-hand HUD state truthful, cancel interrupted 2D charge/drag and 3D mobile/canvas gesture input on pointercancel, blur, or hidden-page transitions, separate mobile spin/charge hitboxes, and let local Offline P2 own foul decisions instead of hiding the panel and deadlocking the match; cover layout hitboxes, cancellation paths, normal post-cancel shot, mobile touch/charge input, and the P1-vs-AI handoff in a real mobile browser (**25/25**).
-- `games/ashen-rail/src/ui/TouchControls.ts`, tracked `games/ashen-rail/dist/` — capture the fire pointer and clear held fire on release, cancellation, blur, or hidden-page interruption; `games/moba/src/input.js`, `tests/browser.mjs` — clear held skill/attack/joystick/pinch state and visuals on blur or hidden-page interruption, with real landscape/portrait gates; `games/elden-ring-ii/src/GameClient.tsx`, `tests/hud-layout.mjs`, tracked `dist/` — clear held/queued keyboard, touch-stick, camera, and pinch input on blur/hidden-page interruption, covering late pointermove and keyup in real mobile browser gates.
-## Verification
-- `PLAYWRIGHT_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' npm test` from
-  `games/royale/tests/` — all nine suites passed: leak **7/7**, perf **3/3**, gauntlet **17/17**, combat **8/8**,
-  PvP guest **12/12**, match **11/11** (including interrupted drag/placement and hidden-page cleanup), features **27/27**, RTS **29/29**, session **5/5**.
-- Hub targeted suites with
-  `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'` — home **3/3**, pause **6/6**,
-  storage **2/2**, progress **4/4**, audio **3/3**, tabs **4/4**, away **3/3**, context **3/3**, leak **4/4**,
-  CDN **4/4**, load **3/3**, readability **3/3**, touch **5/5**, keyboard **3/3**, wait **1/1**.
-- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/hub-progress.mjs` — cross-game persistence/reload/Continue **4/4**; all ten drivers reached a meaningful game state, reload preserved the artifact, and every Continue flow reopened the saved state.
-- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/gomoku-flow.mjs` — **10/10**;
-  touchcancel/movement/blur/pointercancel cannot ghost-place a stone, stale AI timer cannot contaminate a fresh game, normal touchscreen and mouse moves still work, and local cache tokens agree.
-- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/big2-flow.mjs` — **4/4**;
-  stale CPU queue cannot consume a fresh deal, normal CPU response still works, and local cache tokens agree.
-- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/doudizhu-flow.mjs` — **4/4**; stale bid/play timer cannot mutate a fresh deal, normal CPU bid still works, and local cache tokens agree.
-- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/penny-crush-flow.mjs` — Penny Crush **7/7** (stale async chain, restart, and pointercancel cleanup); `node tests/snooker-flow.mjs` — **25/25** (truthful opening state, mobile spin/charge hitboxes, 2D pointercancel/blur cleanup, 3D charge and canvas pointercancel/blur/hidden cancellation, normal post-cancel shot, AI handoff, and Offline P2 foul panel/take/force branches); `node games/moba/tests/browser.mjs` — **206/206**, `node games/moba/tests/sim.mjs` — **262/262**, and `node games/moba/tests/cache-bust.mjs` — PASS (blur/hidden-page interruption gates included).
-- `cd games/snake-game && npm run lint && npm run build` — lint **0 errors/0 warnings** and tracked production dist rebuilt.
-- `PW_CHROMIUM="$CHROMIUM_BIN" node tests/snake-flow.mjs` (Chromium executable supplied by the environment) — **10/10** (mobile Enter isolation, responsive board, Shift focus cleanup, tick/pause/resume/Hub, zero browser errors).
-- `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/hub.mjs` — **100/100**; touchcancel followed by a late touchend cannot change the active page;
-  13 launcher entries, four pages, mobile 2×2 / desktop four-up layout, no dead links or browser errors.
-- `cd games/tower && npm run build && npm run test:core && PW_CHROMIUM="$CHROMIUM_BIN" npm run test:browser` — build,
-  core, browser (**99/99**) passed; `node tests/projectile-renderer.mjs` **5/5** and `node tests/performance.mjs`
-  **20/20** passed standalone. `node tests/playthrough.mjs 99 999 0.04 0.0026 198` won wave 99 with 20/20 lives;
-  `npm audit --prefix games/tower --audit-level=high` found **0 vulnerabilities**. First combined render launch hit a 30-second ground wait; standalone reruns passed, so keep WebGL suites one at a time under GPU pressure.
-- `cd games/xiangqi-ai && npm run build && node js/engine/selftest_legal.js && node js/engine/selftest_search.js &&
-  node js/engine/selftest_perf.js`; `PW_CHROMIUM='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/xiangqi-flow.mjs`
-  — build/legal/search/performance plus browser flow **5/5** passed, including real touchscreen tap, AI, undo/Continue,
-  pointer cancellation, and a late-click no-move gate.
-- Real mobile Chromium smokes of the rebuilt Xiangqi dist kept the landing and AI canvas usable while blocking
-  non-local requests; no Poly Haven request appeared. The expected lazy Supabase request is the only third-party
-  surface, and a second smoke aborting the bundled HDR showed `環境光暫時未能載入，已使用基本燈光` while the game stayed
-  playable.
-- Elden Ring II HUD/input **94/94** plus `npm test` **17/17** passed, including blur/hidden input cleanup and zero browser errors. Snooker 3D charge/canvas interruption, mobile control hitboxes, and normal recovery are covered by flow **25/25**; rendered 390×844 screenshot confirms spin, power, and charge controls are visually separated. Ashen Rail asset audit/lint/Vitest **14/14**/build plus production 844×390 browser pointer-release smoke passed: ammo
-  stayed stable after release outside the fire button and after a blur interruption, with zero browser errors. Racing Car independent real-browser suites
-  race **124/124**, setup **125/125**, rivals **61/61**, ghost **29/29**, season **55/55**, audio **33/33**; the audio suite also proves NaN/Infinity physics values cannot reach AudioParam or break the loop.
+- `games/Racing Car/src/car.js`：`launchForce=12800`、`engineForce=9500`、`maxSpeed=66`、
+  `dragCoef=2.5`、`steerRate=7.6`；新增 `bodyPitch`（上限 0.028rad、平滑回正）同
+  `bodyPitchLift=3.4`。lift 只係補 rigid 車模旋轉後嘅 floor envelope，物理 root 仍以 y=0
+  計算。ABS、手煞鎖後軸、漂移 refund／assist contract 保留。
+- `games/Racing Car/src/main.js`：追車鏡頭較低較近、速度提高 FOV，極細 yaw-rate horizon roll；
+  HUD 新增 `#speed-lines` 狀態更新，高速先顯示，漂移只改色調。
+- `games/Racing Car/index.html`, `style.css`：新增低透明度、`aria-hidden`、
+  `pointer-events:none` 速度 streak layer；HUD z-index 保持控件可操作。
+- `games/Racing Car/tests/race.mjs`：加 body-pitch 有界／實際生效 gate。
+- `games/Racing Car/tests/setup.mjs`：加速度層存在、absolute、唔攔截輸入 gate。
+- Durable decision 已寫入 ADR-265；架構／verification invariants 已更新至 `PROJECT_CONTEXT.md`。
 
-## Known issues and cautions
-- Browser suites are GPU/CPU heavy. Run one WebGL suite at a time; use `PW_CHROMIUM` for root Hub/MOBA tests and
-  `PLAYWRIGHT_CHROMIUM` for `games/Racing Car/tests`.
-- Tower SwiftShader frame milliseconds are an environment-relative signal, not a physical-phone FPS claim. Keep
-  the draw-call and resource gates, and collect real-device evidence before tuning graphics from those absolute ms.
-- Xiangqi's optional board environment light is now a bundled CC0 HDR. If the local file cannot be decoded, the
-  renderer keeps its key/rim/ambient lights and shows a short fallback status; do not reintroduce a runtime Poly Haven
-  URL or make this visual enhancement block entry. Supabase remains lazy and optional for online play.
-- Ashen Rail and Elden Ring II `dist/` are tracked deployment output and must be rebuilt for source changes; do not stage
-  unrelated generated assets.
-- If changing Tower/Snake/Xiangqi source, rebuild their tracked `dist/` before committing. MOBA imports and the Hub
-  entry must keep one cache token.
-- Snake `npm run lint` is clean; three intentional external/visual hydration effects use narrow `react-hooks/set-state-in-effect` suppressions. Vite's classic `safe-storage.js` warning remains non-fatal; the build exits 0 and the tracked dist target is valid.
-- No force-push to shared `main`; preserve any dirty/diverged state another agent leaves behind.
+## Verification
+
+- `cd "games/Racing Car/tests" && node race.mjs` — **125/125**。
+  Key witness: 0–80 **2.47s**, track peak **144 km/h**, cruise **134 km/h**, handbrake
+  entry **19°**, pitch peak **1.6°**, floor lowest **−0.089m**, six directions all finish
+  three laps with no wall hits/rescue.
+- `node setup.mjs` — **126/126**；includes 320×568 / 844×390 layout, camera, minimap,
+  touch/gyro/simple mode, resource/lifecycle, overlay pointer gate and zero browser errors.
+- Real Chromium 844×390 smoke — menu and live screenshots inspected. Around **153 km/h**
+  `#speed-lines` was `active` at computed opacity ~**0.264**; car/camera readable and no
+  page/console errors. Evidence files: `/tmp/racer-sport-menu.png`, `/tmp/racer-sport-live.png`,
+  `/tmp/racer-sport-fast.png` (local only, not commit artifacts).
+- `npm test` run-all was attempted twice; race passed **125/125**, but the next child browser
+  intermittently stalled in `openRacer()` before ready (environment/GPU startup, not an assertion).
+  Do not call the aggregate runner green from that attempt; run WebGL suites one at a time.
+
+## Preserved prior local snapshot
+
+- Ashen Rail runtime/public GLBs and `scripts/optimize-assets.mjs` are still dirty from the previous
+  asset pass. The user’s earlier Ashen animation issue is **not** solved here; next agent should inspect
+  the player GLB clip/skeleton and wire procedural animation or a legal animated asset without undoing
+  the load optimization.
+- Elden Ring II compressed public/dist assets, meshopt loader/start gating in `src/GameClient.tsx`,
+  rebuilt hashed dist entry, and Hub test/entry additions for Ashen + Elden remain intentional dirty
+  changes. Validate the relevant game builds before staging; do not blindly regenerate or delete assets.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync`, then read this file and `docs/ai/PROJECT_CONTEXT.md` before editing.
-2. If taking the next product scope, start with a new real browser player risk; Xiangqi HDR self-containment, the
-   CDN-abort gate, Gomoku touch cancellation plus build-info fallback, Snake focus cleanup plus the corrected persistence driver, Elden input interruption, Snooker 3D charge/canvas interruption plus mobile control layout, Tower floating-panel blur/hidden cancellation, and Racing Car AudioParam boundary handling are closed by this checkpoint unless contradicted.
-3. Before handoff, run `./scripts/check-handoff.sh` and `git diff --check`, commit this file with any scoped source
-   changes, push `main`, and verify `git rev-parse HEAD` equals `git rev-parse origin/main`.
+1. Run `./scripts/agent-context.sh --sync`, then read this file, `PROJECT_CONTEXT.md`, and ADR-265.
+2. Confirm `git status`/diff ownership; run Racing `node race.mjs` and `node setup.mjs` separately under
+   GPU pressure, then validate Ashen/Elden dirty snapshot with their documented build/tests.
+3. Run `./scripts/check-handoff.sh` and `git diff --check`; commit Racing/docs plus the intentionally
+   preserved prior snapshot together only after reviewing the full staged diff.
+4. Push `main`, verify local SHA equals `origin/main`, then continue Ashen animation or take the next
+   player-facing risk. No force-push; do not overwrite another agent’s dirty work.
+
+## Known issues and cautions
+
+- Racing `npm test` aggregate runner has an environment/GPU startup hang after the first child; report
+  individual suite results rather than claiming the aggregate green without an exit code.
+- Ashen player animation remains an open product task; the optimized assets are not proof of animation clips.
 
 ## Do not redo
 
-- Do not remove the MOBA persistent recovery card or revert it to a transient flash.
-- Do not bump only one MOBA entry; all local imports and Hub launcher/style must keep `assets-31`.
-- Do not weaken Elden browser gates by skipping the real entry flow, accepting missing controls before a probe, or
-  comparing gravity across different burst-pool samples.
-- Do not stage generated `dist/` assets blindly or force-push shared `main`.
+- Do not remove the Racing floor-lift compensation or relax the body-pitch/floor gates just to make the
+  car look more dramatic; use camera/effects or a properly pivoted asset for future feel work.
+- Do not make `#speed-lines` receive pointers, cover HUD controls, or become a physics dependency; do not
+  revert the Ashen/Elden/Hub dirty snapshot or stage unrelated generated files blindly.

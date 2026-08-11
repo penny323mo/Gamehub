@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import * as CANNON from "cannon-es";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
@@ -104,6 +105,7 @@ type HudState = {
 };
 
 type EngineBridge = {
+  start: () => void;
   startAudio: () => void;
   setMuted: (muted: boolean) => void;
   selectClass: (characterClass: CharacterClass) => void;
@@ -249,6 +251,8 @@ export default function GameClient() {
     let lastHudUpdate = 0;
     let lastDebugUpdate = 0;
     let worldReady = false;
+    let worldLoadStarted = false;
+    let startRequested = false;
     let cameraYaw = 0;
     let cameraShake = 0;
     const camSmooth = new THREE.Vector3();
@@ -1457,6 +1461,7 @@ export default function GameClient() {
       setHud((state) => ({ ...state, loading: Math.round((loaded / total) * 100) }));
     };
     const loader = new GLTFLoader(loaderManager);
+    loader.setMeshoptDecoder(MeshoptDecoder);
     const loadModel = async (url: string) => {
       let latestError: unknown = new Error(`Unable to load ${url}`);
       for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -1738,6 +1743,7 @@ export default function GameClient() {
         playerRoot.add(gltf.scene);
         playerLoadouts.set(characterClass, { root: gltf.scene, mixer, actions });
       });
+      currentClass = selectedClassRef.current;
       selectCharacterClass(currentClass);
 
       configureModel(bossGltf.scene, 4.55, "#b77b72", 0.22);
@@ -1844,20 +1850,36 @@ export default function GameClient() {
       activateWave(0);
       worldReady = true;
       delete mount.dataset.loadError;
+      if (startRequested) {
+        selectCharacterClass(selectedClassRef.current);
+        setStarted(true);
+      }
       setHud((state) => ({
         ...state,
         loading: 100,
-        status: startedRef.current ? "playing" : "ready",
+        status: startRequested ? "playing" : "ready",
       }));
     };
 
-    loadWorld().catch((error) => {
-      console.error("Failed to load the 3D world", error);
-      if (alive) {
-        mount.dataset.loadError = "true";
-        setHud((state) => ({ ...state, status: "error", loading: 0 }));
+    const startWorld = () => {
+      startRequested = true;
+      if (worldReady) {
+        selectCharacterClass(selectedClassRef.current);
+        setStarted(true);
+        setHud((state) => ({ ...state, status: "playing", loading: 100 }));
+        return;
       }
-    });
+      if (worldLoadStarted) return;
+      worldLoadStarted = true;
+      setHud((state) => ({ ...state, status: "loading", loading: 0 }));
+      loadWorld().catch((error) => {
+        console.error("Failed to load the 3D world", error);
+        if (alive) {
+          mount.dataset.loadError = "true";
+          setHud((state) => ({ ...state, status: "error", loading: 0 }));
+        }
+      });
+    };
 
     const restart = () => {
       player.hp = 100;
@@ -1952,6 +1974,7 @@ export default function GameClient() {
     };
 
     engineRef.current = {
+      start: startWorld,
       startAudio: beginAudio,
       setMuted: (muted) => gameAudio.setMuted(muted),
       selectClass: selectCharacterClass,
@@ -1974,6 +1997,7 @@ export default function GameClient() {
       restart,
       setMove: (x, y) => touchMove.set(x, y),
     };
+    setHud((state) => ({ ...state, loading: 100, status: "ready" }));
 
     const onKeyDown = (event: KeyboardEvent) => {
       keys.add(event.code);
@@ -3464,12 +3488,7 @@ export default function GameClient() {
   }, []);
 
   const startGame = () => {
-    engineRef.current?.selectClass(selectedClassRef.current);
-    setStarted(true);
-    setHud((state) => ({
-      ...state,
-      status: state.status === "ready" ? "playing" : state.status,
-    }));
+    engineRef.current?.start();
     engineRef.current?.startAudio();
   };
 

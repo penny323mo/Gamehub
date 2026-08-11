@@ -560,14 +560,12 @@ function updateCamera(dt) {
     const fwd = chaseDir;
     const speedT = Math.min(1, car.speed / 60);
     const wideMobile = camera.aspect > 1.45;
-    // 鏡頭要高同望遠：低機位睇落好有速度感，但玩家見唔到下一個彎就變咗盲揸。
-    // 實測 5.4 高度嗰陣天空霸咗三分二畫面，路面得底下嗰條。
-    // 橫向手機嘅垂直像素得直向一半；沿用同一距離會令車細到難以讀取姿態，
-    // 所以寬畫面用更近、更低嘅 chase framing，但仍保留 16m 前望。
-    const dist = (13 + speedT * 4) * (wideMobile ? 0.72 : 1);
+    // 追車機位再落低、收近少少：車身姿態同路肩速度先讀得出，唔會只見到
+    // 一大片天空。寬手機仍保留前望距離，避免低頭睇車而睇唔到下一個彎。
+    const dist = (11.2 + speedT * 3.2) * (wideMobile ? 0.76 : 0.94);
     const want = car.pos.clone().addScaledVector(fwd, -dist);
-    want.y = (9.0 + speedT * 1.8) * (wideMobile ? 0.74 : 1);
-    const lookAt = car.pos.clone().addScaledVector(fwd, wideMobile ? 16 : 22).setY(0.6);
+    want.y = (7.2 + speedT * 1.5) * (wideMobile ? 0.76 : 1);
+    const lookAt = car.pos.clone().addScaledVector(fwd, wideMobile ? 18 : 24).setY(0.6);
     if (!camInit) { camPos.copy(want); camLook.copy(lookAt); camInit = true; }
     // 追car 用指數平滑。唔可以再喺漂移時特登放鬆——方向本身已經跟住
     // 行進方向擺，位置再拖就會framing唔到架車。
@@ -577,8 +575,11 @@ function updateCamera(dt) {
     camera.position.copy(camPos).add(drivingEffects.cameraOffset());
     camera.lookAt(camLook);
     // 速度愈快視角愈闊，速度感靠呢個
-    const fov = (wideMobile ? 58 : 62) + speedT * (wideMobile ? 9 : 12);
+    const fov = (wideMobile ? 60 : 64) + speedT * (wideMobile ? 12 : 14);
     if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
+    // 只跟偏航速度做極細嘅 horizon roll；唔用車身 roll，避免漂移時鏡頭反而
+    // 跟住車身傾到似飛機。幅度 < 1.5°，用嚟讀出速度同重量感。
+    camera.rotation.z += THREE.MathUtils.clamp(-car.yawRate * 0.018 - camera.rotation.z, -0.026, 0.026);
 }
 
 // ---------- 賽道選擇 ----------
@@ -1101,6 +1102,13 @@ function updateHud() {
 
     const kmh = car.kmh;
     if (kmh !== hudCache.kmh) { $('speed-num').textContent = kmh; hudCache.kmh = kmh; }
+    const speedIntensity = THREE.MathUtils.clamp((car.speed - 28) / 30, 0, 1);
+    const speedLines = $('speed-lines');
+    if (speedLines) {
+        speedLines.style.setProperty('--speed-intensity', String(speedIntensity));
+        speedLines.classList.toggle('active', speedIntensity > 0.02);
+        speedLines.classList.toggle('drifting', car.drifting);
+    }
     // 名次：對手同玩家一齊按進度排。冇對手就唔顯示，唔好霸位。
     const place = rivals.count ? rivals.playerPlace(playerProgress()) : 0;
     if (place !== hudCache.place) {

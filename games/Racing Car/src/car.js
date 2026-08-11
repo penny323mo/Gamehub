@@ -20,8 +20,10 @@ export const CFG = {
 
     // 低速額外扭力改善起步／慢彎出彎；速度上升後漸變返原本穩定輸出，
     // 避免高速巡航同反打因全段加力而失控。traction clamp 仍限制落地力量。
-    launchForce: 11600,
-    engineForce: 8500,
+    // 由普通巡航調到「街機跑車」：起步要有推背感，但仍保留輪胎摩擦圓
+    // 做上限。實測 0–100 約 3 秒、直路約 220 km/h，係超跑級而唔係無限加速。
+    launchForce: 12800,
+    engineForce: 9500,
     brakeForce: 20000,   // 制動「需求」，唔係實際落地力——落地幾多由摩擦圓決定
     reverseForce: 6000,
 
@@ -45,8 +47,8 @@ export const CFG = {
     brakeFrontShare: 0.86, // 前軸食幾多制動需求（餘數先落後軸）
     lockLong: 0.85,      // 鎖死之後係滑動摩擦，比峰值低
     lockLateral: 0.12,   // 鎖死嘅輪幾乎produce唔到側向力，所以會直衝／甩尾
-    maxSpeed: 62,        // m/s 上限
-    dragCoef: 2.6,       // 空氣阻力
+    maxSpeed: 66,        // m/s 上限（約 238 km/h，留返極速餘量）
+    dragCoef: 2.5,       // 空氣阻力；配合新引擎輸出，直路約 200 km/h
     rollResist: 220,     // 滾動阻力
 
     steerMax: 0.62,      // 最大前輪轉角（弧度，約 35°）——低速泊車先用得晒
@@ -59,9 +61,9 @@ export const CFG = {
     steerSpeedDrop: 2.4,
     // 軚盤打得幾快（每秒）。5.5 即係約 0.18 秒先到位——喺手機上「快撳
     // 一下手煞 + 打軚」根本未打到軚就已經放咗手，實測 0.33 秒嘅快撳
-    // 得 6° 起手。7.2 之後半秒起手由 17° 升到 20°，而純打軚極限維持 11°
+    // 得 6° 起手。7.6 之後半秒起手由 18° 升到 20°，而純打軚極限維持 11°
     // （即係唔會因為軚快咗而變得易打圈）。
-    steerRate: 7.2,
+    steerRate: 7.6,
     assistCountersteer: 0.9, // 放開手煞後輕推反打，降低手機細軚輸入嘅救車門檻
     assistMaxSteer: 0.38,
     assistYawDamp: 2.2,  // 大角度開始時穩住偏航，唔會細失誤即刻打圈
@@ -150,6 +152,9 @@ export const CFG = {
     unspinExit: 0.44,    // 25°：扭到呢度先交返玩家（同 ADR-065 一樣要滯後）
     unspinRate: 1.5,     // rad/s：扭返個方向嘅速度上限
     wallDriftCooldown: 1.2,  // 撞完欄幾耐之內唔出動力過彎（秒）
+    bodyPitchLimit: 0.028,    // 全車一體模型只容許約 1.6° 前後俯仰
+    bodyPitchRate: 8.5,       // 懸掛回正速度；唔追住每一幀震
+    bodyPitchLift: 3.4,       // 俯仰時抬高 render root，補回 rigid 車模嘅接地包絡
 };
 
 const G = 9.81;
@@ -172,6 +177,7 @@ export class Car {
         this.wallHit = false;
         this.wallImpact = 0;
         this.bodyRoll = 0;
+        this.bodyPitch = 0;
         this.lockFront = false;
         this.lockRear = false;
         this.unspinning = false;
@@ -194,6 +200,7 @@ export class Car {
         this.wallHit = false;
         this.wallImpact = 0;
         this.wallCooldown = 0;
+        this.bodyPitch = 0;
         this.#sync();
     }
 
@@ -475,6 +482,14 @@ export class Car {
         // 「架車好似浮起、轉左轉右好似飛機咁」，講嘅就係呢個。
         const targetRoll = THREE.MathUtils.clamp(aLat / 105, -0.052, 0.052);
         this.bodyRoll += (targetRoll - this.bodyRoll) * Math.min(1, dt * 7);
+        // 載荷轉移嘅視覺回饋：加速車頭微微抬起、煞車車頭微微沉低。
+        // 只郁整件車身，幅度受限於單一 rigid mesh，唔會再出現輪胎插地／浮起。
+        const targetPitch = THREE.MathUtils.clamp(
+            -aLong * 0.0055,
+            -CFG.bodyPitchLimit,
+            CFG.bodyPitchLimit,
+        );
+        this.bodyPitch += (targetPitch - this.bodyPitch) * Math.min(1, dt * CFG.bodyPitchRate);
         this.#sync();
     }
 
@@ -550,7 +565,10 @@ export class Car {
     }
 
     #sync() {
-        this.root.position.set(this.pos.x, 0, this.pos.z);
-        this.root.rotation.set(0, this.yaw, this.bodyRoll, 'YZX');
+        // 車模係一件 rigid mesh，繞原點俯仰會令車底一邊落低。用模型量過嘅
+        // 包絡補一個極細 render-only lift，保持輪胎貼地；物理位置仍然係 y=0。
+        const pitchLift = Math.abs(this.bodyPitch) * CFG.bodyPitchLift;
+        this.root.position.set(this.pos.x, pitchLift, this.pos.z);
+        this.root.rotation.set(this.bodyPitch, this.yaw, this.bodyRoll, 'YZX');
     }
 }
