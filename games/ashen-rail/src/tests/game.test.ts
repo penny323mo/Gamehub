@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NullEngine, Scene, TransformNode, Vector3 } from "@babylonjs/core";
+import { NullEngine, Quaternion, Scene, TransformNode, Vector3 } from "@babylonjs/core";
 import { GameStateMachine } from "../game/state/GameStateMachine";
 import { resolveOutcome } from "../game/state/OutcomeResolver";
 import { WaveManager } from "../game/systems/WaveManager";
@@ -9,6 +9,7 @@ import { PausableClock } from "../game/systems/PausableClock";
 import { cameraRelativeMovement } from "../game/entities/movement";
 import { RaiderDrone } from "../game/entities/RaiderDrone";
 import { mapGyroDelta } from "../ui/GyroAimController";
+import { ProceduralPlayerAnimator } from "../game/animation/ProceduralPlayerAnimator";
 
 function spawnWholeWave(manager: WaveManager): void {
   for (let index = 0; index < 30; index += 1) {
@@ -66,4 +67,22 @@ describe("Ashen Rail game rules", () => {
 
   it("角色移動會跟隨鏡頭方向旋轉", () => { const move = cameraRelativeMovement(0, 1, { x: 1, z: 0 }); expect(move.x).toBe(1); expect(move.z).toBe(0); });
   it("陀螺儀會按手機橫向方向映射瞄準", () => { expect(mapGyroDelta(2, 1, 90).asArray()).toEqual([-2, 1]); expect(mapGyroDelta(2, 1, 270).asArray()).toEqual([2, -1]); });
+
+  it("程序化角色動畫會識別 rig alias 並令步態／後座改變 pose", () => {
+    const engine = new NullEngine(); const scene = new Scene(engine); const root = new TransformNode("player-test", scene);
+    const pelvis = new TransformNode("Pelvis", scene); pelvis.parent = root;
+    const leftThigh = new TransformNode("L_Thigh", scene); leftThigh.parent = pelvis;
+    const rightForearmTwist = new TransformNode("R_ForearmTwist01", scene); rightForearmTwist.parent = root;
+    const rest = rightForearmTwist.rotationQuaternion?.clone();
+    const animator = new ProceduralPlayerAnimator(root, []);
+    expect(animator.diagnostics().partNames).toEqual(expect.arrayContaining(["Pelvis", "L_Thigh", "R_Forearm"]));
+    animator.update(0.18, { moving: true, dodging: false, aimPitch: 0, reload: 0 });
+    expect(animator.diagnostics().moveBlend).toBeGreaterThan(0);
+    expect(leftThigh.rotationQuaternion?.equals(Quaternion.Identity())).toBe(false);
+    animator.kick(); animator.update(0.016, { moving: false, dodging: false, aimPitch: 0, reload: 0 });
+    expect(animator.diagnostics().recoil).toBeGreaterThan(0);
+    expect(rightForearmTwist.rotationQuaternion?.equals(rest ?? Quaternion.Identity())).toBe(false);
+    animator.reset(); expect(animator.diagnostics().recoil).toBe(0);
+    scene.dispose(); engine.dispose();
+  });
 });

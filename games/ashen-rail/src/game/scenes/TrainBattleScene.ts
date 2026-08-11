@@ -22,6 +22,7 @@ import { resolveOutcome } from "../state/OutcomeResolver";
 import { PausableClock } from "../systems/PausableClock";
 import { ObjectPool } from "../systems/ObjectPool";
 import { WaveManager, type DroneVariant, type WaveEvent } from "../systems/WaveManager";
+import type { AnimatorDiagnostics } from "../animation/ProceduralPlayerAnimator";
 
 interface Projectile { node: TransformNode; velocity: Vector3; age: number; maxAge: number; target: "player" | "core"; }
 export interface BattleCallbacks { onLoaded: (errors: string[]) => void; onProgress: (label: string, progress: number) => void; onResult: (won: boolean, stats: BattleStats) => void; onError: (message: string) => void; }
@@ -121,6 +122,7 @@ export class TrainBattleScene {
     localStorage.setItem("ashenRail.camera", JSON.stringify(settings));
   }
   get droneCount(): number { return this.drones.filter((drone) => !drone.dead).length; }
+  get playerAnimationDiagnostics(): AnimatorDiagnostics | undefined { return this.player?.animationDiagnostics(); }
 
   private setupBattleObjects(): void {
     if (!this.assets) return;

@@ -12,6 +12,9 @@ export class WeaponSystem {
   private cooldown = 0;
   private reloadTimer = 0;
   private recoil = 0;
+  private readonly weaponRoot: TransformNode;
+  private readonly restPosition: Vector3;
+  private readonly restRotation: Vector3;
   private aimAssistStrength = 0.7;
   private readonly flash: TransformNode;
   private readonly tracerMissMaterial: StandardMaterial;
@@ -19,6 +22,7 @@ export class WeaponSystem {
   private readonly tracerKillMaterial: StandardMaterial;
 
   constructor(private readonly scene: Scene, muzzleParent: TransformNode) {
+    this.weaponRoot = muzzleParent; this.restPosition = muzzleParent.position.clone(); this.restRotation = muzzleParent.rotation.clone();
     const material = new StandardMaterial("muzzle-flash-material", scene);
     material.emissiveColor = new Color3(1, 0.45, 0.05); material.disableLighting = true;
     const flash = MeshBuilder.CreatePolyhedron("muzzle-flash", { type: 0, size: 0.18 }, scene);
@@ -33,6 +37,7 @@ export class WeaponSystem {
 
   update(delta: number): void {
     this.cooldown = Math.max(0, this.cooldown - delta); this.recoil = Math.max(0, this.recoil - delta * 5);
+    const kick = this.recoil * this.recoil; this.weaponRoot.position.copyFrom(this.restPosition).addInPlaceFromFloats(0, -0.018 * kick, -0.14 * kick); this.weaponRoot.rotation.copyFrom(this.restRotation); this.weaponRoot.rotation.x -= 0.1 * kick;
     if (this.reloading) {
       this.reloadTimer -= delta;
       if (this.reloadTimer <= 0) { this.reloading = false; this.ammo = this.magazine; }
@@ -80,7 +85,7 @@ export class WeaponSystem {
 
   refill(): void { this.ammo = this.magazine; this.reloading = false; this.reloadTimer = 0; }
   setAimAssistStrength(value: number): void { this.aimAssistStrength = Math.max(0, Math.min(1, value)); }
-  reset(): void { this.cooldown = 0; this.recoil = 0; this.flash.setEnabled(false); this.refill(); }
+  reset(): void { this.cooldown = 0; this.recoil = 0; this.flash.setEnabled(false); this.weaponRoot.position.copyFrom(this.restPosition); this.weaponRoot.rotation.copyFrom(this.restRotation); this.refill(); }
 
   private beginReload(): void { this.reloading = true; this.reloadTimer = GAMEPLAY.weapon.reloadSeconds; }
   private makeEffectMaterial(name: string, color: Color3): StandardMaterial { const material = new StandardMaterial(name, this.scene); material.emissiveColor = color; material.diffuseColor = color.scale(0.22); material.disableLighting = true; return material; }

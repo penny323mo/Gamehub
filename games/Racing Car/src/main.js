@@ -333,6 +333,8 @@ function sampleAutoQuality(now) {
 let car = null;
 let race = null;
 let camInit = false;      // 鏡頭要唔要即刻歸位（換賽道／重開都會用到）
+let cameraThrust = 0;
+let cameraPulse = 0;
 
 // 賽道可以換：換嗰陣要 dispose 舊嗰個，唔係每揀一次就漏一份 3D 世界
 const minimap = new Minimap($('minimap'));
@@ -369,6 +371,7 @@ function buildTrack(id) {
     if (car) car.reset(track.startPos, track.startDir);
     if (race) { race.track = track; race.trackId = trackDef.id; race.reset(); }
     camInit = false;
+    cameraThrust = 0; cameraPulse = 0;
     requestRender();
 }
 buildTrack(trackDef.id);
@@ -562,10 +565,19 @@ function updateCamera(dt) {
     const wideMobile = camera.aspect > 1.45;
     // 追車機位再落低、收近少少：車身姿態同路肩速度先讀得出，唔會只見到
     // 一大片天空。寬手機仍保留前望距離，避免低頭睇車而睇唔到下一個彎。
-    const dist = (11.2 + speedT * 3.2) * (wideMobile ? 0.76 : 0.94);
+    // 機位再收近少少，車身先會成為主角；原本寬屏 8.5m 後車距令架車得
+    // 一個細模型咁大，路面比例反而搶晒畫面。保留高速拉遠，唔會遮住下一個彎。
+    const dist = (10.8 + speedT * 3.0) * (wideMobile ? 0.68 : 0.88);
     const want = car.pos.clone().addScaledVector(fwd, -dist);
-    want.y = (7.2 + speedT * 1.5) * (wideMobile ? 0.76 : 1);
-    const lookAt = car.pos.clone().addScaledVector(fwd, wideMobile ? 18 : 24).setY(0.6);
+    want.y = (6.7 + speedT * 1.4) * (wideMobile ? 0.72 : 0.94);
+    // 加油／煞車嘅瞬間，鏡頭有一個極細嘅反向載荷位移；唔改物理，只畀
+    // 玩家讀到「推背／點頭」，而且有平滑上限，唔會變成震鏡頭。
+    const thrustTarget = THREE.MathUtils.clamp(car.longAccel / 14, -1, 1);
+    cameraThrust += (thrustTarget - cameraThrust) * Math.min(1, dt * 11);
+    cameraPulse += (Math.min(1, car.speed / 48) - cameraPulse) * Math.min(1, dt * 5);
+    want.addScaledVector(fwd, -cameraThrust * 0.24);
+    want.y += Math.sin(performance.now() * 0.012) * cameraPulse * 0.018;
+    const lookAt = car.pos.clone().addScaledVector(fwd, wideMobile ? 15 : 21).setY(0.55);
     if (!camInit) { camPos.copy(want); camLook.copy(lookAt); camInit = true; }
     // 追car 用指數平滑。唔可以再喺漂移時特登放鬆——方向本身已經跟住
     // 行進方向擺，位置再拖就會framing唔到架車。
@@ -575,7 +587,7 @@ function updateCamera(dt) {
     camera.position.copy(camPos).add(drivingEffects.cameraOffset());
     camera.lookAt(camLook);
     // 速度愈快視角愈闊，速度感靠呢個
-    const fov = (wideMobile ? 60 : 64) + speedT * (wideMobile ? 12 : 14);
+    const fov = (wideMobile ? 61 : 64) + speedT * (wideMobile ? 13 : 14);
     if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
     // 只跟偏航速度做極細嘅 horizon roll；唔用車身 roll，避免漂移時鏡頭反而
     // 跟住車身傾到似飛機。幅度 < 1.5°，用嚟讀出速度同重量感。
@@ -1193,6 +1205,7 @@ function startRace() {
     lapProgressBase = 0;
     ghostMesh.visible = false;
     camInit = false;
+    cameraThrust = 0; cameraPulse = 0;
     race.reset();
     hudCache = {};
     resetPerformance();

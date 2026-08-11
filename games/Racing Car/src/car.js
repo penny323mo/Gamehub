@@ -178,6 +178,8 @@ export class Car {
         this.wallImpact = 0;
         this.bodyRoll = 0;
         this.bodyPitch = 0;
+        this.longAccel = 0;             // m/s²，畀 render layer 做載荷／推背感回饋
+        this.lateralAccel = 0;
         this.lockFront = false;
         this.lockRear = false;
         this.unspinning = false;
@@ -201,6 +203,8 @@ export class Car {
         this.wallImpact = 0;
         this.wallCooldown = 0;
         this.bodyPitch = 0;
+        this.longAccel = 0;
+        this.lateralAccel = 0;
         this.#sync();
     }
 
@@ -402,6 +406,8 @@ export class Car {
         const fy = latF * Math.cos(this.steer) + latR;
         const aLong = fx / CFG.mass;
         const aLat = fy / CFG.mass;
+        this.longAccel = aLong;
+        this.lateralAccel = aLat;
 
         // 偏航力矩：前軸推頭、後軸擺尾
         const torque = CFG.wheelBaseF * latF * Math.cos(this.steer) - CFG.wheelBaseR * latR;

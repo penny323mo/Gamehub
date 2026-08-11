@@ -1,85 +1,79 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-11 (Asia/Macau)
-Prepared by: Codex — Racing Car sport-arcade feel checkpoint
+Prepared by: Codex — Racing feel + Ashen animation checkpoint
 Integration branch: `main`
 Work branch: `main`
-Status: Racing Car 的有界加速／姿態／鏡頭／速度回饋已完成 targeted verification；本機同
-origin 在開始今輪前都係 `5b584a3`；本 checkpoint commit 已準備好，push 後要以 remote SHA
-重新核對。共享 worktree
-原本已有 Ashen Rail、Elden Ring II 同 Hub 入口嘅未提交變更；今輪冇覆蓋、冇回退，交接前會
-同 Racing 一齊保留成明確 checkpoint。
+Status: 今輪 source、tracked build output 同 handoff 已完成，targeted gates 全綠；下一步係
+review diff、commit 同 push，之後再用 local/origin SHA 驗證交接點。唔需要 force-push。
 
 ## Current objective
 
-令賽車由「有物理數字但畫面似模型滑過」變成較真實而爽快嘅 sport-arcade：更有推背感、
-有受限載荷姿態、鏡頭讀到路面速度、漂移仍然易救，並保持手機控制／draw budget／既有賽道穩定。
+令 Racing Car 更有真實推背／速度／車身重量，同時收口 Ashen Rail 玩家人物「硬直」問題；
+保留現有手機控制、爽快輔助、賽道穩定性、draw budget 同 Pages-safe asset pipeline。
 
 ## Completed
 
-- Racing Car sport-arcade pass、body-pitch floor compensation、camera framing、speed feedback 同
-  regression gates 已完成；targeted physics/UI/browser evidence 已記錄如下。
-- ADR-265 同 `PROJECT_CONTEXT.md` 已更新，下一棒只需同步後按 exact next action 接手。
+- Racing Car 鏡頭收近及降低，令車身成為畫面主角；速度會平滑提高 FOV。
+- `Car` 暴露 render-only longitudinal/lateral acceleration，鏡頭以受限反向位移及細速度脈衝
+  讀出加油／煞車載荷；物理位置、碰撞、漂移規則不變。
+- Ashen soldier rig 加入 semantic aliases／完整 descendant node collection；無 animation clip
+  仍由 procedural animator 驅動，新增 Hip、turn lean、放大步態、瞄準及 recoil pose。
+- Ashen `PlayerController` 將轉身速度傳入 animator；`WeaponSystem` 對掛在 `R_Hand` 嘅手炮
+  加入短促 local recoil 位移／俯仰，reset 會復原。
+- Ashen dev-only `window.__ashenRail` diagnostic seam 只喺 Vite dev build 暴露，production 會被
+  `import.meta.env.DEV` 消除；可讀 active part names、phase、move blend、recoil。
+- Ashen animation regression test 加入 rig alias、步態 pose 同 recoil pose 檢查；tracked `dist`
+  由正式 build 更新。
 
 ## Changed files
 
-- `games/Racing Car/src/car.js`：`launchForce=12800`、`engineForce=9500`、`maxSpeed=66`、
-  `dragCoef=2.5`、`steerRate=7.6`；新增 `bodyPitch`（上限 0.028rad、平滑回正）同
-  `bodyPitchLift=3.4`。lift 只係補 rigid 車模旋轉後嘅 floor envelope，物理 root 仍以 y=0
-  計算。ABS、手煞鎖後軸、漂移 refund／assist contract 保留。
-- `games/Racing Car/src/main.js`：追車鏡頭較低較近、速度提高 FOV，極細 yaw-rate horizon roll；
-  HUD 新增 `#speed-lines` 狀態更新，高速先顯示，漂移只改色調。
-- `games/Racing Car/index.html`, `style.css`：新增低透明度、`aria-hidden`、
-  `pointer-events:none` 速度 streak layer；HUD z-index 保持控件可操作。
-- `games/Racing Car/tests/race.mjs`：加 body-pitch 有界／實際生效 gate。
-- `games/Racing Car/tests/setup.mjs`：加速度層存在、absolute、唔攔截輸入 gate。
-- Durable decision 已寫入 ADR-265；架構／verification invariants 已更新至 `PROJECT_CONTEXT.md`。
+- `games/Racing Car/src/car.js`
+- `games/Racing Car/src/main.js`
+- `games/ashen-rail/src/game/animation/ProceduralPlayerAnimator.ts`
+- `games/ashen-rail/src/game/entities/PlayerController.ts`
+- `games/ashen-rail/src/game/combat/WeaponSystem.ts`
+- `games/ashen-rail/src/game/scenes/TrainBattleScene.ts`
+- `games/ashen-rail/src/app/GameApp.ts`
+- `games/ashen-rail/src/tests/game.test.ts`
+- `games/ashen-rail/dist/index.html` and rebuilt hashed game asset
+- `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md`
 
 ## Verification
 
-- `cd "games/Racing Car/tests" && node race.mjs` — **125/125**。
-  Key witness: 0–80 **2.47s**, track peak **144 km/h**, cruise **134 km/h**, handbrake
-  entry **19°**, pitch peak **1.6°**, floor lowest **−0.089m**, six directions all finish
-  three laps with no wall hits/rescue.
-- `node setup.mjs` — **126/126**；includes 320×568 / 844×390 layout, camera, minimap,
-  touch/gyro/simple mode, resource/lifecycle, overlay pointer gate and zero browser errors.
-- Real Chromium 844×390 smoke — menu and live screenshots inspected. Around **153 km/h**
-  `#speed-lines` was `active` at computed opacity ~**0.264**; car/camera readable and no
-  page/console errors. Evidence files: `/tmp/racer-sport-menu.png`, `/tmp/racer-sport-live.png`,
-  `/tmp/racer-sport-fast.png` (local only, not commit artifacts).
-- `npm test` run-all was attempted twice; race passed **125/125**, but the next child browser
-  intermittently stalled in `openRacer()` before ready (environment/GPU startup, not an assertion).
-  Do not call the aggregate runner green from that attempt; run WebGL suites one at a time.
-
-## Preserved prior local snapshot
-
-- Ashen Rail runtime/public GLBs and `scripts/optimize-assets.mjs` are still dirty from the previous
-  asset pass. The user’s earlier Ashen animation issue is **not** solved here; next agent should inspect
-  the player GLB clip/skeleton and wire procedural animation or a legal animated asset without undoing
-  the load optimization.
-- Elden Ring II compressed public/dist assets, meshopt loader/start gating in `src/GameClient.tsx`,
-  rebuilt hashed dist entry, and Hub test/entry additions for Ashen + Elden remain intentional dirty
-  changes. Validate the relevant game builds before staging; do not blindly regenerate or delete assets.
-
-## Exact next action
-
-1. Run `./scripts/agent-context.sh --sync`, then read this file, `PROJECT_CONTEXT.md`, and ADR-265.
-2. Confirm `git status`/diff ownership; run Racing `node race.mjs` and `node setup.mjs` separately under
-   GPU pressure, then validate Ashen/Elden dirty snapshot with their documented build/tests.
-3. Run `./scripts/check-handoff.sh` and `git diff --check`; commit Racing/docs plus the intentionally
-   preserved prior snapshot together only after reviewing the full staged diff.
-4. Push `main`, verify local SHA equals `origin/main`, then continue Ashen animation or take the next
-   player-facing risk. No force-push; do not overwrite another agent’s dirty work.
+- `cd "games/Racing Car/tests" && node race.mjs` — **125/125**；0–80 **2.47s**、track peak
+  **144 km/h**、cruise **134 km/h**、pitch peak **1.6°**、floor lowest **−0.089m**，六條賽道
+  自動駕駛三圈、零 wall hit/rescue。
+- 同目錄 `node setup.mjs` — **126/126**；320×568、667×375、844×390 responsive/touch/gyro、
+  speed layer pointer gate、lifecycle、context-loss、零 browser errors。
+- Racing 真 Chromium 844×390 smoke：改後車身框明顯收近，live screenshot `/tmp/racer-camera-speed2.png`
+  可見約 61 km/h；無 page error。前一輪高速 `/tmp/racer-sport-fast.png` 亦驗到 speed-lines active。
+- `cd games/ashen-rail && npm run lint` — PASS；`npm test` — **15/15**；`npm run build` — PASS，
+  tracked dist 已重建。
+- Ashen 真 Chromium 844×390 smoke：loading/start/TUTORIAL 正常；active animator parts **20/20**；
+  開槍約 35ms 手炮 local position `z 0.05 → -0.02875`、rotation `x 0 → -0.05625`，約 220ms
+  復原；page/console errors **0**。截圖 `/tmp/ashen-anim-idle2.png`、`/tmp/ashen-anim-run2.png`、
+  `/tmp/ashen-anim-fire2.png`（local only）。
 
 ## Known issues and cautions
 
-- Racing `npm test` aggregate runner has an environment/GPU startup hang after the first child; report
-  individual suite results rather than claiming the aggregate green without an exit code.
-- Ashen player animation remains an open product task; the optimized assets are not proof of animation clips.
+- Racing aggregate `npm test` 曾喺連續啟動第二個 Chromium 偶發卡在 `openRacer()` ready wait；
+  今次按 suite 分開跑，唔好將 aggregate hang 當 assertion pass。
+- Ashen GLB 本身仍然冇 animation clips；今 checkpoint 有意採用程序化 fallback，唔假裝素材有 clip。
+  若日後換 animated asset，仍要保留 aliases、recoil contract 同 browser visual gate。
+- `__ashenRail` 只係 dev diagnostic，唔可以變成 production gameplay API。
+
+## Exact next action
+
+1. Review `git diff --stat`／`git diff --check`，確認只有上面列明嘅 Racing、Ashen、docs/build output。
+2. Run `./scripts/check-handoff.sh`，commit code + tracked dist + handoff/ADR 一起落 `main`。
+3. Push `main`（user 已授權 cloud handoff），再確認 `git rev-parse HEAD` 同
+   `git rev-parse origin/main` 完全相同、worktree clean。
+4. 下一棒先 `./scripts/agent-context.sh --sync` 再讀本 handoff；未有新要求前，優先做 Racing
+   real-device feel review 或 Ashen dodge/death animation，而唔好重新掃全 repo。
 
 ## Do not redo
 
-- Do not remove the Racing floor-lift compensation or relax the body-pitch/floor gates just to make the
-  car look more dramatic; use camera/effects or a properly pivoted asset for future feel work.
-- Do not make `#speed-lines` receive pointers, cover HUD controls, or become a physics dependency; do not
-  revert the Ashen/Elden/Hub dirty snapshot or stage unrelated generated files blindly.
+- 唔好放大 Racing body pitch/roll 到破壞 floor-clearance；用 camera/effects 做回饋。
+- 唔好令 `#speed-lines` 接 pointer、遮 HUD 或參與 physics。
+- 唔好刪除 Ashen runtime GLB、改回無 alias 嘅 rigid pose，或把 dev diagnostic 放入 production。

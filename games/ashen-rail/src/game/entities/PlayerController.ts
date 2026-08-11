@@ -1,7 +1,7 @@
 import { Scalar, TransformNode, Vector2, Vector3, type Skeleton } from "@babylonjs/core";
 import { PLAYER_BOUNDS } from "../../config/assets";
 import { GAMEPLAY } from "../../config/gameplay";
-import { ProceduralPlayerAnimator } from "../animation/ProceduralPlayerAnimator";
+import { ProceduralPlayerAnimator, type AnimatorDiagnostics } from "../animation/ProceduralPlayerAnimator";
 
 export class PlayerController {
   readonly movement = Vector2.Zero();
@@ -13,6 +13,7 @@ export class PlayerController {
   private proceduralTime = 0;
   private dodgeDirection = new Vector3(0, 0, -1);
   private facingDirection = new Vector3(0, 0, 1);
+  private turnRate = 0;
   private groundHeight: number;
   private readonly animator: ProceduralPlayerAnimator;
 
@@ -38,8 +39,9 @@ export class PlayerController {
   }
 
   shoot(): void { this.animator.kick(); }
+  animationDiagnostics(): AnimatorDiagnostics { return this.animator.diagnostics(); }
 
-  reset(groundHeight = this.groundHeight): void { this.health = this.maxHealth; this.dodgeCooldown = 0; this.dodgeRemaining = 0; this.invincibleRemaining = 0; this.proceduralTime = 0; this.groundHeight = groundHeight; this.movement.set(0, 0); this.dodgeDirection.set(0, 0, -1); this.facingDirection.set(0, 0, 1); this.root.position.set(0, groundHeight, -2.2); this.root.rotationQuaternion = null; this.root.rotation.set(0, Math.PI, 0); this.root.setEnabled(true); this.animator.reset(); }
+  reset(groundHeight = this.groundHeight): void { this.health = this.maxHealth; this.dodgeCooldown = 0; this.dodgeRemaining = 0; this.invincibleRemaining = 0; this.proceduralTime = 0; this.groundHeight = groundHeight; this.movement.set(0, 0); this.dodgeDirection.set(0, 0, -1); this.facingDirection.set(0, 0, 1); this.turnRate = 0; this.root.position.set(0, groundHeight, -2.2); this.root.rotationQuaternion = null; this.root.rotation.set(0, Math.PI, 0); this.root.setEnabled(true); this.animator.reset(); }
 
   update(delta: number, target?: Vector3, groundHeight?: number, pose: { aimPitch?: number; reload?: number } = {}): void {
     if (this.health <= 0) { this.root.rotation.z = Scalar.Lerp(this.root.rotation.z, Math.PI / 2, delta * 2.5); return; }
@@ -60,13 +62,16 @@ export class PlayerController {
       this.facingDirection.set(deltaTarget.x, 0, deltaTarget.z).normalize();
       const desired = Math.atan2(deltaTarget.x, deltaTarget.z);
       const angleDelta = Math.atan2(Math.sin(desired - this.root.rotation.y), Math.cos(desired - this.root.rotation.y));
-      this.root.rotation.y += angleDelta * Math.min(1, delta * 9);
+      const maxTurn = Math.min(1, delta * 9); this.root.rotation.y += angleDelta * maxTurn;
+      this.turnRate = Scalar.Lerp(this.turnRate, Math.max(-1, Math.min(1, angleDelta / Math.max(delta, 0.001))), Math.min(1, delta * 14));
+    } else {
+      this.turnRate = Scalar.Lerp(this.turnRate, 0, Math.min(1, delta * 10));
     }
     this.proceduralTime += delta;
     const moving = direction.lengthSquared() > 0.01;
     this.root.position.y = this.groundHeight + Math.sin(this.proceduralTime * (moving ? 10 : 2.2)) * (moving ? 0.055 : 0.008);
     this.root.rotation.x = Scalar.Lerp(this.root.rotation.x, moving ? -0.075 : Math.sin(this.proceduralTime * 2.2) * 0.008, Math.min(1, delta * 7));
     const walkLean = moving ? -this.movement.x * 0.085 + Math.sin(this.proceduralTime * 10) * 0.03 : 0; this.root.rotation.z = this.dodgeRemaining > 0 ? -this.dodgeDirection.x * 0.28 : Scalar.Lerp(this.root.rotation.z, walkLean, delta * 8);
-    this.animator.update(delta, { moving, dodging: this.dodgeRemaining > 0, aimPitch: pose.aimPitch ?? 0, reload: pose.reload ?? 0 });
+    this.animator.update(delta, { moving, dodging: this.dodgeRemaining > 0, aimPitch: pose.aimPitch ?? 0, reload: pose.reload ?? 0, turnRate: this.turnRate });
   }
 }

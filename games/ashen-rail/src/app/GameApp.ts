@@ -19,6 +19,7 @@ export class GameApp {
     this.scene = new Scene(this.engine);
     this.scene.activeCamera = new FreeCamera("boot-camera", new Vector3(0, 3, -8), this.scene);
     this.battle = new TrainBattleScene(this.scene, quality, { onProgress: this.onProgress, onLoaded: this.onLoaded, onResult: this.onResult, onError: this.showError });
+    if (import.meta.env.DEV) (window as Window & { __ashenRail?: unknown }).__ashenRail = { battle: this.battle, scene: this.scene };
     this.bindUi(); this.engine.runRenderLoop(this.frame); window.addEventListener("resize", () => this.engine.resize());
     document.addEventListener("visibilitychange", () => { if (document.hidden) this.battle.pause(); });
   }

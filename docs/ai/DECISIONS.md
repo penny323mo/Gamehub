@@ -8182,3 +8182,35 @@ Racing targeted browser 結果：`race.mjs` **125/125**、`setup.mjs` **126/126*
 smoke 在約 153 km/h 時 `#speed-lines` active、opacity 約 0.264，冇 page/console errors。完整
 `npm test` run-all 喺連續啟動第二個 Chromium 時偶發卡在 `openRacer()` 的 90s ready wait；因此交接前
 要逐個 WebGL suite 跑，唔好將一次性 runner hang 當成產品 assertion 通過。
+
+## ADR-266 — Ashen Rail 無 clip soldier 必須由 rig-aware procedural pose 驅動
+
+Date: 2026-08-11. Status: accepted.
+
+Ashen Rail 嘅正式 player GLB 有一套 skeleton，但冇任何 animation clip。runtime import 後 43 個
+TransformNode 同 skeleton linked node 會同時存在；只靠 `AnimationResolver` 會令玩家移動、瞄準同
+開槍畫面近似固定模型。素材本身唔可以臨時改寫或假設有授權動畫。
+
+`ProceduralPlayerAnimator` 以 semantic part name 對應 exact rig node，並為 calf、upperarm、forearm
+保留 `*_Twist01` aliases；node collection 同時掃 child transforms 同 descendants，避免 loader
+版本改變 direct-child 行為。walk 用 hip/pelvis/spine/legs/left arm 混合相位，turn rate 令軀幹／頭
+有反向 lean，aim/reload/recoil 只疊喺持槍手；`PlayerController` 傳 turn rate，`WeaponSystem` 對
+掛喺 `R_Hand` bone 嘅 weapon root 做短促 local recoil，reset 必須回到 rest pose。
+
+`window.__ashenRail` 只喺 `import.meta.env.DEV` 暴露，用作 browser evidence，production bundle
+唔依賴 debug global。`games/ashen-rail/src/tests/game.test.ts` 守 alias、步態 pose、recoil pose；
+真 browser 必須讀 active part 同 weapon local transform，唔可以只以 TypeScript/build pass 宣稱動畫完成。
+
+## ADR-267 — Racing Car 加速回饋維持 render-only、以受限 camera impulse 表達重量
+
+Date: 2026-08-11. Status: accepted.
+
+即使 `Car` 已有 sport-arcade acceleration、body pitch/roll 同 speed-lines，寬屏手機嘅追車鏡頭仍
+太遠太高，令車身似小模型滑過；單純再加引擎力會破壞已驗證嘅 drift、ABS、wall recovery 同 0–80
+時間。今輪只改善畫面讀感：camera distance/height 收近，FOV 仍按速度提高，並用 `Car.longAccel`
+（及 `lateralAccel` 作未來 render hook）做 bounded reverse thrust 位移，再加低幅速度脈衝。
+
+`longAccel`／`lateralAccel` 係 physics 計算結果，只畀 render layer 讀，唔會回寫 velocity、yaw、
+collision 或 track progress。camera impulse 有平滑及固定上限，start/buildTrack 會 reset；
+`#speed-lines` 仍 pointer-transparent、唔遮 HUD、唔參與 physics。`race.mjs` **125/125**、
+`setup.mjs` **126/126** 同 844×390 real browser smoke 係今輪 gate。
