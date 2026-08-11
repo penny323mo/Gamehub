@@ -63,7 +63,7 @@ browser evidence for every visual or control change.
 - `docs/ai/HANDOFF.md`
 
 ## Verification
-- `node --check` on `main.js`, `driving-effects.js`, `setup.mjs`, `tests/lib/harness.mjs` — PASS.
+- `node --check` on `main.js`, `driving-effects.js`, `setup.mjs`, `tests/lib/harness.mjs`, `tests/run-all.mjs` — PASS.
 - `git diff --check` — PASS.
 - `race.mjs` — **126/126**; six tracks, top **146 km/h**, 0–80 **2.40s**,
   drift/ABS/wall/recovery/roll gates green, zero browser errors.
