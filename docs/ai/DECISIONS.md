@@ -8475,3 +8475,22 @@ render-only pose，將差值以受限 `suspensionPitch`／`suspensionRoll` 加�
 `season` **55/55**、`audio` **33/33**，世界 **16 calls／56,933 tris**。日後換車模或
 提高路面幅度，必須重跑呢個 gate、手機 draw budget 同真 browser screenshot，唔好將
 lag 直接餵返物理。
+
+## ADR-285 — Racing Car 要有可讀 crest／valley，起伏只留喺 render surface
+
+Date: 2026-08-12. Status: accepted.
+
+上一版雖然已經有 elevation，但長直路真 browser 畫面仍然讀落似一塊平板；surface
+range 約 3m、最大 pitch 約 0.019rad，車速同道路高低缺少足夠視覺參照。今次將 profile
+嘅閉環整數波振幅由 `0.86/0.34/0.14` 提到 `1.18/0.48/0.18`，並將賽道性格定為
+turbo **1.15**、coast **1.00**、touge **1.30**，constructor clamp 為 **0.75–1.40**。
+setup 實測 touge-rev surface **−2.323…+2.323m**、pitch **0.02925rad**；起點
+高度／pitch seam 仍然係零誤差。
+
+呢個 profile 仍然係 render-only：`Car.pos.y`、速度、輪胎力、碰撞、nearestT、
+checkpoint、progress、AI、對手決策同地圖格網完全不讀。路面 ribbon、kerb、護欄、
+terrain、車身 render pose、接地陰影同 effects 共享同一個 surface anchor；世界 budget
+維持 **16 calls／56,933 tris**。真 headed smoke 見到 raised-road crest；完整
+aggregate 維持 `race` **128/128**、`setup` **147/147**、`rivals` **61/61**、
+`ghost` **29/29**、`season` **55/55**、`audio` **33/33**。日後再提高幅度前，必須
+重跑物理 gates、手機 budget 同自然駕駛 screenshot，唔好將 render slope 餵返 physics。

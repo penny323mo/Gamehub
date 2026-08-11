@@ -99,7 +99,9 @@ export class Track {
         const pts = waypoints.map(([x, z]) => new THREE.Vector3(x, 0, z));
         this.curve = new THREE.CatmullRomCurve3(pts, true, 'catmullrom', tension);
         this.profileKey = profileKey;
-        this.elevation = Number.isFinite(elevation) ? THREE.MathUtils.clamp(elevation, 0.7, 1.3) : 1;
+        // 呢個倍率只係 render surface 嘅「山勢性格」，唔係物理坡度；開到
+        // 1.4 係畀山道有真正 crest／valley，而唔係所有場都似同一塊平板。
+        this.elevation = Number.isFinite(elevation) ? THREE.MathUtils.clamp(elevation, 0.75, 1.4) : 1;
         this.length = this.curve.getLength();
         // nearestT() 係駕駛 loop 每架車每幀都會叫；曲線取樣本身會建立
         // 新 Vector3，四架對手加玩家會令一幀產生過千個短命物件。建好
@@ -141,14 +143,15 @@ export class Track {
         for (let i = 0; i < QUERY_SAMPLES; i++) {
             const t = i / QUERY_SAMPLES;
             // 以整數週期做低頻起伏，確保閉環 t=0/1 高度同坡度完全接返；
-            // 兩個頻段交疊令路面有長上落兼少量 crest，唔似一條規律正弦波。
-            // 比早期平路版大約提高 1.75 倍，再由賽道個性微調；仍然只係
-            // render surface，唔會造成物理車飛離路面或改變碰撞格網。
+            // 主波負責長上落，次波製造 crest／valley，第三波只留少量細節。
+            // 振幅比上一版再加強約 37%，令長直路真係讀到上坡／落坡，唔再似
+            // 一塊貼住世界嘅黑色膠墊；仍然只係 render surface，唔會造成物理
+            // 車飛離路面或改變碰撞格網。
             const grade = this.elevation;
             const y = grade * (
-                0.86 * Math.sin(phase + t * Math.PI * 2)
-                + 0.34 * Math.sin(phase * 0.61 + t * Math.PI * 2 * 3)
-                + 0.14 * Math.sin(phase * 1.7 + t * Math.PI * 2 * 5)
+                1.18 * Math.sin(phase + t * Math.PI * 2)
+                + 0.48 * Math.sin(phase * 0.61 + t * Math.PI * 2 * 3)
+                + 0.18 * Math.sin(phase * 1.7 + t * Math.PI * 2 * 5)
             );
             this.surfaceYProfile[i] = y;
             min = Math.min(min, y); max = Math.max(max, y);

@@ -107,9 +107,11 @@ repository as a static site.
   built once as a 32×32 mesh;
   do not replace it with per-frame terrain generation or a second road pass.
 - Racing Car's visual track profile uses the `elevation` value on each track
-  definition to create a closed, track-specific crest/grade at build time. It
-  remains render-only: physics, collision, progress, checkpoints and AI stay
-  on the established X/Z grid. Corner chevrons are upright render-only warning
+  definition (turbo **1.15**, coast **1.00**, touge **1.30**) plus closed integer
+  frequency waves to create a more legible crest/grade at build time. The
+  constructor clamps this render-only multiplier to **0.75–1.40**; physics,
+  collision, progress, checkpoints and AI stay on the established X/Z grid.
+  Corner chevrons are upright render-only warning
   signs built once from profile curvature. Their single shape includes a short
   integral stem;
   keep them outside the road ribbon and inside the guardrail, use the single
@@ -348,7 +350,7 @@ physical-phone handoff evidence. The startup gate requires the first
 complete WebGL frame plus pre-drawn minimap/HUD before the loading overlay reveals Start.
 The car keeps raw `trackPitch`/`trackBank` as render-surface truth and applies only a
 bounded render-only suspension follow (max 0.018/0.015 rad) to the visual root, so
-crest/bank transitions have weight without changing `Car.pos.y`, physics, collision,
+  stronger crest/bank transitions have weight without changing `Car.pos.y`, physics, collision,
 progress, AI, or the contact-shadow anchor.
 
 Royale has a committed regression suite. Run it for any change under

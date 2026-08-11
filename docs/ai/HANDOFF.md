@@ -1,7 +1,7 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Racing Car suspension-feedback and aggregate verification pass
+Prepared by: Codex — Racing Car elevation-profile and aggregate verification pass
 Integration branch: `main`
 Work branch: `main`
 Status: Racing source, tests, browser smoke and docs are ready for the next
@@ -17,8 +17,7 @@ browser evidence for every visual or control change.
 ## Completed
 
 - The render-only track surface now uses closed integer-frequency elevation waves;
-  the seam at `t=0/1` has matching height and longitudinal pitch instead of a
-  hidden step at the loop boundary.
+  the seam at `t=0/1` has matching height and longitudinal pitch, with no loop step.
 - `Track.surfacePitchAtT()` derives a clamped local-X slope from the existing 240
   samples. Player, rival, ghost and offroad render poses follow `renderY`, banking
   and pitch; physics remains the established X/Z bicycle model.
@@ -26,10 +25,10 @@ browser evidence for every visual or control change.
   trackside tree trunks/crowns are anchored to the terrain base instead of a
   fixed world Y. This removes the visible floating/sinking mismatch on hills.
 - Elevation is now track-specific and visibly graded without adding geometry:
-  `tracks.js` supplies a bounded `elevation` multiplier (turbo 1.00, coast 0.84,
-  touge 1.16). Default turbo setup measures surface **−1.509…+1.509m**, bank
-  cap **0.055rad**, maximum sampled pitch **0.0191rad**; terrain remains one
-  32×32 mesh and the seam is still exact.
+  `tracks.js` supplies `elevation` multipliers (turbo **1.15**, coast **1.00**,
+  touge **1.30**) and `track.js` uses stronger closed waves. Setup on touge-rev
+  measures surface **−2.323…+2.323m**, span **4.645m**, pitch **0.02925rad** and
+  bank cap **0.055rad**; terrain remains one 32×32 mesh and the seam is exact.
 - The speed layer now starts at `10 m/s` instead of `16 m/s`, reaches stronger
   readable intensity by roughly 80 km/h, and has a slightly clearer gradient;
   it remains pointer-transparent, HUD-safe, render-only and draw-call neutral.
@@ -59,7 +58,7 @@ browser evidence for every visual or control change.
 - `games/Racing Car/style.css`
 - `games/Racing Car/tests/race.mjs`, `games/Racing Car/tests/setup.mjs`, `games/Racing Car/tests/lib/harness.mjs`, `games/Racing Car/tests/run-all.mjs`
 - `docs/ai/PROJECT_CONTEXT.md`
-- `docs/ai/DECISIONS.md` (ADR-273 through ADR-284)
+- `docs/ai/DECISIONS.md` (ADR-273 through ADR-285)
 - `docs/ai/HANDOFF.md`
 
 ## Verification
@@ -76,9 +75,10 @@ browser evidence for every visual or control change.
   **128/128**, setup **147/147**, rivals **61/61**, ghost **29/29**, season **55/55**,
   audio **33/33**; old 500ms gap reproduced setup timeout, which disappeared at
   `RACER_TEST_SETTLE_MS=5000`.
-- Real browser grade smoke: 844×390 at **135 km/h**, `surfaceY` **−0.117m**, pitch
-  **−0.0195rad**, body pitch **−0.028rad**; portrait 320×568 at **111 km/h** keeps
-  controls inside viewport. Screenshots `/tmp/racing-elevation-v4.png`, `/tmp/racing-elevation-portrait-v4.png`; Playwright headed smoke has zero console errors.
+- Real browser headed smoke after the profile change loaded the live page, started a
+  race and captured a raised-road crest at `/tmp/racing-elevation-v5.png` and
+  `/tmp/racing-elevation-v5-fast.png`; setup still verifies portrait 320×568 controls,
+  zero page errors and the new profile's render-only boundary.
 - 844×390 real browser audit aimed at a naturally generated landmark position;
   the orange chevron reads as an upright sign with a visible short stem:
   `/tmp/racing-landmark-pole-audit.png`. Placement is separately guarded by
@@ -90,8 +90,8 @@ browser evidence for every visual or control change.
   `offroad=true`, `renderY=terrainY=-1.103m`, `shake=0.0126`, one dust particle.
 ## Known issues and cautions
 
-- `renderY`, `trackBank`, `trackPitch` and suspension follow are render-only. Never
-  feed them into `Car.pos`, collision, nearestT, checkpoints, progress, speed or AI decisions.
+- `renderY`, `trackBank`, `trackPitch` and suspension follow are render-only; never feed
+  them into `Car.pos`, collision, nearestT, checkpoints, progress, speed or AI decisions.
 - Keep the terrain as one bounded 32×32 mesh and the query cache at 240 X/Z
   samples. Do not add per-frame curve allocations or a second road pass.
 - The rigid GLB has no wheel bones/clips; `wheel-motion.js` is a model-specific
@@ -107,7 +107,7 @@ browser evidence for every visual or control change.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-284.
+1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-285.
 2. Keep the aggregate and named suites green after any further render/physics change;
    keep rumble and suspension follow render-only and budget-neutral.
 3. For any further change, rerun the named Racing suites, update this handoff,

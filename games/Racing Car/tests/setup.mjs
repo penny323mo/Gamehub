@@ -201,12 +201,12 @@ check('彎位有低成本外側 chevron 地標，唔再只靠重複樹木讀路'
     && geo.landmarks.placement.minHeight > 0.3
     && geo.landmarks.name === 'corner-chevron-landmarks', geo.landmarks);
 check('賽道 render surface 有可讀坡度同 banking，唔再係近乎平路',
-    geo.elevation >= 0.95 && geo.surfaceY[1] - geo.surfaceY[0] > 2.4
-    && geo.roadY[1] - geo.roadY[0] > 3.2 && geo.surfacePitch > 0.014
+    geo.elevation >= 1.05 && geo.surfaceY[1] - geo.surfaceY[0] > 3.4
+    && geo.roadY[1] - geo.roadY[0] > 4.2 && geo.surfacePitch > 0.024
     && geo.surfaceBank > 0.01, geo);
 check('閉環起伏喺起點無縫接返，車身會跟縱向坡度俯仰',
     geo.profileSeam.height < 0.0001 && geo.profileSeam.pitch < 0.0001
-    && geo.surfacePitch > 0.008 && Math.abs(geo.carTrackPitch - geo.startSurfacePitch) < 0.01, geo);
+    && geo.surfacePitch > 0.018 && Math.abs(geo.carTrackPitch - geo.startSurfacePitch) < 0.01, geo);
 check('玩家車身起步 render pose 同路面高度對齊',
     Math.abs(geo.carRenderY - geo.startSurfaceY) < 0.01, geo);
 check('接地陰影跟住車身方向同 render 坡度／banking',
