@@ -628,7 +628,11 @@ const cameraElevation = await page.evaluate(() => {
     root.startRace();
     root.pauseRace('camera elevation test');
     const baseY = root.car.renderY;
-    surface.surfaceYAtT = () => baseY + 4;
+    let sampledT = null;
+    surface.surfaceYAtT = (t) => {
+        sampledT = t;
+        return baseY + 4;
+    };
     let maxLook = 0;
     for (let i = 0; i < 90; i++) {
         root.updateCameraForTest(1 / 60);
@@ -637,6 +641,8 @@ const cameraElevation = await page.evaluate(() => {
     const result = {
         maxLook,
         cue: root.cameraElevationLook,
+        profileAheadMeters: sampledT == null ? 0
+            : ((sampledT - surface.startT + 1) % 1) * surface.length,
         physicsY: root.car.pos.y,
         limit: 0.18,
     };
@@ -647,6 +653,7 @@ const cameraElevation = await page.evaluate(() => {
 console.log('  ', JSON.stringify(cameraElevation));
 check('crest／valley 會令鏡頭預讀上下落差，但唔會污染物理 Y',
     cameraElevation.maxLook > 0.01
+    && cameraElevation.profileAheadMeters >= 23
     && Math.abs(cameraElevation.cue) <= cameraElevation.limit + 0.001
     && cameraElevation.physicsY === 0, cameraElevation);
 

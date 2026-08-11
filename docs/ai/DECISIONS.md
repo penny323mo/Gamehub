@@ -8661,3 +8661,23 @@ setup **152/152**、rivals **61/61**、ghost **29/29**、season **55/55**、audi
 正常，console **0 errors**。日後任何新增方向查詢先判斷可否走 `tangentAtT()`，唔好為咗
 微小視覺差異恢復 frame-loop Catmull-Rom tangent；若要改 aim point 取樣，必須重跑 rivals、
 race、mobile screenshot 同 aggregate。
+
+## ADR-295 — Racing Car 坡度鏡頭 cue 要獨立預讀 24–42m，提早讀 crest／valley
+
+Date: 2026-08-12. Status: accepted.
+
+上一版 `cameraElevationLook` 同彎道 tangent 一樣只讀 12–22m 前方；自然行車時路面
+雖然有 5–6.6m 嘅起伏，但鏡頭往往到 crest 先開始反應，玩家仍然覺得係一張平面路面。
+今輪保留彎道 look-ahead 原值，另設 `elevationLookAheadMeters = 24 + speedT * 18`
+讀既有 cached `surfaceYAtT()` profile，再用原本 `elevationDelta / 18`、`±0.18` 上限同
+平滑 rate 4.5 寫入 look target。較遠嘅獨立預讀令高速上／落坡有時間逐步進入視線，唔會
+為咗製造爽快感而加 camera shake、FOV 或 physics height。
+
+`setup.mjs` gate 會攔截 profile query，確認靜止起步時預讀至少 **23m**，同時驗證 cue
+仍然守住 **±0.18**、`Car.pos.y` 仍係 **0**；aggregate 維持 race **133/133**、setup
+**152/152**、rivals **61/61**、ghost **29/29**、season **55/55**、audio **33/33**。
+真 headed root-served **844×390** touge smoke（無輸入）取到 `cameraElevationLook`
+**+0.0916/−0.0312**、console **0 errors**，畫面維持 road ribbon、crest、kerb、
+mobile controls；自然無打軚時出現少量落草係玩家未跟彎，唔係鏡頭 cue 改動。日後如再
+調整預讀距離、幅度或 slope profile，必須重跑自然 mobile screenshot、nausea check、
+物理 gates 同 aggregate，唔好將 cached elevation 餵入車身、陰影、路線或碰撞。

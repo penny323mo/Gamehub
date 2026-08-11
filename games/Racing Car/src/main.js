@@ -634,9 +634,13 @@ function updateCamera(dt) {
     );
     // 預讀前方已烘好嘅 surface profile，令 crest／valley 真正影響駕駛者視線；
     // 呢個只係 look target 嘅有界 cue，唔改車身 Y、速度、碰撞或者 progress。
-    // 用 elevation delta 而唔係再取 Catmull-Rom，保持 camera hot path 無 allocation。
+    // 用比彎勢更遠嘅 24–42m profile 預讀，讓高速 crest／valley 有足夠時間
+    // 逐步進入視線；唔共用上面 12–22m 彎勢距離，否則畫面到上坡頂先至郁，
+    // 玩家只會覺得路面突然升降。用 elevation delta 而唔係再取 Catmull-Rom，
+    // 保持 camera hot path 無 allocation。
+    const elevationLookAheadMeters = 24 + speedT * 18;
     const aheadSurfaceY = track.surfaceYAtT(
-        playerT + lookAheadMeters / Math.max(1, track.length),
+        playerT + elevationLookAheadMeters / Math.max(1, track.length),
     );
     const elevationDelta = THREE.MathUtils.clamp(aheadSurfaceY - car.renderY, -8, 8);
     const elevationTarget = THREE.MathUtils.clamp(elevationDelta / 18, -0.18, 0.18);
