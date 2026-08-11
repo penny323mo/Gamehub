@@ -161,6 +161,7 @@ const geo = await page.evaluate(async () => {
         startSurfacePitch: track.surfacePitchAtT(track.startT),
         carRenderY: car.renderY,
         carTrackPitch: car.trackPitch,
+        wheels: car.wheels.snapshot(),
         roadY: (() => {
             const ys = [];
             for (let i = 1; i < track.road.geometry.attributes.position.array.length; i += 3) {
@@ -197,6 +198,25 @@ check('閉環起伏喺起點無縫接返，車身會跟縱向坡度俯仰',
     && geo.surfacePitch > 0.008 && Math.abs(geo.carTrackPitch - geo.startSurfacePitch) < 0.01, geo);
 check('玩家車身起步 render pose 同路面高度對齊',
     Math.abs(geo.carRenderY - geo.startSurfaceY) < 0.01, geo);
+check('rigid GLB 仍有四個輪胎 cluster 做 render-only 動畫',
+    geo.wheels.enabled && geo.wheels.wheels === 4 && geo.wheels.vertices > 5000
+    && geo.wheels.radius > 0.4, geo.wheels);
+const wheelMotion = await page.evaluate(() => {
+    const { car } = window.__racer;
+    const mesh = car.root.getObjectByProperty('isMesh', true);
+    const before = mesh.geometry.attributes.position.array.slice();
+    car.wheels.update(1 / 30, 25, 0.42);
+    const after = mesh.geometry.attributes.position.array;
+    let changed = 0;
+    for (let i = 0; i < after.length; i++) if (Math.abs(after[i] - before[i]) > 1e-6) changed++;
+    const state = car.wheels.snapshot();
+    car.wheels.reset();
+    return { changed, state };
+});
+console.log('  ', JSON.stringify(wheelMotion));
+check('車輪會按車速滾動同按前輪軚角轉向',
+    wheelMotion.changed > 5000 && Math.abs(wheelMotion.state.angle) > 0.5
+    && Math.abs(wheelMotion.state.steering) > 0.05, wheelMotion);
 check('草地 mesh 會喺賽道附近銜接高度（仍然單一 terrain mesh）',
     geo.terrainVertices >= 32 * 32, geo.terrainVertices);
 check('完整 3D 世界 draw calls 維持手機預算（<18）', geo.calls < 18, geo.calls);

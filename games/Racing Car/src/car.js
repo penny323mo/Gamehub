@@ -11,6 +11,7 @@
 // 有咗呢三樣，入彎甩尾、反打救車、油門控制角度全部自然發生，唔使特別寫。
 
 import * as THREE from 'three';
+import { createWheelMotion } from './wheel-motion.js';
 
 export const CFG = {
     mass: 1180,          // kg
@@ -164,6 +165,7 @@ export class Car {
         this.root = new THREE.Group();
         this.root.add(model);
         this.model = model;
+        this.wheels = createWheelMotion(model);
 
         this.pos = new THREE.Vector3();
         this.vel = new THREE.Vector3();   // 世界座標速度
@@ -185,6 +187,7 @@ export class Car {
         this._renderPose = { y: 0, bank: 0, pitch: 0 };
         this.longAccel = 0;             // m/s²，畀 render layer 做載荷／推背感回饋
         this.lateralAccel = 0;
+        this.wheels.reset();
         this.lockFront = false;
         this.lockRear = false;
         this.unspinning = false;
@@ -531,6 +534,7 @@ export class Car {
             this.trackBank = this._renderPose.bank;
             this.trackPitch = this._renderPose.pitch;
         }
+        this.wheels.update(dt, this.forwardSpeed, this.steer);
         this.#sync();
     }
 

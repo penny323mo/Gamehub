@@ -1,7 +1,7 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Racing Car graded-surface and upright landmark pass
+Prepared by: Codex — Racing Car graded-surface and wheel-motion pass
 Integration branch: `main`
 Work branch: `main`
 Status: Racing source, tests, browser smoke and docs are ready for the next
@@ -38,6 +38,9 @@ browser evidence for every visual or control change.
   `corner-chevron-landmarks` InstancedMesh; signs use orange/cyan/yellow track
   palettes, sit about 17.5m outside the ribbon and inside the guardrail, and
   stay independent from physics, AI and checkpoints.
+- `wheel-motion.js` now classifies four low-level wheel clusters inside the rigid
+  GLB and updates only their merged position/normal vertices: speed-driven spin
+  plus smoothed front-wheel steering, with no new mesh or draw call.
 - Existing sport-arcade envelope, auto-throttle/simple controls, drift assists,
   speed layer, bounded effects, rivals/ghost/season and lifecycle contracts are
   unchanged.
@@ -48,11 +51,12 @@ browser evidence for every visual or control change.
 - `games/Racing Car/src/tracks.js`
 - `games/Racing Car/src/main.js`
 - `games/Racing Car/src/car.js`
+- `games/Racing Car/src/wheel-motion.js`
 - `games/Racing Car/src/rivals.js`
 - `games/Racing Car/style.css`
 - `games/Racing Car/tests/setup.mjs`
 - `docs/ai/PROJECT_CONTEXT.md`
-- `docs/ai/DECISIONS.md` (ADR-273, ADR-274, ADR-275, ADR-276, ADR-277)
+- `docs/ai/DECISIONS.md` (ADR-273, ADR-274, ADR-275, ADR-276, ADR-277, ADR-278)
 - `docs/ai/HANDOFF.md`
 
 ## Verification
@@ -61,9 +65,10 @@ browser evidence for every visual or control change.
 - `git diff --check` — PASS before documentation update.
 - `race.mjs` — **126/126**; six tracks, top **146 km/h**, 0–80 **2.40s**,
   drift/ABS/wall/recovery/roll gates green, zero browser errors.
-- `setup.mjs` — **142/142**; closed height/pitch seam, terrain/guardrail pose,
+- `setup.mjs` — **144/144**; closed height/pitch seam, terrain/guardrail pose,
   mobile layout/touch/gyro, day/night, lifecycle/context loss, draw budget,
-  speed-layer opacity, 6–14 landmark placement/material/draw gates and zero
+  speed-layer opacity, 6–14 landmark placement/material/draw gates, four-wheel
+  spin/steering regression and zero
   browser errors. Latest full-world read: **16 calls／56,933 tris**; effects
   remain **17 calls**.
 - `rivals.mjs` — **61/61**; four AI rivals, ranking, minimap, instancing and
@@ -76,23 +81,21 @@ browser evidence for every visual or control change.
   errors; screenshot `/tmp/racing-elevation-v4.png`. 320×568 portrait at
   **111 km/h** reads pitch **−0.0206rad**, stick/gas stay inside viewport;
   screenshot `/tmp/racing-elevation-portrait-v4.png`.
-- 844×390 controlled drift smoke: **78 km/h**, slip **18.6°**, speed-layer
-  opacity **0.340**, intensity **0.475**, screenshot:
-  `/tmp/racing-speed-feedback-v1.png`; 320×568 portrait smoke at **61 km/h**
-  reads opacity **0.179**, no control overlap or browser errors:
-  `/tmp/racing-speed-portrait-v1.png`.
 - 844×390 real browser audit aimed at a naturally generated landmark position;
   the orange chevron reads as an upright sign with a visible short stem:
   `/tmp/racing-landmark-pole-audit.png`. Placement is separately guarded by
   setup (17.48–17.58m lateral, ≥0.97m above the local banked surface).
+- 844×390 side-view browser audit after wheel animation: four wheels remain
+  visually coherent at **25m/s**, spin angle **−11.22rad**, front steering
+  **0.39rad**; screenshot `/tmp/racing-wheel-side-audit.png`.
 ## Known issues and cautions
 
 - `renderY`, `trackBank` and `trackPitch` are render-only. Never feed them into
   `Car.pos`, collision, nearestT, checkpoints, progress, speed or AI decisions.
 - Keep the terrain as one bounded 32×32 mesh and the query cache at 240 X/Z
   samples. Do not add per-frame curve allocations or a second road pass.
-- The rigid GLB has no wheel bones/clips; body pitch/roll, speed layer, effects,
-  camera and contact pose are the supported low-cost feedback channels.
+- The rigid GLB has no wheel bones/clips; `wheel-motion.js` is a model-specific
+  render heuristic and must be re-profiled if the car asset changes.
 - Do not increase engine output, camera shake, body roll/pitch, elevation or
   banking without rerunning the physical drift/ABS gates, mobile draw budget and
   a real screenshot at the affected viewport.
@@ -103,10 +106,9 @@ browser evidence for every visual or control change.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-277.
-2. Inspect `/tmp/racing-elevation-v4.png` and the landmark audit at phone-sized
-   scale; if the grade feels too strong, adjust only the bounded track
-   `elevation` values and rerun the named suites.
+1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-278.
+2. Inspect `/tmp/racing-wheel-side-audit.png` and the portrait grade smoke at
+   phone-sized scale; keep wheel animation render-only and budget-neutral.
 3. For any further change, rerun the named Racing suites, update this handoff,
    run `./scripts/check-handoff.sh`, then commit/push the verified checkpoint.
 

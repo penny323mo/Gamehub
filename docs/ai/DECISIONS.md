@@ -8382,3 +8382,16 @@ Date: 2026-08-12. Status: accepted.
 並繼續守 seam、16 calls／56,933 tris、<120k triangles。真 browser smoke 讀到
 **135 km/h／−0.0195rad pitch**，截圖 `/tmp/racing-elevation-v4.png`；日後再加坡度必須
 先重跑六賽道 autopilot、手機 draw budget 同自然駕駛截圖，唔可以將 render grade 餵返物理。
+
+## ADR-278 — Racing Car rigid GLB 要有低成本輪胎轉動／轉向回饋
+
+Date: 2026-08-12. Status: accepted.
+
+車模係單一 rigid GLB，冇 wheel nodes 或 animation clips；只靠 body pitch/roll 會令高速
+畫面似模型滑行。browser asset audit 喺 merged geometry 內找到四個低位輪胎 cluster，
+`wheel-motion.js` build time 分類佢哋，runtime 只更新嗰批 position／normal vertices：
+輪胎按 `forwardSpeed / radius` 滾動，前輪按平滑 `Car.steer` 做視覺轉向，唔新增 mesh、
+material、draw call，亦唔改 `Car.pos`、碰撞或物理輪胎。setup 新增 cluster、spin、steering
+regression，完整 draw budget 仍 **16 calls／56,933 tris**；真 browser side audit 截圖
+`/tmp/racing-wheel-side-audit.png`，四輪 **10,296 vertices**、radius 約 **0.446m**。
+日後換車模要重新量 cluster，唔好將呢個 heuristic 當成通用骨架 API。
