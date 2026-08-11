@@ -1,7 +1,7 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Racing Car elevation, camera-grade and aggregate verification pass
+Prepared by: Codex — Racing Car camera-grade/corner-load and aggregate verification pass
 Integration branch: `main`
 Work branch: `main`
 Status: Racing source, tests, browser smoke and docs are ready for the next
@@ -46,7 +46,10 @@ browser evidence for every visual or control change.
   caps at `0.024`, and does not alter physics or draw calls.
 - Existing sport-arcade envelope, auto-throttle/simple controls, drift assists, speed
   layer, terrain/effects anchors, render-only suspension follow, rivals/ghost/season and lifecycle contracts unchanged.
-- Chase camera now smooths a clamped render-only `cameraGrade` copy of `car.trackPitch`: tiny position/look-target bias makes crest/downhill read with weight; it resets on start/build and never touches FOV, input or physics.
+- Chase camera now smooths clamped render-only `cameraGrade` and `cameraLean`: grade reads
+  crest/downhill, while corner lateral-load/yaw gives a bounded ±0.032rad horizon cue;
+  both reset on start/build, never touch FOV/input/physics, and surface sync updates the
+  contact shadow immediately so reset/track changes cannot show a one-frame stale shadow.
 
 ## Changed files
 
@@ -59,7 +62,7 @@ browser evidence for every visual or control change.
 - `games/Racing Car/style.css`
 - `games/Racing Car/tests/race.mjs`, `games/Racing Car/tests/setup.mjs`, `games/Racing Car/tests/lib/harness.mjs`, `games/Racing Car/tests/run-all.mjs`
 - `docs/ai/PROJECT_CONTEXT.md`
-- `docs/ai/DECISIONS.md` (ADR-273 through ADR-286)
+- `docs/ai/DECISIONS.md` (ADR-273 through ADR-287)
 - `docs/ai/HANDOFF.md`
 
 ## Verification
@@ -67,16 +70,17 @@ browser evidence for every visual or control change.
 - `git diff --check` — PASS.
 - `race.mjs` — **128/128**; six tracks, top **146 km/h**, 0–80 **2.40s**,
   drift/ABS/wall/recovery/roll/suspension gates green, zero browser errors.
-- `setup.mjs` — **147/147**; terrain/offroad pose, contact shadow/effects, mobile
+- `setup.mjs` — **148/148**; terrain/offroad pose, contact shadow/effects, mobile
   controls, day/night, lifecycle/context loss, landmarks, four-wheel motion, rumble
   (`shake=0.0075`) green; zero browser errors, **16 calls／56,933 tris**, effects **17**.
-- Named suites green: `rivals.mjs` **61/61**, `ghost.mjs` **29/29**, `season.mjs`
-  **55/55**, `audio.mjs` **33/33**, all zero browser errors.
+- Named suites green: `rivals.mjs` **61/61**, `ghost.mjs` **29/29**, `season.mjs` **55/55**,
+  `audio.mjs` **33/33**, all zero browser errors.
 - Aggregate green with default 5-second teardown and readiness-only retry: race
-  **128/128**, setup **147/147**, rivals **61/61**, ghost **29/29**, season **55/55**,
-  audio **33/33**; old 500ms gap reproduced setup timeout, which disappeared at
-  `RACER_TEST_SETTLE_MS=5000`.
-- Real browser headed smoke after the profile/camera change loaded the live page at 844×390, started a race and captured `/tmp/racing-camera-grade-v7.png`; at 96 km/h it read `trackPitch=-0.0293`, smoothed `cameraGrade=-0.0282`, with **0 console errors**. Earlier raised-road captures remain `/tmp/racing-elevation-v5.png` and `...-fast.png`; setup still verifies portrait 320×568 controls and the render-only boundary.
+  **128/128**, setup **148/148**, rivals **61/61**, ghost **29/29**, season **55/55**,
+  audio **33/33**; `RACER_TEST_SETTLE_MS=5000` avoids the old 500ms setup timeout.
+- Real headed 844×390 smoke: natural corner `cameraLean=0.0142rad`, **0 console errors**,
+  `/tmp/racing-camera-lean-v8-turn.png`; crest evidence remains `/tmp/racing-camera-grade-v7.png`
+  (`trackPitch=-0.0293`, `cameraGrade=-0.0282`), with portrait controls still gated.
 - 844×390 real browser audit aimed at a naturally generated landmark position;
   the orange chevron reads as an upright sign with a visible short stem:
   `/tmp/racing-landmark-pole-audit.png`. Placement is separately guarded by
@@ -88,8 +92,7 @@ browser evidence for every visual or control change.
   `offroad=true`, `renderY=terrainY=-1.103m`, `shake=0.0126`, one dust particle.
 ## Known issues and cautions
 
-- `renderY`, `trackBank`, `trackPitch`, `cameraGrade` and suspension follow are render-only; never feed
-  them into `Car.pos`, collision, nearestT, checkpoints, progress, speed or AI decisions.
+- `renderY`, `trackBank`, `trackPitch`, `cameraGrade`, `cameraLean` and suspension follow are render-only; never feed them into `Car.pos`, collision, nearestT, checkpoints, progress, speed or AI decisions.
 - Keep the terrain as one bounded 32×32 mesh and the query cache at 240 X/Z
   samples. Do not add per-frame curve allocations or a second road pass.
 - The rigid GLB has no wheel bones/clips; `wheel-motion.js` is a model-specific
@@ -104,7 +107,7 @@ browser evidence for every visual or control change.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-286.
+1. Run `./scripts/agent-context.sh --sync` and read this handoff plus ADR-287.
 2. Keep the aggregate and named suites green after any further render/physics change;
    keep rumble and suspension follow render-only and budget-neutral.
 3. For any further change, rerun the named Racing suites, update this handoff,

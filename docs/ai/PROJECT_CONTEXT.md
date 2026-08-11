@@ -94,6 +94,7 @@ repository as a static site.
   chase camera may consume that pose, but no gameplay distance, collision,
   checkpoint or speed calculation may read render Y.
   `Car.longAccel`/`lateralAccel` are read-only render feedback; camera impulse,
+  bounded camera grade/turn-load lean,
   speed-limited offroad rumble and the bounded exhaust pulses must remain render-only,
   smooth, reset on start/track build, and never feed physics. `Car.reset()` must clear
   posture, rescue and lock flags before the first render of a new run.
@@ -351,9 +352,12 @@ complete WebGL frame plus pre-drawn minimap/HUD before the loading overlay revea
 The car keeps raw `trackPitch`/`trackBank` as render-surface truth and applies only a
 bounded render-only suspension follow (max 0.018/0.015 rad) to the visual root, so
   stronger crest/bank transitions have weight without changing `Car.pos.y`, physics, collision,
-progress, AI, or the contact-shadow anchor. `main.js` also smooths a clamped `cameraGrade`
-copy of raw `trackPitch` into small chase-camera position/look-target offsets; it is reset on
-start/track build and must remain render-only (no FOV, input, physics or per-frame curve query).
+  progress, AI, or the contact-shadow anchor. `main.js` also smooths a clamped `cameraGrade`
+  copy of raw `trackPitch` into small chase-camera position/look-target offsets, and smooths a
+  clamped `cameraLean` from lateral load/yaw into a ±0.032rad horizon cue; both reset on
+  start/track build and must remain render-only (no FOV, input, physics or per-frame curve query).
+  `syncCarRenderSurface()` updates the contact shadow in the same transaction so reset/track
+  changes cannot leave one frame of stale shadow placement.
 
 Royale has a committed regression suite. Run it for any change under
 `games/royale/`:

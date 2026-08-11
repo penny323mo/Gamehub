@@ -556,6 +556,30 @@ check('複製實測報告有真實結果提示兼守住 44px', perfReport.copied
     && ['已複製', '請長按上面報告'].includes(perfReport.feedback)
     && perfReport.copyHeight >= 44, perfReport);
 
+// Camera cue：production camera update path 入面，轉彎載荷要令 horizon 有細幅 lean，
+// 但唔可以變成暈眩式搖鏡。用受控 lateral-load sample，避免測試靠自然 race 時機。
+const cameraFeel = await page.evaluate(() => {
+    const root = window.__racer;
+    const old = { lateral: root.car.lateralAccel, yawRate: root.car.yawRate };
+    let maxLean = 0;
+    for (let i = 0; i < 80; i++) {
+        root.car.lateralAccel = 8;
+        root.car.yawRate = 0.2;
+        root.updateCameraForTest(1 / 60);
+        maxLean = Math.max(maxLean, Math.abs(root.cameraLean));
+    }
+    root.car.lateralAccel = old.lateral;
+    root.car.yawRate = old.yawRate;
+    root.startRace();
+    root.pauseRace('camera feel test');
+    root.toMenu();
+    return { maxLean, maxLateral: 8, limit: 0.032 };
+});
+console.log('  ', JSON.stringify(cameraFeel));
+check('轉彎載荷會令追車鏡頭有受限 lean，但唔會搖爆',
+    cameraFeel.maxLean > 0.004 && cameraFeel.maxLean <= cameraFeel.limit + 0.001
+    && cameraFeel.maxLateral > 0.4, cameraFeel);
+
 // T4：轉向反轉係逃生門——反轉之後同一個輸入要行相反方向
 const inv = await page.evaluate(async () => {
     const THREE = await import('three');

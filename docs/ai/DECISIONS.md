@@ -8513,3 +8513,27 @@ console **0 errors**；aggregate 維持 race **128/128**、setup **147/147**、r
 **61/61**、ghost **29/29**、season **55/55**、audio **33/33**，世界 **16 calls／56,933 tris**。
 日後再加鏡頭衝擊或視線偏移，必須重跑真 844×390／portrait smoke 同物理 gates，唔好用
 camera response 代替真正操控或路面讀圖。
+
+## ADR-287 — Racing Car 彎位載荷用受限鏡頭 lean 增加爽快感，仍然只改 render layer
+
+Date: 2026-08-12. Status: accepted.
+
+ADR-286 已經令鏡頭讀到 crest／downhill，但高速轉彎／換向時 horizon 仍然完全水平，
+車身有 lateral load 而畫面冇重量 cue，令賽道感覺似平面滑動。`main.js` 現在由
+`car.lateralAccel / 220 - car.yawRate * 0.018` 產生 `cameraLean`，再以指數平滑及
+**±0.032rad（約 1.8°）** 上限套到 `camera.lookAt` 之後嘅 horizon roll。佢唔跟
+`bodyRoll`，避免漂移時變成飛機式搖鏡；唔改 FOV、input、速度、物理、AI 或任何 draw
+call，換賽道／重開亦會清零。`updateCameraForTest()` 只係 dev/test seam，讓 setup 用受控
+lateral-load sample 驗證 production camera path，而唔靠自然 race 時機。
+
+同一輪修正將 `shadow` 提前到 car/race lifecycle scope，並由
+`syncCarRenderSurface()` 即時呼叫既有 `syncContactShadow()`；換賽道／重開時車身上新
+surface，陰影唔再要等下一個 animation frame 先追到 endpoint。陰影仍然係 render-only，
+唔可以寫入 physics 或 gameplay surface。
+
+setup 新增 bounded camera gate，實測 `maxLean=0.0319997`（lateral sample 8），升至
+**148/148**；完整 aggregate 維持 race **128/128**、rivals **61/61**、ghost **29/29**、
+season **55/55**、audio **33/33**，setup **148/148**。真 headed 844×390 smoke 讀到自然
+彎位 `cameraLean=0.0142rad`、console **0 errors**；世界 budget 維持低於 **18 calls／120k
+tris**。日後再加大 lean 或加入其他 camera cue，必須重跑自然彎位 screenshot、portrait
+smoke、物理 gates 同 aggregate，唔好用鏡頭 response 代替真正操控或抓地。

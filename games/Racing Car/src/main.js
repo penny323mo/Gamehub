@@ -332,11 +332,13 @@ function sampleAutoQuality(now) {
 // 放喺下面就會撞 TDZ（實測：Cannot access 'car' before initialization）
 let car = null;
 let race = null;
+let shadow = null;
 const renderSurfacePose = { y: 0, bank: 0, pitch: 0 };
 let camInit = false;      // 鏡頭要唔要即刻歸位（換賽道／重開都會用到）
 let cameraThrust = 0;
 let cameraPulse = 0;
 let cameraGrade = 0;
+let cameraLean = 0;
 
 // 賽道可以換：換嗰陣要 dispose 舊嗰個，唔係每揀一次就漏一份 3D 世界
 const minimap = new Minimap($('minimap'));
@@ -364,6 +366,9 @@ function syncCarRenderSurface() {
     if (!car || !track?.renderPoseAt) return;
     track.renderPoseAt(car.pos.x, car.pos.z, renderSurfacePose);
     car.setRenderSurface(renderSurfacePose.y, renderSurfacePose.bank, renderSurfacePose.pitch);
+    // 換賽道／重開時 shadow 唔可以等下一個 animation frame 先追到新 endpoint；
+    // 同一個 surface sync 即時更新，避免車身已經上坡但影仲留喺上一格。
+    syncContactShadow();
 }
 function buildTrack(id) {
     trackDef = trackById(id);
@@ -378,7 +383,7 @@ function buildTrack(id) {
     if (car) { car.reset(track.startPos, track.startDir); syncCarRenderSurface(); }
     if (race) { race.track = track; race.trackId = trackDef.id; race.reset(); }
     camInit = false;
-    cameraThrust = 0; cameraPulse = 0; cameraGrade = 0;
+    cameraThrust = 0; cameraPulse = 0; cameraGrade = 0; cameraLean = 0;
     requestRender();
 }
 buildTrack(trackDef.id);
@@ -482,7 +487,6 @@ function contactShadow() {
 }
 
 let carModel = null;
-let shadow = null;
 let colour = loadColour();
 
 // 陰影係 render-only 接地提示：跟車嘅位置、yaw 同賽道 render pitch/bank，
@@ -555,6 +559,8 @@ loader.load('./assets/car.glb', (gltf) => {
         get renderCount() { return renderCount; },
         get performance() { return { ...performanceState }; },
         get cameraGrade() { return cameraGrade; },
+        get cameraLean() { return cameraLean; },
+        updateCameraForTest: (dt) => updateCamera(dt),
         visualLength: CAR_VISUAL_LENGTH,
     };
     requestRender();
@@ -625,9 +631,17 @@ function updateCamera(dt) {
     // 速度愈快視角愈闊，速度感靠呢個
     const fov = (wideMobile ? 61 : 64) + speedT * (wideMobile ? 13 : 14);
     if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
-    // 只跟偏航速度做極細嘅 horizon roll；唔用車身 roll，避免漂移時鏡頭反而
-    // 跟住車身傾到似飛機。幅度 < 1.5°，用嚟讀出速度同重量感。
-    camera.rotation.z += THREE.MathUtils.clamp(-car.yawRate * 0.018 - camera.rotation.z, -0.026, 0.026);
+    // 轉彎嘅重量感唔應該只靠車身自己側傾：追車鏡頭完全水平時，快速換向會
+    // 似架車喺一張平面貼圖上滑。用 lateral load + yaw rate 做一個極細、平滑
+    // 嘅 horizon lean；唔跟 bodyRoll，避免漂移時鏡頭傾到似飛機，亦唔讀 physics
+    // 以外嘅資料。上限約 1.8°，只係讀感 cue，唔會遮住彎心／HUD。
+    const leanTarget = THREE.MathUtils.clamp(
+        car.lateralAccel / 220 - car.yawRate * 0.018,
+        -0.032,
+        0.032,
+    );
+    cameraLean += (leanTarget - cameraLean) * Math.min(1, dt * 8);
+    camera.rotation.z += cameraLean;
 }
 
 // ---------- 賽道選擇 ----------
@@ -1244,7 +1258,7 @@ function startRace() {
     lapProgressBase = 0;
     ghostMesh.visible = false;
     camInit = false;
-    cameraThrust = 0; cameraPulse = 0; cameraGrade = 0;
+    cameraThrust = 0; cameraPulse = 0; cameraGrade = 0; cameraLean = 0;
     race.reset();
     hudCache = {};
     resetPerformance();
