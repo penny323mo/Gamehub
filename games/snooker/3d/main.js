@@ -2801,9 +2801,10 @@ function updateUi() {
 function updateDecisionPanel() {
   if (!decisionPanelEl || !decisionTextEl) return;
   // The decision belongs to the fouled-against (beneficiary) player only.
-  // Offline: human is always P1 (index 0). Online: compare to my seat.
-  const myIndex = window.isOnlineMode ? (window.onlineMyPlayerIndex ?? 0) : 0;
-  if (!foulDecisionPending || !foulDecisionContext || foulDecisionContext.beneficiary !== myIndex) {
+  // Offline P2 is a local two-player match, so either seat may own the
+  // decision. In P1 vs AI only P1 can act; the AI resolves its own decision
+  // from stepSimulation. Online still compares against the local seat.
+  if (!canApplyFoulDecisionLocally()) {
     decisionPanelEl.classList.remove('show');
     decisionPanelEl.hidden = true;
     return;
@@ -2817,8 +2818,13 @@ function updateDecisionPanel() {
 
 function canApplyFoulDecisionLocally() {
   if (!foulDecisionPending || !foulDecisionContext) return false;
-  const myIndex = window.isOnlineMode ? (window.onlineMyPlayerIndex ?? 0) : 0;
-  return foulDecisionContext.beneficiary === myIndex;
+  if (window.isOnlineMode) {
+    const myIndex = window.onlineMyPlayerIndex ?? 0;
+    return foulDecisionContext.beneficiary === myIndex;
+  }
+  // Offline P2 is a real local human seat. With AI enabled, only P1 is
+  // local; the AI beneficiary is handled by the simulation loop below.
+  return !aiEnabled || foulDecisionContext.beneficiary === 0;
 }
 
 function allStopped() {

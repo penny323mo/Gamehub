@@ -120,6 +120,55 @@ check('3D 返回掣回到 Snooker root',
   page.url().endsWith('/games/snooker/index.html') && await page.locator('#landing-page').isVisible(),
   page.url());
 
+// Offline P2 is a local two-player match, so a foul decision must remain
+// actionable for either seat. This used to deadlock after P1 fouled because
+// the UI treated every offline match as P1 vs AI and hid P2's decision panel.
+await page.goto(`${base}/games/snooker/3d/index.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+await page.waitForTimeout(500);
+await page.locator('#player2-mode').selectOption('p2');
+await page.locator('#start-game-btn').click();
+await page.waitForTimeout(100);
+const p2Foul = await page.evaluate(() => {
+  const D = window.__snookerDebug;
+  D.setAiEnabled(false);
+  D.reset();
+  D.placeCueInD(0, -1.1);
+  D.confirmCuePlacement();
+  D.shoot(0, 1, 0.65); // brown first on the break: deterministic foul
+  return D.runUntilSettled(12);
+});
+check('Offline P2 犯規後會顯示可操作決策面板',
+  p2Foul.foulDecisionPending && p2Foul.foulDecisionContext?.beneficiary === 1 &&
+    await page.locator('#decision-panel').isVisible() &&
+    await page.locator('#decision-take').isVisible() &&
+    await page.locator('#decision-force').isVisible(),
+  { state: p2Foul, panel: (await page.locator('#decision-text').textContent()).trim() });
+
+await page.locator('#decision-take').click();
+const p2Take = await page.evaluate(() => window.__snookerDebug.state());
+check('Offline P2 可以接手並解除 FOUL_DECISION',
+  !p2Take.foulDecisionPending && p2Take.player === 2 &&
+    p2Take.turnState === 'PLACE_CUE' && !await page.locator('#decision-panel').isVisible(),
+  p2Take);
+
+const p2FoulAgain = await page.evaluate(() => {
+  const D = window.__snookerDebug;
+  D.reset();
+  D.placeCueInD(0, -1.1);
+  D.confirmCuePlacement();
+  D.shoot(0, 1, 0.65);
+  return D.runUntilSettled(12);
+});
+check('Offline P2 第二次犯規仍可要求犯規方續打',
+  p2FoulAgain.foulDecisionPending && await page.locator('#decision-panel').isVisible(),
+  p2FoulAgain);
+await page.locator('#decision-force').click();
+const p2Force = await page.evaluate(() => window.__snookerDebug.state());
+check('要求續打後由犯規方繼續並解除決策鎖',
+  !p2Force.foulDecisionPending && p2Force.player === 1 &&
+    p2Force.turnState === 'PLACE_CUE' && !await page.locator('#decision-panel').isVisible(),
+  p2Force);
+
 check('Snooker flow 冇非預期 browser error', errors.length === 0, errors);
 console.log(`\nsnooker flow: ${pass}/${pass + fail} 通過`);
 if (failed.length) console.log('未過:', failed.join('; '));

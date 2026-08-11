@@ -8009,3 +8009,16 @@ Date: 2026-08-11. Status: accepted.
 Diagnostic arena 以 `Number.MAX_SAFE_INTEGER` sentinel 封住 group spawn 同 wave-complete transition，
 而同步 renderer build 只可以喺真實 Start asset barrier 完成後使用。`tests/combat.mjs` 必須先行 Start
 並等待 `phase='prep'`，再建立測量夾具；唔可以為咗測試而放鬆 production renderer 對未預載模型嘅保護。
+
+## ADR-254 — Snooker Offline P2 必須可以處理犯規決策
+
+Date: 2026-08-11. Status: accepted.
+
+Snooker 3D 嘅 Offline P2 係兩個人共用同一部裝置，唔係 P1 對 AI。犯規後嘅接手／要求犯規方續打
+決策屬於被犯規嗰一方；離線雙人時兩個 seat 都係本機玩家，所以 P2 收到決策時必須顯示面板並接受
+Y/N、按鈕操作。P1 對 AI 時則只畀 P1 操作，AI beneficiary 由 simulation loop 自動接手；線上模式仍然
+只畀 `onlineMyPlayerIndex` 對應嘅玩家操作。
+
+`canApplyFoulDecisionLocally()` 係唯一權限 seam，`updateDecisionPanel()`、鍵盤同按鈕都經呢條路；
+`tests/snooker-flow.mjs` 用真實 mobile browser 重現開球先撞棕波，守住 Offline P2 take-turn 同
+force-fouler-continue 兩條分支，避免 `FOUL_DECISION` 再次無面板卡死。
