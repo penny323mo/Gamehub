@@ -556,6 +556,7 @@ const camTravel = new THREE.Vector3();
 const camWantDir = new THREE.Vector3();
 const camWant = new THREE.Vector3();
 const camLookAt = new THREE.Vector3();
+const raceTangent = new THREE.Vector3();
 function updateCamera(dt) {
     const heading = camHeading.set(Math.sin(car.yaw), 0, Math.cos(car.yaw));
     // 鏡頭唔可以淨係跟車頭：甩到八十幾度嗰陣車係打橫飛，跟車頭嘅話架車
@@ -1336,7 +1337,7 @@ function frame(now) {
             // 而且指錯 80° 以上），正常揸車同漂移都踩唔中。
             if (race.state === 'racing') {
                 const tt = track.nearestT(car.pos.x, car.pos.z);
-                const tan = track.curve.getTangentAt(tt);
+                const tan = track.curve.getTangentAt(tt, raceTangent);
                 car.unspin(tan.x, tan.z, dt);
             }
             audio.update(dt, car, cmd);
@@ -1345,7 +1346,7 @@ function frame(now) {
             advancePlayerProgress();
             rivals.update(dt, track, car);
             updateGhost(dt);
-            drivingEffects.update(dt, car);
+            drivingEffects.update(dt, car, cmd);
             updateHud();
             minimap.draw(car, rivals.rivals);
         }

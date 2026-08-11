@@ -888,6 +888,30 @@ check('加減速會有受限前後載荷回饋', roll.pitchDeg >= 0.5 && roll.pi
 // Penny 講嗰種「飛機打側飛」。
 check('過彎時車身唔會插落路面超過 10 厘米', roll.lowest > -0.1, roll.lowest);
 
+// T3c：重開／換賽道要清走上一場嘅姿態同瞬態旗標。呢啲值通常會喺下一個
+// physics frame 覆寫，但第一個 render／HUD frame 會先讀到；如果玩家喺
+// 漂移途中撳「再跑一次」，一開波就側住或者顯示假鎖胎，讀感會似車壞咗。
+const resetPose = await page.evaluate(() => {
+    const { car, track } = window.__racer;
+    car.bodyRoll = 0.05;
+    car.bodyPitch = -0.02;
+    car.unspinning = true;
+    car.offroad = true;
+    car.lockFront = true;
+    car.lockRear = true;
+    car.reset(track.startPos, track.startDir);
+    return {
+        roll: car.bodyRoll, pitch: car.bodyPitch, unspinning: car.unspinning,
+        offroad: car.offroad, lockFront: car.lockFront, lockRear: car.lockRear,
+        rootY: car.root.position.y,
+    };
+});
+console.log('  ', JSON.stringify(resetPose));
+check('重開會清走車身側傾／俯仰同瞬態狀態',
+    resetPose.roll === 0 && resetPose.pitch === 0 && !resetPose.unspinning
+    && !resetPose.offroad && !resetPose.lockFront && !resetPose.lockRear
+    && Math.abs(resetPose.rootY) < 0.001, resetPose);
+
 // T4a：打圈之後車手要自己救得返（ADR-065）。
 // 舊行為：一路 steer 1.0 ＋ throttle 1.0 原地兜圈，兜到三秒拖車為止。
 const recover = await page.evaluate(async () => {

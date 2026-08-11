@@ -132,6 +132,7 @@ export class RivalField {
         this._m = new THREE.Matrix4();
         this._q = new THREE.Quaternion();
         this._s = new THREE.Vector3(1, 1, 1);
+        this._up = new THREE.Vector3(0, 1, 0);
         this._p = new THREE.Vector3();
         this._c = new THREE.Color();
     }
@@ -286,7 +287,7 @@ export class RivalField {
         for (let i = 0; i < this.rivals.length; i++) {
             const r = this.rivals[i];
             this._p.set(r.car.pos.x, 0, r.car.pos.z);
-            this._q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), r.car.yaw);
+            this._q.setFromAxisAngle(this._up, r.car.yaw);
             this._m.compose(this._p, this._q, this._s);
             this.mesh.setMatrixAt(i, this._m);
             this._c.setHex(r.colour);
@@ -297,7 +298,7 @@ export class RivalField {
         if (this.ghost) {
             const i = visualCount++;
             this._p.set(this.ghost.x, 0, this.ghost.z);
-            this._q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.ghost.yaw);
+            this._q.setFromAxisAngle(this._up, this.ghost.yaw);
             this._m.compose(this._p, this._q, this._s);
             this.mesh.setMatrixAt(i, this._m);
             this._c.setHex(0x9fd8ff);

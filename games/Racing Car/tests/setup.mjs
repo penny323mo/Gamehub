@@ -280,6 +280,24 @@ check('最繁忙夜景駕駛效果仍只加一個 draw call', drivingFx.activeBu
 check('新一場／換賽道可完整清空效果池', drivingFx.reset.marks === 0
     && drivingFx.reset.particles === 0 && !drivingFx.reset.visible, drivingFx.reset);
 
+const exhaustFx = await page.evaluate(() => {
+    const { car, drivingEffects: fx, track } = window.__racer;
+    fx.reset();
+    car.reset(track.startPos, track.startDir);
+    car.vel.set(Math.sin(car.yaw) * 24, 0, Math.cos(car.yaw) * 24);
+    for (let i = 0; i < 36; i++) fx.update(1 / 60, car, { throttle: 1, handbrake: false });
+    const throttle = fx.snapshot();
+    fx.reset();
+    for (let i = 0; i < 36; i++) fx.update(1 / 60, car, { throttle: 0, handbrake: false });
+    const coast = fx.snapshot();
+    fx.reset();
+    return { throttle, coast };
+});
+console.log('  ', JSON.stringify(exhaustFx));
+check('直路全油有低成本尾氣脈衝，收油後唔留殘影',
+    exhaustFx.throttle.particles > 0 && exhaustFx.coast.particles === 0,
+    exhaustFx);
+
 // T3b：手機畫質模式要有硬上限兼持久化；3× DPR 手機都唔可以四倍燒 GPU。
 const quality = await page.evaluate(async () => {
     const { qualityDpr } = await import('./src/settings.js');

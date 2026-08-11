@@ -8259,3 +8259,23 @@ Runner 而家每個 child 有 `RACER_TEST_TIMEOUT_MS`（預設 120 秒、最低 
 settle delay，同 POSIX process group；超時會先 TERM、5 秒後只殺自己個 process group，
 總結列出 `TIMEOUT` 並以非零碼結束。呢個係診斷／清理層，唔會將 timeout 當 pass；
 `race.mjs`、`setup.mjs` 等 authoritative suites 仍應喺資源充足時分開跑。
+
+## ADR-271 — Racing Car 重開姿態同駕駛回饋必須同一個 bounded render pass
+
+Date: 2026-08-12. Status: accepted.
+
+真 browser audit 發現車模係單一 rigid GLB，畫面嘅重量感主要靠 body pitch/roll、
+速度 streak、輪胎痕／煙同鏡頭，而唔可以臨時加一套高成本輪胎骨架。重開時如果
+沿用上一場 `bodyRoll`、`unspinning` 或 lock flags，第一個 render 會先見到側住／
+假鎖胎；所以 `Car.reset()` 必須先清姿態、救車、落草同鎖胎旗標。`driving-effects`
+用原有一個 instanced pass 加極淡尾氣脈衝，只有實際油門、行緊、非落草／非漂移
+先出現；收油即清 timer，唔會改物理或增加 draw call。
+
+同一輪亦將 AI driver 的 `getPointAt`／`getTangentAt` 改用 optional targets，
+rival yaw 軸、Race 錯向切線、玩家救車切線同粒子 spawn point 全部重用 scratch，
+避免低功耗手機長跑時由短命 Vector3 觸發 GC。真 browser gates：
+`race.mjs` **126/126**、`setup.mjs` **131/131**、`rivals.mjs` **61/61**、
+`ghost.mjs` **29/29**、`season.mjs` **55/55**、`audio.mjs` **33/33**；
+844×390 smoke 實測 **106 km/h**、speed layer active opacity **0.299**、FOV
+**67.39**、effects particles **4**、零 page/console errors。最繁忙 effects 仍只
+增加一個 draw call，日後不可將尾氣另開 mesh pass。

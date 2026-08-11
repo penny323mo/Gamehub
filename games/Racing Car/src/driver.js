@@ -33,6 +33,7 @@ export const SKILLS = {
 
 export function createDriver(track, skill = SKILLS.quick) {
     const P = new THREE.Vector3(), Q = new THREE.Vector3(), R = new THREE.Vector3();
+    const aim = new THREE.Vector3(), aimTan = new THREE.Vector3();
     const to = new THREE.Vector3(), fwd = new THREE.Vector3();
 
     // 打圈之後嘅復原：獨立狀態，唔係喺賽車控制律入面加修正項。
@@ -55,9 +56,11 @@ export function createDriver(track, skill = SKILLS.quick) {
     // 都會被當成彎，車手無端端喺直路收油。
     const CURVE_WINDOW = 0.008;
     const radiusAt = (t) => {
-        P.copy(track.curve.getPointAt((t + 1 - CURVE_WINDOW) % 1));
-        Q.copy(track.curve.getPointAt(t % 1));
-        R.copy(track.curve.getPointAt((t + CURVE_WINDOW) % 1));
+        // CatmullRomCurve3 支援 optionalTarget；AI 每幀會重複估曲率，唔可以
+        // 令每個取樣都 new 三個 Vector3，否則手機長直路會由 GC 製造長幀。
+        track.curve.getPointAt((t + 1 - CURVE_WINDOW) % 1, P);
+        track.curve.getPointAt(t % 1, Q);
+        track.curve.getPointAt((t + CURVE_WINDOW) % 1, R);
         const a = P.distanceTo(Q), b = Q.distanceTo(R), c = P.distanceTo(R);
         const area = Math.abs((Q.x - P.x) * (R.z - P.z) - (R.x - P.x) * (Q.z - P.z)) / 2;
         return area < 1e-4 ? 1e4 : (a * b * c) / (4 * area);
@@ -70,11 +73,11 @@ export function createDriver(track, skill = SKILLS.quick) {
         read(car, t, lateral = 0, dt = 1 / 60) {
             const speed = car.speed;
             const aheadT = (t + (8 + speed * skill.look) / track.length) % 1;
-            const aim = track.curve.getPointAt(aheadT);
+            track.curve.getPointAt(aheadT, aim);
             if (lateral) {
-                const tan = track.curve.getTangentAt(aheadT);
-                aim.x += -tan.z * lateral;
-                aim.z += tan.x * lateral;
+                track.curve.getTangentAt(aheadT, aimTan);
+                aim.x += -aimTan.z * lateral;
+                aim.z += aimTan.x * lateral;
             }
             to.set(aim.x - car.pos.x, 0, aim.z - car.pos.z).normalize();
             fwd.set(Math.sin(car.yaw), 0, Math.cos(car.yaw));

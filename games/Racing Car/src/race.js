@@ -6,6 +6,8 @@
 //   2. 撞欄即刻報銷未入袋嗰筆，倍率清零——貼牆刷分冇著數
 //   3. 倍率跟連續漂移時間升，斷咗就跌返 1×
 
+import * as THREE from 'three';
+
 const SAVE_KEY = 'racer-best-v2';
 const DRIFT_END_GRACE = 0.55;    // 甩完幾耐先當一段結束（連續彎之間會短暫擺正）
 const COMBO_MAX = 5;
@@ -24,6 +26,7 @@ export class Race {
         this.trackId = trackId;
         this.totalLaps = laps;
         this.onEvent = onEvent;
+        this._trackTangent = new THREE.Vector3();
         this.reset();
     }
 
@@ -95,7 +98,7 @@ export class Race {
 
         // 逆行提示：車頭同賽道切線夾角超過 120 度
         const t = this.track.nearestT(car.pos.x, car.pos.z);
-        const tan = this.track.curve.getTangentAt(t);
+        const tan = this.track.curve.getTangentAt(t, this._trackTangent);
         const fwdX = Math.sin(car.yaw), fwdZ = Math.cos(car.yaw);
         this.wrongWay = (tan.x * fwdX + tan.z * fwdZ) < -0.5 && car.speed > 4;
     }

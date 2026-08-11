@@ -86,12 +86,16 @@ repository as a static site.
   bicycle model: `CFG` owns the acceleration/steer envelope, `Car.bodyPitch` and
   `bodyRoll` stay bounded, `#sync()` compensates the rigid car mesh's floor
   envelope, and `#speed-lines` must remain `pointer-events:none` below the HUD.
-  `Car.longAccel`/`lateralAccel` are read-only render feedback; camera impulse must
-  remain smooth, bounded, reset on start/track build, and never feed physics.
+  `Car.longAccel`/`lateralAccel` are read-only render feedback; camera impulse and
+  the bounded exhaust pulses must remain render-only, smooth, reset on start/track
+  build, and never feed physics. `Car.reset()` must clear posture, rescue and lock
+  flags before the first render of a new run.
 - Racing Car's hot runtime queries use `Track.querySamples` (240 precomputed XZ
-  points) and `Car._nextPos`; keep those allocations out of the frame loop. Road
-  centre/tyre-wear cues belong in the existing asphalt texture so the mobile draw
-  budget does not gain a road-marker pass.
+  points) and `Car._nextPos`; AI driver curve samples, wrong-way tangents and rival
+  matrix axes reuse optional targets/scratch vectors too. Keep those allocations out
+  of the frame loop. Road centre/tyre-wear cues and exhaust pulses belong in the
+  existing texture/effects instance pass so the mobile draw budget does not gain a
+  road-marker or tail-smoke pass.
 - Racing Car's current sport envelope is deliberately bounded: `engineForce=10000`,
   `maxSpeed=68`, `dragCoef=2.4`, and `handbrakeGrip=0.35` are tuned against the
   physical drift/ABS gates. The speed-streak layer begins at `16 m/s` and remains

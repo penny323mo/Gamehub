@@ -117,7 +117,8 @@ export function createDrivingEffects(scene) {
     scene.add(mesh);
 
     let markCursor = 0, particleCursor = 0;
-    let smokeTimer = 0, impactCooldown = 0, shake = 0, elapsed = 0;
+    let smokeTimer = 0, exhaustTimer = 0, impactCooldown = 0, shake = 0, elapsed = 0;
+    let exhaustSide = -1;
     let lastLeft = null, lastRight = null;
     let seed = 0x7182ad;
     const random = () => {
@@ -126,6 +127,7 @@ export function createDrivingEffects(scene) {
     };
     const color = new THREE.Color();
     const tempLeft = new THREE.Vector3(), tempRight = new THREE.Vector3();
+    const tempParticle = new THREE.Vector3(), tempImpact = new THREE.Vector3();
     const shakeOffset = new THREE.Vector3();
 
     const dirty = () => Object.values(attributes).forEach(attribute => { attribute.needsUpdate = true; });
@@ -173,7 +175,7 @@ export function createDrivingEffects(scene) {
 
     const spawnTyreCloud = (car, dust = false) => {
         const side = random() < 0.5 ? -1.08 : 1.08;
-        const p = localPoint(car, side, -1.35, new THREE.Vector3());
+        const p = localPoint(car, side, -1.35, tempParticle);
         p.x += (random() - 0.5) * 0.55;
         p.z += (random() - 0.5) * 0.55;
         spawnParticle(p, dust ? 0xb49568 : 0xaeb6be, dust ? 1.0 : 1.25, dust ? 0.85 : 1.2, {
@@ -184,7 +186,7 @@ export function createDrivingEffects(scene) {
     };
 
     const spawnImpact = (car, strength) => {
-        const origin = car.pos.clone().setY(0.55);
+        const origin = tempImpact.copy(car.pos).setY(0.55);
         const count = Math.min(12, 6 + Math.round(strength / 4));
         for (let i = 0; i < count; i++) {
             const angle = random() * Math.PI * 2;
@@ -202,13 +204,29 @@ export function createDrivingEffects(scene) {
         centers.fill(0); axes.fill(0); sizes.fill(0); colors.fill(0); kinds.fill(0);
         vx.fill(0); vy.fill(0); vz.fill(0);
         markCursor = particleCursor = 0;
-        smokeTimer = impactCooldown = shake = elapsed = 0;
+        smokeTimer = exhaustTimer = impactCooldown = shake = elapsed = 0;
+        exhaustSide = -1;
         lastLeft = lastRight = null;
         mesh.visible = false;
         dirty();
     };
 
-    const update = (dt, car) => {
+    const spawnExhaust = (car) => {
+        // 單一車模冇獨立尾喉 node；用同一個 bounded instance pool 做極淡嘅
+        // 尾氣脈衝，令直路全油唔再似一件靜態模型。位置只係 render hint，
+        // 唔會寫回物理；兩邊交替出煙，避免所有粒子疊成一點。
+        exhaustSide *= -1;
+        const p = localPoint(car, exhaustSide * 0.52, -1.68, tempParticle);
+        p.y = 0.42;
+        const fwdX = Math.sin(car.yaw), fwdZ = Math.cos(car.yaw);
+        spawnParticle(p, 0x8ea6b8, 0.18, 0.42, {
+            x: car.vel.x * 0.025 - fwdX * 1.1,
+            y: 0.25,
+            z: car.vel.z * 0.025 - fwdZ * 1.1,
+        }, 0.14, 1);
+    };
+
+    const update = (dt, car, cmd = {}) => {
         elapsed += dt;
         impactCooldown = Math.max(0, impactCooldown - dt);
         shake *= Math.exp(-dt * 8.5);
@@ -253,6 +271,16 @@ export function createDrivingEffects(scene) {
                 smokeTimer += dt * Math.min(2, car.speed / 16);
                 while (smokeTimer >= 0.13) { spawnTyreCloud(car, true); smokeTimer -= 0.13; }
             } else smokeTimer = 0;
+        }
+
+        // 只喺有實際油門、車已經行緊、而且唔係落草／手煞甩尾時出現。
+        // 漂移煙同尾氣分開，唔會搶走玩家最需要讀嘅胎痕；同一個 instance
+        // pool 亦令呢個回饋唔增加 draw call。
+        if ((cmd.throttle ?? 0) > 0.55 && !car.offroad && !car.drifting && car.speed > 4) {
+            exhaustTimer += dt * Math.min(2.5, Math.max(0.7, car.speed / 18));
+            while (exhaustTimer >= 0.16) { spawnExhaust(car); exhaustTimer -= 0.16; }
+        } else {
+            exhaustTimer = 0;
         }
 
         if (car.wallImpact > 3.5 && impactCooldown === 0) {

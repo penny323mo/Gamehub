@@ -206,6 +206,15 @@ export class Car {
         this.wallImpact = 0;
         this.wallCooldown = 0;
         this.bodyPitch = 0;
+        // 重開／換賽道要由一個完全中性姿態開始。bodyRoll 同 unspin 狀態
+        // 如果沿用上一場，玩家會見到架車一開波仍然側住，或者第一個慢速
+        // frame 繼續沿用上一場嘅救車／鎖胎旗標——物理下一幀雖然會覆寫，
+        // render 同 HUD 會先讀到一個假狀態。
+        this.bodyRoll = 0;
+        this.unspinning = false;
+        this.offroad = false;
+        this.lockFront = false;
+        this.lockRear = false;
         this.longAccel = 0;
         this.lateralAccel = 0;
         this.#sync();
