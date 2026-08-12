@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#120d0a" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23120d0a'/%3E%3Cpath d='M10 48 24 12h16l14 36H43l-3-9H23l-3 9Zm17-20h9l-4-13Z' fill='%23f27931'/%3E%3C/svg%3E" />
     <title>灰燼列車：終末航線</title>
-    <script type="module" crossorigin src="./assets/game-B-PMT7yZ.js"></script>
+    <script type="module" crossorigin src="./assets/game-oNJpzCQ3.js"></script>
     <link rel="modulepreload" crossorigin href="./assets/math.scalar.functions-D08Q5IJG.js">
     <link rel="modulepreload" crossorigin href="./assets/observable.pure-B4ZVEGuQ.js">
     <link rel="modulepreload" crossorigin href="./assets/performanceConfigurator-UtxC_Odd.js">
@@ -512,8 +512,8 @@
     <link rel="modulepreload" crossorigin href="./assets/oitBackBlend.fragment-B8s0OqM6.js">
     <link rel="modulepreload" crossorigin href="./assets/sprites.vertex-S-gtPB8k.js">
     <link rel="modulepreload" crossorigin href="./assets/sprites.vertex-BqlKEfIW.js">
-    <link rel="modulepreload" crossorigin href="./assets/glTF--P2In6pD.js">
-    <link rel="stylesheet" crossorigin href="./assets/glTF-CUh-uVRs.css">
+    <link rel="modulepreload" crossorigin href="./assets/glTF-BNaryvrq.js">
+    <link rel="stylesheet" crossorigin href="./assets/glTF-BDM0ASHh.css">
   </head>
   <body>
     <div id="app">
@@ -576,7 +576,11 @@
       <section id="pause-screen" class="screen hidden"><div class="dialog"><p class="eyebrow">列車暫停</p><h2>任務暫停</h2><button id="resume-button" class="primary">繼續</button><button id="restart-paused-button" class="secondary">重新開始</button><a href="../../../index.html">返回 Game Hub</a></div></section>
       <section id="result-screen" class="screen hidden"><div class="dialog"><p id="result-kicker" class="eyebrow">任務完成</p><h2 id="result-title">航線安全</h2><div id="result-stats"></div><button id="restart-button" class="primary">再守一次</button><a href="../../../index.html">返回 Game Hub</a></div></section>
       <section id="error-screen" class="screen hidden"><div class="dialog error"><p class="eyebrow">系統錯誤</p><h2>未能啟動任務</h2><p id="error-message"></p><button id="error-retry-button" class="primary">重新載入</button></div></section>
-      <div id="rotate-screen"><div>↻</div><strong>請將手機轉為橫向遊玩</strong></div>
+      <div id="rotate-screen">
+        <div>↻</div>
+        <strong>請將手機轉為橫向遊玩</strong>
+        <a class="hub-link" href="../../../index.html">← 返回 Game Hub</a>
+      </div>
       <aside id="debug-panel" class="hidden"><button id="debug-toggle">調校 ▾</button><div id="debug-content"></div><button id="copy-config">Copy Config</button><pre id="perf-hud"></pre></aside>
     </div>
   </body>

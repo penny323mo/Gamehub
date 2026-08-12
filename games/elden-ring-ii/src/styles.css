@@ -104,6 +104,31 @@ button {
   pointer-events: none;
 }
 
+.hub-return {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(208, 193, 161, 0.28);
+  border-radius: 999px;
+  background: rgba(8, 12, 18, 0.72);
+  color: #cfbd91;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-decoration: none;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.hub-return:hover,
+.hub-return:focus-visible {
+  border-color: #e4c57e;
+  background: rgba(50, 42, 27, 0.86);
+  color: #fff2c7;
+  outline: none;
+}
+
 .utility-controls {
   position: absolute;
   z-index: 6;

@@ -81,7 +81,7 @@ button, .hub-link { min-height: 48px; border: 0; cursor: pointer; text-decoratio
 .dialog h2 { font-size: 34px; margin: 8px 0 20px; }.dialog button, .dialog a { display: grid; width: 100%; margin-top: 10px; place-items: center; }
 .dialog a { color: #bca493; }
 #result-stats { display: grid; gap: 8px; margin: 16px 0; color: #cfb8a7; }
-#rotate-screen { display: none; position: fixed; inset: 0; z-index: 100; place-items: center; text-align: center; background: #130d0a; }
+#rotate-screen { display: none; position: fixed; inset: 0; z-index: 100; place-items: center; align-content: center; gap: 10px; text-align: center; background: #130d0a; }
 #rotate-screen div { font-size: 64px; color: #f27931; } #rotate-screen strong { display: block; margin-top: 12px; }
 #debug-panel { position: fixed; z-index: 50; top: 10px; left: 10px; width: 230px; max-height: calc(100vh - 20px); overflow: auto; padding: 8px; color: #d7f5d4; background: rgba(5, 12, 6, .9); border: 1px solid #4f8050; pointer-events: auto; font: 11px ui-monospace, monospace; }
 #debug-panel button { min-height: 30px; width: 100%; color: inherit; background: #17321a; }

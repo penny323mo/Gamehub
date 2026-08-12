@@ -1,18 +1,19 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Racing Car terrain crossover fix and animated original-model ghost pass
+Prepared by: Codex — Racing Car ghost pass and Hub return-path audit
 Integration branch: `main`
 Work branch: `main`
-Status: Racing Car source, tests, browser smoke and docs are ready for the next
-verified `main` checkpoint; receiving agent must sync GitHub first.
+Status: Racing Car plus the Hub-wide return contract are verified on `main`;
+receiving agent must sync GitHub first.
 
 ## Current objective
 
 Keep Racing Car moving toward a production-ready mobile arcade racer: responsive
 but bounded bicycle physics, readable high-speed/drift feedback, believable
 ground contact, route-specific roadside depth, a recognizable replay ghost,
-stable frame pacing and real browser evidence.
+stable frame pacing and real browser evidence. Keep every game safely returnable
+to the Hub from its visible mobile UI.
 
 ## Completed
 
@@ -39,6 +40,10 @@ stable frame pacing and real browser evidence.
   compatibility and do not draw a block ghost.
 - Six tracks (three reverse), player assists/simple auto-throttle, ABS, recovery,
   rivals, season and lifecycle/context-loss contracts remain intact.
+- Hub return contract is now complete for all 13 games. Ashen Rail exposes a Hub
+  link even when portrait mode's rotate gate is covering the game UI; Elden Ring II
+  has a persistent `← HUB` link in the top bar. Both source trees and tracked
+  production `dist/` outputs were rebuilt.
 
 ## Changed files
 
@@ -49,6 +54,10 @@ stable frame pacing and real browser evidence.
 - `games/Racing Car/src/rivals.js` — four-rival-only instanced field; remove block ghost pass.
 - `games/Racing Car/tests/setup.mjs`, `games/Racing Car/tests/ghost.mjs` — banked-edge,
   interpolated-terrain and animated original-model ghost gates.
+- `games/ashen-rail/index.html`, `games/ashen-rail/src/styles/main.css`,
+  `games/ashen-rail/dist/` — portrait-safe Hub return link and rebuilt deploy output.
+- `games/elden-ring-ii/src/GameClient.tsx`, `games/elden-ring-ii/src/styles.css`,
+  `games/elden-ring-ii/dist/` — persistent Hub link and rebuilt deploy output.
 - `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md` (ADR-298/299/300/301),
   `docs/ai/HANDOFF.md`.
 
@@ -66,6 +75,12 @@ stable frame pacing and real browser evidence.
   under **20 calls / 120k tris**.
 - `season.mjs` — **55/55**; `audio.mjs` — **33/33**. Final aggregate `run-all.mjs`
   passed all six suites in one run; the bounded readiness retry stayed unused.
+- `node tests/hub.mjs` — **100/100** across 320×568, 440×956, 844×390 and
+  1280×800; all 13 launcher links valid and browser errors zero.
+- `node tests/hub-home.mjs` — **3/3 contract checks**; all 13 games have a visible
+  return route and all 13 clicks reached the repository root `/index.html`.
+- `games/ashen-rail`: `npm test` **15/15**, `npm run lint` PASS, `npm run build` PASS.
+- `games/elden-ring-ii`: `npm test` **17/17** (typecheck/build/static/map/motion).
 - `node --check` on changed JS/tests and `git diff --check` — PASS.
 - Real Chromium smoke: **844×390** mobile and **1200×700** desktop; road ribbon,
   rolling ground, kerbs, guardrails, car contact, controls and independent transparent
@@ -86,13 +101,19 @@ stable frame pacing and real browser evidence.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync`; read this handoff and ADR-298–301.
+1. Run `./scripts/agent-context.sh --sync`; read this handoff and ADR-298–302.
 2. If further Racing changes are made, run the named suites plus aggregate and real
-   mobile/desktop browser smoke again.
-3. Run `./scripts/check-handoff.sh`, commit code and handoff together, push the
+   mobile/desktop browser smoke again; if changing Hub navigation, rerun
+   `node tests/hub.mjs` and `node tests/hub-home.mjs`.
+3. Preserve the Hub return contract: a visible route must work from loading,
+   portrait/rotate overlays, menu, pause and result states where that game has them.
+4. Run `./scripts/check-handoff.sh`, commit code and handoff together, push the
    authorized checkpoint, and verify `git ls-remote origin refs/heads/main`.
 
 ## Do not redo
 
 - Do not restore per-frame curve allocations, reintroduce the low-poly block ghost,
   add draw-call-heavy terrain passes, force-push, or rewrite shared `main` history.
+- Do not use a relative link that only works from source `index.html` when the
+  tracked deployed entry is nested under `games/*/dist/`; validate the click in
+  an HTTP browser at the actual deployed path.

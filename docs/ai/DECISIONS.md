@@ -8801,3 +8801,18 @@ progress 同 ghost replay data contract 完全不變。
 tris**，守住 **20 calls / 120k tris**。日後替換 `car.glb` 要重新檢查每個 mesh geometry、
 wheel cluster、material opacity 同 combined budget；唔好將 ghost 輪胎 controller 改成共享
 player geometry。
+
+## ADR-302 — 每隻 Hub 遊戲都必須由可見手機 UI 返回 Hub
+
+Date: 2026-08-12. Status: accepted.
+
+Game Hub 嘅入口 link 全部存在，唔代表玩家入咗遊戲之後出得返。今輪 `hub-home.mjs`
+實測發現 Elden Ring II 完全冇返回路徑；Ashen Rail 雖然有 link，但直向手機會由
+rotate overlay 蓋住，玩家冇法退出。修正後，Ashen Rail 由 rotate overlay 提供返回掣，
+Elden Ring II 由 top bar 常駐 `← HUB` 提供返回掣；兩者都用相對根路徑並重建 nested
+`dist/`。Hub-home gate 必須逐隻遊戲開 HTTP 頁面、量可見元素、實際 click，最後確認
+網址係 repository root `/index.html`，唔可以淨係 grep `href`。
+
+日後新增遊戲或改 entry UI，必須加入 `tests/hub-home.mjs` 嘅遊戲清單／初始化步驟，並
+重跑 `node tests/hub.mjs`、`node tests/hub-home.mjs`；rotate、loading、pause、result
+等 overlay 唔可以令唯一返回路徑變成不可點擊。

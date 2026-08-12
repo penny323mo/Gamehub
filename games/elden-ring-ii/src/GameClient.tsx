@@ -3589,6 +3589,9 @@ export default function GameClient() {
           <span>FORSAKEN REALM</span>
           <strong>{started ? encounterCopy.area : "Citadel of Ash"}</strong>
         </div>
+        <a className="hub-return" href="../../../index.html" aria-label="Return to Game Hub">
+          ← HUB
+        </a>
       </header>
 
       <nav className="utility-controls" aria-label="Game options">
