@@ -246,6 +246,103 @@ check('賽道 render surface 有可讀坡度同 banking，唔再係近乎平路'
     && geo.surfaceBank > 0.01, geo);
 check('路旁 terrain 有 route-specific rolling ground，而唔係一張平草板',
     geo.terrainHillAmplitude >= 1.0, geo.terrainHillAmplitude);
+
+// terrain 係 render-only，但路肩仍然要跟住道路 banking 銜接；否則
+// rolling ground 會喺外側高過柏油，形成黑縫／草地插入路面嘅凸起。
+const edgeSeams = await page.evaluate(() => {
+    const results = [];
+    for (const def of window.__racer.TRACKS) {
+        window.__racer.buildTrack(def.id);
+        const track = window.__racer.track;
+        let maxRise = -Infinity;
+        let peak = null;
+        for (let i = 0; i < 96; i++) {
+            const t = i / 96;
+            const p = track.curve.getPointAt(t);
+            const tangent = track.curve.getTangentAt(t);
+            const sideLength = Math.hypot(tangent.x, tangent.z) || 1;
+            const nx = tangent.z / sideLength, nz = -tangent.x / sideLength;
+            for (const lateral of [-14, -13.5, 13.5, 14]) {
+                const x = p.x + nx * lateral, z = p.z + nz * lateral;
+                const pose = track.renderPoseAt(x, z);
+                const nearest = track.curve.getPointAt(pose.t);
+                const nearestTangent = track.curve.getTangentAt(pose.t);
+                const nearestLength = Math.hypot(nearestTangent.x, nearestTangent.z) || 1;
+                const actualLateral = (x - nearest.x) * nearestTangent.z / nearestLength
+                    + (z - nearest.z) * -nearestTangent.x / nearestLength;
+                const bankedRoadY = track.surfaceYAtT(pose.t)
+                    + actualLateral * Math.sin(track.surfaceBankAtT(pose.t));
+                const rise = pose.terrainY - bankedRoadY;
+                if (rise > maxRise) {
+                    maxRise = rise;
+                    peak = { t: pose.t, lateral: actualLateral, rise,
+                        terrainBlend: pose.terrainBlend };
+                }
+            }
+        }
+        results.push({ id: def.id, maxRise: +maxRise.toFixed(3), peak });
+    }
+    return results;
+});
+console.log('  ', JSON.stringify(edgeSeams));
+check('路肩 terrain 唔會高過有 banking 嘅道路（避免草地／柏油穿插）',
+    edgeSeams.every(item => item.maxRise <= 0.08), edgeSeams);
+
+// 只檢查 vertices 唔夠：粗網格嘅 triangle 可能跨過彎位，插值面仍然
+// 由遠端高地斜穿返道路。直接取樣真正 ground geometry，守住玩家會見到
+// 嘅 rendered surface，而唔係只守住建 mesh 時嘅控制點。
+const meshSeams = await page.evaluate(() => {
+    const sampleTerrain = (track, x, z) => {
+        const position = track.ground.geometry.attributes.position;
+        const row = Math.round(Math.sqrt(position.count));
+        const minX = position.getX(0), minZ = position.getZ(0);
+        const stepX = position.getX(1) - minX;
+        const stepZ = position.getZ(row) - minZ;
+        const gx = (x - minX) / stepX, gz = (z - minZ) / stepZ;
+        const ix = Math.floor(gx), iz = Math.floor(gz);
+        if (ix < 0 || iz < 0 || ix >= row - 1 || iz >= row - 1) return null;
+        const fx = gx - ix, fz = gz - iz;
+        const a = iz * row + ix, b = a + 1, c = a + row, d = c + 1;
+        const ya = position.getY(a), yb = position.getY(b);
+        const yc = position.getY(c), yd = position.getY(d);
+        // #buildTerrain index 順序係 (a,c,b) / (b,c,d)。第二個 triangle
+        // 嘅 barycentric weights 要跟返格網座標，唔可以用負權重外推。
+        return fx + fz < 1
+            ? ya * (1 - fx - fz) + yb * fx + yc * fz
+            : yb * (1 - fz) + yc * (1 - fx) + yd * (fx + fz - 1);
+    };
+    const results = [];
+    for (const def of window.__racer.TRACKS) {
+        window.__racer.buildTrack(def.id);
+        const track = window.__racer.track;
+        let maxRise = -Infinity;
+        let peak = null;
+        for (let i = 0; i < 192; i++) {
+            const t = i / 192;
+            const p = track.curve.getPointAt(t);
+            const tangent = track.curve.getTangentAt(t);
+            const length = Math.hypot(tangent.x, tangent.z) || 1;
+            const nx = tangent.z / length, nz = -tangent.x / length;
+            for (let lateral = -14; lateral <= 14.001; lateral += 0.5) {
+                const x = p.x + nx * lateral, z = p.z + nz * lateral;
+                const terrainY = sampleTerrain(track, x, z);
+                if (terrainY == null) continue;
+                const roadY = track.surfaceYAtT(t)
+                    + lateral * Math.sin(track.surfaceBankAtT(t));
+                const rise = terrainY - roadY;
+                if (rise > maxRise) {
+                    maxRise = rise;
+                    peak = { t, lateral, rise, terrainY, roadY };
+                }
+            }
+        }
+        results.push({ id: def.id, maxRise: +maxRise.toFixed(3), peak });
+    }
+    return results;
+});
+console.log('  ', JSON.stringify(meshSeams));
+check('實際 terrain triangle 唔會插入道路（避免彎位綠色楔形）',
+    meshSeams.every(item => item.maxRise <= 0.08), meshSeams);
 check('閉環起伏喺起點無縫接返，車身會跟縱向坡度俯仰',
     geo.profileSeam.height < 0.0001 && geo.profileSeam.pitch < 0.0001
     && geo.surfacePitch > 0.018 && Math.abs(geo.carTrackPitch - geo.startSurfacePitch) < 0.01, geo);
@@ -277,8 +374,8 @@ console.log('  ', JSON.stringify(wheelMotion));
 check('車輪會按車速滾動同按前輪軚角轉向',
     wheelMotion.changed > 5000 && Math.abs(wheelMotion.state.angle) > 0.5
     && Math.abs(wheelMotion.state.steering) > 0.05, wheelMotion);
-check('草地 mesh 會喺賽道附近銜接高度（仍然單一 terrain mesh）',
-    geo.terrainVertices >= 32 * 32, geo.terrainVertices);
+check('草地 mesh 以 96×96 單一 terrain surface 銜接賽道',
+    geo.terrainVertices === 97 * 97, geo.terrainVertices);
 check('完整 3D 世界 draw calls 維持手機預算（<18）', geo.calls < 18, geo.calls);
 check('三角形數量喺手機預算（<120k）', geo.tris < 120000, geo.tris);
 

@@ -12,9 +12,10 @@ import { Minimap } from './minimap.js';
 import { createEnvironment } from './environment.js';
 import { createDrivingEffects } from './driving-effects.js';
 import { RivalField, trackDelta, signedFrac } from './rivals.js';
-import { GhostRecorder, GhostPlayer, clearGhost } from './ghost.js';
+import { GhostRecorder, GhostPlayer, clearGhost, shortestAngle } from './ghost.js';
 import { Season, loadHistory, clearHistory } from './season.js';
 import { createRacerAudio } from './audio.js';
+import { createWheelMotion } from './wheel-motion.js';
 import {
     COLOURS, TIMES, QUALITY_MODES,
     loadColour, saveColour, loadTod, saveTod, loadQuality, saveQuality, qualityDpr,
@@ -357,6 +358,9 @@ ghostMesh.visible = false;
 ghostMesh.name = 'player-ghost-root';
 scene.add(ghostMesh);
 const ghostSurface = { y: 0, bank: 0, pitch: 0 };
+let ghostWheelMotion = null;
+let ghostLastPose = null;
+let ghostMotionActive = false;
 let ghostLapBest = null, lastLapCount = 0, lapProgressBase = 0;
 
 // 錦標賽：自選賽程連跑。載返上次未跑完嗰個，唔使由頭嚟過。
@@ -388,6 +392,7 @@ function buildTrack(id) {
     if (car) { car.reset(track.startPos, track.startDir); syncCarRenderSurface(); }
     if (race) { race.track = track; race.trackId = trackDef.id; race.reset(); }
     ghostMesh.visible = false;
+    resetGhostMotion();
     camInit = false;
     cameraThrust = 0; cameraPulse = 0; cameraGrade = 0; cameraLean = 0; cameraLookAhead = 0; cameraElevationLook = 0;
     requestRender();
@@ -461,6 +466,10 @@ function createGhostCar(source) {
     ghost.name = 'player-ghost-car';
     ghost.traverse((o) => {
         if (!o.isMesh) return;
+        // Object3D.clone() 會共用 BufferGeometry；幽靈輪胎要做 render-only
+        // 滾動，所以每件 mesh 都要有自己一份 position／normal attribute，
+        // 否則重播會同時改玩家原車。
+        if (o.geometry?.clone) o.geometry = o.geometry.clone();
         o.castShadow = false;
         o.receiveShadow = false;
         o.frustumCulled = false;
@@ -479,6 +488,36 @@ function createGhostCar(source) {
         else o.material = clone(o.material);
     });
     return ghost;
+}
+
+function resetGhostMotion() {
+    if (!ghostMotionActive && !ghostLastPose) return;
+    ghostWheelMotion?.reset();
+    ghostLastPose = null;
+    ghostMotionActive = false;
+}
+
+function updateGhostMotion(p, dt) {
+    if (!ghostWheelMotion) return;
+    if (!ghostLastPose) {
+        ghostWheelMotion.reset();
+        ghostLastPose = { x: p.x, z: p.z, yaw: p.yaw };
+        ghostMotionActive = true;
+        return;
+    }
+    const safeDt = THREE.MathUtils.clamp(Number.isFinite(dt) ? dt : 0, 1 / 240, 0.05);
+    const dx = p.x - ghostLastPose.x;
+    const dz = p.z - ghostLastPose.z;
+    const forwardSpeed = (dx * Math.sin(p.yaw) + dz * Math.cos(p.yaw)) / safeDt;
+    const yawRate = shortestAngle(ghostLastPose.yaw, p.yaw) / safeDt;
+    // replay 只記位置／yaw，冇額外 steering channel；由 yaw rate 反推一個
+    // 有界視覺前輪角，低速時避免一個量化跳動突然扭到盡。
+    const steer = THREE.MathUtils.clamp(
+        yawRate * 2.8 / Math.max(8, Math.abs(forwardSpeed)), -0.62, 0.62,
+    );
+    ghostWheelMotion.update(safeDt, forwardSpeed, steer);
+    ghostLastPose = { x: p.x, z: p.z, yaw: p.yaw };
+    ghostMotionActive = true;
 }
 
 const input = new Input(document);
@@ -536,7 +575,9 @@ loader.load('./assets/car.glb', (gltf) => {
     model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
     carModel = model;
     paintCar(model, colour.hex);
-    ghostMesh.add(createGhostCar(model));
+    const ghostCar = createGhostCar(model);
+    ghostMesh.add(ghostCar);
+    ghostWheelMotion = createWheelMotion(ghostCar);
     const wrap = new THREE.Group();
     wrap.add(model);
     car = new Car(wrap);
@@ -564,7 +605,7 @@ loader.load('./assets/car.glb', (gltf) => {
         car, race, renderer, scene, camera, environment, drivingEffects, rivals, shadow,
         restart, startRace, buildTrack, TRACKS, input, minimap, setRivals,
         get rivalCount() { return rivalCount; },
-        setColour, setTod, setQuality, setGhost, setAbs, get abs() { return absOn; }, season, startSeason, renderSeasonPanel, ghostRecorder, ghostPlayer, ghostMesh,
+        setColour, setTod, setQuality, setGhost, setAbs, get abs() { return absOn; }, season, startSeason, renderSeasonPanel, ghostRecorder, ghostPlayer, ghostMesh, ghostWheelMotion,
         setSeasonList, seasonHistory: loadHistory, clearSeasonHistory: clearHistory, audio,
         updateSeasonMenu,
         get seasonList() { return [...seasonList]; },
@@ -753,6 +794,7 @@ function setGhost(on) {
     saveGhostOn(ghostOn);
     if (!ghostOn) {
         ghostMesh.visible = false;
+        resetGhostMotion();
     }
     document.querySelectorAll('#ghost-seg button').forEach(b =>
         b.classList.toggle('on', (b.dataset.ghost === '1') === ghostOn));
@@ -1170,13 +1212,15 @@ function updateGhost(dt) {
     if (!ghostOn || !ghostPlayer.available || race.state !== 'racing') {
         ghostMesh.visible = false;
         ghostDelta = null;
+        resetGhostMotion();
         return;
     }
     const p = ghostPlayer.at(race.lapTime);
-    if (!p) { ghostMesh.visible = false; return; }
+    if (!p) { ghostMesh.visible = false; resetGhostMotion(); return; }
     track.renderPoseAt?.(p.x, p.z, ghostSurface);
     ghostMesh.position.set(p.x, ghostSurface.y, p.z);
     ghostMesh.rotation.set(ghostSurface.pitch, p.yaw, ghostSurface.bank, 'YZX');
+    updateGhostMotion(p, dt);
     ghostMesh.visible = true;
     // 真實玩家車模已經係 scene 入面；RivalField 唔再畫低模方塊幽靈。
     const at = ghostPlayer.timeAtProgress(lapProgress);
@@ -1322,6 +1366,7 @@ function startRace() {
     lastLapCount = 0;
     lapProgressBase = 0;
     ghostMesh.visible = false;
+    resetGhostMotion();
     camInit = false;
     cameraThrust = 0; cameraPulse = 0; cameraGrade = 0; cameraLean = 0; cameraLookAhead = 0; cameraElevationLook = 0;
     race.reset();
@@ -1366,6 +1411,7 @@ function toMenu() {
     paused = false;
     input.reset();
     ghostMesh.visible = false;
+    resetGhostMotion();
     releaseWakeLock();
     audio.stopRace();
     updatePerformanceNote();

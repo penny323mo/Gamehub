@@ -87,7 +87,8 @@ check('冇幽靈嗰陣唔會爆', play.emptyLoad === false && play.emptyAt === n
 const live = await page.evaluate(async () => {
     const THREE = await import('three');
     const { clearGhost } = await import('./src/ghost.js');
-    const { startRace, race, car, track, trackDef, ghostMesh, ghostPlayer, setRivals, setGhost } = window.__racer;
+    const { startRace, race, car, track, trackDef, ghostMesh, ghostPlayer,
+        ghostWheelMotion, setRivals, setGhost } = window.__racer;
     clearGhost(trackDef.id);
     setRivals(0);
     setGhost(true);
@@ -118,6 +119,9 @@ const live = await page.evaluate(async () => {
     const lap1 = race.lapTimes[0];
     // 第二圈：幽靈車應該出到嚟兼有差距讀數
     step(120);
+    const ghostRoot = ghostMesh.getObjectByName('player-ghost-car');
+    const playerMesh = car.root.getObjectByProperty('isMesh', true);
+    const ghostMeshObject = ghostRoot?.getObjectByProperty('isMesh', true);
     return {
         before, recorded, lap1: lap1 ? +lap1.toFixed(1) : null,
         ghostVisible: ghostMesh.visible,
@@ -129,6 +133,10 @@ const live = await page.evaluate(async () => {
                 const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
                 return mats.length > 0 && mats.every((mat) => mat.transparent && mat.opacity < 0.5);
             }) ?? false,
+        ghostGeometryIndependent: !!ghostMeshObject?.geometry
+            && ghostMeshObject.geometry !== playerMesh?.geometry,
+        ghostWheelEnabled: ghostWheelMotion?.enabled === true,
+        ghostWheelAngle: ghostWheelMotion?.snapshot?.().angle ?? 0,
         ghostDelta: window.__racer.ghostDelta,
         ghostOnRoad: track.isDrivable(ghostMesh.position.x, ghostMesh.position.z),
         progressMoved: +(window.__racer.playerProgressForTest() - progress0).toFixed(3),
@@ -140,6 +148,9 @@ check('跑完一圈會錄低', live.recorded === true, live);
 check('第二圈幽靈車會出現', live.ghostVisible === true, live);
 check('幽靈車沿用玩家原車模型', live.ghostModel === 'player-ghost-car' && live.ghostMeshCount > 0, live);
 check('幽靈車模型係透明材質', live.ghostTransparent === true, live);
+check('幽靈車有自己一份 geometry，輪胎動畫唔會污染玩家車',
+    live.ghostGeometryIndependent === true && live.ghostWheelEnabled
+    && Math.abs(live.ghostWheelAngle) > 0.01, live);
 check('幽靈車企喺賽道上面', live.ghostOnRoad === true, live);
 check('有同自己最快圈嘅差距讀數', typeof live.ghostDelta === 'number', live.ghostDelta);
 // 進度推進唔可以係 HUD 嘅副作用：一唔畫 HUD 就對唔到時

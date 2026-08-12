@@ -110,20 +110,26 @@ repository as a static site.
   centre/tyre-wear cues, surface-anchored tyre smoke and
   exhaust pulses and brake glow belong in the existing texture/effects instance pass
   so the mobile draw budget does not gain a road-marker, tail-smoke or brake-glow pass.
-  Terrain height is
-  built once as a 32×32 mesh;
-  do not replace it with per-frame terrain generation or a second road pass.
+  Terrain height is built once as a **96×96 single mesh**; the extra
+  under-road clearance and triangle-cross-over gate keep curved-road terrain
+  from intruding into the ribbon. Do not replace it with per-frame terrain
+  generation or a second road pass.
 - Racing Car roadside ground uses `Track.terrainHillAmplitude` (turbo **0.95**,
   coast **0.82**, touge **1.15**) and a deterministic `terrainPhase` to add bounded
   low-frequency undulation only where the road blend fades out. It is render-only:
   `terrainYAt()` must not alter road surface, X/Z collision, route, progress or AI;
-  tree anchors must keep querying the same helper so roots do not float or sink.
+  `TERRAIN_ROAD_CLEARANCE` keeps the terrain below the road while the blend is
+  active, and tree anchors must keep querying the same helper so roots do not
+  float or sink.
 - Racing Car's replay ghost is the normalized painted player GLB cloned once at load.
   Every ghost mesh gets its own transparent material (opacity ≤ **0.32**, depth-write
   off), and `main.js` positions the root with the same road `y/pitch/bank` surface pose.
-  `RivalField` reserves its InstancedMesh for four physical rivals only; keep the
-  transparent GLB within the **20 calls / 120k triangles** combined mobile budget and
-  never let the ghost enter physics, ranking, collision or progress.
+  Ghost meshes also own independent cloned geometry and a render-only
+  `createWheelMotion()` controller driven by replay displacement/yaw; this must
+  never mutate the player model or enter physics. `RivalField` reserves its
+  InstancedMesh for four physical rivals only; keep the transparent GLB within
+  the **20 calls / 120k triangles** combined mobile budget and never let the ghost
+  enter physics, ranking, collision or progress.
 - Racing Car's visual track profile uses the `elevation` value on each track
   definition (turbo **1.28**, coast **1.14**, touge **1.40**) plus closed integer
   frequency waves (`1.78/0.75/0.28`) to create a more legible crest/grade at build time. The

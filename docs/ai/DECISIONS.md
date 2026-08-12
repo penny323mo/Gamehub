@@ -8767,3 +8767,37 @@ API 留作相容 no-op，唔再畫低模幽靈。
 日後如替換 `assets/car.glb`，要重新檢查 clone／material 數量、透明 silhouette、
 road-surface alignment 同手機 budget；唔好將 ghost 改回低模或將 replay sample 餵返
 Car physics。
+
+## ADR-300 — Racing Car terrain triangle 唔可以穿入彎道 ribbon
+
+Date: 2026-08-12. Status: accepted.
+
+ADR-298 嘅 rolling ground 雖然每個 terrain vertex 都低過 road edge，但 32×32 粗網格
+嘅 triangle 會跨過急彎；真 browser 截圖見到綠色楔形插入柏油，實際 triangle interpolation
+最高比局部 road 高約 **3.26m**。今輪仍然只保留一個 terrain draw，將 tessellation 提升到
+**96×96**，並喺 road blend 期間加入 `TERRAIN_ROAD_CLEARANCE=0.4m`。呢個係
+render-only underlay，`terrainYAt()`、樹根同 offroad 車身共用同一高度，唔改 road ribbon、
+X/Z collision、progress、AI 或 `Car.pos.y`。
+
+`setup.mjs` 新增兩層 gate：banked edge 取樣同真正 ground triangle barycentric 插值；六條
+賽道最高插值由紅燈降至全數 **≤ -0.13m**（touge），setup **157/157**。實際 browser
+desktop/mobile smoke 重新見到連續柏油、kerb、草地，冇綠色楔形；世界 **16 calls / 73,317
+tris**，仍然低於手機 budget。日後如改 mesh resolution、clearance、banking 或 rolling
+amplitude，必須重跑 triangle gate、tree/offroad anchors、aggregate 同兩個 viewport
+截圖；唔可以靠第二張地面 mesh 掩蓋問題。
+
+## ADR-301 — Racing Car replay ghost 要有獨立 geometry 同輪胎動作
+
+Date: 2026-08-12. Status: accepted.
+
+透明 player GLB ghost 原本只 clone Object3D，BufferGeometry 仍然同玩家共用；如果直接
+套用現有 `wheel-motion.js`，重播輪胎會污染玩家車身。今輪每個 ghost mesh 先 clone
+geometry，再建立 render-only `createWheelMotion()`；replay 嘅位移／yaw delta 估算前進速度
+同有界前輪角，重設／換賽道／關閉 ghost 會 restore 原 geometry。玩家物理、排名、碰撞、
+progress 同 ghost replay data contract 完全不變。
+
+`ghost.mjs` gate 擴充至 **33/33**：geometry identity 獨立、輪胎 angle 非零、ghost 仍然
+透明／企喺路面、唔推玩家；夜景＋四對手＋ghost＋漂移 effects 實測 **19 calls / 105,187
+tris**，守住 **20 calls / 120k tris**。日後替換 `car.glb` 要重新檢查每個 mesh geometry、
+wheel cluster、material opacity 同 combined budget；唔好將 ghost 輪胎 controller 改成共享
+player geometry。

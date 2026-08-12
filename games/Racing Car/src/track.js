@@ -19,12 +19,18 @@ const ASPHALT_HALF_W = ROAD_HALF_W - KERB_W;
 const RAIL_OFFSET = ROAD_HALF_W + GRASS_W + WALL_W * 0.5;
 const VISUAL_STEP = 1.25;
 const QUERY_SAMPLES = 240;
-const TERRAIN_SEGMENTS = 32;
+// 路面 ribbon 係 568 段，但 ground 如果只用 32×32 大三角形，彎位外側
+// 會有一個三角面斜穿返柏油。96×96 仍然係單一 mesh／單一 draw call，
+// 足夠將 terrain cross-over 壓到 road edge 之下，手機三角形仍然留喺預算內。
+const TERRAIN_SEGMENTS = 96;
 const LANDMARK_OFFSET = ROAD_HALF_W + GRASS_W * 0.58;
 const LANDMARK_SAMPLES = 128;
 const LANDMARK_MIN_GAP = 0.045;
 const TERRAIN_INNER = ROAD_HALF_W - 1;
 const TERRAIN_OUTER = ROAD_HALF_W + GRASS_W + 2;
+// Extra under-road clearance prevents a sharp bend's interpolated terrain
+// triangle from crossing the visible road ribbon.
+const TERRAIN_ROAD_CLEARANCE = 0.4;
 export const ROAD_HALF = Math.round(ROAD_HALF_W / BLOCK);
 
 // 物理地表種類。code 係幕後格網入面存嘅數字（0 = 空）
@@ -103,7 +109,7 @@ export class Track {
         // 1.4 係畀山道有真正 crest／valley，而唔係所有場都似同一塊平板。
         this.elevation = Number.isFinite(elevation) ? THREE.MathUtils.clamp(elevation, 0.75, 1.4) : 1;
         // 路旁地形再有一層 route-specific rolling ground：山道起伏最明顯，
-        // 海岸較柔和，渦輪場保留少量大地形。只會寫入既有 32×32 render mesh，
+        // 海岸較柔和，渦輪場保留少量大地形。只會寫入既有單一 render mesh，
         // 唔會改路面、X/Z 物理格網或碰撞。
         const key = String(profileKey);
         this.terrainHillAmplitude = key.includes('touge') ? 1.15
@@ -231,7 +237,7 @@ export class Track {
 
     // 落草係 render-only：物理仍然留喺 X/Z 格網，但車身、陰影同煙霧要落到
     // 真正嘅草地 mesh，否則一出 kerb 就會浮返喺道路 crest 高度。呢個 helper
-    // 完全重用 terrain mesh 嘅 32×32 高度公式，唔新增 mesh、raycast 或 allocation。
+    // 完全重用 terrain mesh 嘅 96×96 高度公式，唔新增 mesh、raycast 或 allocation。
     terrainYAt(x, z) {
         const t = this.nearestT(x, z);
         return this.#terrainYAt(t, this.#terrainBlend(x, z, t), x, z);
@@ -258,11 +264,32 @@ export class Track {
         );
     }
 
+    // 路面有 banking 時，中心線高度唔等於路肩高度。用已預取嘅 query
+    // samples 求 signed lateral，避免每幀為 terrainYAt() 重新建立曲線點／
+    // tangent；terrain 由道路向草地淡出時，路肩先會同 ribbon 真正對齊。
+    #lateralAt(x, z, t) {
+        const wrapped = ((t % 1) + 1) % 1;
+        const i = Math.floor(wrapped * QUERY_SAMPLES);
+        const center = i * 2;
+        const before = ((i + QUERY_SAMPLES - 1) % QUERY_SAMPLES) * 2;
+        const after = ((i + 1) % QUERY_SAMPLES) * 2;
+        const tx = this.querySamples[after] - this.querySamples[before];
+        const tz = this.querySamples[after + 1] - this.querySamples[before + 1];
+        const length = Math.hypot(tx, tz) || 1;
+        // tangent × up = (tangent.z, -tangent.x)；正值係右手側。
+        return ((x - this.querySamples[center]) * tz
+            + (z - this.querySamples[center + 1]) * -tx) / length;
+    }
+
     #terrainYAt(t, blend, x = 0, z = 0) {
         const baseY = this.surfaceMinY - 0.22;
         const roadBlend = THREE.MathUtils.clamp(blend, 0, 1);
         const rollingGround = this.#terrainUndulation(x, z) * (1 - roadBlend);
-        return baseY + (this.surfaceYAtT(t) - 0.05 - baseY) * roadBlend + rollingGround;
+        // 用 banked road surface 做銜接，而唔係淨係用中線 Y；否則外側
+        // 會比路肩高最多約 0.8m，草地會插入柏油／形成黑色接縫。
+        const bankedRoadY = this.#surfaceYAt(t, this.#lateralAt(x, z, t))
+            - 0.05 - TERRAIN_ROAD_CLEARANCE;
+        return baseY + (bankedRoadY - baseY) * roadBlend + rollingGround;
     }
 
     #surfaceYAt(t, lateral = 0) {
@@ -648,8 +675,8 @@ export class Track {
         const width = this.gw * BLOCK, depth = this.gh * BLOCK;
         const tex = surfaceTexture('grass');
         // 一張大平面會令有起伏嘅路面同草地之間出現懸空／穿插。用低密度
-        // 32×32 grid 將賽道附近草地拉到路肩高度；仍然係一個 mesh、同一個
-        // draw call，三角形只增加約 2k，留返手機 budget 畀車同效果。
+        // 96×96 grid 將賽道附近草地拉到路肩高度；仍然係一個 mesh、同一個
+        // draw call，約 18k terrain triangles，留返手機 budget 畀車同效果。
         tex.repeat.set(1, 1);
         const pos = [], uv = [], idx = [];
         const minX = this.minCX * BLOCK, minZ = this.minCZ * BLOCK;
