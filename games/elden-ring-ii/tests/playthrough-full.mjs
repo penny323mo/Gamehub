@@ -1,7 +1,11 @@
 import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 const HERE=path.dirname(fileURLToPath(import.meta.url)); const ROOT=path.resolve(HERE,'../../..');
-const OUT='/tmp/claude-0/-home-user-Gamehub/8b71ac80-36d5-5ca1-afcf-1c72d7aac410/scratchpad/full.txt';
+// Keep the long-running witness portable across Codex, Claude and local Macs.
+// The old cloud-only scratchpad path made the game test fail before Chromium
+// even opened when that directory was not mounted.
+const OUT=process.env.ER2_PLAYTHROUGH_OUT ?? path.join('/tmp','gamehub-elden-ring-ii-playthrough-full.txt');
+fs.mkdirSync(path.dirname(OUT), { recursive: true });
 const 記=(t)=>fs.appendFileSync(OUT, t+'\n');
 const { chromium }=await import(pathToFileURL(path.join(ROOT,'games','Racing Car','tests','node_modules','playwright','index.mjs')).href);
 const MIME={'.html':'text/html','.js':'text/javascript','.glb':'model/gltf-binary','.json':'application/json','.png':'image/png','.jpg':'image/jpeg','.css':'text/css','.woff2':'font/woff2','.m4a':'audio/mp4','.mp3':'audio/mpeg','.svg':'image/svg+xml','.bin':'application/octet-stream'};
@@ -10,7 +14,10 @@ const server=http.createServer((q,r)=>{const f=path.join(ROOT,decodeURIComponent
   r.writeHead(200,{'content-type':MIME[path.extname(f)]??'application/octet-stream'});fs.createReadStream(f).pipe(r);});
 const port=await new Promise(r=>server.listen(0,()=>r(server.address().port)));
 記('開機');
-const browser=await chromium.launch({executablePath:'/opt/pw-browsers/chromium',args:['--use-gl=swiftshader','--enable-unsafe-swiftshader']});
+const browser=await chromium.launch({
+  executablePath: process.env.PW_CHROMIUM ?? '/opt/pw-browsers/chromium',
+  args:['--use-gl=swiftshader','--enable-unsafe-swiftshader'],
+});
 const p=await browser.newPage({viewport:{width:320,height:190}});
 p.on('pageerror',e=>記('PAGEERROR '+e.message.slice(0,140)));
 await p.goto(`http://localhost:${port}/games/elden-ring-ii/dist/index.html`,{waitUntil:'load'});

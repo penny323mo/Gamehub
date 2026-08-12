@@ -342,11 +342,28 @@ const panelPoint = await mobile.evaluate(({ origin, cellSize }) => {
   return box ? { x: box.x, y: box.y, width: box.width, height: box.height } : null;
 }, { origin: MAP_CONFIG.origin, cellSize: MAP_CONFIG.cellSize });
 if (!panelPoint) throw new Error('Tower panel did not open for draggable interruption gate');
-const dragStart = { x: panelPoint.x + panelPoint.width / 2, y: panelPoint.y + 18 };
+// The inspection click is dispatched from a synthetic mobile gesture. Wait for
+// the real DOM panel to finish its visibility/layout mutation before starting
+// the long press; otherwise a slow frame can make the pointerdown land on the
+// canvas' old hit target and turn this into a flaky "drag never started" check.
+await mobile.waitForFunction(() => {
+  const panel = document.querySelector('#tower-panel');
+  const box = panel?.getBoundingClientRect();
+  return !!panel && !panel.classList.contains('hidden') && !!box && box.width > 0 && box.height > 0;
+});
+// Read the box again after the wait. On a slow mobile frame the first
+// getBoundingClientRect() can belong to the pre-observer layout even though
+// the panel has since been revealed; using that stale point can hit the canvas
+// and falsely report that the drag never began.
+const dragBox = await mobile.locator('#tower-panel').boundingBox();
+if (!dragBox) throw new Error('Tower panel lost its box before drag started');
+const dragStart = { x: dragBox.x + dragBox.width / 2, y: dragBox.y + 18 };
 await mobile.mouse.move(dragStart.x, dragStart.y);
 await mobile.mouse.down();
-await mobile.waitForTimeout(520);
-const dragStarted = await mobile.evaluate(() => document.querySelector('#tower-panel')?.classList.contains('ui-dragging'));
+await mobile.evaluate(() => new Promise((resolve) => setTimeout(resolve, 520)));
+const dragStarted = await mobile.evaluate(() => ({
+  dragging: document.querySelector('#tower-panel')?.classList.contains('ui-dragging'),
+}));
 await mobile.mouse.move(dragStart.x + 42, dragStart.y + 28);
 await mobile.evaluate(() => window.dispatchEvent(new Event('blur')));
 await mobile.waitForTimeout(100);
@@ -356,7 +373,7 @@ const blurDragCancelled = await mobile.evaluate(() => {
 });
 await mobile.mouse.up();
 check('Tower HUD panel blur 會取消拖動並還原未提交位置',
-  dragStarted === true && blurDragCancelled.dragging === false
+  dragStarted.dragging === true && blurDragCancelled.dragging === false
     && blurDragCancelled.left === '' && blurDragCancelled.top === '',
   { dragStarted, blurDragCancelled });
 

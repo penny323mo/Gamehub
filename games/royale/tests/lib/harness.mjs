@@ -59,7 +59,10 @@ export async function openRoyale({
     const { server, origin } = await serve();
     const browser = await chromium.launch({
         executablePath: resolveChromium(),
-        args: ['--use-angle=swiftshader-webgl', '--enable-unsafe-swiftshader'],
+        // 本機有一個顯式 browser proxy；若唔關掉，連續開短命 127.0.0.1
+        // fixture 時 Chromium 偶發將頁面送咗去 proxy，回傳「Does not respond
+        // to relative URIs」而唔係 repo HTML。呢個唔係遊戲網絡路徑。
+        args: ['--no-proxy-server', '--use-angle=swiftshader-webgl', '--enable-unsafe-swiftshader'],
     });
     const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
     const errors = [];
@@ -76,10 +79,39 @@ export async function openRoyale({
     await page.goto(`${origin}/games/royale/index.html`);
     await page.waitForSelector('#loading', { state: 'detached', timeout: 90000 });
     if (skipTutorial) {
-        await page.evaluate(async () => {
-            const s = await import('./src/storage.js');
-            s.markTutorialSeen();
-        });
+        // `#loading` 由 init 最後先移除；等開始掣真正完成 layout，確保
+        // 首個 document module graph 已經 settle。
+        // 跑完整 aggregate 時上一個 swiftshader page 剛關，下一個 page 可能要
+        // 幾十秒先完成 shader／asset warm-up；呢個係 fixture 等待上限，唔係玩法
+        // assertion。loading 已 detached，故唔會將真正載入錯誤靜默成通過。
+        try {
+            await page.waitForSelector('#start-btn', { state: 'visible', timeout: 90000 });
+        } catch (err) {
+            const state = await page.evaluate(() => ({
+                loading: !!document.querySelector('#loading'),
+                screenStart: document.querySelector('#screen-start')?.className ?? null,
+                button: document.querySelector('#start-btn')?.getBoundingClientRect().toJSON() ?? null,
+                body: document.body?.innerText?.slice(0, 120),
+            })).catch(() => null);
+            throw new Error(`${err.message} | Royale boot state: ${JSON.stringify(state)}`);
+        }
+        // 測試 fixture 本身唔應該被教學 modal 擋住；只喺 module graph 已 settle
+        // 之後標記已看過，失敗則 bounded retry（唔吞真正持續嘅 import error）。
+        let lastError;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                await page.evaluate(async () => {
+                    const s = await import('./src/storage.js');
+                    s.markTutorialSeen();
+                });
+                lastError = null;
+                break;
+            } catch (err) {
+                lastError = err;
+                if (attempt < 2) await page.waitForTimeout(120 * (attempt + 1));
+            }
+        }
+        if (lastError) throw lastError;
     }
 
     return {

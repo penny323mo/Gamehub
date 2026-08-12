@@ -222,6 +222,15 @@ gates. Then use a real browser to follow the Hub card and verify the title scree
 game start, movement, right-side camera drag, mobile touch controls, and zero
 failed model/audio requests or console errors.
 
+The long witness `node --experimental-strip-types tests/playthrough-full.mjs` writes
+to `/tmp/gamehub-elden-ring-ii-playthrough-full.txt` by default. Override with
+`ER2_PLAYTHROUGH_OUT=/path/to/file`; set `PW_CHROMIUM` when the default cloud
+Chromium path is not present. The witness must report its final status rather than
+treating a bot timeout or player death as a victory. A short boss witness has
+confirmed the real attack path can reduce the boss from 100 to 10 HP at 1.3–1.4m;
+an adaptive bot still needs survival/approach work before this is a full-playthrough
+pass.
+
 ### Snake Game
 
 From `games/snake-game/`:
@@ -406,6 +415,11 @@ cd games/royale/tests
 npm install        # once
 npm test           # leak, gauntlet, combat, pvp-guest, match; non-zero exit on failure
 ```
+
+The harness waits for the visible start screen after loading and uses a bounded
+retry around the test-only tutorial flag; this prevents software-renderer page
+startup races from masquerading as game failures. `PLAYWRIGHT_CHROMIUM` selects a
+local browser when `/opt/pw-browsers/chromium` is absent.
 
 It covers the ADR invariants that are cheap to break silently: the GPU leak gate
 (ADR-008), gauntlet condition symmetry (ADR-007/013), the `Game#damage` funnel,

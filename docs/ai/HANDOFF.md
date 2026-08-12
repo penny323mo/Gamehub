@@ -1,7 +1,7 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Racing ghost, Hub return, storage resilience and keyboard/readability audit
+Prepared by: Codex — cross-game completion audit, browser-fixture hardening and Elden witness
 Integration branch: `main`
 Work branch: `main`
 Status: latest checkpoint is verified locally and ready for the next agent;
@@ -9,10 +9,10 @@ sync GitHub before reading this file.
 
 ## Current objective
 
-Keep Game Hub and its games moving toward production-ready mobile play. The
-current high-value work is Racing Car feel/visual polish while preserving the
-Hub-wide return, lifecycle, accessibility and storage contracts. Do not treat a
-build alone as visual evidence: use the real browser gates below.
+Keep Game Hub and its games moving toward production-ready mobile play. This
+checkpoint is an evidence pass across Racing, MOBA, Tower, Royale and Elden;
+next agent should sync this commit before choosing the next product gap. Do not
+treat a build alone as visual evidence: use the real browser gates below.
 
 ## Completed
 
@@ -34,6 +34,18 @@ build alone as visual evidence: use the real browser gates below.
   and Elden 3D canvases, Elden class cards, utility buttons and credits close
   button expose visible keyboard focus rings; Ashen's canvas is explicitly
   `tabindex="0"`.
+- Cross-game browser audit completed on local Chromium: Hub away/pause/leak
+  **3/3, 6/6, 4/4**; root flows Gomoku **10/10**, Big Two **4/4**, Dou Dizhu
+  **4/4**, Penny Crush **7/7**, Snake **10/10**, Snooker **25/25**, Xiangqi
+  **5/5**; MOBA sim/cache/browser **262/262, pass, 206/206**.
+- Tower core stayed green (**map 11/11, route 8/8, chapters 7/7, RNG 5/5,
+  tiles 7/7, balance 10/10**). Flow is **20/20** after the test waits for the
+  visible panel layout and uses a real mouse pointer path for long-press drag;
+  runtime rollback is covered by the blur and visibility gates.
+- Royale individual browser gates: leak **7/7**, perf **3/3**, gauntlet
+  **17/17**, combat **8/8**, pvp guest **12/12**, match **11/11**, features
+  **27/27**, RTS **29/29**, session **5/5**. Its shared harness now waits for
+  `#start-btn` after loading and bounded-retries the test-only tutorial flag.
 
 ## Changed files
 
@@ -44,6 +56,12 @@ build alone as visual evidence: use the real browser gates below.
 - `games/elden-ring-ii/src/styles.css` — AA subtitle color and canvas/class/
   utility focus states; tracked `dist/` rebuilt.
 - `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md` and this handoff.
+- `games/royale/tests/lib/harness.mjs` — visible-start wait and bounded tutorial
+  flag retry for local/Cloud Chromium differences.
+- `games/tower/tests/flow.mjs` — re-read panel box after layout settles before
+  blur/visibility drag cancellation.
+- `games/elden-ring-ii/tests/playthrough-full.mjs` — portable output path and
+  `PW_CHROMIUM` override; creates the output directory before launch.
 
 ## Verification
 
@@ -62,6 +80,10 @@ build alone as visual evidence: use the real browser gates below.
   **157/157**, rivals **61/61**, ghost **33/33**, season **55/55**, audio
   **33/33**, aggregate all green; headed 844×390 and 1200×700 smoke had zero
   console errors and measured 19 calls / 105,187 tris at the busiest ghost case.
+- Elden `npm test` is **17/17**. A direct browser boss witness reached 1.3m,
+  landed 9 attacks for 90 damage (boss **100 → 10**), then died to boss hits;
+  the long full-playthrough bot is therefore **not** a victory gate yet. This is
+  a bot survival/approach limitation, not evidence that attack damage is broken.
 
 ## Known issues and cautions
 
@@ -73,15 +95,21 @@ build alone as visual evidence: use the real browser gates below.
 - Keep Racing terrain as one 96×96 mesh and preserve road clearance; never feed
   `terrainYAt()`/render pose back into physics, collision, progress or AI.
 - Do not force-push or rewrite shared `main`; do not restore the old block ghost.
+- Do not call the Elden full witness green when the bot dies, stalls, or merely
+  reaches the boss. Keep the short boss evidence separate from a true clear.
 
 ## Exact next action
 
 1. Run `./scripts/agent-context.sh --sync`, then read this handoff and ADR-298–304.
-2. For Racing changes, run the named suites plus real mobile/desktop smoke. For
-   Hub or entry changes, rerun `hub.mjs`, `hub-home.mjs`, `hub-storage.mjs`,
-   `hub-keyboard.mjs` and `hub-read.mjs` as appropriate.
-3. Keep `docs/ai/HANDOFF.md` short and replace it at each completed checkpoint.
-4. Run `./scripts/check-handoff.sh`, commit code and docs together, push the
+2. If touching Elden, improve the bot only with visible/input-equivalent
+   behaviour: approach the boss, dodge telegraphs, heal, and require
+   `status === victory`; do not use `__ER2.推關()` in the full-clear assertion.
+3. If touching Royale, run `PLAYWRIGHT_CHROMIUM=/path/to/chrome npm test` from
+   `games/royale/tests`; individual suites remain authoritative when a slow
+   software-renderer aggregate launch times out.
+4. For Racing or Hub changes, run the named suites plus real mobile/desktop
+   smoke. Keep this file short and replace it at each completed checkpoint.
+5. Run `./scripts/check-handoff.sh`, commit code and docs together, push the
    authorized checkpoint, then verify `git ls-remote origin refs/heads/main`.
 
 ## Do not redo
