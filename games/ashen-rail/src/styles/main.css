@@ -14,15 +14,16 @@ button, a { font: inherit; }
 #loading-screen h1 { font-size: clamp(28px, 5vw, 52px); }
 .load-track { width: min(420px, 72vw); height: 4px; margin: 26px auto 10px; overflow: hidden; background: #493222; }
 #load-fill { width: 0; height: 100%; background: #ff782d; box-shadow: 0 0 18px #ff782d; transition: width .25s ease; }
-.start-panel { width: min(700px, 88vw); justify-self: start; margin-left: 4vw; }
+.start-panel { width: min(700px, 88vw); max-height: calc(100vh - 32px); justify-self: start; margin-left: 4vw; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
 .start-panel > p:not(.eyebrow) { max-width: 540px; color: #c6b5a6; font-size: clamp(15px, 2vw, 20px); }
 .mission-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 20px 0; }
 .mission-chips span { padding: 6px 10px; border: 1px solid #5f4332; color: #cfb39e; font-size: 12px; }
 .settings-panel { width: min(460px, 82vw); margin: 10px 0 18px; padding: 8px 12px; color: #cdb7a6; border: 1px solid #493327; background: rgba(24, 15, 11, .58); }
 .settings-panel summary { min-height: 34px; cursor: pointer; color: #ebc7ac; font-weight: 800; }
-.settings-panel label { display: grid; grid-template-columns: 110px 1fr; gap: 12px; align-items: center; min-height: 36px; font-size: 12px; }
-.settings-panel select, .settings-panel input { width: 100%; accent-color: #f27931; color: #f4dfcf; background: #21150f; border: 1px solid #5e4030; }
-.settings-panel .mute-setting, .settings-panel .gyro-setting, .settings-panel .aim-assist-setting { grid-template-columns: 110px 24px; }.settings-panel .mute-setting input, .settings-panel .gyro-setting input, .settings-panel .aim-assist-setting input { width: 18px; height: 18px; }
+.settings-panel label { display: grid; grid-template-columns: 110px 1fr; gap: 12px; align-items: center; min-height: 44px; font-size: 12px; }
+.settings-panel select, .settings-panel input { width: 100%; min-height: 44px; accent-color: #f27931; color: #f4dfcf; background: #21150f; border: 1px solid #5e4030; }
+.settings-panel .mute-setting, .settings-panel .gyro-setting, .settings-panel .aim-assist-setting { grid-template-columns: 110px 44px; }
+.settings-panel input[type="checkbox"] { width: 44px; height: 44px; margin: 0; }
 button, .hub-link { min-height: 48px; border: 0; cursor: pointer; text-decoration: none; }
 .primary, .secondary { min-width: 190px; padding: 13px 24px; font-weight: 900; letter-spacing: .05em; }
 .primary { color: #170d08; background: #f27931; box-shadow: 0 8px 30px rgba(242, 121, 49, .25); }

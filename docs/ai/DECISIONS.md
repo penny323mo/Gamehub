@@ -8854,3 +8854,34 @@ Elden Ring II 嘅長 witness 由瀏覽器內 keyboard-equivalent policy 驅動�
 `tests/playthrough-full.mjs` 收場時必須見到遊戲自己報 `status === "victory"`、chapter 3
 已完成、Boss 已清，並寫出 `PLAYTHROUGH=PASS`；任何死亡、timeout、卡住或只到 Boss
 都要返回 non-zero。呢條係產品通關 evidence，唔係只測 bot 內部邏輯。
+
+## ADR-306 — Ashen Rail 開場設定面板要可捲，所有控制保留 44×44 hit target
+
+Date: 2026-08-12. Status: accepted.
+
+Ashen Rail 嘅開場設定有 range、select 同 checkbox；原本用原生控制高度時，直向
+iPhone 尺寸會令「靜音」跌出畫面，橫向 375px 高度亦會令設定列壓到 18–19px，
+實際手指難以操作。`start-panel` 現在係 viewport 內可捲容器，設定 label 同其
+select/range/checkbox 都保留最少 **44×44 CSS px**；捲動只限開場面板，唔會放開
+遊戲 canvas 嘅全螢幕手勢。
+
+`tests/hub-touch.mjs` 要喺 375×667 同 667×375 兩個真手機 viewport 量度呢條
+contract，並同 build、lint、Vitest 及 HTTP browser smoke 一齊跑。日後新增設定
+控制唔可以靠縮細 native input 過版面 gate；如果要例外，必須另寫決策同可見替代
+hit area。
+
+## ADR-307 — Racing Car turbo route 要將漂移節奏放入真實走線，輪胎閃爍由 shared normals 修正
+
+Date: 2026-08-12. Status: accepted.
+
+玩家反映預設賽道太直、漂移冇節奏，同時四個輪胎會閃。今輪只改 turbo 嘅
+Catmull-Rom waypoints：保留全油起步直路，之後係高速右彎、錯位反向 S、深髮夾，
+再接出彎長彎；六條正／逆向仍共用同一 Track 生成 road ribbon、物理 grid、checkpoint
+同 AI，browser gate 實測 turbo clearance **53.2m**、三圈 AI **37.1/35.3/35.3s**，
+冇落草、撞欄或 rescue。turbo render elevation 由 **1.28** 調到 **1.34**，仍然只影響
+surface pose，唔寫入 `Car.pos.y` 或進度。
+
+`car.glb` 將車身同輪胎合併成一個 geometry；原本每幀同步旋轉輪胎 vertex normals，
+會令輪胎／車身接縫嘅 specular 光點跳動，手機睇落就係四轆閃爍。`wheel-motion.js`
+而家保留位置滾動同前輪轉向，只更新 position，沿用 asset 原生 shared normals。
+`setup.mjs` 另加 `normalChanged === 0` gate，確保日後唔會重新引入法線閃爍。

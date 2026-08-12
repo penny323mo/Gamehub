@@ -101,9 +101,6 @@ export function createWheelMotion(root) {
                 let x = wheel.x + sx;
                 let y = wheel.y + sy;
                 let z = vertex.z;
-                let nx = vertex.nx * spinC - vertex.ny * spinS;
-                let ny = vertex.nx * spinS + vertex.ny * spinC;
-                let nz = vertex.nz;
                 // local +X 係車頭；前輪只做視覺轉向，唔改車身／碰撞。
                 if (wheel.front) {
                     dx = x - wheel.x;
@@ -112,16 +109,15 @@ export function createWheelMotion(root) {
                     const turnedZ = -dx * steerS + dz * steerC;
                     x = wheel.x + turnedX;
                     z = wheel.z + turnedZ;
-                    const turnedNx = nx * steerC + nz * steerS;
-                    nz = -nx * steerS + nz * steerC;
-                    nx = turnedNx;
                 }
                 data.position.setXYZ(vertex.index, x, y, z);
-                data.normal.setXYZ(vertex.index, nx, ny, nz);
             }
         }
+        // car.glb 將車身、輪胎同一個 merged geometry 共用 vertex normals。
+        // 逐幀旋轉輪胎法線會令輪胎／車身接縫嘅 specular 光點跳動，手機上睇
+        // 落就似四個轆閃爍；位置仍然照轉，所以保留滾動／轉向，但沿用模型
+        // 原生法線，令亮度只由車身姿態同光源決定。
         data.position.needsUpdate = true;
-        data.normal.needsUpdate = true;
     };
 
     const reset = () => {

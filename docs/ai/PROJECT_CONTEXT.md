@@ -131,7 +131,7 @@ repository as a static site.
   the **20 calls / 120k triangles** combined mobile budget and never let the ghost
   enter physics, ranking, collision or progress.
 - Racing Car's visual track profile uses the `elevation` value on each track
-  definition (turbo **1.28**, coast **1.14**, touge **1.40**) plus closed integer
+  definition (turbo **1.34**, coast **1.14**, touge **1.40**) plus closed integer
   frequency waves (`1.78/0.75/0.28`) to create a more legible crest/grade at build time. The
   constructor clamps this render-only multiplier to **0.75–1.40**; physics,
   collision, progress, checkpoints and AI stay on the established X/Z grid.
@@ -144,7 +144,14 @@ repository as a static site.
   checkpoints, progress and speed.
 - Racing Car's rigid GLB has no wheel bones/clips; `wheel-motion.js` classifies
   four merged-geometry wheel clusters for render-only spin and front steering.
-  It must not become a physics, collision or gameplay dependency.
+  It must not become a physics, collision or gameplay dependency. Turbo's default
+  route keeps its long start straight, then feeds a high-speed right bend into
+  an offset reverse-S and deep hairpin for a brake → handbrake → countersteer →
+  throttle-out drift rhythm; the Catmull-Rom centreline remains the sole source
+  for road, grid, checkpoints, AI and reverse routes. Because the player GLB
+  merges body and tyre vertices, wheel motion updates positions but deliberately
+  leaves the shared normal attribute untouched; rotating those normals per frame
+  makes body/tyre specular seams flicker on mobile.
 - Racing Car's current sport envelope is deliberately bounded: `engineForce=10000`,
   `maxSpeed=68`, `dragCoef=2.4`, `gradeGravity=4.6`, and `handbrakeGrip=0.35` are
   tuned against the physical drift/ABS/grade gates. The speed-streak layer begins

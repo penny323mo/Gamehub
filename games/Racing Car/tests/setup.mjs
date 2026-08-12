@@ -362,18 +362,23 @@ const wheelMotion = await page.evaluate(() => {
     const { car } = window.__racer;
     const mesh = car.root.getObjectByProperty('isMesh', true);
     const before = mesh.geometry.attributes.position.array.slice();
+    const normalBefore = mesh.geometry.attributes.normal.array.slice();
     car.wheels.update(1 / 30, 25, 0.42);
     const after = mesh.geometry.attributes.position.array;
+    const normals = mesh.geometry.attributes.normal.array;
     let changed = 0;
     for (let i = 0; i < after.length; i++) if (Math.abs(after[i] - before[i]) > 1e-6) changed++;
+    let normalChanged = 0;
+    for (let i = 0; i < normals.length; i++) if (Math.abs(normals[i] - normalBefore[i]) > 1e-6) normalChanged++;
     const state = car.wheels.snapshot();
     car.wheels.reset();
-    return { changed, state };
+    return { changed, normalChanged, state };
 });
 console.log('  ', JSON.stringify(wheelMotion));
 check('車輪會按車速滾動同按前輪軚角轉向',
     wheelMotion.changed > 5000 && Math.abs(wheelMotion.state.angle) > 0.5
     && Math.abs(wheelMotion.state.steering) > 0.05, wheelMotion);
+check('車身／輪胎共用 merged normals 唔會逐幀閃爍', wheelMotion.normalChanged === 0, wheelMotion);
 check('草地 mesh 以 96×96 單一 terrain surface 銜接賽道',
     geo.terrainVertices === 97 * 97, geo.terrainVertices);
 check('完整 3D 世界 draw calls 維持手機預算（<18）', geo.calls < 18, geo.calls);
