@@ -41,7 +41,8 @@ export function signedFrac(t, startT) {
 }
 
 // 一架低面數方塊車：車身 + 車頂 + 四個轆，全部合併做一份 geometry。
-// 幽靈車都用同一份（半透明材質），咁樣兩者望落係同一個世界嘅嘢。
+// 玩家幽靈唔再用呢架低模；真正幽靈由 main.js clone 玩家 GLB 後做透明材質，
+// 呢度只負責四架實體對手，保留 instance draw 嘅手機預算。
 export function blockCarGeometry() {
     const parts = [];
     const push = (w, h, d, x, y, z, shade) => {
@@ -91,21 +92,13 @@ function blockCarMaterial() {
     const mat = new THREE.MeshLambertMaterial({ vertexColors: false });
     mat.onBeforeCompile = (shader) => {
         shader.vertexShader = shader.vertexShader
-            .replace('#include <common>', '#include <common>\nattribute vec3 shade;\nattribute float instanceGhost;\nvarying vec3 vShade;\nvarying float vInstanceGhost;')
-            .replace('#include <begin_vertex>', '#include <begin_vertex>\nvShade = shade;\nvInstanceGhost = instanceGhost;');
+            .replace('#include <common>', '#include <common>\nattribute vec3 shade;\nvarying vec3 vShade;')
+            .replace('#include <begin_vertex>', '#include <begin_vertex>\nvShade = shade;');
         shader.fragmentShader = shader.fragmentShader
-            .replace('#include <common>', '#include <common>\nvarying vec3 vShade;\nvarying float vInstanceGhost;')
-            .replace('#include <color_fragment>', `#include <color_fragment>
-diffuseColor.rgb *= vShade;
-// 幽靈同實體對手共用一個 draw：隔點 discard 做 screen-door 半透明，
-// 實體對手仍然係正常 opaque/depth-write，唔需要拆第二個透明 pass。
-if (vInstanceGhost > 0.5) {
-    float checker = mod(floor(gl_FragCoord.x) + floor(gl_FragCoord.y), 2.0);
-    if (checker < 0.5) discard;
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.72, 0.9, 1.0), 0.3);
-}`);
+            .replace('#include <common>', '#include <common>\nvarying vec3 vShade;')
+            .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= vShade;');
     };
-    mat.customProgramCacheKey = () => 'block-car-ghost-dither-v1';
+    mat.customProgramCacheKey = () => 'block-car-vshade-v2';
     return mat;
 }
 
@@ -114,17 +107,13 @@ export class RivalField {
         this.scene = scene;
         this.geometry = blockCarGeometry();
         this.material = blockCarMaterial();
-        this.capacity = RIVAL_COLOURS.length + 1;       // 四個對手 + 一個視覺幽靈
-        this.ghostFlags = new THREE.InstancedBufferAttribute(new Float32Array(this.capacity), 1);
-        this.ghostFlags.setUsage(THREE.DynamicDrawUsage);
-        this.geometry.setAttribute('instanceGhost', this.ghostFlags);
+        this.capacity = RIVAL_COLOURS.length;            // 四個實體對手；幽靈係玩家 GLB
         this.mesh = new THREE.InstancedMesh(this.geometry, this.material, this.capacity);
         this.mesh.frustumCulled = false;
         this.mesh.count = 0;
         this.mesh.visible = false;
         scene.add(this.mesh);
         this.rivals = [];
-        this.ghost = null;
         this.track = null;
         this.laps = 3;
         this.finishOrder = [];
@@ -147,7 +136,6 @@ export class RivalField {
         this.finishOrder = [];
         this.raceTime = 0;
         this.rivals = [];
-        this.ghost = null;
         const total = Math.max(0, Math.min(RIVAL_COLOURS.length, n | 0));
         const tan = track.curve.getTangentAt(track.startT);
         const side = new THREE.Vector3(-tan.z, 0, tan.x);
@@ -180,23 +168,14 @@ export class RivalField {
 
     clear() {
         this.rivals = [];
-        this.ghost = null;
         this.finishOrder = [];
         this.mesh.count = 0;
         this.mesh.visible = false;
     }
 
-    // 幽靈只係第五個 visual instance，唔入 rivals 陣列、唔參與物理／排名。
-    setGhost(position, yaw) {
-        this.ghost = { x: position.x, z: position.z, yaw };
-        this.#sync();
-    }
-
-    clearGhost() {
-        if (!this.ghost) return;
-        this.ghost = null;
-        this.#sync();
-    }
+    // 舊 API 保留畀外部測試／舊交接唔會爆；真正幽靈已由 main.js 畫玩家 GLB。
+    setGhost() { }
+    clearGhost() { }
 
     update(dt, track, playerCar) {
         if (!this.rivals.length) return;
@@ -298,26 +277,11 @@ export class RivalField {
             this.mesh.setMatrixAt(i, this._m);
             this._c.setHex(r.colour);
             this.mesh.setColorAt(i, this._c);
-            this.ghostFlags.setX(i, 0);
         }
-        let visualCount = this.rivals.length;
-        if (this.ghost) {
-            const i = visualCount++;
-            this.track?.renderPoseAt?.(this.ghost.x, this.ghost.z, this._surface);
-            this._p.set(this.ghost.x, this._surface.y, this.ghost.z);
-            this._e.set(this._surface.pitch, this.ghost.yaw, this._surface.bank, 'YZX');
-            this._q.setFromEuler(this._e);
-            this._m.compose(this._p, this._q, this._s);
-            this.mesh.setMatrixAt(i, this._m);
-            this._c.setHex(0x9fd8ff);
-            this.mesh.setColorAt(i, this._c);
-            this.ghostFlags.setX(i, 1);
-        }
-        this.mesh.count = visualCount;
-        this.mesh.visible = visualCount > 0;
+        this.mesh.count = this.rivals.length;
+        this.mesh.visible = this.rivals.length > 0;
         this.mesh.instanceMatrix.needsUpdate = true;
         if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
-        this.ghostFlags.needsUpdate = true;
     }
 
     // 名次：進度愈大愈前。玩家嘅進度由外面傳入（race.js 已經計緊圈數）。

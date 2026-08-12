@@ -121,6 +121,14 @@ const live = await page.evaluate(async () => {
     return {
         before, recorded, lap1: lap1 ? +lap1.toFixed(1) : null,
         ghostVisible: ghostMesh.visible,
+        ghostModel: ghostMesh.getObjectByName('player-ghost-car')?.name ?? null,
+        ghostMeshCount: ghostMesh.getObjectByName('player-ghost-car')
+            ?.getObjectsByProperty?.('isMesh', true).length ?? 0,
+        ghostTransparent: ghostMesh.getObjectByName('player-ghost-car')
+            ?.getObjectsByProperty?.('isMesh', true).every((mesh) => {
+                const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+                return mats.length > 0 && mats.every((mat) => mat.transparent && mat.opacity < 0.5);
+            }) ?? false,
         ghostDelta: window.__racer.ghostDelta,
         ghostOnRoad: track.isDrivable(ghostMesh.position.x, ghostMesh.position.z),
         progressMoved: +(window.__racer.playerProgressForTest() - progress0).toFixed(3),
@@ -130,6 +138,8 @@ console.log('  ', JSON.stringify(live));
 check('開波之前冇幽靈', live.before === false);
 check('跑完一圈會錄低', live.recorded === true, live);
 check('第二圈幽靈車會出現', live.ghostVisible === true, live);
+check('幽靈車沿用玩家原車模型', live.ghostModel === 'player-ghost-car' && live.ghostMeshCount > 0, live);
+check('幽靈車模型係透明材質', live.ghostTransparent === true, live);
 check('幽靈車企喺賽道上面', live.ghostOnRoad === true, live);
 check('有同自己最快圈嘅差距讀數', typeof live.ghostDelta === 'number', live.ghostDelta);
 // 進度推進唔可以係 HUD 嘅副作用：一唔畫 HUD 就對唔到時
@@ -148,6 +158,16 @@ const off = await page.evaluate(() => {
 console.log('  ', JSON.stringify(off));
 check('關咗就唔畫幽靈', off.hidden === true, off);
 check('幽靈設定存得返', off.saved === '0' && off.savedBack === '1', off);
+
+const menu = await page.evaluate(() => {
+    const root = window.__racer;
+    root.setGhost(true);
+    root.ghostMesh.visible = true;
+    root.toMenu();
+    return { hidden: !root.ghostMesh.visible, menu: !document.getElementById('screen-start').classList.contains('hidden') };
+});
+console.log('  ', JSON.stringify(menu));
+check('返選單會收起透明幽靈，唔會殘留喺背景', menu.hidden && menu.menu, menu);
 
 // T5：幽靈車唔可以影響物理——佢淨係一件擺設
 const noPhysics = await page.evaluate(() => {
@@ -173,8 +193,8 @@ const noPhysics = await page.evaluate(() => {
 console.log('  ', JSON.stringify(noPhysics));
 check('幽靈車唔會推到玩家', Math.abs(noPhysics.difference) < 0.001, noPhysics);
 
-// T6：真正最繁忙組合要一齊量。逐樣量會漏咗 night + rivals + ghost +
-// driving effects 疊埋；現時共享 instance 後必須守住 18 calls 內。
+// T6：真正最繁忙組合要一齊量。逐樣量會漏咗 night + rivals + 原車幽靈 +
+// driving effects 疊埋；透明 GLB 額外 draw 仍要守住手機預算。
 const combinedBudget = await page.evaluate(() => {
     const root = window.__racer;
     root.setTod('night');
@@ -182,13 +202,13 @@ const combinedBudget = await page.evaluate(() => {
     root.ghostMesh.position.copy(root.car.pos);
     root.ghostMesh.rotation.y = root.car.yaw;
     root.ghostMesh.visible = true;
-    root.rivals.setGhost(root.ghostMesh.position, root.ghostMesh.rotation.y);
     root.renderer.render(root.scene, root.camera);
     const beforeFx = {
         calls: root.renderer.info.render.calls,
         triangles: root.renderer.info.render.triangles,
         meshCount: root.rivals.mesh.count,
-        ghostFlag: root.rivals.mesh.geometry.getAttribute('instanceGhost').getX(4),
+        ghostModel: root.ghostMesh.getObjectByName('player-ghost-car')?.name ?? null,
+        ghostModelVisible: root.ghostMesh.getObjectByName('player-ghost-car')?.visible ?? false,
     };
     root.car.vel.set(Math.sin(root.car.yaw) * 24, 0, Math.cos(root.car.yaw) * 24);
     root.car.drifting = true;
@@ -210,11 +230,12 @@ const combinedBudget = await page.evaluate(() => {
     return { beforeFx, all };
 });
 console.log('  ', JSON.stringify(combinedBudget));
-check('四對手同幽靈共用一個五-instance draw', combinedBudget.beforeFx.meshCount === 5
-    && combinedBudget.beforeFx.ghostFlag === 1, combinedBudget.beforeFx);
-check('幽靈加入四對手後只多一個 instanced draw', combinedBudget.beforeFx.calls <= 17,
+check('四對手保持一個 instanced draw，幽靈另用玩家原車模', combinedBudget.beforeFx.meshCount === 4
+    && combinedBudget.beforeFx.ghostModel === 'player-ghost-car'
+    && combinedBudget.beforeFx.ghostModelVisible, combinedBudget.beforeFx);
+check('幽靈用獨立原車透明 draw，唔污染對手 instance', combinedBudget.beforeFx.calls <= 20,
     combinedBudget.beforeFx.calls);
-check('夜景＋四對手＋幽靈＋甩尾效果守住 18 calls 內', combinedBudget.all.calls <= 18
+check('夜景＋四對手＋原車幽靈＋甩尾效果守住 20 calls 內', combinedBudget.all.calls <= 20
     && combinedBudget.all.fx.particles > 0 && combinedBudget.all.fx.marks > 0, combinedBudget.all);
 check('最繁忙組合三角形仍低過 120k', combinedBudget.all.triangles < 120000,
     combinedBudget.all.triangles);

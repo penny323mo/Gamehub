@@ -30,7 +30,7 @@ repository as a static site.
 | Neon Snake | `games/snake-game/dist/index.html` | React + Vite + TypeScript; tracked `dist/` is the hub target. |
 | Empire Royale | `games/royale/index.html` | Static ES modules + vendored Three.js. Two modes: Clash-style lane battle (`game.js`, `ai.js`) and LV2 age-of-empires RTS (`src/rts/`). Shared: `models.js`, `rig.js` (procedural bone animation), `sfx.js`, `net.js`/`pvp.js` (Supabase PvP), `leaderboard.js`, `storage.js`, `gauntlet.js`, `profiles.js`. Regression suite in `games/royale/tests/`. |
 | 深淵之橋 MOBA | `games/moba/index.html` | Static ES modules + vendored Three.js. Deterministic sim, 3v3 bots, mobile HUD, anywhere-purchase shop, and procedural champion FX. Tests in `games/moba/tests/`. |
-| Racing Car 3D | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Continuous spline track (`track.js`) with cached nearest-point samples, track-specific crest/elevation profile plus bounded grade load, subtle asphalt tyre-wear/dashed centre texture and one low-cost track-specific corner-chevron InstancedMesh, day/dusk/night environment (`environment.js`), sport-arcade acceleration with bounded body pitch/roll and a tuned mid/high-speed power envelope, closer/lower chase camera with bounded acceleration impulse and pointer-transparent speed-streak layer that starts before top speed, bounded driving effects, player-only arcade assists and simple auto-throttle controls, procedural merged-geometry wheel spin/steering (`wheel-motion.js`), four physical AI rivals plus a dithered ghost in one instanced field (`rivals.js`, `ghost.js`), and a persistent three-race championship with career records (`season.js`). Draco-compressed player car. Tests in `games/Racing Car/tests/`. |
+| Racing Car 3D | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Continuous spline track (`track.js`) with cached nearest-point samples, track-specific crest/elevation profile plus bounded grade load, route-specific rolling roadside terrain in the single ground mesh, subtle asphalt tyre-wear/dashed centre texture and one low-cost track-specific corner-chevron InstancedMesh, day/dusk/night environment (`environment.js`), sport-arcade acceleration with bounded body pitch/roll and a tuned mid/high-speed power envelope, closer/lower chase camera with bounded acceleration impulse and pointer-transparent speed-streak layer that starts before top speed, bounded driving effects, player-only arcade assists and simple auto-throttle controls, procedural merged-geometry wheel spin/steering (`wheel-motion.js`), four physical AI rivals plus a transparent clone of the normalized player GLB ghost (`rivals.js`, `ghost.js`), and a persistent three-race championship with career records (`season.js`). Draco-compressed player car. Tests in `games/Racing Car/tests/`. |
 | Ashen Rail | `games/ashen-rail/dist/index.html` | Self-contained Vite + TypeScript + Babylon.js bonus game; soldier GLB has no clips, so `ProceduralPlayerAnimator` supplies rig-aware locomotion/aim/recoil and `WeaponSystem` supplies local weapon recoil; CI builds `dist/`. |
 | Elden Ring II | `games/elden-ring-ii/dist/index.html` | Self-contained Vite + React + TypeScript + Three.js/Cannon-es bonus game; three classes, mobile touch controls, local run history, optional Supabase write, bundled CC0 assets; tracked `dist/` is rebuilt by CI. |
 | Xiangqi AI | `games/xiangqi-ai/dist/index.html` | Vite + Three.js; hub targets tracked `dist/`; optional board environment HDR is bundled under `assets/` and copied into `dist/assets/`. |
@@ -113,6 +113,17 @@ repository as a static site.
   Terrain height is
   built once as a 32×32 mesh;
   do not replace it with per-frame terrain generation or a second road pass.
+- Racing Car roadside ground uses `Track.terrainHillAmplitude` (turbo **0.95**,
+  coast **0.82**, touge **1.15**) and a deterministic `terrainPhase` to add bounded
+  low-frequency undulation only where the road blend fades out. It is render-only:
+  `terrainYAt()` must not alter road surface, X/Z collision, route, progress or AI;
+  tree anchors must keep querying the same helper so roots do not float or sink.
+- Racing Car's replay ghost is the normalized painted player GLB cloned once at load.
+  Every ghost mesh gets its own transparent material (opacity ≤ **0.32**, depth-write
+  off), and `main.js` positions the root with the same road `y/pitch/bank` surface pose.
+  `RivalField` reserves its InstancedMesh for four physical rivals only; keep the
+  transparent GLB within the **20 calls / 120k triangles** combined mobile budget and
+  never let the ghost enter physics, ranking, collision or progress.
 - Racing Car's visual track profile uses the `elevation` value on each track
   definition (turbo **1.28**, coast **1.14**, touge **1.40**) plus closed integer
   frequency waves (`1.78/0.75/0.28`) to create a more legible crest/grade at build time. The

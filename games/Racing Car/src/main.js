@@ -354,6 +354,9 @@ const ghostRecorder = new GhostRecorder();
 const ghostPlayer = new GhostPlayer();
 const ghostMesh = new THREE.Object3D();
 ghostMesh.visible = false;
+ghostMesh.name = 'player-ghost-root';
+scene.add(ghostMesh);
+const ghostSurface = { y: 0, bank: 0, pitch: 0 };
 let ghostLapBest = null, lastLapCount = 0, lapProgressBase = 0;
 
 // 錦標賽：自選賽程連跑。載返上次未跑完嗰個，唔使由頭嚟過。
@@ -384,6 +387,7 @@ function buildTrack(id) {
     minimap.setTrack(track);
     if (car) { car.reset(track.startPos, track.startDir); syncCarRenderSurface(); }
     if (race) { race.track = track; race.trackId = trackDef.id; race.reset(); }
+    ghostMesh.visible = false;
     camInit = false;
     cameraThrust = 0; cameraPulse = 0; cameraGrade = 0; cameraLean = 0; cameraLookAhead = 0; cameraElevationLook = 0;
     requestRender();
@@ -450,6 +454,33 @@ function normalizeCar(obj, targetLength = CAR_VISUAL_LENGTH) {
     return obj;
 }
 
+// 幽靈車沿用玩家同一個 GLB，只係 clone material 做半透明。唔可以直接共用
+// material：玩家揀色／日夜曝光會改到幽靈，亦會令透明度滲返落玩家車身。
+function createGhostCar(source) {
+    const ghost = source.clone(true);
+    ghost.name = 'player-ghost-car';
+    ghost.traverse((o) => {
+        if (!o.isMesh) return;
+        o.castShadow = false;
+        o.receiveShadow = false;
+        o.frustumCulled = false;
+        o.renderOrder = 3;
+        const clone = (material) => {
+            const m = material?.clone?.() ?? material;
+            if (!m) return m;
+            m.transparent = true;
+            m.opacity = Math.min(0.32, Number.isFinite(m.opacity) ? m.opacity : 1);
+            m.depthWrite = false;
+            m.depthTest = true;
+            m.needsUpdate = true;
+            return m;
+        };
+        if (Array.isArray(o.material)) o.material = o.material.map(clone);
+        else o.material = clone(o.material);
+    });
+    return ghost;
+}
+
 const input = new Input(document);
 
 // 音效：即時合成，唔載音檔。第一下觸碰就 unlock，唔係嘅話 iOS 會靜曬。
@@ -505,6 +536,7 @@ loader.load('./assets/car.glb', (gltf) => {
     model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
     carModel = model;
     paintCar(model, colour.hex);
+    ghostMesh.add(createGhostCar(model));
     const wrap = new THREE.Group();
     wrap.add(model);
     car = new Car(wrap);
@@ -721,7 +753,6 @@ function setGhost(on) {
     saveGhostOn(ghostOn);
     if (!ghostOn) {
         ghostMesh.visible = false;
-        rivals.clearGhost();
     }
     document.querySelectorAll('#ghost-seg button').forEach(b =>
         b.classList.toggle('on', (b.dataset.ghost === '1') === ghostOn));
@@ -830,7 +861,6 @@ function buildSettings() {
         clearGhost(trackDef.id);
         ghostPlayer.load(trackDef.id);
         ghostMesh.visible = false;
-        rivals.clearGhost();
         const btn = $('ghost-clear-btn');
         btn.textContent = '已清除';
         setTimeout(() => { btn.textContent = '清除幽靈'; }, 1200);
@@ -1139,16 +1169,16 @@ function updateGhost(dt) {
 
     if (!ghostOn || !ghostPlayer.available || race.state !== 'racing') {
         ghostMesh.visible = false;
-        rivals.clearGhost();
         ghostDelta = null;
         return;
     }
     const p = ghostPlayer.at(race.lapTime);
-    if (!p) { ghostMesh.visible = false; rivals.clearGhost(); return; }
-    ghostMesh.position.set(p.x, 0, p.z);
-    ghostMesh.rotation.y = p.yaw;
+    if (!p) { ghostMesh.visible = false; return; }
+    track.renderPoseAt?.(p.x, p.z, ghostSurface);
+    ghostMesh.position.set(p.x, ghostSurface.y, p.z);
+    ghostMesh.rotation.set(ghostSurface.pitch, p.yaw, ghostSurface.bank, 'YZX');
     ghostMesh.visible = true;
-    rivals.setGhost(ghostMesh.position, ghostMesh.rotation.y);
+    // 真實玩家車模已經係 scene 入面；RivalField 唔再畫低模方塊幽靈。
     const at = ghostPlayer.timeAtProgress(lapProgress);
     ghostDelta = at == null ? null : race.lapTime - at;
 }
@@ -1335,6 +1365,7 @@ function toMenu() {
     running = false;
     paused = false;
     input.reset();
+    ghostMesh.visible = false;
     releaseWakeLock();
     audio.stopRace();
     updatePerformanceNote();

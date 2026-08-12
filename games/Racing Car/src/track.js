@@ -102,6 +102,12 @@ export class Track {
         // 呢個倍率只係 render surface 嘅「山勢性格」，唔係物理坡度；開到
         // 1.4 係畀山道有真正 crest／valley，而唔係所有場都似同一塊平板。
         this.elevation = Number.isFinite(elevation) ? THREE.MathUtils.clamp(elevation, 0.75, 1.4) : 1;
+        // 路旁地形再有一層 route-specific rolling ground：山道起伏最明顯，
+        // 海岸較柔和，渦輪場保留少量大地形。只會寫入既有 32×32 render mesh，
+        // 唔會改路面、X/Z 物理格網或碰撞。
+        const key = String(profileKey);
+        this.terrainHillAmplitude = key.includes('touge') ? 1.15
+            : key.includes('coast') ? 0.82 : 0.95;
         this.length = this.curve.getLength();
         // nearestT() 係駕駛 loop 每架車每幀都會叫；曲線取樣本身會建立
         // 新 Vector3，四架對手加玩家會令一幀產生過千個短命物件。建好
@@ -138,6 +144,7 @@ export class Track {
             hash = Math.imul(hash, 16777619) >>> 0;
         }
         const phase = (hash / 4294967296) * Math.PI * 2;
+        this.terrainPhase = phase;
         const prev = new THREE.Vector3(), next = new THREE.Vector3();
         let min = Infinity, max = -Infinity;
         for (let i = 0; i < QUERY_SAMPLES; i++) {
@@ -218,7 +225,7 @@ export class Track {
         out.bank = this.surfaceBankAtT(t);
         out.pitch = this.surfacePitchAtT(t);
         out.terrainBlend = this.#terrainBlend(x, z, t);
-        out.terrainY = this.#terrainYAt(t, out.terrainBlend);
+        out.terrainY = this.#terrainYAt(t, out.terrainBlend, x, z);
         return out;
     }
 
@@ -227,7 +234,7 @@ export class Track {
     // 完全重用 terrain mesh 嘅 32×32 高度公式，唔新增 mesh、raycast 或 allocation。
     terrainYAt(x, z) {
         const t = this.nearestT(x, z);
-        return this.#terrainYAt(t, this.#terrainBlend(x, z, t));
+        return this.#terrainYAt(t, this.#terrainBlend(x, z, t), x, z);
     }
 
     #terrainBlend(x, z, t) {
@@ -242,9 +249,20 @@ export class Track {
         return 1 - smooth;
     }
 
-    #terrainYAt(t, blend) {
+    #terrainUndulation(x, z) {
+        const p = this.terrainPhase ?? 0;
+        return this.terrainHillAmplitude * (
+            Math.sin(x * 0.018 + p) * 0.52
+            + Math.cos(z * 0.015 - p * 0.7) * 0.31
+            + Math.sin((x + z) * 0.009 + p * 1.3) * 0.17
+        );
+    }
+
+    #terrainYAt(t, blend, x = 0, z = 0) {
         const baseY = this.surfaceMinY - 0.22;
-        return baseY + (this.surfaceYAtT(t) - 0.05 - baseY) * blend;
+        const roadBlend = THREE.MathUtils.clamp(blend, 0, 1);
+        const rollingGround = this.#terrainUndulation(x, z) * (1 - roadBlend);
+        return baseY + (this.surfaceYAtT(t) - 0.05 - baseY) * roadBlend + rollingGround;
     }
 
     #surfaceYAt(t, lateral = 0) {
@@ -640,7 +658,7 @@ export class Track {
             for (let ix = 0; ix <= TERRAIN_SEGMENTS; ix++) {
                 const x = minX + width * ix / TERRAIN_SEGMENTS;
                 const t = this.nearestT(x, z);
-                const y = this.#terrainYAt(t, this.#terrainBlend(x, z, t));
+                const y = this.#terrainYAt(t, this.#terrainBlend(x, z, t), x, z);
                 pos.push(x, y, z);
                 uv.push(ix / TERRAIN_SEGMENTS * width / 18, iz / TERRAIN_SEGMENTS * depth / 18);
             }

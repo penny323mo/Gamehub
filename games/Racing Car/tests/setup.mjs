@@ -186,6 +186,7 @@ const geo = await page.evaluate(async () => {
         tris: renderer.info.render.triangles,
         surfaceY: [track.surfaceMinY, track.surfaceMaxY],
         elevation: track.elevation,
+        terrainHillAmplitude: track.terrainHillAmplitude,
         surfaceBank: Math.max(...Array.from({ length: 32 }, (_, i) =>
             Math.abs(track.surfaceBankAtT(i / 32)))),
         surfacePitch: Math.max(...Array.from({ length: 240 }, (_, i) =>
@@ -243,6 +244,8 @@ check('賽道 render surface 有可讀坡度同 banking，唔再係近乎平路'
     geo.elevation >= 1.05 && geo.surfaceY[1] - geo.surfaceY[0] > 7.0
     && geo.roadY[1] - geo.roadY[0] > 8.0 && geo.surfacePitch > 0.028
     && geo.surfaceBank > 0.01, geo);
+check('路旁 terrain 有 route-specific rolling ground，而唔係一張平草板',
+    geo.terrainHillAmplitude >= 1.0, geo.terrainHillAmplitude);
 check('閉環起伏喺起點無縫接返，車身會跟縱向坡度俯仰',
     geo.profileSeam.height < 0.0001 && geo.profileSeam.pitch < 0.0001
     && geo.surfacePitch > 0.018 && Math.abs(geo.carTrackPitch - geo.startSurfacePitch) < 0.01, geo);

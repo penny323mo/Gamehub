@@ -8724,3 +8724,46 @@ desktop **1200×700** 同 mobile **844×390** headed screenshot 均 console **0 
 日後再加大坡度或 speed opacity，必須重跑 setup/race/aggregate、確認物理 Y 仍為 0、
 tree/road surface anchor 同 mobile/desktop screenshot；唔好用 camera shake、額外 pass
 或自動轉向補償速度感。
+
+## ADR-298 — Racing Car 路旁地形要有 route-specific rolling ground
+
+Date: 2026-08-12. Status: accepted.
+
+上一版雖然 road ribbon 已有 crest／valley，但路旁仍係一張近乎平嘅草板；高速過彎時
+路面有坡、草地冇坡，視覺上就似車喺平面貼圖上面滑。今輪保留原本單一 **32×32**
+terrain mesh，同一套 `terrainYAt(x,z)` 查詢，只喺 road blend 逐步退開之後加入
+deterministic low-frequency undulation。`terrainHillAmplitude` 按 track profile 設為
+turbo **0.95**、coast **0.82**、touge **1.15**；`terrainPhase` 由 track id hash 產生，
+所以唔會每次 build 變形，亦唔會新增 mesh、raycast、draw pass 或 frame-loop allocation。
+
+`surfaceYAtT()`、road X/Z collision、nearestT、checkpoint、progress、AI 同 `Car.pos.y`
+完全不變；樹根仍然用同一個 terrain helper。setup gate 由 **154/154** 先紅燈，修後
+**155/155**，touge evidence `terrainHillAmplitude=1.15`、terrain vertices **1089**、
+world budget **16 calls / 56,933 tris**、tree anchor **130/130 maxError 0**。真 headed
+**844×390** 同 **1200×700** smoke 見到有起伏嘅路肩／草地、guardrails、kerbs 同車身
+接地，兩個 viewport console **0 errors**。
+
+日後如果改 terrain amplitude、頻率、mesh resolution 或 tree placement，必須重跑
+setup/race/rivals、tree-anchor gate、mobile/desktop screenshot；唔好將 roadside
+高度餵返物理或為咗地形另開 render pass。
+
+## ADR-299 — Racing Car replay ghost 沿用玩家 GLB，只改透明材質
+
+Date: 2026-08-12. Status: accepted.
+
+原本 ghost 係 RivalField 入面第五個低模方塊 instance，雖然省 draw call，但同玩家真正
+車身外形完全唔一致。今輪由 `main.js` 載入玩家車模、完成 normalize／paint 後 clone 一份
+`player-ghost-car`；每個 mesh clone 自己嘅 material，設 `transparent=true`、opacity
+上限 **0.32**、`depthWrite=false`，避免透明設定或揀色污染玩家車。ghost root 用
+`Track.renderPoseAt()` 同步 `y/pitch/bank`，只讀 replay sample 嘅 X/Z/yaw，仍然唔入
+物理、碰撞、排名、progress 或 minimap。RivalField 收返只畫四架實體對手，舊 set/clear
+API 留作相容 no-op，唔再畫低模幽靈。
+
+`ghost.mjs` gate 由舊 **29/29** 擴充為 **32/32**：確認 clone 名稱、mesh 存在、所有材質
+透明、ghost 不影響物理；最繁忙 night + 四 rivals + 原車 ghost + drift effects
+實測 **19 calls / 88,865 tris**（不同 GPU frame 量度約 **88,803**），守住 **20 calls / 120k tris**。aggregate 六套 suite
+全綠；headed desktop/mobile smoke 均載入透明 clone、console **0 errors**。
+
+日後如替換 `assets/car.glb`，要重新檢查 clone／material 數量、透明 silhouette、
+road-surface alignment 同手機 budget；唔好將 ghost 改回低模或將 replay sample 餵返
+Car physics。
