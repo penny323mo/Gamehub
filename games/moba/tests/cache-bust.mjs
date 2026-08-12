@@ -10,7 +10,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const REPO_ROOT = path.resolve(ROOT, '../..');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const main = fs.readFileSync(path.join(ROOT, 'src/main.js'), 'utf8');
-const launcher = fs.readFileSync(path.join(REPO_ROOT, 'launcher.js'), 'utf8');
+const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'games/manifest.json'), 'utf8'));
 const hub = fs.readFileSync(path.join(REPO_ROOT, 'index.html'), 'utf8');
 
 const capture = (source, pattern) => source.match(pattern)?.[1] ?? null;
@@ -22,7 +22,8 @@ const versions = {
     hubEntry: capture(hub, /launcher\.js\?v=([a-z0-9-]+)/i),
     // Hub 嘅樣式表之前完全冇標記，所以純 CSS 改動係傳唔到去返轉頭嘅訪客
     hubStyle: capture(hub, /style\.css\?v=([a-z0-9-]+)/i),
-    mobaLink: capture(launcher, /games\/moba\/index\.html\?v=([a-z0-9-]+)/i),
+    mobaLink: capture(manifest.games.find(({ id }) => id === 'moba')?.entry ?? '',
+        /games\/moba\/index\.html\?v=([a-z0-9-]+)/i),
 };
 
 const unique = new Set(Object.values(versions));

@@ -41,6 +41,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { catalogTargetEntries } from './lib/catalog-targets.mjs';
 const { chromium } = await import('playwright').catch(async () => {
   const HERE0 = path.dirname(fileURLToPath(import.meta.url));
   const 後備 = pathToFileURL(path.resolve(HERE0, '../games/tower/node_modules/playwright/index.mjs')).href;
@@ -83,20 +84,28 @@ const browser = await chromium.launch({
 // 0.5 喺兩堆中間，離兩邊都遠。
 const 畫返門檻 = 0.5;
 
+const catalog = new Map(catalogTargetEntries().map((entry) => [entry.id, entry]));
+const 目標 = (id) => {
+  const entry = catalog.get(id);
+  if (!entry) throw new Error(`Missing catalog target: ${id}`);
+  return entry;
+};
+const 專用路徑 = (entry, suffix) => `${entry.url.slice(0, entry.url.lastIndexOf('/') + 1)}${suffix}`;
+
 // 入局要逐隻寫明，唔可以用 regex 撞——ADR-210 就係喺呢個位量錯咗兩次
 // （MOBA 個掣寫「開打」；Racing Car 個 `#start-btn` 喺 `top: 1851`，要捲）。
 const 遊戲 = [
-  { 名: 'Tower Defense', url: '/games/tower/dist/index.html',
+  { ...目標('tower'),
     入局: async (p) => { await p.click('#start-btn'); await p.waitForFunction(() => window.__TD?.開波次數?.() > 0, null, { timeout: 120000 }); } },
-  { 名: '深淵之橋 MOBA', url: '/games/moba/index.html',
+  { ...目標('moba'),
     入局: async (p) => { await p.waitForSelector('#pick-go', { state: 'visible', timeout: 120000 }); await p.click('#pick-go'); await p.waitForFunction(() => window.__mobaReady === true, null, { timeout: 120000 }); } },
   // Royale 個 `#loading` 係**移走**唔係加 class（`royale/tests/lib/harness.mjs` 等 detached）。
-  { 名: 'Empire Royale', url: '/games/royale/index.html',
+  { ...目標('royale'),
     入局: async (p) => { await p.waitForSelector('#loading', { state: 'detached', timeout: 120000 }); await p.click('#start-btn'); await p.waitForTimeout(4000); await p.click('#tutorial-skip', { timeout: 1500 }).catch(() => {}); await p.waitForTimeout(2000); } },
-  { 名: 'Racing Car 3D', url: '/games/Racing Car/index.html',
+  { ...目標('racer'),
     入局: async (p) => { await p.locator('#start-btn').scrollIntoViewIfNeeded(); await p.click('#start-btn'); await p.waitForTimeout(6000); } },
-  { 名: 'Snooker 3D', url: '/games/snooker/3d/index.html', 入局: async (p) => { await p.waitForTimeout(6000); } },
-  { 名: 'Xiangqi AI', url: '/games/xiangqi-ai/dist/index.html',
+  { ...目標('snooker'), 名: 'Snooker 3D', url: 專用路徑(目標('snooker'), '3d/index.html'), 入局: async (p) => { await p.waitForTimeout(6000); } },
+  { ...目標('xiangqi'),
     入局: async (p) => { await p.getByText(/單機/).first().click().catch(() => {}); await p.waitForTimeout(5000); } },
 ];
 

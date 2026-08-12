@@ -7,20 +7,21 @@ change. Day-to-day progress belongs in `HANDOFF.md`.
 ## Repository purpose
 
 Game Hub is a static multi-game website. The four-card paged launcher in `index.html` and
-`launcher.js` links to independent games under `games/`. Preserve the hub as a
+`launcher.js` renders the generated `games/catalog.generated.js` view of
+`games/manifest.json`, then links to independent games under `games/`. Preserve the hub as a
 collection: a new or heavily revised game should remain self-contained unless a
 shared subsystem genuinely belongs in `games/shared/`.
 
 Production is deployed from `main` by `.github/workflows/deploy-pages.yml` to
-GitHub Pages. The workflow audits and tests Tower Defense (including rebuilding
-its tracked `dist/`), then builds Ashen Rail and Elden Ring II before staging the
-repository as a static site.
+GitHub Pages. Every deploy validates GameCatalog and the 13-game Hub fast gates;
+the manifest-derived ReleaseGate runs the affected games' full build/test plans,
+or all games for shared, test, CI, catalog, unknown-game and explicit manual changes.
 
 ## High-level map
 
 | Area | Entrypoint | Stack / notes |
 | --- | --- | --- |
-| Hub launcher | `index.html`, `launcher.js`, `style.css` | Static four-card pages; links must work from GitHub Pages subpaths. |
+| Hub launcher | `games/manifest.json`, `games/catalog.generated.js`, `index.html`, `launcher.js`, `style.css` | Manifest is canonical; generated classic script keeps four-card startup synchronous and Pages-safe. |
 | Gomoku | `games/gomoku/index.html` | Static JS, online features use Supabase. |
 | Penny Crush | `games/penny_crush/index.html` | Static game. |
 | Big Two | `games/big2/index.html` | Static JS; online/shared infrastructure may use Supabase. |
@@ -38,7 +39,10 @@ repository as a static site.
 
 ## Current architectural invariants
 
-- `launcher.js` is the source of truth for root carousel entries and paths.
+- `games/manifest.json` is the only authority for public game order, metadata,
+  entry paths and release commands. `launcher.js` consumes the generated
+  `globalThis.GameCatalog`; after manifest edits run
+  `node scripts/build-game-catalog.mjs` and never hand-edit the generated file.
 - GitHub Pages runs under a repository subpath, so game asset URLs must remain
   relative or otherwise Pages-safe.
 - Ashen Rail remains a self-contained bonus game inside the existing hub. Its Vite
@@ -185,6 +189,22 @@ repository as a static site.
 
 Choose checks proportionate to the files changed and record exact results in the
 handoff. Do not claim a check passed unless it ran.
+
+### GameCatalog / release infrastructure
+
+```sh
+node scripts/build-game-catalog.mjs --check
+node tests/catalog.mjs
+node tests/release-gate.mjs
+node scripts/release-gate.mjs --file games/<game>/... --tier full
+```
+
+`games/manifest.json` owns the 13-game inventory and structured `fast`/`full`
+commands. ReleaseGate executes argv arrays without a shell, applies bounded
+timeouts, selects only a directly changed game, and fails closed to all games for
+shared, Hub-test, CI, catalog, unknown-game or explicit `--all` releases. Deploy CI
+installs package-lock dependencies selected by that plan, runs its `full` tier,
+and always runs Hub layout/load/touch/storage/home browser gates.
 
 ### Hub or any static game
 

@@ -29,6 +29,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { catalogTargetEntries } from './lib/catalog-targets.mjs';
 const { chromium } = await import('playwright').catch(async () => {
   const HERE0 = path.dirname(fileURLToPath(import.meta.url));
   const 後備 = pathToFileURL(path.resolve(HERE0, '../games/tower/node_modules/playwright/index.mjs')).href;
@@ -54,26 +55,33 @@ const 吊秒 = 8;
 // 就無啦啦報紅，亦都唔會漏咗一個「吊幾耐就遲幾耐」嘅病。
 const DCL_上限 = 1.0;
 
+const catalog = new Map(catalogTargetEntries().map((entry) => [entry.id, entry]));
+const 目標 = (id) => {
+  const entry = catalog.get(id);
+  if (!entry) throw new Error(`Missing catalog target: ${id}`);
+  return entry;
+};
+
 // `踢` = 開頁之後點樣令佢真係去掂連線層。null 即係開頁自己會做。
 // Big Two／Dou Dizhu／Snooker 係玩家揀咗線上模式先叫 init，開場畫面唔會掂連線層
 // ——喺呢度就係一個 `踢`，唔係一個病（呢個分別第一次跑嘅時候報咗紅，
 // 而報紅嘅係把尺唔係隻遊戲）。
 const 遊戲 = [
-  { 名: 'Gomoku',        url: '/games/gomoku/index.html',
+  { ...目標('gomoku'),
     入口: ['joinFixedRoom', 'exitFixedRoom', 'toggleReady'], 踢: null },
-  { 名: 'Big Two',       url: '/games/big2/index.html',
+  { ...目標('big2'),
     入口: ['joinFixedRoom', 'exitFixedRoom', 'toggleReady'],
     踢: () => window.initOnlineMode?.() },
-  { 名: 'Dou Dizhu',     url: '/games/doudizhu/index.html',
+  { ...目標('doudizhu'),
     入口: ['joinFixedRoom', 'exitFixedRoom', 'toggleReady'],
     踢: () => window.initOnlineMode?.() },
-  { 名: 'Snooker',       url: '/games/snooker/index.html',
+  { ...目標('snooker'),
     入口: ['snookerJoinRoom', 'snookerExitRoom', 'snookerToggleReady'],
     踢: () => window.initSnookerOnline?.({ gameMode: '2d' }) },
-  { 名: 'Xiangqi AI',    url: '/games/xiangqi-ai/dist/index.html',
+  { ...目標('xiangqi'),
     入口: ['joinFixedRoom', 'exitFixedRoom', 'toggleReady'], 踢: null },
-  { 名: 'Empire Royale', url: '/games/royale/index.html', 入口: null, 踢: null },
-  { 名: 'Tower（對照）',   url: '/games/tower/dist/index.html', 入口: null, 踢: null },
+  { ...目標('royale'), 入口: null, 踢: null },
+  { ...目標('tower'), 名: 'Tower（對照）', 入口: null, 踢: null },
 ];
 
 // 假 SDK：夠用嚟行完 createClient 就得。呢度唔係試 Supabase，係試

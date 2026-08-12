@@ -1,103 +1,107 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Game Hub evolution roadmap checkpoint
+Prepared by: Codex — Phase 0A GameCatalog / ReleaseGate checkpoint
 Integration branch: `main`
 Work branch: `main`
-Status: the complete evolution roadmap is documented and ready for GitHub relay;
-no roadmap implementation has started in this checkpoint.
+Status: Phase 0A implementation and local verification are complete; this file
+ships with the durable checkpoint. Required GitHub deploy-matrix verification
+must be checked before the next agent treats the checkpoint as release-green.
 
 ## Current objective
 
-Use `docs/GAMEHUB_EVOLUTION_PLAN.md` as the planning authority for Game Hub's
-next 12 months. It covers physics, visuals, gameplay, shared deep modules, all
-character/unit rig and skeleton remapping, free 3D asset intake, scene upgrades,
-and dedicated Royale, Racing Car and Elden Ring II scene redesigns.
-
-The first implementation cycle must establish release/asset/rig truth before
-adding content, then deliver three bounded vertical slices: Royale three-zone
-battlefield, Racing circuit plus fixed physics, and Elden three-part level plus
-combat rig. The plan is proposed direction, not permission to rewrite all games
-or change accepted gameplay invariants at once.
+Execute `docs/GAMEHUB_EVOLUTION_PLAN.md` sequentially. Phase 0A replaced the
+duplicated 13-game launcher/test/CI inventory with one validated GameCatalog and
+a changed-game ReleaseGate without changing gameplay. After this checkpoint,
+continue Phase 0 with AssetCatalog/RigCatalog census and baseline evidence; do
+not start three scene rewrites in one shared checkout.
 
 ## Completed
 
-- Added a 12-month, 16-section evolution plan based on the current
-  `main@07f470d` source, test contracts, asset licenses and deployment workflow.
-- Defined deep shared modules: `GameCatalog`, `PlayerVault`, `ProgressLedger`,
-  `HubLifecycle`, `AssetCatalog`/`RigCatalog`, `ReleaseGate`, quality governor,
-  performance probe and graphics lifecycle. A universal renderer or physics
-  engine is explicitly rejected.
-- Defined physics programmes for Racing, shared Snooker 2D/3D table physics,
-  Elden combat motor/hit resolver, Ashen movement/shooting, and deterministic
-  strategy simulation.
-- Defined per-game art families, mobile visual budgets, lighting/camera/VFX
-  rules, real-device gates and free-asset acceptance criteria for Kenney,
-  Quaternius, KayKit, Poly Haven and individually verified OpenGameArt items.
-- Added a complete rig census/remapping programme for Royale, MOBA, Ashen,
-  Elden, Tower and Racing mechanical rigs, including semantic motion states,
-  clip/contact timing, sockets, fallbacks and clone-independence gates.
-- Added scene plans for Royale's three-zone battlefield, Racing's harbour,
-  mountain and night-city circuit families, and Elden's causeway, drowned keep
-  and throne sequence, plus follow-up direction for Ashen, Tower, MOBA and
-  Snooker.
-- Added Hub/product work: responsive non-singleton game grid, hero captures,
-  profile/Continue/progress, Snake correctness, onboarding, difficulty,
-  accessibility, privacy and manifest-driven deploy coverage.
-- Recorded measurable Phase 0–4 exits, KPI scorecard, first 30-day sequence,
-  non-goals and Definition of Done.
+- Added canonical `games/manifest.json` with 13 public descriptors: metadata,
+  Pages-safe entry, runtime/persistence/capabilities, smoke route, release roots,
+  structured fast/full commands and bounded long-suite timeouts.
+- Added `games/catalog.mjs`: validation, list/get/launcher/target adapters and
+  changed-file selection. It rejects duplicate ids/entries, missing files,
+  unsafe paths, shell metacharacters and stale generated output.
+- Added deterministic `games/catalog.generated.js`; launcher loads its classic
+  `globalThis.GameCatalog` API synchronously. Generator also derives a manifest-
+  content hash for the script URL so browsers cannot keep a stale roster.
+- Removed the hard-coded launcher roster and migrated all Hub-wide test rosters
+  and progress drivers to `tests/lib/catalog-targets.mjs`. Test-specific hooks,
+  Snooker 3D route and stable report labels remain local to their tests.
+- Added `scripts/release-gate.mjs` with `fast`/`full`, explicit `--all`, Git diff,
+  rename/delete coverage, safe argv execution and fail-closed handling. A direct
+  game change selects one owner; shared/test/CI/catalog/assets/Supabase/unknown
+  paths select all; docs-only selects none.
+- Added `scripts/install-release-deps.mjs`; deploy installs only package-lock
+  directories selected by the same full plan, reusing the explicitly installed
+  Tower Playwright browser for root/MOBA flows.
+- Deploy CI now always validates catalog contracts and Hub layout/load/touch/
+  blocked-storage/home gates, then runs affected games' full plans. Manual and
+  all-zero-base events explicitly run all 13 games.
+- Updated MOBA cache tooling to edit canonical manifest metadata, regenerate the
+  browser catalog and keep its own module token contract intact.
+- Hardened manifest-to-DOM rendering with HTML escaping, local image/route
+  validation, inert JSON generation and repository-contained tooling paths.
+- Recorded the architecture and verification contract in `PROJECT_CONTEXT.md`
+  and ADR-309 in `DECISIONS.md`.
 
 ## Changed files
 
-- `docs/GAMEHUB_EVOLUTION_PLAN.md` — complete evidence-based evolution roadmap.
-- `docs/ai/HANDOFF.md` — active handoff now points the next agent to that plan.
-
-`PROJECT_CONTEXT.md` and `DECISIONS.md` are unchanged because this checkpoint
-documents a proposal; architecture and accepted invariants have not changed yet.
+- Catalog: `games/manifest.json`, `games/catalog.mjs`,
+  `games/catalog.generated.js`, `scripts/build-game-catalog.mjs`.
+- Release: `scripts/release-gate.mjs`, `scripts/install-release-deps.mjs`,
+  `.github/workflows/deploy-pages.yml`.
+- Consumers: `launcher.js`, `index.html`, `tests/lib/catalog-targets.mjs`,
+  `tests/hub*.mjs`, `tests/lib/drivers.mjs`.
+- Contracts: `tests/catalog.mjs`, `tests/release-gate.mjs`.
 
 ## Verification
 
-- Roadmap structure check: PASS — 16 numbered sections, 16 balanced code-fence
-  markers, zero trailing whitespace.
-- `git diff --check`: PASS.
-- `./scripts/check-handoff.sh`: PASS; handoff remains below 120 lines.
-- Pre-publish sync: local `main` and `origin/main` were 0/0 at `07f470d`; the
-  roadmap was the only uncommitted file before this handoff update.
-- No gameplay build/browser suite was run because this checkpoint changes
-  documentation only and does not alter runtime files.
+- `node tests/catalog.mjs`: PASS — 13 games, generated parity, safe metadata.
+- `node tests/release-gate.mjs`: PASS — 20 selection/security edge cases.
+- `node scripts/build-game-catalog.mjs --check`: PASS; current token is derived
+  from current manifest content (never copy a token from this handoff).
+- `node tests/hub.mjs`: PASS 100/100 across 320×568, 440×956, 844×390,
+  1280×800; 13 unique ids, no dead links/external requests/browser errors.
+- Required Hub gates: load 3/3, touch 5/5, blocked storage 2/2, home 3/3.
+- `node games/moba/tests/cache-bust.mjs`: PASS — entry/module tokens aligned.
+- Every `tests/**/*.mjs` passed `node --check`; workflow YAML parse and
+  `git diff --check` passed.
+- Full all-game plan resolves 13 games / 25 bounded commands. The pushed GitHub
+  workflow is the authoritative clean-clone execution of those full commands.
 
 ## Known issues and cautions
 
-- KPI draw-call/triangle targets labelled provisional must be replaced or
-  confirmed by Phase 0 real-device baselines; SwiftShader is relative evidence,
-  not physical-device FPS proof.
-- Free asset sources are candidates, not automatic imports. Every new asset must
-  retain source URL, license snapshot, checksum, bounds/axis/rig audit and local
-  runtime copy; never rely on a production CDN.
-- Do not force every actor onto one universal skeleton. Authored, procedural and
-  mechanical rigs keep separate adapters while sharing semantic evidence.
-- Preserve accepted invariants, especially Racing's X/Z gameplay versus
-  render-only surface, Tower's `mapLayout.ts` authority, and MOBA shop access
-  being independent from fountain healing.
-- Do not begin all three scene rewrites concurrently in one checkout. Use one
-  sequential work package or separate task branches with non-overlapping owners.
+- `games/catalog.generated.js` is checked-in generated delivery code. Always edit
+  `games/manifest.json`, then run the generator and parity test.
+- `fast` is for local triage; deploy uses `full`. Tower and Racing full commands
+  own 30-minute outer bounds because their internal browser runners can exceed
+  ten minutes on SwiftShader.
+- Hub tests share Tower's Playwright installation in CI. Royale/Racing still own
+  their package dependencies; if Playwright browser revisions diverge, install
+  the matching browser or standardize the version in a separate package.
+- Game metadata is now trusted only after validator + DOM escaping; do not return
+  to interpolating raw manifest strings or external runtime URLs.
+- This checkpoint implements GameCatalog/ReleaseGate only. AssetCatalog,
+  RigCatalog, baseline device reports and scene greyboxes remain unimplemented.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync`, confirm the pushed checkpoint SHA,
-   then read this file and `docs/GAMEHUB_EVOLUTION_PLAN.md` sections 12–16.
-2. Wait for Penny to select/authorize the first implementation package. The
-   recommended first package is Phase 0 `GameCatalog` plus manifest-driven
-   ReleaseGate; it must not change game behaviour.
-3. Before any scene art pass, create and verify the corresponding greybox,
-   gameplay witness, RigCatalog entries, license entries and performance budget.
+1. Verify the pushed checkpoint SHA and Pages workflow. Fix any required full-
+   matrix failure before treating Phase 0A as release-green.
+2. Start Phase 0B as a bounded package: define AssetCatalog + RigCatalog schemas,
+   run a read-only census over all runtime GLB/animation actors, and generate a
+   reproducible report with license/source gaps; do not import new assets yet.
+3. In parallel-safe branches only, prepare Royale/Racing/Elden gameplay greybox
+   specifications and before captures. No art pass until catalog, rig and budget
+   evidence exists.
 
 ## Do not redo
 
-- Do not rescan the whole repository to recreate this roadmap; use the plan,
-  current source and named module/phase boundaries.
-- Do not treat the roadmap as already implemented or mark proposed interfaces as
-  architecture facts in `PROJECT_CONTEXT.md` before code and contract tests land.
-- Do not import every free asset pack, build a universal Game Hub engine, or use
-  animation timing as gameplay damage authority.
-- Do not force-push or rewrite shared `main` history.
+- Do not reconstruct game lists in launcher, tests or workflow; consume the
+  catalog adapters and keep test-specific behavior keyed by game id.
+- Do not hand-edit the generated catalog or use a universal game engine.
+- Do not force-push, rewrite shared history, or claim the full 12-month roadmap
+  is complete after this first implementation checkpoint.

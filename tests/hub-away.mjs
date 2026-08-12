@@ -28,6 +28,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { catalogTargetEntries } from './lib/catalog-targets.mjs';
 const { chromium } = await import('playwright').catch(async () => {
   const HERE0 = path.dirname(fileURLToPath(import.meta.url));
   const 後備 = pathToFileURL(path.resolve(HERE0, '../games/tower/node_modules/playwright/index.mjs')).href;
@@ -70,9 +71,16 @@ const 隱藏秒 = 6;
 // 而未修之前係 8.6 同 7.5 秒。0.5 喺兩者中間，離兩邊都好遠。
 const 容許 = 0.5;
 
+const catalog = new Map(catalogTargetEntries().map((entry) => [entry.id, entry]));
+const 目標 = (id) => {
+  const entry = catalog.get(id);
+  if (!entry) throw new Error(`Missing catalog target: ${id}`);
+  return entry;
+};
+
 const 遊戲 = [
   {
-    名: 'Tower Defense（對照）', url: '/games/tower/dist/index.html',
+    ...目標('tower'), 名: 'Tower Defense（對照）',
     入局: async (p) => { await p.click('#start-btn', { timeout: 60000 });
       await p.waitForFunction(() => window.__TD?.開波次數?.() > 0, null, { timeout: 240000 }); },
     // `prepTimer` 係備戰倒數，開波之後即刻就喺度行——而 gold／wave／敵人數
@@ -82,7 +90,7 @@ const 遊戲 = [
       return s ? (s.wave ?? 0) * 1000 - (s.prepTimer ?? 0) + (s.enemies?.length ?? 0) : null; },
   },
   {
-    名: '深淵之橋 MOBA', url: '/games/moba/index.html',
+    ...目標('moba'),
     入局: async (p) => {
       await p.waitForSelector('#pick-grid .pick-card', { timeout: 240000 });
       await p.click('#pick-grid .pick-card');
@@ -92,7 +100,7 @@ const 遊戲 = [
     鐘: () => window.__sim?.time ?? null,
   },
   {
-    名: 'Empire Royale', url: '/games/royale/index.html',
+    ...目標('royale'),
     入局: async (p) => {
       await p.getByText(/⚔️ 對戰/).first().click({ timeout: 60000 });
       await p.waitForTimeout(600);
@@ -192,7 +200,7 @@ check(`切走咗嘅時候，場鐘唔可以行（隱藏 ${隱藏秒} 秒，容�
   const page = await ctx.newPage();
   let 結果;
   try {
-    await page.goto(`http://localhost:${port}/games/snake-game/dist/index.html`, { waitUntil: 'load', timeout: 180000 });
+    await page.goto(`http://localhost:${port}${encodeURI(目標('snake').url)}`, { waitUntil: 'load', timeout: 180000 });
     await page.waitForTimeout(2500);
     // 要先入名（form submit）先入到選單。`fill()` ＋ 撳掣入唔到——
     // 要 click 個 input、打字、Enter。

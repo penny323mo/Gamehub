@@ -10,6 +10,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import process from 'node:process';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -25,14 +27,17 @@ if (!token || !/^[a-z0-9][a-z0-9-]*$/.test(token)) {
 // 唔用一個「見到 ?v= 就換」嘅大網——嗰種寫法會順手改埋唔關事嘅嘢。
 const entries = [
     [path.join(MOBA, 'index.html'), [/(style\.css\?v=)[a-z0-9-]+/g, /(src\/main\.js\?v=)[a-z0-9-]+/g]],
-    // Hub 嗰個 index.html 有兩個入口：launcher.js 同 style.css。之前只換 js，
+    // Catalog uses its own manifest-content hash (build-game-catalog owns it),
+    // so MOBA's deploy token only updates launcher.js and style.css here.
     // 所以純 CSS 嘅改動（例如加大可撳範圍）推上去，返轉頭嘅訪客攞到嘅仲係
     // 舊嗰份樣式——同 ADR-111 講嗰個毛病一樣，只係走漏咗樣式表。
     [path.join(REPO, 'index.html'), [/(launcher\.js\?v=)[a-z0-9-]+/g, /(style\.css\?v=)[a-z0-9-]+/g]],
     // Hub 嘅字型同 logo 都係專案自己嘅資產，換咗要傳得到去返轉頭嘅訪客
     [path.join(REPO, 'style.css'), [/(outfit-latin\.woff2\?v=)[a-z0-9-]+/g]],
-    [path.join(REPO, 'launcher.js'), [/(_logo\.png\?v=)[a-z0-9-]+/g]],
-    [path.join(REPO, 'launcher.js'), [/(games\/moba\/index\.html\?v=)[a-z0-9-]+/g]],
+    // Launcher metadata moved to the canonical manifest.  Regenerate the
+    // browser artifact after replacing its image/MOBA URLs.
+    [path.join(REPO, 'games', 'manifest.json'), [/(_logo\.png\?v=)[a-z0-9-]+/g]],
+    [path.join(REPO, 'games', 'manifest.json'), [/(games\/moba\/index\.html\?v=)[a-z0-9-]+/g]],
 ];
 
 let files = 0, spots = 0;
@@ -57,6 +62,16 @@ for (const name of fs.readdirSync(srcDir)) {
         /(from\s+'(?:\.\/|\.\.\/\.\.\/shared\/js\/)[A-Za-z0-9_-]+\.m?js)(\?v=[a-z0-9-]+)?'/g,
         (m, head) => { spots++; return `${head}?v=${token}'`; });
     if (after !== before) { fs.writeFileSync(file, after); files++; }
+}
+
+// Keep the checked-in classic-script adapter in exact manifest parity.
+const generated = spawnSync(process.execPath, ['scripts/build-game-catalog.mjs'], {
+    cwd: REPO,
+    stdio: 'inherit',
+});
+if (generated.status !== 0) {
+    console.error('GameCatalog browser artifact 重新生成失敗');
+    process.exit(generated.status ?? 1);
 }
 
 console.log(`token → ${token}：改咗 ${files} 個檔、${spots} 個位`);

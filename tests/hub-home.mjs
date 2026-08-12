@@ -25,6 +25,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { catalogTargetEntries } from './lib/catalog-targets.mjs';
 const { chromium } = await import('playwright').catch(async () => {
   const HERE0 = path.dirname(fileURLToPath(import.meta.url));
   const 後備 = pathToFileURL(path.resolve(HERE0, '../games/tower/node_modules/playwright/index.mjs')).href;
@@ -63,32 +64,21 @@ const browser = await chromium.launch({
 });
 
 // `行到` = 開頁之後點樣行到「應該見到返 hub 路」嗰一版。null 即係開場就有。
-const 遊戲 = [
-  { 名: 'Gomoku', url: '/games/gomoku/index.html' },
-  { 名: 'Penny Crush', url: '/games/penny_crush/index.html' },
-  { 名: 'Big Two', url: '/games/big2/index.html' },
-  { 名: 'Dou Dizhu', url: '/games/doudizhu/index.html' },
-  { 名: 'Snooker', url: '/games/snooker/index.html' },
-  { 名: 'Tower Defense', url: '/games/tower/dist/index.html' },
-  // Snake 個返回掣喺入名嗰版之後——**呢個係一步路，唔係一個病**。
-  // 要用 `getByRole('button')`：`getByText(/開始遊戲/)` 會撞中個副標題
-  // 「輸入你既名稱開始遊戲」，`.first()` 撳咗個 `<p>`，於是成版嘢冇郁過,
-  // 而條 gate 就報「Snake 冇路返」——**又一次係揀錯元素，唔係佢冇**。
-  { 名: 'Neon Snake', url: '/games/snake-game/dist/index.html',
-    行到: async (p) => {
-      await p.fill('input', '測試').catch(() => {});
-      await p.getByRole('button', { name: /開始遊戲/ }).first().click({ timeout: 6000 }).catch(() => {});
-      await p.waitForTimeout(2500);
-    } },
-  { 名: 'Empire Royale', url: '/games/royale/index.html',
-    行到: async (p) => { await p.waitForSelector('#loading', { state: 'detached', timeout: 120000 }); } },
-  { 名: '深淵之橋 MOBA', url: '/games/moba/index.html',
-    行到: async (p) => { await p.waitForSelector('#pick-go', { state: 'visible', timeout: 120000 }); } },
-  { 名: 'Racing Car 3D', url: '/games/Racing Car/index.html' },
-  { 名: 'Xiangqi AI', url: '/games/xiangqi-ai/dist/index.html' },
-  { 名: 'Ashen Rail', url: '/games/ashen-rail/dist/index.html' },
-  { 名: 'Elden Ring II', url: '/games/elden-ring-ii/dist/index.html' },
-];
+// Only these games need a state transition before their return control exists.
+// Keep the hooks keyed to catalog ids so the roster and paths remain authority-driven.
+const 特殊流程 = {
+  snake: async (p) => {
+    await p.fill('input', '測試').catch(() => {});
+    await p.getByRole('button', { name: /開始遊戲/ }).first().click({ timeout: 6000 }).catch(() => {});
+    await p.waitForTimeout(2500);
+  },
+  royale: async (p) => { await p.waitForSelector('#loading', { state: 'detached', timeout: 120000 }); },
+  moba: async (p) => { await p.waitForSelector('#pick-go', { state: 'visible', timeout: 120000 }); },
+};
+const 遊戲 = catalogTargetEntries().map((g) => {
+  const 行到 = 特殊流程[g.id];
+  return 行到 ? { ...g, 行到 } : g;
+});
 
 let pass = 0, fail = 0; const failed = [];
 const check = (name, ok, detail) => {

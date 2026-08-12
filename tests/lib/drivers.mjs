@@ -13,9 +13,18 @@
 // `累積` 係後加嘅（`hub-tabs.mjs` 用）：有值即係「呢個存檔係加落去，唔係
 // 蓋過去」，返一個數。冇值即係last-write-wins 係設計本身，唔應該當佢係病。
 
+import { catalogTargetEntries } from './catalog-targets.mjs';
+
+const catalog = new Map(catalogTargetEntries().map((entry) => [entry.id, entry]));
+const 目標 = (id) => {
+  const entry = catalog.get(id);
+  if (!entry) throw new Error(`Missing catalog target: ${id}`);
+  return entry;
+};
+
 export const 遊戲 = [
   {
-    名: 'Tower Defense', url: '/games/tower/dist/index.html',
+    ...目標('tower'),
     玩: async (p) => {
       await p.click('#start-btn', { timeout: 60000 });
       await p.waitForFunction(() => window.__TD?.開波次數?.() > 0, null, { timeout: 240000 });
@@ -32,7 +41,7 @@ export const 遊戲 = [
     },
   },
   {
-    名: 'Neon Snake', url: '/games/snake-game/dist/index.html',
+    ...目標('snake'),
     玩: async (p) => {
       // 要先入名（form submit）先入到選單。`fill()` ＋ 撳掣入唔到。
       await p.locator('input').first().click({ timeout: 60000 });
@@ -73,7 +82,7 @@ export const 遊戲 = [
     累積叫: '打過幾多局',
   },
   {
-    名: '深淵之橋 MOBA', url: '/games/moba/index.html',
+    ...目標('moba'),
     玩: async (p) => {
       await p.waitForSelector('#pick-grid .pick-card', { timeout: 240000 });
       await p.click('#pick-grid .pick-card');
@@ -92,7 +101,7 @@ export const 遊戲 = [
     },
   },
   {
-    名: 'Empire Royale', url: '/games/royale/index.html',
+    ...目標('royale'),
     玩: async (p) => {
       // 教學遮罩開住嗰陣模擬係**凍結**嘅（`if (!ui?.tutorialOpen)`）——唔標記睇過
       // 就算擺咗張火球落去都永遠唔會爆，`phase` 永遠唔會變 `ended`。
@@ -139,7 +148,7 @@ export const 遊戲 = [
     累積叫: '獎盃',
   },
   {
-    名: 'Racing Car 3D', url: '/games/Racing Car/index.html',
+    ...目標('racer'),
     玩: async (p) => {
       await p.locator('#start-btn').scrollIntoViewIfNeeded({ timeout: 30000 });
       await p.click('#start-btn', { timeout: 60000 });
@@ -169,7 +178,7 @@ export const 遊戲 = [
     },
   },
   {
-    名: 'Penny Crush', url: '/games/penny_crush/index.html',
+    ...目標('pennycrush'),
     玩: async (p) => {
       // 揀個板大細入場，跟住撳到有分為止。**冇「遊戲結束」呢一刻**——
       // 玩家係直接閂 tab 走人嘅，所以「值得記」嗰一刻就係「第一次得分」。
@@ -218,7 +227,7 @@ export const 遊戲 = [
     },
   },
   {
-    名: 'Gomoku', url: '/games/gomoku/index.html',
+    ...目標('gomoku'),
     玩: async (p) => {
       await p.click('#gomoku-ai-btn', { timeout: 60000 });
       await p.waitForSelector('#gomoku-board', { timeout: 60000 });
@@ -306,7 +315,7 @@ export const 遊戲 = [
     },
   },
   {
-    名: 'Xiangqi AI', url: '/games/xiangqi-ai/dist/index.html',
+    ...目標('xiangqi'),
     玩: async (p) => {
       await p.getByText(/單機/).first().click({ timeout: 60000 });
       await p.waitForSelector('#board', { timeout: 60000 });
@@ -409,7 +418,7 @@ export const 遊戲 = [
     續驗: () => window.__續驗 ?? { 攞唔到: true },
   },
   {
-    名: 'Big Two', url: '/games/big2/index.html',
+    ...目標('big2'),
     玩: async (p) => {
       await p.click('#btn-local-ai', { timeout: 60000 });
       await p.click('#startGameBtn', { timeout: 60000 });
@@ -472,7 +481,7 @@ export const 遊戲 = [
     },
   },
   {
-    名: 'Dou Dizhu', url: '/games/doudizhu/index.html',
+    ...目標('doudizhu'),
     玩: async (p) => {
       await p.click('#btn-local-ai', { timeout: 60000 });
       await p.click('#startGameBtn', { timeout: 60000 });

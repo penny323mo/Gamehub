@@ -1,127 +1,19 @@
 
-const games = [
-    {
-        id: 'gomoku',
-        title: '五子棋',
-        subtitle: '經典策略棋！AI 對戰 & 線上 PvP',
-        icon: '⚫⚪',
-        category: '棋類',
-        link: 'games/gomoku/index.html',
-        playable: true
-    },
-    {
-        id: 'xiangqi',
-        title: '中國象棋',
-        subtitle: '中國象棋！挑戰進階 AI',
-        icon: 'assets/xiangqi_logo.png?v=assets-30',
-        iconWebp: 'assets/xiangqi_logo.webp?v=assets-29',
-        isImage: true,
-        category: '棋類',
-        link: 'games/xiangqi-ai/dist/index.html',
-        playable: true
-    },
-    {
-        id: 'big2',
-        title: '鋤大D',
-        subtitle: '鋤大D！對戰 3 個 AI 對手',
-        icon: '🃏',
-        category: '卡牌',
-        link: 'games/big2/index.html',
-        playable: true
-    },
-    {
-        id: 'doudizhu',
-        title: '鬥地主',
-        subtitle: '鬥地主！對戰 2 個 AI',
-        icon: 'assets/doudizhu_logo.png?v=assets-30',
-        iconWebp: 'assets/doudizhu_logo.webp?v=assets-29',
-        isImage: true,
-        category: '卡牌',
-        link: 'games/doudizhu/index.html',
-        playable: true
-    },
-    {
-        id: 'pennycrush',
-        title: '消消樂',
-        subtitle: '三消糖果！8x8、10x10、12x12 模式',
-        icon: '🍬',
-        category: '益智',
-        link: 'games/penny_crush/index.html',
-        playable: true
-    },
-    {
-        id: 'snooker',
-        title: '桌球',
-        subtitle: '桌球！2D 經典版 / 3D 立體版',
-        icon: '🎱',
-        category: '運動',
-        link: 'games/snooker/index.html',
-        playable: true
-    },
-    {
-        id: 'tower',
-        title: '塔防大戰',
-        subtitle: '⚔️ 塔防！7 種塔 × 7 種敵人，20 波挑戰',
-        icon: '🏰',
-        category: '策略',
-        link: 'games/tower/dist/index.html',
-        playable: true
-    },
-    {
-        id: 'snake',
-        title: '霓虹貪食蛇',
-        subtitle: '🐍 經典街機，霓虹光效',
-        icon: '🐍',
-        category: '街機',
-        link: 'games/snake-game/dist/index.html',
-        playable: true
-    },
-    {
-        id: 'royale',
-        title: '帝國皇家戰',
-        subtitle: '⚔️ 即時對戰 3D 塔防！出兵過河攻陷敵方城堡',
-        icon: '🏯',
-        category: '即時戰略',
-        link: 'games/royale/index.html',
-        playable: true
-    },
-    {
-        id: 'moba',
-        title: '深淵之橋',
-        subtitle: '🗡️ 三對三 MOBA！補刀出裝、越塔強殺、推爆水晶',
-        icon: '🗡️',
-        category: 'MOBA',
-        link: 'games/moba/index.html?v=assets-31',
-        playable: true
-    },
-    {
-        id: 'racer',
-        title: 'Racing Car 3D',
-        subtitle: '🏁 順滑 3D 賽道！三圈競速兼漂移挑戰',
-        icon: '🏎️',
-        category: '競速',
-        link: 'games/Racing%20Car/index.html',
-        playable: true
-    },
-    {
-        id: 'ashenrail',
-        title: '灰燼列車',
-        subtitle: '🚂 3D 列車槍戰！守住能源核心殺退無人機',
-        icon: '🚂',
-        category: '動作射擊',
-        link: 'games/ashen-rail/dist/index.html',
-        playable: true
-    },
-    {
-        id: 'elden-ring-ii',
-        title: 'Elden Ring II',
-        subtitle: '⚔️ 黑暗奇幻 3D 動作 RPG！三職業迎戰空冠之王',
-        icon: '👑',
-        category: '動作 RPG',
-        link: 'games/elden-ring-ii/dist/index.html',
-        playable: true
-    }
-];
+if (!globalThis.GameCatalog) {
+    throw new Error('GameCatalog 未載入；請先執行 node scripts/build-game-catalog.mjs');
+}
+
+// `games/manifest.json` is the only game-roster authority.  The generated
+// browser adapter keeps this launcher synchronous, static-host friendly, and
+// free of a second fetch/error state.
+const games = globalThis.GameCatalog.launcherEntries();
+
+const escapeHtml = (value) => String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 
 const PAGE_SIZE = 4;
 let currentPage = 0;
@@ -146,6 +38,8 @@ function renderCarousel() {
         li.dataset.count = pageGames.length;
         li.setAttribute('aria-label', `第 ${pageIndex + 1} 組遊戲`);
         li.innerHTML = pageGames.map((game) => {
+            const safe = Object.fromEntries(['id', 'title', 'subtitle', 'icon', 'iconWebp', 'category', 'link']
+                .map((key) => [key, escapeHtml(game[key] ?? '')]));
             const iconHtml = game.id === 'gomoku'
                 ? '<span class="gomoku-stones"><i class="gomoku-stone black"></i><i class="gomoku-stone white"></i></span>'
                 : game.isImage
@@ -158,23 +52,29 @@ function renderCarousel() {
                      * 唔撐就落返 PNG——保住原本個 logo，唔會 fallback 去一個
                      * 唔啱嘅 emoji。
                      */
-                    ? `<picture><source srcset="${game.iconWebp}" type="image/webp"><img src="${game.icon}" alt="" class="card-icon-img" onerror="this.style.display='none';this.parentElement.textContent='🀄';"></picture>`
-                    : game.icon;
+                    ? `<picture><source srcset="${safe.iconWebp}" type="image/webp"><img src="${safe.icon}" alt="" class="card-icon-img"></picture>`
+                    : safe.icon;
             return `
                 <a class="game-hub-card ${game.playable ? '' : 'disabled'}"
-                   data-game-id="${game.id}" href="${game.playable ? game.link : '#'}"
+                   data-game-id="${safe.id}" href="${game.playable ? safe.link : '#'}"
                    ${game.playable ? '' : 'aria-disabled="true" tabindex="-1"'}>
-                    <span class="card-category">${game.category}</span>
+                    <span class="card-category">${safe.category}</span>
                     <span class="card-icon" aria-hidden="true">${iconHtml}</span>
                     <span class="card-copy">
-                        <strong>${game.title}</strong>
-                        <span class="card-description">${game.subtitle}</span>
+                        <strong>${safe.title}</strong>
+                        <span class="card-description">${safe.subtitle}</span>
                     </span>
                     <span class="pill-btn ${game.playable ? 'primary' : 'disabled'}">
                         ${game.playable ? 'Play' : 'Locked'}
                     </span>
                 </a>`;
         }).join('');
+        li.querySelectorAll('.card-icon-img').forEach((image) => {
+            image.addEventListener('error', () => {
+                image.style.display = 'none';
+                image.parentElement.textContent = '🀄';
+            }, { once: true });
+        });
         track.appendChild(li);
     });
 

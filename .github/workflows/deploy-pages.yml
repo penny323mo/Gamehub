@@ -32,6 +32,16 @@ jobs:
             games/tower/package-lock.json
             games/ashen-rail/package-lock.json
             games/elden-ring-ii/package-lock.json
+            games/snake-game/package-lock.json
+            games/xiangqi-ai/package-lock.json
+            games/royale/tests/package-lock.json
+            games/Racing Car/tests/package-lock.json
+
+      - name: Validate GameCatalog and ReleaseGate contracts
+        run: |
+          node scripts/build-game-catalog.mjs --check
+          node tests/catalog.mjs
+          node tests/release-gate.mjs
 
       - name: Install Tower Defense dependencies
         working-directory: games/tower
@@ -41,37 +51,32 @@ jobs:
         working-directory: games/tower
         run: npx playwright install --with-deps chromium
 
-      - name: Audit, test, and build Tower Defense
-        working-directory: games/tower
+      - name: Run required changed-game release matrix
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          npm audit --audit-level=high
-          npm test
+          BASE="$EVENT_BEFORE"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            node scripts/install-release-deps.mjs --all --skip games/tower
+            node scripts/release-gate.mjs --all --tier full --run
+            exit 0
+          fi
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            node scripts/install-release-deps.mjs --all --skip games/tower
+            node scripts/release-gate.mjs --all --tier full --run
+            exit 0
+          fi
+          node scripts/install-release-deps.mjs --base "$BASE" --head HEAD --skip games/tower
+          node scripts/release-gate.mjs --base "$BASE" --head HEAD --tier full --run
 
-      - name: Install Ashen Rail dependencies
-        working-directory: games/ashen-rail
-        run: npm ci
-
-      - name: Audit Ashen Rail source assets
-        working-directory: games/ashen-rail
-        run: npm run assets:inspect
-
-      - name: Lint and test Ashen Rail
-        working-directory: games/ashen-rail
+      - name: Run required 13-game Hub fast gates
         run: |
-          npm run lint
-          npm run test
-
-      - name: Build Ashen Rail
-        working-directory: games/ashen-rail
-        run: npm run build
-
-      - name: Install Elden Ring II dependencies
-        working-directory: games/elden-ring-ii
-        run: npm ci
-
-      - name: Test and build Elden Ring II
-        working-directory: games/elden-ring-ii
-        run: npm test
+          node tests/hub.mjs
+          node tests/hub-load.mjs
+          node tests/hub-touch.mjs
+          node tests/hub-storage.mjs
+          node tests/hub-home.mjs
 
       - name: Generate Game Hub build info
         run: |

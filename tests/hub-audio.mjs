@@ -20,6 +20,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { catalogTargetEntries } from './lib/catalog-targets.mjs';
 const { chromium } = await import('playwright').catch(async () => {
   const HERE0 = path.dirname(fileURLToPath(import.meta.url));
   const 後備 = pathToFileURL(path.resolve(HERE0, '../games/tower/node_modules/playwright/index.mjs')).href;
@@ -67,6 +68,13 @@ const 新頁 = async () => {
   return [ctx, await ctx.newPage()];
 };
 
+const catalog = new Map(catalogTargetEntries().map((entry) => [entry.id, entry]));
+const 目標 = (id) => {
+  const entry = catalog.get(id);
+  if (!entry) throw new Error(`Missing catalog target: ${id}`);
+  return entry;
+};
+
 // ── 1. 開得到聲 ────────────────────────────────────────────────────
 // 喺頁面碼行之前包住 AudioContext，記低每一個 new 出嚟嘅 context 同佢嘅狀態。
 const 監聽 = `
@@ -81,14 +89,15 @@ const 監聽 = `
 })();
 `;
 const 有聲遊戲 = [
-  ['Tower Defense', '/games/tower/dist/index.html', '#start-btn'],
-  ['深淵之橋 MOBA', '/games/moba/index.html', null],
-  ['Empire Royale', '/games/royale/index.html', null],
-  ['Neon Snake', '/games/snake-game/dist/index.html', null],
-  ['Racing Car 3D', '/games/Racing Car/index.html', '#start-btn'],
+  { ...目標('tower'), 掣: '#start-btn' },
+  { ...目標('moba'), 掣: null },
+  { ...目標('royale'), 掣: null },
+  { ...目標('snake'), 掣: null },
+  { ...目標('racer'), 掣: '#start-btn' },
 ];
 const 聲量 = {};
-for (const [名, url, 掣] of 有聲遊戲) {
+for (const g of 有聲遊戲) {
+  const { 名, url, 掣 } = g;
   const [ctx, page] = await 新頁();
   await page.addInitScript(監聽);
   try {
@@ -115,7 +124,7 @@ check('撳咗第一下之後，唔可以仲有 AudioContext 卡喺 suspended（�
 // ── 2. 靜音要記得住 ────────────────────────────────────────────────
 const 靜音遊戲 = [
   {
-    名: 'Empire Royale', url: '/games/royale/index.html', 掣: '#mute-btn',
+    ...目標('royale'), 掣: '#mute-btn',
     // 個靜音掣喺局內 HUD，唔喺開場畫面。第一版就係喺開場畫面撳——撳唔到，
     // 於是「撳完」同「reload 後」兩個讀數一樣，**扮到「記得」**。
     入局: async (p) => {
@@ -129,7 +138,7 @@ const 靜音遊戲 = [
     讀: () => (document.getElementById('mute-btn')?.textContent ?? '(冇)').trim(),
   },
   {
-    名: 'Racing Car 3D', url: '/games/Racing Car/index.html', 掣: '[data-audio="0"]',
+    ...目標('racer'), 掣: '[data-audio="0"]',
     讀: () => document.querySelector('[data-audio="0"]')?.classList.contains('on') ? '靜音' : '有聲',
   },
 ];

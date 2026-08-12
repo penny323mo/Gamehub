@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import zlib from 'node:zlib';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { catalogTargets } from './lib/catalog-targets.mjs';
 
 const { chromium } = await import('playwright').catch(async () => {
   const HERE0 = path.dirname(fileURLToPath(import.meta.url));
@@ -30,22 +31,7 @@ const MIME = { '.html':'text/html', '.js':'text/javascript', '.mjs':'text/javasc
   '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.svg':'image/svg+xml', '.webp':'image/webp',
   '.m4a':'audio/mp4', '.mp3':'audio/mpeg', '.ogg':'audio/ogg', '.wav':'audio/wav', '.woff2':'font/woff2' };
 
-const 遊戲 = [
-  ['Hub launcher', '/index.html'],
-  ['Gomoku', '/games/gomoku/index.html'],
-  ['Penny Crush', '/games/penny_crush/index.html'],
-  ['Big Two', '/games/big2/index.html'],
-  ['Dou Dizhu', '/games/doudizhu/index.html'],
-  ['Snooker', '/games/snooker/index.html'],
-  ['Tower Defense', '/games/tower/dist/index.html'],
-  ['Neon Snake', '/games/snake-game/dist/index.html'],
-  ['Empire Royale', '/games/royale/index.html'],
-  ['深淵之橋 MOBA', '/games/moba/index.html'],
-  ['Racing Car 3D', '/games/Racing Car/index.html'],
-  ['Xiangqi AI', '/games/xiangqi-ai/dist/index.html'],
-  ['Ashen Rail', '/games/ashen-rail/dist/index.html'],
-  ['Elden Ring II', '/games/elden-ring-ii/dist/index.html'],
-];
+const 遊戲 = catalogTargets({ includeHub: true });
 
 // 實測十二個介面之後定嘅兩條線（唔係拍腦袋——第一版我寫 5 MB，
 // 一個都捉唔到，即係嗰條線根本分唔開任何嘢）：

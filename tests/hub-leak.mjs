@@ -22,6 +22,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { catalogTargetEntries } from './lib/catalog-targets.mjs';
 const { chromium } = await import('playwright').catch(async () => {
   const HERE0 = path.dirname(fileURLToPath(import.meta.url));
   const 後備 = pathToFileURL(path.resolve(HERE0, '../games/tower/node_modules/playwright/index.mjs')).href;
@@ -56,29 +57,36 @@ const browser = await chromium.launch({
   args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
 });
 
+const catalog = new Map(catalogTargetEntries().map((entry) => [entry.id, entry]));
+const 目標 = (id) => {
+  const entry = catalog.get(id);
+  if (!entry) throw new Error(`Missing catalog target: ${id}`);
+  return entry;
+};
+
 const 圈數 = 5;
 // `入`／`出` 直接叫遊戲自己嘅全域函數，唔靠撳掣：呢度要嘅唔係「模擬一隻手指」
 // （嗰樣 `hub-touch` 守緊），係「行完呢條狀態轉換」。用撳嘅話，一個純粹嘅
 // 動畫或者遮罩就會令條 gate 喺同洩漏無關嘅位逾時（ADR-227 撞過）。
 const 遊戲 = [
-  { 名: 'Gomoku',     url: '/games/gomoku/index.html',
+  { ...目標('gomoku'),
     入: (p) => p.evaluate(() => window.selectMode('online')), 出: (p) => p.evaluate(() => window.backToLanding()),
     入咗睇: '#online-lobby', 出咗睇: '#landing-page' },
   // Snooker 個大廳係 `#snooker-online-lobby`，唔係 `#online-lobby`
   // ——第一版寫錯咗，於是「入到 0/5」但 DOM 完全平：**一個假綠**。
-  { 名: 'Snooker',    url: '/games/snooker/index.html',
+  { ...目標('snooker'),
     入: (p) => p.evaluate(() => window.selectMode('online')), 出: (p) => p.evaluate(() => window.backToLanding()),
     入咗睇: '#snooker-online-lobby', 出咗睇: '#landing-page' },
-  { 名: 'Xiangqi AI', url: '/games/xiangqi-ai/dist/index.html',
+  { ...目標('xiangqi'),
     入: (p) => p.evaluate(() => window.selectMode('online')), 出: (p) => p.evaluate(() => window.backToLanding()),
     入咗睇: '#online-lobby', 出咗睇: '#landing-page' },
   // Big Two 個全域叫 `setMode`（Dou Dizhu 先係 `setGameMode`）——同一個 repo
   // 入面兩隻幾乎一樣嘅牌類遊戲，全域名唔同。抄嗰隻嘅名落呢隻度就會靜靜雞
   // 乜都唔做，然後報綠。
-  { 名: 'Big Two',    url: '/games/big2/index.html',
+  { ...目標('big2'),
     入: (p) => p.evaluate(() => window.setMode('online-lobby')), 出: (p) => p.evaluate(() => window.setMode('landing')),
     入咗睇: '#online-lobby', 出咗睇: '#landing-page' },
-  { 名: 'Dou Dizhu',  url: '/games/doudizhu/index.html',
+  { ...目標('doudizhu'),
     入: (p) => p.evaluate(() => window.setGameMode('online-lobby')), 出: (p) => p.evaluate(() => window.setGameMode('landing')),
     入咗睇: '#online-lobby', 出咗睇: '#landing-page' },
 
@@ -90,12 +98,12 @@ const 遊戲 = [
    * 一樣係玩家一晚會做幾十次嘅嘢，而且一樣會重建 DOM／場景。
    * **揀一個平嘅循環好過唔守**，但要揀一個真係會重建嘢嘅循環。
    */
-  { 名: 'Tower Defense', url: '/games/tower/dist/index.html',
+  { ...目標('tower'),
     入: (p) => p.evaluate(() => document.getElementById('help-btn')?.click()),
     出: (p) => p.evaluate(() => document.getElementById('help-close-btn')?.click()
           ?? document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))),
     入咗睇: '#help-overlay', 出咗睇: '#start-screen, #start-btn' },
-  { 名: 'Racing Car 3D', url: '/games/Racing Car/index.html',
+  { ...目標('racer'),
     // 日夜切換會重建燈光／環境——比撳個暫停掣更加接近「會唔會積嘢」。
     入: (p) => p.evaluate(() => document.querySelector('[data-tod="night"]')?.click()),
     出: (p) => p.evaluate(() => document.querySelector('[data-tod="day"]')?.click()),
@@ -115,7 +123,7 @@ const 遊戲 = [
    * 所以呢條 gate 而家一定平——**但佢守住嘅係「將來唔好改成每次開都重建」**。
    * 入局要等成十幾秒（Fast 3G 之外都要載 2.5 MB），所以只入一次，之後嗰五圈好平。
    */
-  { 名: '深淵之橋 MOBA', url: '/games/moba/index.html',
+  { ...目標('moba'),
     開場: async (p) => {
       await p.waitForSelector('#pick-grid .pick-card', { timeout: 240000 });
       await p.click('#pick-grid .pick-card');
@@ -131,7 +139,7 @@ const 遊戲 = [
 
   // 跑八圈唔係八局：重開之後撳得太早嗰啲圈唔會死，嗰啲圈唔取樣。
   // 八圈實測穩定攞到四個樣本以上。
-  { 名: 'Neon Snake', url: '/games/snake-game/dist/index.html', 圈: 8,
+  { ...目標('snake'), 圈: 8,
     開場: async (p) => {
       await p.locator('input').first().click({ timeout: 30000 });
       await p.keyboard.type('尺仔');

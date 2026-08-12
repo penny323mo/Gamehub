@@ -24,6 +24,7 @@
 // 遊戲 HUD 度可以係諗過先咁做嘅。**一條會將深思熟慮嘅決定叫做 bug 嘅 gate 係壞 gate。**
 import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path'; import zlib from 'node:zlib';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { catalogTargets } from './lib/catalog-targets.mjs';
 const { chromium } = await import('playwright').catch(async () => {
   const HERE0 = path.dirname(fileURLToPath(import.meta.url));
   const 後備 = pathToFileURL(path.resolve(HERE0, '../games/tower/node_modules/playwright/index.mjs')).href;
@@ -55,15 +56,7 @@ const check = (name, ok, detail) => {
   else { fail++; failed.push(name); console.log(`FAIL  ${name}`, JSON.stringify(detail)); }
 };
 const 全部 = {};
-const 遊戲=[
- ['Hub launcher','/index.html'],['Gomoku','/games/gomoku/index.html'],['Penny Crush','/games/penny_crush/index.html'],
- ['Big Two','/games/big2/index.html'],['Dou Dizhu','/games/doudizhu/index.html'],
- ['Snooker','/games/snooker/index.html'],['Tower Defense','/games/tower/dist/index.html'],
- ['Neon Snake','/games/snake-game/dist/index.html'],['Empire Royale','/games/royale/index.html'],
- ['深淵之橋 MOBA','/games/moba/index.html'],['Racing Car 3D','/games/Racing Car/index.html'],
- ['Xiangqi AI','/games/xiangqi-ai/dist/index.html'],['Ashen Rail','/games/ashen-rail/dist/index.html'],
- ['Elden Ring II','/games/elden-ring-ii/dist/index.html'],
-];
+const 遊戲 = catalogTargets({ includeHub: true });
 const 分析 = (b64, dpr) => new Promise((resolve) => {
   const img = new Image();
   img.onload = () => {

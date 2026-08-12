@@ -8907,3 +8907,24 @@ Date: 2026-08-12. Status: accepted.
 同時令長直路有清晰入彎節奏。`setup.mjs` 必須守住 4–7 zones、每 zone 3 個 cue、
 on-road placement、HUD 左右箭頭一致、**<18** draw calls 同 **<120k** triangles。cue
 係 render-only，唔可以寫回 `Car.pos.y`、碰撞、progress、checkpoint 或 ranking。
+
+## ADR-309 — GameCatalog 係唯一遊戲清單，ReleaseGate 由改動範圍 fail-closed
+
+Date: 2026-08-12. Status: accepted.
+
+Hub launcher、browser test inventory 同 deploy workflow 原本各自抄一份遊戲名／路徑；新增、
+改名或搬入口時可以其中一份靜靜漂移。`games/manifest.json` 現時係唯一 authority，記錄
+public order、metadata、Pages-safe entry、runtime/persistence/capabilities、smoke viewport、
+release roots 同 structured `fast`／`full` commands。Node consumers 必須經
+`games/catalog.mjs`；launcher 先載由 `scripts/build-game-catalog.mjs` deterministic 產生嘅
+classic `games/catalog.generated.js`，再經 `globalThis.GameCatalog.launcherEntries()` render。
+Generated file 唔可以手改，manifest 改動必須通過 parity validator。
+
+`.github/workflows/deploy-pages.yml` 每次 deploy 都跑 catalog contract 同 13-game Hub fast
+browser gates；`scripts/release-gate.mjs` 由 Git diff 揀直接受影響 game 嘅 full plan。任何
+shared、Hub tests、CI、catalog、release scripts、unknown `games/` path、root config 或
+explicit manual release 都 fail-closed 跑全 13 games；docs-only 可以零 game command，但 Hub
+fast gates仍照跑。Command 必須係安全 cwd＋argv array、唔經 shell、每條 bounded timeout；
+package dependencies 由同一 plan 安裝。首次 commit、all-zero base 同 workflow_dispatch 唔可以
+依賴不存在嘅 `HEAD^`，要 explicit `--all`。理由係新增第 14 隻 game 只改 manifest＋自己
+檔案，而唔再維護第二份 expected-ID 清單；同時未知 path 絕不能變成繞過 deploy gate 嘅路。

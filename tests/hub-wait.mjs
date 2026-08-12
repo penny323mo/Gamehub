@@ -27,6 +27,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { catalogTargetEntries } from './lib/catalog-targets.mjs';
 const { chromium } = await import('playwright').catch(async () => {
   const HERE0 = path.dirname(fileURLToPath(import.meta.url));
   const 後備 = pathToFileURL(path.resolve(HERE0, '../games/tower/node_modules/playwright/index.mjs')).href;
@@ -83,12 +84,19 @@ const 睇上限 = 90000;  // ms
 // 一個「成十幾秒乜都唔郁」嘅病。
 const 靜默上限 = 3.0;
 
+const catalog = new Map(catalogTargetEntries().map((entry) => [entry.id, entry]));
+const 目標 = (id) => {
+  const entry = catalog.get(id);
+  if (!entry) throw new Error(`Missing catalog target: ${id}`);
+  return entry;
+};
+
 const 遊戲 = [
-  { 名: 'Tower Defense（ADR-203 對照）', url: '/games/tower/dist/index.html',
+  { ...目標('tower'), 名: 'Tower Defense（ADR-203 對照）',
     等緊: () => { const b = document.getElementById('start-btn'); return !!b && b.disabled; } },
-  { 名: '深淵之橋 MOBA', url: '/games/moba/index.html',
+  { ...目標('moba'),
     等緊: () => { const l = document.getElementById('loading'); return !!l && !l.classList.contains('hidden'); } },
-  { 名: 'Empire Royale', url: '/games/royale/index.html',
+  { ...目標('royale'),
     等緊: () => { const l = document.getElementById('loading'); return !!l && !l.classList.contains('hidden'); } },
 ];
 

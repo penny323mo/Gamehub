@@ -1,18 +1,22 @@
 // Game Hub 主頁：每組四隻遊戲，桌面 4 欄、手機 2×2，左右掃一次換一組。
 //
 // 跑法：node tests/hub.mjs
-// Playwright 沿用 Racing Car tests 嘅安裝，避免根目錄多開一個 npm project。
+// Playwright 沿用 game package 嘅安裝，避免根目錄多開一個 npm project。
 
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { catalogTargetEntries } from './lib/catalog-targets.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
-const PW = path.join(ROOT, 'games', 'Racing Car', 'tests', 'node_modules', 'playwright', 'index.mjs');
+const PW = [
+    path.join(ROOT, 'games', 'tower', 'node_modules', 'playwright', 'index.mjs'),
+    path.join(ROOT, 'games', 'Racing Car', 'tests', 'node_modules', 'playwright', 'index.mjs'),
+].find(fs.existsSync);
 if (!fs.existsSync(PW)) {
-    console.log('搵唔到 playwright：喺 games/Racing Car/tests 行一次 npm install 先');
+    console.log('搵唔到 playwright：喺 games/tower 行一次 npm install 先');
     process.exit(1);
 }
 const { chromium } = await import(pathToFileURL(PW).href);
@@ -308,11 +312,10 @@ for (const viewport of [
 // 嘅 dist 全部有入 git，得佢冇。一個「唔好入 build 產物」嘅通用習慣，用喺
 // 一個 build 產物就係網站嘅倉度，就變成「唔好上線」。
 //
-// 呢條檢查唔開瀏覽器：靜態讀 `launcher.js` 嘅 link，逐個查檔案在唔在。
+// 呢條檢查唔開瀏覽器：由 GameCatalog 讀 entry，逐個查檔案在唔在。
 // 開瀏覽器嗰個版本會慢十倍，而且答案一樣。
 {
-    const src = fs.readFileSync(path.join(ROOT, 'launcher.js'), 'utf8');
-    const links = [...src.matchAll(/link:\s*'([^']+)'/g)].map(m => m[1]);
+    const links = catalogTargetEntries().map(({ entry, launchPath }) => entry ?? launchPath);
     const 死 = [];
     for (const raw of links) {
         const rel = decodeURIComponent(raw.split(/[?#]/)[0]);

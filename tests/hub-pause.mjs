@@ -32,6 +32,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { catalogTargetEntries } from './lib/catalog-targets.mjs';
 const { chromium } = await import('playwright').catch(async () => {
   const HERE0 = path.dirname(fileURLToPath(import.meta.url));
   const 後備 = pathToFileURL(path.resolve(HERE0, '../games/tower/node_modules/playwright/index.mjs')).href;
@@ -67,11 +68,18 @@ const browser = await chromium.launch({
   args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
 });
 
+const catalog = new Map(catalogTargetEntries().map((entry) => [entry.id, entry]));
+const 目標 = (id) => {
+  const entry = catalog.get(id);
+  if (!entry) throw new Error(`Missing catalog target: ${id}`);
+  return entry;
+};
+
 // 逐隻：點入到真係打緊嘅一局、個鐘讀邊度。
 // 個鐘唔一定要遞增——要嘅係「行緊嗰陣兩次讀數唔同、停咗嗰陣一樣」。
 const 遊戲 = [
   {
-    名: 'Tower Defense', url: '/games/tower/dist/index.html',
+    ...目標('tower'),
     入: async (p) => {
       await p.click('#start-btn', { timeout: 60000 });
       await p.waitForFunction(() => window.__TD?.開波次數?.() > 0, null, { timeout: 240000 });
@@ -86,7 +94,7 @@ const 遊戲 = [
     },
   },
   {
-    名: 'Racing Car 3D', url: '/games/Racing Car/index.html',
+    ...目標('racer'),
     入: async (p) => {
       await p.waitForSelector('#screen-start:not(.hidden)', { timeout: 180000 }).catch(() => {});
       await p.locator('#track-list button, #track-list [role=button], #track-list > *').first()
@@ -99,7 +107,7 @@ const 遊戲 = [
     鐘: () => document.getElementById('time-num')?.textContent ?? null,
   },
   {
-    名: '深淵之橋 MOBA', url: '/games/moba/index.html',
+    ...目標('moba'),
     入: async (p) => {
       await p.waitForSelector('#pick-grid .pick-card', { timeout: 240000 });
       await p.click('#pick-grid .pick-card');
@@ -110,7 +118,7 @@ const 遊戲 = [
     鐘: () => (window.__sim?.time == null ? null : Math.round(window.__sim.time * 1000)),
   },
   {
-    名: 'Neon Snake', url: '/games/snake-game/dist/index.html',
+    ...目標('snake'),
     /*
      * **要撳返遊戲自己嗰個「開始遊戲」。** 第一版係揀完模式就撳 Enter——
      * 個鍵盤 handler 見到 `!isRunning` 就真係開咗波，但**個選單仲蓋住喺上面**,
