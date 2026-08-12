@@ -33,12 +33,32 @@ await p.evaluate(() => {
   const 起=(c)=>{ if(!按.has(c))return; 按.delete(c); window.dispatchEvent(new KeyboardEvent('keyup',{code:c,bubbles:true})); };
   const 一下=(c)=>{ 落(c); setTimeout(()=>起(c),40); };
   const 全起=()=>[...按].forEach(起);
+  const 翻滾離開=(g, threat)=>{
+    全起();
+    const dx = g.我[0] - threat.x, dz = g.我[1] - threat.z;
+    const n = Math.hypot(dx, dz) || 1;
+    const awayX = dx / n, awayZ = dz / n;
+    const yaw = +document.querySelector('[data-camera-yaw]').dataset.cameraYaw;
+    const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
+    const fwd = awayX * fx + awayZ * fz, sid = awayX * rx + awayZ * rz;
+    const keysForRoll = [];
+    if (fwd > 0.25) keysForRoll.push('KeyW');
+    if (fwd < -0.25) keysForRoll.push('KeyS');
+    if (sid > 0.25) keysForRoll.push('KeyD');
+    if (sid < -0.25) keysForRoll.push('KeyA');
+    keysForRoll.forEach(落);
+    一下('Space');
+    setTimeout(() => keysForRoll.forEach(起), 300);
+  };
   const B = { 記錄: [], 停: false, err: null, tick: 0 };
   window.__BOT = B;
   let 上關=-1, 上飲=-9;
   // 卡住脫困：呢個 bot 冇尋路，直線行去 boss 會撞住走廊嘅牆——實測喺 boss 場
   // 外面卡咗 200 郁動秒、boss 100 血一滴都冇跌。距離一段時間冇縮短就打橫行。
   let 上距=Infinity, 上進=-9, 打橫=-1, 橫向=1;
+  // Boss 預警圈係玩家真正睇得到嘅 telegraph。用狀態嘅開始時間等到落點前
+  // 先側向翻滾；唔讀任何未渲染資料，亦唔直接改遊戲 state。
+  let boss招式='', boss預警開始=-9, boss已閃=false, 閃邊=1;
   B.h = setInterval(() => {
     if (B.停) return;
     try {
@@ -51,6 +71,29 @@ await p.evaluate(() => {
       const 距=(m)=>Math.hypot(m.x-g.我[0],m.z-g.我[1]);
       const 目=g.boss??g.兵.slice().sort((a,b)=>距(a)-距(b))[0];
       const d=距(目);
+      if (g.boss?.態 === 'windup' && g.boss.快出手) {
+        if (boss招式 !== g.boss.招) {
+          boss招式 = g.boss.招;
+          boss預警開始 = t;
+          boss已閃 = false;
+        }
+        // 一見到圈就翻滾：輪詢本身最多隔 90ms，若再等到前搖尾段，第二階段
+        // 0.52s punch 已經可能落點。遠離畫面上 boss／落點嘅方向，唔靠固定
+        // 左右，確保翻滾真正離開 3D telegraph 圓心。
+        const phase2 = g.boss.血 <= 50;
+        const 等候 = g.boss.招 === 'leap' ? 0.12 : phase2 ? 0.08 : 0.1;
+        if (!boss已閃 && t - boss預警開始 >= 等候) {
+          翻滾離開(g, g.boss);
+          boss已閃 = true;
+          return;
+        }
+      } else if (g.boss?.態 !== 'windup') {
+        boss招式 = '';
+        boss已閃 = false;
+      }
+      const minionThreat = g.兵.filter((m)=>m.快出手 && 距(m)<3.2)
+        .sort((a,b)=>距(a)-距(b))[0];
+      if (minionThreat && g.體>=24) { 翻滾離開(g, minionThreat); return; }
       if (g.血<58 && g.藥>0 && t-上飲>1.6) { 上飲=t; 全起(); 一下('KeyE'); return; }
       const 就快死 = g.boss ? g.boss.血 <= 25 : false;
       if (!就快死 && g.血<40 && g.體>=24 && 敵.some(m=>m.快出手 && 距(m)<3.2)) { 全起(); 一下('Space'); return; }
@@ -90,4 +133,10 @@ for (let i = 0; i < 400; i++) {
 }
 const f = await p.evaluate(()=>({g:window.__ER2.局面(), a:window.__ER2.瞄準(), t:window.__ER2.clock().motion}));
 記(`收場：關${f.g.關} ${f.g.狀態} 血${f.g.血} 藥${f.g.藥} boss${f.g.boss?f.g.boss.血:'-'} 出手${f.a.發招} 傷害${f.a.打出傷害} 郁動${f.t.toFixed(0)}s`);
+const fullClear = f.g.狀態 === 'victory' && f.g.關 === 3 && !f.g.boss;
+記(`PLAYTHROUGH=${fullClear ? 'PASS' : 'FAIL'}`);
 await browser.close(); await new Promise(r=>server.close(r));
+if (!fullClear) {
+  console.error(`Elden Ring II full witness failed: status=${f.g.狀態} chapter=${f.g.關} boss=${f.g.boss?.血 ?? '-'} motion=${f.t.toFixed(0)}s`);
+  process.exitCode = 1;
+}

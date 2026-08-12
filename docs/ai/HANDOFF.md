@@ -60,8 +60,9 @@ treat a build alone as visual evidence: use the real browser gates below.
   flag retry for local/Cloud Chromium differences.
 - `games/tower/tests/flow.mjs` — re-read panel box after layout settles before
   blur/visibility drag cancellation.
-- `games/elden-ring-ii/tests/playthrough-full.mjs` — portable output path and
-  `PW_CHROMIUM` override; creates the output directory before launch.
+- `games/elden-ring-ii/tests/playthrough-full.mjs` — portable output path,
+  `PW_CHROMIUM` override, visible-telegraph dodge policy and fail-fast
+  `PLAYTHROUGH=PASS` contract.
 
 ## Verification
 
@@ -80,10 +81,11 @@ treat a build alone as visual evidence: use the real browser gates below.
   **157/157**, rivals **61/61**, ghost **33/33**, season **55/55**, audio
   **33/33**, aggregate all green; headed 844×390 and 1200×700 smoke had zero
   console errors and measured 19 calls / 105,187 tris at the busiest ghost case.
-- Elden `npm test` is **17/17**. A direct browser boss witness reached 1.3m,
-  landed 9 attacks for 90 damage (boss **100 → 10**), then died to boss hits;
-  the long full-playthrough bot is therefore **not** a victory gate yet. This is
-  a bot survival/approach limitation, not evidence that attack damage is broken.
+- Elden `npm test` is **17/17**. The long browser witness now uses only visible
+  Boss telegraph state plus keyboard-equivalent dodge/movement and reached real
+  `status=victory` in three successive final runs (latest: chapter 3 cleared,
+  player **48 HP**, 35 attacks / 476 damage / 66s). It emits `PLAYTHROUGH=PASS`
+  and exits non-zero unless the game itself reports victory.
 
 ## Known issues and cautions
 
@@ -96,21 +98,19 @@ treat a build alone as visual evidence: use the real browser gates below.
   `terrainYAt()`/render pose back into physics, collision, progress or AI.
 - Do not force-push or rewrite shared `main`; do not restore the old block ghost.
 - Do not call the Elden full witness green when the bot dies, stalls, or merely
-  reaches the boss. Keep the short boss evidence separate from a true clear.
+  reaches the boss: require the explicit `PLAYTHROUGH=PASS` and zero exit code.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync`, then read this handoff and ADR-298–304.
-2. If touching Elden, improve the bot only with visible/input-equivalent
-   behaviour: approach the boss, dodge telegraphs, heal, and require
-   `status === victory`; do not use `__ER2.推關()` in the full-clear assertion.
+1. Run `./scripts/agent-context.sh --sync`, then read this handoff and ADR-298–305.
+2. If touching Elden, keep the witness input-equivalent: approach, dodge visible
+  telegraphs, heal, require `status === victory`; never use `__ER2.推關()` in the
+  full-clear assertion.
 3. If touching Royale, run `PLAYWRIGHT_CHROMIUM=/path/to/chrome npm test` from
    `games/royale/tests`; individual suites remain authoritative when a slow
    software-renderer aggregate launch times out.
-4. For Racing or Hub changes, run the named suites plus real mobile/desktop
-   smoke. Keep this file short and replace it at each completed checkpoint.
-5. Run `./scripts/check-handoff.sh`, commit code and docs together, push the
-   authorized checkpoint, then verify `git ls-remote origin refs/heads/main`.
+4. For Racing or Hub changes, run named suites plus real mobile/desktop smoke; keep this file short and replace it at each checkpoint.
+5. Run `./scripts/check-handoff.sh`, commit code/docs, push the authorized checkpoint, then verify `git ls-remote origin refs/heads/main`.
 
 ## Do not redo
 

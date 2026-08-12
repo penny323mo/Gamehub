@@ -225,11 +225,10 @@ failed model/audio requests or console errors.
 The long witness `node --experimental-strip-types tests/playthrough-full.mjs` writes
 to `/tmp/gamehub-elden-ring-ii-playthrough-full.txt` by default. Override with
 `ER2_PLAYTHROUGH_OUT=/path/to/file`; set `PW_CHROMIUM` when the default cloud
-Chromium path is not present. The witness must report its final status rather than
-treating a bot timeout or player death as a victory. A short boss witness has
-confirmed the real attack path can reduce the boss from 100 to 10 HP at 1.3–1.4m;
-an adaptive bot still needs survival/approach work before this is a full-playthrough
-pass.
+Chromium path is not present. The witness drives visible/input-equivalent movement,
+healing and telegraph dodges, then emits `PLAYTHROUGH=PASS` and exits non-zero unless
+the game itself reports chapter 3 `status=victory`; a timeout, death, or merely
+reaching the boss is a failure.
 
 ### Snake Game
 

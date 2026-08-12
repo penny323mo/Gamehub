@@ -8841,3 +8841,16 @@ gate 必須讀實際 computed style，並與 keyboard、contrast、HTTP browser 
 
 理由：`:focus-visible` 喺程式化或輔助輸入下未必觸發；對需要嘅 icon-only controls 補
 `:focus`，而遊戲畫面本身仍保留 crosshair／touch visual styling。
+
+## ADR-305 — Elden full-playthrough witness 必須讀可見 telegraph 並 fail-fast
+
+Date: 2026-08-12. Status: accepted.
+
+Elden Ring II 嘅長 witness 由瀏覽器內 keyboard-equivalent policy 驅動：行路、飲藥同
+翻滾只可以根據畫面已經呈現嘅玩家／敵人位置、Boss 招式及預警圈狀態決定；唔可以用
+`__ER2.推關()`、直接改 state 或讀未渲染內部資料當作通關。Boss 前搖出現後，policy
+會向遠離 telegraph 圓心方向翻滾，保留真正輸入同無敵窗嘅風險。
+
+`tests/playthrough-full.mjs` 收場時必須見到遊戲自己報 `status === "victory"`、chapter 3
+已完成、Boss 已清，並寫出 `PLAYTHROUGH=PASS`；任何死亡、timeout、卡住或只到 Boss
+都要返回 non-zero。呢條係產品通關 evidence，唔係只測 bot 內部邏輯。
