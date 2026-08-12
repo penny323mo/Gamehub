@@ -4,8 +4,8 @@ Updated: 2026-08-12 (Asia/Macau)
 Prepared by: Codex — intermediate Hub UI checkpoint
 Integration branch: `main`
 Work branch: `main`
-Status: Functional theme scaffold and Phase 0B asset authority are local; the Hub
-art direction is **not accepted** and its redesign precedes all Phase 0C work.
+Status: Remote checkpoint `720e145` is on `origin/main`; the Hub art direction is
+**not accepted** and its redesign precedes all Phase 0C work.
 ## Current objective
 
 First, rebuild the Hub themes under Evolution Plan §5.5 and ADR-312. Penny rejected
@@ -19,7 +19,7 @@ may change but must remain keyboard/touch accessible.
 
 ## Completed
 
-- Phase 0B is preserved in local commit `7c032b3`: AssetCatalog/RigCatalog,
+- Phase 0B is preserved in remote commit `7c032b3`: AssetCatalog/RigCatalog,
   deterministic 155-model runtime census, provenance 127 verified / 28 blocked,
   and readiness 118 ready / 37 blocked.
 - Added a functional three-theme scaffold: `neon-grid`, `editorial-arcade` and
@@ -67,15 +67,15 @@ may change but must remain keyboard/touch accessible.
   `node tests/hub-themes.mjs` PASS `205/205` across 320x568, 375x667, 667x375,
   844x390 and 1280x800; zero console/page/HTTP/external-request errors. This is
   still not visual acceptance.
-- Final existing Hub gate reruns: layout `100/100`, touch `5/5`, keyboard
-  `3/3`, storage `2/2`, load budget `3/3`, return-home `3/3`, readability/
-  contrast `3/3`. A concurrent first pass caused one Chromium screenshot capture
-  error and one focus-measurement miss; both isolated serial reruns passed, so no
-  game runtime was changed.
+- Final Hub reruns: layout `100/100`, touch `5/5`, keyboard `3/3`, storage `2/2`,
+  load `3/3`, Home `3/3`, readability `3/3`. Two concurrent-run transient misses
+  passed serially; no game runtime was changed.
 - Final static/infrastructure checks: launcher/theme Node syntax PASS; catalog
   artifact parity and catalog contract PASS; ReleaseGate `20/20`; MOBA/Hub cache
   token contract `3/3`; workflow YAML PASS; `git diff --check` PASS;
   `./scripts/check-handoff.sh` PASS.
+- Local/remote code SHA matched `720e145`; Pages run `31587293353` was in progress
+  at handoff and is non-blocking unless it reports an actionable regression.
 
 ## Known issues and cautions
 
