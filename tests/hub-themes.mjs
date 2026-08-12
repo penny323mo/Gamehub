@@ -120,8 +120,8 @@ const snapshot = (page) => page.evaluate(() => {
     };
     const pages = [...document.querySelectorAll('.game-page')];
     const active = document.querySelector('.game-page.active-page');
-    const activeCards = active ? [...active.querySelectorAll('.game-hub-card')] : [];
-    const allCards = [...document.querySelectorAll('.game-hub-card')];
+    const activeCards = active ? [...active.querySelectorAll('[data-game-id]')] : [];
+    const allCards = [...document.querySelectorAll('[data-game-id]')];
     const track = document.querySelector('.carousel-track');
     const trackContainer = document.querySelector('.carousel-track-container');
     const pageRect = active ? rect(active) : null;
@@ -164,11 +164,53 @@ const snapshot = (page) => page.evaluate(() => {
     const attrs = [document.documentElement, document.body, document.querySelector('#app-hub')]
         .map((el) => el?.getAttribute('data-hub-theme') ?? null);
     const pageStyle = active ? getComputedStyle(active) : null;
+
+    /*
+     * 媒介簽名：**唔讀 class、唔讀 data 屬性**，淨係問「呢個入口入面有冇一件
+     * 圖像嘢，佢個框係咩比例」。Command Deck 特登一件都冇——嗰個係 §5.5
+     * 容許嘅 no-thumbnail proof，所以 0 係一個有效答案，唔係搵唔到。
+     */
+    const mediaOf = (card) => {
+        const art = card.querySelector('img, picture, .art-glyph, .art-stones');
+        if (!art) return null;
+        // 圖像本身可能好細，要量嘅係佢個容器（螢幕窗／封面）。
+        let box = art;
+        while (box.parentElement && box.parentElement !== card
+            && box.getBoundingClientRect().width < card.getBoundingClientRect().width * 0.5) {
+            box = box.parentElement;
+        }
+        const r = box.getBoundingClientRect();
+        return { w: Math.round(r.width), h: Math.round(r.height),
+            ratio: r.height > 0 ? Number((r.width / r.height).toFixed(2)) : 0 };
+    };
+    const media = activeCards.map(mediaOf);
+    const union = (list) => {
+        if (!list.length) return null;
+        const left = Math.min(...list.map((r) => r.left));
+        const top = Math.min(...list.map((r) => r.top));
+        const right = Math.max(...list.map((r) => r.right));
+        const bottom = Math.max(...list.map((r) => r.bottom));
+        return { left, top, right, bottom, width: right - left, height: bottom - top,
+            cx: (left + right) / 2, cy: (top + bottom) / 2 };
+    };
+    const shell = document.querySelector('#app-hub > *');
+    const shellKids = shell ? [...shell.children].map((kid) => rect(kid)) : [];
+    // 殼係「左右分欄」定「上下疊」：睇第一層仔有冇兩個喺同一水平帶但唔同欄。
+    const sideBySide = shellKids.some((a, i) => shellKids.some((b, j) => j > i
+        && a.top < b.bottom - 8 && b.top < a.bottom - 8
+        && (a.right <= b.left + 2 || b.right <= a.left + 2)));
+
     return {
+        media,
+        mediaCount: media.filter(Boolean).length,
+        selectorBox: union(controls.map(rect)),
+        navDockBox: union(nav.map(rect)),
+        shellSideBySide: sideBySide,
+        shellKidCount: shellKids.length,
         themeValues, pressed, attrs,
         currentPage: Number(track?.dataset.currentPage ?? NaN),
         pageCount: pages.length,
-        pageSizes: pages.map((p) => p.querySelectorAll('.game-hub-card').length),
+        pageSizes: pages.map((p) => p.querySelectorAll('[data-game-id]').length),
         cardCount: allCards.length,
         ids: allCards.map((card) => card.dataset.gameId),
         hrefs: allCards.map((card) => card.getAttribute('href')),
@@ -311,82 +353,115 @@ const checkRoster = (label, state) => {
         docWidth: state.docWidth, innerWidth: state.innerWidth });
 };
 
-const checkNeon = (label, state, phone) => {
-    const xs = state.cardRects.map((r) => r.cx);
-    const ys = state.cardRects.map((r) => r.cy);
-    const columns = clusterCount(xs);
-    const rows = clusterCount(ys);
-    const expected = phone ? { columns: 2, rows: 2 } : { columns: 4, rows: 1 };
-    check(`${label}：neon-grid ${phone ? '手機 2×2' : 'desktop 4 columns'}`,
-        state.activeCount === 4 && columns === expected.columns && rows === expected.rows,
-    { columns, rows, expected });
+/*
+ * 逐套 theme 嘅**形狀簽名**，同埋三套之間要真係唔同。
+ *
+ * ADR-312 之後，「theme」唔可以再用「同一張卡換 class」交貨，所以呢度唔再
+ * 逐套寫死「四欄／一大三細／四行」嗰種寫法——嗰種寫法只係將實作抄多次入
+ * 把尺，實作點改，把尺就跟住改，永遠證明唔到「三套真係唔同」。
+ *
+ * 而家做兩層：
+ *   一、每套自己要企得穩（入口喺畫面內、唔重疊、尾頁擺得正）；
+ *   二、三套之間**至少要喺四個維度上唔同**——item 形狀、媒介處理、
+ *      導航 dock 擺位、theme selector 擺位。呢四樣全部由幾何量返嚟，
+ *      唔會因為換色而變。
+ */
+
+/** 一版嘅 item 形狀分類：純幾何，唔睇 class。 */
+const itemShape = (state) => {
+    const rects = state.cardRects;
+    if (rects.length !== 4) return 'n/a';
+    const areas = rects.map((r) => r.area);
+    const 最大 = Math.max(...areas);
+    const 最細 = Math.min(...areas);
+    const 闊 = rects.map((r) => r.width);
+    const 通欄 = Math.min(...闊) >= (state.pageRect?.width ?? 0) * 0.9;
+    if (最大 / Math.max(1, 最細) >= 1.5) return 'lead-and-index';   // 一大三細
+    if (通欄) return 'full-width-rows';                              // 四條打通嘅行
+    return 'uniform-tiles';                                          // 四格大細一樣嘅 tile
 };
 
-const checkEditorial = (label, state, phone) => {
-    const [feature, ...rail] = state.cardRects;
-    const railWidths = rail.map((r) => r.width);
-    const railHeights = rail.map((r) => r.height);
-    const railX = rail.map((r) => r.cx);
-    const railY = rail.map((r) => r.cy);
-    const near = (values, ratio = 1.35) => {
-        const min = Math.min(...values);
-        const max = Math.max(...values);
-        return min > 0 && max / min <= ratio;
-    };
-    const increasing = railY.every((value, i) => i === 0 || value > railY[i - 1] + 2);
-    const sideRail = !phone && feature && rail[0]
-        && feature.right <= Math.min(...rail.map((r) => r.left)) + 3
-        && near(railX, 10);
-    const stackedRail = phone && feature && rail[0]
-        && feature.bottom <= rail[0].top + 3;
-    check(`${label}：editorial first feature 面積明顯大過 rail`,
-        !!feature && rail.length === 3 && feature.area / Math.max(1, rail[0].area) >= (phone ? 1.2 : 1.6),
-    { feature: feature?.area, rail: rail.map((r) => r.area) });
-    check(`${label}：editorial 三張 compact rail 尺寸近似且順序向下`,
-        rail.length === 3 && near(railWidths) && near(railHeights) && increasing
-        && (phone ? stackedRail : sideRail),
-    { railWidths, railHeights, railX, railY, phone, sideRail, stackedRail });
+/** 媒介處理：每版有幾多個入口帶住圖像，同埋嗰個框嘅比例。 */
+const mediaShape = (state) => {
+    if (state.mediaCount === 0) return 'none';
+    const ratios = state.media.filter(Boolean).map((m) => m.ratio);
+    const 平 = ratios.reduce((a, b) => a + b, 0) / ratios.length;
+    return `${state.mediaCount}@${平 < 1.15 ? 'square-ish' : 平 < 1.55 ? 'landscape-4-3' : 'wide'}`;
 };
 
-const checkCommand = (label, state) => {
-    const rows = state.cardRects;
-    const x = rows.map((r) => r.cx);
-    const widths = rows.map((r) => r.width);
-    const heights = rows.map((r) => r.height);
-    const y = rows.map((r) => r.cy);
-    const pageWidth = state.pageRect?.width ?? 0;
-    const increasing = y.every((value, i) => i === 0 || value > y[i - 1] + 2);
-    const near = (values, ratio) => Math.max(...values) / Math.max(1, Math.min(...values)) <= ratio;
-    check(`${label}：command-deck 係四條垂直 row，唔係 grid`,
-        rows.length === 4 && state.pageDisplay !== 'grid'
-        && increasing && Math.max(...x) - Math.min(...x) <= 6
-        && near(widths, 1.2) && near(heights, 1.35)
-        && pageWidth > 0 && Math.min(...widths) / pageWidth >= 0.72
-        && state.commandChromeOverlap.length === 0,
-    { pageDisplay: state.pageDisplay, pageGridColumns: state.pageGridColumns,
-        x, y, widths, heights, pageWidth, commandChromeOverlap: state.commandChromeOverlap });
+/** 一個 box 喺畫面邊個區：把尺淨係關心「三套擺唔擺喺同一個位」。 */
+const zoneOf = (box, state) => {
+    if (!box) return 'none';
+    const x = box.cx / state.innerWidth;
+    const y = box.cy / state.innerHeight;
+    const 橫 = x < 0.34 ? 'left' : x > 0.66 ? 'right' : 'centre';
+    const 直 = y < 0.34 ? 'top' : y > 0.66 ? 'bottom' : 'middle';
+    return `${直}-${橫}`;
 };
 
-const checkTail = (label, state, theme) => {
+const signatureOf = (state) => ({
+    item: itemShape(state),
+    media: mediaShape(state),
+    nav: zoneOf(state.navDockBox, state),
+    selector: zoneOf(state.selectorBox, state),
+    shell: state.shellSideBySide ? 'rail-split' : 'stacked',
+});
+
+const checkShape = (label, state, theme) => {
+    const sig = signatureOf(state);
+    // 每套自己要企得穩：四個入口喺畫面入面、互不重疊、冇橫向捲。
+    check(`${label}：四個入口完整入 viewport、互不重疊、零 horizontal overflow`,
+        state.activeCount === 4 && state.insideViewport && state.overlaps.length === 0
+        && state.docWidth <= state.innerWidth + 1,
+    { sig, insideViewport: state.insideViewport, overlaps: state.overlaps,
+        docWidth: state.docWidth, innerWidth: state.innerWidth });
+    return sig;
+};
+
+/**
+ * 尾頁：淨低一個入口，唔可以貼住角落企。
+ *
+ * 舊版仲寫住「唔可以高過個頁框 98%」同 command 專屬嘅 `height <= 160`
+ * ——嗰兩條係度緊當時嗰張卡。一版雜誌淨低一篇，佢**應該**攤大成版；
+ * 真正要守嘅係「擺得正、唔會爆出 viewport、唔會細到搵唔到」。
+ */
+const checkTail = (label, state) => {
     const card = state.cardRects[0];
     const page = state.pageRect;
     const centred = !!card && !!page
         && Math.abs(card.cx - page.cx) <= 6 && Math.abs(card.cy - page.cy) <= 6;
     const sane = !!card && !!page && card.width >= 80 && card.height >= 80
-        && card.width <= page.width * 0.99 && card.height <= page.height * 0.98
-        && (theme !== 'command-deck'
-            || (card.height <= 160 && card.width >= page.width * 0.6))
-        && card.left >= -1 && card.right <= state.innerWidth + 1;
-    check(`${label}：尾頁單卡雙軸自然置中、尺寸合理`,
-        state.activeCount === 1 && centred && sane,
-    { card, page, centred, sane });
+        && card.width <= page.width + 1 && card.height <= page.height + 1
+        && card.left >= -1 && card.right <= state.innerWidth + 1
+        && card.top >= -1 && card.bottom <= state.innerHeight + 1;
+    check(`${label}：尾頁單卡喺自己頁框度雙軸置中、冇爆出畫面`,
+        state.activeCount === 1 && centred && sane, { card, page, centred, sane });
 };
 
-const checkLayout = (label, state, theme, phone) => {
-    if (theme === 'neon-grid') checkNeon(label, state, phone);
-    else if (theme === 'editorial-arcade') checkEditorial(label, state, phone);
-    else checkCommand(label, state);
+/** 三套之間嘅分別：四個維度入面至少要有三個唔同，而且冇兩套完全一樣。 */
+const checkDistinct = (label, sigs) => {
+    const keys = ['item', 'media', 'nav', 'selector'];
+    const 全同 = keys.filter((k) => new Set(THEMES.map((t) => sigs[t][k])).size === 1);
+    const 撞晒 = [];
+    for (let i = 0; i < THEMES.length; i++) {
+        for (let j = i + 1; j < THEMES.length; j++) {
+            const a = sigs[THEMES[i]], b = sigs[THEMES[j]];
+            if (keys.every((k) => a[k] === b[k])) 撞晒.push(`${THEMES[i]}=${THEMES[j]}`);
+        }
+    }
+    check(`${label}：三套 theme 嘅 item／媒介／導航／selector 唔可以四樣都一樣`,
+        撞晒.length === 0, { 撞晒, sigs });
+    check(`${label}：四個維度入面至少三個真係分到三套（唔可以淨係換色）`,
+        全同.length <= 1, { 全部一樣嘅維度: 全同, sigs });
+    check(`${label}：三套嘅 item archetype 各自唔同`,
+        new Set(THEMES.map((t) => sigs[t].item)).size === 3,
+        Object.fromEntries(THEMES.map((t) => [t, sigs[t].item])));
+    check(`${label}：三套嘅媒介處理各自唔同（包括「完全冇縮圖」呢個答案）`,
+        new Set(THEMES.map((t) => sigs[t].media)).size === 3,
+        Object.fromEntries(THEMES.map((t) => [t, sigs[t].media])));
 };
+
+
 
 const browser = await chromium.launch({
     ...(executablePath ? { executablePath } : {}),
@@ -434,7 +509,8 @@ try {
             let state = await snapshot(page);
             checkRoster(`${label} / neon-grid`, state);
             checkThemeState(`${label} / neon-grid`, state, 'neon-grid');
-            checkLayout(`${label} / neon-grid`, state, 'neon-grid', phone);
+            const sigs = {};
+            sigs['neon-grid'] = checkShape(`${label} / neon-grid`, state, 'neon-grid');
             check(`${label} / neon-grid：theme storage key 正確`,
                 await page.evaluate((key) => localStorage.getItem(key), THEME_STORAGE) === 'neon-grid',
             await page.evaluate((key) => localStorage.getItem(key), THEME_STORAGE));
@@ -443,11 +519,13 @@ try {
                 await selectTheme(page, theme);
                 state = await snapshot(page);
                 checkThemeState(`${label} / ${theme}`, state, theme);
-                checkLayout(`${label} / ${theme}`, state, theme, phone);
+                sigs[theme] = checkShape(`${label} / ${theme}`, state, theme);
                 check(`${label} / ${theme}：theme storage key 正確`,
                     await page.evaluate((key) => localStorage.getItem(key), THEME_STORAGE) === theme,
                 await page.evaluate((key) => localStorage.getItem(key), THEME_STORAGE));
             }
+
+            checkDistinct(label, sigs);
 
             // Changing theme must not silently reset the carousel page or links.
             await page.locator('.carousel-dot[data-page="0"]').click();
@@ -471,7 +549,7 @@ try {
             await page.waitForTimeout(450);
             for (const theme of THEMES) {
                 await selectTheme(page, theme);
-                checkTail(`${label} / ${theme}`, await snapshot(page), theme);
+                checkTail(`${label} / ${theme}`, await snapshot(page));
             }
 
             // Native keyboard focus and ArrowRight behaviour.

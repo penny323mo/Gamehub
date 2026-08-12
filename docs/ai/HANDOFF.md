@@ -1,120 +1,89 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — intermediate Hub UI checkpoint
+Prepared by: Claude Code (cloud) — ADR-313
 Integration branch: `main`
-Work branch: `main`
-Status: Remote checkpoint `720e145` is on `origin/main`; the Hub art direction is
-**not accepted** and its redesign precedes all Phase 0C work.
+Work branch: `claude/3d-tower-defense-game-rld6ts`
+Status: 三套 Hub theme 已經拆成三個獨立 renderer；`hub-themes` **220/220**、`hub` 100/100。
+**視覺驗收仲未做**——自動尺證到「結構真係唔同、冇壞」，證唔到「靚」。
+
 ## Current objective
 
-First, rebuild the Hub themes under Evolution Plan §5.5 and ADR-312. Penny rejected
-all three current variants, including default Neon, because they still read as one
-card carousel. Thumbnail/media, item form, app shell, information hierarchy and
-navigation composition must also differ.
+跟 Evolution Plan §5.5 同 ADR-312 重做 Hub theme。Penny 否決咗第一版三個變體：三個都
+仲係同一個卡片 carousel 換色。呢一輪已經落咗手，見下面；下一步係 §5.5 驗收第 1 同
+第 5 項（五個 viewport 嘅 full-page screenshot ＋ Penny headed review）。
 
-This is a UI-only scope. Preserve every game runtime, the 13-game catalog order,
-entry links, storage safety and launch/input semantics; theme-specific navigation
-may change but must remain keyboard/touch accessible.
+UI-only：唔准改任何遊戲 runtime、13 隻嘅次序、入口連結、storage 安全同 launch/input 語意。
 
 ## Completed
 
-- Phase 0B is preserved in remote commit `7c032b3`: AssetCatalog/RigCatalog,
-  deterministic 155-model runtime census, provenance 127 verified / 28 blocked,
-  and readiness 118 ready / 37 blocked.
-- Added a functional three-theme scaffold: `neon-grid`, `editorial-arcade` and
-  `command-deck`; native 44 px theme buttons persist under `gamehub-theme-v1`
-  and safely fall back when Web Storage is blocked.
-- Preserved the manifest-derived 13 entries, 4/4/4/1 pages, hrefs, inactive-page
-  tab contract, arrows, dots, keyboard and touch gestures.
-- Added `tests/hub-themes.mjs` and Pages CI wiring. The current contract exercises
-  all three theme IDs at five viewports, storage/reload, blocked storage,
-  keyboard, swipe/touchcancel, overflow and browser/network errors.
-- Split the root Hub cache token from the MOBA module graph (ADR-311). Root
-  launcher/style use `assets-32`; MOBA remains on `assets-31`.
-- Added a command-specific 20-minute ReleaseGate timeout for the existing MOBA
-  browser suite. GitHub run `31583123038` showed assertions continuing to pass;
-  the old outer 10-minute bound closed the page before completion.
-- Added Evolution Plan §5.5 and ADR-312. They make the rejected visual result and
-  the new shell/media/item acceptance contract durable for the next agent.
+**ADR-313 — theme 唔係一個 render function 加 class，係三個 render function**
 
-## Rejected prototype — do not mistake this for completion
-
-- Current Neon is the old four-tile grid, Editorial is a feature card plus three
-  compact rows, and Command is four rows plus a side pager. All three still inherit
-  too much of the same header, icon/thumbnail treatment, rounded-card silhouette
-  and content hierarchy; none is an accepted visual baseline.
-- The earlier `205/205` theme result is a **functional/responsive scaffold pass**,
-  not visual acceptance. Automated geometry can prove that controls work and do
-  not overlap; it cannot overrule Penny's headed visual review.
-- The next implementation may replace the internal card DOM. Keep only the
-  stable outer launch anchor/data-game-id, catalog data and accessibility/input
-  behavior where useful; do not preserve one universal visual `GameCard` merely
-  because the current test queries it.
+- **真兇係結構，唔係 CSS**：舊 `launcher.js` 得一個 `renderCarousel()` 砌一張
+  `.game-hub-card`，`updateThemeLayout()` 再喺同一張卡掛 `data-theme-role`。
+  **一個萬能卡片加 class，寫幾多 CSS 都變唔出第二套介面語言。**
+- `index.html` 淨返一個掛載點；三套 theme 各自有 `shell()` 同 `item()`，冇共用 card fallback：
+  - **Neon Grid**：招牌＋機台牆＋底部控制條；item 係街機櫃（招牌／4:3 CRT 螢幕／操作台）。
+  - **Editorial Arcade**：報頭＋不對稱 spread＋folio；**一套兩種 item**——頭條有大封面,
+    其餘三個係**完全冇圖**嘅編號索引行。
+  - **Command Deck**：左邊直立 rail＋status bar＋dispatch workspace；item 係**冇縮圖**嘅
+    dispatch row，讀數由 `capabilities` 畫出嚟（§5.5 容許嘅 no-thumbnail proof）。
+- **把尺唔再抄實作**：舊版逐套寫死「四欄／一大三細／四行」＝將實作抄多次入把尺,
+  證明唔到「三套真係唔同」。改成**簽名**（item 形狀／媒介處理／nav dock 位／selector 位,
+  全部由幾何量），再問「三套唔可以四樣都一樣」「至少三個維度分到三套」。**換色改唔到呢四個數。**
+- 三把尺嘅 `.game-hub-card` 改成 `[data-game-id]`（ADR-312 講明穩定契約係 anchor,
+  唔係 class）；`hub.mjs` 嗰條「dock ≤ 78% 畫面闊」拆走——嗰個度緊舊嗰個藥丸頁腳,
+  footprint 交返 `hub-themes` 逐套量。
+- 中途捉到嘅真嘢：Editorial 封面 `aspect-ratio` 撐爆矮畫面（109／123／139px）；
+  `667×375` 同時中咗 `max-width:700px`，**media query 淨係睇闊度就會喺 375 高度疊三層**；
+  `.carousel-track` 冇 `min-height:0`，min-content 高度變咗地板（844×390 撐高 9px）；
+  Command row 塞六個仔入五條 column，`DISPATCH` 跌落第二行；Neon 類型標籤 3.99:1
+  跌穿 AA（`hub-read` 捉到）。
 
 ## Changed files
 
-- Hub scaffold: `index.html`, `launcher.js`, `style.css`.
-- UI contract/CI: `tests/hub-themes.mjs`, `.github/workflows/deploy-pages.yml`.
-- Cache/release integration: `games/moba/tests/cache-bust.mjs`,
-  `scripts/moba-bump-cache.mjs`, `games/manifest.json`, generated catalog.
-- Roadmap/context: `docs/GAMEHUB_EVOLUTION_PLAN.md`, `PROJECT_CONTEXT.md`,
-  `DECISIONS.md`, this handoff.
+- `index.html`（淨返掛載點）、`launcher.js`（三個 renderer）、`style.css`（三段獨立 theme）。
+- `tests/hub-themes.mjs`（簽名式驗證）、`tests/hub.mjs`（改用 `[data-game-id]` 契約）。
+- Hub cache token `assets-32 → assets-33`（MOBA 仍然係 `assets-31`，冇合埋）。
 
 ## Verification
 
-- Final functional scaffold rerun after this documentation checkpoint:
-  `node tests/hub-themes.mjs` PASS `205/205` across 320x568, 375x667, 667x375,
-  844x390 and 1280x800; zero console/page/HTTP/external-request errors. This is
-  still not visual acceptance.
-- Final Hub reruns: layout `100/100`, touch `5/5`, keyboard `3/3`, storage `2/2`,
-  load `3/3`, Home `3/3`, readability `3/3`. Two concurrent-run transient misses
-  passed serially; no game runtime was changed.
-- Final static/infrastructure checks: launcher/theme Node syntax PASS; catalog
-  artifact parity and catalog contract PASS; ReleaseGate `20/20`; MOBA/Hub cache
-  token contract `3/3`; workflow YAML PASS; `git diff --check` PASS;
-  `./scripts/check-handoff.sh` PASS.
-- Local/remote code SHA matched `720e145`; Pages run `31587293353` was in progress
-  at handoff and is non-blocking unless it reports an actionable regression.
+- `hub-themes` **220/220**（三套 × 五個 canonical viewport）、`hub` **100/100**、
+  `hub-touch` 5/5、`hub-read` 3/3、`hub-load` 3/3、`hub-home` 3/3、`hub-storage` 2/2、
+  ReleaseGate 20/20、catalog parity PASS、MOBA/Hub token 契約 3/3。
+- 三套 × 五個 viewport 實測：零重疊、零出界、零橫向／直向捲、冇細過 44px 嘅控制、
+  零 console/page error。
+- Mutation：Editorial 退返用 Neon 個 item → 只叫得出「item archetype」同「媒介處理」
+  兩條，其餘照綠。
+- 簽名實際值：item `uniform-tiles`／`lead-and-index`／`full-width-rows`；
+  媒介 `4@landscape-4-3`／`1@wide`／`none`。
 
 ## Known issues and cautions
 
-- Visual acceptance is open and is the highest-priority blocker. Do not report
-  any of the three current variants as complete until §5.5 screenshot/layout-
-  signature and Penny headed acceptance all pass.
-- Game media is still mainly the old emoji/local-logo treatment. The redesign
-  needs canonical gameplay capture variants with explicit crop/aspect/byte
-  budgets; this remains UI media work and must not modify game logic.
-- Phase 0B license blockers remain Racing Tripo 1, Ashen Tripo 4 and Royale Meshy
-  23. Do not relabel or reuse them without evidence.
-- `hub-cdn.mjs` previously measured Xiangqi DCL timing at 1.07–1.10 seconds
-  against a 1.0-second threshold while every functional CDN assertion passed.
-  This is outside the UI scope; remeasure on a quiet runner instead of rewriting
-  Xiangqi.
-- The MOBA full browser suite is intentionally long. Keep its command-specific
-  timeout; do not raise the global default or weaken gameplay assertions.
+- **視覺驗收未做，亦唔可以由自動尺代。** 220/220 證嘅係「結構唔同、冇壞」。
+- `hub-keyboard` 有一條紅：**Elden Ring II** 個 `#hub-return` focus ring 睇唔到。
+  唔關 Hub 事（今輪冇掂過嗰隻遊戲），但要有人接。
+- Phase 0B license blockers 仍然係 Racing Tripo 1、Ashen Tripo 4、Royale Meshy 23。
+- `hub-cdn` 之前量到 Xiangqi DCL 1.07–1.10 秒（門檻 1.0）；要喺清靜 runner 重量,
+  唔好為咗過尺去改 Xiangqi。
+- **呢個 container 一鬥資源就出假紅**：背景跑住第二個 suite 嗰陣，其他尺報過
+  「模型未預載就攞」同「撳唔到掣」——單獨再跑全綠。**一次紅要單獨再跑先算數。**
+- **開工前一定要 `--sync`**；`pgrep -f` 會撞到自己；做 mutation 要先 `cp`。
 
 ## Exact next action
 
-1. **First TODO — rebuild the Hub UI.** Start from Evolution Plan §5.5 and
-   ADR-312. Produce three independently composed shells and three different game
-   media/item archetypes, not a shared rounded card with theme modifiers.
-2. Extend `tests/hub-themes.mjs` with shell/nav/item/media layout signatures, then
-   inspect full-page screenshots at all five canonical viewports. Zero automated
-   errors is necessary but Penny's headed visual acceptance is the completion
-   gate.
-3. Keep the side quest UI-only, update the root Hub cache token, run Hub/catalog/
-   release/handoff gates, commit and push the accepted redesign.
-4. Only after UI acceptance, resume Phase 0C scene/rig/performance baselines for
-   Royale, Racing and Elden.
+1. 影五個 canonical viewport × 三套 theme 嘅 full-page screenshot，交 Penny headed
+   review（§5.5 驗收第 1 同第 5 項）。**唔好用 220/220 當視覺驗收。**
+2. 媒介仲係 emoji／舊 logo。§5.5 要 canonical gameplay capture（來源、crop variant、
+   尺寸、byte budget 入 AssetCatalog）——呢步係 UI media 工作，唔准改遊戲邏輯。
+3. 驗收之後先返 Phase 0C（Royale／Racing／Elden 嘅 scene/rig/performance baseline）。
 
 ## Do not redo
 
-- Do not rescan or recreate GameCatalog, ReleaseGate, AssetCatalog or RigCatalog.
-- Do not use one universal thumbnail/card component and call CSS colour, font,
-  radius, shadow, crop ratio or ordering changes a new theme.
-- Do not change game order, links, save data or any game runtime for this task.
-- Do not treat `205/205` as proof of visual quality or weaken tests to fit a bad
-  layout.
-- Do not hand-edit generated catalog/census files, merge Hub/MOBA cache tokens,
-  force-push, or claim the 12-month evolution roadmap complete.
+- 唔好再用一個萬能 thumbnail／card component，再靠 theme class 換色、圓角、陰影、
+  比例或者排序當新 theme。
+- 唔好將把尺寫成「抄一次實作嘅幾何」——要問簽名，唔係問「係咪四欄」。
+- 唔好改遊戲次序、連結、存檔或者任何遊戲 runtime；唔好合埋 Hub／MOBA cache token；
+  唔好手改 generated catalog／census；唔好 force-push。
+- 唔好為咗遷就一個排版而放寬把尺（今輪拆走嗰條 dock 闊度係因為佢度緊舊設計，
+  唔係因為新設計過唔到）。

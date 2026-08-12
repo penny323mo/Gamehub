@@ -10,16 +10,20 @@
     src: url('assets/fonts/outfit-latin.woff2?v=assets-30') format('woff2');
 }
 
+/*
+ * 三套 theme 係三套介面語言，唔係三個 palette（ADR-312）。
+ *
+ * 呢個檔按 theme 分三段，每段自己定 shell、媒介同 item 嘅樣。共用嘅只有：
+ * reset、字型、同埋一條「一次見一版」嘅頁軌機制（`.carousel-*`／`.game-page`）
+ * ——嗰個係導航語意，唔係外觀；三套 theme 各自決定條軌擺喺邊、四周有咩。
+ */
+
 :root {
-    --bg-darker: #020617;
-    --card-bg: rgba(15, 23, 42, 0.78);
-    --card-bg-hover: rgba(24, 38, 61, 0.92);
-    --glass-border: rgba(148, 163, 184, 0.18);
-    --neon-blue: #0ea5e9;
-    --neon-cyan: #22d3ee;
-    --text-main: #f8fafc;
-    --text-muted: #94a3b8;
+    --hub-ink: #f8fafc;
     --font-stack: 'Outfit', system-ui, -apple-system, sans-serif;
+    --font-serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+    --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+    --touch: 44px;
 }
 
 * {
@@ -37,1395 +41,957 @@ html {
 body {
     width: 100%;
     min-height: 100vh;
-    padding: clamp(16px, 3vw, 34px);
     overflow-x: hidden;
-    background-color: var(--bg-darker);
-    background-image:
-        radial-gradient(circle at 12% 14%, rgba(139, 92, 246, 0.18), transparent 28%),
-        radial-gradient(circle at 88% 82%, rgba(34, 211, 238, 0.16), transparent 30%);
-    color: var(--text-main);
+    color: var(--hub-ink);
     font-family: var(--font-stack);
+    -webkit-text-size-adjust: 100%;
 }
 
-.switch-container {
-    width: 100%;
-    max-width: 1180px;
-    margin: 0 auto;
+#app-hub {
+    min-height: 100vh;
+    display: flex;
 }
 
-.hub-header {
-    margin-bottom: clamp(14px, 2.5vh, 28px);
-    text-align: center;
+#app-hub > * {
+    flex: 1;
+    min-width: 0;
 }
 
-.hub-header h1 {
-    color: var(--neon-cyan);
-    font-size: clamp(2.2rem, 5vw, 3.35rem);
-    font-weight: 800;
-    letter-spacing: 0.07em;
-    line-height: 1;
-    text-shadow: 0 0 24px rgba(34, 211, 238, 0.38);
-    text-transform: uppercase;
+img,
+picture {
+    max-width: 100%;
 }
 
-.hub-subnote {
-    margin-top: 0.55rem;
-    color: var(--text-muted);
-    font-size: 0.78rem;
-    letter-spacing: 0.15em;
-    text-transform: lowercase;
-}
-
-/* Four games form one page. The track moves page-by-page, rather than leaving
-   twelve absolute cards hidden around one oversized centre card. */
-.carousel-container {
-    position: relative;
-    width: 100%;
-    padding: 0;
-}
+/* ---------- 共用機制：一次見一版 ---------- */
 
 .carousel-track-container {
-    position: relative;
-    width: 100%;
     overflow: hidden;
-    border-radius: 28px;
-    touch-action: pan-y;
+    flex: 1;
+    min-height: 0;
+    display: flex;
 }
 
 .carousel-track {
     display: flex;
     width: 100%;
-    align-items: stretch;
+    /* 冇 `min-height: 0` 嘅話，條軌嘅 min-content 高度（即係最高嗰版）會變成
+       個殼嘅地板，flex 縮唔落——實測 844×390 之下成頁撐高咗 9px。 */
+    min-height: 0;
     list-style: none;
-    transition: transform 0.38s cubic-bezier(0.22, 0.75, 0.24, 1);
-    will-change: transform;
+    transition: transform 0.42s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .carousel-track { transition: none; }
 }
 
 .game-page {
-    display: grid;
-    flex: 0 0 100%;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: clamp(12px, 1.7vw, 20px);
+    min-width: 100%;
     width: 100%;
-    padding: 10px;
+    min-height: 0;
+}
+
+/* 收埋咗嗰版唔可以食到鍵盤 focus，亦唔可以令條軌長高。 */
+.game-page[aria-hidden='true'] {
+    visibility: hidden;
+    max-height: 100%;
+}
+
+a { text-decoration: none; color: inherit; }
+button { font: inherit; cursor: pointer; }
+
+.is-locked { pointer-events: none; }
+
+/* 每套 theme 嘅共用可觸控下限（`tests/hub-touch.mjs` 守 44px；dot 係 WCAG
+   2.5.8 嘅 24px 例外，因為 320px 闊度塞唔落四粒 44px）。 */
+.theme-option,
+.nav-btn {
+    min-width: var(--touch);
+    min-height: var(--touch);
+    touch-action: manipulation;
+}
+
+.carousel-dot {
+    min-width: 24px;
+    min-height: 24px;
+    touch-action: manipulation;
+    border: 0;
+    background: none;
+    color: inherit;
+}
+
+/* ===================================================================
+   THEME 1 — NEON GRID：街機牆
+   殼＝發光招牌 ＋ 機台牆 ＋ 底部控制條。
+   媒介＝4:3 CRT 螢幕窗（有掃描線）。
+   Item＝街機櫃：上招牌、中螢幕、下機身，成個櫃就係入口。
+   =================================================================== */
+
+[data-hub-theme='neon-grid'] body,
+body[data-hub-theme='neon-grid'] {
+    background-color: #05060f;
+    background-image:
+        radial-gradient(circle at 50% -10%, rgba(56, 189, 248, 0.22), transparent 55%),
+        repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.05) 0 1px, transparent 1px 44px),
+        repeating-linear-gradient(0deg, rgba(148, 163, 184, 0.05) 0 1px, transparent 1px 44px);
+}
+
+.ng-wall {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(8px, 1.6vh, 18px);
+    padding: clamp(10px, 2.2vw, 26px);
+    min-height: 100vh;
+}
+
+.ng-marquee {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: clamp(6px, 1.2vh, 12px) clamp(10px, 2vw, 22px);
+    border: 2px solid rgba(34, 211, 238, 0.45);
+    border-radius: 6px;
+    background: linear-gradient(180deg, rgba(8, 14, 30, 0.95), rgba(3, 6, 14, 0.95));
+    box-shadow: 0 0 0 1px rgba(2, 6, 23, 0.9), 0 0 24px rgba(34, 211, 238, 0.28);
+}
+
+.ng-sign { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+.ng-sign-text {
+    font-size: clamp(19px, 3.4vw, 34px);
+    font-weight: 800;
+    letter-spacing: clamp(3px, 1vw, 9px);
+    color: #e0f2fe;
+    text-shadow: 0 0 8px rgba(34, 211, 238, 0.9), 0 0 26px rgba(14, 165, 233, 0.55);
+}
+
+/* 招牌燈泡：一行細圓點，唔用圖片。 */
+.ng-sign-bulbs {
+    height: 6px;
+    background-image: radial-gradient(circle, rgba(250, 204, 21, 0.95) 42%, transparent 44%);
+    background-size: 12px 6px;
+    opacity: 0.75;
+}
+
+.ng-coinslot { display: flex; gap: 6px; flex-shrink: 0; }
+
+.ng-coin {
+    padding: 0 clamp(6px, 1.4vw, 14px);
+    border: 2px solid rgba(148, 163, 184, 0.35);
+    border-radius: 3px;
+    background: #0b1120;
+    color: #94a3b8;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+}
+
+.ng-coin.active {
+    border-color: #22d3ee;
+    color: #06121b;
+    background: linear-gradient(180deg, #67e8f9, #22d3ee);
+    box-shadow: 0 0 18px rgba(34, 211, 238, 0.6);
+}
+
+.ng-coin:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
+
+/* 機台企喺地台上面。個地台唔係裝飾：大螢幕之下四個櫃跟內容高，如果淨係
+   置中就會浮喺半空，成幅牆變咗一行吊住嘅卡。企落地就讀得出係一間機舖。 */
+.ng-floor {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: clamp(6px, 1.4vh, 16px);
+    background:
+        linear-gradient(180deg, transparent 62%, rgba(34, 211, 238, 0.06) 88%, rgba(34, 211, 238, 0.16) 100%),
+        repeating-linear-gradient(90deg, rgba(34, 211, 238, 0.07) 0 1px, transparent 1px 56px) bottom / 100% 34% no-repeat;
+    border-bottom: 1px solid rgba(34, 211, 238, 0.32);
+}
+
+/* 機台跟內容高（招牌＋4:3 螢幕＋機身），成行企喺地台上。
+   之前用 `stretch`，喺 1280×800 之下每個櫃畀拉到 570px 高，螢幕下面就吊住
+   一浸 300px 死位——一幅機台牆唔應該有咁大浸嘢。 */
+.page-neon-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: clamp(8px, 1.4vw, 18px);
+    align-content: end;
     align-items: stretch;
 }
 
-.game-page[aria-hidden='true'] {
-    pointer-events: none;
-}
-
-/* 13 隻遊戲嘅尾頁得一張卡。佢仍然使用正常 tile 尺寸，喺與 2×2 頁
-   相同嘅舞台正中展示；唔可以再畀 flex cross-axis 撐成雙倍高度兼貼左。 */
-.game-page[data-count='1'] {
-    display: flex;
-    align-items: center;
+/* 尾頁得一隻遊戲：唔可以貼住左下角企。三套 theme 都要自己處理呢一版
+   ——`4/4/4/1` 係共用嘅分頁契約，但「淨低一個點擺」係各自嘅排版問題。 */
+.page-neon-grid[data-count='1'] {
+    /* 用返同一條軌闊公式，唔可以自己寫個數：寫死 260px 嘅話尾頁嗰個櫃就會
+       大過首頁嗰四個（實測 844×390 度 260 對 196）。 */
+    grid-template-columns: minmax(0, calc((100% - 3 * clamp(8px, 1.4vw, 18px)) / 4));
     justify-content: center;
+    align-content: center;
 }
 
-.game-page[data-count='1'] .game-hub-card {
-    width: min(260px, 24%);
+@media (max-width: 560px) {
+    .page-neon-grid[data-count='1'] {
+        grid-template-columns: minmax(0, calc((100% - clamp(8px, 1.4vw, 18px)) / 2));
+    }
 }
 
-.game-hub-card {
-    position: relative;
-    display: flex;
-    min-width: 0;
-    min-height: 305px;
-    padding: 22px 18px 18px;
-    flex-direction: column;
-    align-items: center;
-    overflow: hidden;
-    border: 1px solid var(--glass-border);
-    border-radius: 22px;
-    background: linear-gradient(150deg, rgba(35, 50, 74, 0.72), var(--card-bg));
-    box-shadow: 0 14px 34px -18px rgba(0, 0, 0, 0.85);
-    color: var(--text-main);
-    text-align: center;
-    text-decoration: none;
-    backdrop-filter: blur(16px);
-    transition: transform 0.22s ease, border-color 0.22s ease,
-        background 0.22s ease, box-shadow 0.22s ease;
-}
-
-.game-hub-card::before {
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(circle at 50% 12%, rgba(34, 211, 238, 0.1), transparent 42%);
-    content: '';
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.22s ease;
-}
-
-.game-hub-card:hover,
-.game-hub-card:focus-visible {
-    z-index: 2;
-    border-color: rgba(34, 211, 238, 0.72);
-    outline: none;
-    background: linear-gradient(150deg, var(--card-bg-hover), rgba(10, 22, 40, 0.94));
-    box-shadow: 0 20px 44px -18px rgba(0, 0, 0, 0.92), 0 0 24px rgba(14, 165, 233, 0.2);
-    transform: translateY(-5px);
-}
-
-.game-hub-card:hover::before,
-.game-hub-card:focus-visible::before {
-    opacity: 1;
-}
-
-.game-hub-card.disabled {
-    cursor: not-allowed;
-    filter: grayscale(0.75);
-    opacity: 0.55;
-}
-
-.card-category {
-    align-self: flex-start;
-    padding: 4px 9px;
-    border: 1px solid rgba(34, 211, 238, 0.22);
-    border-radius: 999px;
-    color: #a5f3fc;
-    font-size: 0.67rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    line-height: 1;
-}
-
-.card-icon {
+/* 街機櫃 */
+/* 招牌、4:3 螢幕、然後**機身食晒淨低嘅高度**——真機台螢幕下面就係一塊
+   操作台。之前第三行係 `auto`，多出嚟嘅高度冇人要，成行櫃就吊喺半空。 */
+.ng-cab {
     display: grid;
-    width: 76px;
-    height: 76px;
-    margin: 16px auto 12px;
-    place-items: center;
-    font-size: 3.5rem;
-    filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.1));
-    line-height: 1;
-    transition: transform 0.22s ease;
-}
-
-.game-hub-card:hover .card-icon,
-.game-hub-card:focus-visible .card-icon {
-    transform: scale(1.08);
-}
-
-.card-icon-img {
-    width: 72px;
-    height: 72px;
-    border-radius: 12px;
-    object-fit: contain;
-}
-
-.gomoku-stones {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-}
-
-.gomoku-stone {
-    display: block;
-    width: 31px;
-    height: 31px;
-    flex: 0 0 31px;
-    border-radius: 50%;
-}
-
-.gomoku-stone.black {
-    border: 1px solid #334155;
-    background: radial-gradient(circle at 34% 27%, #475569 0, #101827 30%, #020409 72%);
-    box-shadow: inset -3px -4px 7px rgba(0, 0, 0, 0.68), 0 4px 9px rgba(0, 0, 0, 0.42);
-}
-
-.gomoku-stone.white {
-    border: 1px solid #cbd5e1;
-    background: radial-gradient(circle at 34% 27%, #fff 0, #f1f5f9 42%, #b7c3d0 100%);
-    box-shadow: inset -3px -4px 7px rgba(100, 116, 139, 0.25), 0 4px 9px rgba(0, 0, 0, 0.32);
-}
-
-.card-copy {
-    display: flex;
-    min-width: 0;
-    flex: 1;
-    flex-direction: column;
-    align-items: center;
-}
-
-.card-copy strong {
-    width: 100%;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    max-height: min(100%, 520px);
+    border: 2px solid rgba(148, 163, 184, 0.3);
+    border-radius: 10px 10px 4px 4px;
+    background: linear-gradient(180deg, #131c33 0%, #0a1020 60%, #070b16 100%);
     overflow: hidden;
-    color: var(--text-main);
-    font-size: clamp(1.05rem, 1.7vw, 1.35rem);
-    font-weight: 700;
-    line-height: 1.16;
+    min-height: 0;
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.ng-cab-marquee {
+    padding: 7px 8px;
+    background: linear-gradient(180deg, rgba(34, 211, 238, 0.22), rgba(34, 211, 238, 0.05));
+    border-bottom: 1px solid rgba(34, 211, 238, 0.35);
+    text-align: center;
+}
+
+.ng-cab-title {
+    display: block;
+    font-size: clamp(12px, 1.5vw, 16px);
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: #e0f2fe;
+    text-shadow: 0 0 10px rgba(34, 211, 238, 0.55);
+    overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.card-description {
-    display: -webkit-box;
-    margin-top: 9px;
-    overflow: hidden;
-    color: var(--text-muted);
-    font-size: 0.8rem;
-    line-height: 1.35;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-}
-
-.pill-btn {
-    min-width: 76px;
-    margin-top: 15px;
-    padding: 8px 15px;
-    border: 1px solid rgba(34, 211, 238, 0.28);
-    border-radius: 9px;
-    background: rgba(14, 165, 233, 0.08);
-    color: #d9faff;
-    font-size: 0.73rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-}
-
-.nav-btn {
-    display: grid;
-    width: 44px;
-    height: 44px;
-    flex: 0 0 44px;
-    border: 1px solid var(--glass-border);
-    border-radius: 50%;
-    background: rgba(30, 41, 59, 0.88);
-    color: var(--neon-cyan);
-    cursor: pointer;
-    font-size: 1.15rem;
-    place-items: center;
-    transition: color 0.2s, background 0.2s, transform 0.2s;
-}
-
-.nav-btn:hover,
-.nav-btn:focus-visible {
-    outline: none;
-    background: var(--neon-blue);
-    color: white;
-    transform: scale(1.07);
-}
-
-.carousel-footer {
-    display: flex;
-    width: max-content;
-    max-width: 100%;
-    min-height: 50px;
-    margin: 10px auto 0;
-    padding: 5px 7px;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    border: 1px solid rgba(148, 163, 184, 0.14);
-    border-radius: 999px;
-    background: rgba(15, 23, 42, 0.62);
-    box-shadow: 0 14px 35px -22px rgba(0, 0, 0, 0.9);
-    backdrop-filter: blur(14px);
-}
-
-.carousel-dots {
-    display: flex;
-    align-items: center;
-    /* 圓點嘅手指範圍係 24×24；作用中嗰粒畫出嚟有 24 闊，所以佢個掣 28。
-       間距保證每個 24px 方框各自獨立（圓心相距最少 24）。 */
-    gap: 3px;
-}
-
-.carousel-dot.active { width: 28px; }
-
-/* 圓點：畫出嚟得 8px，但撳嘅範圍唔可以係 8px。
-   點解唔跟 MOBA 嗰條 44px（ADR-107）：喺 320 闊度之下，四粒點各佔 44
-   已經係 176，加埋兩個箭咀 88 就塞唔落——條線唔係唔想守，係幾何上守唔到。
-   所以呢度用 WCAG 2.5.8 嘅 24×24，並且靠間距保證每粒點嘅 24px 方框唔會
-   互相搶。箭咀同一行照守 44：佢哋係單獨目標，有位。
-   視覺上維持原本嘅細點，用 ::before 畫，掣本身淨係做手指範圍。 */
-.carousel-dot {
+/* CRT 螢幕窗：4:3，凹入去，有掃描線。 */
+.ng-cab-screen {
     position: relative;
-    width: 24px;
-    height: 24px;
-    padding: 0;
-    border: 0;
-    background: none;
-    cursor: pointer;
+    margin: clamp(6px, 1vw, 12px);
+    border: 2px solid #05070f;
+    border-radius: 4px;
+    background: radial-gradient(circle at 50% 40%, #10233a, #050810 78%);
+    box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.95);
+    display: grid;
+    place-items: center;
+    aspect-ratio: 4 / 3;
+    min-height: 0;
+    overflow: hidden;
 }
 
-.carousel-dot::before {
-    content: '';
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 8px;
-    height: 8px;
-    transform: translate(-50%, -50%);
-    border-radius: 999px;
-    background: rgba(148, 163, 184, 0.38);
-    transition: width 0.2s, background 0.2s;
-}
-
-.carousel-dot.active::before {
-    width: 24px;
-    background: var(--neon-cyan);
-}
-
-.carousel-dot:focus-visible {
-    outline: 2px solid white;
-    outline-offset: 3px;
-}
-
-.carousel-status {
-    min-width: 32px;
-    color: var(--text-muted);
-    font-size: 0.68rem;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.08em;
-}
-
-/* 最窄嘅機：控制 dock 要塞得落。箭咀升到 44 之後，dock 喺 320 闊度去到
-   281px，超出「唔可以闊過畫面 78%」嗰條線。慳返嗰截喺頁碼度出——
-   四粒圓點已經講咗同一件事（第幾組、共幾組），而箭咀嘅可撳面積係
-   一個手指問題，唔可以拎去換。 */
-@media (max-width: 380px) {
-    .carousel-status { display: none; }
-}
-
-@media (max-width: 760px) {
-    body {
-        padding: 14px 10px;
-    }
-
-    .hub-header {
-        margin-bottom: 7px;
-    }
-
-    .hub-header h1 {
-        font-size: clamp(1.9rem, 10vw, 2.55rem);
-    }
-
-    .hub-subnote {
-        margin-top: 0.38rem;
-        font-size: 0.65rem;
-    }
-
-    .carousel-container {
-        padding: 0;
-    }
-
-    .carousel-track-container {
-        border-radius: 20px;
-    }
-
-    .game-page {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
-        padding: 7px 4px;
-    }
-
-    .game-hub-card {
-        min-height: 160px;
-        padding: 10px 10px 34px;
-        border-radius: 19px;
-        justify-content: flex-start;
-        background: linear-gradient(155deg, rgba(32, 48, 73, 0.82), rgba(10, 20, 37, 0.9));
-    }
-
-    .game-page[data-count='1'] .game-hub-card {
-        width: calc((100% - 10px) / 2);
-        max-width: 210px;
-    }
-
-    .card-category {
-        padding: 3px 7px;
-        font-size: 0.57rem;
-    }
-
-    .card-icon {
-        width: 58px;
-        height: 58px;
-        margin: 7px auto 7px;
-        border: 1px solid rgba(148, 163, 184, 0.12);
-        border-radius: 17px;
-        background: radial-gradient(circle at 50% 32%, rgba(255, 255, 255, 0.08), rgba(2, 6, 23, 0.2));
-        box-shadow: inset 0 1px rgba(255, 255, 255, 0.035);
-        font-size: 2.55rem;
-    }
-
-    .card-icon-img {
-        width: 52px;
-        height: 52px;
-        border-radius: 12px;
-    }
-
-    .gomoku-stones { gap: 6px; }
-    .gomoku-stone { width: 23px; height: 23px; flex-basis: 23px; }
-
-    .card-copy strong {
-        font-size: clamp(0.9rem, 4.3vw, 1.08rem);
-    }
-
-    .card-copy {
-        flex: 0 0 auto;
-    }
-
-    .card-description {
-        margin-top: 4px;
-        font-size: 0.65rem;
-        line-height: 1.28;
-        -webkit-line-clamp: 1;
-    }
-
-    .pill-btn {
-        position: absolute;
-        right: 9px;
-        bottom: 9px;
-        display: grid;
-        width: 25px;
-        height: 25px;
-        min-width: 0;
-        margin: 0;
-        padding: 0;
-        border-radius: 50%;
-        font-size: 0;
-        place-items: center;
-    }
-
-    .pill-btn::after {
-        content: '\2197';
-        font-size: 0.72rem;
-        line-height: 1;
-    }
-
-    .nav-btn {
-        width: 44px;
-        height: 44px;
-        flex-basis: 44px;
-    }
-
-    .nav-btn:hover,
-    .nav-btn:focus-visible {
-        transform: scale(1.06);
-    }
-
-    .carousel-footer {
-        min-height: 52px;
-        margin-top: 11px;
-        padding: 5px 6px;
-        gap: 9px;
-    }
-}
-
-/* 高身手機唔好將成組內容黐實頂部，再留半版死位喺下面。保留少少視覺
-   上移量，避開純幾何正中睇落過低，同時尊重 iPhone safe area。 */
-@media (max-width: 760px) and (min-height: 700px) {
-    body {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding-top: max(14px, env(safe-area-inset-top));
-        padding-bottom: max(72px, 11vh);
-    }
-}
-
-/* iPhone 橫向一類 844×390 嘅短畫面仍然保留一排四格，但收緊垂直空間。
-   否則四張卡雖然「數學上喺 carousel 入面」，Play 掣實際會跌出 viewport。 */
-@media (min-width: 761px) and (max-height: 500px) {
-    body { padding: 8px 14px; }
-    .hub-header { margin-bottom: 3px; }
-    .hub-header h1 { font-size: 2rem; }
-    .hub-subnote { margin-top: 0.25rem; font-size: 0.62rem; }
-    .carousel-container { padding: 0; }
-    .game-page { gap: 10px; padding: 6px; }
-    .game-hub-card { min-height: 226px; padding: 11px 10px 10px; border-radius: 18px; }
-    .card-category { padding: 3px 7px; font-size: 0.56rem; }
-    .card-icon { width: 51px; height: 51px; margin: 7px auto 5px; font-size: 2.5rem; }
-    .card-icon-img { width: 49px; height: 49px; border-radius: 9px; }
-    .gomoku-stones { gap: 6px; }
-    .gomoku-stone { width: 23px; height: 23px; flex-basis: 23px; }
-    .card-copy strong { font-size: 1rem; }
-    .card-description { margin-top: 5px; font-size: 0.66rem; line-height: 1.25; }
-    .pill-btn { min-width: 64px; margin-top: 7px; padding: 5px 11px; font-size: 0.62rem; }
-    .nav-btn { width: 44px; height: 44px; flex-basis: 44px; }
-    .nav-btn:hover, .nav-btn:focus-visible {
-        transform: scale(1.06);
-    }
-    .carousel-footer { min-height: 48px; margin-top: 3px; padding: 2px 6px; }
-}
-
-@media (max-width: 360px), (max-height: 620px) and (max-width: 760px) {
-    body { padding-top: 9px; }
-    .hub-header h1 { font-size: 1.75rem; }
-    .hub-subnote { margin-top: 0.25rem; }
-    .game-page { gap: 7px; padding-top: 5px; }
-    .game-hub-card { min-height: 150px; padding: 8px 8px 31px; }
-    .card-icon { width: 43px; height: 43px; margin: 6px auto 4px; font-size: 2.2rem; }
-    .card-icon-img { width: 42px; height: 42px; }
-    .card-description { -webkit-line-clamp: 1; }
-    .pill-btn { margin-top: 6px; padding: 5px 10px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .carousel-track,
-    .game-hub-card,
-    .card-icon,
-    .nav-btn,
-    .carousel-dot {
-        transition: none;
-    }
-}
-
-/* Theme picker ----------------------------------------------------------- */
-.hub-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 18px;
-    text-align: left;
-}
-
-.hub-heading {
-    min-width: 0;
-}
-
-.hub-heading .hub-subnote {
-    text-align: left;
-}
-
-.theme-controls {
-    display: flex;
-    width: min(100%, 354px);
-    min-height: 50px;
-    padding: 3px;
-    align-items: stretch;
-    gap: 3px;
-    border: 1px solid var(--glass-border);
-    border-radius: 15px;
-    background: rgba(15, 23, 42, 0.72);
-    box-shadow: 0 10px 22px -16px rgba(0, 0, 0, 0.86);
-}
-
-.theme-option {
-    display: inline-flex;
-    min-width: 44px;
-    min-height: 44px;
-    flex: 1 1 0;
-    padding: 7px 9px;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid transparent;
-    border-radius: 11px;
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-    font: inherit;
-    font-size: 0.67rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
+.ng-cab-art {
+    font-size: clamp(24px, 4.4vw, 46px);
     line-height: 1;
+    filter: drop-shadow(0 0 12px rgba(34, 211, 238, 0.5));
+}
+
+.ng-cab-art img { width: clamp(34px, 5vw, 62px); height: auto; display: block; }
+
+/* 五子棋冇 emoji 亦冇 logo：喺螢幕度直接畫一黑一白兩粒棋。 */
+/* 兩粒棋之間要睇得出係兩粒（`tests/hub.mjs` 守 ≥5px）。 */
+.art-stones { display: inline-flex; align-items: center; gap: clamp(5px, 0.6vw, 9px); }
+
+.art-stones .stone {
+    width: clamp(16px, 2.4vw, 30px);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    display: block;
+}
+
+.art-stones .stone.black {
+    background: radial-gradient(circle at 34% 30%, #64748b, #0b1120 68%);
+    border: 1px solid rgba(148, 163, 184, 0.45);
+}
+
+.art-stones .stone.white {
+    background: radial-gradient(circle at 34% 30%, #ffffff, #cbd5e1 70%);
+    border: 1px solid rgba(148, 163, 184, 0.5);
+}
+
+.ng-cab-scan {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.42) 0 1px, transparent 1px 3px);
+    pointer-events: none;
+}
+
+.ng-cab-bezel {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 6px;
+    min-height: 34px;
+    padding: 7px clamp(6px, 1vw, 12px) 8px;
+    border-top: 1px solid rgba(148, 163, 184, 0.18);
+    background:
+        radial-gradient(circle at 22% 34%, rgba(56, 189, 248, 0.16) 0 3px, transparent 4px),
+        radial-gradient(circle at 34% 34%, rgba(250, 204, 21, 0.16) 0 3px, transparent 4px),
+        linear-gradient(180deg, rgba(15, 23, 42, 0.9), rgba(2, 6, 16, 0.95));
+}
+
+.ng-cab-genre {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    /* `#64748b` 喺機身呢個底色度實測得 3.99–4.21:1，跌穿 WCAG AA 4.5。
+       呢行字唔係裝飾——佢係「呢部機係咩類型」。 */
+    color: #9fb3c8;
     text-transform: uppercase;
     white-space: nowrap;
-    transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease,
-        box-shadow 0.2s ease;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.theme-option:hover,
-.theme-option:focus-visible {
-    border-color: rgba(148, 163, 184, 0.38);
-    color: var(--text-main);
+.ng-cab-start {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #facc15;
+    white-space: nowrap;
+    animation: ng-blink 1.6s steps(2, end) infinite;
+}
+
+@keyframes ng-blink { 50% { opacity: 0.25; } }
+
+@media (prefers-reduced-motion: reduce) {
+    .ng-cab-start { animation: none; }
+}
+
+.ng-cab:hover,
+.ng-cab:focus-visible {
+    transform: translateY(-3px);
+    border-color: #22d3ee;
+    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.5), 0 12px 30px rgba(2, 6, 23, 0.8);
     outline: none;
 }
 
-.theme-option:focus-visible {
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.86), 0 0 0 6px rgba(14, 165, 233, 0.62);
-}
+.ng-cab.is-locked { opacity: 0.42; }
+.ng-cab.is-locked .ng-cab-start { color: #ef4444; animation: none; }
 
-.theme-option.active {
-    border-color: rgba(34, 211, 238, 0.72);
-    background: rgba(14, 165, 233, 0.2);
-    color: var(--text-main);
-    box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.12);
-}
-
-/* Each theme changes its material language as well as its layout. The
-   selectors intentionally key off the same data attribute written to html,
-   body, and #app-hub so a screenshot, a host integration, and CSS all observe
-   one state. */
-body[data-hub-theme='editorial-arcade'] {
-    --bg-darker: #201a16;
-    --card-bg: rgba(62, 43, 34, 0.88);
-    --card-bg-hover: rgba(87, 56, 40, 0.96);
-    --glass-border: rgba(245, 190, 128, 0.32);
-    --neon-blue: #c66b3d;
-    --neon-cyan: #f4b36a;
-    --text-main: #fff5e8;
-    --text-muted: #d8bda1;
-    background-color: var(--bg-darker);
-    background-image:
-        linear-gradient(135deg, rgba(244, 179, 106, 0.08) 25%, transparent 25%),
-        radial-gradient(circle at 80% 14%, rgba(202, 112, 61, 0.24), transparent 32%),
-        radial-gradient(circle at 12% 86%, rgba(244, 179, 106, 0.1), transparent 34%);
-}
-
-body[data-hub-theme='command-deck'] {
-    --bg-darker: #071016;
-    --card-bg: rgba(13, 36, 45, 0.9);
-    --card-bg-hover: rgba(15, 56, 67, 0.96);
-    --glass-border: rgba(115, 218, 205, 0.3);
-    --neon-blue: #18a994;
-    --neon-cyan: #73dacd;
-    --text-main: #ecfffc;
-    --text-muted: #9bc4c0;
-    background-color: var(--bg-darker);
-    background-image:
-        linear-gradient(90deg, rgba(115, 218, 205, 0.055) 1px, transparent 1px),
-        linear-gradient(rgba(115, 218, 205, 0.045) 1px, transparent 1px),
-        radial-gradient(circle at 50% 0%, rgba(24, 169, 148, 0.22), transparent 42%);
-    background-size: 28px 28px, 28px 28px, auto;
-}
-
-body[data-hub-theme='editorial-arcade'] .hub-header h1 {
-    color: #f4b36a;
-    font-family: Georgia, 'Times New Roman', serif;
-    letter-spacing: 0.02em;
-    text-shadow: 3px 3px 0 rgba(107, 50, 28, 0.8);
-}
-
-body[data-hub-theme='command-deck'] .hub-header h1 {
-    color: #73dacd;
-    font-family: 'SF Mono', Menlo, Consolas, monospace;
-    font-size: clamp(1.8rem, 4.5vw, 2.9rem);
-    letter-spacing: 0.12em;
-    text-shadow: 0 0 18px rgba(115, 218, 205, 0.32);
-}
-
-#app-hub[data-hub-theme='editorial-arcade'] .game-hub-card {
-    border-color: rgba(245, 190, 128, 0.32);
-    background: linear-gradient(145deg, rgba(92, 60, 42, 0.92), rgba(42, 29, 25, 0.96));
-    border-radius: 12px;
-    box-shadow: 5px 5px 0 rgba(104, 55, 32, 0.4), 0 14px 28px -18px rgba(0, 0, 0, 0.86);
-}
-
-#app-hub[data-hub-theme='editorial-arcade'] .game-hub-card::before {
-    background: linear-gradient(135deg, rgba(244, 179, 106, 0.16), transparent 44%);
-}
-
-#app-hub[data-hub-theme='command-deck'] .game-hub-card {
-    border-color: rgba(115, 218, 205, 0.28);
-    background: linear-gradient(105deg, rgba(14, 52, 60, 0.94), rgba(7, 22, 29, 0.96));
-    border-radius: 8px;
-    box-shadow: inset 4px 0 0 rgba(115, 218, 205, 0.22), 0 12px 24px -18px rgba(0, 0, 0, 0.88);
-}
-
-/* Editorial Arcade: one lead story plus a compact three-item rail. */
-@media (min-width: 761px) {
-    #app-hub[data-hub-theme='editorial-arcade'] .game-page:not([data-count='1']) {
-        grid-template-columns: minmax(0, 1.72fr) minmax(210px, 0.82fr);
-        grid-template-rows: repeat(3, minmax(0, 1fr));
-        gap: 12px;
-        min-height: 430px;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature {
-        grid-column: 1;
-        grid-row: 1 / -1;
-        min-height: 0;
-        padding: 26px 24px 22px;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature .card-icon {
-        width: 102px;
-        height: 102px;
-        margin-top: 28px;
-        font-size: 4.8rem;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature .card-icon-img {
-        width: 96px;
-        height: 96px;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail {
-        grid-column: 2;
-        min-height: 0;
-        flex-direction: row;
-        align-items: center;
-        padding: 12px 14px;
-        text-align: left;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-category {
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        max-width: 46%;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-icon {
-        width: 48px;
-        height: 48px;
-        flex: 0 0 48px;
-        margin: 0 11px 0 0;
-        font-size: 2.3rem;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-icon-img {
-        width: 44px;
-        height: 44px;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-copy {
-        min-width: 0;
-        align-items: flex-start;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-copy strong {
-        font-size: 0.95rem;
-        text-align: left;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-description {
-        margin-top: 4px;
-        font-size: 0.67rem;
-        text-align: left;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .pill-btn {
-        min-width: 54px;
-        margin: 0 0 0 8px;
-        padding: 6px 8px;
-        font-size: 0.62rem;
-    }
-}
-
-/* Command Deck: a vertical queue with controls moved to a desktop/landscape
-   rail. Portrait devices use the same controls as a bottom dock below the
-   queue (the existing carousel-footer remains the anchor for both modes). */
-@media (min-width: 761px) {
-    #app-hub[data-hub-theme='command-deck'] .carousel-container {
-        padding-right: 72px;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .game-page:not([data-count='1']) {
-        display: flex;
-        flex-direction: column;
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: repeat(4, minmax(0, 1fr));
-        gap: 9px;
-        min-height: 430px;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row {
-        min-height: 0;
-        height: 100%;
-        flex: 1 1 0;
-        flex-direction: row;
-        align-items: center;
-        padding: 12px 16px;
-        text-align: left;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-category {
-        position: absolute;
-        top: 8px;
-        right: 12px;
-        max-width: 30%;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-icon {
-        width: 52px;
-        height: 52px;
-        flex: 0 0 52px;
-        margin: 0 15px 0 0;
-        font-size: 2.5rem;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-icon-img {
-        width: 48px;
-        height: 48px;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-copy {
-        min-width: 0;
-        align-items: flex-start;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-copy strong,
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-description {
-        text-align: left;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-description {
-        margin-top: 4px;
-        font-size: 0.68rem;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .pill-btn {
-        min-width: 62px;
-        margin: 0 0 0 12px;
-        padding: 7px 9px;
-        font-size: 0.63rem;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .carousel-footer {
-        position: absolute;
-        top: 50%;
-        right: 4px;
-        width: 56px;
-        min-height: 0;
-        margin: 0;
-        padding: 6px 4px;
-        flex-direction: column;
-        gap: 6px;
-        border-radius: 28px;
-        transform: translateY(-50%);
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .carousel-footer .carousel-dots {
-        display: grid;
-        width: 48px;
-        max-width: 48px;
-        grid-template-columns: repeat(2, 24px);
-        grid-auto-rows: 24px;
-        gap: 0;
-        justify-content: center;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .carousel-footer .carousel-dot.active {
-        width: 24px;
-    }
-}
-
-/* The last page has one card. Let every theme use the established natural
-   centering contract instead of stretching a single feature/queue row. */
-#app-hub[data-hub-theme='editorial-arcade'] .game-page[data-count='1'],
-#app-hub[data-hub-theme='command-deck'] .game-page[data-count='1'] {
+/* 底部控制條：搖桿箭咀 ＋ 一行分頁燈 ＋ credits 讀數。 */
+.ng-rail {
     display: flex;
-    min-height: 0;
     align-items: center;
+    gap: clamp(8px, 2vw, 18px);
+    padding: 6px clamp(8px, 2vw, 18px);
+    border: 2px solid rgba(148, 163, 184, 0.25);
+    border-radius: 6px;
+    background: linear-gradient(180deg, #0d1526, #060a14);
+}
+
+.ng-stick {
+    border: 2px solid rgba(34, 211, 238, 0.45);
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #1e293b, #0b1120);
+    color: #67e8f9;
+    font-size: 15px;
+}
+
+.ng-stick:hover,
+.ng-stick:focus-visible { border-color: #67e8f9; color: #cffafe; outline: none; }
+
+.ng-lights { display: flex; gap: 8px; margin-inline: auto; }
+
+.ng-light {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid rgba(148, 163, 184, 0.4);
+    background: #0b1120;
+}
+
+.ng-light.active {
+    border-color: #facc15;
+    background: radial-gradient(circle, #fde68a, #f59e0b);
+    box-shadow: 0 0 14px rgba(250, 204, 21, 0.8);
+}
+
+.ng-credits {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: #facc15;
+}
+
+/* 手機直度：機台牆變 2×2。 */
+@media (max-width: 560px) {
+    .page-neon-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    /* 320×568 度 2×2 只得 4px 鬆動位，操作台唔可以再佔一個固定下限。 */
+    .ng-cab-bezel { min-height: 0; }
+    .ng-floor { padding-bottom: 4px; }
+    /* 招牌同投幣掣要分兩行：375px 度三粒掣食咗 230px，招牌得返 110px，
+       「GAME HUB」就會斷行、燈泡條仲要畀切走一截。 */
+    .ng-marquee { flex-direction: column; align-items: stretch; gap: 8px; }
+    .ng-sign-text { letter-spacing: 3px; text-align: center; }
+    .ng-coinslot { justify-content: center; }
+    .ng-coin { flex: 1; }
+}
+
+/* 打橫矮畫面：招牌同控制條收扁，四個機台照樣一行。 */
+@media (max-height: 430px) {
+    .ng-wall { gap: 6px; padding: 8px 12px; }
+    .ng-marquee { padding: 4px 12px; }
+    .ng-sign-bulbs { display: none; }
+    .ng-cab-marquee { padding: 4px 6px; }
+    .ng-rail { padding: 3px 12px; }
+}
+
+/* ===================================================================
+   THEME 2 — EDITORIAL ARCADE：雜誌
+   殼＝報頭（issue line／serif 字標／strapline）＋ 不對稱 spread ＋ folio 頁腳。
+   媒介＝頭條有大封面圖；索引行**完全冇圖**。
+   Item＝兩種：lead story，同埋編號索引行。
+   =================================================================== */
+
+[data-hub-theme='editorial-arcade'] body,
+body[data-hub-theme='editorial-arcade'] {
+    background: #f4f1ea;
+    color: #14110d;
+}
+
+.ed-issue {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(8px, 1.4vh, 16px);
+    padding: clamp(12px, 2.4vw, 34px);
+    min-height: 100vh;
+    background: #f4f1ea;
+}
+
+.ed-masthead {
+    border-bottom: 3px double #14110d;
+    padding-bottom: clamp(6px, 1vh, 12px);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+        'issue sections'
+        'word  sections'
+        'strap sections';
+    align-items: end;
+    column-gap: 12px;
+}
+
+.ed-issueline {
+    grid-area: issue;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #7c6f5a;
+}
+
+.ed-wordmark {
+    grid-area: word;
+    font-family: var(--font-serif);
+    font-size: clamp(28px, 6.4vw, 62px);
+    font-weight: 400;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: #14110d;
+}
+
+.ed-strap {
+    grid-area: strap;
+    font-size: 11px;
+    font-style: italic;
+    color: #7c6f5a;
+}
+
+.ed-sections {
+    grid-area: sections;
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    align-self: end;
+}
+
+.ed-section {
+    border: 0;
+    border-bottom: 3px solid transparent;
+    background: none;
+    padding: 0 clamp(6px, 1.2vw, 12px);
+    color: #7c6f5a;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.ed-section.active { color: #14110d; border-bottom-color: #b91c1c; }
+.ed-section:focus-visible { outline: 2px solid #b91c1c; outline-offset: 2px; }
+
+.ed-spread { flex: 1; min-height: 0; display: flex; }
+
+/* 頁本身要跟住個殼嘅高度收，唔可以由內容話事。 */
+.page-editorial-arcade { height: 100%; }
+
+/* 三條索引行分攤成欄高：`auto` 嘅話喺 1280×800 之下佢哋全部擠喺頂部，
+   下面吊住 240px 空白——一版雜誌可以留白，但唔係咁樣留。 */
+.page-editorial-arcade {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    column-gap: clamp(14px, 2.6vw, 34px);
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+    align-content: stretch;
+}
+
+/* 頭條：封面圖 ＋ kicker／headline／standfirst ＋ read-on。 */
+.ed-lead {
+    grid-row: 1 / span 3;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(6px, 1.2vh, 14px);
+    min-height: 0;
+    overflow: hidden;
+    border-right: 1px solid #d6cfc0;
+    padding-right: clamp(12px, 2.2vw, 30px);
+}
+
+/* 封面要**夾得住**：`aspect-ratio` 一個人講嗮數，喺矮畫面度會迫到成個 spread
+   撐出 viewport（實測 320×568 撐多 109px、667×375 撐多 139px）。所以比例只係
+   一個目標，`max-height` 先係話事嗰個。 */
+.ed-cover {
+    flex: 1 1 0;
+    min-height: 48px;
+    display: grid;
+    place-items: center;
+    background: #14110d;
+    aspect-ratio: 3 / 2;
+    max-height: 44vh;
+    overflow: hidden;
+}
+
+.ed-cover-art { font-size: clamp(40px, 8vw, 96px); line-height: 1; }
+.ed-cover-art img { width: clamp(56px, 9vw, 128px); height: auto; display: block; }
+
+.ed-lead-body { display: flex; flex-direction: column; gap: 4px; }
+
+.ed-kicker {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #b91c1c;
+}
+
+.ed-headline {
+    font-family: var(--font-serif);
+    font-size: clamp(20px, 3.4vw, 40px);
+    line-height: 1.05;
+    color: #14110d;
+}
+
+.ed-standfirst {
+    font-size: clamp(11px, 1.2vw, 15px);
+    line-height: 1.45;
+    color: #4a4238;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.ed-readon {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #14110d;
+    border-bottom: 2px solid #b91c1c;
+    align-self: flex-start;
+    padding-bottom: 2px;
+}
+
+.ed-lead:hover .ed-headline,
+.ed-lead:focus-visible .ed-headline { color: #b91c1c; }
+.ed-lead:focus-visible { outline: 2px solid #b91c1c; outline-offset: 4px; }
+
+/* 索引行：冇圖，靠編號、橫線同頁碼分層。 */
+.ed-entry {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    column-gap: clamp(8px, 1.4vw, 16px);
+    align-items: center;
+    align-content: center;
+    padding: clamp(6px, 1.1vh, 13px) 0;
+    border-bottom: 1px solid #d6cfc0;
+}
+
+.ed-entry:first-of-type { border-top: 1px solid #d6cfc0; }
+
+.ed-entry-no {
+    font-family: var(--font-serif);
+    font-size: clamp(15px, 2vw, 24px);
+    color: #b91c1c;
+    line-height: 1;
+}
+
+.ed-entry-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+.ed-entry-kicker {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: #8a7c65;
+}
+
+.ed-entry-title {
+    font-family: var(--font-serif);
+    font-size: clamp(14px, 1.7vw, 21px);
+    line-height: 1.15;
+    color: #14110d;
+}
+
+.ed-entry-note {
+    font-size: clamp(10px, 1vw, 12px);
+    color: #6b6154;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ed-entry-folio {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: #8a7c65;
+}
+
+.ed-entry:hover .ed-entry-title,
+.ed-entry:focus-visible .ed-entry-title { color: #b91c1c; }
+.ed-entry:focus-visible { outline: 2px solid #b91c1c; outline-offset: 2px; }
+.ed-entry.is-locked { opacity: 0.45; }
+
+.page-editorial-arcade[data-count='1'] {
+    grid-template-columns: minmax(0, min(560px, 100%));
+    grid-template-rows: minmax(0, 1fr);
+    justify-content: center;
+    align-content: center;
+}
+
+.page-editorial-arcade[data-count='1'] .ed-lead {
+    grid-row: auto;
+    border-right: 0;
+    padding-right: 0;
+}
+
+/* Folio：翻頁係文字，唔係圓掣。 */
+.ed-folio {
+    display: flex;
+    align-items: center;
+    gap: clamp(8px, 2vw, 20px);
+    border-top: 3px double #14110d;
+    padding-top: 4px;
+}
+
+.ed-turn {
+    border: 0;
+    background: none;
+    color: #14110d;
+    font-family: var(--font-serif);
+    font-size: clamp(11px, 1.3vw, 15px);
+    padding: 0 4px;
+}
+
+.ed-turn:hover,
+.ed-turn:focus-visible { color: #b91c1c; outline: none; text-decoration: underline; }
+
+.ed-pagenos { display: flex; gap: 4px; margin-inline: auto; }
+
+.ed-pageno {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #8a7c65;
+    border-bottom: 2px solid transparent;
+    padding: 0 4px;
+}
+
+.ed-pageno.active { color: #b91c1c; border-bottom-color: #b91c1c; }
+
+.ed-folio-count {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: #8a7c65;
+}
+
+/* 手機**直度**：頭條上、索引落底，仍然係雜誌排版而唔係四張卡。
+   一定要連 `min-height` 一齊寫：667×375 打橫嗰陣闊度都係細過 700，淨係睇闊度
+   就會喺一個得 375 高嘅畫面度疊三層——實測撐爆 123px。 */
+@media (max-width: 700px) and (min-height: 431px) {
+    .page-editorial-arcade {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr) auto auto auto;
+        row-gap: clamp(6px, 1.2vh, 12px);
+    }
+    .ed-lead {
+        grid-row: auto;
+        border-right: 0;
+        padding-right: 0;
+        border-bottom: 1px solid #d6cfc0;
+        padding-bottom: 8px;
+    }
+    .ed-cover { aspect-ratio: 16 / 9; max-height: 26vh; }
+    .ed-masthead {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas: 'issue' 'word' 'strap' 'sections';
+        row-gap: 2px;
+    }
+    .ed-sections { align-self: start; margin-top: 4px; }
+}
+
+/* 打橫矮畫面：報頭壓扁，封面唔可以食晒個 spread。 */
+@media (max-height: 430px) {
+    .ed-issue { gap: 6px; padding: 8px 14px; }
+    .ed-wordmark { font-size: clamp(20px, 3.6vw, 30px); }
+    .ed-issueline, .ed-strap { display: none; }
+    .ed-cover { aspect-ratio: auto; min-height: 44px; max-height: 30vh; }
+    .ed-entry { padding: 4px 0; }
+}
+
+/* ===================================================================
+   THEME 3 — COMMAND DECK：調度台
+   殼＝左邊直立 system rail ＋ 頂部 status bar ＋ dispatch workspace ＋ 指示燈。
+   媒介＝**冇縮圖**。由 capabilities 直接畫一條 schematic 讀數（§5.5 容許嘅
+   明確 no-thumbnail proof）——一部調度台擺嘅係讀數，唔係遊戲封面。
+   Item＝dispatch row：編號、讀數、呼號、狀態旗、派遣動作。
+   =================================================================== */
+
+[data-hub-theme='command-deck'] body,
+body[data-hub-theme='command-deck'] {
+    background: #06090c;
+    color: #cfe3d6;
+}
+
+.cd-console {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    min-height: 100vh;
+    background:
+        linear-gradient(180deg, rgba(16, 185, 129, 0.05), transparent 30%),
+        #06090c;
+}
+
+.cd-rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 8px;
+    border-right: 1px solid rgba(16, 185, 129, 0.28);
+    background: #080d10;
+}
+
+.cd-sigil {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #34d399;
+    border: 1px solid rgba(52, 211, 153, 0.5);
+    padding: 6px 7px;
+}
+
+.cd-keys { display: flex; flex-direction: column; gap: 6px; }
+
+.cd-key {
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    background: #0b1216;
+    color: #7f9c8c;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 4px 2px;
+    writing-mode: vertical-rl;
+}
+
+.cd-key.active {
+    border-color: #34d399;
+    color: #06090c;
+    background: #34d399;
+}
+
+.cd-key:focus-visible { outline: 2px solid #fbbf24; outline-offset: 2px; }
+
+.cd-railnav { margin-top: auto; display: flex; flex-direction: column; gap: 6px; }
+
+.cd-step {
+    border: 1px solid rgba(52, 211, 153, 0.4);
+    background: #0b1216;
+    color: #34d399;
+    font-size: 12px;
+}
+
+.cd-step:hover,
+.cd-step:focus-visible { background: #10201a; outline: none; }
+
+.cd-main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 10px clamp(10px, 1.8vw, 22px) 8px;
+    gap: 8px;
+}
+
+.cd-statusbar {
+    display: flex;
+    align-items: center;
+    gap: clamp(8px, 2vw, 22px);
+    border-bottom: 1px solid rgba(16, 185, 129, 0.28);
+    padding-bottom: 6px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: #6b8a7a;
+}
+
+.cd-stat { white-space: nowrap; }
+.cd-sectorno { margin-left: auto; color: #34d399; }
+
+.cd-workspace { flex: 1; min-height: 0; display: flex; }
+
+.page-command-deck {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
     justify-content: center;
 }
 
-#app-hub[data-hub-theme='command-deck'] .game-page[data-count='1'] .theme-command-row {
-    width: min(720px, 72%);
-    max-width: none;
-    height: 112px;
-    min-height: 112px;
+/* 行要填得滿個 workspace，但唔可以肥到似卡片。 */
+.page-command-deck > .cd-row { flex: 1 1 0; max-height: 124px; }
+
+/* 尾頁得一單任務：一條 44px 高嘅線唔似一個可以派出去嘅目標，亦細過把尺
+   對「一個入口」嘅下限（80px）。畀佢企成一塊單獨嘅面板。 */
+.page-command-deck[data-count='1'] { justify-content: center; }
+.page-command-deck[data-count='1'] > .cd-row {
     flex: 0 0 auto;
+    min-height: clamp(86px, 18vh, 124px);
 }
 
-@media (max-width: 760px) {
-    .hub-header {
-        flex-direction: column;
-        gap: 7px;
-        text-align: center;
-    }
-
-    .hub-heading {
-        width: 100%;
-    }
-
-    .hub-heading .hub-subnote {
-        text-align: center;
-    }
-
-    .theme-controls {
-        width: min(100%, 354px);
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .game-page:not([data-count='1']) {
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: minmax(0, 1.8fr) repeat(3, minmax(0, 0.68fr));
-        gap: 7px;
-        height: clamp(300px, 56vh, 430px);
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature {
-        grid-column: 1;
-        grid-row: 1;
-        min-height: 0;
-        padding: 12px 12px 28px;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature .card-icon {
-        width: 64px;
-        height: 64px;
-        margin: 7px auto 6px;
-        font-size: 2.8rem;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature .card-icon-img {
-        width: 58px;
-        height: 58px;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail {
-        grid-column: 1;
-        min-height: 0;
-        flex-direction: row;
-        align-items: center;
-        padding: 7px 10px;
-        text-align: left;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-category {
-        position: absolute;
-        top: 6px;
-        right: 8px;
-        max-width: 34%;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-icon {
-        width: 40px;
-        height: 40px;
-        flex: 0 0 40px;
-        margin: 0 8px 0 0;
-        font-size: 1.9rem;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-icon-img {
-        width: 37px;
-        height: 37px;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-copy {
-        align-items: flex-start;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-copy strong,
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-description {
-        text-align: left;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-copy strong {
-        font-size: 0.82rem;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-description {
-        margin-top: 2px;
-        font-size: 0.6rem;
-        -webkit-line-clamp: 1;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .pill-btn {
-        width: 25px;
-        height: 25px;
-        min-width: 0;
-        margin: 0 0 0 6px;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .game-page:not([data-count='1']) {
-        display: flex;
-        flex-direction: column;
-        grid-template-columns: minmax(0, 1fr);
-        grid-auto-rows: minmax(0, 1fr);
-        gap: 7px;
-        height: clamp(300px, 56vh, 430px);
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row {
-        min-height: 0;
-        height: 100%;
-        flex: 1 1 0;
-        flex-direction: row;
-        align-items: center;
-        padding: 8px 10px;
-        text-align: left;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-category {
-        position: absolute;
-        top: 5px;
-        right: 8px;
-        max-width: 34%;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-icon {
-        width: 42px;
-        height: 42px;
-        flex: 0 0 42px;
-        margin: 0 9px 0 0;
-        font-size: 2rem;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-icon-img {
-        width: 39px;
-        height: 39px;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-copy {
-        align-items: flex-start;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-copy strong,
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-description {
-        text-align: left;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-copy strong {
-        font-size: 0.84rem;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-description {
-        margin-top: 2px;
-        font-size: 0.6rem;
-        -webkit-line-clamp: 1;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .pill-btn {
-        width: 25px;
-        height: 25px;
-        min-width: 0;
-        margin: 0 0 0 6px;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .carousel-container {
-        padding-right: 0;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .carousel-footer {
-        position: relative;
-        top: auto;
-        right: auto;
-        width: max-content;
-        min-height: 52px;
-        margin: 11px auto 0;
-        padding: 5px 6px;
-        flex-direction: row;
-        transform: none;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .game-page[data-count='1'] .theme-command-row {
-        width: 100%;
-        height: 112px;
-        min-height: 112px;
-    }
+/* Dispatch row */
+.cd-row {
+    display: grid;
+    /* 六個仔就要六條 column。之前寫五條，`DISPATCH` 就跌咗落第二行,
+       喺 1280×800 度睇得一清二楚。 */
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
+    align-items: center;
+    column-gap: clamp(8px, 1.4vw, 18px);
+    padding: clamp(5px, 1vh, 11px) clamp(8px, 1.4vw, 16px);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-left: 3px solid rgba(52, 211, 153, 0.55);
+    background: linear-gradient(90deg, rgba(16, 185, 129, 0.07), rgba(6, 9, 12, 0.2) 40%);
 }
 
-/* Short landscape is intentionally compact: command controls stay a side
-   rail and editorial keeps the feature/rail hierarchy without vertical spill. */
-@media (min-width: 761px) and (max-height: 500px) {
-    .hub-header {
-        gap: 10px;
-    }
-
-    .theme-controls {
-        min-height: 46px;
-    }
-
-    .theme-option {
-        min-height: 44px;
-        font-size: 0.6rem;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .game-page:not([data-count='1']),
-    #app-hub[data-hub-theme='command-deck'] .game-page:not([data-count='1']) {
-        min-height: 226px;
-        height: 226px;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature {
-        padding: 13px 14px 12px;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature .card-icon {
-        width: 64px;
-        height: 64px;
-        margin: 8px auto 5px;
-        font-size: 2.8rem;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature .card-icon-img {
-        width: 59px;
-        height: 59px;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail {
-        padding: 7px 9px;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .carousel-container {
-        padding-right: 62px;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row {
-        padding: 7px 10px;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-icon {
-        width: 40px;
-        height: 40px;
-        flex-basis: 40px;
-        margin-right: 9px;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-icon-img {
-        width: 37px;
-        height: 37px;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-copy strong {
-        font-size: 0.84rem;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-description {
-        font-size: 0.6rem;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-category {
-        top: 50%;
-        right: 82px;
-        transform: translateY(-50%);
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .carousel-footer {
-        width: 50px;
-        padding: 4px 3px;
-        gap: 4px;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .carousel-footer .nav-btn {
-        width: 44px;
-        height: 44px;
-        flex-basis: 44px;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .game-page[data-count='1'] .theme-command-row {
-        width: min(560px, 78%);
-        height: 96px;
-        min-height: 96px;
-    }
+.cd-desig {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: #55705f;
+    white-space: nowrap;
 }
 
-/* 667×375 is a short landscape phone: keep the phone's 2×2 neon grid, but
-   reclaim the vertical space that the portrait header would otherwise use.
-   Command uses the requested landscape navigation rail at this breakpoint. */
-@media (min-width: 600px) and (max-width: 760px) and (max-height: 500px) {
-    body {
-        padding: 6px 14px;
-    }
-
-    .hub-header {
-        flex-direction: row;
-        gap: 12px;
-        margin-bottom: 3px;
-        text-align: left;
-    }
-
-    .hub-heading {
-        width: auto;
-        flex: 1 1 auto;
-    }
-
-    .hub-heading .hub-subnote {
-        text-align: left;
-    }
-
-    .hub-header h1 {
-        font-size: 1.8rem;
-    }
-
-    .hub-subnote {
-        margin-top: 0.25rem;
-        font-size: 0.6rem;
-    }
-
-    .theme-controls {
-        width: min(320px, 48vw);
-        min-height: 50px;
-        flex: 0 0 min(320px, 48vw);
-    }
-
-    .theme-option {
-        min-height: 44px;
-        font-size: 0.59rem;
-    }
-
-    .carousel-track-container {
-        height: 220px;
-    }
-
-    .game-page:not([data-count='1']) {
-        height: 220px;
-        min-height: 220px;
-        grid-template-rows: repeat(2, minmax(0, 1fr));
-        gap: 7px;
-        padding: 5px;
-    }
-
-    .game-hub-card {
-        min-height: 0;
-        height: 100%;
-        padding: 7px 8px 31px;
-    }
-
-    .card-icon {
-        width: 43px;
-        height: 43px;
-        margin: 6px auto 4px;
-        font-size: 2.2rem;
-    }
-
-    .card-icon-img {
-        width: 42px;
-        height: 42px;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .game-page:not([data-count='1']) {
-        height: 220px;
-        min-height: 220px;
-        grid-template-rows: minmax(0, 1.6fr) repeat(3, minmax(0, 0.55fr));
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature {
-        min-height: 0;
-        padding: 7px 9px 28px;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature .card-icon {
-        width: 54px;
-        height: 54px;
-        margin: 5px auto 3px;
-        font-size: 2.45rem;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature .card-icon-img {
-        width: 50px;
-        height: 50px;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail {
-        min-height: 0;
-        padding: 4px 8px;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-icon {
-        width: 33px;
-        height: 33px;
-        flex-basis: 33px;
-        margin-right: 7px;
-        font-size: 1.6rem;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-icon-img {
-        width: 31px;
-        height: 31px;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-copy strong {
-        font-size: 0.75rem;
-    }
-
-    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-description {
-        margin-top: 1px;
-        font-size: 0.55rem;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .carousel-container {
-        padding-right: 62px;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .game-page:not([data-count='1']) {
-        display: flex;
-        flex-direction: column;
-        height: 220px;
-        min-height: 220px;
-        gap: 6px;
-        padding: 5px;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row {
-        min-height: 0;
-        height: auto;
-        flex: 1 1 0;
-        padding: 5px 8px;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-icon {
-        width: 36px;
-        height: 36px;
-        flex-basis: 36px;
-        margin-right: 8px;
-        font-size: 1.8rem;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-icon-img {
-        width: 34px;
-        height: 34px;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-copy strong {
-        font-size: 0.78rem;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-description {
-        margin-top: 1px;
-        font-size: 0.55rem;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-category {
-        top: 50%;
-        right: 48px;
-        max-width: 64px;
-        transform: translateY(-50%);
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .carousel-footer {
-        position: absolute;
-        top: 50%;
-        right: 4px;
-        width: 50px;
-        min-height: 0;
-        margin: 0;
-        padding: 4px 3px;
-        flex-direction: column;
-        gap: 4px;
-        border-radius: 26px;
-        transform: translateY(-50%);
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .carousel-footer .carousel-dots {
-        display: grid;
-        width: 48px;
-        max-width: 48px;
-        grid-template-columns: repeat(2, 24px);
-        grid-auto-rows: 24px;
-        gap: 0;
-        justify-content: center;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .carousel-footer .carousel-dot.active {
-        width: 24px;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .game-page[data-count='1'] .theme-command-row {
-        width: min(420px, 78%);
-        height: 96px;
-        min-height: 96px;
-        flex: 0 0 auto;
-    }
-
-    #app-hub[data-hub-theme='command-deck'] .carousel-footer .nav-btn {
-        width: 44px;
-        height: 44px;
-        flex-basis: 44px;
-    }
+/* 讀數：六條 bar，開嘅高、閂嘅矮。冇圖片、冇 emoji。 */
+.cd-schem {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 22px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .theme-option {
-        transition: none;
-    }
+.cd-schem i {
+    width: 4px;
+    height: calc(22px * var(--h, 0.3));
+    background: #1f3a2c;
+}
+
+.cd-schem i.on { background: #34d399; box-shadow: 0 0 6px rgba(52, 211, 153, 0.7); }
+
+.cd-id { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+
+.cd-callsign {
+    font-size: clamp(13px, 1.5vw, 17px);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #e6f7ee;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cd-brief {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: #6b8a7a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cd-flags,
+.cd-sector {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: #55705f;
+    white-space: nowrap;
+}
+
+.cd-sector { color: #fbbf24; }
+
+.cd-dispatch {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: #34d399;
+    border: 1px solid rgba(52, 211, 153, 0.45);
+    padding: 5px 8px;
+    white-space: nowrap;
+}
+
+.cd-row:hover,
+.cd-row:focus-visible {
+    border-color: rgba(52, 211, 153, 0.6);
+    background: linear-gradient(90deg, rgba(16, 185, 129, 0.18), rgba(6, 9, 12, 0.2) 55%);
+    outline: none;
+}
+
+.cd-row:hover .cd-dispatch,
+.cd-row:focus-visible .cd-dispatch { background: #34d399; color: #06090c; }
+
+.cd-row.is-locked { opacity: 0.4; }
+
+.cd-ticker { display: flex; }
+.cd-lamps { display: flex; gap: 8px; margin-inline: auto; }
+
+.cd-lamp {
+    width: 34px;
+    height: 24px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    background: #0b1216;
+}
+
+.cd-lamp.active { border-color: #34d399; background: rgba(52, 211, 153, 0.55); }
+
+/* 窄畫面：收起 designator／狀態旗，讀數同呼號留低。 */
+@media (max-width: 620px) {
+    .cd-row { grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 8px; }
+    .cd-desig, .cd-flags, .cd-sector { display: none; }
+    .cd-main { padding: 8px 10px 6px; }
+}
+
+@media (max-height: 430px) {
+    .cd-row { padding: 4px 10px; }
+    .cd-schem { height: 16px; }
+    .cd-schem i { height: calc(16px * var(--h, 0.3)); }
+    .cd-brief { display: none; }
 }

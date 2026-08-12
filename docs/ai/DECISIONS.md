@@ -8962,6 +8962,61 @@ entry/link/local imports 保持同一 token；Hub launcher/style 保持另一個
 `scripts/moba-bump-cache.mjs` 只 bump MOBA closure 同 manifest entry，再 regenerate catalog。
 Hub UI 改動要一齊 bump root launcher/style，由 Hub gate驗證，唔再順手改 MOBA runtime。
 
+## ADR-313 — Theme 唔係一個 render function 加 class，係三個 render function
+
+- Date: 2026-08-12
+- Status: accepted; implements ADR-312 同 Evolution Plan §5.5
+
+ADR-312 判咗第一版 theme「只係換色／換排列」。改嘅唔係 CSS——係**個結構本身冇得
+唔一樣**：`launcher.js` 得一個 `renderCarousel()`，砌一張 `.game-hub-card`（category、
+icon、title、subtitle、Play 藥丸），然後 `updateThemeLayout()` 喺同一張卡上面掛
+`data-theme-role`。**一個萬能卡片加 class，寫幾多 CSS 都變唔出第二套介面語言。**
+
+而家：`index.html` 淨返一個掛載點，三套 theme 各自有 `shell()` 同 `item()`，冇一個
+共用嘅 card fallback。共用嘅只有 ADR-312 明文准共用嗰幾樣（catalog、href、theme 存檔、
+分頁語意、可存取性、error budget）。
+
+- **Neon Grid**：招牌＋機台牆＋底部控制條。Item 係**街機櫃**（招牌／4:3 CRT 螢幕窗
+  ／操作台），冇副標題、冇 Play 掣，成個櫃就係入口。
+- **Editorial Arcade**：報頭＋不對稱 spread＋folio。**一套 theme 兩種 item**：頭條有
+  大封面圖，其餘三個係**完全冇圖**嘅編號索引行。呢個對比本身就係嗰套語言。
+- **Command Deck**：左邊直立 rail＋status bar＋dispatch workspace。Item 係**冇縮圖**嘅
+  dispatch row，視覺資訊由 `capabilities` 直接畫成六條 schematic 讀數同狀態旗
+  ——§5.5 容許嘅明確 no-thumbnail proof。一部調度台擺嘅係讀數，唔係遊戲封面。
+
+### 把尺唔可以再抄實作
+
+舊 `hub-themes` 逐套寫死「四欄／一大三細／四行」。嗰種寫法係將實作抄多次入把尺：
+實作點改，把尺就跟住改，**由頭到尾證明唔到「三套真係唔同」**。而家改成**簽名**——
+四個維度全部由幾何量返嚟：item 形狀（`uniform-tiles`／`lead-and-index`／
+`full-width-rows`，由面積比同通欄與否分類）、媒介處理（每版有幾多個入口帶圖像＋
+框比例，`4@landscape-4-3`／`1@wide`／`none`）、導航 dock 同 theme selector 落喺畫面
+邊個區。然後問三條：三套唔可以四樣都一樣、四個維度至少三個分到三套、item 同媒介
+各自唔同。**換色改唔到呢四個數。**
+
+三把尺嗰個 `.game-hub-card` selector 亦都改咗做 `[data-game-id]`。ADR-312 寫明穩定
+契約係最外層 anchor 同 `data-game-id`，唔係個 class；查 class 就等於逼所有 theme
+渲染成同一款卡——**把尺唔應該係「唔准改設計」嘅原因**。同一原因，`hub.mjs` 嗰條
+「dock ≤ 78% 畫面闊」拆走咗（嗰個度緊舊嗰個藥丸頁腳），淨低「兩支箭咀喺同一個
+dock」呢個真契約，footprint 交返畀 `hub-themes` 逐套量。
+
+### 量到嘅嘢
+
+- 三套 × 五個 canonical viewport（320×568／375×667／667×375／844×390／1280×800）：
+  入口零重疊、零出界、零橫向捲、零直向捲、冇細過 44px 嘅控制、零 console/page error。
+- 中途捉到四個真嘅：Editorial 個封面用 `aspect-ratio` 一個人講嗮數，矮畫面撐爆
+  109／123／139px；`667×375` 同時中咗 `max-width: 700px`，於是喺一個得 375 高嘅畫面
+  疊三層（media query 淨係睇闊度就會咁）；`.carousel-track` 冇 `min-height: 0`，
+  條軌嘅 min-content 高度變咗地板，844×390 撐高 9px；Command 個 row 塞六個仔入五條
+  column，`DISPATCH` 跌咗落第二行。
+- `hub-read` 捉到我自己整出嚟嘅：Neon 機身嗰個類型標籤 `#64748b` 得 3.99–4.21:1，
+  跌穿 AA 4.5。
+- Mutation：Editorial 退返用 Neon 個 item → 只叫得出「item archetype 各自唔同」同
+  「媒介處理各自唔同」兩條，其餘照綠。
+
+**視覺驗收仲係 Penny 嗰邊。** 呢度證到嘅係「三套喺結構同幾何上真係唔同、而且冇壞」,
+證唔到「靚」。自動測試永遠講唔到最後嗰句。
+
 ## ADR-312 — Hub theme 身份包括 shell、media 同 item archetype，唔係 palette skin
 
 Date: 2026-08-12. Status: accepted; supersedes the visual-composition assumption in the

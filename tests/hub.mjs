@@ -69,13 +69,21 @@ const read = page => page.evaluate(() => {
     const track = document.querySelector('.carousel-track');
     const pages = [...document.querySelectorAll('.game-page')];
     const active = document.querySelector('.game-page.active-page');
-    const cards = [...document.querySelectorAll('.game-hub-card')];
-    const activeCards = [...active.querySelectorAll('.game-hub-card')];
+    const cards = [...document.querySelectorAll('[data-game-id]')];
+    const activeCards = [...active.querySelectorAll('[data-game-id]')];
     const view = document.querySelector('.carousel-track-container').getBoundingClientRect();
     const pageRect = active.getBoundingClientRect();
     const hubRect = document.querySelector('#app-hub').getBoundingClientRect();
-    const footer = document.querySelector('.carousel-footer');
-    const footerRect = footer.getBoundingClientRect();
+    /*
+     * 「兩支箭咀收埋喺同一個 dock」係**契約**，唔係某個 theme 嘅 class。
+     * 之前寫死 `.carousel-footer`，即係假設咗三套 theme 都有同一個頁腳
+     * ——ADR-312 之後每套自己決定條導航擺喺邊（Neon 喺底部控制條、
+     * Editorial 喺 folio、Command 喺左邊 rail）。所以問返個共同 parent。
+     */
+    const navs = [...document.querySelectorAll('.nav-btn')];
+    const dock = navs.length === 2 && navs[0].parentElement === navs[1].parentElement
+        ? navs[0].parentElement : null;
+    const footerRect = (dock ?? document.body).getBoundingClientRect();
     const rects = activeCards.map(card => {
         const r = card.getBoundingClientRect();
         return { id: card.dataset.gameId, left: r.left, right: r.right, top: r.top,
@@ -92,12 +100,12 @@ const read = page => page.evaluate(() => {
         const b = btn.getBoundingClientRect();
         return rects.some(r => b.left < r.right && r.left < b.right && b.top < r.bottom && r.top < b.bottom);
     });
-    const stones = [...document.querySelectorAll('[data-game-id="gomoku"] .gomoku-stone')]
+    const stones = [...document.querySelectorAll('[data-game-id="gomoku"] .art-stones .stone')]
         .map(stone => stone.getBoundingClientRect());
     return {
         currentPage: Number(track.dataset.currentPage),
         pageCount: pages.length,
-        pageSizes: pages.map(p => p.querySelectorAll('.game-hub-card').length),
+        pageSizes: pages.map(p => p.querySelectorAll('[data-game-id]').length),
         cardCount: cards.length,
         uniqueGames: new Set(cards.map(c => c.dataset.gameId)).size,
         allIds: cards.map(c => c.dataset.gameId),
@@ -115,7 +123,7 @@ const read = page => page.evaluate(() => {
         innerHeight,
         dots: document.querySelectorAll('.carousel-dot').length,
         activeDots: document.querySelectorAll('.carousel-dot.active').length,
-        status: document.querySelector('#carousel-status').textContent,
+        status: document.querySelector('.carousel-status')?.textContent ?? '',
         hiddenLinksTabbable: pages.filter(p => p !== active)
             .some(p => [...p.querySelectorAll('a')].some(a => a.tabIndex >= 0)),
         hrefsValid: cards.every(c => c.tagName === 'A' && c.getAttribute('href')?.startsWith('games/')),
@@ -131,8 +139,7 @@ const read = page => page.evaluate(() => {
         } : null,
         hubCentreRatio: (hubRect.top + hubRect.bottom) / 2 / innerHeight,
         footerDock: {
-            containsBothArrows: [...document.querySelectorAll('.nav-btn')]
-                .every(button => button.parentElement === footer),
+            containsBothArrows: !!dock,
             width: footerRect.width,
             maxAllowed: innerWidth * 0.78,
         },
@@ -183,14 +190,27 @@ for (const viewport of [
     check(`${label}：分頁點、頁碼同 keyboard focus 狀態正確`,
         start.dots === 4 && start.activeDots === 1 && start.status === '1 / 4'
             && start.hiddenLinksTabbable === false && start.hrefsValid, start);
+    /*
+     * 契約係「兩支箭咀同分頁收埋喺同一個 dock」。**個 dock 有幾闊唔再喺呢度守**
+     * ——舊版寫 `≤ 78% 畫面闊`，嗰個係度緊當時嗰個藥丸型頁腳；ADR-312 之後
+     * 每套 theme 自己決定條導航嘅形態（Neon 係一條打通嘅機台控制條、Editorial
+     * 係一條 folio 橫線、Command 收埋喺左邊 rail）。footprint 改咗去
+     * `tests/hub-themes.mjs` 逐套量，喺呢度反而會變成「一套 theme 話晒事」。
+     */
     check(`${label}：左右箭咀、圓點同頁碼收成同一個控制 dock`,
-        start.footerDock.containsBothArrows && start.footerDock.width <= start.footerDock.maxAllowed,
-        start.footerDock);
+        start.footerDock.containsBothArrows, start.footerDock);
     if (phone) {
         check(`${label}：手機係 2×2 四格`, start.columns === 2 && start.rows === 2,
             { columns: start.columns, rows: start.rows });
-        check(`${label}：手機卡片係緊湊 tile，唔係四塊高身表格`,
-            start.cardSize.height <= 175, start.cardSize);
+        /*
+         * 本來寫死「高度 ≤ 175px」。嗰個係一個 proxy：真正要擋嘅係「四塊
+         * 打橫拉通嘅表格行」。ADR-312 之後 Neon 嘅入口係一個**街機櫃**,
+         * 本來就高過闊，175 呢個數淨係啱舊嗰張矮卡。改成直接問返嗰件事：
+         * 一格唔可以係一條打通嘅橫條（已經另外守住 2 columns × 2 rows）。
+         */
+        check(`${label}：手機一格係一個 tile，唔係一條打通嘅橫條`,
+            start.cardSize.width <= start.innerWidth * 0.6,
+            { card: start.cardSize, innerWidth: start.innerWidth });
         if (viewport.height >= 700) {
             check(`${label}：高身手機 launcher 落喺視覺中段`,
                 start.hubCentreRatio >= 0.38 && start.hubCentreRatio <= 0.55,
