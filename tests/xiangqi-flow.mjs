@@ -74,9 +74,17 @@ const targetPoint = async (boardIndex) => page.evaluate((wanted) => {
   }
   return null;
 }, boardIndex);
+const waitForTargetPoint = async (boardIndex, timeout = 5000) => {
+  const deadline = Date.now() + timeout;
+  do {
+    const point = await targetPoint(boardIndex);
+    if (point) return point;
+    await page.waitForTimeout(50);
+  } while (Date.now() < deadline);
+  throw new Error(`棋盤已顯示但 ${timeout}ms 內仍未可命中棋格 ${boardIndex}`);
+};
 const tapCell = async (boardIndex) => {
-  const point = await targetPoint(boardIndex);
-  if (!point) throw new Error(`搵唔到棋盤格 ${boardIndex}`);
+  const point = await waitForTargetPoint(boardIndex);
   await page.touchscreen.tap(point.x, point.y);
   await page.waitForTimeout(350);
 };
@@ -133,8 +141,7 @@ check('refresh 後唔會顯示已悔清嘅 Continue', afterReload.continueHidden
 // pointer cannot contaminate the following tap sequence in this test page.
 await page.locator('#xiangqi-ai-btn').click();
 await page.waitForSelector('#game-container:not(.hidden)');
-await page.waitForTimeout(650);
-const interruptedTouchPoint = await targetPoint(54);
+const interruptedTouchPoint = await waitForTargetPoint(54);
 await page.mouse.move(interruptedTouchPoint.x, interruptedTouchPoint.y);
 await page.mouse.down();
 const interruptedTouch = await page.evaluate((point) => {

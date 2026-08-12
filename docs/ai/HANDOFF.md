@@ -4,9 +4,10 @@ Updated: 2026-08-12 (Asia/Macau)
 Prepared by: Codex — Phase 0A GameCatalog / ReleaseGate checkpoint
 Integration branch: `main`
 Work branch: `main`
-Status: Phase 0A implementation and local verification are complete; this file
-ships with the durable checkpoint. Required GitHub deploy-matrix verification
-must be checked before the next agent treats the checkpoint as release-green.
+Status: Phase 0A implementation is checkpointed. The first clean GitHub matrix
+run exposed and reproduced a Xiangqi browser-test readiness race; the test now
+waits for a hittable board cell instead of assuming a fixed render delay. The
+replacement GitHub run must pass before Phase 0A is treated as release-green.
 
 ## Current objective
 
@@ -71,6 +72,12 @@ not start three scene rewrites in one shared checkout.
   `git diff --check` passed.
 - Full all-game plan resolves 13 games / 25 bounded commands. The pushed GitHub
   workflow is the authoritative clean-clone execution of those full commands.
+- GitHub run `31580327102` reached the required matrix and failed in
+  `tests/xiangqi-flow.mjs`: after reload, the second board was visible before
+  `Render.hitTest` had a hittable cell, so the test dereferenced a null point.
+  The same failure reproduced locally. `waitForTargetPoint()` now polls the
+  actual semantic readiness condition with a bounded 5-second error, and three
+  concurrent real-browser reruns passed 5/5 each.
 
 ## Known issues and cautions
 
@@ -89,8 +96,8 @@ not start three scene rewrites in one shared checkout.
 
 ## Exact next action
 
-1. Verify the pushed checkpoint SHA and Pages workflow. Fix any required full-
-   matrix failure before treating Phase 0A as release-green.
+1. Verify the replacement Pages workflow after the Xiangqi readiness fix. Fix
+   any later required full-matrix failure before treating Phase 0A as green.
 2. Start Phase 0B as a bounded package: define AssetCatalog + RigCatalog schemas,
    run a read-only census over all runtime GLB/animation actors, and generate a
    reproducible report with license/source gaps; do not import new assets yet.
