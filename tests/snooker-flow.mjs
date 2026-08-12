@@ -329,10 +329,18 @@ const mobileChargeAfterCancel = await page.evaluate(() => JSON.parse(window.rend
 await page.locator('#mobile-charge-btn').dispatchEvent('pointerup');
 await page.waitForTimeout(100);
 const mobileShot = await page.evaluate(() => JSON.parse(window.render_game_to_text()));
+const mobileCueTravel = mobileChargeAfterCancel?.cue && mobileShot?.cue
+  ? Math.hypot(
+    mobileShot.cue.x - mobileChargeAfterCancel.cue.x,
+    mobileShot.cue.z - mobileChargeAfterCancel.cue.z,
+  )
+  : 0;
 check('3D 手機儲力掣會累積力度並實際出桿',
   mobileChargeAfterCancel?.aiming === true && mobileChargeAfterCancel?.power > 0 &&
-    mobileShot?.shotSerial === 1 && mobileShot?.turnState === 'BALLS_MOVING' && mobileShot?.cueBallSpeed > 0,
-  { charge: mobileChargeAfterCancel, shot: mobileShot });
+    mobileShot?.shotSerial === mobileChargeAfterCancel.shotSerial + 1 &&
+    (mobileShot?.shotOrigin === 'offline' || mobileShot?.lastCompletedShotOrigin === 'offline') &&
+    mobileCueTravel > 0.005,
+  { charge: mobileChargeAfterCancel, shot: mobileShot, cueTravel: mobileCueTravel });
 await page.locator('#back-btn').click();
 await page.waitForLoadState('domcontentloaded');
 check('3D 返回掣回到 Snooker root',

@@ -78,6 +78,11 @@ not start three scene rewrites in one shared checkout.
   The same failure reproduced locally. `waitForTargetPoint()` now polls the
   actual semantic readiness condition with a bounded 5-second error, and three
   concurrent real-browser reruns passed 5/5 each.
+- Replacement run `31580756144` passed Xiangqi and reached Snooker. Its weak
+  mobile shot had `shotSerial=1` and visibly moved the cue ball, but friction
+  reduced the instantaneous speed to zero before the fixed 100 ms assertion.
+  The witness now checks the shot event/origin plus real cue-ball displacement;
+  three concurrent full Snooker reruns passed 25/25 each.
 
 ## Known issues and cautions
 
