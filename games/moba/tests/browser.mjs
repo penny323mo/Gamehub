@@ -498,7 +498,10 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
     // 暖身／量度係手動推 sim 同 view；先用真實齒輪暫停主迴圈，避免背景
     // requestAnimationFrame 同呢段 fixture 同時改 rig，造成間歇性 race。
     await page.click('.moba-gear');
-    await page.waitForTimeout(100);
+    await page.waitForFunction(() => {
+        const panel = document.querySelector('.moba-settings');
+        return panel && !panel.classList.contains('hidden');
+    });
     const combat = await page.evaluate(async () => {
         const s = window.__sim, v = window.__view;
         const p = s.player;
@@ -609,7 +612,11 @@ for (const [tag, viewport] of [['打橫', { width: 1280, height: 640 }], ['打�
             swinging, emitted, rigWhy,
         };
     });
-    await page.click('.moba-settings .moba-x');
+    // 呢次設定面板只係做 fixture pause；上面已經另外用真實控制完整驗過
+    // 開、改、關。長時間手動推 sim/view 後若 panel 因 lifecycle 已經收起，
+    // Playwright 再 click 隱藏嘅 × 只會白等 30 秒，掩蓋真正 combat 結果。
+    // 用公開 HUD seam idempotently 清走 manual pause，唔依賴當刻 DOM visibility。
+    await page.evaluate(() => window.__hud.toggleSettings(false));
     check(`${tag}：普攻真係發生咗（唔係量緊積壓）`, combat && combat.emitted === true, combat);
     // 量嗰一刻要真係喺 gate 聲稱嗰個狀態。暖機期間死過一次、重生返泉水，
     // 之前就係喺泉水裏面量普攻——ADR-119 點名嘅唔具代表性狀態。

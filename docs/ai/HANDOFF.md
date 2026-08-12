@@ -4,18 +4,14 @@ Updated: 2026-08-12 (Asia/Macau)
 Prepared by: Codex — Phase 0A GameCatalog / ReleaseGate checkpoint
 Integration branch: `main`
 Work branch: `main`
-Status: Phase 0A implementation is checkpointed. The first clean GitHub matrix
-run exposed and reproduced a Xiangqi browser-test readiness race; the test now
-waits for a hittable board cell instead of assuming a fixed render delay. The
-replacement GitHub run must pass before Phase 0A is treated as release-green.
+Status: Phase 0A is checkpointed; Xiangqi/Snooker are fixed and this checkpoint
+removes the remaining MOBA hidden-close test race without changing gameplay.
 
 ## Current objective
 
-Execute `docs/GAMEHUB_EVOLUTION_PLAN.md` sequentially. Phase 0A replaced the
-duplicated 13-game launcher/test/CI inventory with one validated GameCatalog and
-a changed-game ReleaseGate without changing gameplay. After this checkpoint,
-continue Phase 0 with AssetCatalog/RigCatalog census and baseline evidence; do
-not start three scene rewrites in one shared checkout.
+Execute `docs/GAMEHUB_EVOLUTION_PLAN.md` sequentially. Continue Phase 0 with
+AssetCatalog/RigCatalog census and baseline evidence; do not start three scene
+rewrites in one shared checkout.
 
 ## Completed
 
@@ -50,13 +46,7 @@ not start three scene rewrites in one shared checkout.
 
 ## Changed files
 
-- Catalog: `games/manifest.json`, `games/catalog.mjs`,
-  `games/catalog.generated.js`, `scripts/build-game-catalog.mjs`.
-- Release: `scripts/release-gate.mjs`, `scripts/install-release-deps.mjs`,
-  `.github/workflows/deploy-pages.yml`.
-- Consumers: `launcher.js`, `index.html`, `tests/lib/catalog-targets.mjs`,
-  `tests/hub*.mjs`, `tests/lib/drivers.mjs`.
-- Contracts: `tests/catalog.mjs`, `tests/release-gate.mjs`.
+- This checkpoint changes `games/moba/tests/browser.mjs` and this handoff only.
 
 ## Verification
 
@@ -83,6 +73,16 @@ not start three scene rewrites in one shared checkout.
   reduced the instantaneous speed to zero before the fixed 100 ms assertion.
   The witness now checks the shot event/origin plus real cue-ball displacement;
   three concurrent full Snooker reruns passed 25/25 each.
+- Replacement run `31581156711` passed both earlier fixes and reached MOBA. The
+  combat fixture used the settings panel only to pause the live rAF, then spent
+  roughly 25 simulated seconds advancing `Sim` and `View`. By cleanup time the
+  panel could already be hidden, so `page.click('.moba-settings .moba-x')`
+  waited 30 seconds for an invisible control even though all measured gameplay
+  state was healthy. The fixture now waits for semantic panel-open readiness
+  before measurement and closes idempotently through the existing public
+  `window.__hud.toggleSettings(false)` seam. A full local MOBA browser run passed
+  206/206, including both orientations, full-match, context-loss and request
+  gates.
 
 ## Known issues and cautions
 
@@ -101,7 +101,7 @@ not start three scene rewrites in one shared checkout.
 
 ## Exact next action
 
-1. Verify the replacement Pages workflow after the Xiangqi readiness fix. Fix
+1. Verify the replacement Pages workflow after the MOBA fixture cleanup. Fix
    any later required full-matrix failure before treating Phase 0A as green.
 2. Start Phase 0B as a bounded package: define AssetCatalog + RigCatalog schemas,
    run a read-only census over all runtime GLB/animation actors, and generate a
