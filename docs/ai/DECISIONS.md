@@ -8865,6 +8865,11 @@ iPhone 尺寸會令「靜音」跌出畫面，橫向 375px 高度亦會令設定
 select/range/checkbox 都保留最少 **44×44 CSS px**；捲動只限開場面板，唔會放開
 遊戲 canvas 嘅全螢幕手勢。
 
+設定 `<details>` 關閉時，CSS 明確將 summary 以外嘅 controls 設為 `display:none`。
+部分 Chromium／WebKit viewport 會將 closed details 內嘅原生 controls 留喺 layout
+geometry，令面板高度虛增，最後一列即使可捲都到唔到畫面；closed state 唔應該保留
+任何可操作內容或佔位。
+
 `tests/hub-touch.mjs` 要喺 375×667 同 667×375 兩個真手機 viewport 量度呢條
 contract，並同 build、lint、Vitest 及 HTTP browser smoke 一齊跑。日後新增設定
 控制唔可以靠縮細 native input 過版面 gate；如果要例外，必須另寫決策同可見替代

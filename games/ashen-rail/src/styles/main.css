@@ -20,6 +20,7 @@ button, a { font: inherit; }
 .mission-chips span { padding: 6px 10px; border: 1px solid #5f4332; color: #cfb39e; font-size: 12px; }
 .settings-panel { width: min(460px, 82vw); margin: 10px 0 18px; padding: 8px 12px; color: #cdb7a6; border: 1px solid #493327; background: rgba(24, 15, 11, .58); }
 .settings-panel summary { min-height: 34px; cursor: pointer; color: #ebc7ac; font-weight: 800; }
+.settings-panel:not([open]) > :not(summary) { display: none; }
 .settings-panel label { display: grid; grid-template-columns: 110px 1fr; gap: 12px; align-items: center; min-height: 44px; font-size: 12px; }
 .settings-panel select, .settings-panel input { width: 100%; min-height: 44px; accent-color: #f27931; color: #f4dfcf; background: #21150f; border: 1px solid #5e4030; }
 .settings-panel .mute-setting, .settings-panel .gyro-setting, .settings-panel .aim-assist-setting { grid-template-columns: 110px 44px; }

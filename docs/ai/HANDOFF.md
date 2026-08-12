@@ -4,8 +4,8 @@ Updated: 2026-08-12 (Asia/Macau)
 Prepared by: Codex — Racing drift cues/HUD, wheel-flicker fix and Ashen mobile setup
 Integration branch: `main`
 Work branch: `main`
-Status: source changes are verified; commit/push this checkpoint before the
-next agent edits the shared checkout.
+Status: implementation and cross-game browser gates are verified; commit/push
+this checkpoint before the next agent edits the shared checkout.
 
 ## Current objective
 
@@ -36,8 +36,10 @@ GLB wheel animation no longer produces shared-normal specular flicker.
   the player is not actively drifting. It follows arc-length and works on
   reverse routes; it is DOM-only and does not alter input or physics.
 - Ashen Rail's opening settings panel is now viewport-bounded and scrollable;
-  labels, selects, ranges and checkboxes retain 44×44 CSS-pixel touch targets.
-  The tracked nested `dist/` was rebuilt with the safe-storage preload output.
+  closed `<details>` explicitly hides its controls so a hidden settings row
+  cannot inflate the scroll geometry. Labels, selects, ranges and checkboxes
+  retain 44×44 CSS-pixel touch targets. The tracked nested `dist/` was rebuilt
+  with the safe-storage preload output.
 
 ## Changed files
 
@@ -50,13 +52,14 @@ GLB wheel animation no longer produces shared-normal specular flicker.
 - `games/Racing Car/tests/setup.mjs` — shared-normal, drift-zone and HUD gates.
 - `games/ashen-rail/src/styles/main.css` and tracked `dist/` — scrollable,
   touch-sized start settings output.
-- `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md` (ADR-306/307), this file.
+- `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md` (ADR-306/307/308), this file.
 
 ## Verification
 
-- Racing `race.mjs`: **136/136** on the pre-HUD cue run; two final retries
-  could not reach `window.__racer.ready` within the harness's 90s Chrome
-  startup timeout, so do **not** claim a fresh race run from this checkpoint.
+- Racing aggregate `npm test` with the bundled Playwright Chromium: **all six
+  suites PASS** — `race.mjs` **136/136**, `setup.mjs` **160/160**,
+  `rivals.mjs` **61/61**, `ghost.mjs` **33/33**, `season.mjs` **55/55** and
+  `audio.mjs` **33/33**. The run also passed `git diff --check`.
 - Racing `setup.mjs`: **160/160** (turbo clearance 53.2m; seven drift zones /
   21 merged cues; HUD direction/arc-distance preview; all six starts,
   terrain, drift effects, four wheels, mobile controls and render budget).
@@ -68,16 +71,15 @@ GLB wheel animation no longer produces shared-normal specular flicker.
 - Racing `ghost.mjs`: **33/33** (transparent player GLB clone, independent
   geometry/wheels, no physics effect, 19 calls / 108,925 tris peak).
 - Racing `season.mjs`: **55/55**; `audio.mjs`: **33/33**; `git diff --check` PASS.
-- Ashen: `npm test` **15/15**, lint PASS, build PASS; direct Playwright
-  portrait 375×667 and landscape 667×375 measurements confirmed scrollable
-  panel and 44×44 controls.
-- Ashen `tests/hub-touch.mjs` was attempted after rebuild but the Chrome
-  SwiftShader startup hung; do not claim that aggregate gate green. The
-  focused real-browser layout probe above is the current evidence.
-- The final Racing `race.mjs` startup timeout is separate from gameplay: the
-  immediately preceding setup run booted the same page and passed 160/160,
-  while both race retries stalled before any assertions. Retry from a fresh
-  machine/browser process before using it as a release gate.
+- Ashen: `npm test` **15/15**, lint PASS, build PASS. The cross-game
+  `tests/hub-touch.mjs` with the bundled Playwright Chromium is **5/5**:
+  the Hub launcher plus all 13 listed games load in portrait/landscape, zero
+  startup browser errors,
+  no horizontal overflow, all controls ≥44×44, and every out-of-viewport
+  control becomes reachable after `scrollIntoView`.
+- The system Chrome startup timeout was an environment issue; all release
+  gates above use the repository's bundled Playwright Chromium with the
+  ANGLE SwiftShader flags used by the harness.
 
 ## Known issues and cautions
 
@@ -96,15 +98,10 @@ GLB wheel animation no longer produces shared-normal specular flicker.
 
 1. Run `./scripts/agent-context.sh --sync`, read this file plus ADR-306/307/308,
    then inspect the pushed checkpoint SHA before editing.
-2. Commit Racing, Ashen and docs together only after `./scripts/check-handoff.sh`
-   and the named tests are green; push the authorized checkpoint and verify
-   `git ls-remote origin refs/heads/main`.
-3. If touching Ashen touch aggregation, rerun with a clean Chrome/SwiftShader
-   process and report startup hangs separately from layout assertions.
-4. For future Racing feel work, test the real HTTP page at 844×390 and a
+2. For future Racing feel work, test the real HTTP page at 844×390 and a
    320×568 viewport; keep the drift scoring/effects, HUD preview and mobile
    touch gates green. Retry `race.mjs` after clearing the Chrome startup
-   condition noted above.
+   condition only if the browser environment changes.
 
 ## Do not redo
 
