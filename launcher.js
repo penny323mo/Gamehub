@@ -135,6 +135,54 @@ function themeButton(theme, extraClass) {
     return button;
 }
 
+/*
+ * Theme 揀選係一個**偏好設定**，唔係內容。
+ *
+ * 第一版三粒掣直接攤喺頭版，佔咗一大截同十三隻遊戲爭注意力——一個你一世
+ * 可能只撳一次嘅嘢，唔應該同主角平起平坐。所以收埋做一粒細掣，撳先展開。
+ *
+ * 收埋唔等於收起：三粒 `[data-theme-value]` 一直喺 DOM 度，展開之後仍然係
+ * 44px 嘅 native button、仍然 Tab 到、Space 撳得郁。**「見唔到」同「用唔到」
+ * 係兩件事**——呢度只係將佢由「一直見到」改成「撳一下就見到」。
+ *
+ * 每套 theme 自己決定粒掣同塊面板長成點、擺喺邊（`容器類`／`掣類`／`板類`）。
+ */
+function themeMenu({ 容器類, 掣類, 板類, 掣文 }) {
+    const wrap = el('div', 容器類);
+    wrap.dataset.themeMenu = '';
+
+    const toggle = el('button', 掣類, 掣文(THEME_LABEL[currentTheme]));
+    toggle.type = 'button';
+    toggle.dataset.themeMenuToggle = '';
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', `外觀：${THEME_LABEL[currentTheme]}（撳一下換）`);
+
+    const panel = el('div', `${板類} is-collapsed`);
+    panel.dataset.themeMenuPanel = '';
+    panel.setAttribute('role', 'group');
+    panel.setAttribute('aria-label', 'Hub theme');
+    THEMES.forEach((theme) => panel.append(themeButton(theme, `theme-option ${板類}-item`)));
+
+    const 開關 = (開) => {
+        panel.classList.toggle('is-collapsed', !開);
+        toggle.setAttribute('aria-expanded', String(開));
+    };
+    toggle.addEventListener('click', (event) => {
+        event.stopPropagation();
+        開關(panel.classList.contains('is-collapsed'));
+    });
+    // 撳出面／禁 Esc 都要收返。一塊收唔返嘅面板同一直攤開冇分別。
+    document.addEventListener('click', (event) => {
+        if (!wrap.contains(event.target)) 開關(false);
+    });
+    wrap.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') { 開關(false); toggle.focus(); }
+    });
+
+    wrap.append(toggle, panel);
+    return wrap;
+}
+
 /** 分頁機制共用（prev/next/dot 嘅語意），外觀同位置由 shell 決定。 */
 function navButton(direction, className, glyph, label) {
     const button = el('button', `nav-btn ${direction}-btn ${className}`, glyph);
@@ -212,11 +260,11 @@ function neonShell() {
     const marquee = el('header', 'ng-marquee');
     const sign = el('div', 'ng-sign');
     sign.append(el('span', 'ng-sign-text', 'GAME HUB'), el('span', 'ng-sign-bulbs'));
-    const coins = el('div', 'ng-coinslot');
-    coins.setAttribute('role', 'group');
-    coins.setAttribute('aria-label', 'Hub theme');
-    THEMES.forEach((theme) => coins.append(themeButton(theme, 'theme-option ng-coin')));
-    marquee.append(sign, coins);
+    // 機舖：一粒投幣掣，撳落去先彈出三個選擇。
+    marquee.append(sign, themeMenu({
+        容器類: 'ng-coinslot', 掣類: 'ng-coin-toggle', 板類: 'ng-coinpanel',
+        掣文: (名) => `⊙ ${名}`,
+    }));
 
     const floor = el('div', 'ng-floor');
     floor.append(trackNode('neon-grid', neonItem));
@@ -280,10 +328,11 @@ function editorialShell() {
         el('h1', 'ed-wordmark', 'Game Hub'),
         el('p', 'ed-strap', 'vibe coding by penny323'),
     );
-    const sections = el('nav', 'ed-sections');
-    sections.setAttribute('aria-label', 'Hub theme');
-    THEMES.forEach((theme) => sections.append(themeButton(theme, 'theme-option ed-section')));
-    masthead.append(sections);
+    // 雜誌：報頭角落一行細字「Edition ▾」，同 issue line 同一個層級。
+    masthead.append(themeMenu({
+        容器類: 'ed-sections', 掣類: 'ed-edition', 板類: 'ed-editions',
+        掣文: (名) => `${名} edition ▾`,
+    }));
 
     const spread = el('div', 'ed-spread');
     spread.append(trackNode('editorial-arcade', (game, indexOnPage, pageIndex) => (
@@ -357,10 +406,11 @@ function commandShell() {
 
     const rail = el('aside', 'cd-rail');
     rail.append(el('span', 'cd-sigil', 'GH'));
-    const keys = el('nav', 'cd-keys');
-    keys.setAttribute('aria-label', 'Hub theme');
-    THEMES.forEach((theme) => keys.append(themeButton(theme, 'theme-option cd-key')));
-    rail.append(keys);
+    // 調度台：rail 上面一粒模式鍵，彈出三個模式。
+    rail.append(themeMenu({
+        容器類: 'cd-keys', 掣類: 'cd-modekey', 板類: 'cd-modes',
+        掣文: () => 'MODE',
+    }));
     const railNav = el('div', 'cd-railnav');
     railNav.append(
         navButton('prev', 'cd-step', '▲', '上一組遊戲'),
@@ -398,7 +448,7 @@ const SHELLS = Object.freeze({
 
 function wireShell() {
     document.querySelectorAll('[data-theme-value]').forEach((button) => {
-        button.addEventListener('click', () => applyTheme(button.dataset.themeValue));
+        button.addEventListener('click', () => applyTheme(button.dataset.themeValue, { 從掣度撳: true }));
     });
     document.querySelectorAll('[data-hub-nav]').forEach((button) => {
         button.addEventListener('click', () => {
@@ -431,7 +481,7 @@ function renderHub() {
     updateCarousel();
 }
 
-function applyTheme(theme, { persist = true } = {}) {
+function applyTheme(theme, { persist = true, 從掣度撳 = false } = {}) {
     currentTheme = THEMES.includes(theme) ? theme : 'neon-grid';
     // 兩個名都寫：`data-hub-theme` 係明文契約，`data-theme` 方便一般 UI 工具。
     [document.documentElement, document.body].forEach((target) => {
@@ -439,6 +489,9 @@ function applyTheme(theme, { persist = true } = {}) {
         target.dataset.theme = currentTheme;
     });
     renderHub();
+    // 重新砌完個殼，本來嗰粒掣已經唔存在。鍵盤玩家換完 theme 唔應該
+    // 畀人掉返去 document 開頭。
+    if (從掣度撳) document.querySelector('[data-theme-menu-toggle]')?.focus();
     document.querySelectorAll('[data-theme-value]').forEach((button) => {
         const active = button.dataset.themeValue === currentTheme;
         button.setAttribute('aria-pressed', String(active));

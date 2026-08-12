@@ -203,7 +203,12 @@ const snapshot = (page) => page.evaluate(() => {
     return {
         media,
         mediaCount: media.filter(Boolean).length,
-        selectorBox: union(controls.map(rect)),
+        // 收埋咗之後三粒掣冇 box；量嗰粒**見得到嘅**掣先係玩家見到嗰件嘢。
+        selectorBox: union([...document.querySelectorAll('[data-theme-menu-toggle]')]
+            .filter(visible).map(rect)),
+        menuToggles: document.querySelectorAll('[data-theme-menu-toggle]').length,
+        expandedPanels: document.querySelectorAll('[data-theme-menu-panel]:not(.is-collapsed)').length,
+        visibleThemeButtons: controls.length,
         navDockBox: union(nav.map(rect)),
         shellSideBySide: sideBySide,
         shellKidCount: shellKids.length,
@@ -247,11 +252,47 @@ const waitForTheme = async (page, theme) => {
     }, theme, { timeout: 15000 });
 };
 
+/*
+ * Theme 揀選收埋咗做一粒掣（ADR-313 之後：一個偏好設定唔應該同十三隻遊戲
+ * 爭正面嘅位）。要撳開先揀得到——**呢個係把尺要跟住行嘅一步，唔係一個要
+ * 繞過嘅障礙**：真人都係咁撳。
+ */
+const openThemeMenu = async (page) => {
+    const toggle = page.locator('[data-theme-menu-toggle]').first();
+    if (await toggle.getAttribute('aria-expanded') !== 'true') {
+        await toggle.click({ timeout: 10000 });
+        await page.waitForSelector('[data-theme-menu-panel]:not(.is-collapsed)', { timeout: 5000 });
+    }
+};
+
+const closeThemeMenu = async (page) => {
+    const toggle = page.locator('[data-theme-menu-toggle]').first();
+    if (await toggle.count() && await toggle.getAttribute('aria-expanded') === 'true') {
+        await toggle.click({ timeout: 10000 });
+        await page.waitForTimeout(80);
+    }
+};
+
 const selectTheme = async (page, theme) => {
+    await openThemeMenu(page);
     await page.locator(`[data-theme-value="${theme}"]`).click({ timeout: 10000 });
     await waitForTheme(page, theme);
     // Let the theme transition finish before measuring geometry.
     await page.waitForTimeout(460);
+};
+
+/** 三粒 theme 掣嘅實測尺寸：要開咗個選單先量得到（收埋嗰陣佢哋冇 box）。 */
+const themeControls = async (page) => {
+    await openThemeMenu(page);
+    const out = await page.evaluate(() => [...document.querySelectorAll('[data-theme-value]')]
+        .map((el) => {
+            const r = el.getBoundingClientRect();
+            return { value: el.getAttribute('data-theme-value'), tag: el.tagName,
+                type: el.getAttribute('type'), tabIndex: el.tabIndex,
+                width: r.width, height: r.height };
+        }));
+    await closeThemeMenu(page);
+    return out;
 };
 
 const dispatchSwipe = (page, delta) => page.evaluate((dx) => {
@@ -307,7 +348,7 @@ const blockedStorage = `
 })();
 `;
 
-const checkThemeState = (label, state, theme) => {
+const checkThemeState = (label, state, theme, controls) => {
     check(`${label}：theme values 只有三個且 active aria-pressed 唯一`,
         state.themeValues.length === 3
         && [...new Set(state.themeValues)].sort().join(',') === THEMES.slice().sort().join(',')
@@ -315,11 +356,15 @@ const checkThemeState = (label, state, theme) => {
         { values: state.themeValues, pressed: state.pressed });
     check(`${label}：html/body/#app-hub 同步 data-hub-theme`,
         state.attrs.length === 3 && state.attrs.every((value) => value === theme), state.attrs);
-    check(`${label}：主題掣係 native button 且 44px 可擊中`,
-        state.themeButtons.length === 3
-        && state.themeButtons.every((button) => button.tag === 'BUTTON'
+    check(`${label}：主題掣係 native button 且 44px 可擊中（撳開個選單之後量）`,
+        controls.length === 3
+        && controls.every((button) => button.tag === 'BUTTON'
             && button.type === 'button' && button.tabIndex >= 0
-            && button.width >= 44 && button.height >= 44), state.themeButtons);
+            && button.width >= 44 && button.height >= 44), controls);
+    check(`${label}：頭版預設收埋，得一粒掣代表外觀設定`,
+        state.menuToggles === 1 && state.expandedPanels === 0 && state.visibleThemeButtons === 0,
+        { toggles: state.menuToggles, expanded: state.expandedPanels,
+            visibleThemeButtons: state.visibleThemeButtons });
     check(`${label}：左右箭咀至少 44px`,
         state.navButtons.length === 2
         && state.navButtons.every((button) => button.width >= 44 && button.height >= 44),
@@ -508,7 +553,7 @@ try {
             await selectTheme(page, 'neon-grid');
             let state = await snapshot(page);
             checkRoster(`${label} / neon-grid`, state);
-            checkThemeState(`${label} / neon-grid`, state, 'neon-grid');
+            checkThemeState(`${label} / neon-grid`, state, 'neon-grid', await themeControls(page));
             const sigs = {};
             sigs['neon-grid'] = checkShape(`${label} / neon-grid`, state, 'neon-grid');
             check(`${label} / neon-grid：theme storage key 正確`,
@@ -518,7 +563,7 @@ try {
             for (const theme of THEMES.slice(1)) {
                 await selectTheme(page, theme);
                 state = await snapshot(page);
-                checkThemeState(`${label} / ${theme}`, state, theme);
+                checkThemeState(`${label} / ${theme}`, state, theme, await themeControls(page));
                 sigs[theme] = checkShape(`${label} / ${theme}`, state, theme);
                 check(`${label} / ${theme}：theme storage key 正確`,
                     await page.evaluate((key) => localStorage.getItem(key), THEME_STORAGE) === theme,
@@ -552,7 +597,24 @@ try {
                 checkTail(`${label} / ${theme}`, await snapshot(page));
             }
 
-            // Native keyboard focus and ArrowRight behaviour.
+            /*
+             * 鍵盤路而家多一步：Tab 到粒掣 → Space 展開 → Tab 入去 → Space 揀。
+             * **唔可以喺一個收埋咗嘅元素度叫 `focus()` 就當數**——`display: none`
+             * 嘅嘢 focus 唔到，會靜靜雞報 false，而條 check 睇落好似仲喺度守緊。
+             */
+            await closeThemeMenu(page);
+            const 粒掣狀態 = await page.evaluate(() => {
+                const toggle = document.querySelector('[data-theme-menu-toggle]');
+                toggle.focus();
+                return { tag: toggle.tagName, focused: document.activeElement === toggle,
+                    tabIndex: toggle.tabIndex, expanded: toggle.getAttribute('aria-expanded') };
+            });
+            check(`${label}：keyboard 去到嗰粒外觀掣（native button、tab 得到、預設收埋）`,
+                粒掣狀態.tag === 'BUTTON' && 粒掣狀態.focused
+                && 粒掣狀態.tabIndex >= 0 && 粒掣狀態.expanded === 'false', 粒掣狀態);
+            await page.keyboard.press('Space');
+            await page.waitForSelector('[data-theme-menu-panel]:not(.is-collapsed)', { timeout: 5000 });
+
             const focus = await page.evaluate(() => [...document.querySelectorAll('[data-theme-value]')]
                 .map((button) => {
                     button.focus();
@@ -563,7 +625,7 @@ try {
                         tabIndex: button.tabIndex,
                     };
                 }));
-            check(`${label}：keyboard 可以 focus 三個 native theme buttons`,
+            check(`${label}：Space 展開之後三個 native theme button 全部 focus 得到`,
                 focus.length === 3 && focus.every((item) => item.tag === 'BUTTON'
                     && item.focused && item.tabIndex >= 0), focus);
             await page.locator('[data-theme-value="editorial-arcade"]').focus();

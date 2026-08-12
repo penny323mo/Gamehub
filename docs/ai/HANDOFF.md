@@ -4,7 +4,8 @@ Updated: 2026-08-12 (Asia/Macau)
 Prepared by: Claude Code (cloud) — ADR-313
 Integration branch: `main`
 Work branch: `claude/3d-tower-defense-game-rld6ts`
-Status: 三套 Hub theme 已經拆成三個獨立 renderer；`hub-themes` **220/220**、`hub` 100/100。
+Status: 三套 Hub theme 已經拆成三個獨立 renderer，theme 揀選收埋做一粒掣；
+`hub-themes` **240/240**、`hub` 100/100。
 **視覺驗收仲未做**——自動尺證到「結構真係唔同、冇壞」，證唔到「靚」。
 
 ## Current objective
@@ -34,6 +35,13 @@ UI-only：唔准改任何遊戲 runtime、13 隻嘅次序、入口連結、stora
 - 三把尺嘅 `.game-hub-card` 改成 `[data-game-id]`（ADR-312 講明穩定契約係 anchor,
   唔係 class）；`hub.mjs` 嗰條「dock ≤ 78% 畫面闊」拆走——嗰個度緊舊嗰個藥丸頁腳,
   footprint 交返 `hub-themes` 逐套量。
+- **Penny 頭版 review**：三粒 theme 掣攤喺正面、佔咁大篇幅好奇怪。啱——theme 係
+  偏好設定，唔應該同十三隻遊戲爭注意力。收埋做一粒掣，撳先展開；三套各自用返
+  自己嘅形態（投幣掣／`Editorial edition ▾`／rail 上面一粒 `MODE`）。**收埋唔等於
+  收起**：三粒掣一直喺 DOM，展開之後仍然係 44px native button、Tab 到、Space 撳得郁,
+  撳出面同 Esc 收得返。把尺跟住改，**而且守得多咗**：本來喺收埋咗嘅元素度叫
+  `focus()` 就當數（`display:none` focus 唔到，會靜靜雞報 false），而家問返真正
+  嗰條鍵盤路；再加一條「頭版預設收埋」。205 → 220 → **240 條**。
 - 中途捉到嘅真嘢：Editorial 封面 `aspect-ratio` 撐爆矮畫面（109／123／139px）；
   `667×375` 同時中咗 `max-width:700px`，**media query 淨係睇闊度就會喺 375 高度疊三層**；
   `.carousel-track` 冇 `min-height:0`，min-content 高度變咗地板（844×390 撐高 9px）；
@@ -48,7 +56,7 @@ UI-only：唔准改任何遊戲 runtime、13 隻嘅次序、入口連結、stora
 
 ## Verification
 
-- `hub-themes` **220/220**（三套 × 五個 canonical viewport）、`hub` **100/100**、
+- `hub-themes` **240/240**（三套 × 五個 canonical viewport）、`hub` **100/100**、
   `hub-touch` 5/5、`hub-read` 3/3、`hub-load` 3/3、`hub-home` 3/3、`hub-storage` 2/2、
   ReleaseGate 20/20、catalog parity PASS、MOBA/Hub token 契約 3/3。
 - 三套 × 五個 viewport 實測：零重疊、零出界、零橫向／直向捲、冇細過 44px 嘅控制、

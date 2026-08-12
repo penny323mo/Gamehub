@@ -105,10 +105,18 @@ button { font: inherit; cursor: pointer; }
 /* 每套 theme 嘅共用可觸控下限（`tests/hub-touch.mjs` 守 44px；dot 係 WCAG
    2.5.8 嘅 24px 例外，因為 320px 闊度塞唔落四粒 44px）。 */
 .theme-option,
-.nav-btn {
+.nav-btn,
+[data-theme-menu-toggle] {
     min-width: var(--touch);
     min-height: var(--touch);
     touch-action: manipulation;
+}
+
+/* 收埋咗嘅選單掣一樣要撳得中——**唔可以因為佢細就當佢唔係掣**。 */
+[data-theme-menu-toggle] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .carousel-dot {
@@ -174,11 +182,45 @@ body[data-hub-theme='neon-grid'] {
     opacity: 0.75;
 }
 
-.ng-coinslot { display: flex; gap: 6px; flex-shrink: 0; }
+/* 投幣掣：平時得一粒，撳落去先彈出三個選擇。 */
+.ng-coinslot { position: relative; flex-shrink: 0; }
 
-.ng-coin {
-    padding: 0 clamp(6px, 1.4vw, 14px);
+.ng-coin-toggle {
+    padding: 0 clamp(8px, 1.6vw, 14px);
     border: 2px solid rgba(148, 163, 184, 0.35);
+    border-radius: 3px;
+    background: #0b1120;
+    color: #9fb3c8;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+}
+
+.ng-coin-toggle:hover,
+.ng-coin-toggle[aria-expanded='true'] { border-color: #22d3ee; color: #cffafe; }
+.ng-coin-toggle:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
+
+.ng-coinpanel {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 6px);
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+    border: 2px solid rgba(34, 211, 238, 0.45);
+    border-radius: 4px;
+    background: #070c18;
+    box-shadow: 0 12px 30px rgba(2, 6, 23, 0.9);
+}
+
+.ng-coinpanel.is-collapsed { display: none; }
+
+.ng-coinpanel-item {
+    padding: 0 14px;
+    border: 2px solid rgba(148, 163, 184, 0.3);
     border-radius: 3px;
     background: #0b1120;
     color: #94a3b8;
@@ -186,16 +228,16 @@ body[data-hub-theme='neon-grid'] {
     font-weight: 800;
     letter-spacing: 1.5px;
     text-transform: uppercase;
+    text-align: left;
 }
 
-.ng-coin.active {
+.ng-coinpanel-item.active {
     border-color: #22d3ee;
     color: #06121b;
     background: linear-gradient(180deg, #67e8f9, #22d3ee);
-    box-shadow: 0 0 18px rgba(34, 211, 238, 0.6);
 }
 
-.ng-coin:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
+.ng-coinpanel-item:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
 
 /* 機台企喺地台上面。個地台唔係裝飾：大螢幕之下四個櫃跟內容高，如果淨係
    置中就會浮喺半空，成幅牆變咗一行吊住嘅卡。企落地就讀得出係一間機舖。 */
@@ -429,10 +471,7 @@ body[data-hub-theme='neon-grid'] {
     .ng-floor { padding-bottom: 4px; }
     /* 招牌同投幣掣要分兩行：375px 度三粒掣食咗 230px，招牌得返 110px，
        「GAME HUB」就會斷行、燈泡條仲要畀切走一截。 */
-    .ng-marquee { flex-direction: column; align-items: stretch; gap: 8px; }
-    .ng-sign-text { letter-spacing: 3px; text-align: center; }
-    .ng-coinslot { justify-content: center; }
-    .ng-coin { flex: 1; }
+    .ng-sign-text { letter-spacing: 3px; }
 }
 
 /* 打橫矮畫面：招牌同控制條收扁，四個機台照樣一行。 */
@@ -505,28 +544,60 @@ body[data-hub-theme='editorial-arcade'] {
     color: #7c6f5a;
 }
 
+/* 版本：報頭角落一行細字，同 issue line 同一個層級——唔同封面爭位。 */
 .ed-sections {
     grid-area: sections;
-    display: flex;
-    align-items: flex-end;
-    gap: 2px;
+    position: relative;
     align-self: end;
+    justify-self: end;
 }
 
-.ed-section {
+.ed-edition {
     border: 0;
-    border-bottom: 3px solid transparent;
     background: none;
-    padding: 0 clamp(6px, 1.2vw, 12px);
+    padding: 0 2px;
     color: #7c6f5a;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 2px;
     text-transform: uppercase;
+    white-space: nowrap;
 }
 
-.ed-section.active { color: #14110d; border-bottom-color: #b91c1c; }
-.ed-section:focus-visible { outline: 2px solid #b91c1c; outline-offset: 2px; }
+.ed-edition:hover,
+.ed-edition[aria-expanded='true'] { color: #14110d; }
+.ed-edition:focus-visible { outline: 2px solid #b91c1c; outline-offset: 2px; }
+
+.ed-editions {
+    position: absolute;
+    z-index: 30;
+    top: 100%;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    min-width: 148px;
+    background: #f4f1ea;
+    border: 1px solid #14110d;
+    box-shadow: 6px 6px 0 rgba(20, 17, 13, 0.12);
+}
+
+.ed-editions.is-collapsed { display: none; }
+
+.ed-editions-item {
+    border: 0;
+    border-bottom: 1px solid #d6cfc0;
+    background: none;
+    padding: 0 12px;
+    color: #4a4238;
+    font-family: var(--font-serif);
+    font-size: 14px;
+    text-align: left;
+}
+
+.ed-editions-item:last-child { border-bottom: 0; }
+.ed-editions-item.active { color: #b91c1c; font-weight: 700; }
+.ed-editions-item:hover { background: #eae5da; }
+.ed-editions-item:focus-visible { outline: 2px solid #b91c1c; outline-offset: -2px; }
 
 .ed-spread { flex: 1; min-height: 0; display: flex; }
 
@@ -745,7 +816,8 @@ body[data-hub-theme='editorial-arcade'] {
         grid-template-areas: 'issue' 'word' 'strap' 'sections';
         row-gap: 2px;
     }
-    .ed-sections { align-self: start; margin-top: 4px; }
+    .ed-sections { justify-self: start; align-self: start; margin-top: 4px; }
+    .ed-editions { left: 0; right: auto; }
 }
 
 /* 打橫矮畫面：報頭壓扁，封面唔可以食晒個 spread。 */
@@ -800,27 +872,55 @@ body[data-hub-theme='command-deck'] {
     padding: 6px 7px;
 }
 
-.cd-keys { display: flex; flex-direction: column; gap: 6px; }
+/* 模式鍵：rail 上面一粒，彈出面板喺 rail 右邊。 */
+.cd-keys { position: relative; }
 
-.cd-key {
+.cd-modekey {
+    writing-mode: horizontal-tb;
     border: 1px solid rgba(148, 163, 184, 0.3);
     background: #0b1216;
     color: #7f9c8c;
     font-family: var(--font-mono);
     font-size: 10px;
     letter-spacing: 1px;
-    text-transform: uppercase;
     padding: 4px 2px;
-    writing-mode: vertical-rl;
 }
 
-.cd-key.active {
-    border-color: #34d399;
-    color: #06090c;
-    background: #34d399;
+.cd-modekey:hover,
+.cd-modekey[aria-expanded='true'] { border-color: #34d399; color: #34d399; }
+.cd-modekey:focus-visible { outline: 2px solid #fbbf24; outline-offset: 2px; }
+
+.cd-modes {
+    position: absolute;
+    z-index: 30;
+    top: 0;
+    left: calc(100% + 8px);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+    border: 1px solid rgba(52, 211, 153, 0.45);
+    background: #080d10;
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.7);
 }
 
-.cd-key:focus-visible { outline: 2px solid #fbbf24; outline-offset: 2px; }
+.cd-modes.is-collapsed { display: none; }
+
+.cd-modes-item {
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    background: #0b1216;
+    color: #7f9c8c;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 0 12px;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.cd-modes-item.active { border-color: #34d399; color: #06090c; background: #34d399; }
+.cd-modes-item:focus-visible { outline: 2px solid #fbbf24; outline-offset: 2px; }
 
 .cd-railnav { margin-top: auto; display: flex; flex-direction: column; gap: 6px; }
 
