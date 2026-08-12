@@ -574,3 +574,858 @@ body {
         transition: none;
     }
 }
+
+/* Theme picker ----------------------------------------------------------- */
+.hub-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    text-align: left;
+}
+
+.hub-heading {
+    min-width: 0;
+}
+
+.hub-heading .hub-subnote {
+    text-align: left;
+}
+
+.theme-controls {
+    display: flex;
+    width: min(100%, 354px);
+    min-height: 50px;
+    padding: 3px;
+    align-items: stretch;
+    gap: 3px;
+    border: 1px solid var(--glass-border);
+    border-radius: 15px;
+    background: rgba(15, 23, 42, 0.72);
+    box-shadow: 0 10px 22px -16px rgba(0, 0, 0, 0.86);
+}
+
+.theme-option {
+    display: inline-flex;
+    min-width: 44px;
+    min-height: 44px;
+    flex: 1 1 0;
+    padding: 7px 9px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.67rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.theme-option:hover,
+.theme-option:focus-visible {
+    border-color: rgba(148, 163, 184, 0.38);
+    color: var(--text-main);
+    outline: none;
+}
+
+.theme-option:focus-visible {
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.86), 0 0 0 6px rgba(14, 165, 233, 0.62);
+}
+
+.theme-option.active {
+    border-color: rgba(34, 211, 238, 0.72);
+    background: rgba(14, 165, 233, 0.2);
+    color: var(--text-main);
+    box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.12);
+}
+
+/* Each theme changes its material language as well as its layout. The
+   selectors intentionally key off the same data attribute written to html,
+   body, and #app-hub so a screenshot, a host integration, and CSS all observe
+   one state. */
+body[data-hub-theme='editorial-arcade'] {
+    --bg-darker: #201a16;
+    --card-bg: rgba(62, 43, 34, 0.88);
+    --card-bg-hover: rgba(87, 56, 40, 0.96);
+    --glass-border: rgba(245, 190, 128, 0.32);
+    --neon-blue: #c66b3d;
+    --neon-cyan: #f4b36a;
+    --text-main: #fff5e8;
+    --text-muted: #d8bda1;
+    background-color: var(--bg-darker);
+    background-image:
+        linear-gradient(135deg, rgba(244, 179, 106, 0.08) 25%, transparent 25%),
+        radial-gradient(circle at 80% 14%, rgba(202, 112, 61, 0.24), transparent 32%),
+        radial-gradient(circle at 12% 86%, rgba(244, 179, 106, 0.1), transparent 34%);
+}
+
+body[data-hub-theme='command-deck'] {
+    --bg-darker: #071016;
+    --card-bg: rgba(13, 36, 45, 0.9);
+    --card-bg-hover: rgba(15, 56, 67, 0.96);
+    --glass-border: rgba(115, 218, 205, 0.3);
+    --neon-blue: #18a994;
+    --neon-cyan: #73dacd;
+    --text-main: #ecfffc;
+    --text-muted: #9bc4c0;
+    background-color: var(--bg-darker);
+    background-image:
+        linear-gradient(90deg, rgba(115, 218, 205, 0.055) 1px, transparent 1px),
+        linear-gradient(rgba(115, 218, 205, 0.045) 1px, transparent 1px),
+        radial-gradient(circle at 50% 0%, rgba(24, 169, 148, 0.22), transparent 42%);
+    background-size: 28px 28px, 28px 28px, auto;
+}
+
+body[data-hub-theme='editorial-arcade'] .hub-header h1 {
+    color: #f4b36a;
+    font-family: Georgia, 'Times New Roman', serif;
+    letter-spacing: 0.02em;
+    text-shadow: 3px 3px 0 rgba(107, 50, 28, 0.8);
+}
+
+body[data-hub-theme='command-deck'] .hub-header h1 {
+    color: #73dacd;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: clamp(1.8rem, 4.5vw, 2.9rem);
+    letter-spacing: 0.12em;
+    text-shadow: 0 0 18px rgba(115, 218, 205, 0.32);
+}
+
+#app-hub[data-hub-theme='editorial-arcade'] .game-hub-card {
+    border-color: rgba(245, 190, 128, 0.32);
+    background: linear-gradient(145deg, rgba(92, 60, 42, 0.92), rgba(42, 29, 25, 0.96));
+    border-radius: 12px;
+    box-shadow: 5px 5px 0 rgba(104, 55, 32, 0.4), 0 14px 28px -18px rgba(0, 0, 0, 0.86);
+}
+
+#app-hub[data-hub-theme='editorial-arcade'] .game-hub-card::before {
+    background: linear-gradient(135deg, rgba(244, 179, 106, 0.16), transparent 44%);
+}
+
+#app-hub[data-hub-theme='command-deck'] .game-hub-card {
+    border-color: rgba(115, 218, 205, 0.28);
+    background: linear-gradient(105deg, rgba(14, 52, 60, 0.94), rgba(7, 22, 29, 0.96));
+    border-radius: 8px;
+    box-shadow: inset 4px 0 0 rgba(115, 218, 205, 0.22), 0 12px 24px -18px rgba(0, 0, 0, 0.88);
+}
+
+/* Editorial Arcade: one lead story plus a compact three-item rail. */
+@media (min-width: 761px) {
+    #app-hub[data-hub-theme='editorial-arcade'] .game-page:not([data-count='1']) {
+        grid-template-columns: minmax(0, 1.72fr) minmax(210px, 0.82fr);
+        grid-template-rows: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        min-height: 430px;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature {
+        grid-column: 1;
+        grid-row: 1 / -1;
+        min-height: 0;
+        padding: 26px 24px 22px;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature .card-icon {
+        width: 102px;
+        height: 102px;
+        margin-top: 28px;
+        font-size: 4.8rem;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature .card-icon-img {
+        width: 96px;
+        height: 96px;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail {
+        grid-column: 2;
+        min-height: 0;
+        flex-direction: row;
+        align-items: center;
+        padding: 12px 14px;
+        text-align: left;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-category {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        max-width: 46%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-icon {
+        width: 48px;
+        height: 48px;
+        flex: 0 0 48px;
+        margin: 0 11px 0 0;
+        font-size: 2.3rem;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-icon-img {
+        width: 44px;
+        height: 44px;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-copy {
+        min-width: 0;
+        align-items: flex-start;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-copy strong {
+        font-size: 0.95rem;
+        text-align: left;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-description {
+        margin-top: 4px;
+        font-size: 0.67rem;
+        text-align: left;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .pill-btn {
+        min-width: 54px;
+        margin: 0 0 0 8px;
+        padding: 6px 8px;
+        font-size: 0.62rem;
+    }
+}
+
+/* Command Deck: a vertical queue with controls moved to a desktop/landscape
+   rail. Portrait devices use the same controls as a bottom dock below the
+   queue (the existing carousel-footer remains the anchor for both modes). */
+@media (min-width: 761px) {
+    #app-hub[data-hub-theme='command-deck'] .carousel-container {
+        padding-right: 72px;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .game-page:not([data-count='1']) {
+        display: flex;
+        flex-direction: column;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: repeat(4, minmax(0, 1fr));
+        gap: 9px;
+        min-height: 430px;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row {
+        min-height: 0;
+        height: 100%;
+        flex: 1 1 0;
+        flex-direction: row;
+        align-items: center;
+        padding: 12px 16px;
+        text-align: left;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-category {
+        position: absolute;
+        top: 8px;
+        right: 12px;
+        max-width: 30%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-icon {
+        width: 52px;
+        height: 52px;
+        flex: 0 0 52px;
+        margin: 0 15px 0 0;
+        font-size: 2.5rem;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-icon-img {
+        width: 48px;
+        height: 48px;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-copy {
+        min-width: 0;
+        align-items: flex-start;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-copy strong,
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-description {
+        text-align: left;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-description {
+        margin-top: 4px;
+        font-size: 0.68rem;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .pill-btn {
+        min-width: 62px;
+        margin: 0 0 0 12px;
+        padding: 7px 9px;
+        font-size: 0.63rem;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .carousel-footer {
+        position: absolute;
+        top: 50%;
+        right: 4px;
+        width: 56px;
+        min-height: 0;
+        margin: 0;
+        padding: 6px 4px;
+        flex-direction: column;
+        gap: 6px;
+        border-radius: 28px;
+        transform: translateY(-50%);
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .carousel-footer .carousel-dots {
+        display: grid;
+        width: 48px;
+        max-width: 48px;
+        grid-template-columns: repeat(2, 24px);
+        grid-auto-rows: 24px;
+        gap: 0;
+        justify-content: center;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .carousel-footer .carousel-dot.active {
+        width: 24px;
+    }
+}
+
+/* The last page has one card. Let every theme use the established natural
+   centering contract instead of stretching a single feature/queue row. */
+#app-hub[data-hub-theme='editorial-arcade'] .game-page[data-count='1'],
+#app-hub[data-hub-theme='command-deck'] .game-page[data-count='1'] {
+    display: flex;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
+}
+
+#app-hub[data-hub-theme='command-deck'] .game-page[data-count='1'] .theme-command-row {
+    width: min(720px, 72%);
+    max-width: none;
+    height: 112px;
+    min-height: 112px;
+    flex: 0 0 auto;
+}
+
+@media (max-width: 760px) {
+    .hub-header {
+        flex-direction: column;
+        gap: 7px;
+        text-align: center;
+    }
+
+    .hub-heading {
+        width: 100%;
+    }
+
+    .hub-heading .hub-subnote {
+        text-align: center;
+    }
+
+    .theme-controls {
+        width: min(100%, 354px);
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .game-page:not([data-count='1']) {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1.8fr) repeat(3, minmax(0, 0.68fr));
+        gap: 7px;
+        height: clamp(300px, 56vh, 430px);
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature {
+        grid-column: 1;
+        grid-row: 1;
+        min-height: 0;
+        padding: 12px 12px 28px;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature .card-icon {
+        width: 64px;
+        height: 64px;
+        margin: 7px auto 6px;
+        font-size: 2.8rem;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature .card-icon-img {
+        width: 58px;
+        height: 58px;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail {
+        grid-column: 1;
+        min-height: 0;
+        flex-direction: row;
+        align-items: center;
+        padding: 7px 10px;
+        text-align: left;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-category {
+        position: absolute;
+        top: 6px;
+        right: 8px;
+        max-width: 34%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-icon {
+        width: 40px;
+        height: 40px;
+        flex: 0 0 40px;
+        margin: 0 8px 0 0;
+        font-size: 1.9rem;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-icon-img {
+        width: 37px;
+        height: 37px;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-copy {
+        align-items: flex-start;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-copy strong,
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-description {
+        text-align: left;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-copy strong {
+        font-size: 0.82rem;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-description {
+        margin-top: 2px;
+        font-size: 0.6rem;
+        -webkit-line-clamp: 1;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .pill-btn {
+        width: 25px;
+        height: 25px;
+        min-width: 0;
+        margin: 0 0 0 6px;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .game-page:not([data-count='1']) {
+        display: flex;
+        flex-direction: column;
+        grid-template-columns: minmax(0, 1fr);
+        grid-auto-rows: minmax(0, 1fr);
+        gap: 7px;
+        height: clamp(300px, 56vh, 430px);
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row {
+        min-height: 0;
+        height: 100%;
+        flex: 1 1 0;
+        flex-direction: row;
+        align-items: center;
+        padding: 8px 10px;
+        text-align: left;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-category {
+        position: absolute;
+        top: 5px;
+        right: 8px;
+        max-width: 34%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-icon {
+        width: 42px;
+        height: 42px;
+        flex: 0 0 42px;
+        margin: 0 9px 0 0;
+        font-size: 2rem;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-icon-img {
+        width: 39px;
+        height: 39px;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-copy {
+        align-items: flex-start;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-copy strong,
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-description {
+        text-align: left;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-copy strong {
+        font-size: 0.84rem;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-description {
+        margin-top: 2px;
+        font-size: 0.6rem;
+        -webkit-line-clamp: 1;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .pill-btn {
+        width: 25px;
+        height: 25px;
+        min-width: 0;
+        margin: 0 0 0 6px;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .carousel-container {
+        padding-right: 0;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .carousel-footer {
+        position: relative;
+        top: auto;
+        right: auto;
+        width: max-content;
+        min-height: 52px;
+        margin: 11px auto 0;
+        padding: 5px 6px;
+        flex-direction: row;
+        transform: none;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .game-page[data-count='1'] .theme-command-row {
+        width: 100%;
+        height: 112px;
+        min-height: 112px;
+    }
+}
+
+/* Short landscape is intentionally compact: command controls stay a side
+   rail and editorial keeps the feature/rail hierarchy without vertical spill. */
+@media (min-width: 761px) and (max-height: 500px) {
+    .hub-header {
+        gap: 10px;
+    }
+
+    .theme-controls {
+        min-height: 46px;
+    }
+
+    .theme-option {
+        min-height: 44px;
+        font-size: 0.6rem;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .game-page:not([data-count='1']),
+    #app-hub[data-hub-theme='command-deck'] .game-page:not([data-count='1']) {
+        min-height: 226px;
+        height: 226px;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature {
+        padding: 13px 14px 12px;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature .card-icon {
+        width: 64px;
+        height: 64px;
+        margin: 8px auto 5px;
+        font-size: 2.8rem;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature .card-icon-img {
+        width: 59px;
+        height: 59px;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail {
+        padding: 7px 9px;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .carousel-container {
+        padding-right: 62px;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row {
+        padding: 7px 10px;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-icon {
+        width: 40px;
+        height: 40px;
+        flex-basis: 40px;
+        margin-right: 9px;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-icon-img {
+        width: 37px;
+        height: 37px;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-copy strong {
+        font-size: 0.84rem;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-description {
+        font-size: 0.6rem;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-category {
+        top: 50%;
+        right: 82px;
+        transform: translateY(-50%);
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .carousel-footer {
+        width: 50px;
+        padding: 4px 3px;
+        gap: 4px;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .carousel-footer .nav-btn {
+        width: 44px;
+        height: 44px;
+        flex-basis: 44px;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .game-page[data-count='1'] .theme-command-row {
+        width: min(560px, 78%);
+        height: 96px;
+        min-height: 96px;
+    }
+}
+
+/* 667×375 is a short landscape phone: keep the phone's 2×2 neon grid, but
+   reclaim the vertical space that the portrait header would otherwise use.
+   Command uses the requested landscape navigation rail at this breakpoint. */
+@media (min-width: 600px) and (max-width: 760px) and (max-height: 500px) {
+    body {
+        padding: 6px 14px;
+    }
+
+    .hub-header {
+        flex-direction: row;
+        gap: 12px;
+        margin-bottom: 3px;
+        text-align: left;
+    }
+
+    .hub-heading {
+        width: auto;
+        flex: 1 1 auto;
+    }
+
+    .hub-heading .hub-subnote {
+        text-align: left;
+    }
+
+    .hub-header h1 {
+        font-size: 1.8rem;
+    }
+
+    .hub-subnote {
+        margin-top: 0.25rem;
+        font-size: 0.6rem;
+    }
+
+    .theme-controls {
+        width: min(320px, 48vw);
+        min-height: 50px;
+        flex: 0 0 min(320px, 48vw);
+    }
+
+    .theme-option {
+        min-height: 44px;
+        font-size: 0.59rem;
+    }
+
+    .carousel-track-container {
+        height: 220px;
+    }
+
+    .game-page:not([data-count='1']) {
+        height: 220px;
+        min-height: 220px;
+        grid-template-rows: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+        padding: 5px;
+    }
+
+    .game-hub-card {
+        min-height: 0;
+        height: 100%;
+        padding: 7px 8px 31px;
+    }
+
+    .card-icon {
+        width: 43px;
+        height: 43px;
+        margin: 6px auto 4px;
+        font-size: 2.2rem;
+    }
+
+    .card-icon-img {
+        width: 42px;
+        height: 42px;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .game-page:not([data-count='1']) {
+        height: 220px;
+        min-height: 220px;
+        grid-template-rows: minmax(0, 1.6fr) repeat(3, minmax(0, 0.55fr));
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature {
+        min-height: 0;
+        padding: 7px 9px 28px;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature .card-icon {
+        width: 54px;
+        height: 54px;
+        margin: 5px auto 3px;
+        font-size: 2.45rem;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-feature .card-icon-img {
+        width: 50px;
+        height: 50px;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail {
+        min-height: 0;
+        padding: 4px 8px;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-icon {
+        width: 33px;
+        height: 33px;
+        flex-basis: 33px;
+        margin-right: 7px;
+        font-size: 1.6rem;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-icon-img {
+        width: 31px;
+        height: 31px;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-copy strong {
+        font-size: 0.75rem;
+    }
+
+    #app-hub[data-hub-theme='editorial-arcade'] .theme-rail .card-description {
+        margin-top: 1px;
+        font-size: 0.55rem;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .carousel-container {
+        padding-right: 62px;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .game-page:not([data-count='1']) {
+        display: flex;
+        flex-direction: column;
+        height: 220px;
+        min-height: 220px;
+        gap: 6px;
+        padding: 5px;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row {
+        min-height: 0;
+        height: auto;
+        flex: 1 1 0;
+        padding: 5px 8px;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-icon {
+        width: 36px;
+        height: 36px;
+        flex-basis: 36px;
+        margin-right: 8px;
+        font-size: 1.8rem;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-icon-img {
+        width: 34px;
+        height: 34px;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-copy strong {
+        font-size: 0.78rem;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-description {
+        margin-top: 1px;
+        font-size: 0.55rem;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .theme-command-row .card-category {
+        top: 50%;
+        right: 48px;
+        max-width: 64px;
+        transform: translateY(-50%);
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .carousel-footer {
+        position: absolute;
+        top: 50%;
+        right: 4px;
+        width: 50px;
+        min-height: 0;
+        margin: 0;
+        padding: 4px 3px;
+        flex-direction: column;
+        gap: 4px;
+        border-radius: 26px;
+        transform: translateY(-50%);
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .carousel-footer .carousel-dots {
+        display: grid;
+        width: 48px;
+        max-width: 48px;
+        grid-template-columns: repeat(2, 24px);
+        grid-auto-rows: 24px;
+        gap: 0;
+        justify-content: center;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .carousel-footer .carousel-dot.active {
+        width: 24px;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .game-page[data-count='1'] .theme-command-row {
+        width: min(420px, 78%);
+        height: 96px;
+        min-height: 96px;
+        flex: 0 0 auto;
+    }
+
+    #app-hub[data-hub-theme='command-deck'] .carousel-footer .nav-btn {
+        width: 44px;
+        height: 44px;
+        flex-basis: 44px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .theme-option {
+        transition: none;
+    }
+}

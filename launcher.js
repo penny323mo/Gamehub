@@ -16,7 +16,85 @@ const escapeHtml = (value) => String(value)
     .replaceAll("'", '&#39;');
 
 const PAGE_SIZE = 4;
+const THEME_STORAGE_KEY = 'gamehub-theme-v1';
+const THEMES = Object.freeze(['neon-grid', 'editorial-arcade', 'command-deck']);
 let currentPage = 0;
+let currentTheme = 'neon-grid';
+
+// A blocked localStorage getter is as common as a blocked setItem in private
+// browsing. Keep the theme picker an enhancement: neither operation may stop
+// the catalog from rendering or the carousel from receiving input.
+function withStorage(operation) {
+    try {
+        return operation(globalThis.localStorage);
+    } catch (error) {
+        return undefined;
+    }
+}
+
+function readStoredTheme() {
+    const stored = withStorage((storage) => storage?.getItem(THEME_STORAGE_KEY));
+    return THEMES.includes(stored) ? stored : 'neon-grid';
+}
+
+function persistTheme(theme) {
+    withStorage((storage) => {
+        storage?.setItem(THEME_STORAGE_KEY, theme);
+    });
+}
+
+function themeRole(theme, index) {
+    if (theme === 'editorial-arcade') return index === 0 ? 'feature' : 'rail';
+    if (theme === 'command-deck') return 'command';
+    return 'grid';
+}
+
+function updateThemeLayout() {
+    document.querySelectorAll('.game-page').forEach((page) => {
+        page.dataset.themeLayout = currentTheme === 'editorial-arcade'
+            ? 'editorial-feature-rail'
+            : currentTheme === 'command-deck'
+                ? 'command-queue'
+                : 'neon-grid';
+        page.classList.toggle('theme-editorial-page', currentTheme === 'editorial-arcade');
+        page.classList.toggle('theme-command-page', currentTheme === 'command-deck');
+
+        page.querySelectorAll('.game-hub-card').forEach((card, index) => {
+            const role = themeRole(currentTheme, index);
+            card.dataset.themeRole = role;
+            card.classList.toggle('theme-feature', role === 'feature');
+            card.classList.toggle('theme-rail', role === 'rail');
+            card.classList.toggle('theme-command-row', role === 'command');
+        });
+    });
+}
+
+function applyTheme(theme, { persist = true } = {}) {
+    currentTheme = THEMES.includes(theme) ? theme : 'neon-grid';
+    const targets = [document.documentElement, document.body, document.getElementById('app-hub')]
+        .filter(Boolean);
+    targets.forEach((target) => {
+        // Keep both names for CSS and integrations: data-hub-theme is the
+        // explicit contract, while data-theme is convenient for generic UI
+        // tooling and harmless on the existing hub root.
+        target.dataset.hubTheme = currentTheme;
+        target.dataset.theme = currentTheme;
+    });
+    document.querySelectorAll('.theme-option').forEach((button) => {
+        const active = button.dataset.themeValue === currentTheme;
+        button.setAttribute('aria-pressed', String(active));
+        button.classList.toggle('active', active);
+    });
+    updateThemeLayout();
+    if (persist) persistTheme(currentTheme);
+}
+
+function initThemeControls() {
+    applyTheme(readStoredTheme(), { persist: false });
+    document.querySelectorAll('.theme-option').forEach((button) => {
+        button.addEventListener('click', () => applyTheme(button.dataset.themeValue));
+    });
+}
 
 function pagesOfGames() {
     const pages = [];
@@ -77,6 +155,8 @@ function renderCarousel() {
         });
         track.appendChild(li);
     });
+
+    updateThemeLayout();
 
     const dots = document.getElementById('carousel-dots');
     if (dots) {
@@ -183,6 +263,7 @@ function handleSwipe() {
 }
 
 function initHub() {
+    initThemeControls();
     renderCarousel();
 
     // Add touch event listeners for swipe support

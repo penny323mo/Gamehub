@@ -329,6 +329,54 @@ table.snapshot(): TableState
 Headless SwiftShader 只用作相對 regression；絕對 FPS 必須由至少一部較舊 iPhone、
 一部中階 Android、Mac Safari/Chrome 實測。
 
+### 5.5 Hub theme 必須係三套介面語言，唔係同一卡片換皮
+
+2026-08-12 嘅第一版 theme prototype 雖然通過 navigation、storage、responsive geometry 同
+zero-error browser contract，但實際觀感仍然係「同一個四格卡片 carousel 換顏色、圓角同
+排列」。呢個結果**唔算視覺驗收通過**。下一輪要將 theme 當成三套獨立產品介面；只共享
+GameCatalog、game link、profile/progress data、keyboard/touch semantics 同 accessibility，
+唔共享一個固定嘅 thumbnail/card silhouette。
+
+三套目標形態：
+
+| Theme | 頁面骨架 | 遊戲圖像／縮圖媒介 | 遊戲入口形態 |
+| --- | --- | --- | --- |
+| Neon Grid | arcade index／多格遊戲牆 | marquee、cabinet window、發光 icon 或 gameplay crop | 可掃視嘅 arcade tile，但唔強迫另外兩個 theme 沿用 |
+| Editorial Arcade | magazine masthead＋不對稱 spread | full-bleed cover、跨欄 gameplay still、caption/crop | lead story＋article index；次要 game 係 editorial strip，唔係縮細版卡片 |
+| Command Deck | system rail＋status bar＋dispatch workspace | tactical schematic、sensor viewport、狀態 glyph；可以完全冇傳統 thumbnail | mission row／console module／dispatch target，唔呈現 rounded game card |
+
+每套 theme 必須同時重設：
+
+- app shell、brand/masthead、theme selector、navigation、pagination 同 footer 所在位置；
+- thumbnail 嘅比例、裁切、用途、caption 關係及載入策略；
+- game item 嘅 DOM/presentation archetype、輪廓、資訊層級、閱讀方向同 launch affordance；
+- desktop、portrait、short-landscape 嘅 composition，而唔係只將同一 grid 改 columns；
+- motion、focus、hover 同 reduced-motion 語言，但 launch／swipe／keyboard 行為保持一致。
+
+明確禁止以下「假主題」：
+
+- 三套都係同一個 rounded rectangle，icon 在上、title/subtitle 在中、Play 在下；
+- 只換 CSS variables、背景 gradient、字體、border-radius、shadow 或卡片排序；
+- 同一 thumbnail component 只改 aspect ratio／filter，就聲稱係另一套視覺語言；
+- browser assertions 全綠就取代真人 screenshot 比較與 Penny 嘅視覺 acceptance。
+
+Implementation 可以保留最外層可存取 launch anchor、`data-game-id` 同 manifest order，但應由
+theme-specific renderer／template 生成唔同內部結構；唔需要為測試勉強保存同一套 visual
+card DOM。縮圖優先取自每隻 game 嘅 canonical gameplay captures，經 AssetCatalog／capture
+pipeline 記錄來源、crop variant、尺寸同 byte budget，唔再以 emoji 當所有 theme 嘅主要視覺。
+
+驗收必須包括：
+
+1. 320×568、375×667、667×375、844×390、1280×800 三 theme full-page screenshots；
+2. 自動 layout signature 證明三者嘅 shell、nav、item rect cluster、media treatment
+   （aspect／role／asset type，或明確 no-thumbnail proof）同 tail layout實際不同，而唔只係
+   computed colour 不同；
+3. theme-specific thumbnail／item DOM contract、無重疊、零 horizontal overflow、44px controls、
+   keyboard/touch/storage/13-link/4+4+4+1 或其正式替代 pagination contract全綠；
+4. zero console/page/HTTP/external-request error、首屏 image budget 同 lazy-load gate；
+5. headed real-browser 視覺 review＋Penny acceptance。自動測試只能證明冇壞，唔可以自行宣告
+   「風格已經完全唔同」。
+
 ## 6. 全角色／單位 Rig、Skeleton、Motion 重新配對
 
 呢個係獨立工程，唔可以附帶喺「換靚 model」入面順手做。現況有三種完全唔同嘅 actor：
@@ -522,8 +570,11 @@ license snapshot、checksum 同驗證日期，唔以舊記憶代替當次授權�
   Poly Haven material 只做低解析 environment layer。
 - **Snooker**：Poly Haven 1K studio HDRI/wood/cloth audition；球、枱、袋口要由物理尺寸生成或
   嚴格 normalize，裝飾場景先用外部資產。
-- **Hub**：唔直接載入十三個 3D scene。每隻 game 離線 render 一張一致角度 WebP poster；
-  hover/active page先可選載短 WebM，首屏唔背全部 3D asset 成本。
+- **Hub**：唔直接載入十三個 3D scene。由 capture pipeline 為每隻 game 產生
+  theme-declared media variants：Neon 可用 marquee/cabinet crop，Editorial 可用 cover/spread
+  still，Command 可用 schematic/status glyph 或明確 no-thumbnail treatment。格式可按 budget
+  用 WebP/AVIF/短 WebM，但 crop、aspect、role、fallback、license/checksum 同 bytes 必須逐
+  variant 入 manifest；首屏唔背全部 3D asset 成本。
 
 ### 8.3 Asset 接受 gate
 
@@ -592,9 +643,14 @@ responsive scroll grid，並由 GameCatalog 提供：
 - 每隻 game 一個最有意義嘅 progress summary，唔強迫全部變 XP；
 - local/cloud 資料說明、profile/export、audio/reduced-motion 等 Hub settings。
 
-首屏只 preload 當前 hero WebP/AVIF，每張 provisional ≤120KB；唔 autoplay 十三段影片。
+首屏只 preload 當前 theme 真正使用嘅 media variant；static image 每張 provisional ≤120KB，
+動態 media 只可在 hover／active／explicit action 後載入；唔 autoplay 十三段影片。
 320px 起冇 horizontal overflow、冇 singleton page，keyboard/switch 可到每張卡。Catalog 同時修正
 過時 metadata，例如 Tower 唔再顯示舊「20 波」描述。
+
+首頁資訊能力同 theme presentation 分開：recent／Continue／filter 由同一份 catalog/ledger data
+提供，但 Neon、Editorial、Command 必須按 5.5 用不同 shell、media 同 item archetype 呈現；
+唔可以先做一張萬能 `GameCard`，再靠 theme class 換皮。
 
 ### 9.6 先修正已承諾但未接通嘅玩法
 
@@ -657,15 +713,19 @@ responsive scroll grid，並由 GameCatalog 提供：
 baseline report 可重跑；100% runtime GLB 有 license entry 或明確阻塞；三個新 scene 灰盒先通過
 玩法 witness，未通過唔進 art pass。
 
-### Phase 1 — 第 3–8 星期：三個煥然一新 vertical slice
+### Phase 1 — 第 3–8 星期：Hub first，再做三個煥然一新 vertical slice
 
-1. **Racing**：fixed-step wrapper＋VehicleDynamics telemetry＋一條完整 Harbor／Mountain circuit v2，
+1. **Hub UI（本 checkpoint 第一 TODO）**：保留同一 catalog/profile 行為契約，但交付
+   Neon Grid、Editorial Arcade、Command Deck 三套真正獨立 shell、thumbnail/media 同
+   game-item archetype。現有換皮 prototype只可作 theme/storage/navigation scaffold，
+   唔係 visual baseline；必須先通過 §5.5 全部自動及 headed acceptance先開以下 vertical slice。
+2. **Racing**：fixed-step wrapper＋VehicleDynamics telemetry＋一條完整 Harbor／Mountain circuit v2，
    包含 surface、drift chain、landmark、日／黃昏 preset 同機械 rig wheel/contact。
-2. **Royale**：三區戰場完成一個可玩版本；步兵、遠程、騎兵、攻城器械各一個 rig archetype
+3. **Royale**：三區戰場完成一個可玩版本；步兵、遠程、騎兵、攻城器械各一個 rig archetype
    配對完成，城門／塔／泉水／商店 footprint 同退出流程有 browser witness。
-3. **Elden**：灰燼長堤＋沉沒外庭、shortcut、quality tier；三職業、skeleton、boss 嘅
+4. **Elden**：灰燼長堤＋沉沒外庭、shortcut、quality tier；三職業、skeleton、boss 嘅
    locomotion／attack/contact／death mapping 完成。
-4. **Hub**：responsive scroll grid、hero cards、recent/favorite/filter/Continue，同本機 profile
+5. **Hub product layer**：視覺驗收後先接 recent/favorite/filter/Continue，同本機 profile
    名＋可選 code prototype。
 
 退出條件：三隻 game 各有真機 before/after witness；角色零 T-pose／硬直，contact timing gate
@@ -767,18 +827,22 @@ Ashen 半搖桿速度為全搖桿 45–55%，加速至全速 0.25–0.55 秒；S
 
 按依賴順序：
 
-1. 建 GameCatalog manifest，同步取代 launcher／hub tests 重複清單，令 deploy 跑 changed-game
+1. **第一 TODO：重做 Hub UI**，按 §5.5 將三個 theme 嘅 app shell、遊戲縮圖／media、
+   item/card archetype、資訊層級及 navigation composition完全分流；保留 catalog/link/
+   storage/touch/keyboard contract，完成五 viewport screenshots、layout signature、zero-error
+   gates 同 Penny headed acceptance。未通過前唔開始下一項。
+2. 建 GameCatalog manifest，同步取代 launcher／hub tests 重複清單，令 deploy 跑 changed-game
    required matrix；
-2. 建 AssetCatalog＋RigCatalog，匯入 license，輸出所有 actor bone/clip/socket report 同免費 pack
+3. 建 AssetCatalog＋RigCatalog，匯入 license，輸出所有 actor bone/clip/socket report 同免費 pack
    audition contact sheet；
-3. 收集三部裝置 visual/performance baseline，同每隻 3D game 三張 canonical capture；
-4. 完成 Royale 三區戰場、Racing 三類 circuit、Elden 三段關卡灰盒同玩法 witness；
-5. Racing 加 fixed accumulator＋不改 feel replay equivalence，再完成第一條 circuit art pass；
-6. Royale 先配對四種 unit archetype，同步完成戰場 batching／gate footprint；
-7. Elden 將現有 clip/contact/socket 移入 catalog，完成灰燼長堤第一個 production sector；
-8. 寫 PlayerVault contract tests，將 Royale profile implementation 變 local adapter；
-9. Hub 改 responsive grid＋hero card＋recent/filter/Continue prototype；
-10. 跑全 Hub ReleaseGate、rig/scene/mobile golden，保留 checkpoint先開第二批。
+4. 收集三部裝置 visual/performance baseline，同每隻 3D game 三張 canonical capture；
+5. 完成 Royale 三區戰場、Racing 三類 circuit、Elden 三段關卡灰盒同玩法 witness；
+6. Racing 加 fixed accumulator＋不改 feel replay equivalence，再完成第一條 circuit art pass；
+7. Royale 先配對四種 unit archetype，同步完成戰場 batching／gate footprint；
+8. Elden 將現有 clip/contact/socket 移入 catalog，完成灰燼長堤第一個 production sector；
+9. 寫 PlayerVault contract tests，將 Royale profile implementation 變 local adapter；
+10. UI 視覺通過後接 responsive discovery、recent/filter/Continue prototype；
+11. 跑全 Hub ReleaseGate、rig/scene/mobile golden，保留 checkpoint先開第二批。
 
 ## 15. 明確非目標
 
@@ -811,7 +875,8 @@ Ashen 半搖桿速度為全搖桿 45–55%，加速至全速 0.25–0.55 秒；S
 
 如果只揀一條最有效嘅路：
 
-**先建 GameCatalog／ReleaseGate／AssetCatalog＋RigCatalog → Royale 三區戰場＋單位 rig、Racing
+**先完成 Hub 三套真正獨立 UI／thumbnail／item archetype → 再沿用已建立嘅
+GameCatalog／ReleaseGate／AssetCatalog＋RigCatalog → Royale 三區戰場＋單位 rig、Racing
 新 circuit＋fixed physics、Elden 三段關卡＋combat rig 三個 vertical slice → Hub profile／Continue →
 Ashen animation/combat → Snooker 共用物理 → Tower/MOBA mastery → 棋牌／arcade 長期 loop。**
 

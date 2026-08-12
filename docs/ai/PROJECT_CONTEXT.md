@@ -21,7 +21,7 @@ or all games for shared, test, CI, catalog, unknown-game and explicit manual cha
 
 | Area | Entrypoint | Stack / notes |
 | --- | --- | --- |
-| Hub launcher | `games/manifest.json`, `games/catalog.generated.js`, `index.html`, `launcher.js`, `style.css` | Manifest is canonical; generated classic script keeps four-card startup synchronous and Pages-safe. |
+| Hub launcher | `games/manifest.json`, `games/catalog.generated.js`, `index.html`, `launcher.js`, `style.css` | Manifest is canonical; generated classic script keeps startup synchronous and Pages-safe. Theme selection/storage exists under `gamehub-theme-v1`; all three current Neon/Editorial/Command variants are rejected functional scaffolds, not the target art direction. |
 | Asset / rig authority | `games/assets/catalog.json`, `games/assets/catalog.mjs`, `games/assets/census.generated.json` | Build-time provenance, canonical runtime-model census and semantic RigDescriptors; generated census is deterministic and never loaded by games at runtime. |
 | Gomoku | `games/gomoku/index.html` | Static JS, online features use Supabase. |
 | Penny Crush | `games/penny_crush/index.html` | Static game. |
@@ -44,6 +44,15 @@ or all games for shared, test, CI, catalog, unknown-game and explicit manual cha
   entry paths and release commands. `launcher.js` consumes the generated
   `globalThis.GameCatalog`; after manifest edits run
   `node scripts/build-game-catalog.mjs` and never hand-edit the generated file.
+- Hub themes share catalog data, game links, progress/profile inputs, navigation
+  semantics and accessibility, but **not** one mandatory thumbnail or card visual.
+  Future Neon/Editorial/Command must each use a distinct shell, media treatment, item archetype,
+  hierarchy and responsive composition as specified by Evolution Plan §5.5 and
+  ADR-312. `launcher.js` currently keeps the 13 manifest links, 4/4/4/1 pagination,
+  swipe/keyboard behavior and `data-game-id` launch anchors while synchronizing
+  `data-hub-theme` on `html`, `body` and `#app-hub`; those are scaffold contracts,
+  not acceptance of the current presentation. Storage failure must fall back to
+  `neon-grid` without preventing startup.
 - `games/assets/catalog.json` is the build-time authority for 3D provenance,
   path-to-source rules, representative asset identities and semantic rig/clip
   mappings. `scripts/build-asset-census.mjs` deterministically audits every
@@ -190,8 +199,9 @@ or all games for shared, test, CI, catalog, unknown-game and explicit manual cha
   boot.
   Keep the 0–80, drift, autopilot, floor-clearance, and mobile layout gates green.
 - 深淵之橋 uses `Sim#atFountain()` only for healing/recall location. `Sim#canShop()` permits
-  purchases anywhere; do not re-couple those concepts. Its Hub link and changed entry assets use
-  one cache-bust token so Safari cannot keep an obsolete shop UI/rule after a Pages deploy.
+  purchases anywhere; do not re-couple those concepts. Its entry/link/module graph shares one
+  MOBA cache token. Root Hub `launcher.js`/`style.css` use a separate paired token, so a Hub-only
+  layout release never rewrites unrelated MOBA module imports (ADR-311).
 
 ## Verification matrix
 
@@ -212,7 +222,7 @@ commands. ReleaseGate executes argv arrays without a shell, applies bounded
 timeouts, selects only a directly changed game, and fails closed to all games for
 shared, Hub-test, CI, catalog, unknown-game or explicit `--all` releases. Deploy CI
 installs package-lock dependencies selected by that plan, runs its `full` tier,
-and always runs Hub layout/load/touch/storage/home browser gates.
+and always runs Hub layout/theme/load/touch/storage/home browser gates.
 
 ### AssetCatalog / RigCatalog
 
@@ -230,6 +240,12 @@ Pages release and require zero parse failure or stale generated output.
 
 ### Hub or any static game
 
+- Run `node tests/hub-themes.mjs` for the current Hub scaffold; it covers all
+  three theme IDs at 320x568, 375x667, 667x375, 844x390 and 1280x800, including
+  tail-page geometry, persistence, blocked storage, keyboard, swipe and errors.
+  It does **not** certify that the themes are visually distinct. The redesign must
+  add shell/media/item layout-signature gates plus headed full-page screenshot
+  review before visual acceptance.
 - Serve the repository over HTTP; do not rely only on `file://` behavior.
 - Open the hub, follow the affected card, and check the browser console.
 - Verify direct navigation to the affected game path.

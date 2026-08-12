@@ -238,7 +238,7 @@
         "full": [
           { "cwd": ".", "argv": ["node", "games/moba/tests/cache-bust.mjs"] },
           { "cwd": ".", "argv": ["node", "games/moba/tests/sim.mjs"] },
-          { "cwd": ".", "argv": ["node", "games/moba/tests/browser.mjs"] }
+          { "cwd": ".", "argv": ["node", "games/moba/tests/browser.mjs"], "timeoutMs": 1200000 }
         ]
       }
     },

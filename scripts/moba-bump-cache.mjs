@@ -27,13 +27,6 @@ if (!token || !/^[a-z0-9][a-z0-9-]*$/.test(token)) {
 // 唔用一個「見到 ?v= 就換」嘅大網——嗰種寫法會順手改埋唔關事嘅嘢。
 const entries = [
     [path.join(MOBA, 'index.html'), [/(style\.css\?v=)[a-z0-9-]+/g, /(src\/main\.js\?v=)[a-z0-9-]+/g]],
-    // Catalog uses its own manifest-content hash (build-game-catalog owns it),
-    // so MOBA's deploy token only updates launcher.js and style.css here.
-    // 所以純 CSS 嘅改動（例如加大可撳範圍）推上去，返轉頭嘅訪客攞到嘅仲係
-    // 舊嗰份樣式——同 ADR-111 講嗰個毛病一樣，只係走漏咗樣式表。
-    [path.join(REPO, 'index.html'), [/(launcher\.js\?v=)[a-z0-9-]+/g, /(style\.css\?v=)[a-z0-9-]+/g]],
-    // Hub 嘅字型同 logo 都係專案自己嘅資產，換咗要傳得到去返轉頭嘅訪客
-    [path.join(REPO, 'style.css'), [/(outfit-latin\.woff2\?v=)[a-z0-9-]+/g]],
     // Launcher metadata moved to the canonical manifest.  Regenerate the
     // browser artifact after replacing its image/MOBA URLs.
     [path.join(REPO, 'games', 'manifest.json'), [/(_logo\.png\?v=)[a-z0-9-]+/g]],

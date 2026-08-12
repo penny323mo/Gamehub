@@ -8949,3 +8949,37 @@ License/source、checksum、axis/unit、bone/socket 或 clip fact 缺失時必�
 license 唔代表 rig 已可安全重配，反之亦然。每次 Pages deploy 先跑 census `--check`、catalog
 contract 同 census regression；呢個 authority 係之後全角色／單位骨架重新配對同 free-asset
 升級嘅准入門，而唔係叫現有 gameplay renderer 即時改接口。
+
+## ADR-311 — Hub UI 同 MOBA module graph 各自擁有 cache token
+
+Date: 2026-08-12. Status: accepted; narrows ADR-104／ADR-133／ADR-242.
+
+ADR-104 當時為咗保證商店修正由 MOBA link 一路去到 `hud.js`，曾將 root Hub
+`launcher.js`／`style.css` 一併綁入 MOBA 全 module graph token。GameCatalog、ReleaseGate 同
+獨立 Hub browser gates 建立後，兩者已係分開 release surface；純 Hub layout 更新唔應重寫
+35 個無關 MOBA import URL。`games/moba/tests/cache-bust.mjs` 因此分開守兩個 closure：MOBA
+entry/link/local imports 保持同一 token；Hub launcher/style 保持另一個非空且互相一致 token。
+`scripts/moba-bump-cache.mjs` 只 bump MOBA closure 同 manifest entry，再 regenerate catalog。
+Hub UI 改動要一齊 bump root launcher/style，由 Hub gate驗證，唔再順手改 MOBA runtime。
+
+## ADR-312 — Hub theme 身份包括 shell、media 同 item archetype，唔係 palette skin
+
+Date: 2026-08-12. Status: accepted; supersedes the visual-composition assumption in the
+first Hub theme prototype.
+
+第一版 Editorial Arcade／Command Deck 保留咗同一套 Hub header、thumbnail/icon、rounded
+game-card silhouette 同大部分資訊位置；即使 responsive、storage、keyboard、touch 同
+zero-error browser contract 全綠，Penny 嘅 headed review 仍正確判定佢只係換色／換排列，
+因此唔算 visual acceptance。
+
+往後三套 theme 只共享 `GameCatalog` data、game href、profile/progress data、theme storage、
+navigation semantics、focus/touch/accessibility 同 error budget。App shell、masthead、theme
+selector、pagination、thumbnail/media form、game-item DOM/presentation archetype、資訊層級、
+launch affordance 同 responsive composition必須可以各自不同。最外層可存取 launch anchor
+同 `data-game-id` 可以保留作穩定 contract，但唔可以要求三套都渲染成同一款 card。
+
+驗收要同時有自動 layout signature（shell/nav/item/media/tail geometry）、五個 canonical
+viewport full-page screenshots、zero-error functional gates，同 Penny 嘅 headed visual review。
+同一 component 只換 colour、gradient、font、radius、shadow、aspect ratio 或排序，一律唔算
+新 theme。現有 prototype只係 theme/storage/navigation scaffold；下一輪可以重用行為，
+但唔可以把 205/205 functional pass 當成視覺完成證據。

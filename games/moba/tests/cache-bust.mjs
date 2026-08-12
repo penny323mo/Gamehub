@@ -19,9 +19,6 @@ const versions = {
     main: capture(html, /src\/main\.js\?v=([a-z0-9-]+)/i),
     hud: capture(main, /\.\/hud\.js\?v=([a-z0-9-]+)/i),
     sim: capture(main, /\.\/sim\.js\?v=([a-z0-9-]+)/i),
-    hubEntry: capture(hub, /launcher\.js\?v=([a-z0-9-]+)/i),
-    // Hub 嘅樣式表之前完全冇標記，所以純 CSS 改動係傳唔到去返轉頭嘅訪客
-    hubStyle: capture(hub, /style\.css\?v=([a-z0-9-]+)/i),
     mobaLink: capture(manifest.games.find(({ id }) => id === 'moba')?.entry ?? '',
         /games\/moba\/index\.html\?v=([a-z0-9-]+)/i),
 };
@@ -32,6 +29,21 @@ if (bad) {
     console.error('FAIL  MOBA 部署入口缺少一致 cache-bust token', versions);
 } else {
     console.log('PASS  MOBA 部署入口共用 cache-bust token', versions);
+}
+
+// Hub 本身係另一個 release surface。最初為咗補救「商店修好但入口仲係舊
+// launcher/style」而將佢強行綁入 MOBA token；GameCatalog/ReleaseGate 已經令 Hub
+// UI 有自己嘅 deploy gate，繼續要求兩邊永遠同版反而令純 Hub 主題更新要重寫
+// 三十幾個無關 MOBA imports。Hub 仍然要自己守住 launcher/style 同步且非空。
+const hubVersions = {
+    entry: capture(hub, /launcher\.js\?v=([a-z0-9-]+)/i),
+    style: capture(hub, /style\.css\?v=([a-z0-9-]+)/i),
+};
+if (!hubVersions.entry || hubVersions.entry !== hubVersions.style) {
+    bad = true;
+    console.error('FAIL  Hub launcher/style cache-bust token 唔一致', hubVersions);
+} else {
+    console.log('PASS  Hub launcher/style 共用獨立 cache-bust token', hubVersions);
 }
 
 // 入口有 token 唔代表安全。瀏覽器係逐條 URL 去快取嘅，所以 main.js 換咗版本

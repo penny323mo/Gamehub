@@ -1,79 +1,120 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Phase 0B AssetCatalog / RigCatalog checkpoint
+Prepared by: Codex — intermediate Hub UI checkpoint
 Integration branch: `main`
 Work branch: `main`
-Status: Phase 0B is implemented and locally verified. Its checkpoint push waits
-for the preceding `98e6708` clean workflow; no asset/gameplay code was added.
-
+Status: Functional theme scaffold and Phase 0B asset authority are local; the Hub
+art direction is **not accepted** and its redesign precedes all Phase 0C work.
 ## Current objective
 
-Execute `docs/GAMEHUB_EVOLUTION_PLAN.md` sequentially. Phase 0B establishes the
-evidence authority required before actor re-rigging or scene asset replacement.
-The concurrent Hub-theme side quest is UI-only and owns separate files.
+First, rebuild the Hub themes under Evolution Plan §5.5 and ADR-312. Penny rejected
+all three current variants, including default Neon, because they still read as one
+card carousel. Thumbnail/media, item form, app shell, information hierarchy and
+navigation composition must also differ.
+
+This is a UI-only scope. Preserve every game runtime, the 13-game catalog order,
+entry links, storage safety and launch/input semantics; theme-specific navigation
+may change but must remain keyboard/touch accessible.
 
 ## Completed
 
-- Added strict build-time `games/assets/catalog.json` authority: 21 provenance
-  sources, 24 longest-match path rules, 12 representative asset overrides and
-  12 semantic RigDescriptors. Unknown evidence fails closed.
-- Added `games/assets/catalog.mjs`: validate/load/query APIs, safe local path
-  resolution and census coverage audit. Runtime Three/Babylon code is untouched.
-- Added deterministic GLB/glTF census generator. It records bytes/SHA-256,
-  bounds/triangles, materials/textures, nodes, skin/bone facts, clips/channels,
-  external resources, duplicate groups and explicit missing facts.
-- Generated 267 physical records: 155 canonical runtime, 108 delivery duplicates,
-  4 Ashen source-only inputs and zero parse failure. Duplicate deep facts are
-  compressed; the checked-in artifact is 1.44 MB.
-- Separated provenance from technical readiness: 127/155 license-verified and
-  28 blocked; 118/155 ready and 37 blocked. Recorded all evidence and gaps in
-  `ASSET_LICENSE_AUDIT.md`; no license/source fact was inferred from appearance.
-- Pages CI now checks generated census parity plus catalog/census contracts before
-  release. Architecture/commands are in PROJECT_CONTEXT and durable ADR-310.
+- Phase 0B is preserved in local commit `7c032b3`: AssetCatalog/RigCatalog,
+  deterministic 155-model runtime census, provenance 127 verified / 28 blocked,
+  and readiness 118 ready / 37 blocked.
+- Added a functional three-theme scaffold: `neon-grid`, `editorial-arcade` and
+  `command-deck`; native 44 px theme buttons persist under `gamehub-theme-v1`
+  and safely fall back when Web Storage is blocked.
+- Preserved the manifest-derived 13 entries, 4/4/4/1 pages, hrefs, inactive-page
+  tab contract, arrows, dots, keyboard and touch gestures.
+- Added `tests/hub-themes.mjs` and Pages CI wiring. The current contract exercises
+  all three theme IDs at five viewports, storage/reload, blocked storage,
+  keyboard, swipe/touchcancel, overflow and browser/network errors.
+- Split the root Hub cache token from the MOBA module graph (ADR-311). Root
+  launcher/style use `assets-32`; MOBA remains on `assets-31`.
+- Added a command-specific 20-minute ReleaseGate timeout for the existing MOBA
+  browser suite. GitHub run `31583123038` showed assertions continuing to pass;
+  the old outer 10-minute bound closed the page before completion.
+- Added Evolution Plan §5.5 and ADR-312. They make the rejected visual result and
+  the new shell/media/item acceptance contract durable for the next agent.
+
+## Rejected prototype — do not mistake this for completion
+
+- Current Neon is the old four-tile grid, Editorial is a feature card plus three
+  compact rows, and Command is four rows plus a side pager. All three still inherit
+  too much of the same header, icon/thumbnail treatment, rounded-card silhouette
+  and content hierarchy; none is an accepted visual baseline.
+- The earlier `205/205` theme result is a **functional/responsive scaffold pass**,
+  not visual acceptance. Automated geometry can prove that controls work and do
+  not overlap; it cannot overrule Penny's headed visual review.
+- The next implementation may replace the internal card DOM. Keep only the
+  stable outer launch anchor/data-game-id, catalog data and accessibility/input
+  behavior where useful; do not preserve one universal visual `GameCard` merely
+  because the current test queries it.
 
 ## Changed files
 
-- Authority/report: `games/assets/catalog.json`, `catalog.mjs`,
-  `census.generated.json`, `docs/ai/ASSET_LICENSE_AUDIT.md`.
-- Generator/contracts: `scripts/build-asset-census.mjs`,
-  `tests/asset-catalog.mjs`, `tests/asset-census.mjs`.
-- Integration: `.github/workflows/deploy-pages.yml`, `PROJECT_CONTEXT.md`,
+- Hub scaffold: `index.html`, `launcher.js`, `style.css`.
+- UI contract/CI: `tests/hub-themes.mjs`, `.github/workflows/deploy-pages.yml`.
+- Cache/release integration: `games/moba/tests/cache-bust.mjs`,
+  `scripts/moba-bump-cache.mjs`, `games/manifest.json`, generated catalog.
+- Roadmap/context: `docs/GAMEHUB_EVOLUTION_PLAN.md`, `PROJECT_CONTEXT.md`,
   `DECISIONS.md`, this handoff.
 
 ## Verification
 
-- Census build and `--check`: PASS — 267 physical / 155 canonical / 0 parse.
-- `node tests/asset-catalog.mjs`: PASS — 21/24/12/12 schema and API fixtures.
-- `node tests/asset-census.mjs`: PASS — provenance 127/28, readiness 118/37.
-- GameCatalog/release contracts: PASS — generated parity, catalog and 20 cases.
-- Node syntax for all new modules/tests: PASS; workflow YAML: PASS.
-- `git diff --check` and `./scripts/check-handoff.sh`: PASS.
-- Prior MOBA cleanup commit `98e6708` passed local browser 206/206; clean GitHub
-  run `31583123038` is still in progress and must be checked before the next push.
+- Final functional scaffold rerun after this documentation checkpoint:
+  `node tests/hub-themes.mjs` PASS `205/205` across 320x568, 375x667, 667x375,
+  844x390 and 1280x800; zero console/page/HTTP/external-request errors. This is
+  still not visual acceptance.
+- Final existing Hub gate reruns: layout `100/100`, touch `5/5`, keyboard
+  `3/3`, storage `2/2`, load budget `3/3`, return-home `3/3`, readability/
+  contrast `3/3`. A concurrent first pass caused one Chromium screenshot capture
+  error and one focus-measurement miss; both isolated serial reruns passed, so no
+  game runtime was changed.
+- Final static/infrastructure checks: launcher/theme Node syntax PASS; catalog
+  artifact parity and catalog contract PASS; ReleaseGate `20/20`; MOBA/Hub cache
+  token contract `3/3`; workflow YAML PASS; `git diff --check` PASS;
+  `./scripts/check-handoff.sh` PASS.
 
 ## Known issues and cautions
 
-- P0 provenance gaps remain: Racing Tripo car 1, Ashen Tripo models 4, Royale
-  player-provided Meshy models 23. Obtain source/job/license evidence or replace
-  them with verified assets; do not relabel them by assumption.
-- Readiness also flags 17 skeletal/animated assets without a RigDescriptor and
-  one animation-only GLB without geometric bounds. These are future mapping work,
-  not permission to generate fake bones, sockets or clips.
-- Catalog/census are build-time evidence only. Do not import Node APIs into games,
-  hand-edit generated JSON or create a universal rendering wrapper.
+- Visual acceptance is open and is the highest-priority blocker. Do not report
+  any of the three current variants as complete until §5.5 screenshot/layout-
+  signature and Penny headed acceptance all pass.
+- Game media is still mainly the old emoji/local-logo treatment. The redesign
+  needs canonical gameplay capture variants with explicit crop/aspect/byte
+  budgets; this remains UI media work and must not modify game logic.
+- Phase 0B license blockers remain Racing Tripo 1, Ashen Tripo 4 and Royale Meshy
+  23. Do not relabel or reuse them without evidence.
+- `hub-cdn.mjs` previously measured Xiangqi DCL timing at 1.07–1.10 seconds
+  against a 1.0-second threshold while every functional CDN assertion passed.
+  This is outside the UI scope; remeasure on a quiet runner instead of rewriting
+  Xiangqi.
+- The MOBA full browser suite is intentionally long. Keep its command-specific
+  timeout; do not raise the global default or weaken gameplay assertions.
 
 ## Exact next action
 
-1. Wait for run `31583123038`; if green, commit/push this Phase 0B package and
-   verify its new catalog step in the replacement workflow.
-2. Finish and browser-verify the isolated Hub-theme side quest without touching
-   catalog order, game links or gameplay.
-3. Start Phase 0C with reproducible baseline scene/rig/perf reports and before
-   captures for Royale, Racing and Elden; replace blocked assets before reuse.
+1. **First TODO — rebuild the Hub UI.** Start from Evolution Plan §5.5 and
+   ADR-312. Produce three independently composed shells and three different game
+   media/item archetypes, not a shared rounded card with theme modifiers.
+2. Extend `tests/hub-themes.mjs` with shell/nav/item/media layout signatures, then
+   inspect full-page screenshots at all five canonical viewports. Zero automated
+   errors is necessary but Penny's headed visual acceptance is the completion
+   gate.
+3. Keep the side quest UI-only, update the root Hub cache token, run Hub/catalog/
+   release/handoff gates, commit and push the accepted redesign.
+4. Only after UI acceptance, resume Phase 0C scene/rig/performance baselines for
+   Royale, Racing and Elden.
 
 ## Do not redo
 
-- Do not rescan models ad hoc; regenerate the census and consume catalog APIs.
-- Do not treat 127 verified assets as 155, or conflate license with rig readiness.
-- Do not force-push or claim the 12-month roadmap complete after Phase 0B.
+- Do not rescan or recreate GameCatalog, ReleaseGate, AssetCatalog or RigCatalog.
+- Do not use one universal thumbnail/card component and call CSS colour, font,
+  radius, shadow, crop ratio or ordering changes a new theme.
+- Do not change game order, links, save data or any game runtime for this task.
+- Do not treat `205/205` as proof of visual quality or weaken tests to fit a bad
+  layout.
+- Do not hand-edit generated catalog/census files, merge Hub/MOBA cache tokens,
+  force-push, or claim the 12-month evolution roadmap complete.

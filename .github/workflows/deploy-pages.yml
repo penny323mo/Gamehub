@@ -76,6 +76,7 @@ jobs:
       - name: Run required 13-game Hub fast gates
         run: |
           node tests/hub.mjs
+          node tests/hub-themes.mjs
           node tests/hub-load.mjs
           node tests/hub-touch.mjs
           node tests/hub-storage.mjs
