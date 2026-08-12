@@ -157,7 +157,10 @@ repository as a static site.
 - Ashen Rail's player GLB has a skeleton but no animation clips. `ProceduralPlayerAnimator`
   owns semantic rig aliases and procedural locomotion/aim/recoil; `PlayerController` owns
   turn-rate input and `WeaponSystem` owns local weapon recoil. The `__ashenRail` seam is
-  dev-only and must not become a production gameplay dependency.
+  dev-only and must not become a production gameplay dependency. Its entry preloads the
+  shared safe-storage shim before modules; `scripts/prune-dist.mjs` rewrites that classic
+  script's path for the nested tracked `dist/` deployment, so blocked storage cannot stop
+  boot.
   Keep the 0–80, drift, autopilot, floor-clearance, and mobile layout gates green.
 - 深淵之橋 uses `Sim#atFountain()` only for healing/recall location. `Sim#canShop()` permits
   purchases anywhere; do not re-couple those concepts. Its Hub link and changed entry assets use

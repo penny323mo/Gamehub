@@ -67,6 +67,11 @@ button {
   touch-action: none;
 }
 
+.game-canvas canvas:focus-visible {
+  outline: 3px solid var(--bright-gold);
+  outline-offset: -3px;
+}
+
 .vignette,
 .grain {
   position: absolute;
@@ -164,6 +169,15 @@ button {
   background: rgba(50, 42, 27, 0.86);
   color: #fff2c7;
   outline: none;
+}
+
+/* Utility buttons have no text label in the HUD. Keep their keyboard focus
+   visible even when the browser's focus-visible heuristic is unavailable
+   (for example, assistive switch control or scripted keyboard navigation). */
+.utility-controls button:focus,
+.credits-close:focus {
+  outline: 3px solid var(--bright-gold);
+  outline-offset: 3px;
 }
 
 .credits-modal {
@@ -421,6 +435,11 @@ button {
   box-shadow: inset 0 0 24px rgba(190, 144, 53, 0.08);
 }
 
+.class-selector button:focus-visible {
+  outline: 3px solid var(--bright-gold);
+  outline-offset: 3px;
+}
+
 .class-selector i {
   margin-bottom: 4px;
   color: #d5b66f;
@@ -444,7 +463,7 @@ button {
 
 .class-selector span {
   margin-top: 4px;
-  color: #747875;
+  color: #a6a79e;
   font-family: var(--font-geist-mono), monospace;
   font-size: 7px;
 }

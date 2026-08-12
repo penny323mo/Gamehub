@@ -9,7 +9,7 @@
   </head>
   <body>
     <div id="app">
-      <canvas id="game-canvas" aria-label="灰燼列車 3D 遊戲畫面"></canvas>
+      <canvas id="game-canvas" tabindex="0" aria-label="灰燼列車 3D 遊戲畫面"></canvas>
 
       <section id="loading-screen" class="screen">
         <div class="logo-mark">AR</div>
@@ -75,6 +75,9 @@
       </div>
       <aside id="debug-panel" class="hidden"><button id="debug-toggle">調校 ▾</button><div id="debug-content"></div><button id="copy-config">Copy Config</button><pre id="perf-hud"></pre></aside>
     </div>
+    <!-- Storage may be blocked by private browsing or cookie policy. Install the
+         in-memory fallback before any module reads localStorage. -->
+    <script src="../shared/js/safe-storage.js"></script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

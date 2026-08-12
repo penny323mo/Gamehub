@@ -8816,3 +8816,28 @@ Elden Ring II 由 top bar 常駐 `← HUB` 提供返回掣；兩者都用相對�
 日後新增遊戲或改 entry UI，必須加入 `tests/hub-home.mjs` 嘅遊戲清單／初始化步驟，並
 重跑 `node tests/hub.mjs`、`node tests/hub-home.mjs`；rotate、loading、pause、result
 等 overlay 唔可以令唯一返回路徑變成不可點擊。
+
+## ADR-303 — Ashen Rail nested dist 必須先裝 safe storage，再改 classic script 路徑
+
+Date: 2026-08-12. Status: accepted.
+
+Ashen Rail 依賴 localStorage 儲設定，但 Safari private mode、cookie policy 或 quota
+可以令 `window.localStorage` getter 本身拋 `SecurityError`。入口先載入
+`games/shared/js/safe-storage.js`，由 memory-backed fallback 保住開局；Vite 對 classic
+script 只會原樣抄入 `dist/`，而 nested `dist/index.html` 需要由 `../shared/` 改成
+`../../shared/`。`scripts/prune-dist.mjs` 必須喺每次 build 後驗證並改寫呢條路徑。
+
+理由：逐個 localStorage call 加 try/catch 會漏新碼，而且 source path 喺 deployed dist
+會 404；Hub storage gate 要喺正常／封存 storage 下維持相同 controls 數同零新 browser error。
+
+## ADR-304 — 3D canvas、選擇卡及 icon-only controls 必須有可見 keyboard focus
+
+Date: 2026-08-12. Status: accepted.
+
+遊戲 canvas 同可互動卡片即使 Tab 到得到，冇 visible focus ring 仍然令鍵盤／switch
+control 玩家失去位置感。Ashen canvas 用 explicit `tabindex="0"`；Ashen/Elden canvas、
+Elden class cards、utility buttons 同 credits close button 要有高對比 focus ring。焦點
+gate 必須讀實際 computed style，並與 keyboard、contrast、HTTP browser smoke 一齊驗證。
+
+理由：`:focus-visible` 喺程式化或輔助輸入下未必觸發；對需要嘅 icon-only controls 補
+`:focus`，而遊戲畫面本身仍保留 crosshair／touch visual styling。
