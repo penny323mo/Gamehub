@@ -89,6 +89,28 @@ check('70 km/h 已有足夠可讀性嘅速度 cue', midSpeedCue.speed >= 69
     && midSpeedCue.active && midSpeedCue.intensity >= 0.39
     && midSpeedCue.opacity >= 0.30, midSpeedCue);
 
+const driftGuide = await page.evaluate(() => {
+    const root = window.__racer;
+    root.buildTrack('turbo');
+    root.car.reset(root.track.startPos, root.track.startDir);
+    root.car.drifting = false;
+    root.race.pending = 0;
+    document.getElementById('hud').classList.remove('hidden');
+    root.updateHudForTest();
+    const guide = document.getElementById('drift-guide');
+    const text = guide.textContent;
+    const arrow = document.getElementById('drift-guide-arrow').textContent;
+    return {
+        hidden: guide.classList.contains('hidden'), text, arrow,
+        pointsLeft: text.includes('左') && arrow === '↶',
+        pointsRight: text.includes('右') && arrow === '↷',
+    };
+});
+console.log('  ', JSON.stringify(driftGuide));
+check('長直路會預告下一個漂移彎方向同入彎距離',
+    !driftGuide.hidden && /下一彎 [左右] · \d+m · 入彎拉手掣/.test(driftGuide.text)
+    && (driftGuide.pointsLeft || driftGuide.pointsRight), driftGuide);
+
 const TRACK_IDS = await page.evaluate(() => window.__racer.TRACKS.map(t => t.id));
 
 // T1：起跑線喺直路上面，而且打橫過晒條路
@@ -182,6 +204,21 @@ const geo = await page.evaluate(async () => {
                 };
             })(),
         },
+        driftZones: {
+            count: track.driftZoneCount,
+            markerCount: track.driftMarkers?.count ?? 0,
+            name: track.driftMarkers?.name ?? '',
+            instanced: track.driftMarkers?.isInstancedMesh === true,
+            integrated: track.driftMarkers?.visible === false,
+            transparent: track.driftMarkers?.material?.transparent === true,
+            opacity: track.driftMarkers?.material?.opacity ?? 0,
+            integratedVertexCount: track.kerbs?.geometry?.attributes?.position?.count ?? 0,
+            onRoad: (track.driftZones ?? []).every((zone) => {
+                const p = track.curve.getPointAt(zone.t);
+                return track.isDrivable(p.x, p.z);
+            }),
+            directions: [...new Set((track.driftZones ?? []).map((zone) => zone.direction))],
+        },
         calls: renderer.info.render.calls,
         tris: renderer.info.render.triangles,
         surfaceY: [track.surfaceMinY, track.surfaceMaxY],
@@ -240,6 +277,17 @@ check('彎位有低成本外側 chevron 地標，唔再只靠重複樹木讀路'
     && geo.landmarks.placement.maxLateral < 20.5
     && geo.landmarks.placement.minHeight > 0.3
     && geo.landmarks.name === 'corner-chevron-landmarks', geo.landmarks);
+check('急彎有三段式漂移 cue（入彎／apex／出彎）',
+    geo.driftZones.count >= 4 && geo.driftZones.count <= 7
+    && geo.driftZones.markerCount === geo.driftZones.count * 3
+    && geo.driftZones.instanced && geo.driftZones.transparent
+    && geo.driftZones.integrated
+    && geo.driftZones.integratedVertexCount > 4500
+    && geo.driftZones.opacity > 0.2 && geo.driftZones.opacity < 0.4
+    && geo.driftZones.onRoad
+    && geo.driftZones.directions.length >= 1
+    && geo.driftZones.directions.every((direction) => direction === 'left' || direction === 'right')
+    && geo.driftZones.name === 'drift-zone-cues', geo.driftZones);
 check('賽道 render surface 有可讀坡度同 banking，唔再係近乎平路',
     geo.elevation >= 1.05 && geo.surfaceY[1] - geo.surfaceY[0] > 7.0
     && geo.roadY[1] - geo.roadY[0] > 8.0 && geo.surfacePitch > 0.028

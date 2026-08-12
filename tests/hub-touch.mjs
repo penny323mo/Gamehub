@@ -79,7 +79,11 @@ const server = http.createServer((req, res) => {
 const port = await new Promise((r) => server.listen(0, () => r(server.address().port)));
 const browser = await chromium.launch({
   ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}),
-  args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
+  // Chrome 151 no longer accepts the legacy `--use-gl=swiftshader` path on
+  // macOS; it can start a browser process but fail every first WebGL page.
+  // Use the same ANGLE SwiftShader backend as the game-scoped harnesses so a
+  // cross-game touch result is about the page, not allocator startup.
+  args: ['--use-angle=swiftshader-webgl', '--enable-unsafe-swiftshader'],
 });
 
 const 量 = {};

@@ -772,6 +772,36 @@ body.simple-controls #pad-gas .action-icon {
     pointer-events: none;
 }
 
+#drift-guide {
+    position: absolute;
+    left: 50%;
+    top: 30%;
+    transform: translate(-50%, calc(-100% - 14px));
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: max-content;
+    max-width: min(88vw, 340px);
+    padding: 6px 12px;
+    border: 1px solid rgba(124, 228, 255, .58);
+    border-radius: 999px;
+    background: rgba(7, 24, 35, .72);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, .22), inset 0 0 12px rgba(74, 208, 255, .12);
+    color: #d9f8ff;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .02em;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 2;
+}
+
+#drift-guide-arrow {
+    color: #7de9ff;
+    font-size: 22px;
+    line-height: .8;
+}
+
 .drift-top {
     display: flex;
     align-items: baseline;

@@ -26,6 +26,13 @@ const TERRAIN_SEGMENTS = 96;
 const LANDMARK_OFFSET = ROAD_HALF_W + GRASS_W * 0.58;
 const LANDMARK_SAMPLES = 128;
 const LANDMARK_MIN_GAP = 0.045;
+// Drift cue 係 render-only：唔改中線、碰撞或者 AI，只係喺真正較急嘅彎位
+// 鋪一組入彎／apex／出彎箭頭，畀玩家知道「呢度值得拉手掣」。
+const DRIFT_ZONE_SAMPLES = 240;
+const DRIFT_ZONE_RADIUS_MAX = 118;
+const DRIFT_ZONE_MIN_GAP = 0.072;
+const DRIFT_ZONE_ENTRY_OFFSET = 0.029;
+const DRIFT_ZONE_EXIT_OFFSET = 0.029;
 const TERRAIN_INNER = ROAD_HALF_W - 1;
 const TERRAIN_OUTER = ROAD_HALF_W + GRASS_W + 2;
 // Extra under-road clearance prevents a sharp bend's interpolated terrain
@@ -135,6 +142,7 @@ export class Track {
         this.#stampRoad();
         this.#stampSurroundings();
         this.#makeCheckpoints();
+        this.#makeDriftZones();
     }
 
     // 真正物理仍然係 X/Z 平面；呢個 profile 只係 render surface。完全平嘅
@@ -484,6 +492,62 @@ export class Track {
         }
     }
 
+    // 將最急嘅局部彎位變成三段式漂移節奏。呢啲 zone 只供 renderer／HUD
+    // 導向，唔會寫入格網，亦唔會令 AI、圈速或者碰撞路徑改變。
+    #makeDriftZones() {
+        const candidates = [];
+        for (let i = 0; i < DRIFT_ZONE_SAMPLES; i++) {
+            const t = i / DRIFT_ZONE_SAMPLES;
+            const radius = this.#radiusAt(t);
+            if (radius > DRIFT_ZONE_RADIUS_MAX) continue;
+            let localMinimum = true;
+            for (const step of [1, 2, 3]) {
+                const before = this.#radiusAt((t + 1 - step / DRIFT_ZONE_SAMPLES) % 1);
+                const after = this.#radiusAt((t + step / DRIFT_ZONE_SAMPLES) % 1);
+                if (radius > before || radius > after) {
+                    localMinimum = false;
+                    break;
+                }
+            }
+            if (localMinimum) candidates.push({ t, radius });
+        }
+        // 某啲大圓彎冇足夠尖嘅離散 minimum，就用半徑排序補位；仍然守住
+        // 間距，避免標記重疊成一片霓虹。
+        if (candidates.length < 4) {
+            for (let i = 0; i < DRIFT_ZONE_SAMPLES; i++) {
+                const t = i / DRIFT_ZONE_SAMPLES;
+                const radius = this.#radiusAt(t);
+                if (radius <= DRIFT_ZONE_RADIUS_MAX) candidates.push({ t, radius });
+            }
+        }
+        candidates.sort((a, b) => a.radius - b.radius);
+        const selected = [];
+        for (const candidate of candidates) {
+            const tooClose = selected.some((other) => {
+                const gap = Math.abs(candidate.t - other.t);
+                return Math.min(gap, 1 - gap) < DRIFT_ZONE_MIN_GAP;
+            });
+            if (tooClose) continue;
+            selected.push(candidate);
+            if (selected.length >= 7) break;
+        }
+        selected.sort((a, b) => a.t - b.t);
+        const before = new THREE.Vector3(), after = new THREE.Vector3();
+        this.driftZones = selected.map(({ t, radius }) => {
+            this.curve.getTangentAt((t + 1 - 0.012) % 1, before);
+            this.curve.getTangentAt((t + 0.012) % 1, after);
+            const turn = before.x * after.z - before.z * after.x;
+            return {
+                t, radius,
+                direction: turn >= 0 ? 'left' : 'right',
+                turnSign: turn >= 0 ? 1 : -1,
+                entryT: (t + 1 - DRIFT_ZONE_ENTRY_OFFSET) % 1,
+                exitT: (t + DRIFT_ZONE_EXIT_OFFSET) % 1,
+            };
+        });
+        this.driftZoneCount = this.driftZones.length;
+    }
+
     // 車喺賽道邊個位置（0..1）——用嚟判斷方向啱唔啱同計進度
     nearestT(x, z) {
         let bestT = 0, bestD = Infinity;
@@ -778,7 +842,7 @@ export class Track {
             turbo: { primary: 0xff8d33, accent: 0xffd36a },
             coast: { primary: 0x36d4e8, accent: 0xb6f7ff },
             touge: { primary: 0xffd044, accent: 0xfff2a0 },
-        }[this.profileKey] ?? { primary: 0xffd044, accent: 0xfff2a0 };
+        }[String(this.profileKey).replace(/-rev$/, '')] ?? { primary: 0xffd044, accent: 0xfff2a0 };
         // 牌面係高對比導向標記，唔應該因為背光／夜景方向而變成一塊黑
         // 剪影；用 Basic material 保留一個 draw call，同時由 setTimeOfDay
         // 調材質色做日／黃昏／夜晚嘅亮度。
@@ -848,6 +912,143 @@ export class Track {
         return mesh;
     }
 
+    // 貼地嘅三段式箭頭：青色預備、橙色 apex、綠色出彎。用一個
+    // InstancedMesh，手機只多一個 draw call；透明度低，唔會遮住真正嘅
+    // 柏油、中線或者胎痕。
+    #buildDriftMarkers() {
+        const shape = new THREE.Shape();
+        shape.moveTo(-1.45, -0.48);
+        shape.lineTo(0.15, -0.48);
+        shape.lineTo(0.15, -0.92);
+        shape.lineTo(1.45, 0);
+        shape.lineTo(0.15, 0.92);
+        shape.lineTo(0.15, 0.48);
+        shape.lineTo(-1.45, 0.48);
+        shape.closePath();
+        const geometry = new THREE.ShapeGeometry(shape);
+        // ShapeGeometry 原本喺 XY 平面，轉平落 XZ，避免漂移 cue 變成立牌。
+        geometry.rotateX(-Math.PI / 2);
+        const material = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.28,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            toneMapped: false,
+        });
+        const mesh = new THREE.InstancedMesh(geometry, material, this.driftZoneCount * 3);
+        mesh.name = 'drift-zone-cues';
+        mesh.frustumCulled = false;
+        const baseKey = String(this.profileKey).replace(/-rev$/, '');
+        const palette = {
+            // cue 會合併入路肩 vertex-color pass；用低飽和色做路面塗裝，
+            // 唔會喺紅白 kerb 上變成三塊發光膠板。
+            turbo: [0x3b7485, 0x986936, 0x4c795d],
+            coast: [0x477e87, 0x9a7b3e, 0x527b68],
+            touge: [0x9a813e, 0x98613a, 0x5a8053],
+        }[baseKey] ?? [0x477e87, 0x9a7b3e, 0x527b68];
+        const colours = palette.map((hex) => new THREE.Color(hex));
+        const stages = [
+            { key: 'entryT', scale: [2.5, 1.55], colour: 0 },
+            { key: 't', scale: [2.15, 1.35], colour: 1 },
+            { key: 'exitT', scale: [1.85, 1.15], colour: 2 },
+        ];
+        const up = new THREE.Vector3(0, 1, 0);
+        const tangent = new THREE.Vector3();
+        const side = new THREE.Vector3();
+        const xAxis = new THREE.Vector3();
+        const zAxis = new THREE.Vector3();
+        const matrix = new THREE.Matrix4();
+        const position = new THREE.Vector3();
+        let index = 0;
+        for (const zone of this.driftZones) {
+            for (const [stageIndex, stage] of stages.entries()) {
+                const t = zone[stage.key];
+                const p = this.curve.getPointAt(t);
+                tangent.copy(this.curve.getTangentAt(t)).setY(0).normalize();
+                side.copy(tangent).cross(up).normalize();
+                // apex 輕輕偏向彎內側，連續三支箭會有「掃入—轉向—拉出」
+                // 嘅視覺節拍，但全程仍然喺 asphalt 內。
+                const lateral = stageIndex === 1 ? zone.turnSign * -2.1 : 0;
+                position.set(
+                    p.x + side.x * lateral,
+                    this.#surfaceYAt(t, lateral) + 0.075,
+                    p.z + side.z * lateral,
+                );
+                xAxis.copy(tangent);
+                zAxis.copy(xAxis).cross(up).normalize();
+                matrix.makeBasis(xAxis, up, zAxis);
+                matrix.scale(new THREE.Vector3(stage.scale[0], stage.scale[1], 1));
+                matrix.setPosition(position);
+                mesh.setMatrixAt(index, matrix);
+                mesh.setColorAt(index, colours[stage.colour]);
+                index++;
+            }
+        }
+        mesh.instanceMatrix.needsUpdate = true;
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        this.driftMarkerStyle = palette;
+        this.driftMarkerMaterial = material;
+        this.driftMarkerCount = mesh.count;
+        return mesh;
+    }
+
+    // 將同一批 cue 合併入既有 kerb vertex-color mesh。咁樣畫面保留
+    // 入彎節奏，但唔會再多一個獨立 draw call；hidden InstancedMesh 只保留
+    // 給 debug／測試讀取，實際 pixels 由 kerb mesh 畫出。
+    #mergeDriftMarkersIntoKerbs(kerbs) {
+        const source = this.driftMarkers;
+        const position = source.geometry.attributes.position;
+        const sourceIndex = source.geometry.index?.array;
+        const matrix = new THREE.Matrix4();
+        const point = new THREE.Vector3();
+        const basePos = kerbs.geometry.attributes.position.array;
+        const baseCol = kerbs.geometry.attributes.color.array;
+        const baseIndex = kerbs.geometry.index.array;
+        const extraVertices = position.count * source.count;
+        const nextPos = new Float32Array(basePos.length + extraVertices * 3);
+        const nextCol = new Float32Array(baseCol.length + extraVertices * 3);
+        nextPos.set(basePos); nextCol.set(baseCol);
+        const sourceIndexCount = sourceIndex?.length ?? Math.max(0, position.count - 2) * 3;
+        const nextIndex = new Uint16Array(baseIndex.length + sourceIndexCount * source.count);
+        nextIndex.set(baseIndex);
+        let vertexOffset = basePos.length / 3;
+        let indexOffset = baseIndex.length;
+        for (let instance = 0; instance < source.count; instance++) {
+            source.getMatrixAt(instance, matrix);
+            const color = source.instanceColor
+                ? new THREE.Color(source.instanceColor.getX(instance), source.instanceColor.getY(instance), source.instanceColor.getZ(instance))
+                : new THREE.Color(0xffffff);
+            for (let v = 0; v < position.count; v++) {
+                point.fromBufferAttribute(position, v).applyMatrix4(matrix);
+                const po = (vertexOffset + v) * 3;
+                nextPos[po] = point.x; nextPos[po + 1] = point.y; nextPos[po + 2] = point.z;
+                nextCol[po] = color.r; nextCol[po + 1] = color.g; nextCol[po + 2] = color.b;
+            }
+            // 保留 ShapeGeometry 原本 Earcut 產生嘅 index；箭頭係凹形，唔可以
+            // 用 triangle fan，否則內凹位會被錯誤填平／拉出大三角形。
+            if (sourceIndex) {
+                for (const index of sourceIndex) nextIndex[indexOffset++] = vertexOffset + index;
+            } else {
+                for (let v = 1; v < position.count - 1; v++) {
+                    nextIndex[indexOffset++] = vertexOffset;
+                    nextIndex[indexOffset++] = vertexOffset + v;
+                    nextIndex[indexOffset++] = vertexOffset + v + 1;
+                }
+            }
+            vertexOffset += position.count;
+        }
+        const oldGeometry = kerbs.geometry;
+        const nextGeometry = new THREE.BufferGeometry();
+        nextGeometry.setAttribute('position', new THREE.Float32BufferAttribute(nextPos, 3));
+        nextGeometry.setAttribute('color', new THREE.Float32BufferAttribute(nextCol, 3));
+        nextGeometry.setIndex(new THREE.BufferAttribute(nextIndex, 1));
+        nextGeometry.computeVertexNormals();
+        kerbs.geometry = nextGeometry;
+        oldGeometry.dispose();
+    }
+
     setTimeOfDay(id) {
         this.timeOfDay = id;
         if (!this.visualRoot) return;
@@ -877,6 +1078,9 @@ export class Track {
             this.landmarkMaterial.color.setHex(this.landmarkStyle.primary);
             this.landmarkMaterial.color.multiplyScalar(brightness);
         }
+        if (this.driftMarkerMaterial) {
+            this.driftMarkerMaterial.opacity = night ? 0.34 : dusk ? 0.31 : 0.28;
+        }
         const [trunks, crowns] = this.trees.children;
         trunks?.material?.color.setHex(night ? 0x44372f : dusk ? 0x68503d : 0x70513a);
         crowns?.material?.color.setHex(night ? 0x1d3828 : dusk ? 0x40533a : 0x315f35);
@@ -895,7 +1099,13 @@ export class Track {
         this.walls = this.#buildGuardrails();
         this.trees = this.#buildTrees();
         this.landmarks = this.#buildLandmarks();
-        this.visualRoot.add(this.ground, this.road, this.kerbs, this.startLine, this.walls, this.trees, this.landmarks);
+        this.driftMarkers = this.#buildDriftMarkers();
+        this.#mergeDriftMarkersIntoKerbs(this.kerbs);
+        this.driftMarkers.visible = false;
+        // 漂移 cue 已經取代舊嘅垂直 chevron：保留 landmarks object 方便
+        // 舊 debug／測試讀取，但唔再繪製，避免手機多一個 draw call。
+        this.landmarks.visible = false;
+        this.visualRoot.add(this.ground, this.road, this.kerbs, this.startLine, this.walls, this.trees, this.landmarks, this.driftMarkers);
         scene.add(this.visualRoot);
         this.setTimeOfDay(this.timeOfDay ?? 'day');
         this.groundQuads = this.visualSegments;
@@ -914,7 +1124,7 @@ export class Track {
         geometries.forEach(g => g.dispose());
         materials.forEach(m => m.dispose()); // surface DataTexture 係 app 共用，唔喺度 dispose
         this.visualRoot.clear();
-        this.visualRoot = this.ground = this.road = this.kerbs = this.startLine = this.walls = this.trees = this.landmarks = null;
-        this.landmarkMaterial = null;
+        this.visualRoot = this.ground = this.road = this.kerbs = this.startLine = this.walls = this.trees = this.landmarks = this.driftMarkers = null;
+        this.landmarkMaterial = this.driftMarkerMaterial = null;
     }
 }

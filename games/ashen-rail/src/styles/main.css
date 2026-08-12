@@ -14,7 +14,7 @@ button, a { font: inherit; }
 #loading-screen h1 { font-size: clamp(28px, 5vw, 52px); }
 .load-track { width: min(420px, 72vw); height: 4px; margin: 26px auto 10px; overflow: hidden; background: #493222; }
 #load-fill { width: 0; height: 100%; background: #ff782d; box-shadow: 0 0 18px #ff782d; transition: width .25s ease; }
-.start-panel { width: min(700px, 88vw); max-height: calc(100vh - 32px); justify-self: start; margin-left: 4vw; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
+.start-panel { width: min(700px, 88vw); min-height: 0; max-height: calc(100vh - 32px); justify-self: start; margin-left: 4vw; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
 .start-panel > p:not(.eyebrow) { max-width: 540px; color: #c6b5a6; font-size: clamp(15px, 2vw, 20px); }
 .mission-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 20px 0; }
 .mission-chips span { padding: 6px 10px; border: 1px solid #5f4332; color: #cfb39e; font-size: 12px; }
@@ -94,7 +94,7 @@ button, .hub-link { min-height: 48px; border: 0; cursor: pointer; text-decoratio
 @media (max-height: 480px) {
   .screen { padding-top: max(10px, env(safe-area-inset-top)); padding-bottom: max(10px, env(safe-area-inset-bottom)); }
   #start-screen { place-items: stretch; }
-  .start-panel { width: min(760px, 92vw); max-height: 100%; margin: auto 0 auto 3vw; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
+  .start-panel { width: min(760px, 92vw); min-height: 0; max-height: 100%; margin: auto 0 auto 3vw; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
   .start-panel h1 { margin: 2px 0 5px; font-size: clamp(34px, 9vh, 48px); }
   .start-panel > p:not(.eyebrow) { margin: 5px 0; font-size: 14px; }
   .mission-chips { margin: 8px 0; }

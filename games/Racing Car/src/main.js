@@ -1268,6 +1268,35 @@ function updateHud() {
         $('drift-angle-fill').style.width = `${pct}%`;
         $('drift-angle-fill').classList.toggle('hot', pct > 85);
     }
+    // 長直路先預告下一個真正急彎；玩家唔使等到路牌貼面先估邊邊
+    // 要拉手掣。距離係沿賽道弧長，唔係直線距離，逆向場亦會讀啱。
+    const guide = $('drift-guide');
+    if (guide) {
+        let next = null;
+        if (!active && track?.driftZones?.length) {
+            const currentT = track.nearestT(car.pos.x, car.pos.z);
+            for (const zone of track.driftZones) {
+                const distance = ((zone.t - currentT + 1) % 1) * track.length;
+                if (distance < 8) continue;
+                if (!next || distance < next.distance) next = { zone, distance };
+            }
+        }
+        const show = !!next && next.distance <= 190;
+        guide.classList.toggle('hidden', !show);
+        if (show) {
+            const rounded = Math.max(1, Math.round(next.distance / 5) * 5);
+            const turnDirection = next.zone.direction;
+            const direction = turnDirection === 'left' ? '左' : '右';
+            const key = `${direction}:${rounded}`;
+            if (key !== hudCache.driftGuide) {
+                $('drift-guide-arrow').textContent = turnDirection === 'left' ? '↶' : '↷';
+                $('drift-guide-text').textContent = `下一彎 ${direction} · ${rounded}m · 入彎拉手掣`;
+                hudCache.driftGuide = key;
+            }
+        } else if (hudCache.driftGuide !== '') {
+            hudCache.driftGuide = '';
+        }
+    }
     const score = race.driftScore;
     if (score !== hudCache.score) { $('score-num').textContent = score.toLocaleString(); hudCache.score = score; }
 

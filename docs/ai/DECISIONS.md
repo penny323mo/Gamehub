@@ -8885,3 +8885,20 @@ surface pose，唔寫入 `Car.pos.y` 或進度。
 會令輪胎／車身接縫嘅 specular 光點跳動，手機睇落就係四轆閃爍。`wheel-motion.js`
 而家保留位置滾動同前輪轉向，只更新 position，沿用 asset 原生 shared normals。
 `setup.mjs` 另加 `normalChanged === 0` gate，確保日後唔會重新引入法線閃爍。
+
+## ADR-308 — Racing Car 漂移導向用曲率 cue，唔改物理路線或 draw budget
+
+Date: 2026-08-12. Status: accepted.
+
+玩家需要知道邊個彎值得玩漂移，但改 Catmull-Rom 中線會同時改碰撞、檢查點、AI、圈速
+同 balance。`Track` 因此喺 build-time 用既有 `radiusAt()` 取樣急彎，為每條正／逆向場
+建立最多七個 render-only `driftZones`；每個 zone 有 entry/apex/exit 三個貼路箭頭，
+並按 turn sign 顯示左／右。箭頭幾何合併入既有 `continuous-kerbs` vertex-color mesh，
+唔另起 render pass；源 `drift-zone-cues` InstancedMesh 只供 diagnostics，實際 pixels
+唔繪製。HUD 用 arc-length 顯示下一個 zone 的方向、距離同「入彎拉手掣」，逆向場亦按
+當前行車方向計算。
+
+理由：保留已驗證嘅 `minSelfClearance() > 36`、AI／physics、drift score 同手機預算，
+同時令長直路有清晰入彎節奏。`setup.mjs` 必須守住 4–7 zones、每 zone 3 個 cue、
+on-road placement、HUD 左右箭頭一致、**<18** draw calls 同 **<120k** triangles。cue
+係 render-only，唔可以寫回 `Car.pos.y`、碰撞、progress、checkpoint 或 ranking。
