@@ -1,111 +1,103 @@
 # Current cross-agent handoff
 
 Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Codex — Racing drift cues/HUD, wheel-flicker fix and Ashen mobile setup
+Prepared by: Codex — Game Hub evolution roadmap checkpoint
 Integration branch: `main`
 Work branch: `main`
-Status: implementation and cross-game browser gates are verified; commit/push
-this checkpoint before the next agent edits the shared checkout.
+Status: the complete evolution roadmap is documented and ready for GitHub relay;
+no roadmap implementation has started in this checkpoint.
 
 ## Current objective
 
-Keep Game Hub games production-ready on mobile while preserving the shared
-GitHub relay protocol. The newest product work is Racing Car feel: the default
-turbo route now asks for brake → handbrake → countersteer → throttle-out
-drifts, each track's sharp bends now have render-only entry/apex/exit drift
-paint, and the HUD previews the next turn and handbrake distance. The rigid
-GLB wheel animation no longer produces shared-normal specular flicker.
+Use `docs/GAMEHUB_EVOLUTION_PLAN.md` as the planning authority for Game Hub's
+next 12 months. It covers physics, visuals, gameplay, shared deep modules, all
+character/unit rig and skeleton remapping, free 3D asset intake, scene upgrades,
+and dedicated Royale, Racing Car and Elden Ring II scene redesigns.
+
+The first implementation cycle must establish release/asset/rig truth before
+adding content, then deliver three bounded vertical slices: Royale three-zone
+battlefield, Racing circuit plus fixed physics, and Elden three-part level plus
+combat rig. The plan is proposed direction, not permission to rewrite all games
+or change accepted gameplay invariants at once.
 
 ## Completed
 
-- Racing turbo keeps its long full-throttle start straight, then uses a high-
-  speed right bend, offset reverse-S, deep hairpin and long exit bend. Its
-  render-only elevation is **1.34**; road, grid, checkpoints, AI and reverse
-  routes still come from the same Catmull-Rom centreline.
-- Racing wheel motion still rolls all four detected tyre clusters and steers
-  the front pair, but does not rotate the merged GLB's shared normals. This
-  removes body/tyre seam specular flashing while preserving visible motion.
-  `setup.mjs` now asserts `normalChanged === 0`.
-- Racing `Track` now derives up to seven curvature minima as `driftZones`.
-  Each zone has a low-contrast three-stage entry/apex/exit arrow cue; the cue
-  geometry is merged into the existing kerb vertex-color mesh (no extra draw
-  call), while the hidden source InstancedMesh remains available for
-  diagnostics. `setup.mjs` verifies 4–7 zones, three markers per zone,
-  on-road placement and the 15-call baseline.
-- Racing HUD now shows a bounded `下一彎 左/右 · Nm · 入彎拉手掣` preview while
-  the player is not actively drifting. It follows arc-length and works on
-  reverse routes; it is DOM-only and does not alter input or physics.
-- Ashen Rail's opening settings panel is now viewport-bounded and scrollable;
-  closed `<details>` explicitly hides its controls so a hidden settings row
-  cannot inflate the scroll geometry. Labels, selects, ranges and checkboxes
-  retain 44×44 CSS-pixel touch targets. The tracked nested `dist/` was rebuilt
-  with the safe-storage preload output.
+- Added a 12-month, 16-section evolution plan based on the current
+  `main@07f470d` source, test contracts, asset licenses and deployment workflow.
+- Defined deep shared modules: `GameCatalog`, `PlayerVault`, `ProgressLedger`,
+  `HubLifecycle`, `AssetCatalog`/`RigCatalog`, `ReleaseGate`, quality governor,
+  performance probe and graphics lifecycle. A universal renderer or physics
+  engine is explicitly rejected.
+- Defined physics programmes for Racing, shared Snooker 2D/3D table physics,
+  Elden combat motor/hit resolver, Ashen movement/shooting, and deterministic
+  strategy simulation.
+- Defined per-game art families, mobile visual budgets, lighting/camera/VFX
+  rules, real-device gates and free-asset acceptance criteria for Kenney,
+  Quaternius, KayKit, Poly Haven and individually verified OpenGameArt items.
+- Added a complete rig census/remapping programme for Royale, MOBA, Ashen,
+  Elden, Tower and Racing mechanical rigs, including semantic motion states,
+  clip/contact timing, sockets, fallbacks and clone-independence gates.
+- Added scene plans for Royale's three-zone battlefield, Racing's harbour,
+  mountain and night-city circuit families, and Elden's causeway, drowned keep
+  and throne sequence, plus follow-up direction for Ashen, Tower, MOBA and
+  Snooker.
+- Added Hub/product work: responsive non-singleton game grid, hero captures,
+  profile/Continue/progress, Snake correctness, onboarding, difficulty,
+  accessibility, privacy and manifest-driven deploy coverage.
+- Recorded measurable Phase 0–4 exits, KPI scorecard, first 30-day sequence,
+  non-goals and Definition of Done.
 
 ## Changed files
 
-- `games/Racing Car/src/tracks.js` — turbo waypoints/description/elevation.
-- `games/Racing Car/src/track.js` — curvature-derived drift zones, low-cost
-  road-painted cues, reverse-route palette handling and GPU-safe geometry merge.
-- `games/Racing Car/src/main.js`, `games/Racing Car/index.html`,
-  `games/Racing Car/style.css` — next-drift HUD preview.
-- `games/Racing Car/src/wheel-motion.js` — position-only wheel animation.
-- `games/Racing Car/tests/setup.mjs` — shared-normal, drift-zone and HUD gates.
-- `games/ashen-rail/src/styles/main.css` and tracked `dist/` — scrollable,
-  touch-sized start settings output.
-- `docs/ai/PROJECT_CONTEXT.md`, `docs/ai/DECISIONS.md` (ADR-306/307/308), this file.
+- `docs/GAMEHUB_EVOLUTION_PLAN.md` — complete evidence-based evolution roadmap.
+- `docs/ai/HANDOFF.md` — active handoff now points the next agent to that plan.
+
+`PROJECT_CONTEXT.md` and `DECISIONS.md` are unchanged because this checkpoint
+documents a proposal; architecture and accepted invariants have not changed yet.
 
 ## Verification
 
-- Racing aggregate `npm test` with the bundled Playwright Chromium: **all six
-  suites PASS** — `race.mjs` **136/136**, `setup.mjs` **160/160**,
-  `rivals.mjs` **61/61**, `ghost.mjs` **33/33**, `season.mjs` **55/55** and
-  `audio.mjs` **33/33**. The run also passed `git diff --check`.
-- Racing `setup.mjs`: **160/160** (turbo clearance 53.2m; seven drift zones /
-  21 merged cues; HUD direction/arc-distance preview; all six starts,
-  terrain, drift effects, four wheels, mobile controls and render budget).
-- Racing focused real-browser drift smoke: `/tmp/racing-drift-marker-final.png`
-  showed the car at a turbo apex with the `下一彎 左 · 160m · 入彎拉手掣` HUD;
-  browser readback reported `markers=21`, `visible=false` source mesh,
-  `kerbVertices=5299`, and **13** render calls for the focused frame.
-- Racing `rivals.mjs`: **61/61** (turbo rivals 105.9–108.6s, zero offroad).
-- Racing `ghost.mjs`: **33/33** (transparent player GLB clone, independent
-  geometry/wheels, no physics effect, 19 calls / 108,925 tris peak).
-- Racing `season.mjs`: **55/55**; `audio.mjs`: **33/33**; `git diff --check` PASS.
-- Ashen: `npm test` **15/15**, lint PASS, build PASS. The cross-game
-  `tests/hub-touch.mjs` with the bundled Playwright Chromium is **5/5**:
-  the Hub launcher plus all 13 listed games load in portrait/landscape, zero
-  startup browser errors,
-  no horizontal overflow, all controls ≥44×44, and every out-of-viewport
-  control becomes reachable after `scrollIntoView`.
-- The system Chrome startup timeout was an environment issue; all release
-  gates above use the repository's bundled Playwright Chromium with the
-  ANGLE SwiftShader flags used by the harness.
+- Roadmap structure check: PASS — 16 numbered sections, 16 balanced code-fence
+  markers, zero trailing whitespace.
+- `git diff --check`: PASS.
+- `./scripts/check-handoff.sh`: PASS; handoff remains below 120 lines.
+- Pre-publish sync: local `main` and `origin/main` were 0/0 at `07f470d`; the
+  roadmap was the only uncommitted file before this handoff update.
+- No gameplay build/browser suite was run because this checkpoint changes
+  documentation only and does not alter runtime files.
 
 ## Known issues and cautions
 
-- Ashen build retains the known non-fatal Vite classic-script warning; the
-  prune step rewrites nested safe-storage paths and must not be removed.
-- Keep Racing terrain as one 96×96 mesh and preserve `minSelfClearance() > 36`.
-  Do not feed render surface height/bank/pitch into physics, collision, progress
-  or AI. Keep ghost transparent, cloned and outside physics/ranking.
-- The wheel selector is an asset-specific merged-geometry heuristic. If
-  `assets/car.glb` changes, re-check four clusters, visible spin, normals and
-  the 20 calls / 120k triangle mobile budget.
-- Do not force-push or rewrite shared `main`; preserve unrelated dirty files
-  until this checkpoint is committed.
+- KPI draw-call/triangle targets labelled provisional must be replaced or
+  confirmed by Phase 0 real-device baselines; SwiftShader is relative evidence,
+  not physical-device FPS proof.
+- Free asset sources are candidates, not automatic imports. Every new asset must
+  retain source URL, license snapshot, checksum, bounds/axis/rig audit and local
+  runtime copy; never rely on a production CDN.
+- Do not force every actor onto one universal skeleton. Authored, procedural and
+  mechanical rigs keep separate adapters while sharing semantic evidence.
+- Preserve accepted invariants, especially Racing's X/Z gameplay versus
+  render-only surface, Tower's `mapLayout.ts` authority, and MOBA shop access
+  being independent from fountain healing.
+- Do not begin all three scene rewrites concurrently in one checkout. Use one
+  sequential work package or separate task branches with non-overlapping owners.
 
 ## Exact next action
 
-1. Run `./scripts/agent-context.sh --sync`, read this file plus ADR-306/307/308,
-   then inspect the pushed checkpoint SHA before editing.
-2. For future Racing feel work, test the real HTTP page at 844×390 and a
-   320×568 viewport; keep the drift scoring/effects, HUD preview and mobile
-   touch gates green. Retry `race.mjs` after clearing the Chrome startup
-   condition only if the browser environment changes.
+1. Run `./scripts/agent-context.sh --sync`, confirm the pushed checkpoint SHA,
+   then read this file and `docs/GAMEHUB_EVOLUTION_PLAN.md` sections 12–16.
+2. Wait for Penny to select/authorize the first implementation package. The
+   recommended first package is Phase 0 `GameCatalog` plus manifest-driven
+   ReleaseGate; it must not change game behaviour.
+3. Before any scene art pass, create and verify the corresponding greybox,
+   gameplay witness, RigCatalog entries, license entries and performance budget.
 
 ## Do not redo
 
-- Do not rescan the entire repository before syncing and reading the named
-  handoff/decision files.
-- Do not restore the block ghost, rotate merged wheel normals, add a second
-  terrain pass, or create per-frame curve allocations.
+- Do not rescan the whole repository to recreate this roadmap; use the plan,
+  current source and named module/phase boundaries.
+- Do not treat the roadmap as already implemented or mark proposed interfaces as
+  architecture facts in `PROJECT_CONTEXT.md` before code and contract tests land.
+- Do not import every free asset pack, build a universal Game Hub engine, or use
+  animation timing as gameplay damage authority.
+- Do not force-push or rewrite shared `main` history.
