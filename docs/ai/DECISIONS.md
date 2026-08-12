@@ -8928,3 +8928,24 @@ fast gates仍照跑。Command 必須係安全 cwd＋argv array、唔經 shell、
 package dependencies 由同一 plan 安裝。首次 commit、all-zero base 同 workflow_dispatch 唔可以
 依賴不存在嘅 `HEAD^`，要 explicit `--all`。理由係新增第 14 隻 game 只改 manifest＋自己
 檔案，而唔再維護第二份 expected-ID 清單；同時未知 path 絕不能變成繞過 deploy gate 嘅路。
+
+## ADR-310 — AssetCatalog／RigCatalog 係 build-time authority，未知事實必須阻塞而唔係猜
+
+Date: 2026-08-12. Status: accepted.
+
+`games/assets/catalog.json` 集中記錄 3D asset provenance source、最具體 path rule、代表性
+asset override，同 semantic RigDescriptor（root、axis、scale、bone alias、socket、authored 或
+procedural clip contract）。Node consumers 必須經 `games/assets/catalog.mjs`；runtime Three／
+Babylon loader 保持 game-specific，唔可以為共享 catalog 造一個淺薄 universal renderer。
+
+`scripts/build-asset-census.mjs` 只從 tracked GLB/glTF 可證實資料 deterministic 產生
+`games/assets/census.generated.json`：physical/canonical path、bytes/SHA-256、bounds、triangle
+estimate、materials/textures、scene nodes、skin/bone tree、clips/channels、external resource 同
+duplicate group。Generated census 唔可以手改。現 baseline 係 267 physical、155 canonical
+runtime、0 parse failure；provenance 127 verified / 28 blocked，readiness 118 ready / 37 blocked。
+
+License/source、checksum、axis/unit、bone/socket 或 clip fact 缺失時必須明列 blocker；禁止由
+檔名、視覺外觀或另一個相似 pack 猜答案。Provenance 同 runtime readiness 分開計，因為有
+license 唔代表 rig 已可安全重配，反之亦然。每次 Pages deploy 先跑 census `--check`、catalog
+contract 同 census regression；呢個 authority 係之後全角色／單位骨架重新配對同 free-asset
+升級嘅准入門，而唔係叫現有 gameplay renderer 即時改接口。

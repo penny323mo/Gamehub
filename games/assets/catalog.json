@@ -1,0 +1,246 @@
+{
+  "schemaVersion": 1,
+  "provenanceSources": [
+    {
+      "id": "tripo:racing-car",
+      "title": "Racing Car player GLB",
+      "author": "unknown / user-provided",
+      "status": "blocked",
+      "blockers": ["source page and license evidence are not present in the repository"]
+    },
+    {
+      "id": "tripo:ashen-rail-set",
+      "title": "Ashen Rail model set",
+      "author": "unknown / user-provided",
+      "status": "blocked",
+      "blockers": ["source page and license evidence are not present in the repository"]
+    },
+    {
+      "id": "quaternius:rpg-characters",
+      "title": "RPG Characters",
+      "author": "Quaternius",
+      "sourceUrl": "https://quaternius.com/packs/rpgcharacters.html",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "evidencePath": "games/elden-ring-ii/public/assets/licenses/quaternius-rpg-characters.txt"
+    },
+    {
+      "id": "quaternius:ultimate-platformer",
+      "title": "Ultimate Platformer Pack",
+      "author": "Quaternius",
+      "sourceUrl": "https://quaternius.com/packs/ultimateplatformer.html",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "evidencePath": "games/elden-ring-ii/public/assets/licenses/quaternius-ultimate-monsters.txt"
+    },
+    {
+      "id": "kenney:castle-kit-2.0",
+      "title": "Castle Kit 2.0",
+      "author": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/castle-kit",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "evidencePath": "games/elden-ring-ii/public/assets/licenses/kenney-castle-kit.txt"
+    },
+    {
+      "id": "kaykit:dungeon-remastered-1.0",
+      "title": "KayKit Dungeon Remastered 1.0",
+      "author": "Kay Lousberg",
+      "sourceUrl": "https://github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "evidencePath": "games/elden-ring-ii/public/assets/licenses/kaykit-dungeon-and-skeletons.txt"
+    },
+    {
+      "id": "kaykit:skeletons-1.0",
+      "title": "KayKit Character Pack: Skeletons 1.0",
+      "author": "Kay Lousberg",
+      "sourceUrl": "https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "evidencePath": "games/moba/assets/LICENSE-kaykit-skeletons.txt"
+    },
+    {
+      "id": "kaykit:adventurers-1.0",
+      "title": "KayKit Character Pack: Adventurers 1.0",
+      "author": "Kay Lousberg",
+      "sourceUrl": "https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "evidencePath": "games/moba/assets/LICENSE-kaykit-adventurers.txt"
+    },
+    {
+      "id": "kaykit:medieval-hexagon-1.0",
+      "title": "KayKit Medieval Hexagon Pack 1.0",
+      "author": "Kay Lousberg",
+      "sourceUrl": "https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "evidencePath": "games/moba/CREDITS.md"
+    },
+    {
+      "id": "quaternius:single-knight",
+      "title": "Single Knight Pack",
+      "author": "Quaternius",
+      "sourceUrl": "https://quaternius.com/",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "evidencePath": "games/royale/assets/models/CREDITS.md"
+    },
+    {
+      "id": "quaternius:animals",
+      "title": "Animals Pack",
+      "author": "Quaternius",
+      "sourceUrl": "https://quaternius.com/",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "evidencePath": "games/royale/assets/models/CREDITS.md"
+    },
+    {
+      "id": "quaternius:medieval-weapons",
+      "title": "Medieval Weapons Pack",
+      "author": "Quaternius",
+      "sourceUrl": "https://quaternius.com/",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "evidencePath": "games/royale/assets/models/CREDITS.md"
+    },
+    {
+      "id": "quaternius:rts",
+      "title": "RTS Pack",
+      "author": "Quaternius",
+      "sourceUrl": "https://quaternius.com/",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "evidencePath": "games/royale/assets/models/CREDITS.md"
+    },
+    {
+      "id": "meshy:royale-player-provided",
+      "title": "Empire Royale player-provided GLBs",
+      "author": "unknown / user-provided",
+      "status": "blocked",
+      "blockers": ["Meshy.ai source/license evidence is not present for the bundled files"]
+    },
+    {
+      "id": "kenney:tower-defense-kit-1.0",
+      "title": "Tower Defense Kit 1.0",
+      "author": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/tower-defense-kit",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "evidencePath": "games/tower/public/models/licenses/kenney-tower-defense-kit.txt"
+    },
+    {
+      "id": "kenney:graveyard-kit-3.0",
+      "title": "Graveyard Kit 3.0",
+      "author": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/graveyard-kit",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "evidencePath": "games/tower/public/models/licenses/kenney-graveyard-kit.txt"
+    },
+    {
+      "id": "kenney:fantasy-town-kit-1.0",
+      "title": "Fantasy Town Kit 1.0",
+      "author": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/fantasy-town-kit",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "evidencePath": "games/tower/public/models/licenses/kenney-fantasy-town-kit.txt"
+    },
+    {
+      "id": "polyhaven:cobblestone-01",
+      "title": "Cobblestone 01",
+      "author": "Poly Haven",
+      "sourceUrl": "https://polyhaven.com/a/cobblestone_01",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "evidencePath": "games/elden-ring-ii/public/assets/licenses/poly-haven-cobblestone-01.txt"
+    },
+    {
+      "id": "polyhaven:studio-small-09",
+      "title": "Studio Small 09 HDRI",
+      "author": "Poly Haven",
+      "sourceUrl": "https://polyhaven.com/a/studio_small_09",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "evidencePath": "games/xiangqi-ai/assets/README.md"
+    },
+    {
+      "id": "opengameart:dream-2-ambience",
+      "title": "Dream 2 (Ambience)",
+      "author": "Marcus Davies / TokyoGeisha",
+      "sourceUrl": "https://opengameart.org/content/dream-2-ambience",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "evidencePath": "games/elden-ring-ii/public/assets/licenses/open-game-art-cc0-music.txt"
+    },
+    {
+      "id": "opengameart:mists-elven-lands",
+      "title": "Mists in the Elven Lands",
+      "author": "Kaiser / The Oracle",
+      "sourceUrl": "https://opengameart.org/content/mists-in-the-elven-lands",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "evidencePath": "games/elden-ring-ii/public/assets/licenses/open-game-art-cc0-music.txt"
+    }
+  ],
+  "pathRules": [
+    {"id":"rule-racing-car","prefix":"games/Racing Car/assets/","sourceId":"tripo:racing-car","gameIds":["racer"],"assetKind":"model","status":"blocked","blockers":["source/license evidence missing"]},
+    {"id":"rule-ashen-models","prefix":"games/ashen-rail/public/assets/models/","sourceId":"tripo:ashen-rail-set","gameIds":["ashenrail"],"assetKind":"model","status":"blocked","blockers":["source/license evidence missing"]},
+    {"id":"rule-elden-characters","prefix":"games/elden-ring-ii/public/assets/characters/","sourceId":"quaternius:rpg-characters","gameIds":["elden-ring-ii"],"assetKind":"model"},
+    {"id":"rule-elden-skeleton","prefix":"games/elden-ring-ii/public/assets/enemies/","sourceId":"kaykit:skeletons-1.0","gameIds":["elden-ring-ii"],"assetKind":"model"},
+    {"id":"rule-elden-monsters","prefix":"games/elden-ring-ii/public/assets/monsters/","sourceId":"quaternius:ultimate-platformer","gameIds":["elden-ring-ii"],"assetKind":"model"},
+    {"id":"rule-elden-dungeon","prefix":"games/elden-ring-ii/public/assets/environment/kaykit-dungeon/","sourceId":"kaykit:dungeon-remastered-1.0","gameIds":["elden-ring-ii"],"assetKind":"model"},
+    {"id":"rule-elden-castle","prefix":"games/elden-ring-ii/public/assets/environment/","sourceId":"kenney:castle-kit-2.0","gameIds":["elden-ring-ii"],"assetKind":"model"},
+    {"id":"rule-moba-champions","prefix":"games/moba/assets/models/champions/","sourceId":"kaykit:adventurers-1.0","gameIds":["moba"],"assetKind":"model"},
+    {"id":"rule-moba-minions","prefix":"games/moba/assets/models/minions/","sourceId":"kaykit:skeletons-1.0","gameIds":["moba"],"assetKind":"model"},
+    {"id":"rule-moba-anims","prefix":"games/moba/assets/models/anims.glb","sourceId":"kaykit:skeletons-1.0","gameIds":["moba"],"assetKind":"model"},
+    {"id":"rule-moba-arena","prefix":"games/moba/assets/models/arena.glb","sourceId":"kaykit:medieval-hexagon-1.0","gameIds":["moba"],"assetKind":"model"},
+    {"id":"rule-moba-weapons","prefix":"games/moba/assets/models/weapons.glb","sourceId":"kaykit:adventurers-1.0","gameIds":["moba"],"assetKind":"model"},
+    {"id":"rule-royale-quaternius-root","prefix":"games/royale/assets/models/","sourceId":"quaternius:rts","gameIds":["royale"],"assetKind":"model"},
+    {"id":"rule-royale-meshy-buildings","prefix":"games/royale/assets/models/buildings/","sourceId":"meshy:royale-player-provided","gameIds":["royale"],"assetKind":"model","status":"blocked","blockers":["source/license evidence missing"]},
+    {"id":"rule-royale-meshy-effects","prefix":"games/royale/assets/models/effects/","sourceId":"meshy:royale-player-provided","gameIds":["royale"],"assetKind":"model","status":"blocked","blockers":["source/license evidence missing"]},
+    {"id":"rule-royale-meshy-environment","prefix":"games/royale/assets/models/environment/","sourceId":"meshy:royale-player-provided","gameIds":["royale"],"assetKind":"model","status":"blocked","blockers":["source/license evidence missing"]},
+    {"id":"rule-royale-meshy-projectiles","prefix":"games/royale/assets/models/projectiles/","sourceId":"meshy:royale-player-provided","gameIds":["royale"],"assetKind":"model","status":"blocked","blockers":["source/license evidence missing"]},
+    {"id":"rule-royale-meshy-siege","prefix":"games/royale/assets/models/siege/","sourceId":"meshy:royale-player-provided","gameIds":["royale"],"assetKind":"model","status":"blocked","blockers":["source/license evidence missing"]},
+    {"id":"rule-royale-meshy-units","prefix":"games/royale/assets/models/units/","sourceId":"meshy:royale-player-provided","gameIds":["royale"],"assetKind":"model","status":"blocked","blockers":["source/license evidence missing"]},
+    {"id":"rule-tower-towers","prefix":"games/tower/public/models/towers/","sourceId":"kenney:tower-defense-kit-1.0","gameIds":["tower"],"assetKind":"model"},
+    {"id":"rule-tower-tiles","prefix":"games/tower/public/models/tiles/","sourceId":"kenney:tower-defense-kit-1.0","gameIds":["tower"],"assetKind":"model"},
+    {"id":"rule-tower-scenery","prefix":"games/tower/public/models/scenery/","sourceId":"kenney:tower-defense-kit-1.0","gameIds":["tower"],"assetKind":"model"},
+    {"id":"rule-tower-enemies","prefix":"games/tower/public/models/enemies/","sourceId":"kenney:graveyard-kit-3.0","gameIds":["tower"],"assetKind":"model"},
+    {"id":"rule-tower-structures","prefix":"games/tower/public/models/structures/","sourceId":"kenney:fantasy-town-kit-1.0","gameIds":["tower"],"assetKind":"model"}
+  ],
+  "assetOverrides": [
+    {"assetId":"asset:elden-warrior","path":"games/elden-ring-ii/public/assets/characters/warrior.glb","sourceId":"quaternius:rpg-characters","gameIds":["elden-ring-ii"],"assetKind":"model","rigId":"rig:elden-warrior"},
+    {"assetId":"asset:elden-ranger","path":"games/elden-ring-ii/public/assets/characters/ranger.glb","sourceId":"quaternius:rpg-characters","gameIds":["elden-ring-ii"],"assetKind":"model","rigId":"rig:elden-ranger"},
+    {"assetId":"asset:elden-wizard","path":"games/elden-ring-ii/public/assets/characters/wizard.glb","sourceId":"quaternius:rpg-characters","gameIds":["elden-ring-ii"],"assetKind":"model","rigId":"rig:elden-wizard"},
+    {"assetId":"asset:elden-skeleton","path":"games/elden-ring-ii/public/assets/enemies/skeleton-minion.glb","sourceId":"kaykit:skeletons-1.0","gameIds":["elden-ring-ii"],"assetKind":"model","rigId":"rig:elden-skeleton"},
+    {"assetId":"asset:moba-knight","path":"games/moba/assets/models/champions/knight.glb","sourceId":"kaykit:adventurers-1.0","gameIds":["moba"],"assetKind":"model","rigId":"rig:moba-knight"},
+    {"assetId":"asset:moba-skeleton-minion","path":"games/moba/assets/models/minions/skeleton_minion.glb","sourceId":"kaykit:skeletons-1.0","gameIds":["moba"],"assetKind":"model","rigId":"rig:moba-skeleton"},
+    {"assetId":"asset:ashen-player","path":"games/ashen-rail/public/assets/models/runtime/player-soldier.glb","sourceId":"tripo:ashen-rail-set","gameIds":["ashenrail"],"assetKind":"model","rigId":"rig:ashen-player","status":"blocked","blockers":["source/license evidence missing"]},
+    {"assetId":"asset:ashen-drone","path":"games/ashen-rail/public/assets/models/runtime/enemy-drone.glb","sourceId":"tripo:ashen-rail-set","gameIds":["ashenrail"],"assetKind":"model","rigId":"rig:ashen-drone","status":"blocked","blockers":["source/license evidence missing"]},
+    {"assetId":"asset:ashen-train","path":"games/ashen-rail/public/assets/models/runtime/train-locomotive.glb","sourceId":"tripo:ashen-rail-set","gameIds":["ashenrail"],"assetKind":"model","rigId":"rig:ashen-train","status":"blocked","blockers":["source/license evidence missing"]},
+    {"assetId":"asset:racing-player-car","path":"games/Racing Car/assets/car.glb","sourceId":"tripo:racing-car","gameIds":["racer"],"assetKind":"model","rigId":"rig:racing-car","status":"blocked","blockers":["source/license evidence missing"]},
+    {"assetId":"asset:royale-archer","path":"games/royale/assets/models/units/archer.glb","sourceId":"meshy:royale-player-provided","gameIds":["royale"],"assetKind":"model","rigId":"rig:royale-archer","status":"blocked","blockers":["source/license evidence missing"]},
+    {"assetId":"asset:tower-skeleton","path":"games/tower/public/models/enemies/skeleton.glb","sourceId":"kenney:graveyard-kit-3.0","gameIds":["tower"],"assetKind":"model","rigId":"rig:tower-skeleton"}
+  ],
+  "rigs": [
+    {"id":"rig:elden-warrior","assetId":"asset:elden-warrior","rigKind":"skinned","skeletonHash":"32ee757befb01a5a25dd35294e0c632b910c5449f0859f2f93f2fe5d808505e2","root":"Root","forwardAxis":"+Z","upAxis":"+Y","scaleMetres":1,"bones":{"root":["Root"],"pelvis":["Hips"],"spine":["Torso","Abdomen"],"head":["Head"],"handL":["Fist.L"],"handR":["Fist.R"],"footL":["Foot.L"],"footR":["Foot.R"]},"sockets":{"weapon":{"nodes":["Weapon.R","Fist.R"],"required":false},"handR":{"nodes":["Fist.R"],"required":true},"head":{"nodes":["Head"],"required":true}},"clips":{"idle":{"kind":"clip","name":"Idle","durationSec":3.125,"loop":true,"rootMotion":false,"interruptible":true},"walk":{"kind":"clip","name":"Walk","durationSec":1.25,"loop":true,"rootMotion":false,"interruptible":true},"run":{"kind":"clip","name":"Run_Weapon","durationSec":0.875,"loop":true,"rootMotion":false,"interruptible":true},"attack":{"kind":"clip","name":"Sword_Attack","durationSec":0.8333,"loop":false,"rootMotion":false,"interruptible":false,"contactFrame":0.54},"hit":{"kind":"clip","name":"RecieveHit","durationSec":0.625,"loop":false,"rootMotion":false,"interruptible":true},"dodge":{"kind":"clip","name":"Roll","durationSec":1,"loop":false,"rootMotion":false,"interruptible":false},"death":{"kind":"clip","name":"Death","durationSec":1.1667,"loop":false,"rootMotion":false,"interruptible":false}}},
+    {"id":"rig:elden-ranger","assetId":"asset:elden-ranger","rigKind":"skinned","skeletonHash":"32ee757befb01a5a25dd35294e0c632b910c5449f0859f2f93f2fe5d808505e2","root":"Root","forwardAxis":"+Z","upAxis":"+Y","scaleMetres":1,"bones":{"root":["Root"],"pelvis":["Hips"],"spine":["Torso","Abdomen"],"head":["Head"],"handL":["Fist.L"],"handR":["Fist.R"],"footL":["Foot.L"],"footR":["Foot.R"]},"sockets":{"weapon":{"nodes":["Weapon.R","Fist.R"],"required":false},"handR":{"nodes":["Fist.R"],"required":true},"head":{"nodes":["Head"],"required":true}},"clips":{"idle":{"kind":"clip","name":"Idle","durationSec":3.125,"loop":true,"rootMotion":false,"interruptible":true},"walk":{"kind":"clip","name":"Walk","durationSec":1.25,"loop":true,"rootMotion":false,"interruptible":true},"run":{"kind":"clip","name":"Run_Holding","durationSec":0.875,"loop":true,"rootMotion":false,"interruptible":true},"attack":{"kind":"clip","name":"Bow_Shoot","durationSec":0.625,"loop":false,"rootMotion":false,"interruptible":false,"contactFrame":0.62},"hit":{"kind":"clip","name":"RecieveHit","durationSec":0.625,"loop":false,"rootMotion":false,"interruptible":true},"dodge":{"kind":"clip","name":"Roll","durationSec":1,"loop":false,"rootMotion":false,"interruptible":false},"death":{"kind":"clip","name":"Death","durationSec":1.1667,"loop":false,"rootMotion":false,"interruptible":false}}},
+    {"id":"rig:elden-wizard","assetId":"asset:elden-wizard","rigKind":"skinned","skeletonHash":"32ee757befb01a5a25dd35294e0c632b910c5449f0859f2f93f2fe5d808505e2","root":"Root","forwardAxis":"+Z","upAxis":"+Y","scaleMetres":1,"bones":{"root":["Root"],"pelvis":["Hips"],"spine":["Torso","Abdomen"],"head":["Head"],"handL":["Fist.L"],"handR":["Fist.R"],"footL":["Foot.L"],"footR":["Foot.R"]},"sockets":{"weapon":{"nodes":["Weapon.R","Fist.R"],"required":false},"handR":{"nodes":["Fist.R"],"required":true},"head":{"nodes":["Head"],"required":true}},"clips":{"idle":{"kind":"clip","name":"Idle_Weapon","durationSec":3.125,"loop":true,"rootMotion":false,"interruptible":true},"walk":{"kind":"clip","name":"Walk","durationSec":1.25,"loop":true,"rootMotion":false,"interruptible":true},"run":{"kind":"clip","name":"Run_Weapon","durationSec":0.875,"loop":true,"rootMotion":false,"interruptible":true},"attack":{"kind":"clip","name":"Staff_Attack","durationSec":0.75,"loop":false,"rootMotion":false,"interruptible":false,"contactFrame":0.58},"hit":{"kind":"clip","name":"RecieveHit","durationSec":0.625,"loop":false,"rootMotion":false,"interruptible":true},"dodge":{"kind":"clip","name":"Roll","durationSec":1,"loop":false,"rootMotion":false,"interruptible":false},"death":{"kind":"clip","name":"Death","durationSec":1.1667,"loop":false,"rootMotion":false,"interruptible":false}}},
+    {"id":"rig:elden-skeleton","assetId":"asset:elden-skeleton","rigKind":"skinned","skeletonHash":"890cd7b849e402b1eff14a15bd41d734fbd74ea3a0b4887815778f3ea9df1bc8","root":"root","forwardAxis":"+Z","upAxis":"+Y","scaleMetres":1,"bones":{"root":["root"],"pelvis":["hips"],"spine":["spine","chest"],"head":["head"],"handL":["hand.l"],"handR":["hand.r"],"footL":["foot.l"],"footR":["foot.r"]},"sockets":{"weapon":{"nodes":["handslot.r","hand.r"],"required":false},"muzzle":{"nodes":["handslot.r"],"required":false},"handL":{"nodes":["hand.l"],"required":true},"handR":{"nodes":["hand.r"],"required":true},"head":{"nodes":["head"],"required":true}},"clips":{"idle":{"kind":"clip","name":"Idle_Combat","durationSec":4.2667,"loop":true,"rootMotion":false,"interruptible":true},"run":{"kind":"clip","name":"Running_A","durationSec":0.8,"loop":true,"rootMotion":false,"interruptible":true},"attack":{"kind":"clip","name":"1H_Melee_Attack_Slice_Horizontal","durationSec":1.0667,"loop":false,"rootMotion":false,"interruptible":false,"contactFrame":0.52},"hit":{"kind":"clip","name":"Hit_A","durationSec":0.6667,"loop":false,"rootMotion":false,"interruptible":true},"dodge":{"kind":"clip","name":"Dodge_Forward","durationSec":0.4,"loop":false,"rootMotion":false,"interruptible":false},"death":{"kind":"clip","name":"Death_A","durationSec":0.8,"loop":false,"rootMotion":false,"interruptible":false}}},
+    {"id":"rig:moba-knight","assetId":"asset:moba-knight","rigKind":"skinned","skeletonHash":"890cd7b849e402b1eff14a15bd41d734fbd74ea3a0b4887815778f3ea9df1bc8","root":"root","forwardAxis":"+Z","upAxis":"+Y","scaleMetres":1,"bones":{"root":["root"],"pelvis":["hips"],"spine":["spine","chest"],"head":["head"],"handL":["hand.l"],"handR":["hand.r"],"footL":["foot.l"],"footR":["foot.r"]},"sockets":{"weapon":{"nodes":["handslot.r","hand.r"],"required":false},"handL":{"nodes":["hand.l"],"required":true},"handR":{"nodes":["hand.r"],"required":true},"head":{"nodes":["head"],"required":true}},"clips":{"idle":{"kind":"clip","name":"Idle_Combat","durationSec":4.2667,"loop":true,"rootMotion":false,"interruptible":true,"sourceSkeleton":"890cd7b849e402b1eff14a15bd41d734fbd74ea3a0b4887815778f3ea9df1bc8"},"run":{"kind":"clip","name":"Running_A","durationSec":0.8,"loop":true,"rootMotion":false,"interruptible":true,"sourceSkeleton":"890cd7b849e402b1eff14a15bd41d734fbd74ea3a0b4887815778f3ea9df1bc8"},"attack":{"kind":"clip","name":"1H_Melee_Attack_Slice_Horizontal","durationSec":1.0667,"loop":false,"rootMotion":false,"interruptible":false,"contactFrame":0.52,"sourceSkeleton":"890cd7b849e402b1eff14a15bd41d734fbd74ea3a0b4887815778f3ea9df1bc8"},"hit":{"kind":"clip","name":"Hit_A","durationSec":0.6667,"loop":false,"rootMotion":false,"interruptible":true,"sourceSkeleton":"890cd7b849e402b1eff14a15bd41d734fbd74ea3a0b4887815778f3ea9df1bc8"},"dodge":{"kind":"clip","name":"Dodge_Forward","durationSec":0.4,"loop":false,"rootMotion":false,"interruptible":false,"sourceSkeleton":"890cd7b849e402b1eff14a15bd41d734fbd74ea3a0b4887815778f3ea9df1bc8"},"death":{"kind":"clip","name":"Death_A","durationSec":0.8,"loop":false,"rootMotion":false,"interruptible":false,"sourceSkeleton":"890cd7b849e402b1eff14a15bd41d734fbd74ea3a0b4887815778f3ea9df1bc8"}}},
+    {"id":"rig:moba-skeleton","assetId":"asset:moba-skeleton-minion","rigKind":"skinned","skeletonHash":"890cd7b849e402b1eff14a15bd41d734fbd74ea3a0b4887815778f3ea9df1bc8","root":"root","forwardAxis":"+Z","upAxis":"+Y","scaleMetres":1,"bones":{"root":["root"],"pelvis":["hips"],"spine":["spine","chest"],"head":["head"],"handL":["hand.l"],"handR":["hand.r"],"footL":["foot.l"],"footR":["foot.r"]},"sockets":{"weapon":{"nodes":["handslot.r","hand.r"],"required":false},"handL":{"nodes":["hand.l"],"required":true},"handR":{"nodes":["hand.r"],"required":true},"head":{"nodes":["head"],"required":true}},"clips":{"idle":{"kind":"clip","name":"Idle_Combat","durationSec":4.2667,"loop":true,"rootMotion":false,"interruptible":true,"sourceSkeleton":"890cd7b849e402b1eff14a15bd41d734fbd74ea3a0b4887815778f3ea9df1bc8"},"run":{"kind":"clip","name":"Running_A","durationSec":0.8,"loop":true,"rootMotion":false,"interruptible":true,"sourceSkeleton":"890cd7b849e402b1eff14a15bd41d734fbd74ea3a0b4887815778f3ea9df1bc8"},"attack":{"kind":"clip","name":"1H_Melee_Attack_Chop","durationSec":1.0667,"loop":false,"rootMotion":false,"interruptible":false,"contactFrame":0.52,"sourceSkeleton":"890cd7b849e402b1eff14a15bd41d734fbd74ea3a0b4887815778f3ea9df1bc8"},"hit":{"kind":"clip","name":"Hit_A","durationSec":0.6667,"loop":false,"rootMotion":false,"interruptible":true,"sourceSkeleton":"890cd7b849e402b1eff14a15bd41d734fbd74ea3a0b4887815778f3ea9df1bc8"},"death":{"kind":"clip","name":"Death_A","durationSec":0.8,"loop":false,"rootMotion":false,"interruptible":false,"sourceSkeleton":"890cd7b849e402b1eff14a15bd41d734fbd74ea3a0b4887815778f3ea9df1bc8"}}},
+    {"id":"rig:ashen-player","assetId":"asset:ashen-player","rigKind":"procedural","root":"Root","forwardAxis":"+Z","upAxis":"+Y","scaleMetres":1,"bones":{"root":["Root"],"pelvis":["Hip","Pelvis"],"spine":["Waist","Spine01","Spine02"],"head":["Head"],"handL":["L_Hand"],"handR":["R_Hand"],"footL":["L_Foot"],"footR":["R_Foot"]},"sockets":{"weapon":{"nodes":["R_Hand","R_Forearm"],"required":true},"muzzle":{"nodes":["R_Hand"],"required":false},"handR":{"nodes":["R_Hand"],"required":true},"head":{"nodes":["Head"],"required":true}},"clips":{"idle":{"kind":"procedural","driver":"ProceduralPlayerAnimator","state":"idle"},"run":{"kind":"procedural","driver":"ProceduralPlayerAnimator","state":"locomotion"},"attack":{"kind":"procedural","driver":"WeaponSystem","state":"recoil"},"hit":{"kind":"procedural","driver":"ProceduralPlayerAnimator","state":"hit"},"death":{"kind":"procedural","driver":"ProceduralPlayerAnimator","state":"death"}}},
+    {"id":"rig:ashen-drone","assetId":"asset:ashen-drone","rigKind":"procedural","root":"$procedural","forwardAxis":"+Z","upAxis":"+Y","scaleMetres":1,"bones":{},"sockets":{},"clips":{"idle":{"kind":"procedural","driver":"EnemyDroneAnimator","state":"idle"},"run":{"kind":"procedural","driver":"EnemyDroneAnimator","state":"hover"},"attack":{"kind":"procedural","driver":"EnemyDroneAnimator","state":"fire"},"hit":{"kind":"procedural","driver":"EnemyDroneAnimator","state":"hit"},"death":{"kind":"procedural","driver":"EnemyDroneAnimator","state":"death"}}},
+    {"id":"rig:ashen-train","assetId":"asset:ashen-train","rigKind":"mechanical","root":"$mechanical","forwardAxis":"+Z","upAxis":"+Y","scaleMetres":1,"bones":{},"sockets":{},"clips":{"idle":{"kind":"procedural","driver":"TrainMotion","state":"idle"},"run":{"kind":"procedural","driver":"TrainMotion","state":"travel"},"impact":{"kind":"procedural","driver":"TrainMotion","state":"impact"}}},
+    {"id":"rig:racing-car","assetId":"asset:racing-player-car","rigKind":"mechanical","root":"$mechanical","forwardAxis":"+Z","upAxis":"+Y","scaleMetres":1,"bones":{},"sockets":{},"clips":{"steer":{"kind":"procedural","driver":"WheelMotion","state":"steer"},"wheelSpin":{"kind":"procedural","driver":"WheelMotion","state":"wheel-spin"},"suspension":{"kind":"procedural","driver":"VehicleFrame","state":"suspension"},"impact":{"kind":"procedural","driver":"VehicleFrame","state":"impact"}}},
+    {"id":"rig:royale-archer","assetId":"asset:royale-archer","rigKind":"procedural","root":"Bone_000","forwardAxis":"+Z","upAxis":"+Y","scaleMetres":1,"bones":{"root":["Bone_000"],"handL":["Bone_010"],"handR":["Bone_015"],"head":["Bone_028"]},"sockets":{"weapon":{"nodes":["Bone_015"],"required":false},"handR":{"nodes":["Bone_015"],"required":false}},"clips":{"idle":{"kind":"procedural","driver":"RoyaleRigAnimator","state":"idle"},"run":{"kind":"procedural","driver":"RoyaleRigAnimator","state":"move"},"attack":{"kind":"procedural","driver":"RoyaleRigAnimator","state":"attack"},"hit":{"kind":"procedural","driver":"RoyaleRigAnimator","state":"hit"},"death":{"kind":"procedural","driver":"RoyaleRigAnimator","state":"death"}}},
+    {"id":"rig:tower-skeleton","assetId":"asset:tower-skeleton","rigKind":"procedural","root":"$procedural","forwardAxis":"+Z","upAxis":"+Y","scaleMetres":1,"bones":{},"sockets":{},"clips":{"idle":{"kind":"procedural","driver":"TowerEnemyAnimator","state":"idle"},"run":{"kind":"procedural","driver":"TowerEnemyAnimator","state":"move"},"attack":{"kind":"procedural","driver":"TowerEnemyAnimator","state":"attack"},"hit":{"kind":"procedural","driver":"TowerEnemyAnimator","state":"hit"},"death":{"kind":"procedural","driver":"TowerEnemyAnimator","state":"death"}}}
+  ],
+  "defaults": {
+    "status": "blocked",
+    "blockers": ["no matching provenance path rule", "asset is not represented by a catalog source assignment"]
+  }
+}

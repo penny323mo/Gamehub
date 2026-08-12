@@ -22,6 +22,7 @@ or all games for shared, test, CI, catalog, unknown-game and explicit manual cha
 | Area | Entrypoint | Stack / notes |
 | --- | --- | --- |
 | Hub launcher | `games/manifest.json`, `games/catalog.generated.js`, `index.html`, `launcher.js`, `style.css` | Manifest is canonical; generated classic script keeps four-card startup synchronous and Pages-safe. |
+| Asset / rig authority | `games/assets/catalog.json`, `games/assets/catalog.mjs`, `games/assets/census.generated.json` | Build-time provenance, canonical runtime-model census and semantic RigDescriptors; generated census is deterministic and never loaded by games at runtime. |
 | Gomoku | `games/gomoku/index.html` | Static JS, online features use Supabase. |
 | Penny Crush | `games/penny_crush/index.html` | Static game. |
 | Big Two | `games/big2/index.html` | Static JS; online/shared infrastructure may use Supabase. |
@@ -43,6 +44,13 @@ or all games for shared, test, CI, catalog, unknown-game and explicit manual cha
   entry paths and release commands. `launcher.js` consumes the generated
   `globalThis.GameCatalog`; after manifest edits run
   `node scripts/build-game-catalog.mjs` and never hand-edit the generated file.
+- `games/assets/catalog.json` is the build-time authority for 3D provenance,
+  path-to-source rules, representative asset identities and semantic rig/clip
+  mappings. `scripts/build-asset-census.mjs` deterministically audits every
+  tracked GLB/glTF into `games/assets/census.generated.json`; never hand-edit the
+  generated census. Unknown license, path, checksum, skeleton or required socket
+  facts stay explicit blockers instead of being guessed. Runtime renderers remain
+  game-specific and do not import this Node-only authority.
 - GitHub Pages runs under a repository subpath, so game asset URLs must remain
   relative or otherwise Pages-safe.
 - Ashen Rail remains a self-contained bonus game inside the existing hub. Its Vite
@@ -205,6 +213,20 @@ timeouts, selects only a directly changed game, and fails closed to all games fo
 shared, Hub-test, CI, catalog, unknown-game or explicit `--all` releases. Deploy CI
 installs package-lock dependencies selected by that plan, runs its `full` tier,
 and always runs Hub layout/load/touch/storage/home browser gates.
+
+### AssetCatalog / RigCatalog
+
+```sh
+node scripts/build-asset-census.mjs --check
+node tests/asset-catalog.mjs
+node tests/asset-census.mjs
+```
+
+The generated census covers physical and canonical runtime GLB/glTF paths,
+hashes, bounds, scene/skin/clip facts and duplicate groups. Provenance status and
+runtime readiness are separate: a file can have verified license evidence while
+still being blocked by a missing rig fact. Catalog/census checks run before every
+Pages release and require zero parse failure or stale generated output.
 
 ### Hub or any static game
 

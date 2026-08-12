@@ -37,10 +37,13 @@ jobs:
             games/royale/tests/package-lock.json
             games/Racing Car/tests/package-lock.json
 
-      - name: Validate GameCatalog and ReleaseGate contracts
+      - name: Validate catalog and ReleaseGate contracts
         run: |
           node scripts/build-game-catalog.mjs --check
           node tests/catalog.mjs
+          node scripts/build-asset-census.mjs --check
+          node tests/asset-catalog.mjs
+          node tests/asset-census.mjs
           node tests/release-gate.mjs
 
       - name: Install Tower Defense dependencies
