@@ -83,8 +83,9 @@ treat a build alone as visual evidence: use the real browser gates below.
   console errors and measured 19 calls / 105,187 tris at the busiest ghost case.
 - Elden `npm test` is **17/17**. The long browser witness now uses only visible
   Boss telegraph state plus keyboard-equivalent dodge/movement and reached real
-  `status=victory` in three successive final runs (latest: chapter 3 cleared,
-  player **48 HP**, 35 attacks / 476 damage / 66s). It emits `PLAYTHROUGH=PASS`
+  `status=victory` in the latest two final runs; one earlier RNG run failed
+  honestly. Latest: chapter 3 cleared,
+  player **48 HP**, 35 attacks / 476 damage / 66s. It emits `PLAYTHROUGH=PASS`
   and exits non-zero unless the game itself reports victory.
 
 ## Known issues and cautions
@@ -115,6 +116,5 @@ treat a build alone as visual evidence: use the real browser gates below.
 ## Do not redo
 
 - Do not rescan the whole repository before syncing and reading the named files.
-- Do not add a second terrain render pass, per-frame curve allocations, or a
-  low-poly replacement ghost to solve visual issues.
-- Do not claim a browser-visible change is ready without an HTTP browser witness.
+- Do not add a second terrain pass, per-frame curve allocations, or low-poly
+  ghost; every browser-visible change needs an HTTP witness.
