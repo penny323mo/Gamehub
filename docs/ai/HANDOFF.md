@@ -1,11 +1,13 @@
 # Current cross-agent handoff
 
-Updated: 2026-08-12 (Asia/Macau)
-Prepared by: Claude Code (cloud) — ADR-313
+Updated: 2026-09-19 (Asia/Macau)
+Prepared by: ChatGPT — CI timeout maintenance after ADR-313
 Integration branch: `main`
-Work branch: `claude/3d-tower-defense-game-rld6ts`
+Work branch: `codex/fix-royale-release-timeout`
 Status: 三套 Hub theme 已經拆成三個獨立 renderer，theme 揀選收埋做一粒掣；
-`hub-themes` **240/240**、`hub` 100/100。
+`hub-themes` **240/240**、`hub` 100/100。最新 main Pages run #381 另有一個
+**ReleaseGate 600 秒總 timeout**：Royale 前八個 suite 已過，去到最後 `session.mjs`
+第一輪時啱啱用盡 600 秒；本 branch 只調整 Royale full-suite timeout contract，唔改 gameplay。
 **視覺驗收仲未做**——自動尺證到「結構真係唔同、冇壞」，證唔到「靚」。
 
 ## Current objective
@@ -13,6 +15,13 @@ Status: 三套 Hub theme 已經拆成三個獨立 renderer，theme 揀選收埋�
 跟 Evolution Plan §5.5 同 ADR-312 重做 Hub theme。Penny 否決咗第一版三個變體：三個都
 仲係同一個卡片 carousel 換色。呢一輪已經落咗手，見下面；下一步係 §5.5 驗收第 1 同
 第 5 項（五個 viewport 嘅 full-page screenshot ＋ Penny headed review）。
+
+CI maintenance（2026-09-19）：GitHub Pages run #381 唔係 theme assertion fail。ReleaseGate
+將 Royale 整個 `npm test` 當一個 command，預設只畀 600,000ms；CI log 顯示
+`leak/perf/gauntlet/combat/pvp-guest/match/features/rts` 全部通過，最後
+`session.mjs` 已開始並完成第 1 輪前後量度，但 command 喺精確 600 秒被 ETIMEDOUT。
+呢個 branch 將 **Royale full command** 顯式設為 1,200,000ms，並加 ReleaseGate contract
+test，避免之後靜靜雞跌返預設 600 秒。呢個改動唔觸碰 Royale runtime、平衡或資源管理。
 
 UI-only：唔准改任何遊戲 runtime、13 隻嘅次序、入口連結、storage 安全同 launch/input 語意。
 
@@ -56,6 +65,12 @@ UI-only：唔准改任何遊戲 runtime、13 隻嘅次序、入口連結、stora
 
 ## Verification
 
+- CI evidence：Pages run #381（HEAD `81acfd2e`）喺 Royale full `npm test` 精確
+  600,000ms 報 `RELEASE_GATE=FAIL royale required gate timed out`；timeout 前八個 Royale
+  suite 全部 PASS，`session.mjs` 已輸出 baseline 同第 1 輪結果。即係呢次係 command budget
+  用盡，唔係已見到 gameplay assertion failure。
+- 呢個 maintenance branch 本身未有 branch-triggered Pages workflow；合併前唔會將「full CI PASS」
+  寫成已驗證。合併後要以新 main Pages run 作最終證據。
 - `hub-themes` **240/240**（三套 × 五個 canonical viewport）、`hub` **100/100**、
   `hub-touch` 5/5、`hub-read` 3/3、`hub-load` 3/3、`hub-home` 3/3、`hub-storage` 2/2、
   ReleaseGate 20/20、catalog parity PASS、MOBA/Hub token 契約 3/3。
@@ -80,6 +95,8 @@ UI-only：唔准改任何遊戲 runtime、13 隻嘅次序、入口連結、stora
 
 ## Exact next action
 
+0. Review / merge `codex/fix-royale-release-timeout`，然後確認新 main Pages run 可以完整行過
+   Royale `session.mjs` 同後續 Hub fast gates；如果仍超時，先量 suite 分段時間，唔好再盲加 timeout。
 1. 影五個 canonical viewport × 三套 theme 嘅 full-page screenshot，交 Penny headed
    review（§5.5 驗收第 1 同第 5 項）。**唔好用 220/220 當視覺驗收。**
 2. 媒介仲係 emoji／舊 logo。§5.5 要 canonical gameplay capture（來源、crop variant、

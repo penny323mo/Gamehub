@@ -38,6 +38,13 @@ assert.equal(racingFull.tier, 'full');
 assert.ok(racingFull.commands.some(({ argv }) => argv.includes('test')),
   'full release tier must include the game owner test command');
 
+const royaleFull = run(['games/royale/src/main.js'], 'full');
+const royaleTest = royaleFull.commands.find(({ cwd, argv }) =>
+  cwd === 'games/royale/tests' && argv[0] === 'npm' && argv[1] === 'test');
+assert.ok(royaleTest, 'Royale full release tier must include npm test');
+assert.ok(royaleTest.timeoutMs >= 1_200_000,
+  'Royale full suite needs explicit headroom above the 600s default until it is split or optimized');
+
 const shared = run(['games/shared/js/safe-storage.js']);
 assert.equal(shared.runAll, true);
 assert.equal(shared.affectedGames.length, 13);
@@ -104,4 +111,4 @@ for (const flag of ['--files-from', '--github-output']) {
   assert.match(escaped.stderr, /safe repository-relative path/);
 }
 
-console.log('RELEASE_GATE_TEST=PASS cases=20');
+console.log('RELEASE_GATE_TEST=PASS cases=21');

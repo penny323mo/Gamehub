@@ -213,7 +213,7 @@
         "buildPolicy": "none",
         "build": null,
         "fast": [{ "cwd": ".", "argv": ["node", "--check", "games/royale/src/main.js"] }],
-        "full": [{ "cwd": "games/royale/tests", "argv": ["npm", "test"] }]
+        "full": [{ "cwd": "games/royale/tests", "argv": ["npm", "test"], "timeoutMs": 1200000 }]
       }
     },
     {
