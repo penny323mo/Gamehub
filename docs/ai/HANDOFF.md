@@ -72,9 +72,12 @@ UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
 
 ## Exact next action
 
+0. **2026-09-24 逐 game audit 完成**：見 `docs/GAMEHUB_UPGRADE_PLAN_2026-09.md`（13 隻評分、
+   16 條 P0、跨遊戲共用基建、Wave 0–4）。下一個 agent 由 **Wave 0** 開始：逐條清 §2 P0，
+   每條獨立 commit；同時做 §4.1 手機排版 gate（375×667／667×375）。Penny 已授權直推 `main`。
+   §6 五個決定（Chiikawa 圖、Elden 改名、RTS Beta、Supabase migration、Wave 2 優先）等 Penny。
 1. Penny headed review 新首頁（手機直／橫、桌面），收集意見再微調。
 2. ~~合併後睇新 main Pages run~~：#384 已綠（包括 Royale full budget）。
-3. 之後返 Phase 0C（Royale／Racing／Elden 嘅 scene/rig/performance baseline）。
 
 ## Do not redo
 
