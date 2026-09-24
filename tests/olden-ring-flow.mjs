@@ -107,6 +107,17 @@ const until = (page, fn, ms = 90000) => page.waitForFunction(fn, null, { timeout
   const again = await until(page, () => __olden.tower.phase === 'fight' && __olden.tower.floor === 1 && __olden.game.hero.hp === __olden.game.hero.hpMax);
   check('「再登古塔」由第一層滿血重新開始', again);
 
+  // Penny 真機：跳起攻擊會一路浮喺半空打到停手為止（原作 DW8 空中連擊 10 下、幾乎唔跌）。
+  const air = await page.evaluate(() => {
+    const { game: g, input: i, step } = __olden; const h = g.hero;
+    i.virtual.clear(); step(40);
+    h.iframes = 1e6; i.virtual.down('jump'); step(2); i.virtual.up('jump');
+    const tr = [];
+    for (let k = 0; k < 360; k++) { if (k % 6 === 0) i.virtual.down('attack'); if (k % 6 === 3) i.virtual.up('attack'); step(); tr.push([h.airN || 0, h.grounded]); }
+    i.virtual.clear(); h.iframes = 0;
+    return { swings: Math.max(...tr.map((x) => x[0])), airSec: +(tr.filter((x) => !x[1]).length / 60).toFixed(2) };
+  });
+  check('跳躍攻擊連撳：空中最多 3 下，1.6 秒內落地（唔會浮喺半空）', air.swings <= 3 && air.airSec < 1.6, air);
   check('桌面唔顯示觸控掣', await page.evaluate(() => document.getElementById('touch').hidden));
   check('零外網請求', external.length === 0, external.slice(0, 3));
   check('零 console／page／HTTP error', errors.length === 0, errors.slice(0, 5));

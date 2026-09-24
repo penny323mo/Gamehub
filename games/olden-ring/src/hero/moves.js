@@ -140,7 +140,9 @@ export const MOVES = {
 
 // Re-used by the combo system: what C1 hangs off (charge from neutral).
 export const NEUTRAL = { attack: 'n1', charge: 'c1', dash: 'dash', air: 'jatk', airCharge: 'jc' };
-export const AIR_CHAIN_MAX = 10;  // swipes per jump (the rapid DW8 jump attack shows ~10 over 2.9 s; locomotion-dodge r2: 8 → 10)
+// Olden Ring: 3 (was 10). DW8's ten-swipe air string read as the hero floating in mid-air for as long as 攻 was
+// held (Penny's phone test); three swings keeps a short juggle, then gravity wins.
+export const AIR_CHAIN_MAX = 3;  // swipes per jump (the rapid DW8 jump attack shows ~10 over 2.9 s; locomotion-dodge r2: 8 → 10)
 
 for (const [id, m] of Object.entries(MOVES)) {
   m.id = id; m.clip = m.clip || id; m.lunge = m.lunge || [];

@@ -88,6 +88,8 @@ UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
   減顆粒／色差／分色、景深減半、手機 1.5× 解像度）。flow 23/23（新加手機撳祝福卡回歸測試）。
 - **Penny 真機第二輪（修咗）**：放燼龍時連撳 → iOS 雙擊放大，成頁放大約 2×，祝福卡走出畫面似卡死。
   meta viewport 禁縮放＋`touch-action: manipulation`＋攔 iOS gesture 事件；燼龍放完先過層。flow 25/25。
+- **Penny 真機第三輪**：跳躍攻擊連撳會浮喺半空打到停手（DW8 原設計 10 下、每秒只跌 0.1 m）→ 空中最多 3 下、
+  每秒下沉 1.6 m，滯空 2.9 s → 1.1 s。`__olden.step(n)` 俾 gate 逐格推 sim。flow 26/26。
 - 未做：真機手感／FPS（SwiftShader 只有 1–3 fps）、書法字子集補新字、更多敵種同冠層 Boss 造型。
 
 ## Exact next action

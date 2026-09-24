@@ -15,7 +15,7 @@ export const LOCO = {
   // dive roll: 24 frames (0.40 s) total, run-cancel at 20 (0.33 s), attack at 14, re-dodge at 16
   dodgeFrames: 24, dodgeDist: 4.6, dodgeIFrames: [0, 16], dodgeAttackCancel: 14, dodgeRedodge: 16, dodgeRunCancel: 20,
   jumpV: 12.6, gravity: 28, airControl: 14, hoverG: 0.3,
-  hoverSink: 0.1,       // m/s: an air string holds the apex (DW8: ~10 swings in ~2.4 s at about apex height)
+  hoverSink: 1.6,       // m/s. Olden Ring: sinks through the (3-swing) air string instead of holding the apex (DW8 was 0.1)
   landFrames: 8, landRunCancel: 4, hurtFrames: 20,
 };
 const DT = 1 / 60, TAU = Math.PI * 2;

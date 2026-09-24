@@ -56,7 +56,7 @@ createAudio(game);
 // Olden Ring: the 千燈古塔 run (floors, boons, death, results) — owns #ui overlays
 const tower = createTower(game, { maxEnemies: ENEMIES, root: document.getElementById('ui') });
 // test seam (only with ?test): browser gates drive floors/death without playing 45 KOs
-if (params.has('test')) globalThis.__olden = { game, tower };
+if (params.has('test')) globalThis.__olden = { game, tower, input, step: (n = 1) => { for (let i = 0; i < n; i++) step(); } };   // step: deterministic sim advance for gates
 const touch = createTouch(document.getElementById('ui'), input, game);
 
 function step() {
