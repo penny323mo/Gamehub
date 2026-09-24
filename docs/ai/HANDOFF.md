@@ -76,7 +76,12 @@ UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
   `games/olden-ring/`（id `olden-ring`，取代 Hub 嘅 `elden-ring-ii`；舊 React 版原封保留做存檔）。
 - 夜空＋殘缺古環、九層千燈古塔＋天燈、燼騎／虛空軍團／守燈將／空冠王、燼龍大招、逐層＋祝福＋冠層＋
   死亡結算＋本機最佳、觸控搖桿同五粒掣、手機減量。詳見 ADR-315 同 `games/olden-ring/README.md`。
-- 驗證：`tests/olden-ring-flow.mjs` **20/20**；跨遊戲 hub gates 結果見 commit message。
+- 驗證：`tests/olden-ring-flow.mjs` **20/20**；hub 124/124、hub-load 3/3、hub-touch 5/5（修咗 667×375 登塔掣
+  28px → 44px 後）、hub-storage 2/2、hub-home 3/3、hub-read 3/3、hub-keyboard 3/3、catalog／ReleaseGate／
+  asset catalog＋census／cache-bust PASS。
+- **誠實註記**：約 93% 代碼係 voxel-musou 原封（戰鬥、群眾 AI、動作、鏡頭、後製、音效、無雙演出）；我哋改咗
+  ~320 行＋新寫 ~410 行（主題、古環、千燈、樓層循環、觸控）。Penny 知悉並叫照 merge。下一步建議加大原創部分：
+  新武器／招式、自家「古環儀式」大招取代改色龍、新敵種、空冠王專屬造型同招式、自家 HUD。
 - 未做：真機手感／FPS（SwiftShader 只有 1–3 fps）、書法字子集補新字、更多敵種同冠層 Boss 造型。
 
 ## Exact next action
