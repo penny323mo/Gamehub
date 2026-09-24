@@ -54,6 +54,11 @@ UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
   `#hub-return` focus ring，唔關 Hub）。
 - 五個 canonical viewport full-page screenshots 已影並人手睇過（無重疊、無爆版、插畫完整）。
 
+- **已上線**：Penny 授權以後直接推 `main`。`aff1b6e` 推上 main 後 Pages #383 喺 Tower
+  `npm audit --audit-level=high` fail（sharp <0.35.4 新 advisory，任何 push 都會中）；
+  `a2e9f8f` 用 `npm audit fix` 只升 lockfile patch 版本（sharp 0.35.4、fflate 0.8.3），
+  本機 Tower `npm test` 全綠、dist 冇變；**Pages #384 success**。
+
 ## Known issues and cautions
 
 - **視覺驗收未做**：要 Penny headed review；自動尺只證「冇壞」。
@@ -68,7 +73,7 @@ UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
 ## Exact next action
 
 1. Penny headed review 新首頁（手機直／橫、桌面），收集意見再微調。
-2. 合併後睇新 main Pages run：catalog parity、Hub gates、Royale 1,200s full budget。
+2. ~~合併後睇新 main Pages run~~：#384 已綠（包括 Royale full budget）。
 3. 之後返 Phase 0C（Royale／Racing／Elden 嘅 scene/rig/performance baseline）。
 
 ## Do not redo
