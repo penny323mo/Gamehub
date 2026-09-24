@@ -209,18 +209,24 @@ function card(game, index) {
     const a = launchAnchor(game, 'game-card');
     a.dataset.gameId = game.id;
     a.style.setProperty('--i', String(index));
+    /*
+     * 遊戲名疊喺封面上。封面係遊玩中段截圖，本身冇 logo／標題畫面——
+     * 淨係睇圖唔知係咩遊戲（Penny review）。所以好似商店封面咁，圖底加深色
+     * 漸層，大字寫名＋類型；卡身淨返簡介同 badge，唔再重複個名。
+     * 名唔可以擺入 `coverNode`（佢係 aria-hidden），否則讀屏聽唔到。
+     */
+    const media = el('span', 'card-media');
+    const label = el('span', 'card-label');
+    label.append(el('span', 'card-cat', game.category), el('span', 'card-title', game.title));
+    media.append(coverNode(game, 'card-art', { eager: index < 4 }), label, el('span', 'card-play', '▶'));
     const body = el('span', 'card-body');
-    const head = el('span', 'card-head');
-    head.append(el('span', 'card-title', game.title), el('span', 'card-cat', game.category));
-    body.append(head, el('span', 'card-sub', cleanSubtitle(game.subtitle)));
+    body.append(el('span', 'card-sub', cleanSubtitle(game.subtitle)));
     const badges = badgesOf(game);
     if (badges.length) {
         const row = el('span', 'card-badges');
         badges.forEach((text) => row.append(el('span', 'badge', text)));
         body.append(row);
     }
-    const media = coverNode(game, 'card-art', { eager: index < 4 });
-    media.append(el('span', 'card-play', '▶'));
     a.append(media, body);
     li.append(a);
     return li;

@@ -460,12 +460,18 @@ button {
     }
 }
 
-.card-art {
+.card-media {
     position: relative;
     display: block;
     aspect-ratio: 16 / 10;
     overflow: hidden;
     background: var(--surface-2);
+}
+
+.card-art {
+    position: absolute;
+    inset: 0;
+    display: block;
 }
 
 .card-art img {
@@ -476,12 +482,54 @@ button {
     transition: transform 0.5s var(--ease);
 }
 
+/* 封面底部深色漸層：令疊上去嘅遊戲名喺任何截圖上都讀得清。 */
 .card-art::after {
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(0deg, rgba(21, 27, 43, 0.55), transparent 45%);
+    background: linear-gradient(0deg, rgba(6, 8, 14, 0.94) 0%, rgba(6, 8, 14, 0.7) 30%, rgba(6, 8, 14, 0) 62%);
     pointer-events: none;
+}
+
+.card-label {
+    position: absolute;
+    left: 14px;
+    right: 60px;
+    bottom: 12px;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+}
+
+.card-title {
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    color: #fff;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8);
+}
+
+.card-cat {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: #e5e9f5;
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+}
+
+.card-cat::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
 }
 
 .card-play {
@@ -516,28 +564,8 @@ button {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding: 14px 16px 16px;
+    padding: 12px 16px 16px;
     flex: 1;
-}
-
-.card-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-}
-
-.card-title {
-    font-size: 17px;
-    font-weight: 700;
-    line-height: 1.2;
-    min-width: 0;
-}
-
-.card-cat {
-    flex: none;
-    font-size: 12px;
-    color: var(--muted);
 }
 
 .card-sub {
@@ -683,17 +711,27 @@ button {
         gap: 4px;
     }
 
-    .card-head {
-        flex-direction: column;
+    .card-label {
+        left: 10px;
+        right: 10px;
+        bottom: 8px;
         gap: 2px;
     }
 
     .card-title {
-        font-size: 15px;
+        font-size: 16px;
+    }
+
+    .card-cat {
+        font-size: 11px;
     }
 
     .card-sub {
         font-size: 12px;
+    }
+
+    .card-art::after {
+        background: linear-gradient(0deg, rgba(6, 8, 14, 0.95) 0%, rgba(6, 8, 14, 0.72) 38%, rgba(6, 8, 14, 0) 72%);
     }
 
     .card-badges {

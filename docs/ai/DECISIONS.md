@@ -9076,6 +9076,8 @@ Penny 睇完 ADR-313 三套 theme 之後決定：**唔再維持三套介面語�
 - 封面係真實遊玩截圖：`assets/hub/covers/<id>.webp`（480×300）同 `assets/hub/hero/<id>.webp`
   （960×600），由 `scripts/capture-hub-covers.mjs` 影（逐隻遊戲行到遊玩畫面）。唔好再用
   SVG／emoji 插畫做主視覺。新加遊戲要補 STEPS 同重影；未影之前會 fallback 去 manifest icon。
+- 遊戲名同類型**疊喺封面圖上**（底部深色漸層＋大字），因為遊玩中段截圖本身冇標題，
+  淨係睇圖唔知係咩遊戲（Penny review）。個名唔可以放入 aria-hidden 嘅封面 wrapper。
 - 所有控制 ≥44px 而且中心打得中自己；Tab 次序 hero → 篩選 → 13 隻；零外網請求、零 error。
 - 手機直屏 2 欄、≥1200 闊 4 欄、矮橫屏 ≥3 欄；hero 唔可以食晒首屏。
 - 封面 URL 用 `launcher.js` 嘅 `COVER_VERSION` bust cache；Hub `launcher.js`／`style.css` token 仍按 ADR-311。

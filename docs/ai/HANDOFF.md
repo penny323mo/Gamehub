@@ -21,13 +21,15 @@ UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
   踩油等），SwiftShader 截圖，壓成 `assets/hub/covers/*.webp`（480×300，共 ~210KB）同
   `assets/hub/hero/*.webp`（960×600，共 ~470KB，每次只載一張）。來源說明見 `assets/hub/README.md`。
   SVG 版（`hub-art.js`）已刪。
+- Penny 再 review：純截圖睇唔出遊戲名 → 遊戲名＋類型疊喺封面底部（深色漸層＋22px 粗體，
+  手機 16px），卡身淨返簡介同 badge。Hub token `assets-36`。
 - `launcher.js` 重寫：頂欄、hero（`data-hero-game-id`；有 `gamehub-recent-v1` 就「繼續玩」，
   冇就按日子輪替）、`[data-filter]` 篩選（全部 13／棋牌 4／休閒 3／策略 3／動作 3）、
   13 個 `a[data-game-id]` grid。拆走 theme menu、carousel、swipe、方向鍵分頁。
 - `style.css` 重寫：一套深色 token；手機直屏 2 欄、1280 闊 4 欄、矮橫屏 hero 變矮 banner；
   hover／focus 用每隻遊戲 `--accent` 光暈；`prefers-reduced-motion` 全停。
 - `tests/hub.mjs` 重寫守 ADR-314 契約（6 個 viewport）；`tests/hub-themes.mjs` 退役，CI 移除。
-- Hub cache token `assets-33 → assets-35`；封面 URL 另有 `COVER_VERSION`。
+- Hub cache token `assets-33 → assets-36`；封面 URL 另有 `COVER_VERSION`。
 - **順手修 main 嘅真紅**：`games/catalog.generated.js` 喺 Royale timeout PR 之後冇 regenerate，
   `build-game-catalog --check` 同所有讀 catalog 嘅測試都會 fail。用 `node scripts/build-game-catalog.mjs`
   正規 regenerate（token `catalog-15y29i5`）。
@@ -43,7 +45,8 @@ UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
 
 ## Verification
 
-- `node tests/hub.mjs` **118/118**（包括 13 張封面全部載到、hero 用大圖）（320×568、375×667、440×956、667×375、844×390、1280×800）。
+- `node tests/hub.mjs` **124/124**（包括 13 張封面全部載到、hero 用大圖、遊戲名疊喺封面上而且讀屏讀得到）
+- 疊字之後重跑：hub-read 3/3（字色對比）、hub-touch 5/5、hub-load 3/3。（320×568、375×667、440×956、667×375、844×390、1280×800）。
 - `build-game-catalog --check` PASS、`tests/catalog.mjs` PASS、`tests/release-gate.mjs` 21/21、
   MOBA/Hub cache-bust PASS（Hub `assets-34`、MOBA `assets-31` 分開）。
 - 跨遊戲 hub gates（順序單獨跑）：hub-load 3/3（封面版再跑一次仍 3/3）、hub-touch 5/5、

@@ -87,6 +87,15 @@ const read = page => page.evaluate(() => {
             const img = card.querySelector('.card-art img');
             return img && /assets\/hub\/covers\/[\w-]+\.webp/.test(img.getAttribute('src'));
         }),
+        // 封面係遊玩中段截圖，本身冇標題；遊戲名一定要疊喺封面上，而且讀屏讀得到。
+        titleOnCover: visible.every(card => {
+            const title = card.querySelector('.card-title');
+            const cover = card.querySelector('.card-art');
+            if (!title || !cover || title.closest('[aria-hidden="true"]')) return false;
+            const t = title.getBoundingClientRect(), c = cover.getBoundingClientRect();
+            return t.left >= c.left && t.right <= c.right && t.top >= c.top && t.bottom <= c.bottom
+                && card.textContent.includes(title.textContent) && title.textContent.trim().length > 0;
+        }),
         heroCover: (() => {
             const img = hero?.querySelector('.hero-art img');
             return img ? { src: img.getAttribute('src'), loaded: img.complete && img.naturalWidth > 0 } : null;
@@ -153,6 +162,7 @@ for (const viewport of [
     check(`${label}：卡全部喺畫面闊度入面`, start.insideX, start);
     check(`${label}：文件唔會闊過畫面`, start.docWidth <= start.innerWidth, start);
     check(`${label}：每張卡都用真實遊玩截圖做封面`, start.coverOk);
+    check(`${label}：每張封面上面都疊住遊戲名（讀屏讀得到）`, start.titleOnCover);
     check(`${label}：hero 封面用大圖而且載入咗`,
         start.heroCover?.loaded && /assets\/hub\/hero\//.test(start.heroCover.src), start.heroCover);
     // lazy 嘅卡圖捲到先載；捲一次到底，確認 13 張都真係載到（冇 404／冇 fallback）。
