@@ -359,7 +359,7 @@ export default function GameClient() {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.03;
-    renderer.domElement.setAttribute("aria-label", "Elden Ring II 3D battle arena");
+    renderer.domElement.setAttribute("aria-label", "Olden Ring 3D battle arena");
     renderer.domElement.setAttribute("tabindex", "0");
     mount.appendChild(renderer.domElement);
 
@@ -3557,9 +3557,9 @@ export default function GameClient() {
 
       <header className="game-topbar">
         <div className="topbar-left">
-          <div className="brand-lockup" aria-label="Elden Ring Two">
+          <div className="brand-lockup" aria-label="Olden Ring">
             <span className="brand-kicker">A FAN-MADE WEB EXPERIENCE</span>
-            <strong>ELDEN RING <i>II</i></strong>
+            <strong>OLDEN RING</strong>
             <span className="brand-subtitle">VEIL OF THE HOLLOW CROWN</span>
           </div>
           {/* 玩家狀態排喺品牌字下面，用正常文檔流，唔用寫死嘅 top。
@@ -3646,7 +3646,7 @@ export default function GameClient() {
           <p className="eyebrow">THE SHATTERED AGE CONTINUES</p>
           <h1>Rise once more,<br /><span>Oathbound.</span></h1>
           <p className="intro-copy">
-            Beyond the Erdtree&apos;s dying light, a crown without a lord calls the dead to war.
+            Beyond the Elder Tree&apos;s dying light, a crown without a lord calls the dead to war.
           </p>
           <div className="class-selector" role="radiogroup" aria-label="Choose a character class">
             {(Object.keys(CLASS_CONFIG) as CharacterClass[]).map((characterClass) => {

@@ -1,4 +1,4 @@
-# Elden Ring II — Veil of the Hollow Crown
+# Olden Ring — Veil of the Hollow Crown
 
 Game Hub 內置版的 fan-made 3D dark-fantasy browser game。內容包括三個職業、兩輪骷髏戰、雙階段 Boss、lock-on、stamina、dodge、手機虛擬搖桿與右半畫面拖曳鏡頭。
 

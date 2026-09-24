@@ -6,7 +6,7 @@ const gameRoot = new URL("../", import.meta.url);
 
 test("builds a relative-path GitHub Pages entry", async () => {
   const html = await readFile(new URL("dist/index.html", gameRoot), "utf8");
-  assert.match(html, /<title>Elden Ring II — Veil of the Hollow Crown<\/title>/);
+  assert.match(html, /<title>Olden Ring — Veil of the Hollow Crown<\/title>/);
   assert.match(html, /(?:src|href)="\.\/assets\//);
   assert.doesNotMatch(html, /(?:src|href)="\/assets\//);
 });

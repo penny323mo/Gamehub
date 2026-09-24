@@ -293,8 +293,8 @@
     },
     {
       "id": "elden-ring-ii",
-      "testName": "Elden Ring II",
-      "title": "Elden Ring II",
+      "testName": "Olden Ring",
+      "title": "Olden Ring",
       "subtitle": "⚔️ 黑暗奇幻 3D 動作 RPG！三職業迎戰空冠之王",
       "category": "動作 RPG",
       "entry": "games/elden-ring-ii/dist/index.html",

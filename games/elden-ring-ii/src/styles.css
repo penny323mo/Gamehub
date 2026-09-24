@@ -131,7 +131,13 @@ button {
   border-color: #e4c57e;
   background: rgba(50, 42, 27, 0.86);
   color: #fff2c7;
-  outline: none;
+}
+
+/* 鍵盤 focus 一定要睇得到（hub-keyboard gate）。之前 `outline: none` 淨係靠
+   邊框轉深少少，同 hover 分唔開，等於冇 focus 提示。 */
+.hub-return:focus-visible {
+  outline: 2px solid #f5d98f;
+  outline-offset: 3px;
 }
 
 .utility-controls {

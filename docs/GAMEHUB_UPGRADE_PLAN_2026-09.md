@@ -47,8 +47,8 @@ Tower core 48、Royale match 11/11 …），但呢啲 gate 只證明「開到、
 | --- | --- | --- | --- | --- |
 | 1 | 灰燼列車 | meshopt decoder 由 `cdn.babylonjs.com` 攞；攞唔到玩家變方塊、火車消失（`AssetLibrary.ts:67-77`） | 打包本地 decoder、設 `MeshoptCompression.Configuration.decoder.url`；加「零外部請求」gate | S |
 | 2 | 灰燼列車 | `GameApp.ts:62` hardware scaling 反轉，DPR 2 手機只 render 63% | 改 `1/(min(dpr,1.5)*renderScale)`；加手機 DPR 截圖 gate | S |
-| 3 | Elden Ring II | `.hub-return:focus-visible{outline:none}`（`styles.css:129-135`）＝ hub-keyboard 舊紅 | 還返可見 focus ring | S |
-| 4 | Elden Ring II | `warrior-sword-source.blend`（565KB）打包入 dist | 移出 `public/` | S |
+| 3 | ✅ Olden Ring | `.hub-return:focus-visible{outline:none}`＝ hub-keyboard 舊紅 | **已修**（hub-keyboard 3/3） | S |
+| 4 | ✅ Olden Ring | `.blend`（565KB）打包入 dist | **已修**：搬去 `source-assets/` | S |
 | 5 | 鬥地主 | 1280×800 `scrollWidth` 1717；橫屏 header 遮晒牌枱；掣 28px | 修 overflow、header 唔 fixed、44px 掣 | S–M |
 | 6 | 鋤大D | 1280×800「You」面板壓住出牌掣、手牌切底；667×375 全部疊埋 | 重做 responsive 牌枱（同鬥地主共用，見 §4.2） | M |
 | 7 | 中國象棋 | 斜角鏡頭（`render.js:249`、fit offset 1.25）切走左右棋子；黑子字睇唔清 | 預設俯視、按棋盤投影角 fit；2D/3D 切換；玩家見唔到嘅 `AI：depth= nodes=` 收埋 | S |
@@ -57,7 +57,7 @@ Tower core 48、Royale match 11/11 …），但呢啲 gate 只證明「開到、
 | 10 | 桌球 | repo 提交咗 ~26MB debug `output/`、`.bak`、`.patch`、`.DS_Store` | 刪走＋gitignore＋repo hygiene gate | S |
 | 11 | 霓虹貪食蛇 | 難度冇用（`Game.tsx:936`）、每日挑戰＝經典（`:950`）、成就永遠鎖（`useStorage.ts:205` 冇人 call）；Game Over 字切咗兼叫手機用家「按 ENTER」 | 接線或者收埋；修 overflow、觸控文案 | S–M |
 | 12 | 消消樂 | 兩組獨立三連都出彩虹糖（`:768`）；特殊糖出喺亂數格（`:506`）；`--tile-size` 未定義（`:740`） | 按每條 match line 判斷、特殊糖出喺換位格 | S |
-| 13 | 消消樂 | `characters/*.jpg` 疑似 Chiikawa 角色，公開網站 | **Penny 決定**：確認授權或者換自家素材 | S |
+| 13 | ~~消消樂~~ | ~~角色圖~~ | **Penny 決定保留**（非商業），取消 | — |
 | 14 | 深淵之橋 | 選角寫「W 鐵壁」，實際係 F（`input.js:142-145`） | 改標籤 | S |
 | 15 | Racing Car | 漂移掣壓住時速（844×390 重疊 2×50px，「104」讀成「L04」）；直屏 minimap 疊 drift guide | 移位；`setup.mjs` 加重疊 gate | S |
 | 16 | 五子棋 | 勝負用阻塞 `alert()`（`renderer.js:291,298`）；「黑子」`#000` 喺深底；玩家見到 `Build: dev` | 結果 modal、最後一步標記、勝利連線、修字色 | S |
@@ -111,13 +111,41 @@ Tower core 48、Royale match 11/11 …），但呢啲 gate 只證明「開到、
 | **Wave 3（第 11–16 週）** | 3D 視覺同物理：Racing biome＋對手車、Royale 三區戰場＋draw call、MOBA 背景、桌球 TablePhysics、Elden 拆檔＋新敵人 | 各 game 喺 Evolution Plan §7 嘅 budget 內、截圖 review 過 |
 | **Wave 4（之後）** | 內容擴充同線上信任：Royale RTS 深度、Tower 第二張地圖、牌 game 伺服器驗牌、Royale 獎盃驗證 | 需要 Supabase migration 嘅項目逐項經 Penny 授權 |
 
-## 6. 需要 Penny 拍板嘅決定
+## 6. Penny 嘅決定（2026-09-24）
 
-1. **消消樂角色圖**：疑似 Chiikawa，公開網站有版權風險——換自家素材定保留？
-2. **Elden Ring II 個名**：用咗「Elden Ring」／「Erdtree」字眼——改名定保留「fan-made」？
-3. **Royale LV2 RTS**：投資做完整，定係先標「Beta」收細曝光？
-4. **Supabase migration**（牌 game 伺服器驗牌、Royale 獎盃驗證）：幾時做、是否授權。
-5. **優先次序**：Wave 2 先做「留存」（紀錄／目標）定先做「AI」（棋牌對手變強）？
+| # | 題目 | 決定 | 落實 |
+| --- | --- | --- | --- |
+| 1 | 消消樂角色圖（疑似 Chiikawa） | **保留**：非商業 fan 項目 | §2 #13 取消；唔好再提議換圖 |
+| 2 | Elden Ring II 名稱 | **改名「Olden Ring」** | ✅ 已做：manifest title、`<title>`、品牌字、「Erdtree」→「Elder Tree」、Hub 封面重影。`id`／路徑 `elden-ring-ii` 保持不變（連結、存檔、測試契約） |
+| 3 | Royale LV2 RTS | **做完整**，唔標 Beta | Wave 3–4：真環境、小地圖、單位可讀性、快捷鍵／編隊、戰爭迷霧、第二張地圖、AI 升級 |
+| 4 | Supabase migration | **已授權** | 牌 game 伺服器驗牌＋隱藏他家手牌、Royale 獎盃由完成嘅 PvP 房推導＋RPC 限速；照舊用新編號 migration，唔改已套用嘅 |
+| 5 | Wave 2 先做留存定 AI | **未決定**，Penny 再諗 | Wave 0／1 唔受影響，照做 |
+
+## 6A. Racing Car 3D 參考：Initial D Arcade Stage 3 Reimagined
+
+Penny 提供參考：`distilledorion-sketch/Initial-D-Arcade-Stage-3-Reimagined`（Windows、
+Unity＋C++，要玩家自備原裝 GDS-0033 ROM）。
+
+**授權界線（硬規則）**：嗰個 repo 冇 LICENSE，而 `Native/src/original_*` 係逆向還原嘅
+SEGA 街機代碼（註解全部係原機記憶體位址），`Native/data/original_assets` 係原版素材。
+**唔可以複製任何代碼、數值表、素材、字型或者對白。** 只借遊戲設計概念（概念本身唔受版權保護），
+全部用我哋自己嘅實作同 CC0／自製素材重做。
+
+佢值得借鏡、而我哋 Racing Car 未有嘅設計：
+
+| 概念 | 喺佢度點樣 | 我哋點做（Racing Car） | 優先 |
+| --- | --- | --- | --- |
+| **1v1 山道對決** | 同一條山路一對一，HUD 顯示沿中線計嘅「領先／落後幾多米」 | 新「Battle」模式：一架 AI 對手、頂部 gap 條（用現成 `Track` 中線 arc-length 計）、終點或者拉開 N 米即勝 | P1 / M |
+| **Time Attack 分段分析** | 賽道分 4 段，同個人紀錄逐段比較，完成後指出最差一段＋建議 | 每條賽道 4 個 sector、HUD 即時 +/- 秒、結果頁顯示「最蝕係第 3 段：入彎太快」之類嘅建議（我哋自己寫規則） | P1 / M |
+| **對手故事線** | 每條路有一串對手，賽前對白，贏咗解鎖下一個 | 「山道傳說」：每條賽道 3 個原創對手（自己改名同性格）、賽前一句對白、勝負存檔、逐個解鎖 | P1 / M |
+| **上山／落山＋天氣** | 每條路分 uphill/downhill、日／夜、乾／濕 | 我哋已有正／逆向同日／黃昏／夜；加**濕地**（抓地↓、反光路面、雨粒子）——正好接 §4.2 surface grip | P2 / M |
+| **積分→調校升級** | 贏得分數，逐部車升級、可揀自動／手動波 | 用比賽積分解鎖 3 級調校（引擎／懸掛／輪胎）＋手排模式；數值自己平衡 | P2 / M |
+| **開場鏡頭飛越** | 起步前鏡頭沿路飛一轉 | 起步倒數時用 spline 做 3 秒 flyby，reduced-motion 時跳過 | P2 / S |
+| **附重播嘅排行榜** | 上榜要附完整 replay，公開可以下載 | 我哋已有 ghost：時間上榜時一齊上傳 ghost（Supabase，已授權），其他人可以挑戰 | P2 / M |
+| **非比賽時嘅 attract demo** | 閒置時自動播示範 | 選單背景用 autopilot 跑示範圈（autopilot 已存在） | P2 / S |
+
+建議落手次序：**Battle 模式 → Time Attack 分段 → 山道傳說**。三樣都主要用現成 `Track`／AI／ghost，
+唔需要等 §4.2 物理重寫；濕地同調校就同物理一齊做。
 
 ## 7. Audit 限制
 
