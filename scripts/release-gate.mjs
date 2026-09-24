@@ -108,6 +108,7 @@ const fallbackSelect = (catalog, changedFiles) => {
     'games/catalog.mjs',
     'games/catalog.generated.js',
     'launcher.js',
+    'hub-art.js',
     'index.html',
     'style.css',
     'assets',

@@ -8965,7 +8965,7 @@ Hub UI 改動要一齊 bump root launcher/style，由 Hub gate驗證，唔再順
 ## ADR-313 — Theme 唔係一個 render function 加 class，係三個 render function
 
 - Date: 2026-08-12
-- Status: accepted; implements ADR-312 同 Evolution Plan §5.5
+- Status: superseded by ADR-314（2026-09-24）；原本 implements ADR-312 同 Evolution Plan §5.5
 
 ADR-312 判咗第一版 theme「只係換色／換排列」。改嘅唔係 CSS——係**個結構本身冇得
 唔一樣**：`launcher.js` 得一個 `renderCarousel()`，砌一張 `.game-hub-card`（category、
@@ -9035,7 +9035,7 @@ Space 撳得郁；撳出面同 Esc 都收得返（一塊收唔返嘅面板同一
 
 ## ADR-312 — Hub theme 身份包括 shell、media 同 item archetype，唔係 palette skin
 
-Date: 2026-08-12. Status: accepted; supersedes the visual-composition assumption in the
+Date: 2026-08-12. Status: superseded by ADR-314 (2026-09-24); originally superseded the visual-composition assumption in the
 first Hub theme prototype.
 
 第一版 Editorial Arcade／Command Deck 保留咗同一套 Hub header、thumbnail/icon、rounded
@@ -9054,3 +9054,33 @@ viewport full-page screenshots、zero-error functional gates，同 Penny 嘅 hea
 同一 component 只換 colour、gradient、font、radius、shadow、aspect ratio 或排序，一律唔算
 新 theme。現有 prototype只係 theme/storage/navigation scaffold；下一輪可以重用行為，
 但唔可以把 205/205 functional pass 當成視覺完成證據。
+
+## ADR-314 — Hub 由三套 theme carousel 改成單一「現代遊戲平台」首頁
+
+- Date: 2026-09-24
+- Status: accepted; supersedes ADR-312 同 ADR-313 嘅 theme／4-4-4-1 契約；落實 Evolution Plan §9.5
+
+Penny 睇完 ADR-313 三套 theme 之後決定：**唔再維持三套介面語言**，改做一套做到最靚嘅
+主設計（現代遊戲平台風：深色、大插畫、accent 光暈），並改用一頁見晒嘅 grid ＋ 類型篩選，
+媒介用手繪向量插畫。三套 theme 嘅問題唔係分得唔夠開，而係：首屏只見 4/13、尾版得一隻、
+封面九成係黑色空位、三份工攤薄咗每一套嘅完成度。
+
+而家嘅契約（`tests/hub.mjs` 守）：
+
+- 13 個 `a[data-game-id]`，manifest 次序、每隻一次、真 href，開頁即全部喺 grid 度可見。
+- 精選 hero 係另一個 anchor（`data-hero-game-id`），唔計入 13 個：有「上次玩過」
+  （`gamehub-recent-v1`）就顯示「繼續玩」，冇就按日子輪替。storage 讀寫失敗只係冇咗
+  「繼續玩」，唔可以影響 render 或者撳卡。
+- 篩選掣 `[data-filter]`（全部／棋牌／休閒／策略／動作），`aria-pressed` 反映狀態；
+  分組喺 `launcher.js` 由 manifest `category` 併出嚟，每組 ≥3 隻。新 category 要記得入組。
+- 插畫喺 `hub-art.js`（inline SVG、`(u) => svg` 每次渲染一套新 id，避免 hero 同 grid
+  撞 gradient id；`accent` 係卡 hover／focus 光暈色）。新加遊戲冇插畫會 fallback 去
+  manifest icon，但應該補返一幅。
+- 所有控制 ≥44px 而且中心打得中自己；Tab 次序 hero → 篩選 → 13 隻；零外網請求、零 error。
+- 手機直屏 2 欄、≥1200 闊 4 欄、矮橫屏 ≥3 欄；hero 唔可以食晒首屏。
+- `hub-art.js` 同 `launcher.js`／`style.css` 共用 Hub cache token（ADR-311 不變），而且
+  係 GameCatalog／ReleaseGate 嘅 Hub global file。
+- `gamehub-theme-v1` 已經冇人讀；舊值留喺玩家瀏覽器都無害。
+
+`tests/hub-themes.mjs` 退役（佢守嘅係三套 theme 簽名，已經冇對象）。視覺驗收仍然要
+Penny headed review——自動尺只證明「冇壞」。

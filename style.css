@@ -11,22 +11,38 @@
 }
 
 /*
- * 三套 theme 係三套介面語言，唔係三個 palette（ADR-312）。
+ * Game Hub —— 現代遊戲平台式首頁（ADR-314）。
  *
- * 呢個檔按 theme 分三段，每段自己定 shell、媒介同 item 嘅樣。共用嘅只有：
- * reset、字型、同埋一條「一次見一版」嘅頁軌機制（`.carousel-*`／`.game-page`）
- * ——嗰個係導航語意，唔係外觀；三套 theme 各自決定條軌擺喺邊、四周有咩。
+ * 版面：頂欄 → 精選 hero → 遊戲庫（篩選 chip ＋ responsive grid）→ 頁腳。
+ * 一套深色設計，靠每隻遊戲自己嘅插畫同 `--accent` 光暈分個性，
+ * 唔再靠三套 theme 換皮。
  */
 
 :root {
-    --hub-ink: #f8fafc;
-    --font-stack: 'Outfit', system-ui, -apple-system, sans-serif;
-    --font-serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
-    --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+    color-scheme: dark;
+    --bg: #0b0e17;
+    --bg-2: #0f1320;
+    --surface: #151b2b;
+    --surface-2: #1c2436;
+    --line: rgba(148, 163, 184, 0.14);
+    --line-strong: rgba(148, 163, 184, 0.28);
+    --text: #eef2ff;
+    --muted: #a3acc2;
+    --faint: #8691ab;
+    --brand: #8b9cff;
+    --brand-2: #c49bff;
+    --radius-lg: 22px;
+    --radius: 16px;
+    --gutter: clamp(16px, 4vw, 40px);
+    --maxw: 1240px;
     --touch: 44px;
+    --font: 'Outfit', system-ui, -apple-system, 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
+    --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
-* {
+*,
+*::before,
+*::after {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
@@ -36,1062 +52,744 @@ html {
     width: 100%;
     min-height: 100%;
     overflow-x: hidden;
+    background: var(--bg);
 }
 
 body {
     width: 100%;
     min-height: 100vh;
     overflow-x: hidden;
-    color: var(--hub-ink);
-    font-family: var(--font-stack);
+    color: var(--text);
+    font-family: var(--font);
+    line-height: 1.4;
     -webkit-text-size-adjust: 100%;
+    -webkit-font-smoothing: antialiased;
+    background:
+        radial-gradient(900px 520px at 12% -8%, rgba(139, 156, 255, 0.16), transparent 70%),
+        radial-gradient(760px 480px at 100% 0%, rgba(196, 155, 255, 0.10), transparent 70%),
+        var(--bg);
+    background-attachment: fixed;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+button {
+    font: inherit;
+    color: inherit;
+}
+
+:focus-visible {
+    outline: 3px solid var(--brand);
+    outline-offset: 3px;
 }
 
 #app-hub {
     min-height: 100vh;
     display: flex;
+    flex-direction: column;
 }
 
-#app-hub > * {
-    flex: 1;
+/* ---------- 頂欄 ---------- */
+
+.hub-top {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: rgba(11, 14, 23, 0.72);
+    backdrop-filter: saturate(160%) blur(14px);
+    -webkit-backdrop-filter: saturate(160%) blur(14px);
+    border-bottom: 1px solid var(--line);
+}
+
+.hub-top-inner {
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 10px var(--gutter);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     min-width: 0;
 }
 
-img,
-picture {
-    max-width: 100%;
+.brand-mark {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    flex: none;
+    border-radius: 12px;
+    color: #0b0e17;
+    background: linear-gradient(135deg, var(--brand), var(--brand-2));
+    box-shadow: 0 6px 20px rgba(139, 156, 255, 0.35);
 }
 
-/* ---------- 共用機制：一次見一版 ---------- */
+.brand-mark svg {
+    width: 28px;
+    height: 28px;
+    color: #eef2ff;
+}
 
-.carousel-track-container {
-    overflow: hidden;
+.brand-name {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+}
+
+.brand-tag {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.hub-count {
+    flex: none;
+    font-size: 13px;
+    color: var(--muted);
+    padding: 6px 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(21, 27, 43, 0.6);
+}
+
+.hub-count b {
+    color: var(--text);
+    font-weight: 700;
+}
+
+/* ---------- 主體 ---------- */
+
+.hub-main {
     flex: 1;
-    min-height: 0;
-    display: flex;
-}
-
-.carousel-track {
-    display: flex;
     width: 100%;
-    /* 冇 `min-height: 0` 嘅話，條軌嘅 min-content 高度（即係最高嗰版）會變成
-       個殼嘅地板，flex 縮唔落——實測 844×390 之下成頁撐高咗 9px。 */
-    min-height: 0;
-    list-style: none;
-    transition: transform 0.42s cubic-bezier(0.22, 0.61, 0.36, 1);
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 20px var(--gutter) 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .carousel-track { transition: none; }
+/* ---------- 精選 hero ---------- */
+
+.hero-link {
+    --accent: var(--brand);
+    position: relative;
+    display: block;
+    overflow: hidden;
+    isolation: isolate;
+    height: clamp(260px, 38vw, 440px);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.7);
+    transition: box-shadow 0.35s var(--ease), border-color 0.35s var(--ease);
 }
 
-.game-page {
-    min-width: 100%;
+.hero-link::before {
+    /* 插畫只佔右邊 ~64%（接近佢 16:10 原比例，唔會裁爆），左邊用 accent 色墊底。 */
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -3;
+    background:
+        radial-gradient(80% 120% at 70% 50%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 70%),
+        linear-gradient(90deg, #0a0d16, #121828);
+}
+
+.hero-art {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 64%;
+    z-index: -2;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 28%);
+    mask-image: linear-gradient(90deg, transparent 0%, #000 28%);
+}
+
+.hero-art svg {
     width: 100%;
-    min-height: 0;
+    height: 100%;
+    display: block;
+    transition: transform 0.8s var(--ease);
 }
 
-/* 收埋咗嗰版唔可以食到鍵盤 focus，亦唔可以令條軌長高。 */
-.game-page[aria-hidden='true'] {
-    visibility: hidden;
-    max-height: 100%;
+.hero-shade {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+        linear-gradient(90deg, rgba(8, 10, 18, 0.92) 0%, rgba(8, 10, 18, 0.7) 38%, rgba(8, 10, 18, 0) 72%),
+        linear-gradient(0deg, rgba(8, 10, 18, 0.55) 0%, rgba(8, 10, 18, 0) 45%);
 }
 
-a { text-decoration: none; color: inherit; }
-button { font: inherit; cursor: pointer; }
-
-.is-locked { pointer-events: none; }
-
-/* 每套 theme 嘅共用可觸控下限（`tests/hub-touch.mjs` 守 44px；dot 係 WCAG
-   2.5.8 嘅 24px 例外，因為 320px 闊度塞唔落四粒 44px）。 */
-.theme-option,
-.nav-btn,
-[data-theme-menu-toggle] {
-    min-width: var(--touch);
-    min-height: var(--touch);
-    touch-action: manipulation;
+.hero-copy {
+    position: absolute;
+    left: clamp(20px, 4vw, 48px);
+    bottom: clamp(20px, 4vw, 44px);
+    max-width: min(520px, 58%);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
 }
 
-/* 收埋咗嘅選單掣一樣要撳得中——**唔可以因為佢細就當佢唔係掣**。 */
-[data-theme-menu-toggle] {
+.hero-eyebrow {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: var(--text);
 }
 
-.carousel-dot {
-    min-width: 24px;
-    min-height: 24px;
-    touch-action: manipulation;
-    border: 0;
-    background: none;
-    color: inherit;
+.hero-eyebrow::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent);
 }
 
-/* ===================================================================
-   THEME 1 — NEON GRID：街機牆
-   殼＝發光招牌 ＋ 機台牆 ＋ 底部控制條。
-   媒介＝4:3 CRT 螢幕窗（有掃描線）。
-   Item＝街機櫃：上招牌、中螢幕、下機身，成個櫃就係入口。
-   =================================================================== */
-
-[data-hub-theme='neon-grid'] body,
-body[data-hub-theme='neon-grid'] {
-    background-color: #05060f;
-    background-image:
-        radial-gradient(circle at 50% -10%, rgba(56, 189, 248, 0.22), transparent 55%),
-        repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.05) 0 1px, transparent 1px 44px),
-        repeating-linear-gradient(0deg, rgba(148, 163, 184, 0.05) 0 1px, transparent 1px 44px);
+.hero-title {
+    font-size: clamp(30px, 5vw, 56px);
+    font-weight: 800;
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    text-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
 }
 
-.ng-wall {
+.hero-sub {
+    font-size: clamp(14px, 1.5vw, 17px);
+    color: #dbe1f0;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+
+.hero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.tag {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 999px;
+    color: #e5e9f5;
+    background: rgba(8, 10, 18, 0.62);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    backdrop-filter: blur(6px);
+}
+
+.hero-cta {
+    margin-top: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: var(--touch);
+    padding: 0 22px 0 18px;
+    border-radius: 999px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #0b0e17;
+    background: #f5f7ff;
+    box-shadow: 0 10px 30px -8px var(--accent);
+    transition: transform 0.25s var(--ease), background 0.25s var(--ease);
+}
+
+.hero-cta::before {
+    content: '';
+    width: 0;
+    height: 0;
+    border-left: 11px solid currentColor;
+    border-top: 7px solid transparent;
+    border-bottom: 7px solid transparent;
+}
+
+.hero-link:hover,
+.hero-link:focus-visible {
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    box-shadow: 0 28px 70px -24px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.hero-link:hover .hero-art svg,
+.hero-link:focus-visible .hero-art svg {
+    transform: scale(1.04);
+}
+
+.hero-link:hover .hero-cta,
+.hero-link:focus-visible .hero-cta {
+    transform: translateX(3px);
+    background: #fff;
+}
+
+.hero-link:focus-visible {
+    outline-color: var(--accent);
+}
+
+/* ---------- 遊戲庫 ---------- */
+
+.hub-library {
     display: flex;
     flex-direction: column;
-    gap: clamp(8px, 1.6vh, 18px);
-    padding: clamp(10px, 2.2vw, 26px);
-    min-height: 100vh;
+    gap: 16px;
 }
 
-.ng-marquee {
+.library-head {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
+    gap: 12px 20px;
+}
+
+.library-title-row {
+    display: flex;
+    align-items: baseline;
     gap: 12px;
-    padding: clamp(6px, 1.2vh, 12px) clamp(10px, 2vw, 22px);
-    border: 2px solid rgba(34, 211, 238, 0.45);
-    border-radius: 6px;
-    background: linear-gradient(180deg, rgba(8, 14, 30, 0.95), rgba(3, 6, 14, 0.95));
-    box-shadow: 0 0 0 1px rgba(2, 6, 23, 0.9), 0 0 24px rgba(34, 211, 238, 0.28);
 }
 
-.ng-sign { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-
-.ng-sign-text {
-    font-size: clamp(19px, 3.4vw, 34px);
-    font-weight: 800;
-    letter-spacing: clamp(3px, 1vw, 9px);
-    color: #e0f2fe;
-    text-shadow: 0 0 8px rgba(34, 211, 238, 0.9), 0 0 26px rgba(14, 165, 233, 0.55);
+.library-title {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
 }
 
-/* 招牌燈泡：一行細圓點，唔用圖片。 */
-.ng-sign-bulbs {
-    height: 6px;
-    background-image: radial-gradient(circle, rgba(250, 204, 21, 0.95) 42%, transparent 44%);
-    background-size: 12px 6px;
-    opacity: 0.75;
+.library-status {
+    font-size: 14px;
+    color: var(--muted);
 }
 
-/* 投幣掣：平時得一粒，撳落去先彈出三個選擇。 */
-.ng-coinslot { position: relative; flex-shrink: 0; }
-
-.ng-coin-toggle {
-    padding: 0 clamp(8px, 1.6vw, 14px);
-    border: 2px solid rgba(148, 163, 184, 0.35);
-    border-radius: 3px;
-    background: #0b1120;
-    color: #9fb3c8;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
+.filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
-.ng-coin-toggle:hover,
-.ng-coin-toggle[aria-expanded='true'] { border-color: #22d3ee; color: #cffafe; }
-.ng-coin-toggle:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: var(--touch);
+    min-width: var(--touch);
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s var(--ease), color 0.2s var(--ease), border-color 0.2s var(--ease);
+}
 
-.ng-coinpanel {
-    position: absolute;
-    z-index: 30;
-    top: calc(100% + 6px);
-    right: 0;
+.chip-count {
+    font-size: 12px;
+    font-weight: 600;
+    min-width: 20px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    text-align: center;
+    color: var(--text);
+    background: var(--surface-2);
+}
+
+.chip:hover {
+    color: var(--text);
+    border-color: var(--line-strong);
+}
+
+.chip[aria-pressed='true'] {
+    color: #0b0e17;
+    background: #eef2ff;
+    border-color: #eef2ff;
+}
+
+.chip[aria-pressed='true'] .chip-count {
+    color: #eef2ff;
+    background: #0b0e17;
+}
+
+.game-grid {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+    gap: 20px;
+}
+
+.grid-cell[hidden] {
+    display: none;
+}
+
+.game-card {
+    --accent: var(--brand);
+    position: relative;
+    height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 6px;
-    border: 2px solid rgba(34, 211, 238, 0.45);
-    border-radius: 4px;
-    background: #070c18;
-    box-shadow: 0 12px 30px rgba(2, 6, 23, 0.9);
+    overflow: hidden;
+    border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    transition:
+        transform 0.3s var(--ease),
+        border-color 0.3s var(--ease),
+        box-shadow 0.3s var(--ease);
+    animation: card-in 0.5s var(--ease) both;
+    animation-delay: calc(var(--i, 0) * 35ms);
 }
 
-.ng-coinpanel.is-collapsed { display: none; }
-
-.ng-coinpanel-item {
-    padding: 0 14px;
-    border: 2px solid rgba(148, 163, 184, 0.3);
-    border-radius: 3px;
-    background: #0b1120;
-    color: #94a3b8;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    text-align: left;
-}
-
-.ng-coinpanel-item.active {
-    border-color: #22d3ee;
-    color: #06121b;
-    background: linear-gradient(180deg, #67e8f9, #22d3ee);
-}
-
-.ng-coinpanel-item:focus-visible { outline: 3px solid #facc15; outline-offset: 2px; }
-
-/* 機台企喺地台上面。個地台唔係裝飾：大螢幕之下四個櫃跟內容高，如果淨係
-   置中就會浮喺半空，成幅牆變咗一行吊住嘅卡。企落地就讀得出係一間機舖。 */
-.ng-floor {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    align-items: flex-end;
-    padding-bottom: clamp(6px, 1.4vh, 16px);
-    background:
-        linear-gradient(180deg, transparent 62%, rgba(34, 211, 238, 0.06) 88%, rgba(34, 211, 238, 0.16) 100%),
-        repeating-linear-gradient(90deg, rgba(34, 211, 238, 0.07) 0 1px, transparent 1px 56px) bottom / 100% 34% no-repeat;
-    border-bottom: 1px solid rgba(34, 211, 238, 0.32);
-}
-
-/* 機台跟內容高（招牌＋4:3 螢幕＋機身），成行企喺地台上。
-   之前用 `stretch`，喺 1280×800 之下每個櫃畀拉到 570px 高，螢幕下面就吊住
-   一浸 300px 死位——一幅機台牆唔應該有咁大浸嘢。 */
-.page-neon-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: clamp(8px, 1.4vw, 18px);
-    align-content: end;
-    align-items: stretch;
-}
-
-/* 尾頁得一隻遊戲：唔可以貼住左下角企。三套 theme 都要自己處理呢一版
-   ——`4/4/4/1` 係共用嘅分頁契約，但「淨低一個點擺」係各自嘅排版問題。 */
-.page-neon-grid[data-count='1'] {
-    /* 用返同一條軌闊公式，唔可以自己寫個數：寫死 260px 嘅話尾頁嗰個櫃就會
-       大過首頁嗰四個（實測 844×390 度 260 對 196）。 */
-    grid-template-columns: minmax(0, calc((100% - 3 * clamp(8px, 1.4vw, 18px)) / 4));
-    justify-content: center;
-    align-content: center;
-}
-
-@media (max-width: 560px) {
-    .page-neon-grid[data-count='1'] {
-        grid-template-columns: minmax(0, calc((100% - clamp(8px, 1.4vw, 18px)) / 2));
+@keyframes card-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
     }
 }
 
-/* 街機櫃 */
-/* 招牌、4:3 螢幕、然後**機身食晒淨低嘅高度**——真機台螢幕下面就係一塊
-   操作台。之前第三行係 `auto`，多出嚟嘅高度冇人要，成行櫃就吊喺半空。 */
-.ng-cab {
-    display: grid;
-    grid-template-rows: auto auto minmax(0, 1fr);
-    max-height: min(100%, 520px);
-    border: 2px solid rgba(148, 163, 184, 0.3);
-    border-radius: 10px 10px 4px 4px;
-    background: linear-gradient(180deg, #131c33 0%, #0a1020 60%, #070b16 100%);
-    overflow: hidden;
-    min-height: 0;
-    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
-}
-
-.ng-cab-marquee {
-    padding: 7px 8px;
-    background: linear-gradient(180deg, rgba(34, 211, 238, 0.22), rgba(34, 211, 238, 0.05));
-    border-bottom: 1px solid rgba(34, 211, 238, 0.35);
-    text-align: center;
-}
-
-.ng-cab-title {
-    display: block;
-    font-size: clamp(12px, 1.5vw, 16px);
-    font-weight: 800;
-    letter-spacing: 0.5px;
-    color: #e0f2fe;
-    text-shadow: 0 0 10px rgba(34, 211, 238, 0.55);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-/* CRT 螢幕窗：4:3，凹入去，有掃描線。 */
-.ng-cab-screen {
+.card-art {
     position: relative;
-    margin: clamp(6px, 1vw, 12px);
-    border: 2px solid #05070f;
-    border-radius: 4px;
-    background: radial-gradient(circle at 50% 40%, #10233a, #050810 78%);
-    box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.95);
-    display: grid;
-    place-items: center;
-    aspect-ratio: 4 / 3;
-    min-height: 0;
-    overflow: hidden;
-}
-
-.ng-cab-art {
-    font-size: clamp(24px, 4.4vw, 46px);
-    line-height: 1;
-    filter: drop-shadow(0 0 12px rgba(34, 211, 238, 0.5));
-}
-
-.ng-cab-art img { width: clamp(34px, 5vw, 62px); height: auto; display: block; }
-
-/* 五子棋冇 emoji 亦冇 logo：喺螢幕度直接畫一黑一白兩粒棋。 */
-/* 兩粒棋之間要睇得出係兩粒（`tests/hub.mjs` 守 ≥5px）。 */
-.art-stones { display: inline-flex; align-items: center; gap: clamp(5px, 0.6vw, 9px); }
-
-.art-stones .stone {
-    width: clamp(16px, 2.4vw, 30px);
-    aspect-ratio: 1;
-    border-radius: 50%;
     display: block;
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+    background: var(--surface-2);
 }
 
-.art-stones .stone.black {
-    background: radial-gradient(circle at 34% 30%, #64748b, #0b1120 68%);
-    border: 1px solid rgba(148, 163, 184, 0.45);
+.card-art svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    transition: transform 0.5s var(--ease);
 }
 
-.art-stones .stone.white {
-    background: radial-gradient(circle at 34% 30%, #ffffff, #cbd5e1 70%);
-    border: 1px solid rgba(148, 163, 184, 0.5);
-}
-
-.ng-cab-scan {
+.card-art::after {
+    content: '';
     position: absolute;
     inset: 0;
-    background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.42) 0 1px, transparent 1px 3px);
+    background: linear-gradient(0deg, rgba(21, 27, 43, 0.55), transparent 45%);
     pointer-events: none;
 }
 
-.ng-cab-bezel {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 6px;
-    min-height: 34px;
-    padding: 7px clamp(6px, 1vw, 12px) 8px;
-    border-top: 1px solid rgba(148, 163, 184, 0.18);
-    background:
-        radial-gradient(circle at 22% 34%, rgba(56, 189, 248, 0.16) 0 3px, transparent 4px),
-        radial-gradient(circle at 34% 34%, rgba(250, 204, 21, 0.16) 0 3px, transparent 4px),
-        linear-gradient(180deg, rgba(15, 23, 42, 0.9), rgba(2, 6, 16, 0.95));
-}
-
-.ng-cab-genre {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    /* `#64748b` 喺機身呢個底色度實測得 3.99–4.21:1，跌穿 WCAG AA 4.5。
-       呢行字唔係裝飾——佢係「呢部機係咩類型」。 */
-    color: #9fb3c8;
-    text-transform: uppercase;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.ng-cab-start {
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 1px;
-    color: #facc15;
-    white-space: nowrap;
-    animation: ng-blink 1.6s steps(2, end) infinite;
-}
-
-@keyframes ng-blink { 50% { opacity: 0.25; } }
-
-@media (prefers-reduced-motion: reduce) {
-    .ng-cab-start { animation: none; }
-}
-
-.ng-cab:hover,
-.ng-cab:focus-visible {
-    transform: translateY(-3px);
-    border-color: #22d3ee;
-    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.5), 0 12px 30px rgba(2, 6, 23, 0.8);
-    outline: none;
-}
-
-.ng-cab.is-locked { opacity: 0.42; }
-.ng-cab.is-locked .ng-cab-start { color: #ef4444; animation: none; }
-
-/* 底部控制條：搖桿箭咀 ＋ 一行分頁燈 ＋ credits 讀數。 */
-.ng-rail {
-    display: flex;
-    align-items: center;
-    gap: clamp(8px, 2vw, 18px);
-    padding: 6px clamp(8px, 2vw, 18px);
-    border: 2px solid rgba(148, 163, 184, 0.25);
-    border-radius: 6px;
-    background: linear-gradient(180deg, #0d1526, #060a14);
-}
-
-.ng-stick {
-    border: 2px solid rgba(34, 211, 238, 0.45);
-    border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #1e293b, #0b1120);
-    color: #67e8f9;
-    font-size: 15px;
-}
-
-.ng-stick:hover,
-.ng-stick:focus-visible { border-color: #67e8f9; color: #cffafe; outline: none; }
-
-.ng-lights { display: flex; gap: 8px; margin-inline: auto; }
-
-.ng-light {
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    border: 2px solid rgba(148, 163, 184, 0.4);
-    background: #0b1120;
-}
-
-.ng-light.active {
-    border-color: #facc15;
-    background: radial-gradient(circle, #fde68a, #f59e0b);
-    box-shadow: 0 0 14px rgba(250, 204, 21, 0.8);
-}
-
-.ng-credits {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: 1px;
-    color: #facc15;
-}
-
-/* 手機直度：機台牆變 2×2。 */
-@media (max-width: 560px) {
-    .page-neon-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    /* 320×568 度 2×2 只得 4px 鬆動位，操作台唔可以再佔一個固定下限。 */
-    .ng-cab-bezel { min-height: 0; }
-    .ng-floor { padding-bottom: 4px; }
-    /* 招牌同投幣掣要分兩行：375px 度三粒掣食咗 230px，招牌得返 110px，
-       「GAME HUB」就會斷行、燈泡條仲要畀切走一截。 */
-    .ng-sign-text { letter-spacing: 3px; }
-}
-
-/* 打橫矮畫面：招牌同控制條收扁，四個機台照樣一行。 */
-@media (max-height: 430px) {
-    .ng-wall { gap: 6px; padding: 8px 12px; }
-    .ng-marquee { padding: 4px 12px; }
-    .ng-sign-bulbs { display: none; }
-    .ng-cab-marquee { padding: 4px 6px; }
-    .ng-rail { padding: 3px 12px; }
-}
-
-/* ===================================================================
-   THEME 2 — EDITORIAL ARCADE：雜誌
-   殼＝報頭（issue line／serif 字標／strapline）＋ 不對稱 spread ＋ folio 頁腳。
-   媒介＝頭條有大封面圖；索引行**完全冇圖**。
-   Item＝兩種：lead story，同埋編號索引行。
-   =================================================================== */
-
-[data-hub-theme='editorial-arcade'] body,
-body[data-hub-theme='editorial-arcade'] {
-    background: #f4f1ea;
-    color: #14110d;
-}
-
-.ed-issue {
-    display: flex;
-    flex-direction: column;
-    gap: clamp(8px, 1.4vh, 16px);
-    padding: clamp(12px, 2.4vw, 34px);
-    min-height: 100vh;
-    background: #f4f1ea;
-}
-
-.ed-masthead {
-    border-bottom: 3px double #14110d;
-    padding-bottom: clamp(6px, 1vh, 12px);
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-        'issue sections'
-        'word  sections'
-        'strap sections';
-    align-items: end;
-    column-gap: 12px;
-}
-
-.ed-issueline {
-    grid-area: issue;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: #7c6f5a;
-}
-
-.ed-wordmark {
-    grid-area: word;
-    font-family: var(--font-serif);
-    font-size: clamp(28px, 6.4vw, 62px);
-    font-weight: 400;
-    line-height: 1;
-    letter-spacing: -0.02em;
-    color: #14110d;
-}
-
-.ed-strap {
-    grid-area: strap;
-    font-size: 11px;
-    font-style: italic;
-    color: #7c6f5a;
-}
-
-/* 版本：報頭角落一行細字，同 issue line 同一個層級——唔同封面爭位。 */
-.ed-sections {
-    grid-area: sections;
-    position: relative;
-    align-self: end;
-    justify-self: end;
-}
-
-.ed-edition {
-    border: 0;
-    background: none;
-    padding: 0 2px;
-    color: #7c6f5a;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    white-space: nowrap;
-}
-
-.ed-edition:hover,
-.ed-edition[aria-expanded='true'] { color: #14110d; }
-.ed-edition:focus-visible { outline: 2px solid #b91c1c; outline-offset: 2px; }
-
-.ed-editions {
+.card-play {
     position: absolute;
-    z-index: 30;
-    top: 100%;
-    right: 0;
-    display: flex;
-    flex-direction: column;
-    min-width: 148px;
-    background: #f4f1ea;
-    border: 1px solid #14110d;
-    box-shadow: 6px 6px 0 rgba(20, 17, 13, 0.12);
-}
-
-.ed-editions.is-collapsed { display: none; }
-
-.ed-editions-item {
-    border: 0;
-    border-bottom: 1px solid #d6cfc0;
-    background: none;
-    padding: 0 12px;
-    color: #4a4238;
-    font-family: var(--font-serif);
-    font-size: 14px;
-    text-align: left;
-}
-
-.ed-editions-item:last-child { border-bottom: 0; }
-.ed-editions-item.active { color: #b91c1c; font-weight: 700; }
-.ed-editions-item:hover { background: #eae5da; }
-.ed-editions-item:focus-visible { outline: 2px solid #b91c1c; outline-offset: -2px; }
-
-.ed-spread { flex: 1; min-height: 0; display: flex; }
-
-/* 頁本身要跟住個殼嘅高度收，唔可以由內容話事。 */
-.page-editorial-arcade { height: 100%; }
-
-/* 三條索引行分攤成欄高：`auto` 嘅話喺 1280×800 之下佢哋全部擠喺頂部，
-   下面吊住 240px 空白——一版雜誌可以留白，但唔係咁樣留。 */
-.page-editorial-arcade {
-    display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-    column-gap: clamp(14px, 2.6vw, 34px);
-    grid-template-rows: repeat(3, minmax(0, 1fr));
-    align-content: stretch;
-}
-
-/* 頭條：封面圖 ＋ kicker／headline／standfirst ＋ read-on。 */
-.ed-lead {
-    grid-row: 1 / span 3;
-    display: flex;
-    flex-direction: column;
-    gap: clamp(6px, 1.2vh, 14px);
-    min-height: 0;
-    overflow: hidden;
-    border-right: 1px solid #d6cfc0;
-    padding-right: clamp(12px, 2.2vw, 30px);
-}
-
-/* 封面要**夾得住**：`aspect-ratio` 一個人講嗮數，喺矮畫面度會迫到成個 spread
-   撐出 viewport（實測 320×568 撐多 109px、667×375 撐多 139px）。所以比例只係
-   一個目標，`max-height` 先係話事嗰個。 */
-.ed-cover {
-    flex: 1 1 0;
-    min-height: 48px;
+    right: 12px;
+    bottom: 12px;
+    z-index: 1;
     display: grid;
     place-items: center;
-    background: #14110d;
-    aspect-ratio: 3 / 2;
-    max-height: 44vh;
-    overflow: hidden;
+    width: 40px;
+    height: 40px;
+    padding-left: 3px;
+    border-radius: 50%;
+    font-size: 14px;
+    color: #0b0e17;
+    background: #f5f7ff;
+    box-shadow: 0 6px 20px -4px var(--accent);
+    opacity: 0;
+    transform: translateY(6px) scale(0.9);
+    transition: opacity 0.25s var(--ease), transform 0.25s var(--ease);
 }
 
-.ed-cover-art { font-size: clamp(40px, 8vw, 96px); line-height: 1; }
-.ed-cover-art img { width: clamp(56px, 9vw, 128px); height: auto; display: block; }
-
-.ed-lead-body { display: flex; flex-direction: column; gap: 4px; }
-
-.ed-kicker {
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: #b91c1c;
+.art-fallback {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    font-size: 48px;
 }
 
-.ed-headline {
-    font-family: var(--font-serif);
-    font-size: clamp(20px, 3.4vw, 40px);
-    line-height: 1.05;
-    color: #14110d;
+.card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 16px 16px;
+    flex: 1;
 }
 
-.ed-standfirst {
-    font-size: clamp(11px, 1.2vw, 15px);
-    line-height: 1.45;
-    color: #4a4238;
+.card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.card-title {
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.2;
+    min-width: 0;
+}
+
+.card-cat {
+    flex: none;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.card-sub {
+    font-size: 13px;
+    color: var(--muted);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
 
-.ed-readon {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    color: #14110d;
-    border-bottom: 2px solid #b91c1c;
-    align-self: flex-start;
-    padding-bottom: 2px;
-}
-
-.ed-lead:hover .ed-headline,
-.ed-lead:focus-visible .ed-headline { color: #b91c1c; }
-.ed-lead:focus-visible { outline: 2px solid #b91c1c; outline-offset: 4px; }
-
-/* 索引行：冇圖，靠編號、橫線同頁碼分層。 */
-.ed-entry {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    column-gap: clamp(8px, 1.4vw, 16px);
-    align-items: center;
-    align-content: center;
-    padding: clamp(6px, 1.1vh, 13px) 0;
-    border-bottom: 1px solid #d6cfc0;
-}
-
-.ed-entry:first-of-type { border-top: 1px solid #d6cfc0; }
-
-.ed-entry-no {
-    font-family: var(--font-serif);
-    font-size: clamp(15px, 2vw, 24px);
-    color: #b91c1c;
-    line-height: 1;
-}
-
-.ed-entry-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-
-.ed-entry-kicker {
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 2.5px;
-    text-transform: uppercase;
-    color: #8a7c65;
-}
-
-.ed-entry-title {
-    font-family: var(--font-serif);
-    font-size: clamp(14px, 1.7vw, 21px);
-    line-height: 1.15;
-    color: #14110d;
-}
-
-.ed-entry-note {
-    font-size: clamp(10px, 1vw, 12px);
-    color: #6b6154;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.ed-entry-folio {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    color: #8a7c65;
-}
-
-.ed-entry:hover .ed-entry-title,
-.ed-entry:focus-visible .ed-entry-title { color: #b91c1c; }
-.ed-entry:focus-visible { outline: 2px solid #b91c1c; outline-offset: 2px; }
-.ed-entry.is-locked { opacity: 0.45; }
-
-.page-editorial-arcade[data-count='1'] {
-    grid-template-columns: minmax(0, min(560px, 100%));
-    grid-template-rows: minmax(0, 1fr);
-    justify-content: center;
-    align-content: center;
-}
-
-.page-editorial-arcade[data-count='1'] .ed-lead {
-    grid-row: auto;
-    border-right: 0;
-    padding-right: 0;
-}
-
-/* Folio：翻頁係文字，唔係圓掣。 */
-.ed-folio {
+.card-badges {
     display: flex;
-    align-items: center;
-    gap: clamp(8px, 2vw, 20px);
-    border-top: 3px double #14110d;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: auto;
     padding-top: 4px;
 }
 
-.ed-turn {
-    border: 0;
-    background: none;
-    color: #14110d;
-    font-family: var(--font-serif);
-    font-size: clamp(11px, 1.3vw, 15px);
-    padding: 0 4px;
-}
-
-.ed-turn:hover,
-.ed-turn:focus-visible { color: #b91c1c; outline: none; text-decoration: underline; }
-
-.ed-pagenos { display: flex; gap: 4px; margin-inline: auto; }
-
-.ed-pageno {
-    font-family: var(--font-mono);
+.badge {
     font-size: 11px;
-    color: #8a7c65;
-    border-bottom: 2px solid transparent;
-    padding: 0 4px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 6px;
+    color: #cfd6e6;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
 }
 
-.ed-pageno.active { color: #b91c1c; border-bottom-color: #b91c1c; }
-
-.ed-folio-count {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    letter-spacing: 1px;
-    color: #8a7c65;
+.game-card:hover,
+.game-card:focus-visible {
+    transform: translateY(-4px);
+    border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+    box-shadow:
+        0 18px 40px -18px color-mix(in srgb, var(--accent) 70%, transparent),
+        0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
-/* 手機**直度**：頭條上、索引落底，仍然係雜誌排版而唔係四張卡。
-   一定要連 `min-height` 一齊寫：667×375 打橫嗰陣闊度都係細過 700，淨係睇闊度
-   就會喺一個得 375 高嘅畫面度疊三層——實測撐爆 123px。 */
-@media (max-width: 700px) and (min-height: 431px) {
-    .page-editorial-arcade {
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: minmax(0, 1fr) auto auto auto;
-        row-gap: clamp(6px, 1.2vh, 12px);
-    }
-    .ed-lead {
-        grid-row: auto;
-        border-right: 0;
-        padding-right: 0;
-        border-bottom: 1px solid #d6cfc0;
-        padding-bottom: 8px;
-    }
-    .ed-cover { aspect-ratio: 16 / 9; max-height: 26vh; }
-    .ed-masthead {
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-areas: 'issue' 'word' 'strap' 'sections';
-        row-gap: 2px;
-    }
-    .ed-sections { justify-self: start; align-self: start; margin-top: 4px; }
-    .ed-editions { left: 0; right: auto; }
+.game-card:hover .card-art svg,
+.game-card:focus-visible .card-art svg {
+    transform: scale(1.06);
 }
 
-/* 打橫矮畫面：報頭壓扁，封面唔可以食晒個 spread。 */
-@media (max-height: 430px) {
-    .ed-issue { gap: 6px; padding: 8px 14px; }
-    .ed-wordmark { font-size: clamp(20px, 3.6vw, 30px); }
-    .ed-issueline, .ed-strap { display: none; }
-    .ed-cover { aspect-ratio: auto; min-height: 44px; max-height: 30vh; }
-    .ed-entry { padding: 4px 0; }
+.game-card:hover .card-play,
+.game-card:focus-visible .card-play {
+    opacity: 1;
+    transform: none;
 }
 
-/* ===================================================================
-   THEME 3 — COMMAND DECK：調度台
-   殼＝左邊直立 system rail ＋ 頂部 status bar ＋ dispatch workspace ＋ 指示燈。
-   媒介＝**冇縮圖**。由 capabilities 直接畫一條 schematic 讀數（§5.5 容許嘅
-   明確 no-thumbnail proof）——一部調度台擺嘅係讀數，唔係遊戲封面。
-   Item＝dispatch row：編號、讀數、呼號、狀態旗、派遣動作。
-   =================================================================== */
-
-[data-hub-theme='command-deck'] body,
-body[data-hub-theme='command-deck'] {
-    background: #06090c;
-    color: #cfe3d6;
+.game-card:focus-visible {
+    outline-color: var(--accent);
 }
 
-.cd-console {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    min-height: 100vh;
-    background:
-        linear-gradient(180deg, rgba(16, 185, 129, 0.05), transparent 30%),
-        #06090c;
+.game-card:active {
+    transform: translateY(-1px) scale(0.99);
 }
 
-.cd-rail {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 8px;
-    border-right: 1px solid rgba(16, 185, 129, 0.28);
-    background: #080d10;
+.is-locked {
+    filter: grayscale(1);
+    opacity: 0.55;
+    pointer-events: none;
 }
 
-.cd-sigil {
-    font-family: var(--font-mono);
+/* ---------- 頁腳 ---------- */
+
+.hub-foot {
+    max-width: var(--maxw);
+    width: 100%;
+    margin: 0 auto;
+    padding: 28px var(--gutter) 36px;
     font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    color: #34d399;
-    border: 1px solid rgba(52, 211, 153, 0.5);
-    padding: 6px 7px;
+    color: var(--faint);
+    text-align: center;
 }
 
-/* 模式鍵：rail 上面一粒，彈出面板喺 rail 右邊。 */
-.cd-keys { position: relative; }
+/* ---------- 響應式 ---------- */
 
-.cd-modekey {
-    writing-mode: horizontal-tb;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    background: #0b1216;
-    color: #7f9c8c;
-    font-family: var(--font-mono);
-    font-size: 10px;
-    letter-spacing: 1px;
-    padding: 4px 2px;
+/* 手機直屏：hero 文字壓喺插畫下半，grid 兩欄。 */
+@media (max-width: 640px) {
+    .hub-main {
+        padding-top: 16px;
+        gap: 22px;
+    }
+
+    .hub-count {
+        font-size: 12px;
+        padding: 5px 10px;
+    }
+
+    .hero-link {
+        height: auto;
+        aspect-ratio: 4 / 3.4;
+        min-height: 250px;
+        max-height: 380px;
+    }
+
+    .hero-art {
+        width: 100%;
+        bottom: auto;
+        height: 70%;
+        -webkit-mask-image: linear-gradient(0deg, transparent 0%, #000 35%);
+        mask-image: linear-gradient(0deg, transparent 0%, #000 35%);
+    }
+
+    .hero-shade {
+        background: linear-gradient(0deg, rgba(8, 10, 18, 0.9) 0%, rgba(8, 10, 18, 0.5) 45%, rgba(8, 10, 18, 0) 70%);
+    }
+
+    .hero-copy {
+        left: 18px;
+        right: 18px;
+        bottom: 18px;
+        max-width: none;
+        gap: 8px;
+    }
+
+    .hero-cta {
+        margin-top: 2px;
+    }
+
+    .library-title {
+        font-size: 20px;
+    }
+
+    .filters {
+        width: 100%;
+        gap: 6px;
+    }
+
+    .chip {
+        padding: 0 12px;
+        font-size: 14px;
+        gap: 5px;
+    }
+
+    .game-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .card-body {
+        padding: 10px 12px 12px;
+        gap: 4px;
+    }
+
+    .card-head {
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .card-title {
+        font-size: 15px;
+    }
+
+    .card-sub {
+        font-size: 12px;
+    }
+
+    .card-badges {
+        display: none;
+    }
+
+    .card-play {
+        display: none;
+    }
 }
 
-.cd-modekey:hover,
-.cd-modekey[aria-expanded='true'] { border-color: #34d399; color: #34d399; }
-.cd-modekey:focus-visible { outline: 2px solid #fbbf24; outline-offset: 2px; }
+/* 窄機：五粒 chip 平分一行，唔好爆去第二行得一粒。 */
+@media (max-width: 480px) {
+    .filters {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 4px;
+    }
 
-.cd-modes {
-    position: absolute;
-    z-index: 30;
-    top: 0;
-    left: calc(100% + 8px);
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 6px;
-    border: 1px solid rgba(52, 211, 153, 0.45);
-    background: #080d10;
-    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.7);
+    .chip {
+        justify-content: center;
+        padding: 0;
+        min-width: 0;
+    }
+
+    .chip-count {
+        display: none;
+    }
 }
 
-.cd-modes.is-collapsed { display: none; }
-
-.cd-modes-item {
-    border: 1px solid rgba(148, 163, 184, 0.25);
-    background: #0b1216;
-    color: #7f9c8c;
-    font-family: var(--font-mono);
-    font-size: 10px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    padding: 0 12px;
-    text-align: left;
-    white-space: nowrap;
+@media (max-width: 360px) {
+    .hero-sub {
+        display: none;
+    }
 }
 
-.cd-modes-item.active { border-color: #34d399; color: #06090c; background: #34d399; }
-.cd-modes-item:focus-visible { outline: 2px solid #fbbf24; outline-offset: 2px; }
+/* 矮橫屏（手機打橫）：hero 變一條矮 banner，唔好食晒成個畫面。 */
+@media (max-height: 500px) and (min-width: 560px) {
+    .hub-top-inner {
+        padding-top: 6px;
+        padding-bottom: 6px;
+    }
 
-.cd-railnav { margin-top: auto; display: flex; flex-direction: column; gap: 6px; }
+    .hub-main {
+        padding-top: 14px;
+        gap: 20px;
+    }
 
-.cd-step {
-    border: 1px solid rgba(52, 211, 153, 0.4);
-    background: #0b1216;
-    color: #34d399;
-    font-size: 12px;
+    .hero-link {
+        height: 220px;
+        aspect-ratio: auto;
+        min-height: 0;
+    }
+
+    .hero-art {
+        width: 64%;
+        height: auto;
+        bottom: 0;
+        -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 28%);
+        mask-image: linear-gradient(90deg, transparent 0%, #000 28%);
+    }
+
+    .hero-shade {
+        background: linear-gradient(90deg, rgba(8, 10, 18, 0.92) 0%, rgba(8, 10, 18, 0.66) 40%, rgba(8, 10, 18, 0) 70%);
+    }
+
+    .hero-copy {
+        left: 24px;
+        right: auto;
+        bottom: 20px;
+        max-width: 60%;
+    }
+
+    .hero-title {
+        font-size: 32px;
+    }
+
+    .game-grid {
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 14px;
+    }
+
+    .card-badges,
+    .card-play {
+        display: none;
+    }
 }
 
-.cd-step:hover,
-.cd-step:focus-visible { background: #10201a; outline: none; }
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation: none !important;
+        transition: none !important;
+    }
 
-.cd-main {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    padding: 10px clamp(10px, 1.8vw, 22px) 8px;
-    gap: 8px;
-}
-
-.cd-statusbar {
-    display: flex;
-    align-items: center;
-    gap: clamp(8px, 2vw, 22px);
-    border-bottom: 1px solid rgba(16, 185, 129, 0.28);
-    padding-bottom: 6px;
-    font-family: var(--font-mono);
-    font-size: 10px;
-    letter-spacing: 1.5px;
-    color: #6b8a7a;
-}
-
-.cd-stat { white-space: nowrap; }
-.cd-sectorno { margin-left: auto; color: #34d399; }
-
-.cd-workspace { flex: 1; min-height: 0; display: flex; }
-
-.page-command-deck {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    justify-content: center;
-}
-
-/* 行要填得滿個 workspace，但唔可以肥到似卡片。 */
-.page-command-deck > .cd-row { flex: 1 1 0; max-height: 124px; }
-
-/* 尾頁得一單任務：一條 44px 高嘅線唔似一個可以派出去嘅目標，亦細過把尺
-   對「一個入口」嘅下限（80px）。畀佢企成一塊單獨嘅面板。 */
-.page-command-deck[data-count='1'] { justify-content: center; }
-.page-command-deck[data-count='1'] > .cd-row {
-    flex: 0 0 auto;
-    min-height: clamp(86px, 18vh, 124px);
-}
-
-/* Dispatch row */
-.cd-row {
-    display: grid;
-    /* 六個仔就要六條 column。之前寫五條，`DISPATCH` 就跌咗落第二行,
-       喺 1280×800 度睇得一清二楚。 */
-    grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
-    align-items: center;
-    column-gap: clamp(8px, 1.4vw, 18px);
-    padding: clamp(5px, 1vh, 11px) clamp(8px, 1.4vw, 16px);
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    border-left: 3px solid rgba(52, 211, 153, 0.55);
-    background: linear-gradient(90deg, rgba(16, 185, 129, 0.07), rgba(6, 9, 12, 0.2) 40%);
-}
-
-.cd-desig {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    letter-spacing: 1px;
-    color: #55705f;
-    white-space: nowrap;
-}
-
-/* 讀數：六條 bar，開嘅高、閂嘅矮。冇圖片、冇 emoji。 */
-.cd-schem {
-    display: flex;
-    align-items: flex-end;
-    gap: 2px;
-    height: 22px;
-}
-
-.cd-schem i {
-    width: 4px;
-    height: calc(22px * var(--h, 0.3));
-    background: #1f3a2c;
-}
-
-.cd-schem i.on { background: #34d399; box-shadow: 0 0 6px rgba(52, 211, 153, 0.7); }
-
-.cd-id { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
-
-.cd-callsign {
-    font-size: clamp(13px, 1.5vw, 17px);
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    color: #e6f7ee;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.cd-brief {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    color: #6b8a7a;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.cd-flags,
-.cd-sector {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    letter-spacing: 1px;
-    color: #55705f;
-    white-space: nowrap;
-}
-
-.cd-sector { color: #fbbf24; }
-
-.cd-dispatch {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 1.5px;
-    color: #34d399;
-    border: 1px solid rgba(52, 211, 153, 0.45);
-    padding: 5px 8px;
-    white-space: nowrap;
-}
-
-.cd-row:hover,
-.cd-row:focus-visible {
-    border-color: rgba(52, 211, 153, 0.6);
-    background: linear-gradient(90deg, rgba(16, 185, 129, 0.18), rgba(6, 9, 12, 0.2) 55%);
-    outline: none;
-}
-
-.cd-row:hover .cd-dispatch,
-.cd-row:focus-visible .cd-dispatch { background: #34d399; color: #06090c; }
-
-.cd-row.is-locked { opacity: 0.4; }
-
-.cd-ticker { display: flex; }
-.cd-lamps { display: flex; gap: 8px; margin-inline: auto; }
-
-.cd-lamp {
-    width: 34px;
-    height: 24px;
-    border: 1px solid rgba(148, 163, 184, 0.3);
-    background: #0b1216;
-}
-
-.cd-lamp.active { border-color: #34d399; background: rgba(52, 211, 153, 0.55); }
-
-/* 窄畫面：收起 designator／狀態旗，讀數同呼號留低。 */
-@media (max-width: 620px) {
-    .cd-row { grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 8px; }
-    .cd-desig, .cd-flags, .cd-sector { display: none; }
-    .cd-main { padding: 8px 10px 6px; }
-}
-
-@media (max-height: 430px) {
-    .cd-row { padding: 4px 10px; }
-    .cd-schem { height: 16px; }
-    .cd-schem i { height: calc(16px * var(--h, 0.3)); }
-    .cd-brief { display: none; }
+    .game-card:hover,
+    .game-card:focus-visible {
+        transform: none;
+    }
 }

@@ -6,7 +6,7 @@ change. Day-to-day progress belongs in `HANDOFF.md`.
 
 ## Repository purpose
 
-Game Hub is a static multi-game website. The four-card paged launcher in `index.html` and
+Game Hub is a static multi-game website. The grid launcher in `index.html` and
 `launcher.js` renders the generated `games/catalog.generated.js` view of
 `games/manifest.json`, then links to independent games under `games/`. Preserve the hub as a
 collection: a new or heavily revised game should remain self-contained unless a
@@ -21,7 +21,7 @@ or all games for shared, test, CI, catalog, unknown-game and explicit manual cha
 
 | Area | Entrypoint | Stack / notes |
 | --- | --- | --- |
-| Hub launcher | `games/manifest.json`, `games/catalog.generated.js`, `index.html`, `launcher.js`, `style.css` | Manifest is canonical; generated classic script keeps startup synchronous and Pages-safe. Theme selection/storage exists under `gamehub-theme-v1`; all three current Neon/Editorial/Command variants are rejected functional scaffolds, not the target art direction. |
+| Hub launcher | `games/manifest.json`, `games/catalog.generated.js`, `index.html`, `launcher.js`, `hub-art.js`, `style.css` | Manifest is canonical; generated classic script keeps startup synchronous and Pages-safe. Single dark platform-style home (hero + filter + grid) with inline SVG key art per game (ADR-314). |
 | Asset / rig authority | `games/assets/catalog.json`, `games/assets/catalog.mjs`, `games/assets/census.generated.json` | Build-time provenance, canonical runtime-model census and semantic RigDescriptors; generated census is deterministic and never loaded by games at runtime. |
 | Gomoku | `games/gomoku/index.html` | Static JS, online features use Supabase. |
 | Penny Crush | `games/penny_crush/index.html` | Static game. |
@@ -44,15 +44,12 @@ or all games for shared, test, CI, catalog, unknown-game and explicit manual cha
   entry paths and release commands. `launcher.js` consumes the generated
   `globalThis.GameCatalog`; after manifest edits run
   `node scripts/build-game-catalog.mjs` and never hand-edit the generated file.
-- Hub themes share catalog data, game links, progress/profile inputs, navigation
-  semantics and accessibility, but **not** one mandatory thumbnail or card visual.
-  Future Neon/Editorial/Command must each use a distinct shell, media treatment, item archetype,
-  hierarchy and responsive composition as specified by Evolution Plan §5.5 and
-  ADR-312. `launcher.js` currently keeps the 13 manifest links, 4/4/4/1 pagination,
-  swipe/keyboard behavior and `data-game-id` launch anchors while synchronizing
-  `data-hub-theme` on `html`, `body` and `#app-hub`; those are scaffold contracts,
-  not acceptance of the current presentation. Storage failure must fall back to
-  `neon-grid` without preventing startup.
+- The Hub is one "modern game platform" home page (ADR-314, supersedes ADR-312/313):
+  top bar → featured hero (`data-hero-game-id`; last-played via `gamehub-recent-v1`,
+  otherwise daily rotation) → category filter chips (`[data-filter]`) → a single
+  responsive grid of all 13 `a[data-game-id]` anchors in manifest order. Artwork is
+  inline SVG from `hub-art.js` (fresh id prefix per render). No pagination, no theme
+  switcher. Storage failure only removes "繼續玩"; it must never block rendering.
 - `games/assets/catalog.json` is the build-time authority for 3D provenance,
   path-to-source rules, representative asset identities and semantic rig/clip
   mappings. `scripts/build-asset-census.mjs` deterministically audits every
@@ -222,7 +219,7 @@ commands. ReleaseGate executes argv arrays without a shell, applies bounded
 timeouts, selects only a directly changed game, and fails closed to all games for
 shared, Hub-test, CI, catalog, unknown-game or explicit `--all` releases. Deploy CI
 installs package-lock dependencies selected by that plan, runs its `full` tier,
-and always runs Hub layout/theme/load/touch/storage/home browser gates.
+and always runs Hub layout/load/touch/storage/home browser gates.
 
 ### AssetCatalog / RigCatalog
 
@@ -240,12 +237,11 @@ Pages release and require zero parse failure or stale generated output.
 
 ### Hub or any static game
 
-- Run `node tests/hub-themes.mjs` for the current Hub scaffold; it covers all
-  three theme IDs at 320x568, 375x667, 667x375, 844x390 and 1280x800, including
-  tail-page geometry, persistence, blocked storage, keyboard, swipe and errors.
-  It does **not** certify that the themes are visually distinct. The redesign must
-  add shell/media/item layout-signature gates plus headed full-page screenshot
-  review before visual acceptance.
+- Run `node tests/hub.mjs`; it covers the ADR-314 contract at 320x568, 375x667,
+  440x956, 667x375, 844x390 and 1280x800: 13 ordered links, hero, filters, columns,
+  overlap/overflow, 44px hit-tested controls, Tab order, last-played, blocked storage,
+  zero external requests and errors. It does not certify visual quality; take
+  full-page screenshots for Penny's review.
 - Serve the repository over HTTP; do not rely only on `file://` behavior.
 - Open the hub, follow the affected card, and check the browser console.
 - Verify direct navigation to the affected game path.

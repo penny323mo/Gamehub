@@ -1,4 +1,8 @@
-// Game Hub 主頁：每組四隻遊戲，桌面 4 欄、手機 2×2，左右掃一次換一組。
+// Game Hub 主頁契約（ADR-314）：頂欄 → 精選 hero → 篩選 ＋ 一頁見晒 13 隻嘅 grid。
+//
+// 守嘅係行為同幾何，唔係 class 名：13 個 `a[data-game-id]`（manifest 次序、
+// 每隻一次、真 href）、hero 係另一個 `data-hero-game-id` anchor、篩選掣
+// `[data-filter]`、「上次玩過」storage 壞咗照 render。
 //
 // 跑法：node tests/hub.mjs
 // Playwright 沿用 game package 嘅安裝，避免根目錄多開一個 npm project。
@@ -23,7 +27,7 @@ const { chromium } = await import(pathToFileURL(PW).href);
 
 const MIME = {
     '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
-    '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2',
+    '.png': 'image/png', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.ico': 'image/x-icon', '.woff2': 'font/woff2',
 };
 const server = http.createServer((req, res) => {
     const requestPath = decodeURIComponent(req.url.split('?')[0]);
@@ -50,44 +54,17 @@ const linuxChrome = '/opt/pw-browsers/chromium';
 const executablePath = [process.env.PW_CHROMIUM, linuxChrome, macChrome].find(p => p && fs.existsSync(p));
 const browser = await chromium.launch({ executablePath });
 
-const swipe = (page, dx) => page.evaluate((delta) => {
-    const target = document.querySelector('.carousel-track-container');
-    const touch = (x) => new Touch({
-        identifier: 1, target, screenX: x, clientX: x, screenY: 300, clientY: 300,
-    });
-    const start = touch(260);
-    target.dispatchEvent(new TouchEvent('touchstart', {
-        bubbles: true, changedTouches: [start], touches: [start], targetTouches: [start],
-    }));
-    const end = touch(260 + delta);
-    target.dispatchEvent(new TouchEvent('touchend', {
-        bubbles: true, changedTouches: [end], touches: [], targetTouches: [],
-    }));
-}, dx);
+
+const ORDER = catalogTargetEntries().map(({ id }) => id);
+const GROUP_SIZES = { all: 13, board: 4, casual: 3, strategy: 3, action: 3 };
 
 const read = page => page.evaluate(() => {
-    const track = document.querySelector('.carousel-track');
-    const pages = [...document.querySelectorAll('.game-page')];
-    const active = document.querySelector('.game-page.active-page');
-    const cards = [...document.querySelectorAll('[data-game-id]')];
-    const activeCards = [...active.querySelectorAll('[data-game-id]')];
-    const view = document.querySelector('.carousel-track-container').getBoundingClientRect();
-    const pageRect = active.getBoundingClientRect();
-    const hubRect = document.querySelector('#app-hub').getBoundingClientRect();
-    /*
-     * 「兩支箭咀收埋喺同一個 dock」係**契約**，唔係某個 theme 嘅 class。
-     * 之前寫死 `.carousel-footer`，即係假設咗三套 theme 都有同一個頁腳
-     * ——ADR-312 之後每套自己決定條導航擺喺邊（Neon 喺底部控制條、
-     * Editorial 喺 folio、Command 喺左邊 rail）。所以問返個共同 parent。
-     */
-    const navs = [...document.querySelectorAll('.nav-btn')];
-    const dock = navs.length === 2 && navs[0].parentElement === navs[1].parentElement
-        ? navs[0].parentElement : null;
-    const footerRect = (dock ?? document.body).getBoundingClientRect();
-    const rects = activeCards.map(card => {
+    const cards = [...document.querySelectorAll('a[data-game-id]')];
+    const visible = cards.filter(card => card.getClientRects().length > 0);
+    const rects = visible.map(card => {
         const r = card.getBoundingClientRect();
-        return { id: card.dataset.gameId, left: r.left, right: r.right, top: r.top,
-            bottom: r.bottom, width: r.width, height: r.height };
+        return { id: card.dataset.gameId, left: r.left, right: r.right, top: r.top + scrollY,
+            bottom: r.bottom + scrollY, width: r.width, height: r.height };
     });
     const overlaps = [];
     for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
@@ -95,65 +72,51 @@ const read = page => page.evaluate(() => {
         if (a.left < b.right - 1 && b.left < a.right - 1
             && a.top < b.bottom - 1 && b.top < a.bottom - 1) overlaps.push(`${a.id}/${b.id}`);
     }
-    const roundedUnique = values => [...new Set(values.map(v => Math.round(v / 4) * 4))].length;
-    const navOverlap = [...document.querySelectorAll('.nav-btn')].some(btn => {
-        const b = btn.getBoundingClientRect();
-        return rects.some(r => b.left < r.right && r.left < b.right && b.top < r.bottom && r.top < b.bottom);
-    });
-    const stones = [...document.querySelectorAll('[data-game-id="gomoku"] .art-stones .stone')]
-        .map(stone => stone.getBoundingClientRect());
+    const firstRowTop = rects.length ? Math.min(...rects.map(r => r.top)) : 0;
+    const hero = document.querySelector('a[data-hero-game-id]');
+    const heroRect = hero?.getBoundingClientRect();
+    // 插畫要真係畫咗出嚟：每張卡一個有面積嘅 svg，而且 gradient id 唔可以同第二幅撞。
+    const svgs = [...document.querySelectorAll('svg [id]')].map(node => node.id);
     return {
-        currentPage: Number(track.dataset.currentPage),
-        pageCount: pages.length,
-        pageSizes: pages.map(p => p.querySelectorAll('[data-game-id]').length),
-        cardCount: cards.length,
-        uniqueGames: new Set(cards.map(c => c.dataset.gameId)).size,
-        allIds: cards.map(c => c.dataset.gameId),
-        activeIds: activeCards.map(c => c.dataset.gameId),
-        activeCount: activeCards.length,
-        columns: roundedUnique(rects.map(r => (r.left + r.right) / 2)),
-        rows: roundedUnique(rects.map(r => (r.top + r.bottom) / 2)),
-        inside: rects.every(r => r.left >= view.left - 1 && r.right <= view.right + 1
-            && r.top >= view.top - 1 && r.bottom <= view.bottom + 1),
+        ids: cards.map(card => card.dataset.gameId),
+        visibleIds: visible.map(card => card.dataset.gameId),
+        hrefsValid: cards.every(card => card.getAttribute('href')?.startsWith('games/')),
         overlaps,
-        navOverlap,
+        columns: rects.filter(r => Math.abs(r.top - firstRowTop) < 2).length,
+        insideX: rects.every(r => r.left >= -1 && r.right <= innerWidth + 1),
+        artOk: visible.every(card => {
+            const svg = card.querySelector('svg');
+            const r = svg?.getBoundingClientRect();
+            return r && r.width > 40 && r.height > 25;
+        }),
+        duplicateSvgIds: svgs.length - new Set(svgs).size,
+        hero: hero ? {
+            id: hero.dataset.heroGameId,
+            href: hero.getAttribute('href'),
+            eyebrow: hero.querySelector('.hero-eyebrow')?.textContent ?? '',
+            height: heroRect.height,
+            bottom: heroRect.bottom + scrollY,
+        } : null,
+        heroInGrid: hero ? hero.hasAttribute('data-game-id') : null,
         docWidth: document.documentElement.scrollWidth,
-        docHeight: document.documentElement.scrollHeight,
         innerWidth,
         innerHeight,
-        dots: document.querySelectorAll('.carousel-dot').length,
-        activeDots: document.querySelectorAll('.carousel-dot.active').length,
-        status: document.querySelector('.carousel-status')?.textContent ?? '',
-        hiddenLinksTabbable: pages.filter(p => p !== active)
-            .some(p => [...p.querySelectorAll('a')].some(a => a.tabIndex >= 0)),
-        hrefsValid: cards.every(c => c.tagName === 'A' && c.getAttribute('href')?.startsWith('games/')),
-        gomokuStones: stones.length === 2 ? {
-            equal: Math.abs(stones[0].width - stones[1].width) < 0.1
-                && Math.abs(stones[0].height - stones[1].height) < 0.1,
-            gap: stones[1].left - stones[0].right,
-        } : null,
-        cardSize: rects[0] ? { width: rects[0].width, height: rects[0].height } : null,
-        activeCardCentreOffset: rects[0] ? {
-            x: (rects[0].left + rects[0].right - pageRect.left - pageRect.right) / 2,
-            y: (rects[0].top + rects[0].bottom - pageRect.top - pageRect.bottom) / 2,
-        } : null,
-        hubCentreRatio: (hubRect.top + hubRect.bottom) / 2 / innerHeight,
-        footerDock: {
-            containsBothArrows: !!dock,
-            width: footerRect.width,
-            maxAllowed: innerWidth * 0.78,
-        },
+        pressed: [...document.querySelectorAll('[data-filter][aria-pressed="true"]')].map(b => b.dataset.filter),
+        status: document.getElementById('library-status')?.textContent ?? '',
     };
 });
 
 for (const viewport of [
     { width: 320, height: 568 },
+    { width: 375, height: 667 },
     { width: 440, height: 956 },
+    { width: 667, height: 375 },
     { width: 844, height: 390 },
     { width: 1280, height: 800 },
 ]) {
     const phone = viewport.width <= 760;
-    const page = await browser.newPage({ viewport, deviceScaleFactor: 1, isMobile: phone, hasTouch: true });
+    const context = await browser.newContext({ viewport, deviceScaleFactor: 1, isMobile: phone, hasTouch: true });
+    const page = await context.newPage();
     const errors = [];
     // 主頁唔應該向外網攞任何嘢。呢個唔止係速度：喺公司網、飛機上、或者
     // 我哋自己個沙盒入面，一個攞唔到嘅外部資源就係一個靜靜哋壞咗嘅頁面。
@@ -171,153 +134,130 @@ for (const viewport of [
         }
     });
     await page.goto(INDEX, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(480);
+    await page.waitForTimeout(700);
 
     const label = `${viewport.width}×${viewport.height}`;
     const start = await read(page);
-    check(`${label}：13 隻遊戲只出現一次`, start.cardCount === 13 && start.uniqueGames === 13, start);
-    check(`${label}：分成四組，前三組每組四隻`,
-        start.pageCount === 4 && start.pageSizes.join(',') === '4,4,4,1', start.pageSizes);
-    check(`${label}：第一版係五子棋、中國象棋、鋤大D、鬥地主`,
-        start.activeIds.join(',') === 'gomoku,xiangqi,big2,doudizhu', start.activeIds);
-    check(`${label}：五子棋黑白棋子同尺寸而且有間距`,
-        start.gomokuStones?.equal && start.gomokuStones.gap >= 5, start.gomokuStones);
-    check(`${label}：當前四格完整留喺 carousel 入面`, start.activeCount === 4 && start.inside, start);
-    check(`${label}：四格互不重疊`, start.overlaps.length === 0, start.overlaps);
+    check(`${label}：13 隻遊戲各出現一次，跟 manifest 次序`,
+        start.ids.length === 13 && start.ids.join(',') === ORDER.join(','), start.ids);
+    check(`${label}：全部 13 隻一開頁就喺 grid 度（冇分頁收埋）`, start.visibleIds.length === 13, start.visibleIds);
+    check(`${label}：每個入口係真 href`, start.hrefsValid);
+    check(`${label}：精選 hero 係另一個 anchor，唔計入 13 個`,
+        start.hero && start.heroInGrid === false && ORDER.includes(start.hero.id)
+            && start.hero.href?.startsWith('games/'), start.hero);
+    check(`${label}：hero 唔會食晒成個首屏`,
+        start.hero && start.hero.bottom <= viewport.height * (phone && viewport.height > 500 ? 0.75 : 0.95),
+        start.hero);
+    check(`${label}：卡互不重疊`, start.overlaps.length === 0, start.overlaps);
+    check(`${label}：卡全部喺畫面闊度入面`, start.insideX, start);
     check(`${label}：文件唔會闊過畫面`, start.docWidth <= start.innerWidth, start);
-    check(`${label}：四格首頁一屏睇得晒`, start.docHeight <= start.innerHeight + 1, start);
-    check(`${label}：導覽掣唔會壓住遊戲卡`, start.navOverlap === false, start);
-    check(`${label}：分頁點、頁碼同 keyboard focus 狀態正確`,
-        start.dots === 4 && start.activeDots === 1 && start.status === '1 / 4'
-            && start.hiddenLinksTabbable === false && start.hrefsValid, start);
-    /*
-     * 契約係「兩支箭咀同分頁收埋喺同一個 dock」。**個 dock 有幾闊唔再喺呢度守**
-     * ——舊版寫 `≤ 78% 畫面闊`，嗰個係度緊當時嗰個藥丸型頁腳；ADR-312 之後
-     * 每套 theme 自己決定條導航嘅形態（Neon 係一條打通嘅機台控制條、Editorial
-     * 係一條 folio 橫線、Command 收埋喺左邊 rail）。footprint 改咗去
-     * `tests/hub-themes.mjs` 逐套量，喺呢度反而會變成「一套 theme 話晒事」。
-     */
-    check(`${label}：左右箭咀、圓點同頁碼收成同一個控制 dock`,
-        start.footerDock.containsBothArrows, start.footerDock);
-    if (phone) {
-        check(`${label}：手機係 2×2 四格`, start.columns === 2 && start.rows === 2,
-            { columns: start.columns, rows: start.rows });
-        /*
-         * 本來寫死「高度 ≤ 175px」。嗰個係一個 proxy：真正要擋嘅係「四塊
-         * 打橫拉通嘅表格行」。ADR-312 之後 Neon 嘅入口係一個**街機櫃**,
-         * 本來就高過闊，175 呢個數淨係啱舊嗰張矮卡。改成直接問返嗰件事：
-         * 一格唔可以係一條打通嘅橫條（已經另外守住 2 columns × 2 rows）。
-         */
-        check(`${label}：手機一格係一個 tile，唔係一條打通嘅橫條`,
-            start.cardSize.width <= start.innerWidth * 0.6,
-            { card: start.cardSize, innerWidth: start.innerWidth });
-        if (viewport.height >= 700) {
-            check(`${label}：高身手機 launcher 落喺視覺中段`,
-                start.hubCentreRatio >= 0.38 && start.hubCentreRatio <= 0.55,
-                start.hubCentreRatio);
-        }
+    check(`${label}：每張卡都有畫出嚟嘅插畫`, start.artOk);
+    check(`${label}：插畫 svg id 冇撞`, start.duplicateSvgIds === 0, start.duplicateSvgIds);
+    const wantColumns = viewport.width <= 640 && viewport.height > 500 ? 2 : viewport.width >= 1200 ? 4 : null;
+    if (wantColumns) {
+        check(`${label}：grid 係 ${wantColumns} 欄`, start.columns === wantColumns, start.columns);
     } else {
-        check(`${label}：桌面係一排四格`, start.columns === 4 && start.rows === 1,
-            { columns: start.columns, rows: start.rows });
+        check(`${label}：矮橫屏 grid 至少 3 欄`, start.columns >= 3, start.columns);
     }
+    check(`${label}：預設篩選係「全部」`,
+        start.pressed.join(',') === 'all' && start.status.includes('13'), { pressed: start.pressed, status: start.status });
 
-    await swipe(page, -190);
-    await page.waitForTimeout(430);
-    const next = await read(page);
-    check(`${label}：向左掃一次會跳下一組四隻`,
-        next.currentPage === 1 && next.activeIds[0] === 'pennycrush', next);
+    // ---- 篩選 ----
+    const filterResults = {};
+    for (const [group, size] of Object.entries(GROUP_SIZES)) {
+        await page.locator(`[data-filter="${group}"]`).click();
+        const after = await read(page);
+        filterResults[group] = { shown: after.visibleIds.length, pressed: after.pressed.join(','),
+            orderKept: after.visibleIds.join(',') === ORDER.filter(id => after.visibleIds.includes(id)).join(','),
+            overlaps: after.overlaps.length };
+    }
+    check(`${label}：每粒篩選掣顯示啱數量、狀態同次序`,
+        Object.entries(GROUP_SIZES).every(([group, size]) => filterResults[group].shown === size
+            && filterResults[group].pressed === group && filterResults[group].orderKept
+            && filterResults[group].overlaps === 0), filterResults);
+    await page.locator('[data-filter="all"]').click();
 
-    await swipe(page, 190);
-    await page.waitForTimeout(430);
-    const back = await read(page);
-    check(`${label}：反方向掃會返第一組`, back.currentPage === 0, back);
-
-    // iOS／Android 系統手勢可以送 touchcancel，之後先補一個遲到嘅 touchend。
-    // cancel 必須清走起點，否則呢個「冇真正完成嘅手勢」會偷跳一頁。
-    const cancelled = await page.evaluate(() => {
-        const target = document.querySelector('.carousel-track-container');
-        const touch = (identifier, x) => new Touch({
-            identifier, target, screenX: x, clientX: x, screenY: 300, clientY: 300,
-        });
-        const active = touch(19, 260);
-        target.dispatchEvent(new TouchEvent('touchstart', {
-            bubbles: true, changedTouches: [active], touches: [active], targetTouches: [active],
-        }));
-        target.dispatchEvent(new TouchEvent('touchcancel', {
-            bubbles: true, changedTouches: [active], touches: [], targetTouches: [],
-        }));
-        const late = touch(19, 70);
-        target.dispatchEvent(new TouchEvent('touchend', {
-            bubbles: true, changedTouches: [late], touches: [], targetTouches: [],
-        }));
-        return Number(document.querySelector('.carousel-track').dataset.currentPage);
-    });
-    check(`${label}：touchcancel 後嘅遲到 touchend 唔會誤換頁`, cancelled === 0, cancelled);
-
-    await page.keyboard.press('ArrowRight');
-    await page.waitForTimeout(430);
-    const keyboard = await read(page);
-    check(`${label}：方向鍵都可以逐組瀏覽`, keyboard.currentPage === 1, keyboard);
-
-    await page.locator('.carousel-dot').nth(3).click();
-    await page.waitForTimeout(430);
-    const last = await read(page);
-    check(`${label}：分頁點可直達最後一組 Elden Ring II`,
-        last.currentPage === 3 && last.activeIds.join(',') === 'elden-ring-ii', last);
-    check(`${label}：單卡尾頁保持正常 tile 尺寸，水平同垂直置中`,
-        last.cardSize.height <= start.cardSize.height * 1.05
-            && last.cardSize.width <= start.cardSize.width * 1.1
-            && Math.abs(last.activeCardCentreOffset.x) <= 2
-            && Math.abs(last.activeCardCentreOffset.y) <= 2,
-        { first: start.cardSize, last: last.cardSize, offset: last.activeCardCentreOffset });
-    // 字體要真係載到，而且唔准去攞外網。之前呢頁 @import 去 Google Fonts，
-    // 開每一頁都要兩個擋住渲染嘅跨網域來回；喺攞唔到外網嘅環境就靜靜哋跌返
-    // 做系統字，而「零 browser error」係捉唔到嘅——所以要直接問瀏覽器。
-    const font = await page.evaluate(async () => {
-        await document.fonts.ready;
-        return { 用到: document.fonts.check('700 16px Outfit'),
-            面: [...document.fonts].map(f => `${f.family}/${f.status}`) };
-    });
-    check(`${label}：Outfit 真係載到（唔係跌返做系統字）`, font.用到, font);
-    check(`${label}：一個外網請求都冇`, external.length === 0, external.slice(0, 4));
-    // 撳得中：MOBA 嗰邊每粒掣都釘住 44px（ADR-107），但 Hub——玩家真正
-    // 見到嘅第一塊畫面——一條都冇量過。實測改之前：分頁圓點 **8×8**，
-    // 箭咀 34 至 42，四個尺寸全部低過線。
-    // 兩條唔同嘅線，各有理由：箭咀係單獨目標又有位，照守 44；四粒圓點喺
-    // 320 闊之下每粒 44 就係 176，加埋箭咀塞唔落，所以用 WCAG 2.5.8 嘅
-    // 24×24，再加「圓心之間唔可以近過 24」保證兩粒唔會互搶。
-    const taps = await page.evaluate(() => {
-        const vis = (el) => { const cs = getComputedStyle(el); const r = el.getBoundingClientRect();
+    // ---- 撳得中 ----
+    // 44px 係 Apple HIG／Material 嘅線；hub 冇理由例外。每個控制捲入畫面之後,
+    // 中心點要真係打得中自己（冇嘢疊住）。
+    const taps = await page.evaluate(async () => {
+        const vis = (node) => { const cs = getComputedStyle(node); const r = node.getBoundingClientRect();
             return r.width > 1 && r.height > 1 && cs.display !== 'none'
                 && cs.visibility !== 'hidden' && cs.pointerEvents !== 'none'; };
         const all = [...document.querySelectorAll('a,button,[role="button"],input,select')].filter(vis);
         const 細 = [], 撳唔中 = [];
-        for (const el of all) {
-            const r = el.getBoundingClientRect();
-            const dot = el.classList.contains('carousel-dot');
-            const 最少 = dot ? 24 : 44;
-            const 邊 = Math.min(r.width, r.height);
-            if (邊 < 最少) 細.push(`${el.className || el.tagName}: ${Math.round(r.width)}×${Math.round(r.height)}（要 ${最少}）`);
+        for (const node of all) {
+            node.scrollIntoView({ block: 'center' });
+            const r = node.getBoundingClientRect();
+            if (Math.min(r.width, r.height) < 44) 細.push(`${node.className}: ${Math.round(r.width)}×${Math.round(r.height)}`);
             const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-            if (!hit || !(hit === el || el.contains(hit) || hit.contains(el))) {
-                撳唔中.push(`${el.className || el.tagName} → ${hit?.className || hit?.tagName || '冇嘢'}`);
-            }
+            if (!hit || !(hit === node || node.contains(hit))) 撳唔中.push(`${node.className} → ${hit?.className || hit?.tagName || '冇嘢'}`);
         }
-        const dots = [...document.querySelectorAll('.carousel-dot')].filter(vis)
-            .map(el => { const r = el.getBoundingClientRect(); return r.left + r.width / 2; })
-            .sort((a, b) => a - b);
-        const 太逼 = [];
-        for (let i = 1; i < dots.length; i++) {
-            if (dots[i] - dots[i - 1] < 24) 太逼.push(Math.round(dots[i] - dots[i - 1]));
-        }
-        return { 數: all.length, 細, 撳唔中, 太逼 };
+        scrollTo(0, 0);
+        return { 數: all.length, 細, 撳唔中 };
     });
-    check(`${label}：每個撳得嘅嘢都夠大（箭咀 44、圓點 24）`, taps.細.length === 0, taps.細);
+    check(`${label}：每個撳得嘅嘢至少 44px`, taps.細.length === 0, taps.細);
     check(`${label}：每個撳得嘅嘢中心都真係打得中自己`, taps.撳唔中.length === 0, taps.撳唔中);
-    check(`${label}：圓點圓心之間唔會近過 24px`, taps.太逼.length === 0, taps.太逼);
 
+    // ---- 鍵盤 ----
+    await page.evaluate(() => { document.activeElement?.blur(); scrollTo(0, 0); });
+    const tabbed = [];
+    // blur 之後瀏覽器個 Tab 起點可能留喺上一次 focus 嘅位，所以由 hero 出現嗰格起計。
+    for (let i = 0; i < 40; i++) {
+        await page.keyboard.press('Tab');
+        tabbed.push(await page.evaluate(() => {
+            const a = document.activeElement;
+            return a?.dataset?.gameId ?? (a?.dataset?.heroGameId ? 'hero' : a?.dataset?.filter ? `filter:${a.dataset.filter}` : a?.tagName);
+        }));
+    }
+    const loop = tabbed.slice(tabbed.indexOf('hero'), tabbed.indexOf('hero') + 19);
+    check(`${label}：Tab 次序：hero → 5 粒篩選 → 13 隻（manifest 次序）`,
+        loop[0] === 'hero' && loop.slice(1, 6).every(id => String(id).startsWith('filter:'))
+            && loop.slice(6).join(',') === ORDER.join(','), loop);
+
+    if (viewport.width === 1280) {
+        // 字體要真係載到，而且唔准去攞外網。
+        const font = await page.evaluate(async () => {
+            await document.fonts.ready;
+            return document.fonts.check('700 16px Outfit');
+        });
+        check(`${label}：Outfit 真係載到（唔係跌返做系統字）`, font);
+
+        // ---- 上次玩過 ----
+        // 撳一隻遊戲，返嚟首頁時 hero 要變成「繼續玩」嗰隻。
+        await page.route('**/games/tower/**', route => route.fulfill({ status: 200, contentType: 'text/html', body: '<p>stub</p>' }));
+        await page.locator('a[data-game-id="tower"]').click();
+        await page.waitForURL(/games\/tower/);
+        await page.goto(INDEX, { waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(300);
+        const back = await read(page);
+        check(`${label}：玩過一隻之後，hero 變成「繼續玩」嗰隻`,
+            back.hero?.id === 'tower' && back.hero.eyebrow.includes('繼續玩'), back.hero);
+    }
+    check(`${label}：一個外網請求都冇`, external.length === 0, external.slice(0, 4));
     check(`${label}：零 browser error`, errors.length === 0, errors);
-    await page.close();
+    await context.close();
+}
+
+// ---------- storage 封死都照 render ----------
+{
+    const context = await browser.newContext({ viewport: { width: 375, height: 667 } });
+    await context.addInitScript(() => {
+        const err = () => { throw new DOMException('blocked', 'SecurityError'); };
+        Object.defineProperty(window, 'localStorage', { get: err, configurable: true });
+    });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.goto(INDEX, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(400);
+    const state = await read(page);
+    await page.route('**/games/**', route => route.fulfill({ status: 200, contentType: 'text/html', body: '<p>stub</p>' }));
+    await page.locator('a[data-game-id="snake"]').click();
+    await page.waitForURL(/games\/snake/);
+    check('localStorage 封死：13 張卡＋hero 照出，撳卡照走，零 error',
+        state.ids.length === 13 && !!state.hero && errors.length === 0, { ids: state.ids.length, errors });
+    await context.close();
 }
 
 // ---------- 每個入口都要真係去到一個存在嘅檔 ----------

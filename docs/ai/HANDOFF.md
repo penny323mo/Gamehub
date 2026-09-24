@@ -1,114 +1,69 @@
 # Current cross-agent handoff
 
-Updated: 2026-09-19 (Asia/Macau)
-Prepared by: ChatGPT — CI timeout maintenance after ADR-313
+Updated: 2026-09-24 (Asia/Macau)
+Prepared by: Claude Code — Hub 全面重新設計（ADR-314）
 Integration branch: `main`
-Work branch: `codex/fix-royale-release-timeout`
-Status: 三套 Hub theme 已經拆成三個獨立 renderer，theme 揀選收埋做一粒掣；
-`hub-themes` **240/240**、`hub` 100/100。最新 main Pages run #381 另有一個
-**ReleaseGate 600 秒總 timeout**：Royale 前八個 suite 已過，去到最後 `session.mjs`
-第一輪時啱啱用盡 600 秒；本 branch 只調整 Royale full-suite timeout contract，唔改 gameplay。
-**視覺驗收仲未做**——自動尺證到「結構真係唔同、冇壞」，證唔到「靚」。
+Work branch: `claude/interface-theme-redesign-lbwt0z`
+Status: Hub 由「三套 theme × 4/4/4/1 carousel」改成**單一現代遊戲平台式首頁**：
+頂欄 → 精選 hero → 類型篩選 → 一頁見晒 13 隻嘅 grid，每隻遊戲一幅 inline SVG 插畫。
+自動 gate 綠；**視覺驗收等 Penny headed review。**
 
 ## Current objective
 
-跟 Evolution Plan §5.5 同 ADR-312 重做 Hub theme。Penny 否決咗第一版三個變體：三個都
-仲係同一個卡片 carousel 換色。呢一輪已經落咗手，見下面；下一步係 §5.5 驗收第 1 同
-第 5 項（五個 viewport 嘅 full-page screenshot ＋ Penny headed review）。
-
-CI maintenance（2026-09-19）：GitHub Pages run #381 唔係 theme assertion fail。ReleaseGate
-將 Royale 整個 `npm test` 當一個 command，預設只畀 600,000ms；CI log 顯示
-`leak/perf/gauntlet/combat/pvp-guest/match/features/rts` 全部通過，最後
-`session.mjs` 已開始並完成第 1 輪前後量度，但 command 喺精確 600 秒被 ETIMEDOUT。
-呢個 branch 將 **Royale full command** 顯式設為 1,200,000ms，並加 ReleaseGate contract
-test，避免之後靜靜雞跌返預設 600 秒。呢個改動唔觸碰 Royale runtime、平衡或資源管理。
-
-UI-only：唔准改任何遊戲 runtime、13 隻嘅次序、入口連結、storage 安全同 launch/input 語意。
+Penny 要求重新設計成個 Hub 介面，並揀咗：一套全新主設計（唔再三套 theme）、
+scroll grid＋分類篩選、手繪 SVG 插畫、現代遊戲平台風（深色、大圖、光暈）。
+UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
 
 ## Completed
 
-**ADR-313 — theme 唔係一個 render function 加 class，係三個 render function**
-
-- **真兇係結構，唔係 CSS**：舊 `launcher.js` 得一個 `renderCarousel()` 砌一張
-  `.game-hub-card`，`updateThemeLayout()` 再喺同一張卡掛 `data-theme-role`。
-  **一個萬能卡片加 class，寫幾多 CSS 都變唔出第二套介面語言。**
-- `index.html` 淨返一個掛載點；三套 theme 各自有 `shell()` 同 `item()`，冇共用 card fallback：
-  - **Neon Grid**：招牌＋機台牆＋底部控制條；item 係街機櫃（招牌／4:3 CRT 螢幕／操作台）。
-  - **Editorial Arcade**：報頭＋不對稱 spread＋folio；**一套兩種 item**——頭條有大封面,
-    其餘三個係**完全冇圖**嘅編號索引行。
-  - **Command Deck**：左邊直立 rail＋status bar＋dispatch workspace；item 係**冇縮圖**嘅
-    dispatch row，讀數由 `capabilities` 畫出嚟（§5.5 容許嘅 no-thumbnail proof）。
-- **把尺唔再抄實作**：舊版逐套寫死「四欄／一大三細／四行」＝將實作抄多次入把尺,
-  證明唔到「三套真係唔同」。改成**簽名**（item 形狀／媒介處理／nav dock 位／selector 位,
-  全部由幾何量），再問「三套唔可以四樣都一樣」「至少三個維度分到三套」。**換色改唔到呢四個數。**
-- 三把尺嘅 `.game-hub-card` 改成 `[data-game-id]`（ADR-312 講明穩定契約係 anchor,
-  唔係 class）；`hub.mjs` 嗰條「dock ≤ 78% 畫面闊」拆走——嗰個度緊舊嗰個藥丸頁腳,
-  footprint 交返 `hub-themes` 逐套量。
-- **Penny 頭版 review**：三粒 theme 掣攤喺正面、佔咁大篇幅好奇怪。啱——theme 係
-  偏好設定，唔應該同十三隻遊戲爭注意力。收埋做一粒掣，撳先展開；三套各自用返
-  自己嘅形態（投幣掣／`Editorial edition ▾`／rail 上面一粒 `MODE`）。**收埋唔等於
-  收起**：三粒掣一直喺 DOM，展開之後仍然係 44px native button、Tab 到、Space 撳得郁,
-  撳出面同 Esc 收得返。把尺跟住改，**而且守得多咗**：本來喺收埋咗嘅元素度叫
-  `focus()` 就當數（`display:none` focus 唔到，會靜靜雞報 false），而家問返真正
-  嗰條鍵盤路；再加一條「頭版預設收埋」。205 → 220 → **240 條**。
-- 中途捉到嘅真嘢：Editorial 封面 `aspect-ratio` 撐爆矮畫面（109／123／139px）；
-  `667×375` 同時中咗 `max-width:700px`，**media query 淨係睇闊度就會喺 375 高度疊三層**；
-  `.carousel-track` 冇 `min-height:0`，min-content 高度變咗地板（844×390 撐高 9px）；
-  Command row 塞六個仔入五條 column，`DISPATCH` 跌落第二行；Neon 類型標籤 3.99:1
-  跌穿 AA（`hub-read` 捉到）。
+- `hub-art.js`（新）：13 幅 16:10 向量 key art，`HubArt[id] = { accent, draw(u) }`；
+  每次渲染用新 id 前綴，避免 hero／grid 同一幅畫撞 gradient id（display:none 嗰幅會令另一幅失色）。
+- `launcher.js` 重寫：頂欄、hero（`data-hero-game-id`；有 `gamehub-recent-v1` 就「繼續玩」，
+  冇就按日子輪替）、`[data-filter]` 篩選（全部 13／棋牌 4／休閒 3／策略 3／動作 3）、
+  13 個 `a[data-game-id]` grid。拆走 theme menu、carousel、swipe、方向鍵分頁。
+- `style.css` 重寫：一套深色 token；手機直屏 2 欄、1280 闊 4 欄、矮橫屏 hero 變矮 banner；
+  hover／focus 用每隻遊戲 `--accent` 光暈；`prefers-reduced-motion` 全停。
+- `tests/hub.mjs` 重寫守 ADR-314 契約（6 個 viewport）；`tests/hub-themes.mjs` 退役，CI 移除。
+- `hub-art.js` 加入 GameCatalog／ReleaseGate 嘅 Hub global files；Hub cache token `assets-33 → assets-34`。
+- **順手修 main 嘅真紅**：`games/catalog.generated.js` 喺 Royale timeout PR 之後冇 regenerate，
+  `build-game-catalog --check` 同所有讀 catalog 嘅測試都會 fail。用 `node scripts/build-game-catalog.mjs`
+  正規 regenerate（token `catalog-15y29i5`）。
+- ADR-314 加入 DECISIONS；ADR-312／313 標 superseded；PROJECT_CONTEXT 更新。
 
 ## Changed files
 
-- `index.html`（淨返掛載點）、`launcher.js`（三個 renderer）、`style.css`（三段獨立 theme）。
-- `tests/hub-themes.mjs`（簽名式驗證）、`tests/hub.mjs`（改用 `[data-game-id]` 契約）。
-- Hub cache token `assets-32 → assets-33`（MOBA 仍然係 `assets-31`，冇合埋）。
+- 新：`hub-art.js`
+- 改：`index.html`、`launcher.js`、`style.css`、`tests/hub.mjs`、`.github/workflows/deploy-pages.yml`、
+  `games/catalog.mjs`、`scripts/release-gate.mjs`、`games/catalog.generated.js`（regenerated）
+- 刪：`tests/hub-themes.mjs`
+- Docs：`docs/ai/DECISIONS.md`、`docs/ai/PROJECT_CONTEXT.md`、本檔
 
 ## Verification
 
-- CI evidence：Pages run #381（HEAD `81acfd2e`）喺 Royale full `npm test` 精確
-  600,000ms 報 `RELEASE_GATE=FAIL royale required gate timed out`；timeout 前八個 Royale
-  suite 全部 PASS，`session.mjs` 已輸出 baseline 同第 1 輪結果。即係呢次係 command budget
-  用盡，唔係已見到 gameplay assertion failure。
-- 呢個 maintenance branch 本身未有 branch-triggered Pages workflow；合併前唔會將「full CI PASS」
-  寫成已驗證。合併後要以新 main Pages run 作最終證據。
-- `hub-themes` **240/240**（三套 × 五個 canonical viewport）、`hub` **100/100**、
-  `hub-touch` 5/5、`hub-read` 3/3、`hub-load` 3/3、`hub-home` 3/3、`hub-storage` 2/2、
-  ReleaseGate 20/20、catalog parity PASS、MOBA/Hub token 契約 3/3。
-- 三套 × 五個 viewport 實測：零重疊、零出界、零橫向／直向捲、冇細過 44px 嘅控制、
-  零 console/page error。
-- Mutation：Editorial 退返用 Neon 個 item → 只叫得出「item archetype」同「媒介處理」
-  兩條，其餘照綠。
-- 簽名實際值：item `uniform-tiles`／`lead-and-index`／`full-width-rows`；
-  媒介 `4@landscape-4-3`／`1@wide`／`none`。
+- `node tests/hub.mjs` **112/112**（320×568、375×667、440×956、667×375、844×390、1280×800）。
+- `build-game-catalog --check` PASS、`tests/catalog.mjs` PASS、`tests/release-gate.mjs` 21/21、
+  MOBA/Hub cache-bust PASS（Hub `assets-34`、MOBA `assets-31` 分開）。
+- 跨遊戲 hub gates 結果見 commit message／下一段；逐個單獨順序跑。
+- 五個 canonical viewport full-page screenshots 已影並人手睇過（無重疊、無爆版、插畫完整）。
 
 ## Known issues and cautions
 
-- **視覺驗收未做，亦唔可以由自動尺代。** 220/220 證嘅係「結構唔同、冇壞」。
-- `hub-keyboard` 有一條紅：**Elden Ring II** 個 `#hub-return` focus ring 睇唔到。
-  唔關 Hub 事（今輪冇掂過嗰隻遊戲），但要有人接。
+- **視覺驗收未做**：要 Penny headed review；自動尺只證「冇壞」。
+- 13 隻喺 2／4 欄 grid 最後一行得一張卡（grid 自然結果，唔係分頁孤兒）；如 Penny 介意可考慮
+  令某張卡跨欄。
+- `hub-keyboard` 舊紅（Elden Ring II `#hub-return` focus ring）同 `hub-cdn` Xiangqi DCL 仲未處理，唔關 Hub。
 - Phase 0B license blockers 仍然係 Racing Tripo 1、Ashen Tripo 4、Royale Meshy 23。
-- `hub-cdn` 之前量到 Xiangqi DCL 1.07–1.10 秒（門檻 1.0）；要喺清靜 runner 重量,
-  唔好為咗過尺去改 Xiangqi。
-- **呢個 container 一鬥資源就出假紅**：背景跑住第二個 suite 嗰陣，其他尺報過
-  「模型未預載就攞」同「撳唔到掣」——單獨再跑全綠。**一次紅要單獨再跑先算數。**
-- **開工前一定要 `--sync`**；`pgrep -f` 會撞到自己；做 mutation 要先 `cp`。
+- 呢個 container 一鬥資源就出假紅；一次紅要單獨再跑先算數。
 
 ## Exact next action
 
-0. Review / merge `codex/fix-royale-release-timeout`，然後確認新 main Pages run 可以完整行過
-   Royale `session.mjs` 同後續 Hub fast gates；如果仍超時，先量 suite 分段時間，唔好再盲加 timeout。
-1. 影五個 canonical viewport × 三套 theme 嘅 full-page screenshot，交 Penny headed
-   review（§5.5 驗收第 1 同第 5 項）。**唔好用 220/220 當視覺驗收。**
-2. 媒介仲係 emoji／舊 logo。§5.5 要 canonical gameplay capture（來源、crop variant、
-   尺寸、byte budget 入 AssetCatalog）——呢步係 UI media 工作，唔准改遊戲邏輯。
-3. 驗收之後先返 Phase 0C（Royale／Racing／Elden 嘅 scene/rig/performance baseline）。
+1. Penny headed review 新首頁（手機直／橫、桌面），收集意見再微調。
+2. 合併後睇新 main Pages run：catalog parity、Hub gates、Royale 1,200s full budget。
+3. 之後返 Phase 0C（Royale／Racing／Elden 嘅 scene/rig/performance baseline）。
 
 ## Do not redo
 
-- 唔好再用一個萬能 thumbnail／card component，再靠 theme class 換色、圓角、陰影、
-  比例或者排序當新 theme。
-- 唔好將把尺寫成「抄一次實作嘅幾何」——要問簽名，唔係問「係咪四欄」。
-- 唔好改遊戲次序、連結、存檔或者任何遊戲 runtime；唔好合埋 Hub／MOBA cache token；
-  唔好手改 generated catalog／census；唔好 force-push。
-- 唔好為咗遷就一個排版而放寬把尺（今輪拆走嗰條 dock 闊度係因為佢度緊舊設計，
-  唔係因為新設計過唔到）。
+- 唔好再加返 theme switcher 或 4/4/4/1 carousel（ADR-314 由 Penny 拍板）。
+- 唔好為 hero 加 `data-game-id`——13 個 anchor 契約只計 grid。
+- 唔好共用 SVG gradient id；唔好手改 generated catalog／census；唔好合埋 Hub／MOBA cache token；
+  唔好 force-push。
