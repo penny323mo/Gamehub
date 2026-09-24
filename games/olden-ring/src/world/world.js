@@ -32,9 +32,9 @@ export function createWorld(scene) {
   const sky = createSky();
   scene.add(sky);
 
-  const hemi = new THREE.HemisphereLight(0x5a64a8, 0x1a1620, 1.25);   // Olden Ring night: cold starlit sky fill, dark bounce  // cool mauve sky fill (neutral enough that shaded brown stone stays brown, not rose), dust bounce
+  const hemi = new THREE.HemisphereLight(0x6a74b8, 0x2a2430, 1.9);   // Olden Ring night: cold starlit sky fill, dark bounce  // cool mauve sky fill (neutral enough that shaded brown stone stays brown, not rose), dust bounce
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xffdca0, 1.7);   // gold ring-light
+  const sun = new THREE.DirectionalLight(0xffdca0, 2.3);   // gold ring-light
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   const sc = sun.shadow.camera;

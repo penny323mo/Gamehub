@@ -21,14 +21,14 @@ import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 const P = {
   // tone curve (Lottes): scene luminance tmMidIn → display tmMidOut, tmContrast = mid slope, tmShoulder < 1 = roll-off
   // reaching 1.0 at tmMax; knee = start of the per-channel shoulder; hotDesat = how fast overflow bleaches to white
-  exposure: 1.35, tmContrast: 3.3, tmShoulder: 0.97, tmMidIn: 0.11, tmMidOut: 0.1, tmMax: 5, knee: 0.75, hotDesat: 0.25,
-  sat: 1.22, lift: 0.006,
+  exposure: 1.7, tmContrast: 3.3, tmShoulder: 0.97, tmMidIn: 0.11, tmMidOut: 0.1, tmMax: 5, knee: 0.75, hotDesat: 0.25,
+  sat: 1.18, lift: 0.018,
   shadowTint: [0.84, 0.92, 1.28], highTint: [1.16, 1.0, 0.7], tintLo: 0.02, tintHi: 0.4,   // split tone: mauve-blue shade, peach-gold light
   hazeCool: [0.04, 0.05, 0.12], hazeWarm: [0.3, 0.22, 0.08], sunGlow: [0.95, 0.75, 0.35], sunGlowGeo: 0.8, inscatter: [0.004, 0.004, 0.006], sunBurst: [0.012, 0.008, 0.003], inscatterDist: 60,
   hazeStart: 9, hazeDensity: 0.006, hazeMax: 0.06, skyHaze: 0.3, skyGain: 0.5, farGain: 0.45,   // light enough that the wall keeps its bricks
-  nearBlur: 26, farBlur: 0.6, bandNear: 1.4, bandFar: 5,          // DoF: CoC in half-res px, bands in metres
+  nearBlur: 12, farBlur: 0.4, bandNear: 1.4, bandFar: 5,          // DoF: CoC in half-res px, bands in metres
   bloom: 0.8, bloomRadius: 0.12, bloomThreshold: 1.2, bloomKnee: 0.5, bloomCool: 1.5, hdrClamp: 2.5,
-  sharpen: 0.35, streak: 0.05, rowNoise: 0.018, ca: 1.3, grain: 0.03, levels: 40, dither: 0.8, vignette: 0.18, bottom: 0.25,
+  sharpen: 0.5, streak: 0.05, rowNoise: 0.005, ca: 0.5, grain: 0.012, levels: 96, dither: 0.35, vignette: 0.12, bottom: 0.18,   // Olden Ring: cleaner than voxel-musou's retro grade (phone test: too noisy/dark)
 };
 const uName = (k) => 'u' + k[0].toUpperCase() + k.slice(1);
 const pUniforms = () => Object.fromEntries(Object.entries(P).map(([k, v]) => [uName(k), { value: Array.isArray(v) ? new THREE.Vector3(...v) : v }]));

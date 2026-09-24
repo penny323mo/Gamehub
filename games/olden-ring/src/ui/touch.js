@@ -62,7 +62,7 @@ export function createTouch(root, input, game) {
     b.addEventListener('contextmenu', (e) => e.preventDefault());
   });
 
-  const show = () => { el.hidden = false; document.body.classList.add('touch'); };
+  const show = () => { el.hidden = false; document.body.classList.add('touch'); game.touchMode = true; };
   if (matchMedia('(pointer: coarse)').matches) show();
   addEventListener('touchstart', show, { once: true, passive: true });
   addEventListener('blur', () => input.virtual.clear());

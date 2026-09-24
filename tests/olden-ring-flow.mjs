@@ -138,6 +138,18 @@ const until = (page, fn, ms = 90000) => page.waitForFunction(fn, null, { timeout
     return __olden.game.hero.move;
   });
   check('撳「攻」掣主角真係出招', !!attacked, attacked);
+  // Penny 真機：第一層清咗之後祝福卡撳極都冇反應——觸控層疊咗喺卡上面；卡亦擠出畫面左邊。
+  await page.evaluate(() => { __olden.tower.floorKOs = __olden.tower.quota; });
+  await until(page, () => __olden.tower.phase === 'clear');
+  await page.evaluate(() => { __olden.tower.holdT = 1e6; });
+  await until(page, () => __olden.tower.phase === 'boon');
+  const cardsM = await page.evaluate(() => [...document.querySelectorAll('#tw-boon .tw-card')].map((b) => {
+    const r = b.getBoundingClientRect(); const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return { l: Math.round(r.left), r: Math.round(r.right), hit: hit === b || b.contains(hit) }; }));
+  check('手機祝福卡全部喺畫面入面、中心撳得中（冇畀觸控層遮住）', cardsM.length === 3 && cardsM.every((c) => c.l >= 0 && c.r <= 844 && c.hit), cardsM);
+  await page.tap('#tw-boon .tw-card:nth-child(2)');
+  check('手機撳祝福卡真係上到第二層', await until(page, () => __olden.tower.phase === 'fight' && __olden.tower.floor === 2, 60000));
+  check('手機唔會一撳攻擊就衝刺飛走（touchMode 冇 dash）', await page.evaluate(() => __olden.game.touchMode === true));
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
   check('手機冇打橫爆版', overflow);
   check('手機零 console／page／HTTP error', errors.length === 0, errors.slice(0, 5));

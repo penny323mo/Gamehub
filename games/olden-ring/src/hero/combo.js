@@ -189,7 +189,9 @@ function neutral(h, inp, game) {
       if (h.airN < AIR_CHAIN_MAX && (h.vy >= 0 || h.y > 1)) { startMove(h, h.buf === 'attack' ? NEUTRAL.air : NEUTRAL.airCharge, inp, game); return true; }
     } else {
       // dash attack from a run, or out of the landing of a running jump with the stick still held (runT survives the jump)
-      const dash = h.runT >= LOCO.dashAfter && (s === 'run' || (s === 'land' && stickDir(inp, game.cam.yaw)[2] > 0));
+      // Olden Ring: no dash-lunge on touch — the left thumb is almost always on the stick, so every tap of 攻 became an
+      // 8 m leap away from the fight (Penny's phone test). Touch players get the standing N1 combo.
+      const dash = !game.touchMode && h.runT >= LOCO.dashAfter && (s === 'run' || (s === 'land' && stickDir(inp, game.cam.yaw)[2] > 0));
       if (h.buf === 'attack') startMove(h, dash ? NEUTRAL.dash : NEUTRAL.attack, inp, game);
       else startMove(h, NEUTRAL.charge, inp, game);
       return true;

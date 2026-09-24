@@ -29,7 +29,9 @@ if (COARSE) WORLD_QUALITY.lanterns = 0.5;
 const canvas = document.getElementById('c');
 let vw = innerWidth, vh = innerHeight;
 
-const post = createPost({ canvas, width: vw, height: vh, enabled: !params.has('nopost') });   // ?nopost: raw scene (debug)
+// Olden Ring: render above 1× on high-DPI screens (voxel-musou pinned 1×, which read blurry on phones)
+const RES = Math.min(devicePixelRatio || 1, COARSE ? 1.5 : 1.25);
+const post = createPost({ canvas, width: Math.round(vw * RES), height: Math.round(vh * RES), enabled: !params.has('nopost') });   // ?nopost: raw scene (debug)
 const scene = new THREE.Scene();
 const world = createWorld(scene);
 
@@ -95,12 +97,16 @@ function start() {
   emit('scenario', { name: 'arena' });
 }
 
-addEventListener('resize', () => {
+const onResize = () => {
   vw = innerWidth; vh = innerHeight;
-  post.setSize(vw, vh);
+  post.setSize(Math.round(vw * RES), Math.round(vh * RES));
   camRig.resize(vw, vh);
   render();
-});
+};
+addEventListener('resize', onResize);
+// in-app browsers resize the visible area (toolbars, rotation) without always firing window resize
+globalThis.visualViewport?.addEventListener('resize', onResize);
+addEventListener('orientationchange', () => setTimeout(onResize, 250));
 
 // ---- start / pause menu (index.html #menu): the sim waits while it is open
 const menu = document.getElementById('menu'), go = document.getElementById('go'), hudEl = document.getElementById('hud');

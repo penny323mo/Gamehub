@@ -91,11 +91,13 @@ export function createTower(game, { maxEnemies, root }) {
     game.hero.hpMax = 400; game.hero.hp = 400; game.hero.dead = false; game.hero.kos = 0; game.hero.musou = 0;
     Object.assign(t, { floor: 1, totalKOs: 0, maxChain: 0, frames: 0, boons: [], phase: 'fight', hold: false });
     scale(); spawnFloor(); render();
-    elFloor.hidden = false; elRes.hidden = true; elBoon.hidden = true;
+    elFloor.hidden = false; elRes.hidden = true; elBoon.hidden = true; holdUI(false);
   }
 
+  const holdUI = (v) => document.body.classList.toggle('tw-hold', v);
+
   function offerBoons() {
-    t.phase = 'boon'; t.hold = true;
+    t.phase = 'boon'; t.hold = true; holdUI(true);
     const pool = BOONS.filter((b) => !(b.id === 'lamps' && game.mods.fullGauge));
     const pick = [];
     while (pick.length < 3 && pool.length) pick.push(pool.splice(rng.int(0, pool.length - 1), 1)[0]);
@@ -117,14 +119,14 @@ export function createTower(game, { maxEnemies, root }) {
     if (t.phase !== 'boon') return;
     b.apply(game); t.boons.push(b.id);
     game.hero.hp = Math.min(game.hero.hpMax, game.hero.hp + game.hero.hpMax * 0.3);   // the climb itself restores
-    elBoon.hidden = true;
+    elBoon.hidden = true; holdUI(false);
     t.floor++; scale(); spawnFloor();
     t.phase = 'fight'; t.hold = false; render();
     emit('tower:say', { zh: `${b.zh}——燼火更盛。`, en: `${b.en}. The ember burns brighter.` });
   }
 
   function finish() {
-    t.phase = 'dead'; t.hold = true;
+    t.phase = 'dead'; t.hold = true; holdUI(true);
     const cleared = t.floor - 1, secs = Math.round(t.frames / 60);
     const run = { floor: t.floor, cleared, kos: t.totalKOs, chain: t.maxChain, secs, at: Date.now() };
     const best = readBest();
