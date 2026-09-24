@@ -76,7 +76,7 @@ UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
   `games/olden-ring/`（id `olden-ring`，取代 Hub 嘅 `elden-ring-ii`；舊 React 版原封保留做存檔）。
 - 夜空＋殘缺古環、九層千燈古塔＋天燈、燼騎／虛空軍團／守燈將／空冠王、燼龍大招、逐層＋祝福＋冠層＋
   死亡結算＋本機最佳、觸控搖桿同五粒掣、手機減量。詳見 ADR-315 同 `games/olden-ring/README.md`。
-- 驗證：`tests/olden-ring-flow.mjs` **20/20**；hub 124/124、hub-load 3/3、hub-touch 5/5（修咗 667×375 登塔掣
+- 驗證：`games/olden-ring/tests/flow.mjs` **20/20**；hub 124/124、hub-load 3/3、hub-touch 5/5（修咗 667×375 登塔掣
   28px → 44px 後）、hub-storage 2/2、hub-home 3/3、hub-read 3/3、hub-keyboard 3/3、catalog／ReleaseGate／
   asset catalog＋census／cache-bust PASS。
 - **誠實註記**：約 93% 代碼係 voxel-musou 原封（戰鬥、群眾 AI、動作、鏡頭、後製、音效、無雙演出）；我哋改咗
@@ -90,6 +90,8 @@ UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
   meta viewport 禁縮放＋`touch-action: manipulation`＋攔 iOS gesture 事件；燼龍放完先過層。flow 25/25。
 - **Penny 真機第三輪**：跳躍攻擊連撳會浮喺半空打到停手（DW8 原設計 10 下、每秒只跌 0.1 m）→ 空中最多 3 下、
   每秒下沉 1.6 m，滯空 2.9 s → 1.1 s。`__olden.step(n)` 俾 gate 逐格推 sim。flow 26/26。
+- **部署提速**：flow test 由 `tests/olden-ring-flow.mjs` 搬去 `games/olden-ring/tests/flow.mjs`。`tests/` 係
+  ReleaseGate 嘅共用 root，放喺度會令淨改 Olden Ring 都行晒 13 隻（每次 30–50 分鐘）；而家只選 olden-ring。
 - 未做：真機手感／FPS（SwiftShader 只有 1–3 fps）、書法字子集補新字、更多敵種同冠層 Boss 造型。
 
 ## Exact next action

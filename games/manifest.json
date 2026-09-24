@@ -306,7 +306,7 @@
       "capabilities": { "audio": true, "online": false, "continue": false, "profile": false, "gyro": false, "touch": true, "keyboard": true },
       "smoke": { "route": "games/olden-ring/index.html", "viewport": { "width": 844, "height": 390 } },
       "release": {
-        "roots": ["games/olden-ring", "tests/olden-ring-flow.mjs"],
+        "roots": ["games/olden-ring"],
         "buildPolicy": "none",
         "build": null,
         "fast": [
@@ -315,7 +315,7 @@
           { "cwd": ".", "argv": ["node", "--check", "games/olden-ring/src/ui/touch.js"] },
           { "cwd": ".", "argv": ["node", "--check", "games/olden-ring/src/world/lanterns.js"] }
         ],
-        "full": [{ "cwd": ".", "argv": ["node", "tests/olden-ring-flow.mjs"], "timeoutMs": 900000 }]
+        "full": [{ "cwd": ".", "argv": ["node", "games/olden-ring/tests/flow.mjs"], "timeoutMs": 900000 }]
       }
     }
   ]

@@ -33,7 +33,7 @@
 - `src/world/lanterns.js`：千燈古塔、天燈、場邊燈柱（instanced、HDR 無燈光成本，靠 bloom 發光）。
 - `src/world/sky.js`：夜空、星、殘缺古環（shader）。
 - `src/ui/touch.js`：觸控搖桿同動作掣，經 `input.virtual` 同鍵盤走同一條輸入路。
-- `?test`：暴露 `globalThis.__olden = { game, tower }` 俾 `tests/olden-ring-flow.mjs` 用；`?nopost` 睇未經後製嘅畫面；`?enemies=N` 改敵人數。
+- `?test`：暴露 `globalThis.__olden = { game, tower }` 俾 `games/olden-ring/tests/flow.mjs` 用；`?nopost` 睇未經後製嘅畫面；`?enemies=N` 改敵人數。
 
 ## 出處同授權
 

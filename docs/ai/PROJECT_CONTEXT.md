@@ -283,7 +283,7 @@ real rendered inspection.
 ### Olden Ring
 
 ```sh
-PW_CHROMIUM=/opt/pw-browsers/chromium node tests/olden-ring-flow.mjs
+PW_CHROMIUM=/opt/pw-browsers/chromium node games/olden-ring/tests/flow.mjs
 ```
 
 Covers menu → floor 1 → clear → boon (world held) → floor 2 → death → results → local best →

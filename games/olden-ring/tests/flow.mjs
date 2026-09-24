@@ -1,5 +1,6 @@
 // Olden Ring (千燈古塔) real-browser flow gate.
-// 跑法：PW_CHROMIUM=/opt/pw-browsers/chromium node tests/olden-ring-flow.mjs
+// 跑法：PW_CHROMIUM=/opt/pw-browsers/chromium node games/olden-ring/tests/flow.mjs
+// （放喺遊戲資料夾而唔係根目錄 tests/：ReleaseGate 當 tests/ 係共用檔，一改就要行晒 13 隻遊戲。）
 //
 // 守嘅係「一局由頭行到尾」：選單 → 登塔 → 第一層 → 過層 → 揀祝福 → 第二層 → 倒下 → 結算 → 最佳紀錄
 // → 再登塔；加埋 storage 封死、手機觸控掣、零外網請求、零 console／page error。
@@ -12,7 +13,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, '..');
+const ROOT = path.resolve(HERE, '..', '..', '..');
 const PW = [
   path.join(ROOT, 'games', 'tower', 'node_modules', 'playwright', 'index.mjs'),
   path.join(ROOT, 'games', 'Racing Car', 'tests', 'node_modules', 'playwright', 'index.mjs'),
