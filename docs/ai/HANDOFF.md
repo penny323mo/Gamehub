@@ -92,6 +92,8 @@ UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
   每秒下沉 1.6 m，滯空 2.9 s → 1.1 s。`__olden.step(n)` 俾 gate 逐格推 sim。flow 26/26。
 - **部署提速**：flow test 由 `tests/olden-ring-flow.mjs` 搬去 `games/olden-ring/tests/flow.mjs`。`tests/` 係
   ReleaseGate 嘅共用 root，放喺度會令淨改 Olden Ring 都行晒 13 隻（每次 30–50 分鐘）；而家只選 olden-ring。
+- **Penny：太密睇唔到敵人** → tower.js 逐層設 `CROWD.engaged` 12(+2/層, ≤26)、bands 拉闊、援兵每批 5–9、開場兵力
+  16+6×層、目標 30(+10/層)。實測第一層 8 m 內 ~13 隻、全場 ~24–31 隻。flow 27/27。
 - 未做：真機手感／FPS（SwiftShader 只有 1–3 fps）、書法字子集補新字、更多敵種同冠層 Boss 造型。
 
 ## Exact next action

@@ -119,6 +119,14 @@ const until = (page, fn, ms = 90000) => page.waitForFunction(fn, null, { timeout
     return { swings: Math.max(...tr.map((x) => x[0])), airSec: +(tr.filter((x) => !x[1]).length / 60).toFixed(2) };
   });
   check('跳躍攻擊連撳：空中最多 3 下，1.6 秒內落地（唔會浮喺半空）', air.swings <= 3 && air.airSec < 1.6, air);
+  // Penny：密集到完全見唔到敵人。第一層應該係「十幾隻」分批埋身，唔係 80 人一嚿。
+  const crowd = await page.evaluate(() => {
+    const { game: g, step } = __olden; g.hero.iframes = 1e6; step(600);
+    const c = g.crowd; let near = 0, active = 0;
+    for (let i = 0; i < c.N; i++) { if (c.st[i] === 0 || c.st[i] === 10) continue; active++; if (Math.hypot(c.x[i] - g.hero.x, c.z[i] - g.hero.z) < 8) near++; }
+    g.hero.iframes = 0; return { near, active, floor: __olden.tower.floor };
+  });
+  check('第一層 8 米內唔多過 20 隻、全場唔多過 45 隻（分批，唔係一嚿）', crowd.near <= 20 && crowd.active <= 45 && crowd.near >= 4, crowd);
   check('桌面唔顯示觸控掣', await page.evaluate(() => document.getElementById('touch').hidden));
   check('零外網請求', external.length === 0, external.slice(0, 3));
   check('零 console／page／HTTP error', errors.length === 0, errors.slice(0, 5));

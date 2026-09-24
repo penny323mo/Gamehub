@@ -67,7 +67,15 @@ export function createTower(game, { maxEnemies, root }) {
     CROWD.officerHp = Math.round(BASE.officerHp * (1 + 0.15 * k));
     CROWD.maxStrikers = Math.min(4, BASE.maxStrikers + Math.floor(k / 3));
     CROWD.strikeGap = BASE.strikeGap.map(([a, b]) => [Math.max(18, Math.round(a * (1 - 0.06 * k))), Math.max(36, Math.round(b * (1 - 0.06 * k)))]);
-    t.quota = crownFloor() ? 40 + 10 * k : 45 + 20 * k;
+    // Olden Ring: fewer, readable fights (Penny: the DW-style 84-man scrum hid every enemy in one blob). The director
+    // keeps ~12 on the hero on floor 1, rising 2 a floor; reinforcements come in batches of 5–9 (+1 a floor).
+    CROWD.engaged = Math.min(26, 12 + 2 * k);
+    CROWD.bands = [[2.4, 3.4], [4.6, 6.6], [7.5, 11]];   // looser rings than DW8's (1.9–2.8 / 3.4–5.6): individual foes read
+    CROWD.transit = CROWD.engaged + 4;
+    CROWD.bandMin = [Math.min(8, 5 + (k >> 1)), 3];
+    CROWD.bandMax = [Math.min(12, 8 + (k >> 1)), Math.min(14, 6 + k)];
+    CROWD.wave = [Math.min(10, 5 + k), Math.min(16, 9 + k)];
+    t.quota = crownFloor() ? 20 + 6 * k : 30 + 10 * k;
   }
 
   function spawnFloor() {
@@ -75,7 +83,7 @@ export function createTower(game, { maxEnemies, root }) {
     c.reset(); game.combat.reset(); game.musou.reset();
     Object.assign(h, { x: 0, z: 0, vx: 0, vz: 0, y: 0, vy: 0, state: 'idle', stateT: 0, move: null, combo: 0, iframes: 90 });
     if (game.mods.fullGauge) h.musou = h.musouMax;
-    c.spawnArmy(Math.min(maxEnemies, c.grunts, 110 + 30 * t.floor));
+    c.spawnArmy(Math.min(maxEnemies, c.grunts, 16 + 6 * t.floor));   // a small field army; the rest arrive as waves
     if (crownFloor()) {                                // the crown walks in with the first block, swollen
       const i = crownIdx();
       c.hp[i] = c.hpMax[i] = CROWD.officerHp * 4;
