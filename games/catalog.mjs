@@ -284,8 +284,8 @@ export function catalogTargets(catalog = loadGameCatalog(), options = {}) {
       viewport: { width: 1280, height: 720 },
       playable: true,
       root: '.',
-      roots: ['index.html', 'launcher.js', 'hub-art.js'],
-      release: { roots: ['index.html', 'launcher.js', 'hub-art.js'], buildPolicy: 'none', build: null, fast: [], full: [] }
+      roots: ['index.html', 'launcher.js'],
+      release: { roots: ['index.html', 'launcher.js'], buildPolicy: 'none', build: null, fast: [], full: [] }
     });
   }
   return targets;
@@ -315,7 +315,7 @@ export function selectChangedGames(catalog, changedFiles, options = {}) {
   const files = (Array.isArray(changedFiles) ? changedFiles : [changedFiles]).map(normalizeChangedFile).filter(Boolean);
   if (files.length === 0) return [];
   const globalFiles = new Set([
-    'index.html', 'launcher.js', 'hub-art.js', 'style.css', MANIFEST_RELATIVE_PATH,
+    'index.html', 'launcher.js', 'style.css', MANIFEST_RELATIVE_PATH,
     'package.json', 'package-lock.json', 'vite.config.js',
     'games/catalog.mjs', GENERATED_RELATIVE_PATH,
     'scripts/build-game-catalog.mjs', 'scripts/install-release-deps.mjs',

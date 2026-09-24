@@ -9061,8 +9061,8 @@ viewport full-page screenshots、zero-error functional gates，同 Penny 嘅 hea
 - Status: accepted; supersedes ADR-312 同 ADR-313 嘅 theme／4-4-4-1 契約；落實 Evolution Plan §9.5
 
 Penny 睇完 ADR-313 三套 theme 之後決定：**唔再維持三套介面語言**，改做一套做到最靚嘅
-主設計（現代遊戲平台風：深色、大插畫、accent 光暈），並改用一頁見晒嘅 grid ＋ 類型篩選，
-媒介用手繪向量插畫。三套 theme 嘅問題唔係分得唔夠開，而係：首屏只見 4/13、尾版得一隻、
+主設計（現代遊戲平台風：深色、大圖、accent 光暈），並改用一頁見晒嘅 grid ＋ 類型篩選。
+媒介第一版用咗手繪 SVG 插畫，Penny 判「低端」——**封面一定要係真實遊玩截圖**。三套 theme 嘅問題唔係分得唔夠開，而係：首屏只見 4/13、尾版得一隻、
 封面九成係黑色空位、三份工攤薄咗每一套嘅完成度。
 
 而家嘅契約（`tests/hub.mjs` 守）：
@@ -9073,13 +9073,12 @@ Penny 睇完 ADR-313 三套 theme 之後決定：**唔再維持三套介面語�
   「繼續玩」，唔可以影響 render 或者撳卡。
 - 篩選掣 `[data-filter]`（全部／棋牌／休閒／策略／動作），`aria-pressed` 反映狀態；
   分組喺 `launcher.js` 由 manifest `category` 併出嚟，每組 ≥3 隻。新 category 要記得入組。
-- 插畫喺 `hub-art.js`（inline SVG、`(u) => svg` 每次渲染一套新 id，避免 hero 同 grid
-  撞 gradient id；`accent` 係卡 hover／focus 光暈色）。新加遊戲冇插畫會 fallback 去
-  manifest icon，但應該補返一幅。
+- 封面係真實遊玩截圖：`assets/hub/covers/<id>.webp`（480×300）同 `assets/hub/hero/<id>.webp`
+  （960×600），由 `scripts/capture-hub-covers.mjs` 影（逐隻遊戲行到遊玩畫面）。唔好再用
+  SVG／emoji 插畫做主視覺。新加遊戲要補 STEPS 同重影；未影之前會 fallback 去 manifest icon。
 - 所有控制 ≥44px 而且中心打得中自己；Tab 次序 hero → 篩選 → 13 隻；零外網請求、零 error。
 - 手機直屏 2 欄、≥1200 闊 4 欄、矮橫屏 ≥3 欄；hero 唔可以食晒首屏。
-- `hub-art.js` 同 `launcher.js`／`style.css` 共用 Hub cache token（ADR-311 不變），而且
-  係 GameCatalog／ReleaseGate 嘅 Hub global file。
+- 封面 URL 用 `launcher.js` 嘅 `COVER_VERSION` bust cache；Hub `launcher.js`／`style.css` token 仍按 ADR-311。
 - `gamehub-theme-v1` 已經冇人讀；舊值留喺玩家瀏覽器都無害。
 
 `tests/hub-themes.mjs` 退役（佢守嘅係三套 theme 簽名，已經冇對象）。視覺驗收仍然要

@@ -217,9 +217,10 @@ button {
     mask-image: linear-gradient(90deg, transparent 0%, #000 28%);
 }
 
-.hero-art svg {
+.hero-art img {
     width: 100%;
     height: 100%;
+    object-fit: cover;
     display: block;
     transition: transform 0.8s var(--ease);
 }
@@ -325,8 +326,8 @@ button {
     box-shadow: 0 28px 70px -24px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
-.hero-link:hover .hero-art svg,
-.hero-link:focus-visible .hero-art svg {
+.hero-link:hover .hero-art img,
+.hero-link:focus-visible .hero-art img {
     transform: scale(1.04);
 }
 
@@ -467,9 +468,10 @@ button {
     background: var(--surface-2);
 }
 
-.card-art svg {
+.card-art img {
     width: 100%;
     height: 100%;
+    object-fit: cover;
     display: block;
     transition: transform 0.5s var(--ease);
 }
@@ -574,8 +576,8 @@ button {
         0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
-.game-card:hover .card-art svg,
-.game-card:focus-visible .card-art svg {
+.game-card:hover .card-art img,
+.game-card:focus-visible .card-art img {
     transform: scale(1.06);
 }
 

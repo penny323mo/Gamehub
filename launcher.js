@@ -7,12 +7,13 @@ if (!globalThis.GameCatalog) {
  *
  * 上一代係 4/4/4/1 carousel ＋ 三套 theme（ADR-312/313）。問題唔係 CSS：
  *   - 首屏只見到 13 隻入面 4 隻，其餘 9 隻要逐版揭；尾版得孤零零一隻。
- *   - 媒介得一粒 emoji／細 logo，封面九成係黑色空位。
+ *   - 媒介得一粒 emoji／細 logo，封面九成係黑色空位。（一度試過手繪 SVG，Penny
+ *     判「低端」——封面一定要係真實遊玩畫面。）
  *   - 三套 theme 攤薄咗火力，冇一套做得完整。
  *
  * 而家：
  *   頂欄（品牌）→ 精選 hero（上次玩過嗰隻，冇就每日輪替）→ 類型篩選 ＋
- *   一頁見晒 13 隻嘅 responsive grid。每隻遊戲一幅 `hub-art.js` 向量插畫。
+ *   一頁見晒 13 隻嘅 responsive grid。每隻遊戲一張真實遊玩截圖做封面。
  *
  * 穩定契約（把尺查嘅就係呢幾樣）：
  *   - 13 個 `a[data-game-id]`，manifest 次序、真 href，每隻只出現一次；
@@ -22,7 +23,6 @@ if (!globalThis.GameCatalog) {
  */
 
 const catalog = globalThis.GameCatalog;
-const art = globalThis.HubArt ?? {};
 const games = catalog.launcherEntries();
 const byId = new Map(catalog.list().map((game) => [game.id, game]));
 
@@ -83,24 +83,42 @@ function badgesOf(game) {
     return out;
 }
 
-let artSerial = 0;
-/** 每次渲染都用新 id 前綴，見 `hub-art.js` 頂註。 */
-function artNode(game, className) {
+/*
+ * 封面：每隻遊戲一張真實遊玩截圖（`assets/hub/covers` 480×300 俾卡用、
+ * `assets/hub/hero` 960×600 俾 hero 用）。分兩個尺寸係因為 hub-load 守住
+ * 「原圖唔可以大過最大顯示尺寸 3 倍」：卡最大約 290px 闊，hero 可以去到 750。
+ * 截圖流程同來源見 `assets/hub/README.md`。
+ */
+const COVER_VERSION = 'covers-1';
+const ACCENT = Object.freeze({
+    gomoku: '#f5b04c', xiangqi: '#ef4444', big2: '#34d399', doudizhu: '#fbbf24',
+    pennycrush: '#f472b6', snooker: '#22c55e', tower: '#a78bfa', snake: '#4ade80',
+    royale: '#60a5fa', moba: '#c084fc', racer: '#fb7185', ashenrail: '#fb923c',
+    'elden-ring-ii': '#fcd34d',
+});
+
+function coverNode(game, className, { hero = false, eager = false } = {}) {
     const wrap = el('span', className);
     wrap.setAttribute('aria-hidden', 'true');
-    const entry = art[game.id];
-    if (entry) {
-        artSerial += 1;
-        wrap.innerHTML = entry.draw(`a${artSerial}-`);
-    } else {
-        // 新加一隻遊戲未有插畫：用 manifest icon 頂住，唔好留白。
+    const img = document.createElement('img');
+    img.src = `assets/hub/${hero ? 'hero' : 'covers'}/${game.id}.webp?v=${COVER_VERSION}`;
+    img.alt = '';
+    img.width = hero ? 960 : 480;
+    img.height = hero ? 600 : 300;
+    img.decoding = 'async';
+    img.loading = eager ? 'eager' : 'lazy';
+    if (hero) img.fetchPriority = 'high';
+    // 新加一隻遊戲未影截圖：用 manifest icon 頂住，唔好留一格爛圖。
+    img.addEventListener('error', () => {
+        img.remove();
         wrap.classList.add('is-fallback');
         wrap.append(el('span', 'art-fallback', game.isImage ? '🎮' : game.icon));
-    }
+    }, { once: true });
+    wrap.append(img);
     return wrap;
 }
 
-const accentOf = (game) => art[game.id]?.accent ?? '#8b9cff';
+const accentOf = (game) => ACCENT[game.id] ?? '#8b9cff';
 
 function launchAnchor(game, className) {
     const a = el('a', className);
@@ -163,7 +181,7 @@ function hero() {
     const meta = el('span', 'hero-meta');
     [game.category, ...badgesOf(game)].forEach((text) => meta.append(el('span', 'tag', text)));
     copy.append(meta, el('span', 'hero-cta', game.playable ? '開始遊戲' : '暫停開放'));
-    a.append(artNode(game, 'hero-art'), el('span', 'hero-shade'), copy);
+    a.append(coverNode(game, 'hero-art', { hero: true, eager: true }), el('span', 'hero-shade'), copy);
     section.append(a);
     return section;
 }
@@ -201,7 +219,7 @@ function card(game, index) {
         badges.forEach((text) => row.append(el('span', 'badge', text)));
         body.append(row);
     }
-    const media = artNode(game, 'card-art');
+    const media = coverNode(game, 'card-art', { eager: index < 4 });
     media.append(el('span', 'card-play', '▶'));
     a.append(media, body);
     li.append(a);

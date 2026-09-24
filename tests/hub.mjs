@@ -75,8 +75,6 @@ const read = page => page.evaluate(() => {
     const firstRowTop = rects.length ? Math.min(...rects.map(r => r.top)) : 0;
     const hero = document.querySelector('a[data-hero-game-id]');
     const heroRect = hero?.getBoundingClientRect();
-    // 插畫要真係畫咗出嚟：每張卡一個有面積嘅 svg，而且 gradient id 唔可以同第二幅撞。
-    const svgs = [...document.querySelectorAll('svg [id]')].map(node => node.id);
     return {
         ids: cards.map(card => card.dataset.gameId),
         visibleIds: visible.map(card => card.dataset.gameId),
@@ -84,12 +82,15 @@ const read = page => page.evaluate(() => {
         overlaps,
         columns: rects.filter(r => Math.abs(r.top - firstRowTop) < 2).length,
         insideX: rects.every(r => r.left >= -1 && r.right <= innerWidth + 1),
-        artOk: visible.every(card => {
-            const svg = card.querySelector('svg');
-            const r = svg?.getBoundingClientRect();
-            return r && r.width > 40 && r.height > 25;
+        // 封面係真實遊玩截圖：每張卡一張指住 assets/hub/covers 嘅圖，唔係 emoji fallback。
+        coverOk: visible.every(card => {
+            const img = card.querySelector('.card-art img');
+            return img && /assets\/hub\/covers\/[\w-]+\.webp/.test(img.getAttribute('src'));
         }),
-        duplicateSvgIds: svgs.length - new Set(svgs).size,
+        heroCover: (() => {
+            const img = hero?.querySelector('.hero-art img');
+            return img ? { src: img.getAttribute('src'), loaded: img.complete && img.naturalWidth > 0 } : null;
+        })(),
         hero: hero ? {
             id: hero.dataset.heroGameId,
             href: hero.getAttribute('href'),
@@ -151,8 +152,20 @@ for (const viewport of [
     check(`${label}：卡互不重疊`, start.overlaps.length === 0, start.overlaps);
     check(`${label}：卡全部喺畫面闊度入面`, start.insideX, start);
     check(`${label}：文件唔會闊過畫面`, start.docWidth <= start.innerWidth, start);
-    check(`${label}：每張卡都有畫出嚟嘅插畫`, start.artOk);
-    check(`${label}：插畫 svg id 冇撞`, start.duplicateSvgIds === 0, start.duplicateSvgIds);
+    check(`${label}：每張卡都用真實遊玩截圖做封面`, start.coverOk);
+    check(`${label}：hero 封面用大圖而且載入咗`,
+        start.heroCover?.loaded && /assets\/hub\/hero\//.test(start.heroCover.src), start.heroCover);
+    // lazy 嘅卡圖捲到先載；捲一次到底，確認 13 張都真係載到（冇 404／冇 fallback）。
+    const covers = await page.evaluate(async () => {
+        for (const img of document.querySelectorAll('.card-art img')) {
+            img.scrollIntoView({ block: 'center' });
+            await img.decode().catch(() => {});
+        }
+        scrollTo(0, 0);
+        return { loaded: [...document.querySelectorAll('.card-art img')].filter(img => img.naturalWidth > 0).length,
+            fallback: document.querySelectorAll('.is-fallback').length };
+    });
+    check(`${label}：13 張封面全部載到`, covers.loaded === 13 && covers.fallback === 0, covers);
     const wantColumns = viewport.width <= 640 && viewport.height > 500 ? 2 : viewport.width >= 1200 ? 4 : null;
     if (wantColumns) {
         check(`${label}：grid 係 ${wantColumns} 欄`, start.columns === wantColumns, start.columns);

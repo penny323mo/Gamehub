@@ -21,7 +21,7 @@ or all games for shared, test, CI, catalog, unknown-game and explicit manual cha
 
 | Area | Entrypoint | Stack / notes |
 | --- | --- | --- |
-| Hub launcher | `games/manifest.json`, `games/catalog.generated.js`, `index.html`, `launcher.js`, `hub-art.js`, `style.css` | Manifest is canonical; generated classic script keeps startup synchronous and Pages-safe. Single dark platform-style home (hero + filter + grid) with inline SVG key art per game (ADR-314). |
+| Hub launcher | `games/manifest.json`, `games/catalog.generated.js`, `index.html`, `launcher.js`, `style.css`, `assets/hub/` | Manifest is canonical; generated classic script keeps startup synchronous and Pages-safe. Single dark platform-style home (hero + filter + grid) with real gameplay screenshot covers per game (ADR-314; `scripts/capture-hub-covers.mjs`). |
 | Asset / rig authority | `games/assets/catalog.json`, `games/assets/catalog.mjs`, `games/assets/census.generated.json` | Build-time provenance, canonical runtime-model census and semantic RigDescriptors; generated census is deterministic and never loaded by games at runtime. |
 | Gomoku | `games/gomoku/index.html` | Static JS, online features use Supabase. |
 | Penny Crush | `games/penny_crush/index.html` | Static game. |
@@ -47,8 +47,9 @@ or all games for shared, test, CI, catalog, unknown-game and explicit manual cha
 - The Hub is one "modern game platform" home page (ADR-314, supersedes ADR-312/313):
   top bar → featured hero (`data-hero-game-id`; last-played via `gamehub-recent-v1`,
   otherwise daily rotation) → category filter chips (`[data-filter]`) → a single
-  responsive grid of all 13 `a[data-game-id]` anchors in manifest order. Artwork is
-  inline SVG from `hub-art.js` (fresh id prefix per render). No pagination, no theme
+  responsive grid of all 13 `a[data-game-id]` anchors in manifest order. Covers are
+  real gameplay screenshots in `assets/hub/covers` (480x300) and `assets/hub/hero`
+  (960x600), regenerated with `node scripts/capture-hub-covers.mjs`. No pagination, no theme
   switcher. Storage failure only removes "繼續玩"; it must never block rendering.
 - `games/assets/catalog.json` is the build-time authority for 3D provenance,
   path-to-source rules, representative asset identities and semantic rig/clip
