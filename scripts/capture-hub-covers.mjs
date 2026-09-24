@@ -46,7 +46,7 @@ const STEPS = {
  moba: async p=>{await c(p,'#pick-go');await T(p,25000);},
  racer: async p=>{await c(p,'#start-btn');await T(p,6000);await hold(p,'ArrowUp',6000);},
  ashenrail: async p=>{await c(p,'#start-button');await T(p,14000);},
- 'elden-ring-ii': async p=>{await p.getByText('ENTER THE VEIL').click();await T(p,10000);await hold(p,'w',2500);},
+ 'olden-ring': async p=>{await c(p,'#go');await T(p,4000);await hold(p,'KeyW',1200);await hold(p,'KeyJ',3500);await T(p,300);},
 };
 
 const MIME={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.json':'application/json','.png':'image/png','.webp':'image/webp','.svg':'image/svg+xml','.woff2':'font/woff2','.jpg':'image/jpeg','.glb':'model/gltf-binary','.wasm':'application/wasm','.hdr':'image/vnd.radiance','.mp3':'audio/mpeg','.m4a':'audio/mp4','.ogg':'audio/ogg','.wav':'audio/wav','.bin':'application/octet-stream','.gltf':'model/gltf+json'};

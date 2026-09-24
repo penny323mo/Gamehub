@@ -70,6 +70,15 @@ UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
 - Phase 0B license blockers 仍然係 Racing Tripo 1、Ashen Tripo 4、Royale Meshy 23。
 - 呢個 container 一鬥資源就出假紅；一次紅要單獨再跑先算數。
 
+## Olden Ring 重做（2026-09-24，ADR-315）
+
+- Penny 畀參考 `mike007jd/voxel-musou`（MIT）同「千燈迷樓」demo，話「盡顯想像力」。新遊戲喺
+  `games/olden-ring/`（id `olden-ring`，取代 Hub 嘅 `elden-ring-ii`；舊 React 版原封保留做存檔）。
+- 夜空＋殘缺古環、九層千燈古塔＋天燈、燼騎／虛空軍團／守燈將／空冠王、燼龍大招、逐層＋祝福＋冠層＋
+  死亡結算＋本機最佳、觸控搖桿同五粒掣、手機減量。詳見 ADR-315 同 `games/olden-ring/README.md`。
+- 驗證：`tests/olden-ring-flow.mjs` **20/20**；跨遊戲 hub gates 結果見 commit message。
+- 未做：真機手感／FPS（SwiftShader 只有 1–3 fps）、書法字子集補新字、更多敵種同冠層 Boss 造型。
+
 ## Exact next action
 
 0. **2026-09-24 逐 game audit 完成**：見 `docs/GAMEHUB_UPGRADE_PLAN_2026-09.md`（13 隻評分、

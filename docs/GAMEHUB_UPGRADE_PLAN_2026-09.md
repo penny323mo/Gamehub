@@ -38,6 +38,7 @@ Tower core 48、Royale match 11/11 …），但呢啲 gate 只證明「開到、
 | Racing Car 3D | 4 | 3 | 4 | 5 | 3 | 3 | 對手係色塊；三條賽道同一個 biome；漂移掣遮時速 |
 | 灰燼列車 | 2 | 2.5 | 2.5 | **2** | **1** | 4 | runtime 依賴 Babylon CDN；手機解像度公式反轉 |
 | Elden Ring II | 3 | 3 | 3.5 | 4 | 1.5 | **1.5** | `GameClient.tsx` 3,802 行；82 秒通關；只有 1 種敵人 |
+| ↳ **Olden Ring（2026-09-24 重做）** | — | — | — | — | — | — | 已由體素無雙「千燈古塔」取代（ADR-315），下面 Elden 條目只作歷史紀錄 |
 
 ## 2. P0 —— 壞咗／尷尬，第一波全部清（估計 1–2 星期）
 
@@ -84,7 +85,8 @@ Tower core 48、Royale match 11/11 …），但呢啲 gate 只證明「開到、
 ### 動作／3D
 - **Racing Car**：對手換低多邊形 instanced 車（1–2k 三角形，預算夠）（M）；每條賽道自己嘅 biome（海港／峽谷／看台）（L）；§4.2 固定步長＋草地／路肩抓地做第一刀（M）；獎牌時間、漂移分段挑戰（P2）。
 - **灰燼列車**：非觸控裝置收埋觸控 UI、顯示 WASD 提示（S）；Babylon tree-shake（而家 9.4MB／250 requests、單一 chunk 4.2MB）（M）；Boss、路線分支、武器選擇、最佳紀錄（L）。
-- **Elden Ring II**：拆 `CombatMotor`／`HitResolver`（§4.4）（L）；標題畫面顯示 run history 同每職業最佳時間（M）；再加 2 種敵人填滿三個 sector（M）；HUD 對比同手機目標欄（S）；美術方向統一、考慮改一個唔撞商標嘅名（P2，**Penny 決定**）。
+- **Olden Ring（已重做，ADR-315）**：下一步係真機手感／FPS 驗收、書法字型子集補新字、更多敵種（弓手、盾兵）同第二個冠層 Boss 造型、冠層 Boss 專屬招式、樓層主題輪換（燈色／天氣）。以下舊 Elden 項目作廢。
+- ~~**Elden Ring II**：拆 `CombatMotor`／`HitResolver`（§4.4）（L）；標題畫面顯示 run history 同每職業最佳時間（M）；再加 2 種敵人填滿三個 sector（M）；HUD 對比同手機目標欄（S）；美術方向統一、考慮改一個唔撞商標嘅名（P2，**Penny 決定**）。~~
 
 ## 4. 跨遊戲共用基建（做一次、幫幾隻）
 

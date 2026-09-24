@@ -9085,3 +9085,29 @@ Penny 睇完 ADR-313 三套 theme 之後決定：**唔再維持三套介面語�
 
 `tests/hub-themes.mjs` 退役（佢守嘅係三套 theme 簽名，已經冇對象）。視覺驗收仍然要
 Penny headed review——自動尺只證明「冇壞」。
+
+## ADR-315 — Olden Ring 由頭重做：fork MIT voxel-musou 做體素無雙「千燈古塔」
+
+- Date: 2026-09-24
+- Status: accepted; replaces the Hub entry `elden-ring-ii` with `olden-ring`
+
+Penny 畀咗兩個參考（`mike007jd/voxel-musou`，同一個「千燈迷樓」GLSL 樓閣 demo），叫我「盡顯想像力」。
+舊 React 版（3,802 行 `GameClient.tsx`、1 種敵人、82 秒通關）唔值得再修，所以重做：
+
+- **Fork 而唔係參考**：voxel-musou 係 MIT，引擎（60 Hz 固定步長、300 人 InstancedMesh 群眾 AI、
+  N1–N6／C1–C6 連技、hitstop、體素碎裂、後製、程序音效）質素遠高過我哋可以短時間寫出嚟。保留
+  `LICENSE-voxel-musou` 同 README 出處；「千燈迷樓」冇授權資訊，只借美學，代碼自己寫。
+- **世界觀**：金色落日 → 夜空＋星＋殘缺古環（shader）；三國城 → 冷色石城＋九層千燈古塔＋數百天燈
+  （instanced HDR，靠 bloom 發光，零燈光成本）；趙雲 → 燼騎；魏軍 → 虛空軍團；武將 → 守燈將／空冠王；
+  蒼龍無雙 → 燼龍（藍色主導嘅效果色一律 R/B 對調成熔金）。
+- **玩法**：原作係 demo（主角 1 HP 死唔去、無限援軍）。加 `tower.js`：逐層擊破目標、每 5 層冠層
+  （空冠王 ×4 血）、三揀一祝福、逐層加難、主角會死、結算同本機最佳。傷害由寫死 22/10 改讀
+  `CROWD.officerDmg/dmg` 等可調參數。
+- **手機**：原作淨係鍵盤／滑鼠／手掣。加 `ui/touch.js` 浮動搖桿＋五粒 ≥52 px 掣，經 `input.virtual`
+  同鍵盤共用 latch；touch pointer 唔再當攻擊。手機敵人 150、天燈減半。
+- **修原作 bug**：`AudioContext` 用裝置取樣率（44.1 kHz）而音效庫烘 48 kHz，ConvolverNode 拒收
+  buffer，成個音效圖起唔到——固定 48 kHz。
+- 鏡頭俯角 14.6° → 11.5°：原角度畫面頂只高過地平線 5°，古環永遠畀城牆遮住。
+
+舊 `games/elden-ring-ii/` 保留做存檔（AssetCatalog／census 仍然引用佢嘅 GLB），唔再上 Hub。
+

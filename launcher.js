@@ -89,12 +89,12 @@ function badgesOf(game) {
  * 「原圖唔可以大過最大顯示尺寸 3 倍」：卡最大約 290px 闊，hero 可以去到 750。
  * 截圖流程同來源見 `assets/hub/README.md`。
  */
-const COVER_VERSION = 'covers-2';
+const COVER_VERSION = 'covers-3';
 const ACCENT = Object.freeze({
     gomoku: '#f5b04c', xiangqi: '#ef4444', big2: '#34d399', doudizhu: '#fbbf24',
     pennycrush: '#f472b6', snooker: '#22c55e', tower: '#a78bfa', snake: '#4ade80',
     royale: '#60a5fa', moba: '#c084fc', racer: '#fb7185', ashenrail: '#fb923c',
-    'elden-ring-ii': '#fcd34d',
+    'olden-ring': '#fbbf24',
 });
 
 function coverNode(game, className, { hero = false, eager = false } = {}) {

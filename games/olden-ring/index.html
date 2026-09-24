@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Olden Ring — 千燈古塔</title>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+</script>
+<style>
+  html, body { margin: 0; height: 100%; background: #1a120d; overflow: hidden; }
+  canvas#c { display: block; width: 100vw; height: 100vh; image-rendering: pixelated; }
+
+  /* ---- HUD (owned by the hud part). DW8 layout, concept calligraphy. 1rem = 1/72 viewport height (10 px @720p). ---- */
+  html { font-size: calc(100vh / 72); }
+  /* Portable brush fallback for machines without the macOS Xingkai/Kaiti assets: Yuji Boku (SIL OFL 1.1, Kinuta Font
+     Factory), subset to the HUD's glyphs (src/ui/brush.woff2). Only fetched when the fonts before it are missing.
+     When you add HUD text with new CJK characters, re-subset (Google Fonts css2?family=Yuji+Boku&text=...). */
+  @font-face { font-family: "HudBrush"; src: url(./src/ui/brush.woff2) format("woff2"); font-display: swap; }
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #f4ead8; user-select: none; overflow: hidden;
+    --brush: "Xingkai SC", "STXingkai", "HudBrush", serif; --kai: "Kaiti SC", "STKaiti", "KaiTi", "HudBrush", serif;
+    --sans: "Avenir Next", "Helvetica Neue", sans-serif; --gold: #f2c14e; --teal: #3fb8b0; --seal: #b3261e;
+    font-family: var(--kai); text-shadow: 0 .2rem .3rem rgba(0,0,0,.7); }
+  #hud > * { position: absolute; }
+  #hud .seal { display: inline-block; font: 700 1.3rem/1.05 var(--brush); font-style: normal; color: #f8e6d2; background: var(--seal);
+    writing-mode: vertical-rl; padding: .3rem .22rem; border-radius: .25rem; text-shadow: none;
+    box-shadow: inset 0 0 0 .14rem var(--seal), inset 0 0 0 .24rem rgba(248,230,210,.75), 0 .15rem .4rem rgba(0,0,0,.5); }
+  #hud .bar { position: relative; background: rgba(10,7,6,.75); box-shadow: 0 0 0 .1rem rgba(0,0,0,.6), 0 .2rem .5rem rgba(0,0,0,.45); }
+  #hud .bar i, #hud .bar em { position: absolute; inset: 0; transform-origin: 0 50%; }
+  #hud .bar em { background: #f7efe2; }
+
+  /* intro card: title + controls (concept top-left typography) */
+  #hud .h-intro { left: 2.6rem; top: 1.4rem; }
+  #hud .h-intro .zh { display: inline-block; font: 700 8rem/1 var(--brush); letter-spacing: .3rem; color: #f7f1e8;
+    text-shadow: 0 0 .1rem #000, .3rem .4rem 0 rgba(0,0,0,.5), 0 0 2rem rgba(0,0,0,.4); }
+  #hud .h-intro .seal { vertical-align: 1.2rem; margin-left: .6rem; }
+  #hud .h-intro .en { font: 500 1.25rem/1 var(--sans); letter-spacing: .95em; margin: .2rem 0 0 .5rem; opacity: .85; }
+  #hud .h-intro .sub { font-size: 1.45rem; letter-spacing: .35rem; margin: .9rem 0 0 .4rem; opacity: .85; }
+  #hud .h-intro .keys { font: 500 1.15rem/2.2 var(--sans); margin: .9rem 0 0 .2rem; padding: .3rem 1rem; color: #efe3cf;
+    background: linear-gradient(90deg, rgba(12,8,6,.62), rgba(12,8,6,0)); border-left: .2rem solid var(--seal); }
+  #hud kbd { font: 600 1.05rem/1 var(--sans); padding: .2rem .45rem; border: .1rem solid rgba(239,227,207,.55); border-radius: .3rem;
+    background: rgba(0,0,0,.4); margin-right: .15rem; }
+
+  /* player: pixel portrait badge, brush name, long teal HP bar, 3-segment musou gauge (DW8 bottom band) */
+  #hud .h-player { left: 0; right: 0; bottom: 0; height: 20rem; }
+  #hud .badge { position: absolute; left: 3.4rem; bottom: 4.2rem; width: 11rem; height: 11rem; border-radius: 50%; overflow: hidden;
+    background: radial-gradient(circle at 50% 38%, #6a4a1c, #140e0a 70%); border: .35rem solid #d9d2c6;
+    box-shadow: 0 0 0 .2rem #1a1210, 0 0 0 .38rem #b8893a, 0 .4rem 1rem rgba(0,0,0,.6); }
+  #hud .badge canvas { position: absolute; left: 1.1rem; bottom: -.3rem; width: 8.8rem; height: 8.8rem; image-rendering: pixelated; }
+  #hud .h-player.hurt .badge { border-color: #ff6a4a; }
+  #hud .h-player.low .badge { box-shadow: 0 0 0 .2rem #1a1210, 0 0 0 .38rem #d23a24, 0 0 1.6rem rgba(230,60,30,.7); }
+  #hud .name { position: absolute; left: 13.4rem; bottom: 7.9rem; font: 700 3.8rem/1 var(--brush); color: #f7f1e8;
+    text-shadow: 0 0 .1rem #000, .2rem .3rem 0 rgba(0,0,0,.55); }
+  #hud .hp { position: absolute; left: 16%; right: 22%; bottom: 6.8rem; height: 1.4rem;
+    clip-path: polygon(0 0, 100% 0, calc(100% - 1rem) 100%, 0 100%); }
+  #hud .hp { background: linear-gradient(rgba(58,46,38,.88), rgba(20,15,12,.88)); }   /* empty track: readable length */
+  #hud .hp::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 .12rem rgba(214,184,130,.6); }
+  #hud .hp em { opacity: .8; background: repeating-linear-gradient(90deg, rgba(0,0,0,.2) 0 .2rem, transparent .2rem .6rem),
+    linear-gradient(#ffe6c0, #d8a060); }                                                  /* damage chunk (lags, then drains) */
+  #hud .hp i { background: linear-gradient(#aef3e6 0 18%, #3fc2b4 30%, #1f8a82 85%, #146058); }
+  #hud .h-player.low .hp i { background: linear-gradient(#ffb09a 0 18%, #e2402a 30%, #9a1c10 85%); }
+  #hud .mu { position: absolute; left: 15%; width: 30%; bottom: 4.7rem; height: 1.3rem; display: flex; gap: .4rem; --p: 0; }
+  #hud .mu div { position: relative; flex: 1; background: rgba(10,7,6,.75); box-shadow: 0 0 0 .1rem #6b4a1c, 0 0 0 .2rem rgba(0,0,0,.6);
+    transform: skewX(-24deg); }
+  #hud .mu i { position: absolute; inset: .15rem; transform-origin: 0 50%;
+    background: repeating-linear-gradient(90deg, rgba(0,0,0,.18) 0 .2rem, transparent .2rem .6rem), linear-gradient(#fff2b8, #f2c14e 45%, #b8791c); }
+  #hud .mu span { position: absolute; left: calc(100% + 1.2rem); top: -1.1rem; white-space: nowrap; font: 700 2.4rem/1 var(--brush); color: #8a7658; }
+  #hud .mu.full div { box-shadow: 0 0 0 .1rem #ffe8a0, 0 0 calc(.6rem + var(--p) * 1.4rem) rgba(255,200,80,.95); }
+  #hud .mu.full i { background: linear-gradient(100deg, transparent calc(var(--s, -50%) - 18%), rgba(255,255,240,.9) var(--s, -50%), transparent calc(var(--s, -50%) + 18%)),
+    repeating-linear-gradient(90deg, rgba(0,0,0,.14) 0 .2rem, transparent .2rem .6rem), linear-gradient(#fffbe0, #ffd45e 45%, #d08a1c); }
+  #hud .mu.full span { color: #ffe3a0; text-shadow: 0 0 calc(.4rem + var(--p) * 1.2rem) #ffb030, .2rem .3rem 0 rgba(0,0,0,.6); }
+  #hud .mu.active i { background: linear-gradient(#ffffff, #bfe8ff 45%, #4aa2ff); }
+  #hud .mu.active span { color: #d8f2ff; text-shadow: 0 0 1rem #58b2ff; }
+
+  /* Heavy numerals (KO, chain, milestone): DW8's weight in brush calligraphy. <b class="dig" data-t="N"><span>N</span></b>:
+     ::before is a dark rim + halo (thick stroke, drop shadows) so digits read over white musou flashes and dark crowds;
+     the span is a bevelled vertical gradient, fattened by an edge stroke in the mid tone. */
+  #hud .dig { position: relative; isolation: isolate; padding: 0 .12em; --rw: .6rem; --ew: .16rem;
+    --hi: #fffbe0; --mid: #ffd865; --lo: #b8680e; --rim: #2a1204; --edge: #f2b440; }
+  #hud .dig::before { content: attr(data-t); position: absolute; left: 0; top: 0; padding: inherit; z-index: -1; text-shadow: none;
+    color: var(--rim); -webkit-text-stroke: var(--rw) var(--rim); filter: drop-shadow(0 0 .7rem rgba(0,0,0,.65)) drop-shadow(.3rem .4rem 0 rgba(0,0,0,.5)); }
+  #hud .dig span { text-shadow: none; color: transparent; -webkit-text-stroke: var(--ew) var(--edge);
+    background: linear-gradient(var(--hi), var(--mid) 40%, color-mix(in srgb, var(--mid), var(--lo)) 62%, var(--lo));
+    -webkit-background-clip: text; background-clip: text; }
+
+  /* counters: KO bottom right (gold), chain left (ice cyan) — brush numerals, ghost layer <u> */
+  #hud .num { position: relative; display: inline-block; }
+  #hud .num b, #hud .num u { display: inline-block; font: 700 6.6rem/1 var(--brush); text-decoration: none; }
+  #hud .num u { position: absolute; right: 0; top: 0; opacity: 0; }
+  #hud .h-ko { right: 6.5%; bottom: 5.4rem; text-align: right; }
+  #hud .h-ko b { transform-origin: 100% 85%; }
+  #hud .h-ko u { color: #ffd66a; transform-origin: 100% 85%; padding: 0 .12em; text-shadow: 0 0 1.4rem rgba(255,190,60,.9); }
+  #hud small { display: block; font: 700 1.15rem/1 var(--sans); letter-spacing: .3em; text-shadow: 0 0 .3rem #000, 0 .15rem .3rem rgba(0,0,0,.8); }
+  #hud small em { font: 700 1.9rem/1 var(--brush); font-style: normal; letter-spacing: .1em; margin-right: .5rem; vertical-align: -.3rem; }
+  #hud .h-ko small { color: #ffe0a0; margin-top: -.4rem; }
+  #hud .h-chain { left: 11%; top: 45%; }
+  #hud .h-chain b { transform-origin: 0 85%; --hi: #f4feff; --mid: #9aeaff; --lo: #1d78c0; --rim: #041a2e; --edge: #5cc8f4; }
+  /* chain ghosts (pool of 3, one per tick): pale cyan digit with a DW8 motion smear trailing up-right, where it came from */
+  #hud .h-chain u { transform-origin: 0 100%; color: #f4feff; -webkit-text-stroke: .22rem #3aa6f0; padding: 0 .12em;
+    text-shadow: .12em -.1em 0 rgba(130,220,255,.55), .24em -.2em 0 rgba(110,205,255,.3), .36em -.3em .1rem rgba(90,190,255,.14),
+      0 0 1.2rem rgba(90,200,255,.9); }
+  #hud .h-chain small { color: #bfeeff; margin: -.3rem 0 0 .3rem; }
+
+  /* KO milestone: centre, heavy gold brush number (digits ~13 % H like DW8) + red 擊破 seal stamp */
+  #hud .h-mile { left: 0; right: 0; top: 33%; text-align: center; opacity: 0; }
+  #hud .h-mile b { display: inline-block; font: 700 15rem/1 var(--brush); --rw: 1rem; --ew: .3rem; --hi: #fffdf0; --mid: #ffdc6a;
+    vertical-align: middle; }
+  #hud .h-mile b::before { filter: drop-shadow(0 0 1.4rem rgba(0,0,0,.8)) drop-shadow(.5rem .6rem 0 rgba(0,0,0,.5)); }
+  #hud .h-mile .seal { font-size: 3.3rem; padding: .6rem .45rem; vertical-align: middle; margin-left: .2rem; }
+
+  /* system banner: full-width band y 64-71 %; dialogue: portrait + 2 lines, lower left */
+  #hud .h-band { left: 0; right: 0; top: 64%; padding: .6rem 0 .7rem; text-align: center; opacity: 0;
+    background: linear-gradient(90deg, rgba(10,6,4,0), rgba(10,6,4,.72) 22%, rgba(10,6,4,.72) 78%, rgba(10,6,4,0));
+    border-image: linear-gradient(90deg, transparent, rgba(214,170,90,.8) 30%, rgba(214,170,90,.8) 70%, transparent) 1; border-width: .1rem 0; border-style: solid; }
+  #hud .h-band p { margin: 0; font: 700 2.6rem/1.15 var(--kai); letter-spacing: .4rem; }
+  #hud .h-band p em { font-style: normal; color: #ff5b3c; }
+  #hud .h-band small { margin-top: .35rem; opacity: .8; font-weight: 500; }
+  #hud .h-dlg { left: 2.6rem; top: 9.6rem; display: flex; gap: 1.2rem; align-items: center; opacity: 0; padding: .6rem 6rem .6rem 1rem;
+    background: linear-gradient(90deg, rgba(10,6,4,.8), rgba(10,6,4,.6) 65%, rgba(10,6,4,0)); border-left: .25rem solid var(--teal); }
+  #hud .h-dlg canvas { width: 5.6rem; height: 5.6rem; image-rendering: pixelated; background: #1d3a3c; box-shadow: 0 0 0 .15rem #d9d2c6; }
+  #hud .h-dlg b { font: 700 2rem/1 var(--brush); color: #9fe6de; }
+  #hud .h-dlg b span { font: 600 .95rem/1 var(--sans); letter-spacing: .3em; color: #9fe6de; opacity: .8; margin-left: .5rem; }
+  #hud .h-dlg p { margin: .4rem 0 .35rem; font: 700 2.3rem/1.1 var(--kai); letter-spacing: .12rem; white-space: nowrap; }
+  #hud .h-dlg small { font-weight: 600; letter-spacing: .06em; font-size: 1.6rem; white-space: nowrap; color: #f4ead8; }
+
+  /* musou: concept's vertical copy on the right */
+  #hud .h-copy { right: 3.2%; top: 44%; writing-mode: vertical-rl; font: 700 3.4rem/1.3 var(--brush); letter-spacing: .5rem; opacity: 0;
+    color: #f7f1e8; text-shadow: 0 0 .1rem #000, .2rem .3rem 0 rgba(0,0,0,.55), 0 0 1.4rem rgba(120,200,255,.5);
+    border-top: .15rem solid rgba(247,241,232,.7); border-bottom: .15rem solid rgba(247,241,232,.7); padding: 1rem 0; }
+
+  /* officer target bar (top left) + floating officer tags */
+  #hud .h-target { left: 2.6rem; top: 2.2rem; width: 36%; opacity: 0; }
+  #hud .h-target .seal { font-size: 1.6rem; vertical-align: .6rem; margin-right: .6rem; writing-mode: horizontal-tb; padding: .25rem .3rem; }
+  #hud .h-target b { font: 700 2.8rem/1 var(--brush); color: #ffe3b0; }
+  #hud .h-target span { font: 600 1rem/1 var(--sans); letter-spacing: .35em; margin-left: .8rem; opacity: .85; }
+  #hud .h-target .bar { height: 1rem; margin-top: .5rem; clip-path: polygon(0 0, 100% 0, calc(100% - .7rem) 100%, 0 100%); }
+  #hud .h-target .bar i { background: linear-gradient(#ffb49a 0 20%, #e0442e 35%, #8e1c10); }
+  #hud .h-target .bar em { background: #ffcf8a; }
+  #hud .h-target strong { position: absolute; left: 14rem; top: -.6rem; font: 700 4rem/1 var(--brush); color: #ff5b3c; opacity: 0;
+    transform: rotate(-8deg); -webkit-text-stroke: .1rem #3a0a04; }
+  #hud .h-target.ko strong { opacity: 1; }
+  #hud .h-offs { inset: 0; }
+  #hud .off { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; }
+  /* anchor = the ▼▼ tip on the officer's head; .bd (name, romanisation, HP bar ~16 % W) is a 0×0 box at the anchor,
+     moved/scaled from JS; .ld is the 1 px leader drawn when the body had to leave the ▼▼ */
+  #hud .off .bd { position: absolute; left: 0; bottom: 0; width: 0; height: 0; }
+  #hud .off b, #hud .off span, #hud .off .bar { position: absolute; left: -11rem; width: 22rem; text-align: center; }
+  #hud .off b { bottom: 2.75rem; font: 700 2.5rem/1 var(--brush); color: #ffd9a8; }
+  #hud .off span { bottom: 1.3rem; font: 700 1.3rem/1 var(--sans); letter-spacing: .24em; color: #f6e6d2; }
+  #hud .off .bar { bottom: .2rem; left: -10.5rem; width: 21rem; height: .8rem; clip-path: polygon(0 0, 100% 0, calc(100% - .5rem) 100%, 0 100%); }
+  #hud .off .bar i { background: linear-gradient(#ffb49a 0 20%, #e0442e 35%, #8e1c10); }
+  #hud .off .mk { position: absolute; left: 0; bottom: 0; transform-origin: 50% 100%; font: 700 1.6rem/1 var(--sans); color: #ff4a2e;
+    letter-spacing: -.2rem; white-space: nowrap; text-shadow: 0 0 .2rem #000, 0 .1rem .2rem rgba(0,0,0,.8); }
+  #hud .off .ld { position: absolute; left: -.07rem; bottom: 0; width: .14rem; height: 1px; transform-origin: 50% 100%;
+    background: rgba(255,217,168,.75); box-shadow: 0 0 .15rem rgba(0,0,0,.8); }
+
+  /* minimap: square battlefield map + 蜀/魏 morale bar (top right) */
+  #hud .h-map { right: 2.4%; top: 4.2rem; width: 20rem; }
+  #hud .h-map canvas { display: block; width: 20rem; height: 20rem; box-shadow: 0 0 0 .1rem rgba(214,184,130,.75), 0 0 0 .25rem rgba(0,0,0,.45), 0 .4rem 1rem rgba(0,0,0,.4); }
+  #hud .morale { position: relative; height: .5rem; margin: 0 0 .7rem; background: #c0392b; box-shadow: 0 0 0 .1rem rgba(0,0,0,.6); }
+  #hud .morale i { position: absolute; inset: 0; background: linear-gradient(#8fc4ff, #2f6fd0); transform-origin: 0 50%; }
+  #hud .morale span { position: absolute; top: -.6rem; font: 700 1.5rem/1 var(--brush); }
+  #hud .morale span:first-of-type { left: -2rem; color: #9cc8ff; }
+  #hud .morale span:last-of-type { right: -2rem; color: #ff8a70; }
+  #hud .h-map .seal { position: absolute; left: .5rem; bottom: .5rem; font-size: 1.05rem; padding: .2rem .15rem; opacity: .9; }
+  /* start / pause menu: the sim waits behind it (Esc reopens it) */
+  #menu { position: fixed; inset: 0; z-index: 2; display: flex; flex-direction: column; justify-content: center; padding: 0 0 0 9vw;
+    color: #f4ead8; font-family: "Kaiti SC", "STKaiti", "KaiTi", "HudBrush", serif; user-select: none;
+    background: linear-gradient(90deg, rgba(12,8,6,.92) 0, rgba(12,8,6,.78) 40%, rgba(12,8,6,.15) 75%, rgba(12,8,6,0)); }
+  #menu[hidden] { display: none; }
+  #menu .t { font: 700 16rem/1 "Xingkai SC", "STXingkai", "HudBrush", serif; letter-spacing: 1rem; color: #f7f1e8;
+    text-shadow: .4rem .5rem 0 rgba(0,0,0,.55), 0 0 3rem rgba(0,0,0,.5); }
+  #menu .t i { display: inline-block; vertical-align: 3rem; margin-left: 1.2rem; font: 700 2.4rem/1.05 "Xingkai SC", "STXingkai", "HudBrush", serif;
+    font-style: normal; writing-mode: vertical-rl; padding: .5rem .35rem; border-radius: .3rem; color: #f8e6d2; background: #b3261e; letter-spacing: 0;
+    text-shadow: none; box-shadow: inset 0 0 0 .2rem #b3261e, inset 0 0 0 .35rem rgba(248,230,210,.75); }
+  #menu .en { font: 500 1.8rem/1 "Avenir Next", "Helvetica Neue", sans-serif; letter-spacing: 1.1em; margin: .6rem 0 0 .6rem; opacity: .85; }
+  #menu .sub { font-size: 2.2rem; letter-spacing: .5rem; margin: 2rem 0 0 .4rem; color: #e8d9bf; }
+  #menu table { align-self: flex-start; margin: 3rem 0 0 .2rem; border-collapse: collapse; font: 500 1.7rem/1 "Avenir Next", "Helvetica Neue", sans-serif;
+    border-left: .3rem solid #b3261e; background: linear-gradient(90deg, rgba(0,0,0,.35), rgba(0,0,0,0)); }
+  #menu td { padding: .75rem 1.6rem; white-space: nowrap; }
+  #menu td:first-child { font: 700 2.2rem/1 "Kaiti SC", "STKaiti", "KaiTi", "HudBrush", serif; color: #f2c14e; }
+  #menu td:first-child small { font: 500 1.3rem/1 "Avenir Next", "Helvetica Neue", sans-serif; letter-spacing: .15em; color: #cdbb9c; margin-left: .8rem; }
+  #menu kbd { font: 600 1.5rem/1 "Avenir Next", "Helvetica Neue", sans-serif; padding: .3rem .6rem; margin-right: .3rem;
+    border: .12rem solid rgba(239,227,207,.6); border-radius: .4rem; background: rgba(0,0,0,.45); }
+  #menu button { align-self: flex-start; margin: 3.4rem 0 0 .2rem; padding: 1.2rem 4rem; cursor: pointer; border: 0; border-radius: .4rem;
+    font: 700 3rem/1 "Xingkai SC", "STXingkai", "HudBrush", serif; letter-spacing: .6rem; color: #1a120d;
+    background: linear-gradient(#ffe7a3, #f2c14e 55%, #c98a22); box-shadow: 0 0 0 .15rem #5a3a10, 0 .5rem 1.6rem rgba(0,0,0,.5); }
+  #menu button:hover { filter: brightness(1.1); }
+  #menu button small { font: 600 1.4rem/1 "Avenir Next", "Helvetica Neue", sans-serif; letter-spacing: .3em; margin-left: 1rem; }
+  #menu .hint { margin: 1.4rem 0 0 .4rem; font: 500 1.35rem/1.5 "Avenir Next", "Helvetica Neue", sans-serif; letter-spacing: .08em; opacity: .7; }
+
+  /* ---- Olden Ring: 千燈古塔 overlays (floor tracker, boon picker, results) ---- */
+  #ui { position: fixed; inset: 0; pointer-events: none; color: #f4ead8; font-family: "Kaiti TC", "Kaiti SC", "STKaiti", "KaiTi", "Noto Serif TC", serif; }
+  #ui > * { pointer-events: auto; }
+  #tw-floor { position: absolute; top: 1.6rem; left: 50%; transform: translateX(-50%); display: grid; grid-template-columns: auto auto; column-gap: .9rem;
+    align-items: center; padding: .6rem 1.4rem .9rem; background: linear-gradient(rgba(10,8,14,.72), rgba(10,8,14,0)); pointer-events: none; text-shadow: 0 .2rem .4rem #000; }
+  #tw-floor .tw-seal { grid-row: span 2; font: 700 1.6rem/1 serif; font-style: normal; color: #f8e6d2; background: #9a2418; padding: .35rem .3rem; border-radius: .25rem; writing-mode: vertical-rl; }
+  #tw-floor b { font-size: 3rem; letter-spacing: .3rem; color: #ffe3a0; }
+  #tw-floor span { font: 600 1.3rem/1.2 "Avenir Next", "Helvetica Neue", sans-serif; letter-spacing: .08em; color: #e8dcc6; }
+  #tw-floor .tw-bar { grid-column: 1 / -1; height: .5rem; margin-top: .5rem; background: rgba(0,0,0,.55); box-shadow: 0 0 0 .1rem rgba(224,180,80,.5); }
+  #tw-floor .tw-bar i { display: block; height: 100%; background: linear-gradient(90deg, #b8791c, #ffd45e); transform-origin: 0 50%; transform: scaleX(0); transition: transform .2s; }
+  #tw-boon, #tw-result { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.4rem;
+    background: radial-gradient(ellipse at 50% 45%, rgba(40,24,8,.55), rgba(4,4,10,.88) 70%); text-align: center; }
+  #tw-boon[hidden], #tw-result[hidden], #tw-floor[hidden] { display: none; }
+  #tw-boon h2, #tw-result h2 { margin: 0; font-size: 6rem; letter-spacing: .6rem; color: #ffe3a0; text-shadow: 0 0 2rem rgba(255,180,60,.6), .3rem .4rem 0 rgba(0,0,0,.6); }
+  .tw-sub, .tw-en { margin: 0; font: 500 1.4rem/1.3 "Avenir Next", "Helvetica Neue", sans-serif; letter-spacing: .25em; color: #d8c8a8; }
+  .tw-cards { display: flex; gap: 1.6rem; flex-wrap: wrap; justify-content: center; max-width: 94vw; }
+  .tw-card { position: relative; width: 22rem; min-height: 44px; padding: 2rem 1.4rem 1.8rem; display: flex; flex-direction: column; gap: .6rem; align-items: center;
+    background: linear-gradient(170deg, #2a1c12, #120c10); color: #f4ead8; border: .2rem solid #6b4a1c; border-radius: .4rem; cursor: pointer; font: inherit;
+    box-shadow: 0 .8rem 2rem rgba(0,0,0,.6); transition: transform .15s, border-color .15s, box-shadow .15s; }
+  .tw-card:hover, .tw-card:focus-visible { transform: translateY(-.4rem); border-color: #ffd45e; box-shadow: 0 0 2.4rem rgba(255,190,70,.45); outline: none; }
+  .tw-card kbd { position: absolute; top: .6rem; left: .8rem; font: 600 1.1rem/1 sans-serif; color: #8a7658; }
+  .tw-card b { font-size: 3.4rem; color: #ffe3a0; letter-spacing: .2rem; }
+  .tw-card small { font: 600 1.1rem/1 "Avenir Next", sans-serif; letter-spacing: .2em; text-transform: uppercase; color: #b89a6a; }
+  .tw-card span { font-size: 1.6rem; color: #efe3cf; }
+  #tw-result dl { display: grid; grid-template-columns: auto auto; gap: .6rem 2.4rem; margin: .6rem 0 0; font-size: 2rem; }
+  #tw-result dt { color: #b89a6a; text-align: right; } #tw-result dd { margin: 0; text-align: left; color: #fff2d0; }
+  .tw-best { margin: 0; font-size: 1.8rem; color: #ffd45e; }
+  .tw-act { display: flex; gap: 1.4rem; flex-wrap: wrap; justify-content: center; }
+  .tw-act button, .tw-act a { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; gap: .6rem; padding: .8rem 2rem; font: 700 2rem/1 inherit;
+    border-radius: .3rem; text-decoration: none; cursor: pointer; }
+  .tw-act button { color: #2a1204; background: linear-gradient(#ffe7a0, #e0a13a); border: 0; }
+  .tw-act button small { font: 600 1rem/1 sans-serif; letter-spacing: .2em; }
+  .tw-act a { color: #f4ead8; border: .15rem solid rgba(244,234,216,.5); background: rgba(0,0,0,.35); font-size: 1.6rem; }
+  .tw-act button:focus-visible, .tw-act a:focus-visible { outline: .3rem solid #ffd45e; outline-offset: .3rem; }
+
+  /* ---- Olden Ring: menu additions + touch controls ---- */
+  #menu .best { margin: 1.2rem 0 0 .4rem; font: 600 1.6rem/1.3 "Avenir Next", sans-serif; letter-spacing: .12em; color: #ffd45e; min-height: 1em; }
+  #menu #hub { align-self: flex-start; margin: 1.2rem 0 0 .2rem; min-height: 44px; display: inline-flex; align-items: center; padding: 0 1.4rem;
+    color: #efe3cf; text-decoration: none; font: 600 1.6rem/1 "Avenir Next", sans-serif; border: .12rem solid rgba(239,227,207,.45); border-radius: .3rem; background: rgba(0,0,0,.35); }
+  #menu #hub:focus-visible, #menu #go:focus-visible { outline: .3rem solid #ffd45e; outline-offset: .3rem; }
+  #menu .touch-guide { display: none; margin: 1.4rem 0 0 .4rem; font-size: 1.8rem; line-height: 1.6; color: #efe3cf; max-width: 86vw; }
+  #menu .touch-guide b { color: #ffd45e; }
+  body.touch #menu table, body.touch #menu .hint, body.touch #hud .h-intro .keys { display: none; }
+  body.touch #menu .touch-guide { display: block; }
+  #touch { position: fixed; inset: 0; z-index: 1; pointer-events: none; touch-action: none; user-select: none; -webkit-user-select: none; }
+  #touch[hidden], body.paused #touch { display: none; }
+  #touch .t-stick { position: absolute; left: 0; top: 18%; bottom: 0; width: 40%; pointer-events: auto; touch-action: none; }
+  #touch .t-look { position: absolute; right: 0; top: 18%; bottom: 0; width: 60%; pointer-events: auto; touch-action: none; }
+  #touch .t-base, #touch .t-knob { position: fixed; left: 0; top: 0; margin: -48px 0 0 -48px; width: 96px; height: 96px; border-radius: 50%; opacity: 0; transition: opacity .15s; pointer-events: none; }
+  #touch .t-base { border: 2px solid rgba(255,220,150,.5); background: rgba(10,8,14,.35); }
+  #touch .t-knob { margin: -26px 0 0 -26px; width: 52px; height: 52px; background: radial-gradient(#ffe3a0, #b8791c); box-shadow: 0 0 18px rgba(255,190,70,.6); }
+  #touch .t-stick.on .t-base, #touch .t-stick.on .t-knob { opacity: 1; }
+  #touch .t-btn { position: absolute; z-index: 2; pointer-events: auto; touch-action: none; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    width: clamp(52px, 13vmin, 78px); height: clamp(52px, 13vmin, 78px); border-radius: 50%; padding: 0; font: 700 clamp(20px, 5.4vmin, 32px)/1 "Kaiti TC", "Kaiti SC", serif;
+    color: #fff2d0; background: radial-gradient(circle at 50% 35%, rgba(90,60,30,.85), rgba(20,14,10,.85)); border: 2px solid rgba(224,180,80,.7); box-shadow: 0 4px 14px rgba(0,0,0,.5); }
+  #touch .t-btn small { font: 600 clamp(8px, 1.8vmin, 10px)/1 sans-serif; letter-spacing: .12em; opacity: .7; margin-top: 2px; }
+  #touch .t-btn.on { transform: scale(.92); border-color: #ffd45e; background: radial-gradient(circle at 50% 35%, rgba(160,110,40,.95), rgba(40,24,10,.9)); }
+  #touch .tb-atk { right: 4vw; bottom: 8vh; width: clamp(66px, 18vmin, 104px); height: clamp(66px, 18vmin, 104px); font-size: clamp(26px, 7vmin, 42px); }
+  #touch .tb-chg { right: calc(4vw + clamp(66px, 18vmin, 104px) + 2vmin); bottom: 6vh; }
+  #touch .tb-dge { right: calc(4vw + clamp(66px, 18vmin, 104px) + 1vmin); bottom: calc(8vh + clamp(52px, 13vmin, 78px) + 3vmin); }
+  #touch .tb-jmp { right: 4vw; bottom: calc(8vh + clamp(66px, 18vmin, 104px) + 2vmin); }
+  #touch .tb-mu { right: calc(4vw + clamp(66px, 18vmin, 104px) + clamp(52px, 13vmin, 78px) + 4vmin); bottom: calc(6vh + 1vmin); color: #8a7658; }
+  #touch .tb-mu.ready { color: #fff2d0; border-color: #ffd45e; box-shadow: 0 0 20px rgba(255,190,70,.8); animation: t-pulse 1.1s ease-in-out infinite; }
+  @keyframes t-pulse { 50% { box-shadow: 0 0 34px rgba(255,200,90,1); } }
+  @media (prefers-reduced-motion: reduce) { #touch .tb-mu.ready { animation: none; } }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"></div>
+<div id="ui"></div>
+<div id="menu">
+  <div class="t">燼騎<i>古環</i></div>
+  <div class="en">OLDEN RING</div>
+  <div class="sub">一杆殘槍，獨闖千燈古塔</div>
+  <table>
+    <tr><td>移動<small>MOVE</small></td><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / arrows</td></tr>
+    <tr><td>攻擊<small>ATTACK</small></td><td><kbd>J</kbd> / left click — tap for a 6-hit combo</td></tr>
+    <tr><td>蓄力<small>CHARGE</small></td><td><kbd>K</kbd> / right click — mid-combo for charge attacks</td></tr>
+    <tr><td>跳躍<small>JUMP</small></td><td><kbd>Space</kbd></td></tr>
+    <tr><td>閃避<small>DODGE</small></td><td><kbd>L</kbd> / <kbd>Shift</kbd></td></tr>
+    <tr><td>燼龍<small>EMBER DRAGON</small></td><td><kbd>I</kbd> — when the gold gauge is full</td></tr>
+    <tr><td>視角<small>CAMERA</small></td><td><kbd>Q</kbd><kbd>E</kbd> / drag the mouse</td></tr>
+  </table>
+  <p class="touch-guide">左手拖動移動 · 右手 <b>攻</b> 連擊 · <b>蓄</b> 蓄力 · <b>閃</b> 閃避 · <b>躍</b> 跳躍 · <b>龍</b> 燼龍 · 右邊拖動轉視角<br><small>橫置裝置遊玩效果最佳</small></p>
+  <button id="go">登塔<small>ASCEND</small></button>
+  <p class="best" id="best"></p>
+  <a id="hub" href="../../index.html">← 返回 Game Hub</a>
+  <div class="hint">Enter to start · Esc to pause · gamepad supported · best with keyboard, mouse and sound on</div>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

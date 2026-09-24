@@ -292,25 +292,30 @@
       }
     },
     {
-      "id": "elden-ring-ii",
+      "id": "olden-ring",
       "testName": "Olden Ring",
       "title": "Olden Ring",
-      "subtitle": "⚔️ 黑暗奇幻 3D 動作 RPG！三職業迎戰空冠之王",
+      "subtitle": "🏮 體素無雙！獨闖千燈古塔，斬破虛空軍團",
       "category": "動作 RPG",
-      "entry": "games/elden-ring-ii/dist/index.html",
-      "launchPath": "games/elden-ring-ii/dist/index.html",
+      "entry": "games/olden-ring/index.html",
+      "launchPath": "games/olden-ring/index.html",
       "playable": true,
-      "icon": "👑",
-      "runtime": { "kind": "vite-dist", "engine": "react-three-cannon", "orientation": "landscape", "sourceRoot": "games/elden-ring-ii", "dist": "games/elden-ring-ii/dist" },
-      "persistence": { "mode": "localStorage+optional-supabase", "schema": "elden-progress-v1", "keys": ["elden-ring-ii-progress"], "fallback": "local-only-play" },
+      "icon": "🏮",
+      "runtime": { "kind": "static", "engine": "three-canvas", "orientation": "landscape", "sourceRoot": "games/olden-ring", "dist": null },
+      "persistence": { "mode": "localStorage", "schema": "olden-ring-best-v1", "keys": ["olden-ring-best-v1"], "fallback": "play-without-save" },
       "capabilities": { "audio": true, "online": false, "continue": false, "profile": false, "gyro": false, "touch": true, "keyboard": true },
-      "smoke": { "route": "games/elden-ring-ii/dist/index.html", "viewport": { "width": 844, "height": 390 } },
+      "smoke": { "route": "games/olden-ring/index.html", "viewport": { "width": 844, "height": 390 } },
       "release": {
-        "roots": ["games/elden-ring-ii"],
-        "buildPolicy": "generated-dist",
-        "build": { "cwd": "games/elden-ring-ii", "argv": ["npm", "run", "build"] },
-        "fast": [{ "cwd": "games/elden-ring-ii", "argv": ["npm", "run", "typecheck"] }],
-        "full": [{ "cwd": "games/elden-ring-ii", "argv": ["npm", "test"] }]
+        "roots": ["games/olden-ring", "tests/olden-ring-flow.mjs"],
+        "buildPolicy": "none",
+        "build": null,
+        "fast": [
+          { "cwd": ".", "argv": ["node", "--check", "games/olden-ring/src/main.js"] },
+          { "cwd": ".", "argv": ["node", "--check", "games/olden-ring/src/tower/tower.js"] },
+          { "cwd": ".", "argv": ["node", "--check", "games/olden-ring/src/ui/touch.js"] },
+          { "cwd": ".", "argv": ["node", "--check", "games/olden-ring/src/world/lanterns.js"] }
+        ],
+        "full": [{ "cwd": ".", "argv": ["node", "tests/olden-ring-flow.mjs"], "timeoutMs": 900000 }]
       }
     }
   ]

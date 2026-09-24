@@ -34,7 +34,7 @@ or all games for shared, test, CI, catalog, unknown-game and explicit manual cha
 | 深淵之橋 MOBA | `games/moba/index.html` | Static ES modules + vendored Three.js. Deterministic sim, 3v3 bots, mobile HUD, anywhere-purchase shop, and procedural champion FX. Tests in `games/moba/tests/`. |
 | Racing Car 3D | `games/Racing Car/index.html` | Static ES modules + vendored Three.js. Continuous spline track (`track.js`) with cached nearest-point samples, track-specific crest/elevation profile plus bounded grade load, route-specific rolling roadside terrain in the single ground mesh, subtle asphalt tyre-wear/dashed centre texture, curvature-derived render-only drift zones with three-stage road-painted entry/apex/exit cues and an arc-distance next-turn HUD, day/dusk/night environment (`environment.js`), sport-arcade acceleration with bounded body pitch/roll and a tuned mid/high-speed power envelope, closer/lower chase camera with bounded acceleration impulse and pointer-transparent speed-streak layer that starts before top speed, bounded driving effects, player-only arcade assists and simple auto-throttle controls, procedural merged-geometry wheel spin/steering (`wheel-motion.js`), four physical AI rivals plus a transparent clone of the normalized player GLB ghost (`rivals.js`, `ghost.js`), and a persistent three-race championship with career records (`season.js`). Draco-compressed player car. Tests in `games/Racing Car/tests/`. |
 | Ashen Rail | `games/ashen-rail/dist/index.html` | Self-contained Vite + TypeScript + Babylon.js bonus game; soldier GLB has no clips, so `ProceduralPlayerAnimator` supplies rig-aware locomotion/aim/recoil and `WeaponSystem` supplies local weapon recoil; CI builds `dist/`. |
-| Olden Ring (id `elden-ring-ii`, renamed 2026-09-24) | `games/elden-ring-ii/dist/index.html` | Self-contained Vite + React + TypeScript + Three.js/Cannon-es bonus game; three classes, mobile touch controls, local run history, optional Supabase write, bundled CC0 assets; tracked `dist/` is rebuilt by CI. |
+| Olden Ring 千燈古塔 | `games/olden-ring/index.html` | Static ES modules + vendored Three.js r186, forked from MIT `mike007jd/voxel-musou` (`LICENSE-voxel-musou`). Voxel musou crowd fight re-themed as a night lantern spire under the broken Olden Ring; `src/tower/tower.js` adds floors, boons, crown (boss) floors, hero death, results and `olden-ring-best-v1`; `src/ui/touch.js` touch pad. `?test` exposes `__olden`. The previous React "Elden Ring II" lives on, unlisted, in `games/elden-ring-ii/` (archive; its assets stay in AssetCatalog). |
 | Xiangqi AI | `games/xiangqi-ai/dist/index.html` | Vite + Three.js; hub targets tracked `dist/`; optional board environment HDR is bundled under `assets/` and copied into `dist/assets/`. |
 | Database | `supabase/migrations/` | Append-only numbered migrations; never edit an applied migration casually. |
 
@@ -62,10 +62,13 @@ or all games for shared, test, CI, catalog, unknown-game and explicit manual cha
   relative or otherwise Pages-safe.
 - Ashen Rail remains a self-contained bonus game inside the existing hub. Its Vite
   base is relative and deployment builds its ignored `dist/` from source.
-- Elden Ring II is also self-contained. Its Vite base and runtime model/audio URLs
-  stay relative because the game is hosted below `games/elden-ring-ii/dist/`.
-  GitHub Pages has no server runtime: localStorage is the default persistence and
-  Supabase remains optional through browser-safe `VITE_SUPABASE_*` values only.
+- Olden Ring (ADR-315) is a zero-build static game: never add a bundler step. Its sim runs at a
+  fixed 60 Hz and render modules only read sim state; tower.js owns run state and must keep blocked
+  storage non-fatal. Touch input goes through `input.virtual`, never tap-to-attack. Credit and the MIT
+  notice for voxel-musou must stay with the code.
+- The archived `games/elden-ring-ii/` (old React Olden/Elden Ring II) is no longer a Hub entry or a
+  ReleaseGate target; keep it untouched unless it is deliberately deleted together with its
+  AssetCatalog/census entries.
 - Tower, Snake, and Xiangqi hub links currently target committed `dist/` output.
   Source-only changes to those games are incomplete until the required dist output
   is regenerated and verified.
@@ -277,28 +280,17 @@ gameplay, FX, cleanup, and full-match gates. The in-match gear is the mobile-saf
 reasons separate so closing one overlay cannot resume another pause. Visual changes still need a
 real rendered inspection.
 
-### Elden Ring II
-
-From `games/elden-ring-ii/`:
+### Olden Ring
 
 ```sh
-npm ci
-npm audit
-npm test
+PW_CHROMIUM=/opt/pw-browsers/chromium node tests/olden-ring-flow.mjs
 ```
 
-`npm test` runs TypeScript, the relative-path production build, and static asset
-gates. Then use a real browser to follow the Hub card and verify the title screen,
-game start, movement, right-side camera drag, mobile touch controls, and zero
-failed model/audio requests or console errors.
-
-The long witness `node --experimental-strip-types tests/playthrough-full.mjs` writes
-to `/tmp/gamehub-elden-ring-ii-playthrough-full.txt` by default. Override with
-`ER2_PLAYTHROUGH_OUT=/path/to/file`; set `PW_CHROMIUM` when the default cloud
-Chromium path is not present. The witness drives visible/input-equivalent movement,
-healing and telegraph dodges, then emits `PLAYTHROUGH=PASS` and exits non-zero unless
-the game itself reports chapter 3 `status=victory`; a timeout, death, or merely
-reaching the boss is a failure.
+Covers menu → floor 1 → clear → boon (world held) → floor 2 → death → results → local best →
+restart, the 844×390 touch pad (five ≥44 px buttons, hit-tested, attack reaches the sim), blocked
+storage, zero external requests and zero errors. SwiftShader runs ~1–3 fps, so the gate drives
+floor counters and hold timers through `__olden`; combat feel and frame rate need a real device.
+Cover art is re-shot with `node scripts/capture-hub-covers.mjs olden-ring`.
 
 ### Snake Game
 
