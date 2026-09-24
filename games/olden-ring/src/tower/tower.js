@@ -175,7 +175,8 @@ export function createTower(game, { maxEnemies, root }) {
       t.frames++;
       if (game.mods.regen && h.hp > 0) h.hp = Math.min(h.hpMax, h.hp + game.mods.regen / 60);
       t.maxChain = Math.max(t.maxChain, h.combo);
-      if (t.floorKOs >= t.quota && (!crownFloor() || t.crownDown)) {
+      // let an ember dragon play out before the floor ends (clearing mid-ultimate froze its close-up camera)
+      if (t.floorKOs >= t.quota && (!crownFloor() || t.crownDown) && h.state !== 'musou') {
         t.phase = 'clear'; t.holdT = 0; game.crowd.wavesOn = false;
         emit('tower:banner', { html: `第${floorName(t.floor)}層 <em>已破</em>`, en: `Floor ${t.floor} cleared`, dur: 110 });
         emit('tower:clear', { floor: t.floor });

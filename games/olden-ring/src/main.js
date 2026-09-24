@@ -107,6 +107,10 @@ addEventListener('resize', onResize);
 // in-app browsers resize the visible area (toolbars, rotation) without always firing window resize
 globalThis.visualViewport?.addEventListener('resize', onResize);
 addEventListener('orientationchange', () => setTimeout(onResize, 250));
+// iOS ignores user-scalable=no; block its pinch gestures and double-tap zoom explicitly
+for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
+document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
 
 // ---- start / pause menu (index.html #menu): the sim waits while it is open
 const menu = document.getElementById('menu'), go = document.getElementById('go'), hudEl = document.getElementById('hud');

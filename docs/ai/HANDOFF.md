@@ -86,6 +86,8 @@ UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
   hold 時收埋觸控層、卡闊 ≤30vw）；②畫面拉長（canvas 100vh 喺 app 內瀏覽器高過可見範圍 → fixed 100%＋
   visualViewport resize）；③撳攻擊變衝刺飛走（觸控模式停用 dash-lunge）；④又暗又花（曝光 1.35→1.7、
   減顆粒／色差／分色、景深減半、手機 1.5× 解像度）。flow 23/23（新加手機撳祝福卡回歸測試）。
+- **Penny 真機第二輪（修咗）**：放燼龍時連撳 → iOS 雙擊放大，成頁放大約 2×，祝福卡走出畫面似卡死。
+  meta viewport 禁縮放＋`touch-action: manipulation`＋攔 iOS gesture 事件；燼龍放完先過層。flow 25/25。
 - 未做：真機手感／FPS（SwiftShader 只有 1–3 fps）、書法字子集補新字、更多敵種同冠層 Boss 造型。
 
 ## Exact next action

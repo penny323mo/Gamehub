@@ -138,9 +138,25 @@ const until = (page, fn, ms = 90000) => page.waitForFunction(fn, null, { timeout
     return __olden.game.hero.move;
   });
   check('撳「攻」掣主角真係出招', !!attacked, attacked);
-  // Penny 真機：第一層清咗之後祝福卡撳極都冇反應——觸控層疊咗喺卡上面；卡亦擠出畫面左邊。
+  // Penny 真機第二輪：放燼龍時連撳，iOS 當咗雙擊放大，成頁放大兩倍，祝福卡走出畫面。
+  const zoom = await page.evaluate(() => ({ meta: document.querySelector('meta[name=viewport]').content,
+    ta: getComputedStyle(document.body).touchAction, btn: getComputedStyle(document.querySelector('#touch .tb-atk')).touchAction }));
+  check('頁面禁止縮放（meta＋touch-action，冇雙擊放大）',
+    /user-scalable=no/.test(zoom.meta) && /maximum-scale=1/.test(zoom.meta) && zoom.ta === 'manipulation' && zoom.btn === 'none', zoom);
+  // 燼龍放緊時就算夠數都唔過層，放完先出祝福
+  await page.evaluate(() => { const h = __olden.game.hero; h.musou = h.musouMax; });
+  await page.keyboard.press('KeyI');
+  const inMusou = await until(page, () => __olden.game.hero.state === 'musou', 30000);
   await page.evaluate(() => { __olden.tower.floorKOs = __olden.tower.quota; });
-  await until(page, () => __olden.tower.phase === 'clear');
+  const heldOff = await page.evaluate(() => new Promise((r) => setTimeout(() => r(__olden.game.hero.state !== 'musou' || __olden.tower.phase === 'fight'), 1500)));
+  const afterMusou = await until(page, () => __olden.game.hero.state !== 'musou' && __olden.tower.phase !== 'fight', 120000);
+  check('燼龍放完先過層（唔會喺大招途中彈出祝福）', inMusou && heldOff && afterMusou);
+  await page.evaluate(() => { __olden.tower.floorKOs = 0; });
+  // Penny 真機：第一層清咗之後祝福卡撳極都冇反應——觸控層疊咗喺卡上面；卡亦擠出畫面左邊。
+  if (await page.evaluate(() => __olden.tower.phase === 'fight')) {
+    await page.evaluate(() => { __olden.tower.floorKOs = __olden.tower.quota; });
+    await until(page, () => __olden.tower.phase === 'clear');
+  }
   await page.evaluate(() => { __olden.tower.holdT = 1e6; });
   await until(page, () => __olden.tower.phase === 'boon');
   const cardsM = await page.evaluate(() => [...document.querySelectorAll('#tw-boon .tw-card')].map((b) => {
