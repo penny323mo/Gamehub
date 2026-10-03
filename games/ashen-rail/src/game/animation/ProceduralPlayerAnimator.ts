@@ -2,7 +2,7 @@ import { Quaternion, TransformNode, type Skeleton } from "@babylonjs/core";
 
 interface RigPart { node: TransformNode; rest: Quaternion; }
 
-export interface AnimatorInputs { moving: boolean; dodging: boolean; aimPitch: number; reload: number; turnRate?: number; }
+export interface AnimatorInputs { moving: boolean; dodging: boolean; aimPitch: number; reload: number; turnRate?: number; /** 身體座標嘅移動方向（f 前 +、r 右 +），預設向前 */ moveDir?: { f: number; r: number }; }
 export interface AnimatorDiagnostics { partNames: string[]; phase: number; moveBlend: number; recoil: number; }
 
 const normalise = (value: string): string => value.toLowerCase().replace(/[\s_.-]+/gu, "");
@@ -21,6 +21,8 @@ export class ProceduralPlayerAnimator {
   private idleTime = 0;
   private recoil = 0;
   private moveBlend = 0; // 0=企定 1=行緊，crossfade 唔會郁突
+  private dirF = 1;
+  private dirR = 0;
 
   constructor(root: TransformNode, skeletons: readonly Skeleton[]) {
     void skeletons; // API 兼容保留（rig 一律經 TransformNode 郁，唔使 skeleton）
@@ -46,12 +48,17 @@ export class ProceduralPlayerAnimator {
   kick(): void { this.recoil = 1; }
 
   reset(): void {
-    this.phase = 0; this.idleTime = 0; this.recoil = 0; this.moveBlend = 0;
+    this.phase = 0; this.idleTime = 0; this.recoil = 0; this.moveBlend = 0; this.dirF = 1; this.dirR = 0;
     for (const part of this.parts.values()) part.node.rotationQuaternion = part.rest.clone();
   }
 
   update(delta: number, inputs: AnimatorInputs): void {
-    const { moving, dodging, aimPitch, reload, turnRate = 0 } = inputs;
+    const { moving, dodging, aimPitch, reload, turnRate = 0, moveDir = { f: 1, r: 0 } } = inputs;
+    // 角色永遠面向準星；打橫／倒後行時腳要向移動方向擺（唔係原地向前踏步）
+    const dl = Math.hypot(moveDir.f, moveDir.r) || 1;
+    this.dirF += (moveDir.f / dl - this.dirF) * Math.min(1, delta * 10);
+    this.dirR += (moveDir.r / dl - this.dirR) * Math.min(1, delta * 10);
+    const fwd = this.dirF, side = this.dirR;
     this.moveBlend += ((moving ? 1 : 0) - this.moveBlend) * Math.min(1, delta * 8);
     const walk = this.moveBlend;
     this.phase += delta * (5.4 + walk * 4.6); // 行緊先加快步頻，crossfade 期間唔會跳格
@@ -80,12 +87,15 @@ export class ProceduralPlayerAnimator {
 
     // ── 對腳 ─────────────────────────────────────────────
     // 大腿反相擺動；小腿喺後擺收膝；腳掌反向補償保持貼地感
-    const lSwing = swing * 0.78;
-    const rSwing = -swing * 0.78;
-    this.pose("L_Thigh", lSwing, 0, 0);
-    this.pose("R_Thigh", rSwing, 0, 0);
-    const lKnee = Math.max(0, -Math.sin(this.phase - 0.55)) * 1.05 * walk;
-    const rKnee = Math.max(0, Math.sin(this.phase - 0.55)) * 1.05 * walk;
+    const lSwing = swing * 0.78 * (fwd >= 0 ? fwd : fwd * 0.7);
+    const rSwing = -swing * 0.78 * (fwd >= 0 ? fwd : fwd * 0.7);
+    const lSide = swing * 0.42 * side, rSide = -swing * 0.42 * side;   // 打橫行：大腿向外／內擺
+    this.pose("L_Thigh", lSwing, 0, lSide);
+    this.pose("R_Thigh", rSwing, 0, rSide);
+    // 倒後行膝頭屈少啲（後退步細、唔係踢腳）；打橫行都收細
+    const kneeAmt = 1.05 * walk * (fwd >= 0 ? 0.45 + 0.55 * fwd : 0.45 + 0.1 * fwd);
+    const lKnee = Math.max(0, -Math.sin(this.phase - 0.55)) * kneeAmt;
+    const rKnee = Math.max(0, Math.sin(this.phase - 0.55)) * kneeAmt;
     this.pose("L_Calf", lKnee, 0, 0);
     this.pose("R_Calf", rKnee, 0, 0);
     this.pose("L_Foot", -(lSwing + lKnee) * 0.42 + walk * 0.06, 0, 0);

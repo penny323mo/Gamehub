@@ -2,6 +2,7 @@ import "@babylonjs/loaders/glTF";
 import { MeshoptCompression } from "@babylonjs/core/Meshes/Compression/meshoptCompression";
 import { AbstractMesh, Color3, MeshBuilder, Scene, SceneLoader, StandardMaterial, TransformNode, Vector3, type AnimationGroup, type Skeleton } from "@babylonjs/core";
 import { MODEL_ASSETS, type AssetId } from "../../config/assets";
+import { autoSkin, needsAutoSkin } from "../animation/autoSkin";
 import { alignRigToRootForward } from "../animation/rigFacing";
 
 export interface LoadedAsset {
@@ -70,7 +71,11 @@ export class AssetLibrary {
         if (id === "train") mesh.metadata = { ...mesh.metadata, trainSurface: true, blocksShots: true };
       }
       if (id === "train") this.normalizeTrain(root);
-      if (id === "player") { const deg = alignRigToRootForward(root, result.skeletons); if (deg) console.info(`[AssetLibrary] player rig turned ${deg}° to face +Z`); }
+      if (id === "player") {
+        const deg = alignRigToRootForward(root, result.skeletons); if (deg) console.info(`[AssetLibrary] player rig turned ${deg}° to face +Z`);
+        // 原檔權重壞咗（全部綁 Root），唔重算嘅話骨頭點郁個人都係一嚿硬物
+        for (const mesh of result.meshes) if (mesh.skeleton && needsAutoSkin(mesh, mesh.skeleton)) console.info(`[AssetLibrary] player re-skinned ${autoSkin(mesh, mesh.skeleton)} vertices`);
+      }
       if (id === "drone") root.setEnabled(false);
       return { id, root, meshes: result.meshes, skeletons: result.skeletons, animationGroups: result.animationGroups, fallback: false };
     } catch (error) {

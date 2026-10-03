@@ -81,7 +81,6 @@ UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
 - **Penny 真機回饋（全部已修，flow 27/27）**：祝福卡畀觸控層遮住／擠出畫面；canvas 100vh 拉長；觸控撳攻擊
   觸發 8 m dash；畫面暗同噪（曝光、後製、1.5× 解像度）；iOS 雙擊放大（meta＋touch-action＋gesture 攔截、燼龍
   放完先過層）；空中連擊浮空（3 下、每秒跌 1.6 m）；太密（每層 `CROWD.engaged` 12+2/層、援兵 5–9、開場 16+6×層）。
-- **部署提速**：flow test 放 `games/olden-ring/tests/flow.mjs`（`tests/` 係共用 root，會觸發全部 13 隻）。
 
 ## 角色綁骨／面向檢視（2026-10-03）
 
@@ -89,7 +88,8 @@ UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
   士兵被鏡像；②士兵 GLB 本身打側建模，控制器假設 +Z 前方，結果成個人打側對住鏡頭（實測身體 vs 前方 −94°）。
   修：保留 Z 翻轉；新 `src/game/animation/rigFacing.ts` 由大腿骨量身體正面，喺根節點下加 pivot 轉正（實測 2–4°）。
   槍管主軸實測指向前方。另修 P0：meshopt decoder 改用本地 `public/assets/vendor/meshopt/`（MIT），零 CDN 請求。
-  lint、vitest 15/15、build、assets:inspect、asset census／catalog PASS。
+  **Penny 真機：仲係「紙牌」唔識郁** → 根因：Tripo 原檔蒙皮權重壞（29k 頂點 100% 綁 `Root`、有 NaN），骨頭點郁網格都唔變形。
+  新 `autoSkin.ts` 載入時按骨段反距離⁴ 重算權重（rest pose 誤差 0.00016）；腳步跟移動方向（打橫／倒後）。截圖驗過。
 - **Tower（修咗）**：Kenney 怪模型面向 −Z → 全部倒後行（實測 180°）；加轉 180°、腳底貼地（以前浮半個身）、
   手腳拆返獨立 part 以髖／膊頭做樞紐一前一後擺，樞紐 offset 跟 yaw 轉；血條高度跟住降。catalog `rig:tower-skeleton` → `-Z`。
 - **Royale（修咗）**：`rig.js` 雙足相位只睇左右（劍士弓步令兩腳同步、披風當第三隻腳）；步態相位由真實位移推（唔再滑步）；

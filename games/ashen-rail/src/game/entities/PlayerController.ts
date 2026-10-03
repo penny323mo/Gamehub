@@ -72,6 +72,9 @@ export class PlayerController {
     this.root.position.y = this.groundHeight + Math.sin(this.proceduralTime * (moving ? 10 : 2.2)) * (moving ? 0.055 : 0.008);
     this.root.rotation.x = Scalar.Lerp(this.root.rotation.x, moving ? -0.075 : Math.sin(this.proceduralTime * 2.2) * 0.008, Math.min(1, delta * 7));
     const walkLean = moving ? -this.movement.x * 0.085 + Math.sin(this.proceduralTime * 10) * 0.03 : 0; this.root.rotation.z = this.dodgeRemaining > 0 ? -this.dodgeDirection.x * 0.28 : Scalar.Lerp(this.root.rotation.z, walkLean, delta * 8);
-    this.animator.update(delta, { moving, dodging: this.dodgeRemaining > 0, aimPitch: pose.aimPitch ?? 0, reload: pose.reload ?? 0, turnRate: this.turnRate });
+    // 世界移動方向轉落身體座標（root +Z 係前）
+    const yaw = this.root.rotation.y, sy = Math.sin(yaw), cy = Math.cos(yaw);
+    const moveDir = moving ? { f: direction.x * sy + direction.z * cy, r: direction.x * cy - direction.z * sy } : undefined;
+    this.animator.update(delta, { moving, dodging: this.dodgeRemaining > 0, aimPitch: pose.aimPitch ?? 0, reload: pose.reload ?? 0, turnRate: this.turnRate, moveDir });
   }
 }
