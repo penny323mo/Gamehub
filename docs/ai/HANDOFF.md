@@ -1,6 +1,6 @@
 # Current cross-agent handoff
 
-Updated: 2026-09-24 (Asia/Macau)
+Updated: 2026-10-03 (Asia/Macau)
 Prepared by: Claude Code — Hub 全面重新設計（ADR-314）
 Integration branch: `main`
 Work branch: `claude/interface-theme-redesign-lbwt0z`
@@ -46,13 +46,9 @@ UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
 ## Verification
 
 - `node tests/hub.mjs` **124/124**（包括 13 張封面全部載到、hero 用大圖、遊戲名疊喺封面上而且讀屏讀得到）
-- 疊字之後重跑：hub-read 3/3（字色對比）、hub-touch 5/5、hub-load 3/3。（320×568、375×667、440×956、667×375、844×390、1280×800）。
 - `build-game-catalog --check` PASS、`tests/catalog.mjs` PASS、`tests/release-gate.mjs` 21/21、
   MOBA/Hub cache-bust PASS（Hub `assets-34`、MOBA `assets-31` 分開）。
-- 跨遊戲 hub gates（順序單獨跑）：hub-load 3/3（封面版再跑一次仍 3/3）、hub-touch 5/5、
-  hub-storage 2/2、hub-home 3/3、hub-read 3/3、hub-keyboard 2/3（紅嗰條係已知 Elden Ring II
-  `#hub-return` focus ring，唔關 Hub）。
-- 五個 canonical viewport full-page screenshots 已影並人手睇過（無重疊、無爆版、插畫完整）。
+- 跨遊戲 hub gates 全綠（hub-keyboard 舊紅已隨 Olden Ring 修好）；五個 canonical viewport 截圖人手睇過。
 
 - **已上線**：Penny 授權以後直接推 `main`。`aff1b6e` 推上 main 後 Pages #383 喺 Tower
   `npm audit --audit-level=high` fail（sharp <0.35.4 新 advisory，任何 push 都會中）；
@@ -94,7 +90,15 @@ UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
   修：保留 Z 翻轉；新 `src/game/animation/rigFacing.ts` 由大腿骨量身體正面，喺根節點下加 pivot 轉正（實測 2–4°）。
   槍管主軸實測指向前方。另修 P0：meshopt decoder 改用本地 `public/assets/vendor/meshopt/`（MIT），零 CDN 請求。
   lint、vitest 15/15、build、assets:inspect、asset census／catalog PASS。
-- 其餘 3D 遊戲（Royale、Tower、MOBA、Racing、Olden Ring）由兩個 audit agent 檢查緊，結果另行記錄。
+- **Tower（修咗）**：Kenney 怪模型面向 −Z → 全部倒後行（實測 180°）；加轉 180°、腳底貼地（以前浮半個身）、
+  手腳拆返獨立 part 以髖／膊頭做樞紐一前一後擺，樞紐 offset 跟 yaw 轉；血條高度跟住降。catalog `rig:tower-skeleton` → `-Z`。
+- **Royale（修咗）**：`rig.js` 雙足相位只睇左右（劍士弓步令兩腳同步、披風當第三隻腳）；步態相位由真實位移推（唔再滑步）；
+  民兵／劍士模型 `swapArms`（以前攻擊揮盾）；騎兵 `legAmp` 馬腳對角小跑（以前凍住）；戰象模型置中貼地、傾側用內層 pivot、
+  walk clip 跟速度；RTS 村民採集／建造唔再原地踏步（每 0.9 秒揮一下）、轉身有阻尼。
+- **MOBA（修咗）**：出招即面向目標；跑步面向 render 位移方向（唔再蟹行）；跑步 clip 速度跟地速；AI 唔再 <1 m 重複落單。
+  MOBA token `assets-32`。
+- **Olden Ring（修咗）**：旗手跑動時面向跑嘅方向；主角步幅除返 `HERO_SCALE`（以前每秒滑 0.7 m）。
+- **Racing**：冇缺陷；catalog `rig:racing-car` forwardAxis 更正為 `+X`。
 
 ## Exact next action
 

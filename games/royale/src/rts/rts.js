@@ -775,7 +775,7 @@ export class RtsGame {
             const d = Math.hypot(site.x - e.x, site.z - e.z);
             if (d > site.radius + 0.9) { this.#moveToward(e, site.x, site.z, dt); this.#animate(e, true); return; }
             site.buildProgress = Math.min(1, site.buildProgress + dt / (site.def.buildTime * 0.5)); // 多幾個村民就快
-            this.#faceTo(e, site.x, site.z); this.#animate(e, true);
+            this.#faceTo(e, site.x, site.z, dt); this.#work(e, dt);
             return;
         }
         // 採集：去節點 → 採滿 → 返最近中心卸貨 → 返節點
@@ -789,7 +789,7 @@ export class RtsGame {
             e.carryType = node.resType;
             const take = Math.min(e.def.gatherRate * dt, e.def.carryCap - e.carry, node.amount);
             e.carry += take; node.amount -= take;
-            this.#faceTo(e, node.x, node.z); this.#animate(e, true);
+            this.#faceTo(e, node.x, node.z, dt); this.#work(e, dt);
             if (node.amount <= 0) { node.dead = true; this.hooks.onEvent?.('資源採光', e.team); }
             return;
         }
@@ -814,7 +814,7 @@ export class RtsGame {
         const d = Math.hypot(t.x - e.x, t.z - e.z);
         const reach = e.range + (t.radius ?? 0.4) + e.radius;
         if (d > reach) { this.#moveToward(e, t.x, t.z, dt); this.#animate(e, true); return; }
-        this.#faceTo(e, t.x, t.z);
+        this.#faceTo(e, t.x, t.z, dt);
         if (e.attackCd <= 0) {
             e.attackCd = e.hitSpeed;
             e.attackAnimT = 0; // 每次出手重新播一次揮擊
@@ -852,14 +852,25 @@ export class RtsGame {
         nx += px; nz += pz;
         e.x = Math.max(-RTS_MAP.halfW + 0.6, Math.min(RTS_MAP.halfW - 0.6, nx));
         e.z = Math.max(-RTS_MAP.halfL + 0.6, Math.min(RTS_MAP.halfL - 0.6, nz));
-        this.#faceTo(e, tx, tz);
+        this.#faceTo(e, tx, tz, dt);
         e.model.position.set(e.x, 0, e.z);
         e.hpBar.position.set(e.x, e.hpBar.userData.h, e.z);
     }
 
-    #faceTo(e, tx, tz) {
+    // 模型轉身有阻尼（同 Royale 戰場一樣 10/s），唔再一幀急轉 180°
+    #faceTo(e, tx, tz, dt = 1 / 60) {
         const a = Math.atan2(tx - e.x, tz - e.z);
-        e.facing = a; e.model.rotation.y = a;
+        e.facing = a;
+        let diff = a - e.model.rotation.y;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+        e.model.rotation.y += diff * Math.min(1, dt * 10);
+    }
+
+    // 採集／建造：企定原地、每 0.9 秒揮一下（以前用「行緊」動畫，原地踏步）
+    #work(e, dt) {
+        e.workCd = (e.workCd ?? 0) - dt;
+        if (e.attackAnimT < 0 && e.workCd <= 0) { e.attackAnimT = 0; e.workCd = 0.9; }
+        this.#animate(e, false, true);
     }
 
     #animate(e, moving, attacking = false) {

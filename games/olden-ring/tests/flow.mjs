@@ -170,7 +170,7 @@ const until = (page, fn, ms = 90000) => page.waitForFunction(fn, null, { timeout
   await page.evaluate(() => { __olden.tower.floorKOs = __olden.tower.quota; });
   const heldOff = await page.evaluate(() => new Promise((r) => setTimeout(() => r(__olden.game.hero.state !== 'musou' || __olden.tower.phase === 'fight'), 1500)));
   const afterMusou = await until(page, () => __olden.game.hero.state !== 'musou' && __olden.tower.phase !== 'fight', 120000);
-  check('燼龍放完先過層（唔會喺大招途中彈出祝福）', inMusou && heldOff && afterMusou);
+  check("燼龍放完先過層（唔會喺大招途中彈出祝福）", inMusou && heldOff && afterMusou, { inMusou, heldOff, afterMusou });
   await page.evaluate(() => { __olden.tower.floorKOs = 0; });
   // Penny 真機：第一層清咗之後祝福卡撳極都冇反應——觸控層疊咗喺卡上面；卡亦擠出畫面左邊。
   if (await page.evaluate(() => __olden.tower.phase === 'fight')) {

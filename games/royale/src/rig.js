@@ -69,15 +69,6 @@ function buildPlan(root) {
     let legs = legCands.filter(b => !legCands.includes(b.parentRec))
         .sort((a, b) => b._stat.count - a._stat.count).slice(0, 4);
     if (legs.length < 2) legs = null;
-    // 髖 = 腿嘅最近共同祖先（用嚟定相位左右／前後）
-    let hips = null;
-    if (legs) {
-        const anc = new Set();
-        for (let r = legs[0].parentRec; r; r = r.parentRec) anc.add(r);
-        outer:
-        for (let r = legs[1].parentRec; r; r = r.parentRec) if (anc.has(r)) { hips = r; break outer; }
-    }
-
     // ---- 肩樞紐：有 ≥2 條「橫向伸展」子鏈嘅骨，取最高嗰個（肩膊喺高位）----
     // 一條規則同時涵蓋人形同騎兵（騎手唔喺馬脊椎鏈下面都搵得到）
     let arms = null, chest = null;
@@ -92,9 +83,13 @@ function buildPlan(root) {
     }
 
     if (!legs && !arms) return null;
-    // 左右靠相對 x（唔靠正負）
+    // 左右靠相對 x（唔靠正負）；雙足淨係留最左同最右兩條（劍士披風 Bone_038 喺中線，曾經被當咗第三隻腳）
     if (legs) legs.sort((a, b) => a.pos.x - b.pos.x);
-    // 武器手 = subtree 伸得最低嗰隻（拎住兵器嘅手會垂低）
+    if (legs && legs.length > 2 && legs.length < 4) legs = [legs[0], legs[legs.length - 1]];
+    const legMid = new THREE.Vector3();
+    if (legs) { for (const b of legs) legMid.add(b.pos); legMid.divideScalar(legs.length); }
+    // 武器手 = subtree 伸得最低嗰隻（拎住兵器嘅手會垂低）。民兵／劍士個盾垂得仲低，
+    // 呢兩個模型由 makeRigAnimator 嘅 swapArms 對調（幾何上分唔到盾同兵器）
     let weaponArm = null, offArm = null;
     if (arms) {
         arms.sort((a, b) => a._stat.minY - b._stat.minY);
@@ -102,16 +97,19 @@ function buildPlan(root) {
     }
 
     return {
-        // 每條腿記住相位鍵：對角步（sign(x) × sign(z)），雙足自然變左右交替
-        legs: legs ? legs.map(b => ({
+        // 相位：雙足淨係睇左右（劍士企弓步，兩隻腳 z 一前一後，舊嘅 sign(x)·sign(z) 令兩腳同步擺）；
+        // 四足用對角小跑步（左前＋右後一組），以四隻腳嘅中心分前後左右
+        legs: legs ? legs.map((b, i) => ({
             name: b.name,
-            phase: (b.pos.x - (hips?.pos.x ?? 0) >= 0 ? 1 : -1) * (b.pos.z - (hips?.pos.z ?? 0) >= 0 ? 1 : -1),
+            phase: legs.length < 4 ? (i === 0 ? 1 : -1)
+                : (b.pos.x >= legMid.x ? 1 : -1) * (b.pos.z >= legMid.z ? 1 : -1),
         })) : null,
         chest: chest ? chest.name : null,
         weaponArm: weaponArm ? weaponArm.name : null,
         offArm: offArm ? offArm.name : null,
         quadruped: !!(legs && legs.length >= 4),
         height: H,
+        hipY: legs ? legs.reduce((m, b) => m + b.pos.y, 0) / legs.length : 0,
     };
 }
 
@@ -155,8 +153,10 @@ function setSwing(j, angle) {
 }
 
 // attackStyle: 'swing'（劈）｜'thrust'（突刺）｜'shoot'（射擊）｜'cast'（施法）
+// 步態相位由「真係行咗幾遠」推（唔再係 t × 固定頻率），所以快兵慢兵、冰凍減速都唔會滑步。
+// legAmp：腳擺幅（騎兵嘅 walkAmp 係騎手隻腳＝0，馬腳另計）；swapArms：武器同盾手對調。
 export function makeRigAnimator(key, model, {
-    attackStyle = 'swing', walkAmp = 0.55, walkSpeed = 7.5, armAmp = 0.42,
+    attackStyle = 'swing', walkAmp = 0.55, walkSpeed = 7.5, armAmp = 0.42, legAmp: legAmpOpt, swapArms = false,
 } = {}) {
     const plan = getRigPlan(key, model);
     if (!plan) return null;
@@ -172,8 +172,8 @@ export function makeRigAnimator(key, model, {
         const b = find(l.name);
         if (b) jLegs.push({ j: makeJoint(b, model, X_AXIS), phase: l.phase });
     }
-    const wArm = find(plan.weaponArm);
-    const oArm = find(plan.offArm);
+    const wArm = find(swapArms ? plan.offArm : plan.weaponArm);
+    const oArm = find(swapArms ? plan.weaponArm : plan.offArm);
     const chest = find(plan.chest);
     if (!jLegs.length && !wArm) return null;
 
@@ -183,11 +183,35 @@ export function makeRigAnimator(key, model, {
     const jChest = chest && makeJoint(chest, model, Y_AXIS);
     // 四足（例如騎兵嘅馬）步幅細啲、頻率高啲先似奔跑
     const quad = plan.quadruped;
-    const legAmp = walkAmp * (quad ? 0.6 : 1);
+    const legAmp = legAmpOpt ?? walkAmp * (quad ? 0.6 : 1);
     const legSpeed = walkSpeed * (quad ? 1.25 : 1);
     const setLegs = (fn) => { for (const L of jLegs) setSwing(L.j, fn(L.phase)); };
 
-    return (t, state) => {
+    // 一個步態周期（2π，左右各一步）身體前進 ≈ 4 × 腳長 × sin(擺幅)
+    const hipBone = jLegs[0]?.j.bone;
+    let cycleLen = 0, phase = 0, lastT = null;
+    const lastPos = new THREE.Vector3(), curPos = new THREE.Vector3();
+    const gait = (t, moving) => {
+        const holder = model.parent ?? model;
+        holder.getWorldPosition(curPos);
+        if (!cycleLen && hipBone) {
+            model.updateMatrixWorld(true);
+            const hipY = hipBone.getWorldPosition(new THREE.Vector3()).y - curPos.y;
+            cycleLen = 4 * Math.max(0.2, hipY) * Math.sin(Math.max(0.15, legAmp));
+        }
+        let dt = lastT === null ? 0 : t - lastT;
+        if (!(dt > 0 && dt < 0.25)) dt = 0;
+        const moved = lastT === null ? 0 : Math.hypot(curPos.x - lastPos.x, curPos.z - lastPos.z);
+        lastT = t; lastPos.copy(curPos);
+        if (!moving) return phase;
+        // 推緊但企住（塞車）就慢慢踏步，唔好成個凍住
+        const adv = cycleLen ? moved / cycleLen * Math.PI * 2 : legSpeed * dt;
+        phase += Math.min(Math.PI * 0.5, Math.max(adv, legSpeed * 0.25 * dt));
+        return phase;
+    };
+    const animate = (t, state) => {
+        const ph = gait(t, state.moving && state.attackT < 0);
+        animate.phase = ph;
         if (state.attackT >= 0) {
             const p = state.attackT;
             let armAngle = 0, twist = 0, legSpread = 0;
@@ -217,13 +241,13 @@ export function makeRigAnimator(key, model, {
             setSwing(jArmO, armAngle * (attackStyle === 'shoot' ? 0.75 : -0.3));
             setSwing(jChest, twist);
             // 揮擊嗰刻紮馬（四足就唔紮，繼續碎步）
-            setLegs(ph => (quad ? Math.sin(t * legSpeed + (ph > 0 ? 0 : Math.PI)) * legAmp * 0.35 : ph * legSpread));
+            setLegs(p2 => (quad ? Math.sin(t * legSpeed + (p2 > 0 ? 0 : Math.PI)) * legAmp * 0.35 : p2 * legSpread));
             return;
         }
         if (state.moving) {
             // 行走／奔跑：腿按相位交替前後擺（四足會自然變對角步），手臂反相擺
-            const s = Math.sin(t * legSpeed);
-            setLegs(ph => (ph > 0 ? s : -s) * legAmp);
+            const s = Math.sin(ph);
+            setLegs(p2 => (p2 > 0 ? s : -s) * legAmp);
             setSwing(jArmW, -s * armAmp);
             setSwing(jArmO, s * armAmp);
             setSwing(jChest, s * 0.09);
@@ -231,9 +255,11 @@ export function makeRigAnimator(key, model, {
         }
         // 企定：輕微呼吸擺動，唔好似木頭人
         const b = Math.sin(t * 1.9) * 0.055;
-        setLegs(ph => (ph > 0 ? b : -b) * 0.35);
+        setLegs(p2 => (p2 > 0 ? b : -b) * 0.35);
         setSwing(jArmW, b);
         setSwing(jArmO, -b);
         setSwing(jChest, Math.sin(t * 1.3) * 0.05);
     };
+    animate.phase = 0;
+    return animate;
 }

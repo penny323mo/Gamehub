@@ -87,7 +87,7 @@ export function runPose(phase, k, out, lean = 0) {
   out.set(RUN_BASE);
   const v = k * LOCO.runSpeed, T = 2 / cadence(v);
   const s = 0.5 - 0.2 * k;                      // stance fraction of the cycle per foot (flight phase at speed)
-  const Ls = v * s * T, zc = 0.04;
+  const Ls = v * s * T / HERO_SCALE, zc = 0.04;    // pose units: the root is scaled by HERO_SCALE
   let zL = 0, zR = 0;
   for (const [b, off, x, side] of [[CH.footL, 0, 0.11, 1], [CH.footR, 0.5, -0.11, -1]]) {
     let p = phase / TAU + off; p -= Math.floor(p);

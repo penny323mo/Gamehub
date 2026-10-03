@@ -11,9 +11,9 @@ import {
     RESPAWN_BASE, RESPAWN_PER_LEVEL, SHUTDOWN_PER_STREAK, SHUTDOWN_MAX,
     armourMul, structureArmour, TOWER_AGGRO_MEMORY, FOUNTAIN_HEAL_PCT, FOUNTAIN_RADIUS,
     PUSH_STRENGTH, SIEGE_DENSE_AT, SIEGE_EVERY_WAVE_AT, WARDEN, RECALL,
-} from './constants.js?v=assets-31';
-import { CHAMPIONS, abilityRank, scaled } from './champions.js?v=assets-31';
-import { ITEMS, MAX_ITEMS, itemBonus } from './items.js?v=assets-31';
+} from './constants.js?v=assets-32';
+import { CHAMPIONS, abilityRank, scaled } from './champions.js?v=assets-32';
+import { ITEMS, MAX_ITEMS, itemBonus } from './items.js?v=assets-32';
 
 // 可重現嘅亂數：測試要跑到同一場比賽。
 //
@@ -543,7 +543,8 @@ export class Sim {
         e.x += dx / d * step;
         e.z += dz / d * step;
         this.#clampToBridge(e);
-        e.facing = Math.atan2(dx, dz);
+        // 幾十厘米嘅微調唔轉身：AI 每格重落一個近在咫尺、大多打側嘅目標，以前令人打橫行（crab-walk）
+        if (d > 0.5) e.facing = Math.atan2(dx, dz);
         e.moving = true;
         e.standingSince = 0;
         // 完全郁唔到（撞實橋邊、或者畀人群卡住）就當到咗，唔好一直撼落去。
@@ -931,6 +932,12 @@ export class Sim {
             id: c.id, index, key: ab.key, championId: c.def.id,
             x: aim.x, z: aim.z, targetId: aim.targetId,
         });
+        // 施法要轉身：之前 cast()／_form_* 從來冇改 facing，向後放技能／衝刺會背住方向飛（Penny 審計）。
+        const faceAt = aim.targetId != null ? this.entities.find(e => e.id === aim.targetId) : aim;
+        if (faceAt && Number.isFinite(faceAt.x) && Number.isFinite(faceAt.z)
+            && Math.hypot(faceAt.x - c.x, faceAt.z - c.z) > 0.05) {
+            c.facing = Math.atan2(faceAt.x - c.x, faceAt.z - c.z);
+        }
 
         const handler = this[`_form_${ab.form}`];
         if (handler) handler.call(this, c, ab, rank, aim);

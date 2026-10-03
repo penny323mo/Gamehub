@@ -234,7 +234,7 @@ function makeRiggedAnimator(key, model, opts) {
             model.position.y = baseY;
         } else if (state.moving) {
             // 踏步嘅上下起伏（頻率同骨骼步態一致，一步一沉）
-            model.position.y = baseY + Math.abs(Math.sin(t * bobSpeed)) * bobAmount;
+            model.position.y = baseY + Math.abs(Math.sin(rig.phase)) * bobAmount;   // 同步態一齊：一步一沉
             model.position.z *= 0.7;
         } else {
             model.position.y = baseY + (Math.sin(t * 1.9) * 0.5 + 0.5) * 0.016;
@@ -303,7 +303,7 @@ function makeMilitia(team) {
     return makeMeshyUnit('meshyMilitia', team, {
         height: 1.56, tint: mixColor(c.main, 0x9a8560, 0.45), armor: false,
         accent: 0xc9a227, accentBand: [0.55, 0.6], propColor: 0x6b4a28, // 芥黃色布條腰帶
-        attackStyle: 'swing', walkSpeed: 9.5, walkAmp: 0.52, armAmp: 0.46,
+        swapArms: true, attackStyle: 'swing', walkSpeed: 9.5, walkAmp: 0.52, armAmp: 0.46,
     });
 }
 
@@ -312,7 +312,7 @@ function makeSwordsman(team) {
     return makeMeshyUnit('meshySwordsman', team, {
         height: 1.74, tint: mixColor(c.main, 0xb8b0a0, 0.15),
         accent: 0xe8dcc0, accentBand: [0.58, 0.63], propColor: 0xb9c2c9, // 米白色綬帶＋銀刃
-        attackStyle: 'swing', walkSpeed: 7.0, walkAmp: 0.5, armAmp: 0.38,
+        swapArms: true, attackStyle: 'swing', walkSpeed: 7.0, walkAmp: 0.5, armAmp: 0.38,
     });
 }
 
@@ -349,7 +349,7 @@ function makeKnight(team) {
         height: 2.22, tint: mixColor(c.main, 0x8a7050, 0.35),
         bobAmount: 0.07, bobSpeed: 6, lungeAmount: 0.35,
         accent: 0xd4af37, accentBand: [0.42, 0.48], propColor: 0x5a3d20, // 金色馬鞍飾邊
-        attackStyle: 'swing', walkSpeed: 9.0, walkAmp: 0, armAmp: 0.3, // 騎馬：腿唔擺
+        attackStyle: 'swing', walkSpeed: 9.0, walkAmp: 0, legAmp: 0.35, armAmp: 0.3, // 騎手腿唔擺，馬腳小跑
     });
 }
 
@@ -360,7 +360,7 @@ function makeScout(team) {
         height: 1.92, tint: mixColor(c.main, 0xc2a878, 0.45),
         bobAmount: 0.09, bobSpeed: 9, lungeAmount: 0.4,
         accent: 0xc9ced4, accentBand: [0.44, 0.5], propColor: 0x7a5230,
-        attackStyle: 'swing', walkSpeed: 12.0, walkAmp: 0, armAmp: 0.32, // 騎馬：腿唔擺
+        attackStyle: 'swing', walkSpeed: 12.0, walkAmp: 0, legAmp: 0.35, armAmp: 0.32, // 騎手腿唔擺，馬腳小跑
     });
 }
 
@@ -370,7 +370,7 @@ function makeBerserker(team) {
     return makeMeshyUnit('meshySwordsman', team, {
         height: 1.78, tint: mixColor(c.main, 0x8a2418, 0.5),
         lungeAmount: 0.55, accent: 0x5c0f0f, accentBand: [0.56, 0.62], propColor: 0x4a4a50,
-        attackStyle: 'swing', walkSpeed: 9.5, walkAmp: 0.62, armAmp: 0.55,
+        swapArms: true, attackStyle: 'swing', walkSpeed: 9.5, walkAmp: 0.62, armAmp: 0.55,
     });
 }
 
@@ -380,7 +380,7 @@ function makeCleric(team) {
     return makeMeshyUnit('meshyMilitia', team, {
         height: 1.6, tint: mixColor(c.main, 0xf0ece0, 0.55), armor: false,
         accent: 0xffd76a, accentBand: [0.5, 0.58], propColor: 0xe8dcb0,
-        attackStyle: 'cast', walkSpeed: 8.0, walkAmp: 0.44, armAmp: 0.3,
+        swapArms: true, attackStyle: 'cast', walkSpeed: 8.0, walkAmp: 0.44, armAmp: 0.3,
     });
 }
 
@@ -400,7 +400,7 @@ function makeIronclad(team) {
     return makeMeshyUnit('meshySwordsman', team, {
         height: 1.96, tint: mixColor(c.main, 0x6b7078, 0.55),
         lungeAmount: 0.2, accent: 0x2f3a52, accentBand: [0.54, 0.64], propColor: 0xc9ced4,
-        attackStyle: 'swing', walkSpeed: 5.4, walkAmp: 0.42, armAmp: 0.3,
+        swapArms: true, attackStyle: 'swing', walkSpeed: 5.4, walkAmp: 0.42, armAmp: 0.3,
     });
 }
 
@@ -463,29 +463,41 @@ function makeCatapult(team) {
 }
 
 // ---------- 戰象（Meshy AI 模型 + 程序化戰塔）----------
+const ELE_CLIP_SPEED = 1.2; // walk clip 原速對應嘅地速（= 戰象卡 speed，以前一直用 timeScale 1）
 function makeElephant(team) {
     const c = TEAM_COLORS[team];
     const g = new THREE.Group();
     const ele = meshyTint(instantiate('meshyElephant'), 0x968f88);
     scaleToHeight('meshyElephant', ele, 2.28);
-    g.add(ele);
+    // 模型原點喺象屁股、腳離地 ~0.12：移到身體正中貼地，戰塔／披布先會坐喺背脊中間，
+    // 碰撞圓心同身體重疊（以前條鼻伸出圓心 2.4m）
+    ele.updateMatrixWorld(true);
+    const eleBox = new THREE.Box3().setFromObject(ele);
+    ele.position.x -= (eleBox.min.x + eleBox.max.x) / 2;
+    ele.position.z -= (eleBox.min.z + eleBox.max.z) / 2;
+    ele.position.y -= eleBox.min.y;
+    // 攻擊前衝傾側用內層 pivot：root group 嘅 rotation.x 會喺 yaw 之後先轉（Euler XYZ），
+    // 敵方（面向 −Z）會變咗向後仰、打側嘅會變咗側翻
+    const body = new THREE.Group();
+    g.add(body);
+    body.add(ele);
 
     // 隊色披布 + 戰塔 + 旗
     const drape = box(0.8, 0.32, 1.05, c.main);
     drape.position.y = 1.05;
-    g.add(drape);
+    body.add(drape);
     const trim = box(0.82, 0.07, 1.07, GOLD);
     trim.position.y = 0.92;
-    g.add(trim);
+    body.add(trim);
     const howdah = box(0.52, 0.28, 0.52, WOOD);
     howdah.position.y = 1.32;
-    g.add(howdah);
+    body.add(howdah);
     const flagPole = cyl(0.02, 0.02, 0.5, WOOD_DARK, 6);
     flagPole.position.set(0, 1.65, 0.15);
-    g.add(flagPole);
+    body.add(flagPole);
     const flag = makeFlag(0.3, 0.16, c.flag);
     flag.position.set(0, 1.82, 0.15);
-    g.add(flag);
+    body.add(flag);
     const eleFlash = makeHitFlash(ele);
     g.userData.onHit = eleFlash.onHit;
 
@@ -497,7 +509,8 @@ function makeElephant(team) {
         walkA.play();
         mixer.update(Math.random());
     }
-    let lastT = null;
+    let lastT = null, lastPos = null;
+    const elePos = new THREE.Vector3();
     g.userData.animate = (t, state) => {
         flag.rotation.y = Math.sin(t * 2.4) * 0.35;
         if (lastT === null) lastT = t;
@@ -506,7 +519,11 @@ function makeElephant(team) {
         if (dt < 0 || dt > 0.2) dt = 1 / 60;
         if (walkA) {
             // 靜止時放慢到停
-            const target = state.moving ? 1 : 0;
+            // 步速跟真實移動速度（clip 原速 ≈ 戰象卡速度），唔係開／關兩檔
+            g.getWorldPosition(elePos);
+            const v = lastPos && dt > 0 ? Math.hypot(elePos.x - lastPos.x, elePos.z - lastPos.z) / dt : 0;
+            lastPos = (lastPos ?? new THREE.Vector3()).copy(elePos);
+            const target = state.moving ? Math.min(1.6, Math.max(0.35, v / ELE_CLIP_SPEED)) : 0;
             walkA.timeScale += (target - walkA.timeScale) * Math.min(1, dt * 8);
             mixer.update(dt);
         }
@@ -515,9 +532,9 @@ function makeElephant(team) {
         if (state.attackT >= 0) {
             const p = state.attackT;
             const a = p < 0.4 ? (p / 0.4) : 1 - (p - 0.4) / 0.6;
-            g.rotation.x = a * 0.1; // 向前撞
+            body.rotation.x = a * 0.1; // 向前撞
         } else {
-            g.rotation.x *= 0.8;
+            body.rotation.x *= 0.8;
         }
         eleFlash.update(t);
     };

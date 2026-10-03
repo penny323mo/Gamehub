@@ -265,7 +265,7 @@ export function createCrowd(game, grunts = 300) {
           vx = ex / e * sp; vz = ez / e * sp;
           if (s !== ST.ADVANCE) setSt(i, ST.ADVANCE);
         } else if (s !== ST.GUARD) setSt(i, ST.GUARD);
-        turn(i, face, CROWD.turn);
+        turn(i, (e > 0.6 && Math.hypot(vx, vz) >= CROWD.run) ? Math.atan2(vx, vz) : face, CROWD.turn);   // running: look where he runs
       } else {
         // ADVANCE / GUARD: hold a ring at the preferred distance (with a slow in/out shuffle); token holders close in
         const shuffle = Math.sin(game.frame * 0.021 + c.phase[i] * 3) * 0.4;

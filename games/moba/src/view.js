@@ -10,10 +10,10 @@ import { EffectComposer } from '../vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from '../vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/postprocessing/OutputPass.js';
-import { MAP, TEAM } from './constants.js?v=assets-31';
-import { CHAMPION_LOOK, MINION_LOOK, ARENA_LOOK, TEAM_COLOUR, CLIP, championFx } from './looks.js?v=assets-31';
-import { Rig } from './rig.js?v=assets-31';
-import { Fx } from './fx.js?v=assets-31';
+import { MAP, TEAM } from './constants.js?v=assets-32';
+import { CHAMPION_LOOK, MINION_LOOK, ARENA_LOOK, TEAM_COLOUR, CLIP, championFx } from './looks.js?v=assets-32';
+import { Rig } from './rig.js?v=assets-32';
+import { Fx } from './fx.js?v=assets-32';
 
 // 平滑追趕：每秒收窄 rate 咁多，而且同幀率無關。
 //
@@ -613,11 +613,22 @@ export class View {
             const rx = lerpPos(u.fromX, e.x, this.alpha);
             const rz = lerpPos(u.fromZ, e.z, this.alpha);
             u.obj.position.set(rx, 0, rz);
+            // 實際移動速度同方向（render 位置差）：步頻同「跑步時面向」都用佢。
+            // 步頻：Running_A 原生 ≈ 3.32 m/s（每 1 個 look.scale）。之前一律 timeScale 1，小兵用 Walking_B
+            // （腳 0.82 m/s）走 5.2 m/s，腳滑 6.3 倍；英雄滑 1.3–1.4 倍。
+            const mvx = rx - (u.lastRx ?? rx), mvz = rz - (u.lastRz ?? rz);
+            const moved = dt > 0 ? Math.hypot(mvx, mvz) / dt : 0;
+            u.lastRx = rx; u.lastRz = rz;
+            u.spd = (u.spd ?? moved) + (moved - (u.spd ?? moved)) * approach(10, dt);
+            if (moved > 0.6) u.moveYaw = Math.atan2(mvx, mvz);
             if (e.facing != null) {
                 // KayKit 嘅角色向 +z，同 three.js 一樣，而 sim 個 facing 就係
                 // atan2(dx, dz)——即係 rotation.y 直接就啱。之前加咗 Math.PI
                 // 「修正」一個唔存在嘅偏差，結果全場人背住敵人打。
-                const target = e.facing;
+                // 跑緊（唔係攻擊／施法動作）就面向實際移動方向：sim facing 會因為近距離微調、人群推擠而
+                // 同真正嘅位移唔一致，以前睇落係打橫行（crab-walk）同倒退跑。
+                const running = e.moving && !u.rig.busy && u.spd > 0.6 && u.moveYaw != null;
+                const target = running ? u.moveYaw : e.facing;
                 let d = target - u.obj.rotation.y;
                 d = Math.atan2(Math.sin(d), Math.cos(d));
                 u.obj.rotation.y += d * approach(12, dt);
@@ -631,8 +642,10 @@ export class View {
             u.bar.quaternion.copy(this.camera.quaternion);
 
             if (!u.rig.busy) {
-                if (e.moving) u.rig.loop(this.assets, e.kind === 'champ' ? CLIP.run : CLIP.walk);
-                else u.rig.loop(this.assets, CLIP.idleCombat);
+                if (e.moving && u.spd > 0.3) {
+                    const ts = Math.min(2.2, Math.max(0.6, u.spd / (3.32 * (u.look.scale || 1))));
+                    u.rig.loop(this.assets, CLIP.run, ts);
+                } else u.rig.loop(this.assets, CLIP.idleCombat);
             }
             u.rig.update(dt);
         }

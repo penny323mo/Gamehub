@@ -5,9 +5,9 @@
 // 公平原則（同 royale 嘅 ADR-007 一致）：bot 用同一套 sim API、同一批數值、
 // 同一個施法距離。佢哋唯一嘅「優勢」係唔會手殘，唯一嘅劣勢係決策簡單。
 
-import { TEAM, MAP, enemyOf } from './constants.js?v=assets-31';
-import { abilityRank } from './champions.js?v=assets-31';
-import { nextPurchase, ITEMS, BUILDS, MAX_ITEMS } from './items.js?v=assets-31';
+import { TEAM, MAP, enemyOf } from './constants.js?v=assets-32';
+import { abilityRank } from './champions.js?v=assets-32';
+import { nextPurchase, ITEMS, BUILDS, MAX_ITEMS } from './items.js?v=assets-32';
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const sideSign = (team) => (team === TEAM.BLUE ? -1 : 1);
@@ -406,7 +406,8 @@ export function createBot(sim, champ, opts = {}) {
 
             // 冇嘢打就跟住兵線推
             const front = frontLineX();
-            sim.orderMove(champ, front, champ.z * 0.5);
+            // 目標距離唔夠 1 米就唔落新指令：每格重落一個 0.3–0.5 m 嘅打側目標，令 bot 原地打橫跑
+            if (Math.hypot(champ.x - front, champ.z * 0.5) > 1) sim.orderMove(champ, front, champ.z * 0.5);
         },
     };
 

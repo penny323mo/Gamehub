@@ -51,13 +51,13 @@ function limbGeo(r: number, len: number): THREE.BufferGeometry {
 
 /** Per-type display metadata: HP-bar height & ground shadow size. */
 export const ENEMY_META: Record<EnemyType, { barY: number; shadowScale: number }> = {
-    grunt:  { barY: 0.95, shadowScale: 1.0 },
-    tank:   { barY: 1.05, shadowScale: 1.55 },
-    runner: { barY: 0.9,  shadowScale: 0.95 },
-    swarm:  { barY: 0.72, shadowScale: 0.65 },
-    shield: { barY: 1.1,  shadowScale: 1.1 },
-    healer: { barY: 1.15, shadowScale: 1.0 },
-    boss:   { barY: 2.1,  shadowScale: 1.95 },
+    grunt:  { barY: 0.75, shadowScale: 1.0 },
+    tank:   { barY: 0.86, shadowScale: 1.55 },
+    runner: { barY: 0.6,  shadowScale: 0.95 },
+    swarm:  { barY: 0.58, shadowScale: 0.65 },
+    shield: { barY: 0.88, shadowScale: 1.1 },
+    healer: { barY: 0.9 , shadowScale: 1.0 },
+    boss:   { barY: 1.6,  shadowScale: 1.95 },
 };
 
 // ─── 敵人用真模型，唔再砌幾何 ────────────────────────────────────────────
@@ -74,26 +74,42 @@ export const ENEMY_META: Record<EnemyType, { barY: number; shadowScale: number }
 // 五隻模型對七種敵人：`swarm` 同 `shield` 冇自己嘅模型，用大細同色分
 // （swarm 係細版 skeleton、shield 係藍版 zombie）。呢個係 kit 得五隻嘅代價，
 // 記喺度，第日搵到啱嘅 CC0 角色包就換。
-const 敵模型: Record<EnemyType, { 檔: string; 縮: number; 色?: number; 抬: number }> = {
-    grunt:  { 檔: 'skeleton', 縮: 0.60, 抬: 0.39 },
-    tank:   { 檔: 'digger',   縮: 0.52, 抬: 0.39 },
-    runner: { 檔: 'ghost',    縮: 0.46, 抬: 1.43 },
-    swarm:  { 檔: 'skeleton', 縮: 0.38, 色: 0x9fd8a0, 抬: 0.39 },
-    shield: { 檔: 'zombie',   縮: 0.58, 色: 0x7fc6e8, 抬: 0.39 },
-    healer: { 檔: 'vampire',  縮: 0.55, 色: 0xf0a8d0, 抬: 0.48 },
-    boss:   { 檔: 'vampire',  縮: 1.15, 色: 0xff9a4d, 抬: 0.48 },
+const 敵模型: Record<EnemyType, { 檔: string; 縮: number; 色?: number; 浮?: number }> = {
+    grunt:  { 檔: 'skeleton', 縮: 0.60 },
+    tank:   { 檔: 'digger',   縮: 0.52 },
+    runner: { 檔: 'ghost',    縮: 0.46, 浮: 0.28 },   // 鬼係飄嘅，其他全部企喺地
+    swarm:  { 檔: 'skeleton', 縮: 0.38, 色: 0x9fd8a0 },
+    shield: { 檔: 'zombie',   縮: 0.58, 色: 0x7fc6e8 },
+    healer: { 檔: 'vampire',  縮: 0.55, 色: 0xf0a8d0 },
+    boss:   { 檔: 'vampire',  縮: 1.15, 色: 0xff9a4d },
 };
 
-/** 每種敵人身體點郁——模型本身係靜態，所以郁嘅係成個身，唔係逐條腳。 */
-const 敵動作: Record<EnemyType, AnimFn> = {
-    grunt:  walkBob(0.055, 9),
-    tank:   walkBob(0.035, 5.5),
-    runner: hover(0.08, 3.2),
-    swarm:  walkBob(0.07, 13),
-    shield: walkBob(0.04, 7),
-    healer: hover(0.05, 2.4),
-    boss:   walkBob(0.06, 4),
+/**
+ * 每種敵人點行：[成身彈幅, 步頻, 腳擺幅 rad, 手擺幅 rad]。
+ * Kenney 模型嘅手腳本身係獨立 node（樞紐喺髖／膊頭），所以腳真係會一前一後咁擺，
+ * 唔再係成件死物喺地上滑。`|sin|` 彈一下 = 踏一步，擺動 `sin` 一個周期 = 左右各一步。
+ */
+const 敵步態: Record<EnemyType, [number, number, number, number]> = {
+    grunt:  [0.04, 9,   0.6,  0.45],
+    tank:   [0.03, 5.5, 0.45, 0.3],
+    runner: [0,    3.2, 0,    0.35],
+    swarm:  [0.05, 13,  0.65, 0.5],
+    shield: [0.03, 7,   0.5,  0.2],
+    healer: [0.03, 6,   0.45, 0.35],
+    boss:   [0.05, 4,   0.5,  0.4],
 };
+
+type 肢 = 'legLeft' | 'legRight' | 'armLeft' | 'armRight';
+const 肢相位: Record<肢, number> = { legLeft: 0, legRight: Math.PI, armLeft: Math.PI, armRight: 0 };
+
+function 步態動作(type: EnemyType, limb: 肢 | null): AnimFn {
+    const [bob, speed, legAmp, armAmp] = 敵步態[type];
+    const bodyMove = type === 'runner' ? hover(0.08, speed) : walkBob(bob, speed);
+    if (!limb) return bodyMove;
+    const amp = limb.startsWith('leg') ? legAmp : armAmp;
+    const limbMove = swing(speed, amp, 肢相位[limb]);
+    return (out, t, ph) => { bodyMove(out, t, ph); limbMove(out, t, ph); };
+}
 
 const ENEMY_PARTS: Record<EnemyType, EnemyPartDef[]> = {
     grunt: [], tank: [], runner: [], swarm: [], shield: [], healer: [], boss: [],
@@ -111,18 +127,34 @@ export function 裝敵模型(): void {
         const cfg = 敵模型[type];
         const root = 取同步(`enemies/${cfg.檔}.glb`);
         root.updateMatrixWorld(true);
+        // Kenney Graveyard 生物面向 −Z，遊戲用 atan2(dx,dz)（+Z 係前），所以成隻轉 180°；
+        // 腳底 = bbox 最低點，貼地（以前用固定「抬」值，實測成隻浮起半個身）。
+        const minY = new THREE.Box3().setFromObject(root).min.y;
+        const 放 = new THREE.Matrix4()
+            .makeScale(cfg.縮, cfg.縮, cfg.縮)
+            .multiply(new THREE.Matrix4().makeTranslation(0, (cfg.浮 ?? 0) / cfg.縮, 0))
+            .multiply(new THREE.Matrix4().makeRotationY(Math.PI))
+            .multiply(new THREE.Matrix4().makeTranslation(0, -minY, 0));
         const parts: EnemyPartDef[] = [];
         root.traverse((o) => {
             const m = o as THREE.Mesh;
             if (!m.isMesh) return;
+            // 手／腳：geometry 以髖／膊頭為原點，offset 記住樞紐位，咁 rotation.x 先係擺腳唔係轉棍
+            let limbNode: THREE.Object3D | null = m;
+            while (limbNode && !/^(leg|arm)(Left|Right)$/.test(limbNode.name)) limbNode = limbNode.parent;
+            const limb = (limbNode?.name ?? null) as 肢 | null;
             const geo = m.geometry.clone();
             geo.applyMatrix4(m.matrixWorld);          // 焗返 sub-mesh 自己嗰個變換
-            geo.scale(cfg.縮, cfg.縮, cfg.縮);
-            geo.translate(0, cfg.抬 * cfg.縮, 0);      // 模型原點喺身體中間，抬返上地面
+            geo.applyMatrix4(放);
+            const pivot = new THREE.Vector3();
+            if (limbNode) {
+                limbNode.getWorldPosition(pivot).applyMatrix4(放);
+                geo.translate(-pivot.x, -pivot.y, -pivot.z);
+            }
             for (const mm of (Array.isArray(m.material) ? m.material : [m.material])) {
                 const mat = (mm as THREE.MeshStandardMaterial).clone();
                 if (cfg.色) mat.color.lerp(new THREE.Color(cfg.色), 0.55);
-                parts.push({ geo, mat, offset: new THREE.Vector3(0, 0, 0), anim: 敵動作[type] });
+                parts.push({ geo, mat, offset: pivot, anim: 步態動作(type, limb) });
                 break;                                  // 一個 sub-mesh 一份材質就夠
             }
         });
@@ -271,8 +303,14 @@ export class EnemyRenderer {
                     out.s = 1;
                     if (part.anim) part.anim(out, time, phase);
 
-                    this.dummy.position.set(e.worldX + out.ox, SURFACE_Y + out.oy, e.worldZ + out.oz);
-                    this.dummy.position.add(part.offset);
+                    // 樞紐 offset 跟住隻怪轉（以前冇轉，一打側手腳就會甩開個身）
+                    const c = Math.cos(moveRot), sn = Math.sin(moveRot);
+                    const px = part.offset.x + out.ox, pz = part.offset.z + out.oz;
+                    this.dummy.position.set(
+                        e.worldX + px * c + pz * sn,
+                        SURFACE_Y + part.offset.y + out.oy,
+                        e.worldZ - px * sn + pz * c,
+                    );
                     this.dummy.rotation.set(out.rx, moveRot + out.ry, out.rz);
                     if (part.rotation) {
                         this.dummy.rotation.x += part.rotation.x;
