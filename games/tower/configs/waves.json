@@ -1,5 +1,6 @@
 {
     "prepSec": 8,
+    "openingPrepSec": 15,
     "waves": [
         {
             "groups": [

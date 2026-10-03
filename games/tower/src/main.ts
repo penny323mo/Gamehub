@@ -526,7 +526,7 @@ function updateHUD(): void {
     const total = state.waveEnemiesTotal || 0;
     if (state.phase === 'prep') {
         hudWaveEl.classList.add('prep');
-        const prepMax = WAVES.prepSec || 8;
+        const prepMax = state.prepTotal || WAVES.prepSec || 8;
         const prepPct = Math.max(0, Math.min(1, 1 - state.prepTimer / prepMax));
         waveRemainEl.textContent = `⏳ ${Math.max(0, Math.ceil(state.prepTimer))}s`;
         waveProgressFillEl.style.width = `${Math.round(prepPct * 100)}%`;
@@ -1321,7 +1321,7 @@ async function enterRun(nextState: GameState, checkpoint: RunCheckpoint | null):
     resetRunLocals();
     audioSystem.init();
     audioSystem.startMusic();
-    startNextWave(state);
+    startNextWave(state, true);
     if (checkpoint) state.waveModifier = checkpoint.waveModifier;
     towerRenderer.sync(state);
     updateHUD();
@@ -1523,7 +1523,7 @@ restartBtn.addEventListener('click', () => {
     updateHUD();
     updateSkillsHUD();
     hideTowerPanel();
-    startNextWave(state);
+    startNextWave(state, true);
     saveRunCheckpoint(state);
     availableCheckpoint = loadRunCheckpoint();
     showWaveBanner('Wave 1');

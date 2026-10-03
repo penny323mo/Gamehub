@@ -93,6 +93,8 @@ export interface WaveConfig {
 
 export interface WavesConfig {
     prepSec: number;
+    /** 開局（或者由存檔繼續）第一波嘅準備時間：要有時間睇地圖、起第一批塔 */
+    openingPrepSec?: number;
     waves: WaveConfig[];
 }
 
@@ -276,6 +278,8 @@ export interface GameState {
 
     // Wave state
     prepTimer: number;
+    /** 今次準備期總長（HUD 進度條用） */
+    prepTotal?: number;
     spawnTimers: number[];
     spawnCounts: number[];
     waveEnemiesSpawned: number;

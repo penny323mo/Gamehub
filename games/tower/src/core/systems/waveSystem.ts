@@ -41,11 +41,12 @@ export function templateIndex(state: GameState): number {
     return 40 + (state.currentWave - WAVES.waves.length) % loopLen;
 }
 
-/** Start the next wave (enters prep phase) */
-export function startNextWave(state: GameState): void {
+/** Start the next wave (enters prep phase); `opening` = 開局第一波，準備時間長啲 */
+export function startNextWave(state: GameState, opening = false): void {
     if (state.currentWave >= WAVES.waves.length && !state.endlessMode) return;
     state.phase = 'prep';
-    state.prepTimer = WAVES.prepSec;
+    state.prepTimer = opening ? Math.max(WAVES.prepSec, WAVES.openingPrepSec ?? WAVES.prepSec) : WAVES.prepSec;
+    state.prepTotal = state.prepTimer;
     state.waveLivesLostThisWave = 0;
 
     const wave = WAVES.waves[templateIndex(state)];
