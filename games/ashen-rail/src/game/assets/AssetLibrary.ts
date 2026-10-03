@@ -1,6 +1,8 @@
 import "@babylonjs/loaders/glTF";
+import { MeshoptCompression } from "@babylonjs/core/Meshes/Compression/meshoptCompression";
 import { AbstractMesh, Color3, MeshBuilder, Scene, SceneLoader, StandardMaterial, TransformNode, Vector3, type AnimationGroup, type Skeleton } from "@babylonjs/core";
 import { MODEL_ASSETS, type AssetId } from "../../config/assets";
+import { alignRigToRootForward } from "../animation/rigFacing";
 
 export interface LoadedAsset {
   id: AssetId;
@@ -13,6 +15,10 @@ export interface LoadedAsset {
 }
 
 export type AssetProgress = (id: AssetId, completed: number, total: number) => void;
+
+// All four GLBs are meshopt-compressed. Babylon's default decoder URL is cdn.babylonjs.com; where that host is
+// blocked every model fell back to a primitive (the soldier became a box, the train vanished). Ship our own copy.
+MeshoptCompression.Configuration = { decoder: { url: new URL("assets/vendor/meshopt/meshopt_decoder.js", window.location.href).href } };
 
 export class AssetLibrary {
   private readonly loaded = new Map<AssetId, LoadedAsset>();
@@ -55,12 +61,16 @@ export class AssetLibrary {
       root.position = Vector3.FromArray(config.position);
       root.rotation = Vector3.FromArray(config.rotation);
       root.scaling.setAll(config.scale);
+      // The glTF loader's root carries a Z = -1 scale (right- to left-handed). setAll() erased it, which mirrored the
+      // soldier and flipped its triangle winding. Keep the flip for the player (the only asymmetric, skinned asset).
+      if (id === "player") root.scaling.z = -config.scale;
       for (const mesh of result.meshes) {
         mesh.isPickable = id === "drone" || id === "train";
         mesh.receiveShadows = id === "train";
         if (id === "train") mesh.metadata = { ...mesh.metadata, trainSurface: true, blocksShots: true };
       }
       if (id === "train") this.normalizeTrain(root);
+      if (id === "player") { const deg = alignRigToRootForward(root, result.skeletons); if (deg) console.info(`[AssetLibrary] player rig turned ${deg}° to face +Z`); }
       if (id === "drone") root.setEnabled(false);
       return { id, root, meshes: result.meshes, skeletons: result.skeletons, animationGroups: result.animationGroups, fallback: false };
     } catch (error) {

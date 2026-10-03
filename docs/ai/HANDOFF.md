@@ -96,6 +96,15 @@ UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
   16+6×層、目標 30(+10/層)。實測第一層 8 m 內 ~13 隻、全場 ~24–31 隻。flow 27/27。
 - 未做：真機手感／FPS（SwiftShader 只有 1–3 fps）、書法字子集補新字、更多敵種同冠層 Boss 造型。
 
+## 角色綁骨／面向檢視（2026-10-03）
+
+- **灰燼列車（修咗）**：主角「紙牌」= ①`AssetLibrary` 用 `scaling.setAll()` 抹走 glTF 根節點嘅 Z=−1（RH→LH），
+  士兵被鏡像；②士兵 GLB 本身打側建模，控制器假設 +Z 前方，結果成個人打側對住鏡頭（實測身體 vs 前方 −94°）。
+  修：保留 Z 翻轉；新 `src/game/animation/rigFacing.ts` 由大腿骨量身體正面，喺根節點下加 pivot 轉正（實測 2–4°）。
+  槍管主軸實測指向前方。另修 P0：meshopt decoder 改用本地 `public/assets/vendor/meshopt/`（MIT），零 CDN 請求。
+  lint、vitest 15/15、build、assets:inspect、asset census／catalog PASS。
+- 其餘 3D 遊戲（Royale、Tower、MOBA、Racing、Olden Ring）由兩個 audit agent 檢查緊，結果另行記錄。
+
 ## Exact next action
 
 0. **2026-09-24 逐 game audit 完成**：見 `docs/GAMEHUB_UPGRADE_PLAN_2026-09.md`（13 隻評分、
