@@ -82,19 +82,10 @@ UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
 - **誠實註記**：約 93% 代碼係 voxel-musou 原封（戰鬥、群眾 AI、動作、鏡頭、後製、音效、無雙演出）；我哋改咗
   ~320 行＋新寫 ~410 行（主題、古環、千燈、樓層循環、觸控）。Penny 知悉並叫照 merge。下一步建議加大原創部分：
   新武器／招式、自家「古環儀式」大招取代改色龍、新敵種、空冠王專屬造型同招式、自家 HUD。
-- **Penny 真機回饋（修咗）**：①觸控層疊喺祝福卡上面、卡擠出畫面 → 撳唔到、卡死（overlay z-index 5、
-  hold 時收埋觸控層、卡闊 ≤30vw）；②畫面拉長（canvas 100vh 喺 app 內瀏覽器高過可見範圍 → fixed 100%＋
-  visualViewport resize）；③撳攻擊變衝刺飛走（觸控模式停用 dash-lunge）；④又暗又花（曝光 1.35→1.7、
-  減顆粒／色差／分色、景深減半、手機 1.5× 解像度）。flow 23/23（新加手機撳祝福卡回歸測試）。
-- **Penny 真機第二輪（修咗）**：放燼龍時連撳 → iOS 雙擊放大，成頁放大約 2×，祝福卡走出畫面似卡死。
-  meta viewport 禁縮放＋`touch-action: manipulation`＋攔 iOS gesture 事件；燼龍放完先過層。flow 25/25。
-- **Penny 真機第三輪**：跳躍攻擊連撳會浮喺半空打到停手（DW8 原設計 10 下、每秒只跌 0.1 m）→ 空中最多 3 下、
-  每秒下沉 1.6 m，滯空 2.9 s → 1.1 s。`__olden.step(n)` 俾 gate 逐格推 sim。flow 26/26。
-- **部署提速**：flow test 由 `tests/olden-ring-flow.mjs` 搬去 `games/olden-ring/tests/flow.mjs`。`tests/` 係
-  ReleaseGate 嘅共用 root，放喺度會令淨改 Olden Ring 都行晒 13 隻（每次 30–50 分鐘）；而家只選 olden-ring。
-- **Penny：太密睇唔到敵人** → tower.js 逐層設 `CROWD.engaged` 12(+2/層, ≤26)、bands 拉闊、援兵每批 5–9、開場兵力
-  16+6×層、目標 30(+10/層)。實測第一層 8 m 內 ~13 隻、全場 ~24–31 隻。flow 27/27。
-- 未做：真機手感／FPS（SwiftShader 只有 1–3 fps）、書法字子集補新字、更多敵種同冠層 Boss 造型。
+- **Penny 真機回饋（全部已修，flow 27/27）**：祝福卡畀觸控層遮住／擠出畫面；canvas 100vh 拉長；觸控撳攻擊
+  觸發 8 m dash；畫面暗同噪（曝光、後製、1.5× 解像度）；iOS 雙擊放大（meta＋touch-action＋gesture 攔截、燼龍
+  放完先過層）；空中連擊浮空（3 下、每秒跌 1.6 m）；太密（每層 `CROWD.engaged` 12+2/層、援兵 5–9、開場 16+6×層）。
+- **部署提速**：flow test 放 `games/olden-ring/tests/flow.mjs`（`tests/` 係共用 root，會觸發全部 13 隻）。
 
 ## 角色綁骨／面向檢視（2026-10-03）
 
