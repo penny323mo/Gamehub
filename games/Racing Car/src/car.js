@@ -144,6 +144,21 @@ export const CFG = {
     turnInBoost: 0.7,        // 前軸抓地最多加幾多
     turnInSteer: 0.75,       // 打到幾大軚就出足
     turnInMaxSlip: 0.14,     // 8°：一開始滑就收晒，唔會加劇失控
+    // ---- 輕鬆操控（Mario Kart 式，只畀玩家：input.easy）----
+    // Penny：「漂移同操作難度偏高，想似馬里奧賽車咁易」。物理模型照舊，但喺上面加一層
+    // 街機護欄：車尾甩出去有上限（唔會打圈）、高速仍然有軚、漂移幾乎唔蝕速、
+    // 漂移夠耐放手有小加速（mini-turbo）、落草唔會罰到停。AI 對手唔用呢層。
+    easySlipGrip: 0.3,       // 17°：正常揸車車尾最多滑咁多
+    easySlipDrift: 0.6,      // 34°：拉住漂移掣最多甩咁多（似卡丁車漂移，唔會轉圈）
+    easySteerSpeedDrop: 1.5, // 高速收軚冇咁狠（標準 2.4）
+    easyTurnInBoost: 1.1,
+    easyHandbrakeGrip: 0.55, // 漂移起手唔會一下拋到盡
+    easyDriftRefund: 0.95,
+    easyTurboMin: 0.7,       // 漂移維持幾多秒先有 mini-turbo
+    easyTurboAccel: 7,       // m/s² 加速
+    easyTurboTime: 0.9,      // 最長加速秒數（漂移愈耐愈長）
+    easyOffroadGrip: 0.7,
+    easyOffroadDrag: 1200,
     offroadGrip: 0.45,   // 落草抓地
     offroadDrag: 2600,
     wallBounce: 0.4,
@@ -195,6 +210,10 @@ export class Car {
 
         this.slipAngle = 0;               // 車身滑移角（行進方向 vs 車頭）
         this.drifting = false;
+        this.easyDriftTime = 0;
+        this.turbo = 0;
+        this.kartDrift = false;
+        this.turboCount = 0;
         this.offroad = false;
         this.wallHit = false;
         this.wallImpact = 0;
@@ -237,6 +256,10 @@ export class Car {
         this.steer = 0;
         this.slipAngle = 0;
         this.drifting = false;
+        this.easyDriftTime = 0;
+        this.turbo = 0;
+        this.kartDrift = false;
+        this.turboCount = 0;
         this.wallHit = false;
         this.wallImpact = 0;
         this.wallCooldown = 0;
@@ -298,10 +321,11 @@ export class Car {
         const vLat = this.vel.x * latX + this.vel.z * latZ;
         const speed = Math.hypot(vLong, vLat);
         const assists = this.arcadeAssist && input.assist !== false;
+        const easy = assists && input.easy === true;
         this.wallCooldown = Math.max(0, this.wallCooldown - dt);
 
         // ---- 轉向：目標角度隨速度收窄，再平滑過渡（軚盤唔會瞬間到底）----
-        const speedFactor = 1 / (1 + Math.max(0, speed) * CFG.steerSpeedDrop / 30);
+        const speedFactor = 1 / (1 + Math.max(0, speed) * (easy ? CFG.easySteerSpeedDrop : CFG.steerSpeedDrop) / 30);
         // input.steer > 0 = 玩家想向畫面右邊；畫面右 = local -x，所以要負號。
         // 唔加呢個負號嘅話，撳右會向左行——同 Penny 早前報嘅「轉向反方向」
         // 係同一個病，只不過嗰次係模型掉轉，今次係物理側向軸嘅符號。
@@ -328,7 +352,7 @@ export class Car {
         this.steer += (target - this.steer) * Math.min(1, dt * CFG.steerRate);
 
         this.offroad = !track.isDrivable(this.pos.x, this.pos.z);
-        const surface = this.offroad ? CFG.offroadGrip : 1;
+        const surface = this.offroad ? (easy ? CFG.easyOffroadGrip : CFG.offroadGrip) : 1;
         // 路面 profile 用 local-X pitch 表示「沿賽道前進」嘅坡度。用上一幀
         // 已同步好嘅 trackPitch，避免喺 hot path 重新 query 曲線；同步 track
         // 有 cached tangent 時再按車頭同路線方向修正，漂移橫住時重力唔會
@@ -354,9 +378,9 @@ export class Car {
             && assistSlip < CFG.turnInMaxSlip) {
             const want = Math.min(1, Math.abs(steerCommand) / CFG.turnInSteer);
             const fade = 1 - assistSlip / CFG.turnInMaxSlip;
-            frontGrip *= 1 + CFG.turnInBoost * want * fade;
+            frontGrip *= 1 + (easy ? CFG.easyTurnInBoost : CFG.turnInBoost) * want * fade;
         }
-        let rearGrip = CFG.gripRear * surface * (input.handbrake ? CFG.handbrakeGrip : 1);
+        let rearGrip = CFG.gripRear * surface * (input.handbrake ? (easy ? CFG.easyHandbrakeGrip : CFG.handbrakeGrip) : 1);
         // 動力過彎（power oversteer）。摩擦圓本身已經有呢個效果，但實測唔夠:
         // 放咗手煞之後，就算踩住全油，一個 26° 嘅漂移 0.8 秒就自己收返；
         // 連偏航阻尼一齊熄埋都只係捱到 1.5 秒，而且玩家點反打都改變唔到
@@ -400,7 +424,7 @@ export class Car {
         }
         if (speed > CFG.maxSpeed) driveF = Math.min(driveF, 0);
         const dragF = -CFG.dragCoef * vLong * Math.abs(vLong)
-            - Math.sign(vLong) * (CFG.rollResist + (this.offroad ? CFG.offroadDrag : 0));
+            - Math.sign(vLong) * (CFG.rollResist + (this.offroad ? (easy ? CFG.easyOffroadDrag : CFG.offroadDrag) : 0));
         const gradeF = this.gradeAccel * CFG.mass;
 
         // ---- 載荷轉移同制動分配：兩者互為因果，所以行兩趟 ----
@@ -540,11 +564,14 @@ export class Car {
             const vMag = Math.hypot(this.vel.x, this.vel.z);
             const scrub = speed - vMag;                  // 今幀真係跌咗幾多
             if (amount > 0 && scrub > 0 && vMag > 4) {
-                const refund = scrub * CFG.driftRefund * amount * input.throttle;
+                const refund = scrub * (easy ? CFG.easyDriftRefund : CFG.driftRefund) * amount * input.throttle;
                 this.vel.x += this.vel.x / vMag * refund;
                 this.vel.z += this.vel.z / vMag * refund;
             }
         }
+
+        if (easy) this.#easyKart(dt, input);
+        else { this.easyDriftTime = 0; this.turbo = 0; this.kartDrift = false; }
 
         // ---- 位置 + 撞欄 ----
         const next = this._nextPos.copy(this.pos).addScaledVector(this.vel, dt);
@@ -702,6 +729,46 @@ export class Car {
     // 入場同離場門檻要唔同（同 ADR-065 嘅救車一樣）。只扭到入場門檻就收手
     // 嘅話，架車會停喺 80° 側住——自動油門一踩就橫住衝出草地。實測要扭到
     // 25° 以內先交返玩家。
+    // 輕鬆操控：車尾滑移角封頂（速度方向拉返向車頭，速率保留），漂移放手有 mini-turbo
+    #easyKart(dt, input) {
+        const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
+        const vLong = this.vel.x * fx + this.vel.z * fz;
+        const vLat = this.vel.x * fz - this.vel.z * fx;
+        const v = Math.hypot(vLong, vLat);
+        if (v > 3 && vLong > 0) {
+            const slip = Math.atan2(vLat, vLong);
+            // 撳過漂移掣先入「卡丁車漂移」：甩到 34°；滑返細過 7° 或者鬆油就完
+            if (input.handbrake && v > 8) this.kartDrift = true;
+            else if (this.kartDrift && (Math.abs(slip) < 0.12 || input.throttle <= 0.3)) this.kartDrift = false;
+            const cap = this.kartDrift ? CFG.easySlipDrift : CFG.easySlipGrip;
+            if (Math.abs(slip) > cap) {
+                const a = Math.sign(slip) * cap;
+                const nl = Math.cos(a) * v, nt = Math.sin(a) * v;
+                this.vel.set(fx * nl + fz * nt, 0, fz * nl - fx * nt);
+                // 車頭仲向外甩緊就收返（唔會越甩越盡變打圈）
+                if (Math.sign(this.yawRate) === -Math.sign(slip)) this.yawRate *= Math.max(0, 1 - dt * 8);
+            }
+        }
+        // mini-turbo：漂移（滑移 > 15° 兼踩油）維持夠耐，一收車就加速
+        if (!(v > 3 && vLong > 0)) this.kartDrift = false;
+        const sliding = this.kartDrift && Math.abs(this.slipAngle) > 0.26 && this.speed > 8 && !this.offroad;
+        if (sliding) this.easyDriftTime += dt;
+        else {
+            if (this.easyDriftTime >= CFG.easyTurboMin) {
+                this.turbo = Math.min(CFG.easyTurboTime, 0.35 + (this.easyDriftTime - CFG.easyTurboMin) * 0.4);
+                this.turboCount = (this.turboCount ?? 0) + 1;
+            }
+            this.easyDriftTime = 0;
+        }
+        if (this.turbo > 0) {
+            this.turbo = Math.max(0, this.turbo - dt);
+            if (this.speed < CFG.maxSpeed && !this.offroad) {
+                this.vel.x += fx * CFG.easyTurboAccel * dt;
+                this.vel.z += fz * CFG.easyTurboAccel * dt;
+            }
+        }
+    }
+
     unspin(dirX, dirZ, dt) {
         if (!this.arcadeAssist) { this.unspinning = false; return false; }
         if (this.speed > CFG.unspinSpeed) { this.unspinning = false; return false; }

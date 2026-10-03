@@ -13,6 +13,38 @@ function ancestorScale(object) {
     return Math.max(0.001, scale);
 }
 
+// merged geometry 入面每件零件（輪胎、輪圈、車身片…）係一個「連通 component」。
+// 以前淨係用一個盒去圈 vertices，會連埋葉子板、前泵把角、側裙一齊轉（Penny：
+// 「有碌鐵喺度轉」）。而家只揀成件都落喺車輪盒入面嘅 component，車身唔會再被扯走。
+function components(geometry) {
+    const position = geometry.attributes.position;
+    const count = position.count;
+    // 同位置嘅 vertex（UV／法線接縫拆開咗嘅）當同一點
+    const weld = new Int32Array(count);
+    const seen = new Map();
+    for (let i = 0; i < count; i++) {
+        const key = `${Math.round(position.getX(i) * 1e4)},${Math.round(position.getY(i) * 1e4)},${Math.round(position.getZ(i) * 1e4)}`;
+        const hit = seen.get(key);
+        if (hit === undefined) { seen.set(key, i); weld[i] = i; } else weld[i] = hit;
+    }
+    const parent = new Int32Array(count);
+    for (let i = 0; i < count; i++) parent[i] = i;
+    const find = (a) => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
+    const join = (a, b) => { a = find(weld[a]); b = find(weld[b]); if (a !== b) parent[a] = b; };
+    const index = geometry.index;
+    if (index) {
+        for (let t = 0; t + 2 < index.count; t += 3) {
+            join(index.getX(t), index.getX(t + 1));
+            join(index.getX(t + 1), index.getX(t + 2));
+        }
+    } else {
+        for (let t = 0; t + 2 < count; t += 3) { join(t, t + 1); join(t + 1, t + 2); }
+    }
+    const label = new Int32Array(count);
+    for (let i = 0; i < count; i++) label[i] = find(weld[i]);
+    return label;
+}
+
 function collectWheelVertices(mesh) {
     const position = mesh.geometry?.attributes?.position;
     const normal = mesh.geometry?.attributes?.normal;
@@ -23,35 +55,59 @@ function collectWheelVertices(mesh) {
     const centreY = _box.min.y + _size.y * 0.45;
     const xCentre = _size.x * 0.34;
     const zCentre = _size.z * 0.42;
-    // 輪胎係 merged mesh 入面最低、最外側嘅四個橢圓 cluster。限制盒比
-    // sphere 更穩，唔會將底盤長條一併當成輪胎。
     const rx = _size.x * 0.14;
     const ry = _size.y * 0.52;
     const rz = _size.z * 0.19;
+    const label = components(mesh.geometry);
+    // 每個 component 嘅 bounding box
+    const bounds = new Map();
+    for (let i = 0; i < position.count; i++) {
+        const x = position.getX(i), y = position.getY(i), z = position.getZ(i);
+        let b = bounds.get(label[i]);
+        if (!b) { b = { minX: x, maxX: x, minY: y, maxY: y, minZ: z, maxZ: z, n: 0 }; bounds.set(label[i], b); }
+        b.minX = Math.min(b.minX, x); b.maxX = Math.max(b.maxX, x);
+        b.minY = Math.min(b.minY, y); b.maxY = Math.max(b.maxY, y);
+        b.minZ = Math.min(b.minZ, z); b.maxZ = Math.max(b.maxZ, z);
+        b.n++;
+    }
     const wheels = [];
     for (const x of [-xCentre, xCentre]) {
         for (const z of [-zCentre, zCentre]) {
+            // 成件 component 都要喺車輪盒（略放大）入面，而且要夠低（輪唔會高過車身中線）
+            const inside = (b) => b.minX >= x - rx * 1.25 && b.maxX <= x + rx * 1.25
+                && b.minZ >= z - rz * 1.25 && b.maxZ <= z + rz * 1.25
+                && b.maxY <= centreY + ry * 0.9 && b.minY <= centreY;
+            // 最大嗰件係輪胎＋輪圈（實測約 2000 vertices、正圓）；其他細件要個中心喺佢入面
+            // （輪轂／碟）先算，前鏟角之類貼住車輪盒嘅車身片唔要
+            let main = null;
+            for (const [id, b] of bounds) if (inside(b) && (!main || b.n > bounds.get(main).n)) main = id;
+            if (main === null) return null;
+            const m = bounds.get(main);
+            const keep = new Set([main]);
+            for (const [id, b] of bounds) {
+                if (id === main || !inside(b)) continue;
+                const cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2, cz = (b.minZ + b.maxZ) / 2;
+                if (cx >= m.minX && cx <= m.maxX && cy >= m.minY && cy <= m.maxY && cz >= m.minZ && cz <= m.maxZ) keep.add(id);
+            }
             const vertices = [];
             for (let i = 0; i < position.count; i++) {
-                const dx = (position.getX(i) - x) / rx;
-                const dy = (position.getY(i) - centreY) / ry;
-                const dz = (position.getZ(i) - z) / rz;
-                if (dx * dx + dy * dy + dz * dz > 1 || position.getY(i) > -0.012) continue;
+                if (!keep.has(label[i])) continue;
                 vertices.push({
                     index: i,
-                    x: position.getX(i),
-                    y: position.getY(i),
-                    z: position.getZ(i),
-                    nx: normal.getX(i),
-                    ny: normal.getY(i),
-                    nz: normal.getZ(i),
+                    x: position.getX(i), y: position.getY(i), z: position.getZ(i),
+                    nx: normal.getX(i), ny: normal.getY(i), nz: normal.getZ(i),
                 });
             }
             if (vertices.length < 100) return null;
-            const minY = Math.min(...vertices.map(vertex => vertex.y));
-            const maxY = Math.max(...vertices.map(vertex => vertex.y));
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+            for (const v of vertices) {
+                minX = Math.min(minX, v.x); maxX = Math.max(maxX, v.x);
+                minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
+                minZ = Math.min(minZ, v.z); maxZ = Math.max(maxZ, v.z);
+            }
+            // 車軸中心 = 輪件嘅中心（唔再係盒嘅理論中心），轉起嚟先唔會「搖」
             wheels.push({
-                x, z, y: (minY + maxY) * 0.5,
+                x: (minX + maxX) * 0.5, z: (minZ + maxZ) * 0.5, y: (minY + maxY) * 0.5,
                 radius: (maxY - minY) * 0.5,
                 front: x > 0, vertices,
             });

@@ -1245,7 +1245,12 @@ function advancePlayerProgress() {
 function playerProgress() { return playerProgressValue; }
 
 let hudCache = {};
+let lastTurboCount = 0;
 function updateHud() {
+    // mini-turbo：漂移夠耐一收車就加速，要畀玩家知
+    const turbos = car.turboCount ?? 0;
+    if (turbos > lastTurboCount) banner('🔥 TURBO!', 700);
+    lastTurboCount = turbos;
     // 漂移面板：甩緊尾先亮，唔好成場都霸住畫面
     const active = car.drifting || race.pending > 0;
     if (active !== hudCache.driftOn) {
@@ -1263,7 +1268,8 @@ function updateHud() {
         // 摸唔到。而家直接由物理常數推：計分門檻（15°）＝ 0%，動力過彎收晒
         // 嗰點（46°）＝ 100%，即係條 bar 讀嘅係「離失控幾遠」。
         // 用 CFG 而唔係抄個數，係為咗物理一改條 bar 就跟住改。
-        const lo = CAR_CFG.driftPowerLo, hi = CAR_CFG.driftPowerOut;
+        // 輕鬆操控封頂 34°（easySlipDrift），條 bar 就以佢做 100%
+        const lo = CAR_CFG.driftPowerLo, hi = CAR_CFG.easySlipDrift;
         const pct = Math.max(0, Math.min(100, (Math.abs(car.slipAngle) - lo) / (hi - lo) * 100));
         $('drift-angle-fill').style.width = `${pct}%`;
         $('drift-angle-fill').classList.toggle('hot', pct > 85);
@@ -1513,6 +1519,8 @@ function frame(now) {
             const cmd = race.state === 'racing'
                 ? input.read(dt, car.speed)
                 : { throttle: 0, steer: 0, handbrake: false };
+            // 玩家架車行「輕鬆操控」層（Mario Kart 式護欄＋mini-turbo）；AI 對手唔用
+            cmd.easy = true;
             car.update(dt, cmd, track);
             // 打完圈救返車：AI 有救車狀態機（ADR-065），玩家一直冇。實測打橫
             // 150° 之後，一個簡易模式玩家淨係識打軚，25 秒都扭唔返，最後倒住

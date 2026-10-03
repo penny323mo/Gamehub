@@ -98,7 +98,7 @@ UI-only：冇改任何遊戲 runtime、manifest 次序或入口連結。
 - **MOBA（修咗）**：出招即面向目標；跑步面向 render 位移方向（唔再蟹行）；跑步 clip 速度跟地速；AI 唔再 <1 m 重複落單。
   MOBA token `assets-32`。
 - **Olden Ring（修咗）**：旗手跑動時面向跑嘅方向；主角步幅除返 `HERO_SCALE`（以前每秒滑 0.7 m）。
-- **Racing**：冇缺陷；catalog `rig:racing-car` forwardAxis 更正為 `+X`。**Tower**：開局／續玩第一波準備 15s（`openingPrepSec`），之後每波 8s。
+- **Racing**：車輪頂點改用「連通零件」揀（以前連葉子板／前鏟一齊轉）；玩家車加 `input.easy` 輕鬆操控層（滑移封頂 17°／漂移 34°、mini-turbo、落草輕罰，AI 唔用）。catalog forwardAxis `+X`。**Tower**：開局／續玩第一波準備 15s（`openingPrepSec`），之後每波 8s。
 
 ## Exact next action
 

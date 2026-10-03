@@ -618,20 +618,21 @@ const driftBar = await page.evaluate(async () => {
     const out = {
         入門: read(CFG.driftPowerLo * 57.2958),
         維持: read(31),
-        臨界: read(CFG.driftPowerOut * 57.2958),
+        // 玩家行輕鬆操控：漂移封頂喺 easySlipDrift（34°），條 bar 以佢做滿格
+        臨界: read(CFG.easySlipDrift * 57.2958),
         超出: read(70),
     };
     // 物理一改，條 bar 要跟住改（唔可以抄死個數）
-    const keep = CFG.driftPowerOut;
-    CFG.driftPowerOut = keep * 0.6;
+    const keep = CFG.easySlipDrift;
+    CFG.easySlipDrift = keep * 0.6;
     out.收窄後維持 = read(31);
-    CFG.driftPowerOut = keep;
+    CFG.easySlipDrift = keep;
     root.pauseRace(); root.toMenu();
     return out;
 });
 console.log('  ', JSON.stringify(driftBar));
 check('角度條由計分門檻開始（0%）', driftBar.入門.pct <= 2, driftBar);
-check('動力過彎收晒嗰點就係滿格', driftBar.臨界.pct >= 98 && driftBar.超出.pct === 100, driftBar);
+check('漂移上限嗰點就係滿格', driftBar.臨界.pct >= 98 && driftBar.超出.pct === 100, driftBar);
 check('維持得住嗰個角度讀到一半以上', driftBar.維持.pct >= 45, driftBar);
 check('滿格先算 hot（唔會成場都著）', driftBar.臨界.hot && !driftBar.維持.hot, driftBar);
 check('物理一改條 bar 跟住改（唔係抄死個數）',
